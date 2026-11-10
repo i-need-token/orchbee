@@ -4,7 +4,10 @@ import type {
 	WorkbenchFocusIntent,
 	WorkbenchFocusResolution,
 } from '../model/resolveWorkbenchFocusTarget';
-import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
+import type {
+	WorkbenchFocusInvocation,
+	WorkbenchFocusRouting,
+} from '../types/workbench-focus-routing';
 import type { WorkbenchSidebarPresentationView } from './useWorkbenchSidebarPresentation';
 
 const TAB_STRIP_TARGET: WorkbenchFocusResolution = { kind: 'target', region: 'tab-strip' };
@@ -31,21 +34,25 @@ export function useWorkbenchMobileFocusRouter({
 		intent.kind === 'direct' &&
 		intent.region === 'tab-strip' &&
 		!(resolution.kind === 'unavailable' && resolution.reason === 'exclusive-surface-active');
-	const getResolution = useMemoizedFn((intent: WorkbenchFocusIntent) => {
-		const resolution = focusRouting.getResolution(intent);
-		return opensTabList(intent, resolution) ? TAB_STRIP_TARGET : resolution;
-	});
-	const focus = useMemoizedFn((intent: WorkbenchFocusIntent) => {
-		if (opensTabList(intent, focusRouting.getResolution(intent))) {
-			sidebar.toggleTabList();
-			return TAB_STRIP_TARGET;
-		}
-		const resolution = focusRouting.focus(intent);
-		if (sidebar.mobile && resolution.kind === 'target' && resolution.region === 'terminal') {
-			sidebar.dismissTabList();
-			sidebar.dismissOverlay();
-		}
-		return resolution;
-	});
+	const getResolution = useMemoizedFn(
+		(intent: WorkbenchFocusIntent, invocation?: WorkbenchFocusInvocation) => {
+			const resolution = focusRouting.getResolution(intent, invocation);
+			return opensTabList(intent, resolution) ? TAB_STRIP_TARGET : resolution;
+		},
+	);
+	const focus = useMemoizedFn(
+		(intent: WorkbenchFocusIntent, invocation?: WorkbenchFocusInvocation) => {
+			if (opensTabList(intent, focusRouting.getResolution(intent, invocation))) {
+				sidebar.toggleTabList();
+				return TAB_STRIP_TARGET;
+			}
+			const resolution = focusRouting.focus(intent, invocation);
+			if (sidebar.mobile && resolution.kind === 'target' && resolution.region === 'terminal') {
+				sidebar.dismissTabList();
+				sidebar.dismissOverlay();
+			}
+			return resolution;
+		},
+	);
 	return { focus, getResolution };
 }

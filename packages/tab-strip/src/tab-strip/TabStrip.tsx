@@ -21,6 +21,7 @@ import type {
 
 interface TabStripProps extends TabStripOptions {
 	horizontalLeadingActions?: ReactNode;
+	horizontalTrailingActions?: ReactNode;
 	messages?: TabStripMessages;
 }
 
@@ -41,6 +42,7 @@ export type {
 
 export function TabStrip({
 	horizontalLeadingActions = null,
+	horizontalTrailingActions = null,
 	messages = DEFAULT_TAB_STRIP_MESSAGES,
 	...options
 }: TabStripProps): ReactNode {
@@ -48,7 +50,11 @@ export function TabStrip({
 
 	return (
 		<TabStripMessagesContext.Provider value={messages}>
-			<TabStripView horizontalLeadingActions={horizontalLeadingActions} view={view} />
+			<TabStripView
+				horizontalLeadingActions={horizontalLeadingActions}
+				horizontalTrailingActions={horizontalTrailingActions}
+				view={view}
+			/>
 		</TabStripMessagesContext.Provider>
 	);
 }

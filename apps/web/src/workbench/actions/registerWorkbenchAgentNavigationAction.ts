@@ -65,10 +65,8 @@ export function registerWorkbenchAgentNavigationAction({
 				mode: 'foreground',
 			},
 			getAvailability: (_context, input) => {
-				// Only a host without Agent observation lacks the Action itself.
-				if (source === undefined) {
-					return { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
-				}
+				// Only a host without Agent observation lacks the Action itself, so no surface offers it.
+				if (source === undefined) return { kind: 'hidden' };
 				return prepareWorkbenchAgentNavigation(input, projectWorkspaceRuntime, source) === null
 					? { kind: 'disabled', reason: workbenchMessages.agentUnavailableMissing }
 					: { kind: 'enabled' };

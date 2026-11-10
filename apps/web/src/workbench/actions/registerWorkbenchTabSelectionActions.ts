@@ -1,6 +1,7 @@
 import {
 	defineAction,
 	noActionInput,
+	type ActionAvailability,
 	type ActionAvailabilityContext,
 	type ActionDisposable,
 	type ActionExecutionContext,
@@ -239,8 +240,13 @@ const WORKSPACE_REQUIRED = {
 	reason: workbenchMessages.workspaceUnavailableRequired,
 } as const satisfies DescendantActionPreparation;
 
-function availabilityOf(prepared: DescendantActionPreparation) {
-	return prepared.kind === 'ready'
-		? ({ kind: 'enabled' } as const)
-		: ({ kind: 'disabled', reason: prepared.reason } as const);
+function availabilityOf(prepared: DescendantActionPreparation): ActionAvailability {
+	switch (prepared.kind) {
+		case 'ready':
+			return { kind: 'enabled' };
+		case 'unavailable':
+			return { kind: 'disabled', reason: prepared.reason };
+		case 'hidden':
+			return prepared;
+	}
 }

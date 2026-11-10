@@ -52,10 +52,12 @@ export function WorkbenchMobileBar({
 	const word = intl.formatMessage(workbenchMessages.mobileTabs);
 	const countLabel = intl.formatMessage(workbenchMessages.mobileTabsLabel, { count });
 	const title = current === null ? null : getVisibleTabTitle(current, tabStripMessages);
-	const leading = (
+	// The start's copy is the place of the sidebar button, which floats above it.
+	const leading = (place: boolean) => (
 		<span
 			aria-hidden='true'
 			className={styles['leading']}
+			data-sidebar-toggle-place={place ? '' : undefined}
 			data-slot='workbench-mobile-bar-leading'
 		/>
 	);
@@ -82,7 +84,7 @@ export function WorkbenchMobileBar({
 			onClick={onOpenTabList}
 		>
 			<span className={styles['start']} data-slot='workbench-mobile-bar-start'>
-				{leading}
+				{leading(true)}
 				{end(false)}
 			</span>
 			{current === null || title === null ? (
@@ -108,7 +110,7 @@ export function WorkbenchMobileBar({
 				</button>
 			)}
 			<span className={styles['end']}>
-				{leading}
+				{leading(false)}
 				{end(true)}
 			</span>
 		</div>

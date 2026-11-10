@@ -27,9 +27,11 @@ import {
 
 export function HorizontalContents({
 	horizontalLeadingActions,
+	horizontalTrailingActions,
 	view,
 }: {
 	readonly horizontalLeadingActions: ReactNode;
+	readonly horizontalTrailingActions: ReactNode;
 	readonly view: TabStripViewModel;
 }): ReactNode {
 	const messages = useTabStripMessages();
@@ -483,6 +485,14 @@ export function HorizontalContents({
 					/>
 				) : null}
 			</div>
+			{horizontalTrailingActions === null ? null : (
+				<div
+					className={styles['ct-horizontal-trailing-actions']}
+					data-horizontal-trailing-actions=''
+				>
+					{horizontalTrailingActions}
+				</div>
+			)}
 		</div>
 	);
 }

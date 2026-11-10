@@ -197,13 +197,9 @@ export function useWorkbenchActions({
 			concurrencyKey: () => 'workbench',
 			mode: 'foreground' as const,
 		};
+		// A host that wires no callback lacks the Action, so no surface offers it.
 		const availabilityFor = (callback: unknown) => () =>
-			callback === undefined
-				? {
-						kind: 'disabled' as const,
-						reason: workbenchMessages.actionUnavailable,
-					}
-				: { kind: 'enabled' as const };
+			callback === undefined ? { kind: 'hidden' as const } : { kind: 'enabled' as const };
 		const handlerFor = (callback: WorkbenchHostActionCallback | undefined) => ({
 			execute: (context: Parameters<WorkbenchHostActionCallback>[0]) => {
 				if (callback === undefined) {
@@ -372,9 +368,7 @@ export function useWorkbenchActions({
 						mode: 'foreground',
 					},
 					getAvailability: (context) => {
-						if (onNewTerminal === undefined) {
-							return { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
-						}
+						if (onNewTerminal === undefined) return { kind: 'hidden' };
 						const resolution = resolveCurrentDirectoryTarget(context);
 						if (resolution.kind === 'ready') return { kind: 'enabled' };
 						return {

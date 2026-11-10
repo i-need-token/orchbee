@@ -57,8 +57,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.actions.categories.terminal': 'Terminal',
 	'workbench.actions.categories.tabs': 'Tabs',
 	'workbench.actions.categories.view': 'View',
-	'workbench.actions.states.unavailable':
-		'This action is not available in the current application.',
 	'workbench.focus.actions.activeTerminal': 'Focus Active Terminal',
 	'workbench.focus.actions.nextRegion': 'Focus Next Region',
 	'workbench.focus.actions.previousRegion': 'Focus Previous Region',

@@ -765,7 +765,12 @@ describe('useTabStripActions', () => {
 		expect(listedActionIds).toEqual(
 			new Set(
 				Object.values(TAB_STRIP_ACTION_IDS).filter(
-					(actionId) => actionId !== TAB_STRIP_ACTION_IDS.applyArrangement,
+					(actionId) =>
+						actionId !== TAB_STRIP_ACTION_IDS.applyArrangement &&
+						// This host wires no vertical callbacks, so it lacks those Actions.
+						actionId !== TAB_STRIP_ACTION_IDS.openTabSearch &&
+						actionId !== TAB_STRIP_ACTION_IDS.setVerticalCollapsed &&
+						actionId !== TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover,
 				),
 			),
 		);

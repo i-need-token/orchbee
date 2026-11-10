@@ -139,8 +139,6 @@ export function useWorkbenchProjectCreation({
 			kind: 'disabled',
 			reason: workbenchMessages.projectUnavailableCreationPending,
 		} as const;
-		// Only a host that cannot make a folder lacks New Project in a new folder.
-		const noNewFolder = { kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const;
 		const registration = createTypedActionRuntime<WorkbenchActionCatalog>(runtime).register(
 			scope,
 			defineAction({
@@ -152,8 +150,9 @@ export function useWorkbenchProjectCreation({
 				},
 				getDiscoveryAvailability: () => (pending ? busy : { kind: 'enabled' }),
 				getAvailability: (_context, input) => {
-					if (pending) return busy;
-					return input.folder === 'new' && !newFolderAvailable ? noNewFolder : { kind: 'enabled' };
+					// Only a host that cannot make a folder lacks New Project in a new folder.
+					if (input.folder === 'new' && !newFolderAvailable) return { kind: 'hidden' };
+					return pending ? busy : { kind: 'enabled' };
 				},
 				handler: {
 					execute: (context, input) => {

@@ -8,10 +8,12 @@ import {
 	type WorkbenchFocusResolution,
 } from '../model/resolveWorkbenchFocusTarget';
 import type {
+	WorkbenchFocusInvocation,
 	WorkbenchFocusRouting,
 	WorkbenchTerminalHandover,
 } from '../types/workbench-focus-routing';
 import {
+	hasWorkbenchCommandSurface,
 	hasWorkbenchExclusiveFocusSurface,
 	isWorkbenchExclusiveFocusTarget,
 	resolveWorkbenchFocusRegionFromTarget,
@@ -38,7 +40,10 @@ export function useWorkbenchFocusRouting({
 	const [terminalFocusRequest, setTerminalFocusRequest] =
 		React.useState<WorkbenchFocusRouting['terminalFocusRequest']>(null);
 	const interactionSequenceReference = React.useRef(0);
-	const terminalHandoverPendingReference = React.useRef(false);
+	/** The region that takes focus once a closing menu or dialog has given focus back. */
+	const pendingFocusRegionReference = React.useRef<WorkbenchFocusRegion | null>(null);
+	/** The region of the last focus outside any menu or dialog, where a closing one returns it. */
+	const focusReturnRegionReference = React.useRef<WorkbenchFocusRegion | null>(null);
 
 	const updateOwner = useMemoizedFn((nextOwner: WorkbenchFocusOwner): void => {
 		setOwner(nextOwner);
@@ -71,7 +76,7 @@ export function useWorkbenchFocusRouting({
 				if (!held()) return;
 				// A closing menu or dialog still gives focus back, so the terminal takes it after that.
 				if (typeof document !== 'undefined' && hasWorkbenchExclusiveFocusSurface(document)) {
-					terminalHandoverPendingReference.current = true;
+					pendingFocusRegionReference.current = 'terminal';
 					return;
 				}
 				requestTerminalFocus();
@@ -79,27 +84,37 @@ export function useWorkbenchFocusRouting({
 			held,
 		};
 	});
-	const getResolution = useMemoizedFn((intent: WorkbenchFocusIntent): WorkbenchFocusResolution => {
-		const activeElement = typeof document === 'undefined' ? null : document.activeElement;
-		const focusedRegion = resolveWorkbenchFocusRegionFromTarget(activeElement);
-		const exclusiveSurfaceActive =
-			typeof document === 'undefined'
-				? exclusiveSurfaceMounted
-				: hasWorkbenchExclusiveFocusSurface(document) ||
-					isWorkbenchExclusiveFocusTarget(activeElement);
-		return resolveWorkbenchFocusTarget({
-			availableRegions: availableRegions(),
-			currentRegion: focusedRegion,
-			exclusiveSurfaceActive,
-			intent,
-		});
-	});
-	const focus = useMemoizedFn((intent: WorkbenchFocusIntent): WorkbenchFocusResolution => {
-		const resolution = getResolution(intent);
-		if (resolution.kind !== 'target') return resolution;
-
-		updateOwner(resolution.region);
-		switch (resolution.region) {
+	/** Whether a row of the open command surface asks, so the move waits for it to close. */
+	const asksFromOpenCommandSurface = (invocation: WorkbenchFocusInvocation | undefined) =>
+		invocation?.fromCommandSurface === true &&
+		typeof document !== 'undefined' &&
+		hasWorkbenchCommandSurface(document);
+	const getResolution = useMemoizedFn(
+		(
+			intent: WorkbenchFocusIntent,
+			invocation?: WorkbenchFocusInvocation,
+		): WorkbenchFocusResolution => {
+			const activeElement = typeof document === 'undefined' ? null : document.activeElement;
+			const fromCommandSurface = asksFromOpenCommandSurface(invocation);
+			const exclusiveSurfaceActive =
+				typeof document === 'undefined'
+					? exclusiveSurfaceMounted
+					: hasWorkbenchExclusiveFocusSurface(document, fromCommandSurface) ||
+						isWorkbenchExclusiveFocusTarget(activeElement, fromCommandSurface);
+			return resolveWorkbenchFocusTarget({
+				availableRegions: availableRegions(),
+				currentRegion: fromCommandSurface
+					? focusReturnRegionReference.current
+					: resolveWorkbenchFocusRegionFromTarget(activeElement),
+				exclusiveSurfaceActive,
+				intent,
+			});
+		},
+	);
+	const focusRegion = useMemoizedFn((region: WorkbenchFocusRegion): void => {
+		if (!availableRegions().includes(region)) return;
+		updateOwner(region);
+		switch (region) {
 			case 'sidebar':
 				setSidebarFocusRequest((current) => current + 1);
 				break;
@@ -110,8 +125,23 @@ export function useWorkbenchFocusRouting({
 				requestTerminalFocus();
 				break;
 		}
-		return resolution;
 	});
+	const focus = useMemoizedFn(
+		(
+			intent: WorkbenchFocusIntent,
+			invocation?: WorkbenchFocusInvocation,
+		): WorkbenchFocusResolution => {
+			const resolution = getResolution(intent, invocation);
+			if (resolution.kind !== 'target') return resolution;
+			// The closing command surface still gives focus back, so the target takes it after that.
+			if (asksFromOpenCommandSurface(invocation)) {
+				pendingFocusRegionReference.current = resolution.region;
+				return resolution;
+			}
+			focusRegion(resolution.region);
+			return resolution;
+		},
+	);
 	const onFocusCapture = useMemoizedFn((event: React.FocusEvent<HTMLDivElement>): void => {
 		if (isWorkbenchExclusiveFocusTarget(event.target)) {
 			updateOwner('exclusive');
@@ -121,8 +151,10 @@ export function useWorkbenchFocusRouting({
 			updateOwner('exclusive');
 			return;
 		}
+		if (!event.currentTarget.contains(event.target)) return;
 		const region = resolveWorkbenchFocusRegionFromTarget(event.target);
-		if (region !== null && event.currentTarget.contains(event.target)) updateOwner(region);
+		focusReturnRegionReference.current = region;
+		if (region !== null) updateOwner(region);
 	});
 	const onBlurCapture = useMemoizedFn((event: React.FocusEvent<HTMLDivElement>): void => {
 		if (isWorkbenchExclusiveFocusTarget(event.relatedTarget)) {
@@ -161,14 +193,15 @@ export function useWorkbenchFocusRouting({
 		});
 	}, [exclusiveSurfaceMounted]);
 	React.useEffect(() => {
-		if (exclusiveSurfaceMounted || !terminalHandoverPendingReference.current) return;
-		terminalHandoverPendingReference.current = false;
-		requestTerminalFocus();
-	}, [exclusiveSurfaceMounted, requestTerminalFocus]);
+		const region = pendingFocusRegionReference.current;
+		if (exclusiveSurfaceMounted || region === null) return;
+		pendingFocusRegionReference.current = null;
+		focusRegion(region);
+	}, [exclusiveSurfaceMounted, focusRegion]);
 	React.useEffect(() => {
 		const countInteraction = (): void => {
 			interactionSequenceReference.current += 1;
-			terminalHandoverPendingReference.current = false;
+			pendingFocusRegionReference.current = null;
 		};
 		// Ahead of every document-level shortcut, so a press never revokes the request it starts.
 		window.addEventListener('keydown', countInteraction, true);

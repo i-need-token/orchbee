@@ -229,11 +229,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.view'],
 		description: 'Action category for Workbench view commands.',
 	},
-	actionUnavailable: {
-		id: 'workbench.actions.states.unavailable',
-		defaultMessage: enUSWorkbenchMessages['workbench.actions.states.unavailable'],
-		description: 'Reason shown when a host does not provide an optional Workbench action.',
-	},
 	focusActiveTerminal: {
 		id: 'workbench.focus.actions.activeTerminal',
 		defaultMessage: enUSWorkbenchMessages['workbench.focus.actions.activeTerminal'],

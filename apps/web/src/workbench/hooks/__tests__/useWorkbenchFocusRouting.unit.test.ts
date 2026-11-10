@@ -1,19 +1,28 @@
 // @vitest-environment jsdom
 
+import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
+import { workbenchMessages } from '@orchbee/i18n';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import * as React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { registerWorkbenchFocusActions } from '../../actions/registerWorkbenchFocusActions';
+import {
+	WORKBENCH_ACTION_IDS,
+	type WorkbenchActionCatalog,
+} from '../../actions/workbench-action-ids';
 import type { WorkbenchFocusRouting } from '../../types/workbench-focus-routing';
 import { useWorkbenchFocusRouting } from '../useWorkbenchFocusRouting';
 
 function FocusRoutingHarness({
 	capture,
 	isSidebarVisible = true,
+	showCommandSurface = false,
 	showDialog = true,
 }: {
 	readonly capture: (routing: WorkbenchFocusRouting) => void;
 	readonly isSidebarVisible?: boolean | undefined;
+	readonly showCommandSurface?: boolean | undefined;
 	readonly showDialog?: boolean | undefined;
 }): React.ReactNode {
 	const routing = useWorkbenchFocusRouting({
@@ -45,6 +54,18 @@ function FocusRoutingHarness({
 				)
 			: null,
 		showDialog ? React.createElement('div', { role: 'dialog', tabIndex: -1 }, 'Dialog') : null,
+		showCommandSurface
+			? React.createElement(
+					'div',
+					{ 'data-workbench-command-surface': 'true', role: 'dialog' },
+					React.createElement('input', { 'aria-label': 'Search' }),
+				)
+			: null,
+		React.createElement(
+			'output',
+			{ 'aria-label': 'sidebar request' },
+			String(routing.sidebarFocusRequest),
+		),
 		React.createElement(
 			'output',
 			{ 'aria-label': 'terminal autofocus' },
@@ -196,4 +217,82 @@ describe('useWorkbenchFocusRouting', () => {
 			expect(routing?.terminalFocusRequest).toBeNull();
 		},
 	);
+
+	it('lets a Search row move focus once the Search has closed, from where the Search returns it', async () => {
+		let routing: WorkbenchFocusRouting | undefined;
+		const capture = (candidate: WorkbenchFocusRouting): void => {
+			routing = candidate;
+		};
+		const rendered = render(
+			React.createElement(FocusRoutingHarness, { capture, showDialog: false }),
+		);
+		if (routing === undefined) throw new Error('Expected focus routing to be captured.');
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('workbench');
+		registerWorkbenchFocusActions({
+			focusRouter: routing,
+			scope,
+			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
+		});
+		const searchRow = () =>
+			runtime
+				.discover({ scope, source: 'command-surface' })
+				.find((result) => result.descriptor.id === WORKBENCH_ACTION_IDS.focusNextRegion);
+		const keyboardAvailability = () =>
+			runtime.resolveAction(WORKBENCH_ACTION_IDS.focusNextRegion, undefined, {
+				scope,
+				source: 'keyboard',
+			})?.availability;
+
+		// The Search opens over the Tab strip and takes the keyboard.
+		act(() => screen.getByRole('button', { name: 'Tab Strip' }).focus());
+		rendered.rerender(
+			React.createElement(FocusRoutingHarness, {
+				capture,
+				showCommandSurface: true,
+				showDialog: false,
+			}),
+		);
+		act(() => screen.getByRole('textbox', { name: 'Search' }).focus());
+		await act(async () => undefined);
+
+		const surfaceOpen = {
+			kind: 'disabled',
+			reason: workbenchMessages.focusUnavailableSurfaceOpen,
+		};
+		expect(searchRow()?.availability).toEqual({ kind: 'enabled' });
+		expect(keyboardAvailability()).toEqual(surfaceOpen);
+		// Another dialog still blocks the Search's rows.
+		rendered.rerender(
+			React.createElement(FocusRoutingHarness, {
+				capture,
+				showCommandSurface: true,
+				showDialog: true,
+			}),
+		);
+		expect(searchRow()?.availability).toEqual(surfaceOpen);
+		rendered.rerender(
+			React.createElement(FocusRoutingHarness, {
+				capture,
+				showCommandSurface: true,
+				showDialog: false,
+			}),
+		);
+
+		const row = searchRow();
+		if (row?.kind !== 'ready') throw new Error('Expected a ready Search row.');
+		await act(async () => {
+			await expect(runtime.executePrepared(row.invocation).completion).resolves.toEqual({
+				kind: 'completed',
+			});
+		});
+		// Nothing moves while the Search is still open; after it closes, the region after the Tab
+		// strip takes focus.
+		expect(screen.getByLabelText('sidebar request').textContent).toBe('0');
+		rendered.rerender(React.createElement(FocusRoutingHarness, { capture, showDialog: false }));
+		await act(async () => undefined);
+
+		expect(screen.getByLabelText('sidebar request').textContent).toBe('1');
+		expect(screen.getByLabelText('tab strip request').textContent).toBe('0');
+	});
 });

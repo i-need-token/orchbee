@@ -6,6 +6,10 @@
 	composes: ct-horizontal-leading-actions from '../../TabStripView.module.css';
 }
 
+.ct-horizontal-trailing-actions {
+	composes: ct-horizontal-trailing-actions from '../../TabStripView.module.css';
+}
+
 .ct-horizontal-track {
 	composes: ct-horizontal-track from '../../TabStripView.module.css';
 }

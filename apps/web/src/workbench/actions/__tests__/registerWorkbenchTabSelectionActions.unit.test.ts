@@ -161,12 +161,10 @@ describe('registerWorkbenchTabSelectionActions', () => {
 			tabId: fixtureTabId(3),
 		});
 
+		// No lower Action is left to serve the composite, so nothing runs.
 		lowerRegistration.dispose();
-		await expect(
-			harness.executeAdjacent(WORKBENCH_ACTION_IDS.selectPreviousTab),
-		).resolves.toMatchObject({
-			code: 'action-unavailable',
-			kind: 'blocked',
+		await expect(harness.executeAdjacent(WORKBENCH_ACTION_IDS.selectPreviousTab)).resolves.toEqual({
+			kind: 'unsupported',
 		});
 	});
 

@@ -20,6 +20,12 @@
 	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
 }
 
+/* Empty unless a desktop window's controls stand at the top end. */
+.trailingActions {
+	box-sizing: border-box;
+	height: 100%;
+}
+
 /* The Tab list's strip takes the list's remaining height. */
 .root[data-fill] {
 	box-sizing: border-box;

@@ -317,7 +317,18 @@ describe('useWorkbenchActions', () => {
 						// Only an authority that keeps earlier layouts reopens one.
 						actionId !== WORKBENCH_ACTION_IDS.reopenEarlierLayout &&
 						// Worktree Actions exist only where an authority reaches Git.
-						!actionId.startsWith('workbench.worktree.'),
+						!actionId.startsWith('workbench.worktree.') &&
+						// A host that wires no callback lacks these Actions, so no surface lists them.
+						actionId !== WORKBENCH_ACTION_IDS.openSettings &&
+						actionId !== WORKBENCH_ACTION_IDS.openShortcuts &&
+						actionId !== WORKBENCH_ACTION_IDS.increaseTerminalFontSize &&
+						actionId !== WORKBENCH_ACTION_IDS.decreaseTerminalFontSize &&
+						actionId !== WORKBENCH_ACTION_IDS.resetTerminalFontSize &&
+						// A composite whose lower Action no surface here registers has nothing to lend.
+						actionId !== WORKBENCH_ACTION_IDS.focusActivePanelByPosition &&
+						actionId !== WORKBENCH_ACTION_IDS.closeActiveTab &&
+						actionId !== WORKBENCH_ACTION_IDS.duplicateActiveTabs &&
+						actionId !== WORKBENCH_ACTION_IDS.selectTabByPosition,
 				),
 			),
 		);
@@ -381,52 +392,6 @@ describe('useWorkbenchActions', () => {
 		});
 	});
 
-	it('keeps missing host capabilities disabled for shortcut resolution', () => {
-		const runtime = new ActionRuntime();
-		let capturedScope: ReturnType<typeof runtime.createScope> | undefined;
-		const CapturingHarness = () => {
-			const [projectWorkspaceRuntime] = React.useState(createTerminalRuntime);
-			const actions = useWorkbenchActions({
-				authority: inertWorkbenchAuthority(),
-				configuredCommandCatalog: [],
-				configuredCommandKeys: NO_CONFIGURED_COMMAND_KEYS,
-				focusRouting: unavailableFocusRouting,
-				formatCloseWarning: closeWarningTestText,
-				isSidebarVisible: true,
-				onNewTerminal: undefined,
-				onSettings: undefined,
-				openAgentBoard: () => undefined,
-				openSearch: () => undefined,
-				openTabTitleEditor: () => undefined,
-				openPanelNameEditor: () => undefined,
-				projectWorkspaceRuntime,
-				projectWorkspaceState: projectWorkspaceRuntime.getSnapshot(),
-				runtime,
-				searchFilters: WORKBENCH_SEARCH_FILTERS,
-				setTabStripOrientation: () => undefined,
-				tabStripOrientation: 'horizontal',
-				toggleSidebar: () => undefined,
-				worktreeLabel: worktreeTestLabel,
-			});
-			capturedScope = actions.scope;
-			return null;
-		};
-		render(React.createElement(CapturingHarness));
-		expect(capturedScope).toBeDefined();
-		if (capturedScope === undefined) {
-			throw new Error('Expected the Workbench action scope to be captured');
-		}
-
-		expect(
-			runtime.resolveAction(WORKBENCH_ACTION_IDS.createTerminal, undefined, {
-				scope: capturedScope,
-				source: 'keyboard',
-			}),
-		).toMatchObject({
-			availability: { kind: 'disabled' },
-		});
-	});
-
 	it('consumes region shortcuts only for resolved targets and preserves direct-focus no-ops', async () => {
 		const runtime = new ActionRuntime();
 		type TestFocusRouting = Parameters<typeof useWorkbenchActions>[0]['focusRouting'];
@@ -478,7 +443,10 @@ describe('useWorkbenchActions', () => {
 				source: 'keyboard',
 			}).completion,
 		).resolves.toEqual({ kind: 'completed' });
-		expect(focusRouting.focus).toHaveBeenCalledWith({ direction: 'next', kind: 'cycle' });
+		expect(focusRouting.focus).toHaveBeenCalledWith(
+			{ direction: 'next', kind: 'cycle' },
+			{ fromCommandSurface: false },
+		);
 
 		await expect(
 			runtime.execute(WORKBENCH_ACTION_IDS.focusActiveTerminal, undefined, {

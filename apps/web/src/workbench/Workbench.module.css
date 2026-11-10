@@ -125,6 +125,18 @@ button.statusNoticeText {
 	inset-inline-start: var(--ob-ref-space-0);
 }
 
+/* The sidebar button's place in the chrome beneath it: its fill and 8 px on each side, as the
+   horizontal Tab bar reserves it. */
+.sidebarTogglePlace {
+	display: block;
+	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
+	height: 100%;
+}
+
+.root[data-workbench-touch] .sidebarTogglePlace {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
 .root[data-workbench-touch] .noWorkspaceChrome,
 .root[data-workbench-touch] .windowDragRegion {
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));

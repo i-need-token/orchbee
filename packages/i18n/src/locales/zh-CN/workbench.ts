@@ -54,7 +54,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.actions.categories.terminal': '终端',
 	'workbench.actions.categories.tabs': '标签页',
 	'workbench.actions.categories.view': '视图',
-	'workbench.actions.states.unavailable': '此操作在当前应用中不可用。',
 	'workbench.focus.actions.activeTerminal': '聚焦活动终端',
 	'workbench.focus.actions.nextRegion': '聚焦下一个区域',
 	'workbench.focus.actions.previousRegion': '聚焦上一个区域',

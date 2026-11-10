@@ -15,9 +15,11 @@ import type { TabStripViewModel } from '../../types/tab-strip-view-model';
 
 export function TabStripView({
 	horizontalLeadingActions,
+	horizontalTrailingActions,
 	view,
 }: {
 	readonly horizontalLeadingActions: ReactNode;
+	readonly horizontalTrailingActions: ReactNode;
 	readonly view: TabStripViewModel;
 }): ReactNode {
 	const {
@@ -226,7 +228,11 @@ export function TabStripView({
 				}}
 			>
 				{horizontal ? (
-					<HorizontalContents horizontalLeadingActions={horizontalLeadingActions} view={view} />
+					<HorizontalContents
+						horizontalLeadingActions={horizontalLeadingActions}
+						horizontalTrailingActions={horizontalTrailingActions}
+						view={view}
+					/>
 				) : (
 					<VerticalContents
 						identityIcons={identityIcons}

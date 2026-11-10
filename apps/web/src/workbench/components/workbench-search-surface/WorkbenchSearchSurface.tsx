@@ -59,6 +59,7 @@ export function WorkbenchSearchSurface({
 				aria-label={view.dialogTitle}
 				className={styles['surface']}
 				data-slot='workbench-search-surface'
+				data-workbench-command-surface='true'
 				showCloseButton={false}
 			>
 				<div className={styles['inputRegion']}>

@@ -103,9 +103,16 @@ export function registerWorkbenchActiveTerminalActions({
 						runtime,
 						scope,
 					});
-					return prepared.kind === 'ready'
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: panelPositionUnavailableReason(prepared.reason) };
+					switch (prepared.kind) {
+						case 'ready':
+							return { kind: 'enabled' };
+						case 'unavailable':
+							return { kind: 'disabled', reason: panelPositionUnavailableReason(prepared.reason) };
+						case 'lower-disabled':
+							return { kind: 'disabled', reason: prepared.reason };
+						case 'hidden':
+							return prepared;
+					}
 				},
 				handler: {
 					execute: async (context, input) => {
@@ -116,9 +123,12 @@ export function registerWorkbenchActiveTerminalActions({
 							runtime,
 							scope,
 						});
+						if (prepared.kind === 'ready') {
+							return await executePreparedDescendantAction(context, runtime, prepared.invocation);
+						}
 						return prepared.kind === 'unavailable'
 							? { code: prepared.reason, kind: 'blocked' }
-							: await executePreparedDescendantAction(context, runtime, prepared.invocation);
+							: { code: 'active-command-target-unavailable', kind: 'blocked' };
 					},
 				},
 				id: WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
@@ -491,9 +501,6 @@ function panelPositionUnavailableReason(
 	reason: Extract<PreparedPanelPositionFocus, { kind: 'unavailable' }>['reason'],
 ): ActionMessageDescriptor {
 	switch (reason) {
-		// Only a Panel surface that registers no focus action leaves the host without it.
-		case 'active-command-target-unavailable':
-			return workbenchMessages.actionUnavailable;
 		case 'active-tab-unavailable':
 		case 'invalid-panel-order':
 		case 'panel-unavailable':
@@ -506,6 +513,10 @@ function panelPositionUnavailableReason(
 	}
 }
 
+/**
+ * A position that names no Panel says why; otherwise the Panel's own focus Action decides, lending
+ * its reason when it refuses, and no Panel surface offering it hides the Action.
+ */
 type PreparedPanelPositionFocus =
 	| {
 			readonly invocation: PreparedActionInvocation;
@@ -515,10 +526,11 @@ type PreparedPanelPositionFocus =
 			readonly kind: 'unavailable';
 			readonly reason:
 				| Extract<PanelFocusByPositionResolution, { kind: 'unavailable' }>['reason']
-				| 'active-command-target-unavailable'
 				| 'active-tab-unavailable'
 				| 'panel-unavailable';
-	  };
+	  }
+	| { readonly kind: 'lower-disabled'; readonly reason: ActionMessageDescriptor }
+	| { readonly kind: 'hidden' };
 
 function preparePanelPositionFocus({
 	context,
@@ -538,7 +550,7 @@ function preparePanelPositionFocus({
 
 	const actionId = PANEL_ACTION_IDS.focus;
 	const inputByActionId = { [actionId]: { panelId: resolution.panelId } };
-	const prepared = runtime
+	const candidates = runtime
 		.discover(
 			{
 				scope,
@@ -553,15 +565,15 @@ function preparePanelPositionFocus({
 				},
 			},
 		)
-		.find(
-			(result) =>
-				result.kind === 'ready' &&
-				result.descriptor.id === actionId &&
-				result.availability.kind === 'enabled',
-		);
-	return prepared?.kind === 'ready'
-		? { invocation: prepared.invocation, kind: 'ready' }
-		: { kind: 'unavailable', reason: 'active-command-target-unavailable' };
+		.filter((result) => result.kind === 'ready' && result.descriptor.id === actionId);
+	const enabled = candidates.find((result) => result.availability.kind === 'enabled');
+	if (enabled?.kind === 'ready') return { invocation: enabled.invocation, kind: 'ready' };
+	for (const { availability } of candidates) {
+		if (availability.kind === 'disabled') {
+			return { kind: 'lower-disabled', reason: availability.reason };
+		}
+	}
+	return { kind: 'hidden' };
 }
 
 function resolvePanelPositionForContext(

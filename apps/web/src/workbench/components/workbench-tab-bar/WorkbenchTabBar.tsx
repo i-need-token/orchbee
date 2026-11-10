@@ -97,10 +97,15 @@ export function WorkbenchTabBar({
 				<TabStrip
 					actionRuntime={actionRuntime}
 					focusRequest={focusRequest}
+					// A desktop window's own controls at the top end, where they draw over the page.
+					horizontalTrailingActions={
+						<div className={styles['trailingActions']} data-slot='workbench-tab-bar-trailing' />
+					}
 					horizontalLeadingActions={
 						reserveSidebarToggleSpace ? (
 							<div
 								className={styles['leadingActions']}
+								data-sidebar-toggle-place=''
 								data-slot='workbench-tab-bar-leading-actions'
 							/>
 						) : null

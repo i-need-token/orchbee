@@ -181,6 +181,11 @@ export function Workbench({
 			touch={view.touchSizes}
 		/>
 	);
+	// The sidebar button floats over the top start of whichever chrome lies beneath it: the sidebar's
+	// top row, the horizontal Tab bar, the mobile bar, or the no-Workspace row. Each keeps its place.
+	const sidebarTogglePlace = (
+		<span className={styles['sidebarTogglePlace']} data-sidebar-toggle-place='' />
+	);
 	// One sidebar, docked in its resizable panel, opened over the content in a narrow window, or
 	// filling the window in the mobile layout.
 	const sidebarPanel = (
@@ -244,7 +249,9 @@ export function Workbench({
 				aria-hidden='true'
 				className={styles['windowDragRegion']}
 				data-slot='workbench-window-drag-region'
-			/>
+			>
+				{sidebarTogglePlace}
+			</div>
 		</div>
 	);
 	const projectWorkspaceConfirmationSurface =
@@ -319,6 +326,10 @@ export function Workbench({
 		);
 
 	const tabListShown = view.tabListOpen && terminalContext !== null;
+	// The surfaces over the layout come before it in the document, which keeps them first in the
+	// focus order; the layout marks itself covered while one of them is shown.
+	const layoutCovered =
+		tabListShown || view.sidebarPresentation === 'overlay' || view.sidebarPresentation === 'fill';
 	// No Workspace has no Tab Strip, so its row keeps the toggle's place and the window's drag. The
 	// mobile layout's bar takes the strip's place.
 	let tabChrome: React.ReactNode;
@@ -328,7 +339,9 @@ export function Workbench({
 				aria-hidden='true'
 				className={styles['noWorkspaceChrome']}
 				data-slot='workbench-window-drag-region'
-			/>
+			>
+				{view.sidebarPresentation === 'docked' ? null : sidebarTogglePlace}
+			</div>
 		);
 	} else if (view.mobileLayout) {
 		tabChrome = (
@@ -463,7 +476,11 @@ export function Workbench({
 					workspaceName={view.activeWorkspaceName}
 				/>
 			) : null}
-			<div className={styles['layout']}>
+			<div
+				className={styles['layout']}
+				data-covered={layoutCovered || undefined}
+				data-slot='workbench-layout'
+			>
 				<ResizablePanelGroup
 					disableCursor
 					onLayoutChanged={view.onLayoutChanged}

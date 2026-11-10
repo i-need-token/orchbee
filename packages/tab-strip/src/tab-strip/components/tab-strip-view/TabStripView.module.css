@@ -84,7 +84,8 @@
 	display: flex;
 	min-width: 0;
 }
-.ct-horizontal-leading-actions {
+.ct-horizontal-leading-actions,
+.ct-horizontal-trailing-actions {
 	display: flex;
 	flex: none;
 }

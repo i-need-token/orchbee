@@ -46,10 +46,10 @@ describe('registerWorkbenchFocusActions', () => {
 				source: 'keyboard',
 			}).completion,
 		).resolves.toEqual({ kind: 'completed' });
-		expect(focusRouter.focus).toHaveBeenCalledExactlyOnceWith({
-			direction: 'next',
-			kind: 'cycle',
-		});
+		expect(focusRouter.focus).toHaveBeenCalledExactlyOnceWith(
+			{ direction: 'next', kind: 'cycle' },
+			{ fromCommandSurface: false },
+		);
 
 		await expect(
 			runtime.execute(WORKBENCH_ACTION_IDS.focusActiveTerminal, undefined, {

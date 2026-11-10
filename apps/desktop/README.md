@@ -57,7 +57,11 @@ with.
 
 - A hidden title bar, with the system's controls drawn over the page. On macOS the traffic lights sit
   at `(12, 12)`, and the renderer centers the sidebar toggle in the same `36px` horizontal Tab row
-  at x `76`, after the reserved native-control space.
+  at x `76`, after the reserved native-control space. On Windows the caption buttons draw over the
+  page's top end, so the horizontal Tab bar, the mobile bar, and the Tab list each end in a trailing
+  reserve as wide as the window leaves past `env(titlebar-area-x)` and `env(titlebar-area-width)`;
+  Tabs that do not fit overflow within the remaining width, and the New Tab control stays clear of
+  the caption buttons at every window width.
 - The window's title is its page's, which the taskbar and window switcher show; the page follows the
   Session's title policy as the TUI's outer title does.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)
@@ -79,34 +83,48 @@ with.
 - **Problem and scope:** A Desktop user must be able to move a frameless native window from every
   unoccupied point in its `36px` top chrome without losing Tabs, groups, the sidebar toggle, the
   new-Tab control, or operating-system window controls. This projection covers the sidebar top row
-  and a horizontal Tab bar. The vertical Tab Strip, content below the top chrome, Panel and sidebar
+  in every sidebar presentation, a horizontal Tab bar, the mobile bar, the open Tab list's top band,
+  and the no-Workspace row. The vertical Tab Strip, content below the top chrome, Panel and sidebar
   interactions, resize separators, and the native move lifecycle are non-goals.
 - **Inputs, data, and ownership:** Trusted Workbench layout supplies sidebar visibility, Tab Strip
-  orientation, the horizontal chrome boundary, and the rendered control geometry; `windowControls`
+  orientation, the horizontal chrome boundary, the rendered control geometry, the sidebar toggle's
+  place in each chrome beneath it, and whether a surface covers the layout; `windowControls`
   supplies the operating-system control side. There is no durable drag-region state and no missing
   input is inferred. Workbench owns the shell geometry, the Desktop renderer exclusively projects
   CSS app regions, and Electron and the operating system own native-control precedence plus pointer
   activation, movement, release, and cancellation.
 - **Model and output:** The renderer applies this hit-test policy after every layout projection:
 
-  | Horizontal-chrome target                                                                | CSS app region | Observable result                                |
-  | --------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------ |
-  | Unoccupied sidebar top-row background                                                   | `drag`         | Starts native window movement                    |
-  | Unoccupied horizontal Tab-bar background, including reserved leading and trailing space | `drag`         | Starts native window movement                    |
-  | Sidebar-toggle position, Tab, group, or button geometry                                 | `no-drag`      | Retains the control's ordinary pointer behavior  |
-  | Vertical Tab Strip or content outside the horizontal chrome                             | Unset          | Retains its existing non-window-drag interaction |
+  | Horizontal-chrome target                                                                  | CSS app region | Observable result                                |
+  | ----------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------ |
+  | Unoccupied sidebar top-row background, docked, overlaid, or filling the window            | `drag`         | Starts native window movement                    |
+  | Unoccupied horizontal Tab-bar, mobile-bar, open Tab-list band, or no-Workspace background | `drag`         | Starts native window movement                    |
+  | Reserved trailing space under the Windows caption buttons                                 | `drag`         | The native caption buttons take the pointer      |
+  | Sidebar toggle, its place in the chrome beneath it, Tab, group, or button geometry        | `no-drag`      | Retains the control's ordinary pointer behavior  |
+  | Overlay sidebar's scrim                                                                   | `no-drag`      | A click outside the overlay closes it            |
+  | Layout covered by the overlay sidebar, the filling sidebar, or the open Tab list          | Unset          | The covering surface alone decides               |
+  | Vertical Tab Strip or content outside the horizontal chrome                               | Unset          | Retains its existing non-window-drag interaction |
 
 - **Invariants and transitions:** Native window controls and rendered Workbench controls always
-  take precedence over a background drag region. Because the blank Tab bar is a drag region, a
-  double-click there maximizes or restores the window, as the operating system does, and never
-  reaches the Tab Strip's blank-track New Tab double-click; no Desktop drag projection extends below the
-  `36px` boundary. Showing or hiding the sidebar and switching Tab Strip orientation recompute the
+  take precedence over a background drag region. Electron folds app regions in document order, a
+  drag region adding its box and a no-drag region removing its own, so a drag region later in the
+  document covers an earlier control whatever their stacking. Every drag region therefore precedes
+  the controls over it: a control inside a drag region follows it; the sidebar toggle, which
+  precedes the layout to stay first in the focus order, has a no-drag place inside each chrome that
+  can lie beneath it; and the surfaces that cover the layout, which precede it for the same reason,
+  leave the covered layout without any app region. The z-index never decides the projection.
+  Because the blank Tab bar is a drag region, a double-click there maximizes or restores the window,
+  as the operating system does, and never reaches the Tab Strip's blank-track New Tab double-click;
+  no Desktop drag projection extends below the `36px` boundary. Showing or hiding the sidebar and switching Tab Strip orientation recompute the
   projection without starting, committing, or cancelling a native drag. Unsupported or absent
   horizontal chrome is an intentional no-op.
 - **Dependencies and verification:** Electron's CSS app-region contract is the only platform
   capability. The controlled Desktop system trace that checked the sidebar-row geometry, the
   horizontal Tab-bar default, every interactive exclusion, and sidebar visibility transitions
-  retired with the Desktop Electron suite, so no automated test covers the projection.
+  retired with the Desktop Electron suite, so no automated test covers the projection. Synthetic
+  and DevTools Protocol clicks bypass the operating system's hit test and pass even where a real
+  pointer drags the window, so evidence comes from a real window: `WM_NCHITTEST` returns `HTCLIENT`
+  at a control and `HTCAPTION` at unoccupied chrome.
 
 ## Native Project Folder acquisition
 

@@ -248,9 +248,14 @@ function activeTabActionDefinition<Id extends ActiveTabActionId>({
 		},
 		getAvailability: (context) => {
 			const prepared = prepare(context);
-			return prepared.kind === 'ready'
-				? { kind: 'enabled' }
-				: { kind: 'disabled', reason: prepared.reason };
+			switch (prepared.kind) {
+				case 'ready':
+					return { kind: 'enabled' };
+				case 'unavailable':
+					return { kind: 'disabled', reason: prepared.reason };
+				case 'hidden':
+					return prepared;
+			}
 		},
 		handler: {
 			execute: async (context) => {

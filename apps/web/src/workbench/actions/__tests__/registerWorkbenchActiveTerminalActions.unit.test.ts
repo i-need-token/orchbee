@@ -258,7 +258,7 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		expect(lowerExecute).toHaveBeenNthCalledWith(2, { panelId: fixturePanelId(3) });
 	});
 
-	it('keeps missing, maximized, stale-source, and unregistered positional focus unavailable', () => {
+	it('keeps missing, maximized, and stale-source positional focus unavailable, and absent without a Panel surface', () => {
 		const harness = createHarness(2);
 		const store = activeTerminalContext(harness.projectWorkspaceRuntime).panelWorkspaceStore;
 		const lowerRegistration = registerPanelFocus(harness, () => ({ kind: 'unchanged' }));
@@ -311,7 +311,7 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 				{ position: 1 },
 				invocation,
 			),
-		).toMatchObject({ availability: { kind: 'disabled' } });
+		).toBeNull();
 	});
 
 	it('directly focuses or swaps the sole other visible Panel through lower Actions', async () => {

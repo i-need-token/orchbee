@@ -12,7 +12,7 @@ import {
 	type ActionScope,
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { workbenchTabMessages } from '@orchbee/i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -670,13 +670,9 @@ export function useTabStripActions({
 						concurrencyKey: () => 'tab-search',
 						mode: 'foreground',
 					},
+					// A host that wires no callback lacks the Action, so no surface offers it.
 					getAvailability: () =>
-						onVerticalTabSearchClick === undefined
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' },
+						onVerticalTabSearchClick === undefined ? { kind: 'hidden' } : { kind: 'enabled' },
 					handler: {
 						execute: (context) => {
 							if (onVerticalTabSearchClick === undefined) {
@@ -731,10 +727,7 @@ export function useTabStripActions({
 					},
 					getAvailability: (_context, _input) =>
 						onVerticalCollapsedChange === undefined
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
+							? { kind: 'hidden' }
 							: { checked: verticalCollapsed, kind: 'enabled' },
 					handler: {
 						execute: (context, input) => {
@@ -763,10 +756,7 @@ export function useTabStripActions({
 					},
 					getAvailability: () =>
 						onVerticalExpandOnHoverChange === undefined
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
+							? { kind: 'hidden' }
 							: { checked: verticalExpandOnHover, kind: 'enabled' },
 					handler: {
 						execute: (context, input) => {

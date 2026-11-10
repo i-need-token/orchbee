@@ -8,20 +8,20 @@ import type {
 	ActionScope,
 	PreparedActionInvocation,
 } from '@orchbee/actions';
-import { workbenchMessages } from '@orchbee/i18n';
 
 import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descendant-action-discovery';
 
 export type DescendantActionPreparation =
 	| { readonly invocation: PreparedActionInvocation; readonly kind: 'ready' }
-	| { readonly kind: 'unavailable'; readonly reason: ActionMessageDescriptor };
+	| { readonly kind: 'unavailable'; readonly reason: ActionMessageDescriptor }
+	| { readonly kind: 'hidden' };
 
 type ReadyDiscovery = Extract<ActionDiscoveryResult, { kind: 'ready' }>;
 
 /**
  * Prepares the lower Action a composite runs with this input. A disabled lower Action lends its own
- * reason, so the composite says why as its owner would; only a lower Action that no surface has
- * registered leaves the host reason.
+ * reason, so the composite says why as its owner would; a lower Action that no surface offers leaves
+ * the composite nothing to lend, so it is hidden as well.
  */
 export function prepareDescendantAction({
 	actionId,
@@ -55,7 +55,7 @@ export function prepareDescendantAction({
 			return { kind: 'unavailable', reason: availability.reason };
 		}
 	}
-	return { kind: 'unavailable', reason: workbenchMessages.actionUnavailable };
+	return { kind: 'hidden' };
 }
 
 function discoveryInvocation(

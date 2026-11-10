@@ -1,6 +1,7 @@
 import {
 	defineAction,
 	noActionInput,
+	type ActionAvailabilityContext,
 	type ActionDisposable,
 	type ActionMessageDescriptor,
 	type ActionScope,
@@ -13,6 +14,7 @@ import type {
 	WorkbenchFocusRegion,
 	WorkbenchFocusResolution,
 } from '../model/resolveWorkbenchFocusTarget';
+import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from './workbench-action-ids';
 
 type WorkbenchFocusActionId =
@@ -22,10 +24,7 @@ type WorkbenchFocusActionId =
 	| typeof WORKBENCH_ACTION_IDS.focusSidebar
 	| typeof WORKBENCH_ACTION_IDS.focusTabStrip;
 
-interface WorkbenchFocusRouter {
-	readonly focus: (intent: WorkbenchFocusIntent) => WorkbenchFocusResolution;
-	readonly getResolution: (intent: WorkbenchFocusIntent) => WorkbenchFocusResolution;
-}
+type WorkbenchFocusRouter = Pick<WorkbenchFocusRouting, 'focus' | 'getResolution'>;
 
 interface RegisterWorkbenchFocusActionsOptions {
 	readonly focusRouter: WorkbenchFocusRouter;
@@ -88,21 +87,22 @@ export function registerWorkbenchFocusActions({
 					concurrencyKey: () => 'workbench-focus-routing',
 					mode: 'foreground',
 				},
-				getAvailability: () => {
-					const resolution = focusRouter.getResolution(intent);
+				getAvailability: (context) => {
+					const resolution = focusRouter.getResolution(intent, focusInvocation(context));
 					return resolution.kind === 'unavailable'
 						? { kind: 'disabled', reason: focusUnavailableReason(resolution.reason, intent) }
 						: { kind: 'enabled' };
 				},
 				handler: {
 					execute: (context) => {
-						const resolution = focusRouter.getResolution(intent);
+						const invocation = focusInvocation(context);
+						const resolution = focusRouter.getResolution(intent, invocation);
 						if (resolution.kind === 'unavailable') {
 							return { code: `focus-${resolution.reason}`, kind: 'blocked' };
 						}
 						if (resolution.kind === 'unchanged') return { kind: 'unchanged' };
 						context.markCommitted();
-						const committed = focusRouter.focus(intent);
+						const committed = focusRouter.focus(intent, invocation);
 						return committed.kind === 'target'
 							? { kind: 'completed' }
 							: { code: 'focus-target-changed', kind: 'blocked' };
@@ -114,6 +114,11 @@ export function registerWorkbenchFocusActions({
 			}),
 		),
 	);
+}
+
+/** A Search row acts once the Search has closed, so the Search never blocks its own rows. */
+function focusInvocation(context: Pick<ActionAvailabilityContext, 'source'>) {
+	return { fromCommandSurface: context.source === 'command-surface' };
 }
 
 const HIDDEN_REGION_REASON = {
