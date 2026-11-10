@@ -20,6 +20,7 @@ mod panel_labels;
 mod panel_metadata;
 mod plugins;
 mod presentation_report;
+mod session_stop;
 mod settings;
 mod split_ratios;
 mod tab_configuration;

@@ -153,6 +153,11 @@ pub use layout_history::{
     LayoutHistoryRejection, LayoutHistoryUnavailable, MAXIMUM_LAYOUT_HISTORY_ENTRIES,
     MAXIMUM_LAYOUT_HISTORY_SAVED_AT, WorkbenchLayoutHistoryRequest, WorkbenchLayoutHistoryResult,
 };
+mod session_stop;
+pub use session_stop::{
+    SessionStopOutcome, SessionStopRejection, WorkbenchSessionStopRequest,
+    WorkbenchSessionStopResult,
+};
 mod tab_set_close;
 pub use tab_set_close::{
     MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES, MAXIMUM_TAB_SET_CLOSE_MEMBERS, TabSetCloseAction,
@@ -1128,6 +1133,8 @@ pub enum WorkbenchRequest {
     TabDuplicate(WorkbenchTabDuplicateRequest),
     #[serde(rename = "workbench.layout-history")]
     LayoutHistory(WorkbenchLayoutHistoryRequest),
+    #[serde(rename = "workbench.session-stop")]
+    SessionStop(WorkbenchSessionStopRequest),
     #[serde(rename = "workbench.worktree.query")]
     WorktreeQuery(WorkbenchWorktreeQuery),
     #[serde(rename = "workbench.worktree.operation")]
@@ -1573,6 +1580,8 @@ pub enum WorkbenchResponse {
     TabDuplicate(WorkbenchTabDuplicateResult),
     #[serde(rename = "workbench.layout-history.result")]
     LayoutHistory(WorkbenchLayoutHistoryResult),
+    #[serde(rename = "workbench.session-stop.result")]
+    SessionStop(WorkbenchSessionStopResult),
     #[serde(rename = "workbench.worktree.query.result")]
     WorktreeQuery(WorkbenchWorktreeQueryResult),
     #[serde(rename = "workbench.worktree.operation.result")]
@@ -1961,6 +1970,9 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         WorkbenchResponse::LayoutHistory(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
             result.validate()
+        }
+        WorkbenchResponse::SessionStop(_) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)
         }
         WorkbenchResponse::WorktreeQuery(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES)?;

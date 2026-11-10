@@ -260,18 +260,22 @@ fn a_silent_candidate_is_refused_with_timeout() {
 }
 
 /// Runs one candidate against a managed lifecycle owner; the returned stream is the Client side.
+/// With `session`, the Server holds that Session's fixture Workspace.
 #[cfg(windows)]
 fn managed_candidate(
     shutdown: Arc<crate::session_shutdown::SessionShutdown>,
+    session: Option<orchbee_workbench_protocol::SessionId>,
 ) -> (UnixStream, thread::JoinHandle<()>) {
     let (client, server) = UnixStream::pair().unwrap();
     client
         .set_read_timeout(Some(Duration::from_secs(5)))
         .unwrap();
     let handler = thread::spawn(move || {
-        let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-            WorkerRegistry::new(),
-        ))));
+        let workers = Arc::new(Mutex::new(WorkerRegistry::new()));
+        let terminals = Arc::new(match session {
+            Some(session) => LocalTerminalService::session_workspace_fixture(workers, session),
+            None => LocalTerminalService::new(workers),
+        });
         let workbench = WorkbenchService::new(
             WorkbenchPolicy {
                 read: true,
@@ -312,7 +316,7 @@ fn a_drained_server_refuses_offers_with_stopping_and_drain_repeats() {
     let environment = orchbee_local_runtime::environment_name();
     let in_flight = shutdown.enter().unwrap();
     for _ in 0..2 {
-        let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+        let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), None);
         let reply =
             handshake_client::exchange(&mut client, &control(RequestKind::Drain, &environment))
                 .unwrap();
@@ -322,7 +326,7 @@ fn a_drained_server_refuses_offers_with_stopping_and_drain_repeats() {
             "{reply:?}"
         );
     }
-    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), None);
     let reply = handshake_client::exchange(
         &mut client,
         &InitiatorMessage::Offer(handshake_client::offer()),
@@ -330,7 +334,7 @@ fn a_drained_server_refuses_offers_with_stopping_and_drain_repeats() {
     .unwrap();
     handler.join().unwrap();
     assert_eq!(refused(reply).reason, Refusal::Stopping);
-    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), None);
     let reply = handshake_client::query(&mut client, environment).unwrap();
     handler.join().unwrap();
     let result = handshake_client::query_result(reply).unwrap();
@@ -347,13 +351,13 @@ fn exit_replies_only_once_the_owner_ends_the_process() {
     use crate::session_shutdown::Work;
     let shutdown = Arc::new(crate::session_shutdown::SessionShutdown::default());
     let environment = orchbee_local_runtime::environment_name();
-    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), None);
     let owner = {
         let shutdown = Arc::clone(&shutdown);
         thread::spawn(move || {
             while shutdown.take_within(Duration::from_millis(10)) != Some(Work::Exit) {}
             // Offers meet an exiting Server before its end.
-            let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+            let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), None);
             let reply = handshake_client::exchange(
                 &mut client,
                 &InitiatorMessage::Offer(handshake_client::offer()),
@@ -369,4 +373,101 @@ fn exit_replies_only_once_the_owner_ends_the_process() {
     assert!(matches!(reply, AcceptorMessage::ExitResult(_)), "{reply:?}");
     handler.join().unwrap();
     owner.join().unwrap();
+}
+
+#[cfg(windows)]
+fn session_stop(session: &str, stop: &str) -> orchbee_workbench_protocol::WorkbenchRequest {
+    orchbee_workbench_protocol::parse_workbench_request(
+        format!(
+            r#"{{"kind":"workbench.session-stop","protocolVersion":1,"requestId":"33333333333333333333333333333333","sessionId":"{session}","stopId":"{stop}"}}"#
+        )
+        .as_bytes(),
+    )
+    .unwrap()
+}
+
+#[cfg(windows)]
+fn session_stop_outcome(
+    client: &mut UnixStream,
+    request: &orchbee_workbench_protocol::WorkbenchRequest,
+) -> Result<
+    orchbee_workbench_protocol::SessionStopOutcome,
+    orchbee_workbench_protocol::WorkbenchWireError,
+> {
+    orchbee_workbench_protocol::write_workbench_request(client, request)?;
+    match orchbee_workbench_protocol::read_workbench_response(client)? {
+        orchbee_workbench_protocol::WorkbenchResponse::SessionStop(result) => Ok(result.outcome),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// An admitted Client records a stop exactly as `server stop` would, for its own Session only, and
+/// the connection admits nothing once the stop is recorded.
+#[cfg(windows)]
+#[test]
+fn an_admitted_client_records_its_session_stop_once() {
+    use crate::session_shutdown::Work;
+    use orchbee_local_client_protocol::{
+        SessionStopRequest, SessionStopStatus, StopAction, StopId,
+    };
+    use orchbee_workbench_protocol::{SessionStopOutcome, SessionStopRejection};
+    const SESSION: &str = "22222222222222222222222222222222";
+    const STOP: &str = "0123456789abcdef0123456789abcdef";
+    let shutdown = Arc::new(crate::session_shutdown::SessionShutdown::default());
+    let session = orchbee_workbench_protocol::SessionId::parse(SESSION).unwrap();
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), Some(session));
+    handshake_client::admit(&mut client).unwrap();
+
+    let other_session = session_stop("44444444444444444444444444444444", STOP);
+    assert_eq!(
+        session_stop_outcome(&mut client, &other_session).unwrap(),
+        SessionStopOutcome::Rejected {
+            reason: SessionStopRejection::SessionMismatch
+        }
+    );
+    assert!(!shutdown.stopping());
+    assert_eq!(
+        session_stop_outcome(&mut client, &session_stop(SESSION, STOP)).unwrap(),
+        SessionStopOutcome::Recorded {}
+    );
+    // The recorded stop refuses the next record, a repeat included, by ending the connection.
+    assert!(session_stop_outcome(&mut client, &session_stop(SESSION, STOP)).is_err());
+    handler.join().unwrap();
+
+    let id = StopId::new(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef_u128.to_be_bytes()).unwrap();
+    let Some(Work::Stop(attempt)) = shutdown.take_within(Duration::ZERO) else {
+        panic!("the recorded stop is queued");
+    };
+    assert_eq!(attempt.id, id);
+    assert_eq!(shutdown.take_within(Duration::ZERO), None);
+    // `server stop-status` reads it under the same identity, and another identity finds it busy.
+    let status = shutdown.request(&SessionStopRequest {
+        id,
+        action: StopAction::Status,
+    });
+    assert!(
+        matches!(status.status, SessionStopStatus::Pending { .. }),
+        "{status:?}"
+    );
+    let other = StopId::new([7; 16]).unwrap();
+    let busy = shutdown.request(&SessionStopRequest {
+        id: other,
+        action: StopAction::Start,
+    });
+    assert!(matches!(busy.status, SessionStopStatus::Busy { active_id } if active_id == id));
+}
+
+#[cfg(windows)]
+#[test]
+fn a_drained_server_records_no_session_stop() {
+    const SESSION: &str = "22222222222222222222222222222222";
+    let shutdown = Arc::new(crate::session_shutdown::SessionShutdown::default());
+    let session = orchbee_workbench_protocol::SessionId::parse(SESSION).unwrap();
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown), Some(session));
+    handshake_client::admit(&mut client).unwrap();
+    shutdown.drain();
+    let stop = session_stop(SESSION, "0123456789abcdef0123456789abcdef");
+    assert!(session_stop_outcome(&mut client, &stop).is_err());
+    handler.join().unwrap();
+    assert!(!shutdown.stopping());
 }

@@ -201,6 +201,21 @@ binding and TypeScript; the
 [Server checkpoint contract](../../apps/orchbee-server/docs/workbench-checkpoint.md#earlier-layouts)
 owns what is kept and reopened.
 
+## Session stop
+
+`workbench.session-stop` (OBWP 73/74) lets an admitted Client stop its Session as `server stop`
+does. The request names the Client's `sessionId` and a `stopId` it chose, a nonzero 128-bit
+lowercase hexadecimal `WorkbenchStopId`, which `server stop-status` and `server stop --retry` take
+as the request ID; `WorkbenchStopId::bytes` gives its 16 bytes. Outcomes are `recorded`, `busy`
+(another identity's stop holds the Session), `unmanaged`, `rejected` (`session-mismatch`) and
+`denied`; only `recorded` holds a stop. There is no status or retry action: a recorded stop refuses
+every later record, so its progress and retries go through the unadmitted stop exchange under the
+same identity. Both frames keep the 16 KiB intent cap. The
+[schema](../../schemas/workbench/v1/workbench-session-stop.schema.json) and
+[shared corpus](../../schemas/workbench/v1/workbench-session-stop-conformance-v1.json) drive this
+binding and TypeScript; the [Server](../../apps/orchbee-server/README.md#managed-windows-session-shutdown)
+owns admission and the stop.
+
 `workbench.tab-duplicate` (OBWP 69/70) duplicates several Tabs of one terminal context as one
 retained Server operation. Start carries `operationId`, `terminalContextId`, 1–256 distinct
 `tabIds` in the context's current order, `expectedRevision` and the terminal `geometry` every copy

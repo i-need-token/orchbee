@@ -3,7 +3,13 @@
 use super::application_connection::{Effect, Refusal};
 use crate::agent_service::AgentService;
 use orchbee_connection_handshake::ProcessState;
-use orchbee_local_client_protocol::{SessionStopRequest, SessionStopResult, SessionStopStatus};
+use orchbee_local_client_protocol::{
+    SessionStopRequest, SessionStopResult, SessionStopStatus, StopAction, StopId,
+};
+use orchbee_workbench_protocol::{
+    ProtocolVersion, SessionStopOutcome, SessionStopRejection, WorkbenchSessionStopRequest,
+    WorkbenchSessionStopResult,
+};
 
 pub(super) struct StopControl<'a> {
     pub(super) agents: &'a AgentService,
@@ -86,6 +92,46 @@ impl<'a> StopControl<'a> {
         SessionStopResult {
             id: request.id,
             status: SessionStopStatus::Unmanaged,
+        }
+    }
+
+    /// Answers an admitted Client's Session stop, an intent record whose lease holds the stop back
+    /// until this answer is ready. The stop is recorded under the Client's identity as a
+    /// `server stop` start records it, and only for the Session this Server holds.
+    pub(super) fn stop_session(
+        &self,
+        request: &WorkbenchSessionStopRequest,
+        session_matches: Option<bool>,
+    ) -> WorkbenchSessionStopResult {
+        let outcome = if session_matches == Some(true) {
+            // The identity's text is 32 hexadecimal digits that are not all zero.
+            let id = StopId::new(request.stop_id.bytes()).expect("a nonzero stop identity");
+            match self
+                .request(&SessionStopRequest {
+                    id,
+                    action: StopAction::Start,
+                })
+                .status
+            {
+                SessionStopStatus::Unmanaged => SessionStopOutcome::Unmanaged {},
+                // A start records its identity whenever no stop exists, so a pending or failed
+                // stop is this identity's own; `not-recorded` answers only a status or a retry.
+                SessionStopStatus::Pending { .. } | SessionStopStatus::Failed { .. } => {
+                    SessionStopOutcome::Recorded {}
+                }
+                SessionStopStatus::Busy { .. } | SessionStopStatus::NotRecorded => {
+                    SessionStopOutcome::Busy {}
+                }
+            }
+        } else {
+            SessionStopOutcome::Rejected {
+                reason: SessionStopRejection::SessionMismatch,
+            }
+        };
+        WorkbenchSessionStopResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id.clone(),
+            outcome,
         }
     }
 

@@ -211,6 +211,7 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
             LayoutHistoryAction::List {} => Read,
             LayoutHistoryAction::Reopen { .. } => Intent,
         },
+        WorkbenchRequest::SessionStop(_) => Intent,
         WorkbenchRequest::WorktreeOperation(request) => match request.action {
             WorkbenchWorktreeAction::Read { .. } => Read,
             WorkbenchWorktreeAction::Start { .. } | WorkbenchWorktreeAction::Resume { .. } => {

@@ -88,6 +88,22 @@ define_identity!(WorkbenchPanelSlotId);
 define_identity!(TerminalPresentationId);
 define_identity!(WorkerId);
 define_identity!(TerminalId);
+// The identity a Session stop is recorded and read under, as `server stop --request-id` names it.
+define_identity!(WorkbenchStopId);
+
+impl WorkbenchStopId {
+    /// The 16 bytes this identity spells, most significant first; never all zero.
+    ///
+    /// # Panics
+    ///
+    /// Never: an identity is exactly 32 lowercase hexadecimal digits.
+    #[must_use]
+    pub fn bytes(&self) -> [u8; 16] {
+        u128::from_str_radix(&self.0, 16)
+            .expect("a parsed identity is hexadecimal")
+            .to_be_bytes()
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct WorkbenchRevision(u64);

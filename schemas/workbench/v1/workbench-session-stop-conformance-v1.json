@@ -1,0 +1,233 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "0123456789abcdef0123456789abcdef"
+			}
+		},
+		{
+			"name": "recorded",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "recorded"
+				}
+			}
+		},
+		{
+			"name": "busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "busy"
+				}
+			}
+		},
+		{
+			"name": "unmanaged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "unmanaged"
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "session-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "session-mismatch"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "zero-stop-id",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "00000000000000000000000000000000"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "uppercase-stop-id",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "0123456789ABCDEF0123456789ABCDEF"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "short-stop-id",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "0123456789abcdef0123456789abcde"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-stop-id",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-session",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"stopId": "0123456789abcdef0123456789abcdef"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-request-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "0123456789abcdef0123456789abcdef",
+				"action": {
+					"kind": "start"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "older-protocol",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 0,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "0123456789abcdef0123456789abcdef"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-outcome",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "stopped"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-rejection",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "busy"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "recorded-with-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "recorded",
+					"attempt": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-result-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.session-stop.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "recorded"
+				},
+				"stopId": "0123456789abcdef0123456789abcdef"
+			},
+			"boundary": "schema"
+		}
+	],
+	"validJson": [
+		{
+			"name": "request-field-order",
+			"direction": "request",
+			"json": "{\"stopId\":\"0123456789abcdef0123456789abcdef\",\"sessionId\":\"00000000000000000000000000000002\",\"requestId\":\"00000000000000000000000000000001\",\"protocolVersion\":1,\"kind\":\"workbench.session-stop\"}",
+			"canonical": {
+				"kind": "workbench.session-stop",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"stopId": "0123456789abcdef0123456789abcdef"
+			}
+		}
+	]
+}

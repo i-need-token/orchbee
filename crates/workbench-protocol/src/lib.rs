@@ -197,7 +197,7 @@ pub use directory::{
 pub use identity::{
     IdentityError, ProtocolVersion, RevisionError, SessionId, TerminalId, TerminalPresentationId,
     WorkbenchClientId, WorkbenchDirectoryId, WorkbenchPanelId, WorkbenchPanelSlotId,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId, WorkbenchStopId,
     WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
     WorkerId,
 };
@@ -217,6 +217,11 @@ pub use validation::{
     MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT,
     apply_workbench_delta, apply_workbench_publication, parse_delta, parse_document,
     parse_snapshot, parse_snapshot_read_intent, serialize_document,
+};
+
+pub use command::{
+    SessionStopOutcome, SessionStopRejection, WorkbenchSessionStopRequest,
+    WorkbenchSessionStopResult,
 };
 
 pub use command::{

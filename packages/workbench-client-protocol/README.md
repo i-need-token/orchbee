@@ -223,6 +223,8 @@ corpus cover this direction. Worktree source query associations require nullable
 
 `workbench-layout-history-contract.ts` implements the [earlier-layout contract](../../schemas/workbench/v1/workbench-layout-history.schema.json) and extends request/result unions. `list` reads at most 48 entries newest first; `reopen` names one entry by its `savedAt` Unix milliseconds. The binding enforces safe-integer save times, strictly decreasing listings, not-open counts within their totals, and a reopen that opened something and names its first Tab whenever Tabs came back. The [shared corpus](../../schemas/workbench/v1/workbench-layout-history-conformance-v1.json) exercises the independent Rust binding and structural schema. What is kept and reopened remains Server-owned.
 
+`workbench-session-stop-contract.ts` implements the [Session stop contract](../../schemas/workbench/v1/workbench-session-stop.schema.json) and extends request/result unions; `WorkbenchStopIdSchema` brands the stop identity the requester chooses. Outcomes carry no data. The [shared corpus](../../schemas/workbench/v1/workbench-session-stop-conformance-v1.json) exercises the independent Rust binding and structural schema. Admission and the stop itself remain Server-owned.
+
 ## Client view binding
 
 `workbench-client-presentation-contract.ts` validates the scalar exact current-member snapshot:

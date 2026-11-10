@@ -44,6 +44,8 @@ export const WorkbenchPanelSlotIdSchema = identitySchema.brand<'WorkbenchPanelSl
 export const TerminalPresentationIdSchema = identitySchema.brand<'TerminalPresentationId'>();
 export const WorkerIdSchema = identitySchema.brand<'WorkerId'>();
 export const TerminalIdSchema = identitySchema.brand<'TerminalId'>();
+/** The identity a Session stop is recorded and read under, as `server stop --request-id` names it. */
+export const WorkbenchStopIdSchema = identitySchema.brand<'WorkbenchStopId'>();
 
 export const WorkbenchRevisionSchema = z
 	.string()

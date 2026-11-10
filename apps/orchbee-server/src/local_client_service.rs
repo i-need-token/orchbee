@@ -470,15 +470,26 @@ fn handle_candidate_control(
                 .or_insert_with(terminal_connection)
                 .execute(request)
         },
-        |lane, request| {
-            workbench_connection.execute_with_terminal_lane(
+        |lane, request| match request {
+            // The lifecycle owner, not the Workbench, records a Session stop.
+            orchbee_workbench_protocol::WorkbenchRequest::SessionStop(request) => {
+                crate::workbench_service::WorkbenchExecution::Response(
+                    orchbee_workbench_protocol::WorkbenchResponse::SessionStop(
+                        control.stop_session(
+                            &request,
+                            terminals.workbench_session_matches(&request.session_id),
+                        ),
+                    ),
+                )
+            }
+            request => workbench_connection.execute_with_terminal_lane(
                 request,
                 connections
                     .borrow_mut()
                     .entry(lane)
                     .or_insert_with(terminal_connection),
                 lane,
-            )
+            ),
         },
         |request| workbench_connection.execute(request),
         |request| match request {

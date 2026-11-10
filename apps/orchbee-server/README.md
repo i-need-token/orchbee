@@ -98,6 +98,16 @@ Only explicit retry of the same failed identity starts another attempt, up to 64
 reopens ordinary admission or authorizes an uncertain Host mutation replay. Each attempt has one
 60-second cooperative deadline, excluding uninterruptible operating-system calls.
 
+An admitted Client records a stop with `workbench.session-stop`, an intent, so a drain or an
+existing stop refuses it before anything is recorded. The lifecycle owner records it exactly as a
+`server stop` start, under the Client's identity and only for the Session the Server holds; the
+record's lease holds the attempt back until its answer is ready, and the recorded stop then refuses
+every later record, that connection's included. Status and retry use the unadmitted stop exchange
+with the same identity. On a multiplexed connection the answer can still lose the race with the
+stop's Client shutdown, so a requester treats a missing answer as possibly recorded and reads the
+status. A Server without the lifecycle owner answers `unmanaged`, and the Workbench service, which
+holds no stop authority, answers `denied`. Desktop's Quit All takes this path.
+
 The owner retains the exact Worker child, drains and joins its single checkpoint saver, joins the
 periodic process sampler and the retained Worktree/Workspace-group owners, then stops Close and
 graphics maintenance. It takes the fresh final capture/publication only after those writers and

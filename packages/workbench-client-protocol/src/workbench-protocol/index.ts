@@ -4,6 +4,7 @@ export {
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchLabelSchema,
 	WorkbenchRequestIdSchema,
+	WorkbenchStopIdSchema,
 } from './workbench-semantic-contract';
 export type {
 	WorkbenchPanelNode,

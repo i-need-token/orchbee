@@ -23,6 +23,7 @@ export {
 	WorkbenchLabelSchema,
 	WorkbenchLaunchSelectionSchema,
 	WorkbenchRequestIdSchema,
+	WorkbenchStopIdSchema,
 	parseWorkbenchAction,
 	parseWorkbenchRequest,
 	parseWorkbenchResponse,

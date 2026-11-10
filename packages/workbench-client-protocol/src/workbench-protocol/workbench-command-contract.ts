@@ -97,6 +97,10 @@ import {
 	WorkbenchLayoutHistoryResultSchema,
 } from './workbench-layout-history-contract';
 import {
+	WorkbenchSessionStopRequestSchema,
+	WorkbenchSessionStopResultSchema,
+} from './workbench-session-stop-contract';
+import {
 	WorkbenchTabSetCloseRequestSchema,
 	WorkbenchTabSetCloseResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES,
@@ -688,6 +692,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchTabSetCloseRequestSchema,
 		WorkbenchTabDuplicateRequestSchema,
 		WorkbenchLayoutHistoryRequestSchema,
+		WorkbenchSessionStopRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
 	.refine((value) => {
@@ -826,6 +831,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchTabSetCloseResultSchema,
 		WorkbenchTabDuplicateResultSchema,
 		WorkbenchLayoutHistoryResultSchema,
+		WorkbenchSessionStopResultSchema,
 		WorkbenchClientViewResultSchema,
 	])
 	.superRefine((value, context) => {

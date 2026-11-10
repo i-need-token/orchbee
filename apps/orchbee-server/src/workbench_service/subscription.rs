@@ -99,6 +99,7 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         WorkbenchRequest::Command(_)
         | WorkbenchRequest::TabCloseResume(_)
         | WorkbenchRequest::WorkspaceCloseResume(_)
-        | WorkbenchRequest::WorkspaceGroupClose(_) => false,
+        | WorkbenchRequest::WorkspaceGroupClose(_)
+        | WorkbenchRequest::SessionStop(_) => false,
     }
 }
