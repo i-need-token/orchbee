@@ -41,6 +41,10 @@ and the sorted production helper set and bytes. It deliberately excludes unrelat
 claim-document text and other models. It proves the mathematical configuration, not correspondence
 with changed product implementation; affected tests and refinement review remain required.
 Injected Node/Java options, custom classpaths or module lookup paths refuse cache participation.
+The runtime payload is every file under the Java home; a link that leaves it refuses cache
+participation. The one exception is the trust store `lib/security/cacerts`, which distributions
+link to the system store and which cannot change what TLC computes: when that exact path is a
+link to an external regular file, the identity records only that it is external, not its bytes.
 
 Load and validate every selected envelope before admitting a child. Missing, stale or corrupt
 evidence is a reported miss; invalidate the whole affected envelope before fresh work. Forced full

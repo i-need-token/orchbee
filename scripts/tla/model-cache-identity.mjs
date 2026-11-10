@@ -33,6 +33,9 @@ async function resolveExecutable(command) {
 	throw new Error(`Cannot resolve concrete Java executable: ${command}`);
 }
 
+/** The only runtime path whose link may leave the Java runtime. */
+const externalTrustStore = path.join('lib', 'security', 'cacerts');
+
 async function treeDigest(root) {
 	const digest = createHash('sha256');
 	async function visit(directory, ancestors = new Set()) {
@@ -47,7 +50,14 @@ async function treeDigest(root) {
 			let kind = entry;
 			if (entry.isSymbolicLink()) {
 				const target = await realpath(file);
-				if (!inside(root, target)) throw new Error(`Java runtime link escapes: ${file}`);
+				if (!inside(root, target)) {
+					// Distributions link the trust store to the system store. It cannot change what
+					// TLC computes, so the identity records only that it is external.
+					if (path.relative(root, file) !== externalTrustStore || !(await lstat(target)).isFile())
+						throw new Error(`Java runtime link escapes: ${file}`);
+					digest.update(externalTrustStore).update('\0external\0');
+					continue;
+				}
 				digest
 					.update(path.relative(root, file))
 					.update('\0')
