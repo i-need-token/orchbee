@@ -14,6 +14,25 @@ const DARWIN_BADGES = {
 	release: '',
 };
 
+// The Windows notification-area icon: the mark, with the most urgent Agent state as a hexagon in
+// the lower-right corner, in the fixed status colors every theme uses, and outside a release the
+// environment's badge in the upper-left corner, a circle for Dev and a square for Test, so neither
+// reads as a state. Their ink outline keeps them apart from the hive ring at 16 px.
+const TRAY_STATUS_COLORS = {
+	none: null,
+	failed: '#FF5F57',
+	attention: '#FEBC2E',
+	done: '#28C840',
+};
+const TRAY_BADGES = {
+	release: '',
+	dev: `<circle cx="248" cy="248" r="200" fill="#625bf6" stroke="${INK}" stroke-width="48"/>`,
+	test: `<rect x="56" y="56" width="384" height="384" rx="72" fill="#168f5b" stroke="${INK}" stroke-width="48"/>`,
+};
+// A pointy-top hexagon, the TUI's ⬢, unlike the hive's flat-top cells.
+const TRAY_STATUS_HEXAGON = 'M760 520 967.8 640V880L760 1000 552.2 880V640Z';
+const TRAY_ICON_SIZES = [16, 20, 24, 32, 40, 48];
+
 const ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 180, 192, 256, 512, 1024, 2048];
 const DARWIN_SIZES = [16, 32, 64, 128, 256, 512, 1024];
 const JPEG_SIZES = [256, 512, 1024, 2048];
@@ -38,6 +57,8 @@ const SOCIAL_CARDS = [
 ];
 
 const darwinSuffix = (variant) => (variant === 'release' ? '' : `-${variant}`);
+const traySuffix = (status) => (status === 'none' ? '' : `-${status}`);
+const trayName = (variant, status) => `orchbee${darwinSuffix(variant)}${traySuffix(status)}`;
 
 export function renderBrandSvgs(masterSvg) {
 	const master = masterSvg.trim();
@@ -56,6 +77,18 @@ export function renderBrandSvgs(masterSvg) {
 			`macos${darwinSuffix(variant)}`,
 			`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><g transform="${DARWIN_BODY_TRANSFORM}">${artwork}</g>${badge}</svg>`,
 		);
+	}
+	for (const [variant, badge] of Object.entries(TRAY_BADGES)) {
+		for (const [status, color] of Object.entries(TRAY_STATUS_COLORS)) {
+			const hexagon =
+				color === null
+					? ''
+					: `<path d="${TRAY_STATUS_HEXAGON}" fill="${color}" stroke="${INK}" stroke-width="48" stroke-linejoin="round"/>`;
+			svgs.set(
+				`tray-${trayName(variant, status)}`,
+				`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${artwork}${badge}${hexagon}</svg>`,
+			);
+		}
 	}
 	return svgs;
 }
@@ -114,6 +147,16 @@ export function brandAssetPlan() {
 	}
 	plan.set('ico/favicon.ico', { kind: 'ico', svg: 'icon', sizes: FAVICON_SIZES });
 	plan.set('ico/orchbee.ico', { kind: 'ico', svg: 'icon', sizes: WINDOWS_ICON_SIZES });
+	for (const variant of Object.keys(TRAY_BADGES)) {
+		for (const status of Object.keys(TRAY_STATUS_COLORS)) {
+			const name = trayName(variant, status);
+			plan.set(`ico/tray/${name}.ico`, {
+				kind: 'ico',
+				svg: `tray-${name}`,
+				sizes: TRAY_ICON_SIZES,
+			});
+		}
+	}
 	for (const [name, background, svg] of SOCIAL_CARDS) {
 		for (const [kind, extension] of [
 			['png', 'png'],

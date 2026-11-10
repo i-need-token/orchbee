@@ -49,6 +49,7 @@ import {
 	type ProjectedTerminalPlatformEffects,
 	type ServerWorkbenchRuntime,
 } from '../../workbench-client';
+import { bindDesktopBackgroundStatus, DesktopBackgroundStatusClient } from '../background-status';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { SessionDisconnectedStatus } from '../session-disconnected-status';
@@ -63,6 +64,7 @@ interface DesktopServerWorkbenchStorage {
 }
 
 interface DesktopServerConnectionAnnouncement {
+	readonly backgroundStatusPort: MessagePort;
 	readonly bootstrap: DesktopServerConnectionBootstrap;
 	readonly connectionPort: MessagePort;
 	readonly projectFolderPort: MessagePort;
@@ -77,14 +79,21 @@ function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectio
 				event.ports[DESKTOP_SERVER_CONNECTION_PORT_ROLES.indexOf(role)];
 			const connectionPort = portFor('server-connection');
 			const projectFolderPort = portFor('project-folder-acquisition');
+			const backgroundStatusPort = portFor('background-status');
 			const message = DesktopServerConnectionWindowMessageSchema.safeParse(event.data);
 			if (
 				message.success &&
 				event.ports.length === DESKTOP_SERVER_CONNECTION_PORT_ROLES.length &&
 				connectionPort !== undefined &&
-				projectFolderPort !== undefined
+				projectFolderPort !== undefined &&
+				backgroundStatusPort !== undefined
 			) {
-				resolve({ bootstrap: message.data.bootstrap, connectionPort, projectFolderPort });
+				resolve({
+					backgroundStatusPort,
+					bootstrap: message.data.bootstrap,
+					connectionPort,
+					projectFolderPort,
+				});
 				return;
 			}
 			for (const port of event.ports) port.close();
@@ -163,7 +172,10 @@ async function run(
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: DesktopServerWorkbenchStorage,
 ): Promise<void> {
-	const { bootstrap, connectionPort, projectFolderPort } = await receiveConnection(targetWindow);
+	const { backgroundStatusPort, bootstrap, connectionPort, projectFolderPort } =
+		await receiveConnection(targetWindow);
+	const backgroundStatus = new DesktopBackgroundStatusClient(backgroundStatusPort);
+	targetWindow.addEventListener('unload', () => backgroundStatus.dispose(), { once: true });
 	const connection = new ServerConnection(new MessagePortServerCarrier(connectionPort));
 	targetWindow.addEventListener('unload', () => connection.close(), { once: true });
 	const session = await ServerWorkbenchSession.open(connection).catch(() => null);
@@ -219,7 +231,13 @@ async function run(
 		userPreferences,
 	);
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
-		notificationCapability: createBrowserTerminalNotificationCapability(targetWindow),
+		// A page cannot show a window Main hid, so a notification click asks Main to show it first.
+		notificationCapability: createBrowserTerminalNotificationCapability({
+			focus: () => {
+				backgroundStatus.requestWindow();
+				targetWindow.focus();
+			},
+		}),
 		userPreferences,
 	});
 	const agentIntegrationManagementClient = new ServerAgentIntegrationClient(
@@ -229,6 +247,7 @@ async function run(
 
 	let routing: WebApplicationRouting | undefined;
 	let runtime: ServerWorkbenchRuntime | undefined;
+	let stopBackgroundStatus: (() => void) | undefined;
 	const projectFolderAcquisition = new DesktopProjectFolderAcquisitionClient(
 		projectFolderPort,
 		undefined,
@@ -246,6 +265,7 @@ async function run(
 			runApplicationCleanup(
 				[
 					() => reactRoot.unmount(),
+					() => stopBackgroundStatus?.(),
 					() => routing?.dispose(),
 					() => runtime?.dispose(),
 					() => projectFolderAcquisition.dispose(),
@@ -294,6 +314,13 @@ async function run(
 			terminalInteractionSettingsController.trailingBlankRowsPreferenceSource,
 		// Electron names the window after its page, which the taskbar and window switcher show.
 		titleWindow: targetWindow,
+	});
+	// What Main's notification-area icon shows while the window is hidden.
+	stopBackgroundStatus = bindDesktopBackgroundStatus({
+		agentObservationSource: runtime.agentObservationSource,
+		client: backgroundStatus,
+		projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
+		session,
 	});
 	routing = createWebApplicationRouting(
 		{

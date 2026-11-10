@@ -3,7 +3,7 @@
 	"domain": "desktop-client-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict data contracts for the Desktop window's Server-connection announcement and its fixed port order, and local Project Folder acquisition.",
+	"responsibility": "Strict data contracts for the Desktop window's Server-connection announcement and its fixed port order, local Project Folder acquisition, and the background status the page reports for the notification-area icon.",
 	"nonGoals": [
 		"Owning Electron Main, preload, renderer, network, authentication, or transport lifecycle implementations.",
 		"Owning the Server's Client protocol, canonical Agent transitions, provider payloads or correlation capabilities, terminal projection, projected attachment, Workbench document, TerminalPresentation, PTY, VT, terminal process, or product-interface semantics.",

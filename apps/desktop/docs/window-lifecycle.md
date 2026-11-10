@@ -57,10 +57,49 @@ The application menu and its accelerator call the same prepared Action path. Nat
 and compositor controls remain operating-system inputs to the same BrowserWindow state; they publish
 the normal Electron maximize, unmaximize, and full-screen events consumed by persistence.
 
-Focusing an existing minimized window first restores and shows it, then focuses it. The window has
-no close confirmation: closing it or quitting ends only this Client, never its Session, so the
-window's place is captured at close and flushed before the process exits. A window started hidden
-for automation neither restores nor records its place.
+Focusing an existing minimized or hidden window first restores and shows it, then focuses it. The
+window has no close confirmation: closing it or quitting ends only this Client, never its Session,
+so the window's place is captured at close and flushed before the process exits. A window started
+hidden for automation neither restores nor records its place.
+
+## Running in the notification area
+
+On Windows a close while terminals run hides the window instead of closing it, so Desktop and its
+Client connection keep running with the window's document intact. The page reports a summary over
+its background-status port: running terminals, which exclude ended, failed, and unstarted ones, and
+the Agents that are working, failed, need attention, or finished a turn not yet seen. Main keeps the
+latest summary across a document's replacement and counts nothing itself. A Session that ends
+reports none.
+
+`desktop-background-lifecycle.ts` holds the model: the window as `absent`, `shown`, or `hidden`; the
+application as running, `quitting`, or `session-ending`; the latest summary; and whether the
+one-time notice has been shown. `transitionDesktopBackground` applies close, show, closed, summary,
+quit, session-end, and notice events and returns `hide-window`, `quit`, `show-notice`, and
+`record-notice` commands; `projectDesktopTray` derives the icon.
+
+- A close while the window shows with terminals running becomes a hide. Without a running
+  terminal, the close proceeds and Desktop quits, as it always has.
+- No close is turned into a hide once the application is quitting, which every quit passes through
+  in `before-quit`, the development runtime's restart included, or once the window has reported
+  `query-session-end` or `session-end`. Desktop never delays logoff or shutdown.
+- While the application runs, the icon exists exactly when the window is hidden and terminals run;
+  it is created when the window hides and removed when it shows, so a hidden window always has an
+  icon and a shown one never does.
+- When the last terminal ends while the window is hidden, Desktop quits.
+- The first hide shows a notice from the icon, which Windows withholds during Do Not Disturb. Only a
+  notice Windows reports as shown is recorded in `internal/state/desktop-tray.json`, so a withheld
+  one is shown at a later hide. Each distribution profile records its own.
+- Clicking or double-clicking the icon or its notice, Reopen Orchbee, starting Orchbee again, and a
+  notification clicked while the window is hidden all show and focus the window; the page asks Main
+  for it, because a page cannot show a window Main hid. Quit Orchbee, Keep Terminals Running quits
+  Desktop and leaves the Session running.
+- Only a release icon has a fixed GUID, so Windows remembers whether it is shown in the taskbar.
+  Test and Dev run from changing paths, to which Windows ties an unsigned executable's GUID.
+- A window started hidden for automation, macOS, and Linux keep no icon and close as before.
+
+Deterministic tests of the model cover the close decision, closes never intercepted while ending,
+the quit when the last terminal ends, and the icon invariant over every reachable state. The tray
+adapter, the notice, and the native events have no automated evidence.
 
 ## State model and invariants
 

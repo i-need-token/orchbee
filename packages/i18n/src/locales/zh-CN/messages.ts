@@ -6,6 +6,7 @@ import { zhCNApplicationRoutingMessages } from './application-routing';
 
 import { zhCNDesktopDiagnosticsMessages } from './desktop-diagnostics';
 import { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
+import { zhCNDesktopTrayMessages } from './desktop-tray';
 
 import { zhCNDesktopWindowMessages } from './desktop-window';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
@@ -24,6 +25,7 @@ export const zhCNMessages = {
 
 	...zhCNDesktopDiagnosticsMessages,
 	...zhCNDesktopSecureKeyboardEntryMessages,
+	...zhCNDesktopTrayMessages,
 
 	...zhCNDesktopWindowMessages,
 	...zhCNKeyboardShortcutMessages,

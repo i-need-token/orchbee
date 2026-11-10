@@ -6,6 +6,7 @@ export {
 	applicationRoutingMessages,
 	desktopDiagnosticsMessages,
 	desktopSecureKeyboardEntryMessages,
+	desktopTrayMessages,
 	desktopWindowMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,

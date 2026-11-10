@@ -2,7 +2,7 @@
 	"name": "@orchbee/desktop-client-protocol",
 	"version": "0.2.0",
 	"private": true,
-	"description": "Desktop Server-connection bootstrap and native Project Folder acquisition contracts",
+	"description": "Desktop Server-connection bootstrap, native Project Folder acquisition, and background status contracts",
 	"files": [
 		"dist",
 		"README.md"

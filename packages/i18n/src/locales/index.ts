@@ -4,6 +4,7 @@ export {
 	enUSAgentObservationMessages,
 	enUSDesktopDiagnosticsMessages,
 	enUSDesktopSecureKeyboardEntryMessages,
+	enUSDesktopTrayMessages,
 	enUSDesktopWindowMessages,
 	enUSKeyboardShortcutMessages,
 	enUSProjectedTerminalMessages,

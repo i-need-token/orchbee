@@ -338,6 +338,25 @@ export class WorkbenchProjectWorkspaceRuntime {
 		});
 	}
 
+	/**
+	 * How many terminals run in every Workspace, as this window last saw them: a terminal that ended,
+	 * failed to launch, or never started is not running, and neither is one a progressing close took
+	 * out of the window.
+	 */
+	public countRunningTerminals(): number {
+		let running = 0;
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				for (const panel of collectPanelLeaves(tab.root)) {
+					for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
+						if (terminal.lifecycle.kind === 'running') running += 1;
+					}
+				}
+			}
+		}
+		return running;
+	}
+
 	/** What closing these Tabs does to every terminal they hold. */
 	public getActiveTerminalTabsCloseImpact(tabIds: readonly string[]): TerminalCloseImpact {
 		const requestedTabIds = new Set(tabIds);

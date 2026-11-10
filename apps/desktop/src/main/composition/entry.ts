@@ -20,6 +20,7 @@ import {
 	resolveDesktopSessionName,
 } from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
+import { DesktopBackgroundRuntime, FileDesktopTrayRecord } from '../background-tray';
 import {
 	DesktopDiagnosticLog,
 	DesktopDiagnosticsActions,
@@ -59,6 +60,7 @@ const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
 // Cross-runtime contract: search for `packaged-desktop-resources` before changing these values.
 const PACKAGED_COHORT_DIRECTORY = 'cohort';
 const PACKAGED_RENDERER_DIRECTORY = 'dist';
+const PACKAGED_TRAY_ICON_DIRECTORY = 'tray';
 
 const packaged = isPackagedDesktop(process);
 registerDesktopRendererScheme(protocol);
@@ -173,6 +175,35 @@ function resolveClientExecutable(): string {
 	);
 }
 
+/** The notification-area icons: the package's copy, or in a checkout the generated brand assets. */
+function resolveTrayIconDirectory(): string {
+	if (packaged || distribution.dataScope.kind !== 'development') {
+		return path.join(process.resourcesPath, PACKAGED_TRAY_ICON_DIRECTORY);
+	}
+	return path.join(distribution.dataScope.sourceRoot, 'resources', 'brand', 'ico', 'tray');
+}
+
+/**
+ * On Windows, closing the window while terminals run keeps Desktop in the notification area; a
+ * window started hidden for automation keeps none. macOS and Linux keep their close behavior.
+ */
+async function createBackground(): Promise<DesktopBackgroundRuntime | undefined> {
+	if (process.platform !== 'win32' || process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined) {
+		return undefined;
+	}
+	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
+	return new DesktopBackgroundRuntime({
+		applicationName: distribution.applicationName,
+		distribution: distribution.dataScope.kind,
+		iconDirectory: resolveTrayIconDirectory(),
+		intl: createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages())),
+		noticeShown: await record.readNoticeShown(),
+		quit: () => app.quit(),
+		record,
+		reopen: () => void application?.openWindow().catch(() => undefined),
+	});
+}
+
 async function resolveRendererUrl(): Promise<URL> {
 	const developmentUrl = packaged ? undefined : process.env[RENDERER_URL_ENVIRONMENT_KEY];
 	if (developmentUrl !== undefined) return new URL(developmentUrl);
@@ -268,6 +299,7 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 }
 
 let application: DesktopServerClientApplication | undefined;
+let background: DesktopBackgroundRuntime | undefined;
 let removePlatformActions: (() => void) | undefined;
 let saveDiagnosticBundle: (() => boolean) | undefined;
 /** A Save Diagnostic Bundle task that started Orchbee waits for the Action to be installed. */
@@ -290,7 +322,9 @@ async function start(): Promise<void> {
 		throw new Error('The Desktop renderer URL is not permitted.');
 	}
 	const session = process.env[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
+	background = await createBackground();
 	const started = new DesktopServerClientApplication({
+		background,
 		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
 		clientEnvironment: resolveClientEnvironment(dataRoot),
 		clientExecutable: resolveClientExecutable(),
@@ -345,6 +379,8 @@ if (app.requestSingleInstanceLock()) {
 }
 
 app.on('before-quit', (event) => {
+	// From here a close is never turned into a hide, whatever started the quit.
+	background?.quitRequested();
 	if (windowStateSettled || application === undefined) return;
 	event.preventDefault();
 	void application.settleWindowState().finally(() => {
@@ -358,7 +394,8 @@ app.on('window-all-closed', () => {
 });
 
 // The development runtime restarts Main after a rebuild through an ordinary quit, which records the
-// window's place first; the Session keeps running, as it does after any quit.
+// window's place first and closes the window even while terminals run; the Session keeps running, as
+// it does after any quit.
 if (!packaged && process.send !== undefined) {
 	process.on('message', (message: unknown) => {
 		if (DesktopDevelopmentRestartRequestSchema.safeParse(message).success) app.quit();
@@ -368,5 +405,6 @@ if (!packaged && process.send !== undefined) {
 app.once('will-quit', () => {
 	removePlatformActions?.();
 	removePlatformActions = undefined;
+	background?.dispose();
 	recordEvent('info', 'exited');
 });

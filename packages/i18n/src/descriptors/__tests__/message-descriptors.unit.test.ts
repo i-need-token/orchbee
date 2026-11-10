@@ -8,6 +8,7 @@ import { applicationRoutingMessages } from '../application-routing';
 
 import { desktopDiagnosticsMessages } from '../desktop-diagnostics';
 import { desktopSecureKeyboardEntryMessages } from '../desktop-secure-keyboard-entry';
+import { desktopTrayMessages } from '../desktop-tray';
 
 import { desktopWindowMessages } from '../desktop-window';
 import { keyboardShortcutMessages } from '../keyboard-shortcuts';
@@ -27,6 +28,7 @@ const descriptorCollections: readonly (readonly [
 
 	['Desktop diagnostics', desktopDiagnosticsMessages],
 	['Desktop Secure Keyboard Entry', desktopSecureKeyboardEntryMessages],
+	['Desktop tray', desktopTrayMessages],
 
 	['Desktop window', desktopWindowMessages],
 	['keyboard shortcuts', keyboardShortcutMessages],

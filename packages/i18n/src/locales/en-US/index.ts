@@ -9,6 +9,8 @@ export { enUSDesktopDiagnosticsMessages } from './desktop-diagnostics';
 export type { DesktopDiagnosticsMessageId } from './desktop-diagnostics';
 export { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export type { DesktopSecureKeyboardEntryMessageId } from './desktop-secure-keyboard-entry';
+export { enUSDesktopTrayMessages } from './desktop-tray';
+export type { DesktopTrayMessageId } from './desktop-tray';
 
 export { enUSDesktopWindowMessages } from './desktop-window';
 export type { DesktopWindowMessageId } from './desktop-window';

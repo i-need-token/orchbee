@@ -3,8 +3,8 @@
 ## Authority and scope
 
 This reference owns how Desktop resolves and prepares its data root and distribution-profile
-isolation. The data root scopes Electron `userData`, the single-instance lock, the window-state
-record, and the root under which Desktop runs `orchbee`. The
+isolation. The data root scopes Electron `userData`, the single-instance lock, the window-state and
+notification-area records, and the root under which Desktop runs `orchbee`. The
 [data root owner](../../../crates/local-runtime/README.md#data-root) defines the shared layout. This
 reference does not define Session state, which the Server owns, migration between profiles or from
 earlier locations, or automatic deletion.
@@ -25,6 +25,7 @@ runtime; a relative value fails startup instead of falling back. Desktop keeps i
 | ------------------------------------ | --------------------------------------------------------------- |
 | `internal/desktop/`                  | Electron `userData`: browser storage, Chromium caches, and lock |
 | `internal/state/desktop-window.json` | Window bounds and state, created by the first save              |
+| `internal/state/desktop-tray.json`   | Whether the one-time notification-area notice has been shown    |
 | `internal/development-checkout.json` | Development scope marker                                        |
 | `internal/version.json`              | Layout record and the newest version that opened the root       |
 
@@ -92,6 +93,14 @@ and not migrated, backed up, and replaced, is never rewritten: the window opens 
 and placement changes last only until Main exits. The first launch that finds such a record logs
 `record-unusable` with record `desktop-window`, the problem `newer-format` or `not-updated`, and the
 version, and shows the matching localized message once in an information dialog.
+
+## Notification-area record
+
+`internal/state/desktop-tray.json` holds `version` 1, `noticeShown`, and an optional `extensions`
+object kept unread and written back unchanged. Windows Main writes it once, when the first notice
+is shown, through the same flushed atomic replacement as the window state record. A missing,
+unreadable, or malformed record shows the notice again; a newer `version` means a newer Orchbee
+showed it, so the notice stays hidden and the record is never rewritten.
 
 ## Invariants
 

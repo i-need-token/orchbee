@@ -78,6 +78,11 @@ const desktopBuild = path.join(applicationRoot, 'dist');
 // extra resource keeps its directory's base name under the application's resources directory.
 const rendererBuild = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const cohortDirectoryName = 'cohort';
+// Windows keeps running in the notification area after its window closes, with these icons.
+const trayIconDirectory =
+	process.platform === 'win32'
+		? path.join(repositoryRoot, 'resources', 'brand', 'ico', 'tray')
+		: undefined;
 const darwinApplicationIcon = path.join(
 	repositoryRoot,
 	'resources',
@@ -91,6 +96,7 @@ await Promise.all([
 	access(path.join(desktopBuild, 'preload', 'preload.cjs')),
 	access(path.join(rendererBuild, 'index.html')),
 	...(usesDarwinApplicationIcon ? [access(darwinApplicationIcon)] : []),
+	...(trayIconDirectory === undefined ? [] : [access(trayIconDirectory)]),
 ]);
 
 const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
@@ -142,7 +148,11 @@ try {
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
-		extraResource: [rendererBuild, cohortRoot],
+		extraResource: [
+			rendererBuild,
+			cohortRoot,
+			...(trayIconDirectory === undefined ? [] : [trayIconDirectory]),
+		],
 		helperBundleId: `${distributionProfile.bundleIdentifier}.helper`,
 		...(usesDarwinApplicationIcon ? { icon: darwinApplicationIcon } : {}),
 		name: packagedExecutableName,

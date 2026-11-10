@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import { writeStateRecordFile } from '../state-record';
 import type { UpgradeBackup } from '../upgrade-backup';
 import {
 	DESKTOP_WINDOW_STATE_STEPS,
@@ -110,34 +111,7 @@ export class FileDesktopWindowStateStore implements DesktopWindowStateStore {
 
 	/** Flushes `encoded` into a temporary file and atomically renames it over the record. */
 	async #writeRecord(encoded: Buffer): Promise<void> {
-		const directory = path.dirname(this.#filePath);
-		await mkdir(directory, { mode: 0o700, recursive: true });
-		if (process.platform !== 'win32') await chmod(directory, 0o700);
-		const temporaryPath = `${this.#filePath}.${this.#randomToken()}.tmp`;
-		let temporaryCreated = false;
-		try {
-			const temporary = await open(temporaryPath, 'wx', 0o600);
-			temporaryCreated = true;
-			try {
-				await temporary.writeFile(encoded);
-				await temporary.sync();
-			} finally {
-				await temporary.close();
-			}
-			await rename(temporaryPath, this.#filePath);
-		} catch (error: unknown) {
-			if (temporaryCreated) await unlink(temporaryPath).catch(() => undefined);
-			throw error;
-		}
-		if (process.platform !== 'win32') {
-			await chmod(this.#filePath, 0o600);
-			const directoryHandle = await open(directory, 'r');
-			try {
-				await directoryHandle.sync();
-			} finally {
-				await directoryHandle.close();
-			}
-		}
+		await writeStateRecordFile(this.#filePath, encoded, this.#randomToken);
 	}
 }
 

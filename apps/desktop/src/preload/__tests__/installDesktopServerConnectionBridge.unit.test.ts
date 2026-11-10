@@ -25,8 +25,8 @@ const ISOLATED = { contextIsolated: true, sandboxed: true };
 const DOCUMENT = '00000000-0000-4000-8000-000000000001';
 const OTHER_DOCUMENT = '00000000-0000-4000-8000-000000000002';
 
-/** The connection port and the Project folder picker port Main sends with a reply. */
-function documentPorts(count = 2): MessagePort[] {
+/** The connection, Project folder picker, and background-status ports Main sends with a reply. */
+function documentPorts(count = 3): MessagePort[] {
 	return Array.from({ length: count }, () => new MessageChannel().port1);
 }
 
@@ -148,7 +148,7 @@ describe('installDesktopServerConnectionBridge', () => {
 		for (const close of closes) expect(close).toHaveBeenCalledOnce();
 	});
 
-	it.each([1, 3])('closes every port when Main sends %i instead of one per role', (count) => {
+	it.each([2, 4])('closes every port when Main sends %i instead of one per role', (count) => {
 		const { mainAnswers, pageAsks, targetWindow } = install(ISOLATED);
 		pageAsks();
 		const ports = documentPorts(count);

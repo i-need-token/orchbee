@@ -19,6 +19,7 @@ import {
 	type MessagePortMain,
 } from 'electron';
 
+import { serveDesktopBackgroundStatus, type DesktopWindowBackground } from '../background-tray';
 import { isSameDesktopRendererOrigin } from '../desktop-renderer-protocol';
 import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import {
@@ -30,6 +31,11 @@ import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../w
 
 /** What the window's Client processes run under, and where its page comes from. */
 export interface DesktopServerClientApplicationOptions {
+	/**
+	 * Keeps Desktop running in the notification area when the window closes while terminals run;
+	 * absent where closing the window keeps its current behavior, and for a window started hidden.
+	 */
+	readonly background: DesktopWindowBackground | undefined;
 	readonly checkoutName: DesktopServerConnectionBootstrap['checkoutName'];
 	readonly clientEnvironment: NodeJS.ProcessEnv;
 	readonly clientExecutable: string;
@@ -65,6 +71,7 @@ function openExternalLink(address: string): void {
 
 /** What Main holds for one document: its Client connection and the folder picker it may open. */
 interface DocumentConnection {
+	readonly closeBackgroundStatus: () => void;
 	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
 	readonly relay: ServerConnectionRelay;
 }
@@ -78,7 +85,8 @@ function isSupersededLoad(error: unknown): boolean {
  * Desktop as a Server Client: one window, whose every document holds one Client connection through
  * an `orchbee server connect` relay. Main keeps what belongs to this computer: the window, its place
  * on screen, and the native folder picker a new Project starts from. Closing the window ends only
- * this Client, and the Session's terminals keep running.
+ * this Client, and the Session's terminals keep running; on Windows, a close while they run hides
+ * the window instead, as the background lifecycle decides.
  */
 export class DesktopServerClientApplication {
 	readonly #options: DesktopServerClientApplicationOptions;
@@ -197,7 +205,22 @@ export class DesktopServerClientApplication {
 			endDocumentConnection();
 			if (details.reason !== 'clean-exit' && !window.isDestroyed()) window.reload();
 		});
+		const background = options.background;
+		if (background !== undefined) {
+			window.on('show', () => background.windowShown());
+			window.on('close', (event) => {
+				// Whatever showed the window, the lifecycle decides its close from what is on screen.
+				if (window.isVisible()) background.windowShown();
+				if (!background.closeRequested()) return;
+				event.preventDefault();
+				window.hide();
+			});
+			// Logoff and shutdown are never delayed: the close that follows always proceeds.
+			window.on('query-session-end', () => background.sessionEnding());
+			window.on('session-end', () => background.sessionEnding());
+		}
 		window.once('closed', () => {
+			background?.windowClosed();
 			endDocumentConnection();
 			attachment?.dispose();
 			if (this.#windowStateAttachment === attachment) this.#windowStateAttachment = undefined;
@@ -225,6 +248,7 @@ export class DesktopServerClientApplication {
 		const end = (): void => {
 			requests += 1;
 			current?.relay.close();
+			current?.closeBackgroundStatus();
 			// A folder made for a Project the document never confirmed is reported to the person here.
 			current?.folderAcquisition.dispose();
 			current = undefined;
@@ -268,13 +292,19 @@ export class DesktopServerClientApplication {
 		);
 		const connection = new MessageChannelMain();
 		const folders = new MessageChannelMain();
+		const backgroundStatus = new MessageChannelMain();
 		const relay = new ServerConnectionRelay(relayProcess, connection.port1);
 		const folderAcquisition = new DesktopProjectFolderAcquisitionBroker(
 			folders.port1,
 			new DesktopProjectFolderAcquisitionRuntime(window),
 		);
 		folderAcquisition.start();
+		const closeBackgroundStatus = serveDesktopBackgroundStatus(
+			backgroundStatus.port1,
+			options.background,
+		);
 		const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
+			'background-status': backgroundStatus.port2,
 			'project-folder-acquisition': folders.port2,
 			'server-connection': connection.port2,
 		};
@@ -283,6 +313,6 @@ export class DesktopServerClientApplication {
 			reply,
 			DESKTOP_SERVER_CONNECTION_PORT_ROLES.map((role) => pagePorts[role]),
 		);
-		return { folderAcquisition, relay };
+		return { closeBackgroundStatus, folderAcquisition, relay };
 	}
 }

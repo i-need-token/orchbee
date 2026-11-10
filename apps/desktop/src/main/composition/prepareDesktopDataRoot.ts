@@ -20,6 +20,7 @@ const DEVELOPMENT_SCOPE_MARKER_NAME = 'development-checkout.json';
 const ELECTRON_DIRECTORY_NAME = 'desktop';
 const LOG_DIRECTORY_NAME = 'logs';
 const STATE_DIRECTORY_NAME = 'state';
+const TRAY_STATE_FILE_NAME = 'desktop-tray.json';
 const WINDOW_STATE_FILE_NAME = 'desktop-window.json';
 const VERSION_FILE_NAME = 'version.json';
 
@@ -46,6 +47,8 @@ interface DesktopDataRootLocations {
 	/** The daily diagnostic logs, created by the first record. */
 	readonly logDirectory: string;
 	readonly path: string;
+	/** Whether the one-time notification-area notice has been shown, created when it first shows. */
+	readonly trayStateFile: string;
 	readonly windowStateFile: string;
 }
 
@@ -123,6 +126,7 @@ function resolveDesktopDataRoot(input: DesktopDataRootInput): DesktopDataRoot {
 		electronDirectory: platformPath.join(internal, ELECTRON_DIRECTORY_NAME),
 		logDirectory: platformPath.join(root, LOG_DIRECTORY_NAME),
 		path: root,
+		trayStateFile: platformPath.join(internal, STATE_DIRECTORY_NAME, TRAY_STATE_FILE_NAME),
 		windowStateFile: platformPath.join(internal, STATE_DIRECTORY_NAME, WINDOW_STATE_FILE_NAME),
 	};
 	if (input.distribution.dataScope.kind !== 'development') {

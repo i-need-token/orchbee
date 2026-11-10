@@ -15,15 +15,22 @@ Main never reads terminal content.
 Main keeps one instance; starting Orchbee again brings the window forward. On macOS the application
 stays open without a window, and activating it opens one. A renderer that crashes is reloaded, and
 the new document connects again. Closing the window or quitting asks nothing, because nothing ends
-with it: Main records the window's place and the Session's terminals keep running.
+with it: Main records the window's place and the Session's terminals keep running. On Windows,
+closing the window while terminals run hides it, and Desktop keeps running in the notification area
+until the window is reopened, Orchbee is quit from the icon, or the last terminal ends, as
+[Window lifecycle](docs/window-lifecycle.md#running-in-the-notification-area) describes; with no
+terminal running, closing it quits as before.
 
 ## Server connection
 
-Each document gets one `orchbee server connect` process and two transferred ports, in the order
+Each document gets one `orchbee server connect` process and three transferred ports, in the order
 `DESKTOP_SERVER_CONNECTION_PORT_ROLES` fixes. `ServerConnectionRelay` moves bytes between the
 process and the first port without reading any; the second is the document's
 [Project Folder acquisition](docs/project-folder-acquisition.md) port, served by a broker that lives
-as long as the connection. The process owns activation, peer validation and admission, and the page
+as long as the connection; the third is its background-status port, over which the page reports how
+many terminals run and which Agent states need the person, and asks for the window when a
+notification is clicked. Main parses each report and counts nothing itself; where no
+notification-area icon is kept, it closes that port. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's
@@ -66,6 +73,13 @@ with.
   Session's title policy as the TUI's outer title does.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)
   describes.
+- On Windows, the notification-area icon while the window is hidden with terminals running. Its
+  image is the Orchbee mark with a hexagon for the most urgent Agent state, red for a failure,
+  yellow for one needing attention, green for a finished turn not yet seen, and outside a release
+  the Dev circle or Test square; its tooltip and its menu's first line count the running terminals
+  and those Agents. Left click and double-click reopen the window; the menu holds Reopen Orchbee
+  and Quit Orchbee, Keep Terminals Running. The icons are generated into
+  `resources/brand/ico/tray/`, which a Windows package carries as `resources/tray`.
 - On Windows, Save Diagnostic Bundle… in the Help menu and in the taskbar's Jump List of a packaged
   build, since the title bar overlay hides the menu bar. It asks where to save, starting in the
   Desktop folder, or in the home folder when the system cannot name the Desktop, runs
@@ -265,5 +279,6 @@ pnpm --filter @orchbee/desktop build
 
 Unit tests cover the data root and distribution identities, the window-state record with its
 migration and upgrade backup, the window-state owner, window and Secure Keyboard Entry Actions, the
-menu, the renderer scheme, the preload bridge, and the Project Folder broker and runtime. No automated test drives a native window or the Server
+menu, the renderer scheme, the preload bridge, the Project Folder broker and runtime, and the
+background lifecycle's close, quit, and icon invariants. No automated test drives a native window or the Server
 connection; the Desktop Electron suite that did retired with Desktop's Main-owned runtime.

@@ -3,13 +3,13 @@
 	"domain": "desktop",
 	"runtime": ["electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron Main and preload composition for the local Desktop window as a Server Client: the Server restore read and one opaque `orchbee server connect` relay per renderer document, secure packaged or development Web resource delivery, native Project Folder acquisition, window state, menu, and window Actions, product-data-root and development-checkout isolation, dev/test/release distribution identities and current-platform packaging with a bundled native cohort, and development-only cohort staging and Electron restart.",
+	"responsibility": "Electron Main and preload composition for the local Desktop window as a Server Client: the Server restore read and one opaque `orchbee server connect` relay per renderer document, secure packaged or development Web resource delivery, native Project Folder acquisition, window state, menu, and window Actions, the Windows notification-area icon that keeps Desktop running while its window is hidden, product-data-root and development-checkout isolation, dev/test/release distribution identities and current-platform packaging with a bundled native cohort, and development-only cohort staging and Electron restart.",
 	"nonGoals": [
 		"Defining Project, Workspace, Workbench, Tab, Panel, Agent, or Session semantics; the Server owns them and apps/web presents them.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
 		"Owning Browser access, remote Project enrollment, or remote execution runtimes.",
 		"Owning a second Workbench product UI separate from apps/web.",
-		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation.",
+		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation beyond keeping the window's Client running in the notification area, or counting terminals and Agent states; the page reports the summary the icon shows.",
 		"Interpreting Server wire messages, persisting Session state, or activating Desktop updates."
 	]
 }

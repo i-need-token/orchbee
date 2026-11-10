@@ -14,6 +14,12 @@ export {
 	type DesktopSessionRefusal,
 } from './desktop-server-connection-contract';
 
+export { DesktopBackgroundStatusRendererMessageSchema } from './desktop-background-status-contract';
+export type {
+	DesktopBackgroundStatusRendererMessage,
+	DesktopBackgroundStatusSummary,
+} from './desktop-background-status-contract';
+
 export {
 	DesktopNewProjectFolderNameSchema,
 	DesktopProjectFolderAcquisitionMainEventSchema,
