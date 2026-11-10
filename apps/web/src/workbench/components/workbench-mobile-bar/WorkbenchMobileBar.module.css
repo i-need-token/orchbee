@@ -1,7 +1,7 @@
 /* The current Tab stays centered on the whole bar while it fits and then keeps 16 px from each
-   button, its name ending in … (D20). The bar's own click opens the Tab list, so a tap anywhere
-   between the buttons does. It paints the Tab strip's track, which the current Tab joins to the
-   content below. */
+   button, its name ending in … (D20) or, too narrow for a whole character and ellipsis, dropped.
+   The bar's own click opens the Tab list, so a tap anywhere between the buttons does. It paints the
+   Tab strip's track, which the current Tab joins to the content below. */
 .root {
 	display: flex;
 	box-sizing: border-box;
@@ -29,7 +29,8 @@
    places; a window too narrow for both sides takes only the start's and the current Tab's shared
    box. That box first narrows the current Tab to 96 px, since the Tab's shrink weight dwarfs the
    start's; then the start gives up the hidden copy, down to the sidebar button's place, by its
-   maximum width; then the current Tab narrows to its icon and hides. */
+   maximum width; then the current Tab narrows, drops its name once not even its first character
+   and an ellipsis fit, narrows to its icon, and hides. */
 .lead {
 	display: flex;
 	flex: 1 1 auto;
@@ -93,11 +94,13 @@
 }
 
 /* The current Tab's place: its 96 px strut keeps it that wide while the bar has the room, so the
-   sides around it stay alike, and in Desktop it is the window's drag surface beside the Tab. */
+   sides around it stay alike, and in Desktop it is the window's drag surface beside the Tab. It is
+   as high as the bar, whatever lines the Tab wraps its label to. */
 .middle {
 	display: grid;
 	flex: 1 10000 auto;
 	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
+	grid-template-rows: minmax(var(--ob-ref-space-0), 1fr);
 	min-width: var(--ob-ref-space-0);
 	align-self: stretch;
 	overflow: hidden;
@@ -114,7 +117,8 @@
 }
 
 /* The bar-high strut keeps the Tab on the first line while its icon fits, and a narrower place
-   wraps the Tab to a second line, which the place clips. */
+   wraps the Tab to a second line, which the place clips. The Tab there then hides, so it leaves the
+   tab order and the accessibility tree. */
 .row {
 	display: flex;
 	flex-wrap: wrap;
@@ -131,19 +135,25 @@
 }
 
 /* The current Tab as the strip draws it: the content's surface, 4 px below the bar's top and joined
-   to the content below. Its content keeps the buttons' center line, 4 px above the bar's bottom. */
+   to the content below. Its content keeps the buttons' center line, 4 px above the bar's bottom.
+   Like the place around it, it keeps its label on the first line while the label's minimum width
+   fits, and a narrower Tab wraps the label to a second line, which starts past the bottom padding
+   and which the Tab clips without becoming scrollable, so the icon stands alone at its center. */
 .tab {
 	display: flex;
 	box-sizing: border-box;
 	flex: 0 1 auto;
+	flex-wrap: wrap;
+	align-content: flex-start;
 	height: calc(100% - var(--ob-ref-space-1));
 	min-width: calc(var(--ob-ref-size-icon-md) + 2 * var(--ob-ref-space-2));
 	max-width: 100%;
 	align-items: center;
-	gap: var(--ob-ref-space-1-5);
+	justify-content: center;
+	row-gap: var(--ob-ref-space-2);
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-0) var(--ob-ref-space-2) var(--ob-ref-space-1);
-	overflow: hidden;
+	overflow: clip;
 	border: none;
 	border-radius: var(--ob-ref-radius-ui-md) var(--ob-ref-radius-ui-md) var(--ob-ref-radius-none)
 		var(--ob-ref-radius-none);
@@ -154,17 +164,69 @@
 	cursor: default;
 }
 
+.tab::before {
+	flex: none;
+	height: 100%;
+	content: '';
+}
+
+.tab[data-hidden] {
+	visibility: hidden;
+}
+
 .tab:focus-visible {
 	outline: none;
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
+/* The name and the unread dot, 6 px after the icon. Its maximum width leaves the icon its place, so
+   the label stays beside the icon down to its minimum width, the name's floor; below that the
+   minimum wins and wraps the label away. */
+.label {
+	display: flex;
+	min-width: min-content;
+	max-width: calc(100% - var(--ob-ref-size-icon-md) - var(--ob-ref-space-1-5));
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
+	margin-inline-start: var(--ob-ref-space-1-5);
+}
+
+/* The name narrows from its whole width to its floor, below which its first character and an
+   ellipsis no longer fit whole: two hidden copies set those widths, and the shown text sizes to
+   none of its own. */
+.name {
+	display: grid;
+}
+
+.name > * {
+	grid-area: 1 / 1;
+}
+
+.nameFloor,
+.nameWidth {
+	height: var(--ob-ref-space-0);
+	visibility: hidden;
+}
+
+/* An atomic box, so the first character's width leaves out any kerning with the ellipsis, which the
+   truncation draws apart. */
+.nameEllipsis {
+	display: inline-block;
+}
+
+/* It breaks between any two characters, so it widens the name to its whole width without raising
+   the floor. */
+.nameWidth {
+	overflow-wrap: anywhere;
+	white-space: normal;
+}
+
 /* Text beside icons sits on the icons' center line (G19); the padding keeps ascenders and
    descenders inside the truncation clip. */
-.name {
-	min-width: var(--ob-ref-space-0);
+.nameText {
 	padding-block: var(--ob-ref-space-1);
 	overflow: hidden;
+	contain: inline-size;
 	text-box: trim-both cap alphabetic;
 	text-overflow: ellipsis;
 	translate: 0 var(--ob-ref-text-icon-center-shift);

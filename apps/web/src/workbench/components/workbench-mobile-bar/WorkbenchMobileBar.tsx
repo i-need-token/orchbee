@@ -10,6 +10,13 @@ import { type ReactNode, useSyncExternalStore } from 'react';
 
 import { WorkbenchTabsButton } from '../workbench-tabs-button/WorkbenchTabsButton';
 import styles from './WorkbenchMobileBar.module.css';
+import { useCurrentTabShown } from './useCurrentTabShown';
+
+// Only where the runtime has one, so loading the bar never depends on it.
+const graphemes =
+	typeof Intl.Segmenter === 'function'
+		? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+		: null;
 
 interface WorkbenchMobileBarProps {
 	/** A list covers the window, so the bar leaves the accessibility tree and the tab order. */
@@ -31,7 +38,8 @@ interface WorkbenchMobileBarProps {
  * side holds both sides' contents, one of them hidden, so the two take the same width and the
  * current Tab stays centered whatever stands at either edge, a desktop window's controls included.
  * The start and the current Tab share one box, so a narrow window takes their space and never the
- * end's.
+ * end's. The current Tab's name shows whole or ends in a whole character and a whole ellipsis, and
+ * otherwise leaves the icon alone; a Tab its place cannot hold hides.
  */
 export function WorkbenchMobileBar({
 	covered,
@@ -54,6 +62,7 @@ export function WorkbenchMobileBar({
 	const word = intl.formatMessage(workbenchMessages.mobileTabs);
 	const countLabel = intl.formatMessage(workbenchMessages.mobileTabsLabel, { count });
 	const title = current === null ? null : getVisibleTabTitle(current, tabStripMessages);
+	const { placeRef, shown: tabShown, tabRef } = useCurrentTabShown(title !== null);
 	// The start's copy is the place of the sidebar button, which floats above it.
 	const leading = (place: boolean) => (
 		<span
@@ -90,13 +99,15 @@ export function WorkbenchMobileBar({
 					{leading(true)}
 					{end(false)}
 				</span>
-				<span className={styles['middle']}>
+				<span className={styles['middle']} ref={placeRef}>
 					{current === null || title === null ? null : (
 						<span className={styles['row']}>
 							<button
 								aria-label={intl.formatMessage(workbenchMessages.mobileCurrentTab, { name: title })}
 								className={styles['tab']}
+								data-hidden={tabShown ? undefined : ''}
 								data-slot='workbench-mobile-bar-current-tab'
+								ref={tabRef}
 								type='button'
 							>
 								<TabIcon
@@ -104,10 +115,16 @@ export function WorkbenchMobileBar({
 									statusAdornment={statusAdornments?.get(current.id)}
 									tab={current}
 								/>
-								<span className={styles['name']}>{title}</span>
-								{statusAdornments?.get(current.id)?.unreadLabel === undefined ? null : (
-									<span className={styles['dot']} />
-								)}
+								<span className={styles['label']}>
+									<span className={styles['name']}>
+										<span className={styles['nameFloor']}>{nameFloor(title)}</span>
+										<span className={styles['nameWidth']}>{title}</span>
+										<span className={styles['nameText']}>{title}</span>
+									</span>
+									{statusAdornments?.get(current.id)?.unreadLabel === undefined ? null : (
+										<span className={styles['dot']} />
+									)}
+								</span>
 							</button>
 						</span>
 					)}
@@ -118,5 +135,26 @@ export function WorkbenchMobileBar({
 				{end(true)}
 			</span>
 		</div>
+	);
+}
+
+/**
+ * The narrowest the current Tab's name shows: its first character and an ellipsis, each shaped on
+ * its own as the truncation draws them. A name of up to three characters is its own floor instead:
+ * the ellipsis, as wide as two narrow characters, could make the floor wider than the name and so
+ * widen the Tab.
+ */
+function nameFloor(name: string): ReactNode {
+	const trimmed = name.trim();
+	const characters = graphemes
+		? Array.from(graphemes.segment(trimmed), ({ segment }) => segment)
+		: Array.from(trimmed);
+	const [first] = characters;
+	if (first === undefined || characters.length <= 3) return name;
+	return (
+		<>
+			{first}
+			<span className={styles['nameEllipsis']}>…</span>
+		</>
 	);
 }
