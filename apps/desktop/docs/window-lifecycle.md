@@ -81,6 +81,9 @@ derives the icon.
 
 - A close while the window shows with terminals running becomes a hide. Without a running
   terminal, the close proceeds and Desktop quits, as it always has.
+- A close while the window is hidden cannot come from the window's own controls; it comes from
+  another program, such as a graceful `taskkill` or an installer. It proceeds: Desktop quits and
+  leaves the Session running, as Quit Orchbee, Keep Terminals Running does.
 - No close is turned into a hide once the application is quitting, which every quit passes through
   in `before-quit`, the development runtime's restart included, or once the window has reported
   `query-session-end` or `session-end`. Desktop never delays logoff or shutdown.
