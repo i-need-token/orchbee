@@ -54,9 +54,12 @@ command-based name such as `claude-1`; provider changes update an untouched sugg
 it, and later attempts advance the local sequence. The server reservation remains the uniqueness
 check, including other Clients. The user activates **Start Agent** with
 `Enter` or the pointer. Both keyboard Start and Cancel require a current successful draw. Activation
-injects the exact currently focused Panel id and runs the same typed reserve, single-submission and hook-readiness
-workflow as the CLI. It never installs a provider or changes integration/default configuration;
-manual selection does not bypass terminal preflight or canonical readiness. Accepted startup closes the overlay and restores terminal input immediately. The background task keeps one five-minute deadline, reports pinned canonical attention as input needed, and continues observing after the user responds. Startup notices and the reopened board share the same typed phase. A fully sent command that times out remains unconfirmed and non-retryable; a lost delivery receipt remains unknown. An active or retained startup result replaces empty-session guidance and remains visible alongside any canonical rows. Closing the overlay leaves accepted startup work running; `c` or the
+injects the exact currently focused Panel id and runs the same typed reserve and single-submission
+workflow as the CLI. It needs no Agent integration: it is confirmed by canonical readiness or, while
+no canonical Session has reported, by the Panel's observed Agent, the Server's published run for
+the requested provider with an idle or blocked published state. It never installs a provider,
+inspects an integration or changes integration/default configuration; manual selection does not
+bypass terminal preflight or readiness. Accepted startup closes the overlay and restores terminal input immediately. The background task keeps one five-minute deadline, reports pinned canonical attention as input needed, and continues observing after the user responds. Startup notices and the reopened board share the same typed phase. A fully sent command that times out is unconfirmed; its deadline has passed, so its Panel may start again. A lost delivery receipt remains unknown and guards its Panel until the deadline. An active or retained startup result replaces empty-session guidance and remains visible alongside any canonical rows. Closing the overlay leaves accepted startup work running; `c` or the
 visible cancel control is the explicit cancellation path. Cancellation wakes cancellable reads and
 the one send exchange; teardown can still wait for an already-running Windows process-creation or
 Job-assignment call and the best-effort reservation release of at most one second, so cancellation
@@ -102,12 +105,15 @@ credit honestly — a jump fails `Unavailable`, a List settles as a failed round
 never hangs in flight.
 
 The Windows empty-state startup owner is separate from that read lane. It stores one bounded draft,
-one catalog task and at most one startup task. An accepted task pins its generation and exact Panel,
-continues when the overlay closes, and settles only a matching completion. Explicit cancellation
-wakes the workflow; Session teardown also wakes and joins the bounded task before releasing its
-origin. A disconnected accepted worker, a pending or unknown reservation, accepted or partially
-accepted input, and an unknown input frontier all remain recovery states across close and reopen.
-Only a result that proves zero input and a settled reservation becomes retryable. A start refused
+one catalog task and at most one startup task per Panel. An accepted task pins its generation and
+exact Panel, continues when the overlay closes, and settles only a matching completion. The board
+opens on the focused Panel and presents only that Panel's start, so another Panel's start never
+locks the form. Explicit cancellation wakes the presented workflow; Session teardown also wakes and
+joins every bounded task before releasing its origin. A disconnected accepted worker, a pending or
+unknown reservation, accepted or partially accepted input, and an unknown input frontier all remain
+recovery states across close and reopen, guarding their Panel until the workflow deadline. A result
+that proves zero input and a settled reservation, or observes the shell prompt again, becomes
+retryable at once. A start refused
 at a prompt the Host could not confirm, or by a Session or terminal too old to confirm one, typed
 nothing: the status says so with the next step and the draft stays retryable
 ([prompt-gated input](windows-agent-start.md#prompt-gated-input)).
@@ -121,8 +127,8 @@ nothing: the status says so with the next step and the draft stays retryable
 | Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
 | Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
 | Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
-| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one canonical provider and the exact focused Panel. The background workflow reserves once, submits input once and waits for canonical readiness under one absolute deadline. A generation/Panel mismatch drops the completion.                                                        |
-| Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. An accepted startup task remains Session-owned and keeps running; only explicit cancel or Session teardown wakes it.                                                                                                                                           |
+| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one canonical provider and the exact focused Panel unless a running or unknown start guards it. The workflow reserves once, submits input once and waits for canonical or observed readiness under one absolute deadline. A generation/Panel mismatch drops the completion.           |
+| Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. Accepted startup tasks remain Session-owned and keep running; only explicit cancel or Session teardown wakes them.                                                                                                                                             |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked
 stale; without `last_good` it may show only same-revision rows marked incomplete — and preserving
@@ -150,7 +156,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, keyboard and pointer startup, current-draw cancellation, lost-worker recovery, close/cancel separation and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, keyboard and pointer startup, current-draw cancellation, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission, close/cancel separation and both locales.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/agent_board/tests.rs`, `crates/workbench-client/src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

@@ -454,8 +454,10 @@ canonical snapshot with a row for every wire provider in registry order, taken f
 names, bounded states and failures, and the shared privacy explanation. It receives no Agent command output, executable path, adapter resource
 path, filesystem capability, or remote-host authority.
 
-Opening Settings, selecting Agent Integrations, rendering rows, and searching are read-only. Refresh
-runs one `list` job and a switch one `enable` or `disable` job on the Session's Worker through the
+Opening Settings, rendering rows, and searching are read-only. Integrations are opt-in, so entering
+the Agent Integrations category from another category is the explicit request to inspect: it starts
+one `list` job unless one is pending, and a reopened Settings that still shows the category starts
+none. Refresh runs one `list` job and a switch one `enable` or `disable` job on the Session's Worker through the
 [Workbench job direction](../../../crates/workbench-protocol/README.md#agent-integration-jobs), the
 writer the CLI's `orchbee agent integration` uses. The window polls a job from 20 ms up to every
 250 ms and, after 50 seconds, asks it to stop. Rows start unknown and each completed report replaces

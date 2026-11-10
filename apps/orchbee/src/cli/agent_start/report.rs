@@ -169,6 +169,9 @@ impl From<crate::agent_start::Report> for Report {
         };
         let verdict = match report.verdict {
             DomainVerdict::Started { session } => Verdict::Started { session },
+            DomainVerdict::Observed => {
+                unreachable!("the CLI start confirms only a canonical Session")
+            }
             DomainVerdict::Failed {
                 failure,
                 read_cause,

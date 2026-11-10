@@ -1,6 +1,6 @@
 //! Windows bundle collection. It reads the cohort, the data root and the Session catalog and asks
-//! the running default Session for integration status; it never starts a Session and creates
-//! nothing.
+//! the running default Session for integration status only when an integration may have been
+//! enabled; it never starts a Session and creates nothing.
 use super::super::{Failure, Output, config, integration, named_sessions};
 use super::Collected;
 use crate::invocation::{AgentIntegrationCommand, NamedSessionCommand, OutputFormat};
@@ -50,7 +50,11 @@ pub(super) fn collect(locale: Locale) -> Result<Collected, Failure> {
                 .any(|session| session["default"] == true && session["running"] == true)
         });
     collected.document("sessions.json", sessions);
-    let integrations = if default_running {
+    // Without any installed Capsule no provider entry names this environment: provider commands
+    // and configuration stay untouched.
+    let integrations = if !orchbee_agent_integration_writer::may_have_been_enabled() {
+        Some(json!({"state": "never-enabled"}))
+    } else if default_running {
         answered(
             &integration::run(
                 &AgentIntegrationCommand::List {

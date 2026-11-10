@@ -108,16 +108,7 @@ fn run_local(
     let admitted = crate::agent_start::step_deadline(deadline)
         .map_err(report::domain_failure)
         .and_then(|step| super::query::stream_snapshot(step, wake))
-        .and_then(|(mut client, snapshot)| {
-            if let Some(failure) = integration_preflight(
-                &mut client,
-                &snapshot.session_id,
-                request.provider.as_str(),
-                deadline,
-                wake,
-            ) {
-                return Err(failure);
-            }
+        .and_then(|(client, snapshot)| {
             let target = prepared.resolve(&snapshot)?;
             let super::results::Projection::PanelGet(panel) = super::results::project(
                 &crate::invocation::QueryCommand::PanelGet(target),
@@ -151,79 +142,6 @@ fn run_local(
 fn failure(kind: FailureKind, reason: &str) -> Failure {
     Failure::new(kind).details(super::stage_reason_details("agent-start", reason))
 }
-
-/// The Worker inspection never consumes more than this share of the start
-/// budget; an inspection it cuts short is inconclusive, not a refusal.
-const PREFLIGHT_BUDGET: Duration = Duration::from_secs(10);
-
-/// Refuse before any reservation or input when the Session's Worker cannot report readiness
-/// of its managed integration for the provider: its executable is absent, its hooks are not
-/// enabled, or the adapter capsule is not published. An unmanaged provider, a manual-only
-/// platform or an inconclusive, interrupted or failed inspection leaves the decision to canonical
-/// readiness. Nothing here enables anything: enabling edits the provider's own configuration.
-fn integration_preflight(
-    client: &mut crate::local_client::LocalClient,
-    session_id: &orchbee_workbench_protocol::SessionId,
-    provider: &str,
-    deadline: Instant,
-    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
-) -> Option<Failure> {
-    use crate::agent_integrations::{
-        IntegrationId, IntegrationOperation, IntegrationReport, IntegrationRequest, State,
-        model::{Availability, ManagementMode},
-    };
-    use crate::local_client::AgentIntegrationJobEnd;
-    let id = IntegrationId::parse(crate::agent_provider::integration_id(provider)?)?;
-    let budget = deadline
-        .saturating_duration_since(Instant::now())
-        .saturating_sub(PREFLIGHT_SETTLEMENT)
-        .min(PREFLIGHT_BUDGET);
-    let request = IntegrationRequest {
-        operation: IntegrationOperation::List { provider: Some(id) },
-        adapter_source: None,
-        budget_milliseconds: Some(
-            u32::try_from(budget.as_millis())
-                .ok()
-                .filter(|ms| *ms > 0)?,
-        ),
-    };
-    let end = client.agent_integration_job(
-        session_id,
-        request,
-        deadline.min(Instant::now() + budget + PREFLIGHT_SETTLEMENT),
-        || super::query::request_id().ok(),
-        |pause| crate::agent_runtime::wait_backoff(wake, pause),
-    );
-    let AgentIntegrationJobEnd::Completed {
-        report,
-        cancel_registered: false,
-    } = end
-    else {
-        return None;
-    };
-    let IntegrationReport::List { items, capsule } = *report else {
-        return None;
-    };
-    let item = items.first()?;
-    if item.timed_out || item.management_mode != ManagementMode::ManagedLocal {
-        return None;
-    }
-    let reason = match (item.availability, item.state) {
-        (Availability::NotFound, _) => "provider-not-found",
-        (_, State::Conflict) => "integration-blocked",
-        (_, State::NotInstalled | State::Disabled | State::UpdateRequired) => {
-            "integration-not-enabled"
-        }
-        (_, State::Enabled) if !capsule.ready => "integration-not-enabled",
-        _ => return None,
-    };
-    Some(failure(FailureKind::CheckFailed, reason))
-}
-
-/// Beyond its own budget the preflight waits only this long for the job's final report; the
-/// Client cancels a job still pending once only this settlement remains, so the budget always
-/// leaves it before the start deadline.
-const PREFLIGHT_SETTLEMENT: Duration = Duration::from_secs(1);
 
 fn project(
     mut report: Report,

@@ -1024,7 +1024,7 @@ path, size, entries and section states.
 | `system.json`             | Operating system, architecture, Windows product and build, locale and the variable it came from, and a closed terminal token     |
 | `config-check.json`       | The `config check` document                                                                                                      |
 | `sessions.json`           | The `session list` document with states                                                                                          |
-| `integrations.json`       | `agent integration list` when the default Session is running, otherwise `session-not-running`                                    |
+| `integrations.json`       | `never-enabled` without a Capsule folder, else `agent integration list` from a running default Session or `session-not-running`  |
 | `config.toml`             | The settings file, redacted                                                                                                      |
 | `preferences.json`        | `internal/state/preferences.json`, redacted                                                                                      |
 | `logs/<YYYY-MM-DD>.jsonl` | Well-formed records of today's daily log and the six before it                                                                   |

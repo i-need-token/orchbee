@@ -1,8 +1,9 @@
 # Windows Agent startup
 
 `agent start` composes the Server's bounded name reservation with existing terminal input,
-process inspection and canonical Agent observations. It operates on a running Windows Session.
-It does not activate a Session, install providers or infer readiness from process creation.
+process inspection and canonical Agent observations; the board also accepts the Panel's observed
+Agent. It operates on a running Windows Session. It does not activate a Session, install
+providers, inspect or require an Agent integration, or infer readiness from process creation.
 
 ## Invocation and prerequisites
 
@@ -18,17 +19,13 @@ to trailing arguments; mixing both forms is refused. Empty arguments are retaine
 characters are refused, and the encoded command must fit 8000 ASCII characters. Help and the
 invalid-value diagnostic list the complete `--provider` set.
 
-After the Session snapshot and before admission, the CLI asks the Session's Worker to inspect its
-managed integration for the kind within at most 10000 ms that leave one second of the start
-deadline for the final report; an inspection still pending when only that second remains is
-cancelled. A missing executable refuses with `provider-not-found`;
-a `not-installed`, `disabled` or `update-required` integration, or an unpublished adapter capsule,
-refuses with `integration-not-enabled`; `conflict` refuses with
-`integration-blocked`. These are `check-failed` (exit 1) with no reservation or input, and the
-diagnostic names `agent integration enable` or `agent integration explain`. The preflight never
-enables an integration, because that edits the provider's own configuration. Kinds without a
-managed integration, manual-only management, an `unknown` state, an inspection cut short by its
-budget and an interrupted, cancelled or failed inspection job proceed to canonical readiness. On success the text result names the
+Agent integrations are opt-in, so starting never inspects one and never refuses because one is
+missing: neither the CLI nor the board runs a provider command or reads provider configuration
+before it reserves. The failure schema still lists the retired `provider-not-found`,
+`integration-not-enabled` and `integration-blocked` reasons; no start produces them. A CLI result
+names its canonical Session, so only [canonical readiness](#workflow-and-invariants) completes a
+CLI start; without an integration the Agent still starts and the command ends with
+`start-deadline`, keeping its accepted input receipt. On success the text result names the
 `agent prompt --name <name>` next step.
 
 After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`
@@ -44,7 +41,7 @@ proof. Generic command `agent` is excluded from automatic detection: [Cursor use
 but other providers can install the same basename. Cursor stays manually selectable using its existing
 launch mapping. A remote origin performs no Client-PATH lookup and also offers manual selection.
 The form supplies an editable automatic name and injects the exact focused Panel ID after current-draw
-admission. Manual choices use the same reserve, preflight, single-submit and readiness owners. No caller
+admission. Manual choices use the same reserve, single-submit and readiness owners. No caller
 context environment variable or subprocess adapter is introduced.
 
 Fixed local System32 process creation and suspended Job assignment are synchronous Windows ownership
@@ -59,10 +56,16 @@ deadline and teardown slot bound it.
 The board's background task calls the app-private typed workflow directly under one 300000 ms
 deadline, including time for interactive trust and sign-in prompts. Accepting Start closes the board
 and restores terminal input immediately. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
-Session teardown wakes and joins the bounded owner. Every completion carries its generation and
-Panel target, so an old result cannot settle a replacement draft or target. Unknown reservation or
+Session teardown wakes and joins every bounded owner. Every completion carries its generation and
+Panel target, so an old result cannot settle a replacement draft or target. Each start guards only
+its own Panel: the board opens on the focused Panel and presents that Panel's start, so a start
+still running or unknown in another Panel never locks the form. A start guards its Panel while its
+workflow runs and, after an unknown result, until the workflow deadline; observing the shell prompt
+again (`agent-exited` or `launch-command-failed`) ends the guard at once. Unknown reservation or
 input effects remain visible as unknown and are never replayed. A fully accepted command whose readiness
-wait expires is labeled unconfirmed, with instructions to check terminal prompts, and remains non-retryable.
+wait expires is labeled unconfirmed, with instructions to check the terminal; its deadline has
+passed, so the Panel may start again, and [prompt-gated input](#prompt-gated-input) types nothing
+into an Agent that is still running.
 Pinned canonical attention requests update a non-capturing notice and the reopened board while the
 background workflow keeps observing within its original deadline. Clearing attention can complete the
 same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The board does not install Agents or
@@ -81,8 +84,8 @@ marked prompt, so they cannot start an Agent. A sample without a launch kind com
 that predates the prompt gate and refuses as `terminal-too-old`. The rest of this strict
 idle-shell rule is `idle_shell_only` in `orchbee-agent-observation-protocol`; the Server's
 [Agent session resume](../../orchbee-server/docs/agent-session-resume.md#delivery) applies it, the
-run prefix and records before it types a resume command into a restored shell. Provider
-hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
+run prefix and records before it types a resume command into a restored shell. Canonical
+readiness needs a provider integration, which is opt-in; [Windows integrations](windows-agent-integrations.md)
 defines managed setup and each provider's identity/state limits. Recognizing an executable does not
 establish hook coverage or verify a provider's own interactive UI.
 
@@ -117,8 +120,8 @@ short form. A capability refusal has `details.reason` `startup-failed` with the 
 The fixed Windows launch names for canonical `cursor` and `qodercli` are `agent` and `qoder`, matching
 their current native installations. Historical names remain recognition aliases; startup does not
 fall back to them. An absent current executable follows the existing startup failure workflow.
-Name-based process recognition is heuristic and cannot substitute for the required canonical hook
-observation. Owned Windows subprocess tests exercise both canonical selections with literal arguments;
+Name-based process recognition alone is heuristic: an observed board start also needs the
+Server's published run and published Agent state, and a CLI start needs the canonical observation. Owned Windows subprocess tests exercise both canonical selections with literal arguments;
 they do not establish authenticated provider readiness. References: [Cursor installation](https://cursor.com/docs/cli/installation)
 and [Qoder installation](https://docs.qoder.com/cli/installation).
 
@@ -135,6 +138,11 @@ and [Qoder installation](https://docs.qoder.com/cli/installation).
 4. Complete only for the pinned live session with fresh idle/completed state and no pending
    attention, at least 3000 ms after submission and the Server's reservation settling period.
    The Server rechecks and atomically binds the name while removing the reservation.
+5. The board alone also confirms by observation, whichever comes first: while no canonical
+   candidate exists, at least 3000 ms after submission, the Server's published run names the
+   requested provider and the Panel's published Agent state for the reserved Terminal generation
+   is idle or blocked and names the same provider. Observation binds no name: the workflow
+   releases the reservation and reports the Agent started. Session resume stays hook-only.
 
 The default total deadline is 30000 ms, with 3001–300000 admitted. Each I/O step is bounded
 by five seconds and the remaining original budget. Cancellation stops observation; name
@@ -220,11 +228,13 @@ receipt or submission failure. Remaining time in the last observation is histori
 Known partial input retains exit 9; unknown input or a lost mutating reply retains exit 8.
 Accepted input with unconfirmed cleanup is not startup success.
 
-The board keeps a non-retryable recovery result for any pending or unknown reservation, accepted or
+The board keeps an unknown recovery result for any pending or unknown reservation, accepted or
 partially accepted input, unknown delivery frontier, or accepted worker that disconnects without its
-typed completion. Closing and reopening does not clear that result. It offers a retry only after the
-workflow proves zero input and a settled reservation. A queued completion is channel-authoritative
-even if its worker has already exited, so worker-exit observation cannot discard a Started result.
+typed completion. Closing and reopening does not clear that result; it guards only its own Panel
+and only until the workflow deadline. The Panel may start again earlier only after the workflow
+proves zero input and a settled reservation, or observes the shell prompt again. A queued completion
+is channel-authoritative even if its worker has already exited, so worker-exit observation cannot
+discard a Started result.
 
 Timeout, cancellation and release do not kill the Agent. If release is not confirmed, inspect
 `agent names` and the terminal before retrying. Never replay an uncertain reserve, complete or
@@ -240,7 +250,8 @@ session lifecycle: detaching a still-live session keeps its name until end/remov
 `crates/workbench-client/src/agent_start.rs` and `crates/workbench-client/src/agent_start/` own the typed workflow and report, retaining
 `ReservationState` and `DeliveryDisposition` independently of the final verdict.
 `crates/workbench-client/src/agent_runtime/startup/` owns the shared Snapshot/OBAP reads, exact binding resolution,
-process attach/read/detach and single prompt submission. These operations preserve the admitted
+process attach/read/detach, the Server identity and published-state reads, and single prompt
+submission. These operations preserve the admitted
 Client, original absolute deadline and wake; process-read failures still reach one best-effort
 detach, and the Paste/optional Codex Right/Enter line is typed at most once; it is submitted a
 second time only after a `settling` refusal that typed nothing.
@@ -254,7 +265,7 @@ state, and the shared OBAP protocol owns wire validation.
 Host envelope and process payload validation is covered in
 `crates/workbench-client/src/agent_runtime/startup/processes/tests.rs`. `src/cli/agent_start/tests.rs` drives the existing
 receipt matrix through the production domain-to-CLI conversion; Workbench recovery precedence
-remains covered in `crates/workbench-client/src/agent_board/start/tests.rs`. The existing tests also
+and the Panel-scoped guard remain covered in `crates/workbench-client/src/agent_board/start/jobs/tests.rs`. The existing tests also
 exercise real Windows exe/ps1/cmd argument boundaries, parser and completion scope, competing
 reservations, exact expiry, stale bindings, canonical readiness, interrupted delivery and lost
 replies. Windows CLI named-pipe tests retain receipts and prove no automatic replay.
@@ -265,6 +276,6 @@ is not required for this Windows slice.
 
 Windows Agent Get v1 (v1 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Managed names are transient and are not restored from checkpoints.
 
-Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path infers trust prompts from screen text.
+Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path reports input as needed from screen text, though the board's observed confirmation accepts a published blocked state as started.
 
 The native form leaves provider and automatic name unset while detection has no result. Found providers precede manual choices; an explicit choice stays pinned by provider identity across catalog updates. Without an explicit choice, the first found provider becomes the default; a completed empty catalog selects the first manual provider. Startup feedback appears once in the board status row and directs unconfirmed outcomes to the terminal. Only a pinned canonical attention observation declares that input is needed; process presence alone never proves readiness.

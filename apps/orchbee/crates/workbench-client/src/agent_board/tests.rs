@@ -985,7 +985,7 @@ mod read_answers {
         let mut board = AgentBoard::new(true);
         let mut jobs = start::jobs::Jobs::default();
         board.set_origin_locality(false);
-        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
+        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")), None);
         assert!(!board.drain_start(Instant::now(), |start, admission| {
             jobs.drain(start, admission)
         }));
@@ -1022,7 +1022,7 @@ mod read_answers {
                 .drain(start, admission)),
             "close fences deferred probe admission"
         );
-        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
+        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")), None);
         assert!(matches!(
             board.read,
             AgentBoardRead::Ready { complete: true, .. }

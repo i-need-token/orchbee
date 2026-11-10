@@ -1,10 +1,14 @@
 //! Empty-board Agent startup state.
 //!
-//! The Client-PATH catalog and the startup workflow run in [`jobs`], which the
+//! The Client-PATH catalog and the startup workflows run in [`jobs`], which the
 //! composition owns and which settles each outcome back into this state; the
-//! input thread never waits on either. The accepted operation keeps its exact
-//! generation and Panel target; closing the Board retires presentation only.
-//! Explicit cancellation marks the operation, and the jobs wake the workflow.
+//! input thread never waits on either. Each accepted operation keeps its exact
+//! generation and Panel target and guards only that Panel, so another Panel may
+//! start meanwhile; closing the Board retires presentation only. The form
+//! presents the operation of the Panel the Board starts in. Explicit
+//! cancellation marks that operation, and the jobs wake its workflow.
+
+use std::time::Instant;
 
 use orchbee_agent_observation_protocol::{AgentName, AgentProviderId};
 use orchbee_workbench_protocol::WorkbenchPanelId;
@@ -58,10 +62,13 @@ impl Phase {
         matches!(self, Self::Starting | Self::WaitingInput | Self::Cancelling)
     }
 
-    /// A settled result that proved no input and no held reservation, so the draft may start
-    /// again.
+    /// A settled result after which the draft may start again: it proved no input and no held
+    /// reservation, observation showed the shell prompt again, or its deadline passed.
     pub(super) const fn retryable(self) -> bool {
-        matches!(self, Self::Failed | Self::Refused(_) | Self::Cancelled)
+        matches!(
+            self,
+            Self::Failed | Self::Refused(_) | Self::Cancelled | Self::Unconfirmed
+        )
     }
 }
 
@@ -73,6 +80,21 @@ struct Operation {
     name: AgentName,
     provider: AgentProviderId,
     phase: Phase,
+    /// The workflow deadline while an Unknown result may still hold the Panel; cleared once it
+    /// passes.
+    held_until: Option<Instant>,
+}
+
+impl Operation {
+    /// Whether this operation still guards its Panel against another start: its workflow runs, or
+    /// its result may have typed the command and its deadline has not passed.
+    fn guards(&self) -> bool {
+        self.phase.running() || (self.phase == Phase::Unknown && self.held_until.is_some())
+    }
+
+    fn retryable(&self) -> bool {
+        self.phase.retryable() || (self.phase == Phase::Unknown && self.held_until.is_none())
+    }
 }
 
 pub(crate) struct State {
@@ -89,7 +111,12 @@ pub(crate) struct State {
     selected_provider: Option<usize>,
     draft_revision: u64,
     generation: u64,
-    operation: Option<Operation>,
+    /// At most one operation per Panel.
+    operations: Vec<Operation>,
+    /// The Panel the open Board starts in; `None` presents the latest operation.
+    target: Option<WorkbenchPanelId>,
+    /// The latest phase a job settled, for the composition's notice.
+    notice: Option<Phase>,
     /// Locality of the current Client origin; `None` until one is set.
     origin_local: Option<bool>,
     #[cfg(test)]
@@ -114,7 +141,9 @@ impl State {
             selected_provider: None,
             draft_revision: 0,
             generation: 0,
-            operation: None,
+            operations: Vec::new(),
+            target: None,
+            notice: None,
             origin_local: None,
             #[cfg(test)]
             accept_without_task: false,
@@ -188,42 +217,65 @@ impl State {
         self.catalog_revision = self.catalog_revision.wrapping_add(1);
     }
 
+    /// The Board opens to start in `target`, the focused Panel.
+    pub(super) fn set_target(&mut self, target: Option<WorkbenchPanelId>) {
+        self.target = target;
+    }
+
     pub(super) fn opened(&mut self, episode: u64) {
-        let Some(operation) = self.operation.as_mut() else {
-            return;
-        };
-        if operation.episode == episode {
-            return;
-        }
-        if matches!(
-            operation.phase,
-            Phase::Starting
-                | Phase::WaitingInput
-                | Phase::Cancelling
-                | Phase::Unknown
-                | Phase::Unconfirmed
-        ) {
-            // Closing retires only presentation. Reopening adopts an accepted
-            // operation so an in-flight completion stays visible and an
-            // unknown delivery can never become retryable just because the
-            // overlay was toggled. Known terminal results are presentation
-            // feedback for their accepting episode and may retire here.
-            operation.episode = episode;
-        } else {
-            self.operation = None;
+        let before = self.operations.len();
+        self.operations.retain_mut(|operation| {
+            if operation.episode == episode {
+                return true;
+            }
+            // Closing retires only presentation. Reopening adopts an operation
+            // that still guards its Panel so an in-flight completion stays
+            // visible and an unknown delivery can never become retryable just
+            // because the overlay was toggled. Settled results are presentation
+            // feedback for their accepting episode and retire here.
+            let guards = operation.guards();
+            if guards {
+                operation.episode = episode;
+            }
+            guards
+        });
+        if self.operations.len() != before {
             self.suggest_name();
         }
+    }
+
+    fn presented(&self) -> Option<&Operation> {
+        match &self.target {
+            Some(panel) => self
+                .operations
+                .iter()
+                .find(|operation| &operation.panel == panel),
+            None => self
+                .operations
+                .iter()
+                .max_by_key(|operation| operation.generation),
+        }
+    }
+
+    fn presented_index(&self) -> Option<usize> {
+        let presented = self.presented()?.generation;
+        self.operations
+            .iter()
+            .position(|operation| operation.generation == presented)
+    }
+
+    fn operation_mut(&mut self, generation: u64) -> Option<&mut Operation> {
+        self.operations
+            .iter_mut()
+            .find(|operation| operation.generation == generation)
     }
 
     pub(super) fn draw_source(&self) -> DrawSource {
         DrawSource {
             catalog_revision: self.catalog_revision,
             draft_revision: self.draft_revision,
-            operation_generation: self
-                .operation
-                .as_ref()
-                .map(|operation| operation.generation),
-            operation_phase: self.operation.as_ref().map(|operation| operation.phase),
+            operation_generation: self.presented().map(|operation| operation.generation),
+            operation_phase: self.presented().map(|operation| operation.phase),
         }
     }
 
@@ -299,11 +351,11 @@ impl State {
     }
 
     pub(super) fn operation_phase(&self) -> Option<Phase> {
-        self.operation.as_ref().map(|operation| operation.phase)
+        self.presented().map(|operation| operation.phase)
     }
 
     pub(super) fn phase(&self, episode: u64) -> Option<Phase> {
-        self.operation.as_ref().and_then(|operation| {
+        self.presented().and_then(|operation| {
             (operation.phase.running() || operation.episode == episode).then_some(operation.phase)
         })
     }
@@ -312,10 +364,15 @@ impl State {
         &self,
         episode: u64,
     ) -> Option<(&AgentName, &AgentProviderId)> {
-        self.operation.as_ref().and_then(|operation| {
+        self.presented().and_then(|operation| {
             (operation.phase.running() || operation.episode == episode)
                 .then_some((&operation.name, &operation.provider))
         })
+    }
+
+    /// The latest phase a job settled since the last call.
+    pub(super) fn take_notice(&mut self) -> Option<Phase> {
+        self.notice.take()
     }
 
     pub(super) fn can_start(&self) -> bool {
@@ -327,9 +384,7 @@ impl State {
     }
 
     pub(super) fn draft_editable(&self) -> bool {
-        self.operation
-            .as_ref()
-            .is_none_or(|operation| operation.phase.retryable())
+        self.presented().is_none_or(Operation::retryable)
     }
 
     pub(super) fn select_provider(&mut self, index: usize) -> bool {
@@ -400,18 +455,27 @@ impl State {
 
     fn touch_draft(&mut self) {
         self.draft_revision = self.draft_revision.wrapping_add(1);
-        if self
-            .operation
-            .as_ref()
-            .is_some_and(|operation| operation.phase.retryable())
+        if let Some(index) = self.presented_index()
+            && self.operations[index].retryable()
         {
-            self.operation = None;
+            self.operations.remove(index);
         }
     }
 
-    /// Accepts one start for `episode` and returns what the jobs must run.
-    fn begin_start(&mut self, episode: u64, panel: WorkbenchPanelId) -> Option<StartOperation> {
-        if !self.can_start() {
+    /// Accepts one start in `panel` for `episode` and returns what the jobs must run. Only an
+    /// operation that still guards the same Panel refuses it.
+    fn begin_start(
+        &mut self,
+        episode: u64,
+        panel: WorkbenchPanelId,
+        deadline: Instant,
+    ) -> Option<StartOperation> {
+        if !self.can_start()
+            || self
+                .operations
+                .iter()
+                .any(|operation| operation.panel == panel && operation.guards())
+        {
             return None;
         }
         let (Ok(name), Some(provider)) = (
@@ -423,14 +487,17 @@ impl State {
         };
         self.generation = self.generation.wrapping_add(1);
         let generation = self.generation;
-        self.operation = Some(Operation {
+        self.operations.retain(|operation| operation.panel != panel);
+        self.operations.push(Operation {
             generation,
             episode,
             panel: panel.clone(),
             name: name.clone(),
             provider: provider.clone(),
             phase: Phase::Starting,
+            held_until: Some(deadline),
         });
+        self.target = Some(panel.clone());
         Some(StartOperation {
             generation,
             panel,
@@ -442,23 +509,22 @@ impl State {
     }
 
     fn settle_start_spawn_failed(&mut self, generation: u64) {
-        if let Some(operation) = self.operation.as_mut()
-            && operation.generation == generation
-        {
+        if let Some(operation) = self.operation_mut(generation) {
             operation.phase = Phase::Failed;
         }
     }
 
-    fn cancelling(&self) -> bool {
-        self.operation
-            .as_ref()
-            .is_some_and(|operation| operation.phase == Phase::Cancelling)
+    fn cancelling(&self, generation: u64) -> bool {
+        self.operations.iter().any(|operation| {
+            operation.generation == generation && operation.phase == Phase::Cancelling
+        })
     }
 
     pub(super) fn cancel(&mut self) -> bool {
-        let Some(operation) = self.operation.as_mut() else {
+        let Some(index) = self.presented_index() else {
             return false;
         };
+        let operation = &mut self.operations[index];
         if !matches!(operation.phase, Phase::Starting | Phase::WaitingInput) {
             return false;
         }
@@ -467,8 +533,8 @@ impl State {
     }
 
     /// Progress moves only an operation that is still starting or waiting.
-    fn settle_start_progress(&mut self, phase: Phase) -> bool {
-        let Some(operation) = self.operation.as_mut() else {
+    fn settle_start_progress(&mut self, generation: u64, phase: Phase) -> bool {
+        let Some(operation) = self.operation_mut(generation) else {
             return false;
         };
         if !matches!(operation.phase, Phase::Starting | Phase::WaitingInput) {
@@ -476,17 +542,23 @@ impl State {
         }
         let changed = operation.phase != phase;
         operation.phase = phase;
+        if changed {
+            self.notice = Some(phase);
+        }
         changed
     }
 
     /// A worker that disappears after accepting an operation cannot prove
     /// whether terminal input landed. Preserve recovery state.
-    fn settle_start_lost(&mut self) -> bool {
-        let Some(operation) = self.operation.as_mut() else {
+    fn settle_start_lost(&mut self, generation: u64) -> bool {
+        let Some(operation) = self.operation_mut(generation) else {
             return false;
         };
         let changed = operation.phase != Phase::Unknown;
         operation.phase = Phase::Unknown;
+        if changed {
+            self.notice = Some(Phase::Unknown);
+        }
         changed
     }
 
@@ -496,14 +568,30 @@ impl State {
         panel: &WorkbenchPanelId,
         phase: Phase,
     ) -> bool {
-        let Some(operation) = self.operation.as_mut() else {
+        let Some(operation) = self.operation_mut(generation) else {
             return false;
         };
-        if operation.generation != generation || &operation.panel != panel {
+        if &operation.panel != panel {
             return false;
         }
         operation.phase = phase;
+        self.notice = Some(phase);
         true
+    }
+
+    /// Ends the hold of every operation whose workflow deadline has passed.
+    pub(super) fn expire(&mut self, now: Instant) -> bool {
+        let mut changed = false;
+        for operation in &mut self.operations {
+            if operation.held_until.is_some_and(|deadline| now >= deadline) {
+                operation.held_until = None;
+                changed = true;
+            }
+        }
+        if changed {
+            self.draft_revision = self.draft_revision.wrapping_add(1);
+        }
+        changed
     }
 
     pub(super) fn retire_catalog(&mut self) {
@@ -548,7 +636,7 @@ impl State {
 
     #[cfg(test)]
     pub(super) fn operation_panel(&self) -> Option<&WorkbenchPanelId> {
-        self.operation.as_ref().map(|operation| &operation.panel)
+        self.presented().map(|operation| &operation.panel)
     }
 }
 

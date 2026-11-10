@@ -241,8 +241,7 @@ mod imp {
             &version,
             &payload_sha256,
         );
-        let legacy_capsules = orchbee_local_runtime::is_release()
-            .then(|| home.join(".orchbee").join("agent-observation-adapters"));
+        let legacy_capsules = legacy_capsules(&home);
         Ok(IntegrationContext {
             home,
             capsule_root,
@@ -258,6 +257,29 @@ mod imp {
     #[derive(Debug)]
     pub enum ContextError {
         NoHome,
+    }
+
+    /// `~/.orchbee/agent-observation-adapters`, the folder every environment's Capsules shared
+    /// before each kept its own; only release Orchbee owns it.
+    fn legacy_capsules(home: &Path) -> Option<PathBuf> {
+        orchbee_local_runtime::is_release()
+            .then(|| home.join(".orchbee").join("agent-observation-adapters"))
+    }
+
+    /// Cheap local evidence, without running provider commands or reading their configuration,
+    /// that an Agent integration may have been enabled for this environment: enabling installs a
+    /// Capsule in its data root, and release Orchbee once installed them in the legacy folder.
+    /// `false` means neither folder exists, so no provider entry can name this environment.
+    /// `true` proves nothing about current entries; an unreadable location also answers `true`.
+    pub fn may_have_been_enabled() -> bool {
+        let present = |path: &Path| !matches!(path.try_exists(), Ok(false));
+        let Ok(data_root) = DataRoot::resolve(|name| std::env::var_os(name)) else {
+            return true;
+        };
+        present(&data_root.agent_observation_capsules())
+            || std::env::home_dir().map_or(orchbee_local_runtime::is_release(), |home| {
+                legacy_capsules(&home).is_some_and(|legacy| present(&legacy))
+            })
     }
 
     fn capsule_status(context: &IntegrationContext) -> CapsuleStatus {
@@ -395,12 +417,12 @@ mod imp {
 #[cfg(any(unix, windows))]
 pub use capsule::bundled_payload_sha256;
 #[cfg(any(unix, windows))]
-pub use imp::context_before;
-#[cfg(any(unix, windows))]
 pub use imp::{
     AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, MutationReport,
     PlannedStep, Refusal, StepKind, Verdict, context, explain, list, mutate,
 };
+#[cfg(any(unix, windows))]
+pub use imp::{context_before, may_have_been_enabled};
 
 /// Cooperative termination the writer observes between bounded steps.
 pub trait TerminationSource {

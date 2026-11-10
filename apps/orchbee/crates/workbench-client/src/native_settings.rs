@@ -1382,7 +1382,13 @@ impl Editor {
                         draft.text = Some(LineEditor::new(value, LengthLimit::Bytes(limit)));
                     }
                 } else {
+                    let entering = draft.row == Row::AgentIntegrations;
                     values::activate(draft);
+                    // Opening the page is the explicit request to inspect providers; opening
+                    // Settings is not. A job still running keeps its own result.
+                    if entering && draft.page == Page::Integrations {
+                        self.integrations.begin(IntegrationJob::Refresh);
+                    }
                 }
             }
             _ => {}

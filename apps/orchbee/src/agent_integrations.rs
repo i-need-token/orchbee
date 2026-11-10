@@ -9,5 +9,5 @@ pub(crate) use orchbee_agent_integration::{
 };
 
 pub(crate) mod model {
-    pub(crate) use orchbee_agent_integration::{Availability, ManagementMode};
+    pub(crate) use orchbee_agent_integration::Availability;
 }

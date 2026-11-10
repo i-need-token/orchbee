@@ -17,6 +17,7 @@ fn operation(generation: u64, panel: WorkbenchPanelId, phase: Phase) -> Operatio
         name: AgentName::parse("alpha").unwrap(),
         provider: AgentProviderId::parse("codex").unwrap(),
         phase,
+        held_until: Some(Instant::now() + START_DEADLINE),
     }
 }
 
@@ -132,12 +133,12 @@ fn draft_is_bounded_and_every_visible_change_invalidates_the_draw_source() {
 fn completion_requires_the_exact_generation_and_panel() {
     let mut state = State::new(true);
     let target = panel(1);
-    state.operation = Some(operation(7, target.clone(), Phase::Starting));
+    state.operations = vec![operation(7, target.clone(), Phase::Starting)];
     assert!(!state.apply_completion(6, &target, Phase::Started));
     assert!(!state.apply_completion(7, &panel(2), Phase::Started));
-    assert_eq!(state.operation.as_ref().unwrap().phase, Phase::Starting);
+    assert_eq!(state.operations[0].phase, Phase::Starting);
     assert!(state.apply_completion(7, &target, Phase::Started));
-    assert_eq!(state.operation.as_ref().unwrap().phase, Phase::Started);
+    assert_eq!(state.operations[0].phase, Phase::Started);
 }
 
 #[test]
@@ -257,10 +258,12 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
     let mut state = State::new(true);
     let mut jobs = Jobs::default();
     let target = panel(1);
-    state.operation = Some(operation(7, target.clone(), Phase::Starting));
+    state.operations = vec![operation(7, target.clone(), Phase::Starting)];
     let (sender, outcomes) = mpsc::sync_channel(1);
     let (_reader, wake) = LocalStream::pair().unwrap();
-    jobs.start = Some(StartTask {
+    jobs.start.push(StartTask {
+        generation: 7,
+        panel: target.clone(),
         progress: Arc::new(Mutex::new(None)),
         outcomes,
         wake,
@@ -309,11 +312,13 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
     for phase in [Phase::Starting, Phase::Cancelling] {
         let mut state = State::new(true);
         let mut jobs = Jobs::default();
-        state.operation = Some(operation(7, panel(1), phase));
+        state.operations = vec![operation(7, panel(1), phase)];
         let (sender, outcomes) = mpsc::sync_channel(1);
         drop(sender);
         let (_reader, wake) = LocalStream::pair().unwrap();
-        jobs.start = Some(StartTask {
+        jobs.start.push(StartTask {
+            generation: 7,
+            panel: panel(1),
             progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
@@ -437,7 +442,7 @@ fn detection_selects_no_undetected_default_and_lists_detected_providers_first() 
 fn only_explicit_cancel_moves_an_accepted_operation_to_cancelling() {
     let mut state = State::new(true);
     let target = panel(1);
-    state.operation = Some(operation(3, target, Phase::Starting));
+    state.operations = vec![operation(3, target, Phase::Starting)];
     state.opened(2);
     assert_eq!(state.phase(2), Some(Phase::Starting));
     assert!(!state.draft_editable());
@@ -454,17 +459,16 @@ fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
         Phase::WaitingInput,
         Phase::Cancelling,
         Phase::Unknown,
-        Phase::Unconfirmed,
     ] {
         let mut state = State::new(true);
-        state.operation = Some(operation(3, target.clone(), phase));
+        state.operations = vec![operation(3, target.clone(), phase)];
         state.opened(2);
         assert_eq!(state.phase(2), Some(phase));
         assert!(!state.draft_editable());
     }
     for phase in [Phase::Started, Phase::Failed, Phase::Cancelled] {
         let mut state = State::new(true);
-        state.operation = Some(operation(3, target.clone(), phase));
+        state.operations = vec![operation(3, target.clone(), phase)];
         state.opened(2);
         assert_eq!(state.phase(2), None);
         assert!(state.draft_editable());
@@ -544,7 +548,7 @@ fn automatic_names_follow_provider_until_edited_and_advance_after_an_attempt() {
     assert_eq!(state.name(), "m");
     state.automatic_name = true;
     state.generation = 1;
-    state.operation = Some(operation(1, panel(1), Phase::Cancelled));
+    state.operations = vec![operation(1, panel(1), Phase::Cancelled)];
     state.opened(2);
     assert_eq!(state.name(), "claude-2");
 }
@@ -603,30 +607,16 @@ fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
 }
 
 #[test]
-fn accepted_command_timeout_is_unconfirmed_and_cannot_be_replayed() {
-    let result = report(
-        Failure::Start(StartFailure::Deadline),
-        ReservationState::Pending,
-        DeliveryDisposition::Applied,
-        Some(0),
-    );
-    assert_eq!(report_phase(&result), Phase::Unconfirmed);
-    let mut state = State::new(true);
-    state.operation = Some(operation(1, panel(1), Phase::Unconfirmed));
-    state.opened(2);
-    assert_eq!(state.phase(2), Some(Phase::Unconfirmed));
-    assert!(!state.draft_editable());
-}
-
-#[test]
 fn canonical_attention_progress_is_cancellable_without_replacing_the_operation() {
     let mut state = State::new(true);
     let mut jobs = Jobs::default();
-    state.operation = Some(operation(1, panel(1), Phase::Starting));
+    state.operations = vec![operation(1, panel(1), Phase::Starting)];
     let (_sender, outcomes) = mpsc::sync_channel(1);
     let (_reader, wake) = LocalStream::pair().unwrap();
     let progress = Arc::new(Mutex::new(Some(Progress::WaitingInput)));
-    jobs.start = Some(StartTask {
+    jobs.start.push(StartTask {
+        generation: 1,
+        panel: panel(1),
         progress: Arc::clone(&progress),
         outcomes,
         wake,
@@ -639,4 +629,71 @@ fn canonical_attention_progress_is_cancellable_without_replacing_the_operation()
     *progress.lock().unwrap() = Some(Progress::Observing);
     jobs.drain(&mut state, CatalogAdmission::Closed);
     assert_eq!(state.phase(1), Some(Phase::Cancelling));
+}
+
+/// A start guards only its own Panel: another Panel starts while it runs. The same Panel starts
+/// again once observation showed its shell prompt, or once an unknown result reached the
+/// workflow deadline; reopening the Board never ends a hold early.
+#[test]
+fn a_start_guards_only_its_own_panel_until_the_prompt_returns_or_the_deadline_passes() {
+    let mut state = State::new(true);
+    state.set_origin_locality(true);
+    state.install_catalog(&["codex"]);
+    let deadline = Instant::now() + START_DEADLINE;
+    let first = state.begin_start(1, panel(1), deadline).unwrap();
+    assert!(!state.draft_editable());
+    assert!(state.begin_start(1, panel(1), deadline).is_none());
+    state.set_target(Some(panel(2)));
+    assert!(
+        state.draft_editable(),
+        "another Panel's start never locks this one"
+    );
+    let second = state.begin_start(1, panel(2), deadline).unwrap();
+
+    let exited = report_phase(&report(
+        Failure::Start(StartFailure::AgentExited),
+        ReservationState::Released,
+        DeliveryDisposition::Applied,
+        Some(0),
+    ));
+    assert!(state.apply_completion(first.generation, &panel(1), exited));
+    state.set_target(Some(panel(1)));
+    assert!(state.draft_editable(), "the shell prompt returned");
+    assert!(state.begin_start(1, panel(1), deadline).is_some());
+
+    assert!(state.apply_completion(second.generation, &panel(2), Phase::Unknown));
+    state.set_target(Some(panel(2)));
+    state.opened(2);
+    assert_eq!(state.phase(2), Some(Phase::Unknown));
+    assert!(!state.expire(deadline - Duration::from_millis(1)));
+    assert!(state.begin_start(2, panel(2), deadline).is_none());
+    assert!(state.expire(deadline));
+    assert!(state.draft_editable());
+    assert!(state.begin_start(2, panel(2), deadline).is_some());
+}
+
+#[test]
+fn an_observed_start_is_started_and_a_returned_prompt_is_retryable() {
+    let mut observed = report(
+        Failure::Start(StartFailure::Deadline),
+        ReservationState::Released,
+        DeliveryDisposition::Applied,
+        Some(0),
+    );
+    observed.verdict = Verdict::Observed;
+    assert_eq!(report_phase(&observed), Phase::Started);
+    for failure in [StartFailure::AgentExited, StartFailure::LaunchFailed] {
+        for reservation in [ReservationState::Released, ReservationState::Unknown] {
+            assert!(
+                report_phase(&report(
+                    Failure::Start(failure),
+                    reservation,
+                    DeliveryDisposition::Applied,
+                    Some(0),
+                ))
+                .retryable(),
+                "{failure:?} showed the shell prompt again"
+            );
+        }
+    }
 }

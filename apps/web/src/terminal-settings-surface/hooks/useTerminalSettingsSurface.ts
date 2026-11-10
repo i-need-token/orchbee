@@ -262,10 +262,23 @@ export function useTerminalSettingsSurface({
 		if (activeSearchResultId === undefined) return;
 		document.getElementById(activeSearchResultId)?.scrollIntoView({ block: 'nearest' });
 	}, [activeSearchResultId]);
+	// Integrations are opt-in: entering their page is the explicit request to inspect them, so
+	// opening Settings alone runs no provider command.
+	const enterCategory = (nextCategory: TerminalSettingsCategory): void => {
+		if (
+			nextCategory === 'agent-integrations' &&
+			category !== 'agent-integrations' &&
+			agentIntegrationManagementControl !== undefined &&
+			!agentIntegrationManagementControl.getSnapshot().pending
+		) {
+			void agentIntegrationManagementControl.refresh();
+		}
+		setCategory(nextCategory);
+	};
 	const activateSearchEntry = (resultIndex: number): void => {
 		const entry = resolvedSearchResults[resultIndex];
 		if (entry === undefined) return;
-		setCategory(entry.category);
+		enterCategory(entry.category);
 		setNavigationOpen(false);
 		setQuery('');
 		setActiveSearchResultIndex(0);
@@ -415,7 +428,7 @@ export function useTerminalSettingsSurface({
 			if (backgroundOpacityPercent !== undefined) controller.update({ backgroundOpacityPercent });
 		},
 		onCategorySelect: (nextCategory): void => {
-			setCategory(nextCategory);
+			enterCategory(nextCategory);
 			setNavigationOpen(false);
 			setPendingSearchTargetId(null);
 		},

@@ -1,10 +1,11 @@
-//! The empty Board's two private background jobs: the Client-PATH catalog
-//! lookup and the Agent startup workflow.
+//! The empty Board's private background jobs: the Client-PATH catalog lookup
+//! and one Agent startup workflow per started Panel.
 //!
 //! The composition owns these jobs beside the Board and drives them against
 //! the start state. Each job settles its own outcome into that state, and the
 //! state never holds a thread or transport handle. Session teardown cancels and
-//! joins both within the workflow's existing bounded I/O and release contract.
+//! joins every job within the workflow's existing bounded I/O and release
+//! contract.
 
 use std::{
     ffi::OsString,
@@ -40,7 +41,8 @@ pub(crate) struct Jobs {
     origin: Option<LocalClientOrigin>,
     catalog: Option<CatalogTask>,
     retiring_catalogs: Vec<CatalogTask>,
-    start: Option<StartTask>,
+    /// At most one workflow per Panel.
+    start: Vec<StartTask>,
 }
 
 impl Jobs {
@@ -49,20 +51,20 @@ impl Jobs {
     }
 
     /// Applies the state's latest decisions to the owned jobs: a retired catalog
-    /// lookup is cancelled and an explicit cancellation wakes the workflow.
+    /// lookup is cancelled and an explicit cancellation wakes its workflow.
     pub(crate) fn reconcile(&mut self, state: &State) {
         if !state.catalog_loading() {
             self.retire_active_catalog();
         }
-        if state.cancelling()
-            && let Some(task) = &mut self.start
-        {
-            task.cancel();
+        for task in &mut self.start {
+            if state.cancelling(task.generation) {
+                task.cancel();
+            }
         }
     }
 
     /// One drain: reconcile, admit the catalog when the Board allows it, then
-    /// settle catalog updates, startup progress, and the startup completion.
+    /// settle catalog updates, each workflow's progress, and its completion.
     pub(crate) fn drain(&mut self, state: &mut State, admission: CatalogAdmission) -> Drain {
         self.reconcile(state);
         let admitted = match admission {
@@ -74,37 +76,43 @@ impl Jobs {
             changed: self.drain_catalog(state),
             started: false,
         };
-        if let Some(progress) = self.start.as_ref().and_then(|task| {
-            task.progress
+        self.start.retain(|task| {
+            if let Some(progress) = task
+                .progress
                 .try_lock()
                 .ok()
                 .and_then(|mut progress| progress.take())
-        }) {
-            drained.changed |= state.settle_start_progress(match progress {
-                Progress::Observing => Phase::Starting,
-                Progress::WaitingInput => Phase::WaitingInput,
-            });
-        }
-        match self.start.as_ref().map(StartTask::take) {
-            Some(Ok(completion)) => {
-                let phase = report_phase(&completion.report);
-                let applied =
-                    state.apply_completion(completion.generation, &completion.panel, phase);
-                drained.changed |= applied;
-                drained.started = applied && phase == Phase::Started;
-                self.start.take();
+            {
+                drained.changed |= state.settle_start_progress(
+                    task.generation,
+                    match progress {
+                        Progress::Observing => Phase::Starting,
+                        Progress::WaitingInput => Phase::WaitingInput,
+                    },
+                );
             }
-            Some(Err(TryRecvError::Disconnected)) => {
-                drained.changed |= state.settle_start_lost();
-                self.start.take();
+            match task.take() {
+                Ok(completion) => {
+                    let phase = report_phase(&completion.report);
+                    let applied =
+                        state.apply_completion(completion.generation, &completion.panel, phase);
+                    drained.changed |= applied;
+                    drained.started |= applied && phase == Phase::Started;
+                    false
+                }
+                Err(TryRecvError::Disconnected) => {
+                    drained.changed |= state.settle_start_lost(task.generation);
+                    false
+                }
+                Err(TryRecvError::Empty) => true,
             }
-            Some(Err(TryRecvError::Empty)) | None => {}
-        }
+        });
         drained.changed |= admitted;
         drained
     }
 
-    /// Accepts one start in `state` and runs its workflow on the current origin.
+    /// Accepts one start in `state` and runs its workflow on the current origin. Only a workflow
+    /// still running in the same Panel refuses it.
     pub(crate) fn start(
         &mut self,
         state: &mut State,
@@ -112,7 +120,7 @@ impl Jobs {
         panel: WorkbenchPanelId,
         clock: LocalOperationClock,
     ) -> bool {
-        if self.start.is_some() {
+        if self.start.iter().any(|task| task.panel == panel) {
             return false;
         }
         let Some(origin) = self.origin.clone() else {
@@ -121,7 +129,7 @@ impl Jobs {
         let Some(deadline) = Instant::now().checked_add(START_DEADLINE) else {
             return false;
         };
-        let Some(operation) = state.begin_start(episode, panel) else {
+        let Some(operation) = state.begin_start(episode, panel, deadline) else {
             return false;
         };
         #[cfg(test)]
@@ -137,16 +145,18 @@ impl Jobs {
             request,
             deadline,
         ) {
-            Ok(task) => self.start = Some(task),
+            Ok(task) => self.start.push(task),
             Err(_) => state.settle_start_spawn_failed(operation.generation),
         }
         true
     }
 
-    /// Session teardown: wake and join the workflow, then cancel and join every lookup.
+    /// Session teardown: wake and join every workflow, then cancel and join every lookup.
     pub(crate) fn close(&mut self) {
-        if let Some(mut task) = self.start.take() {
+        for task in &mut self.start {
             task.cancel();
+        }
+        for mut task in self.start.drain(..) {
             let _ = task.task.join();
         }
         self.retire_active_catalog();
@@ -156,10 +166,10 @@ impl Jobs {
         }
     }
 
-    /// Process exit: wakes the workflow and cancels every lookup without waiting. An in-flight
+    /// Process exit: wakes every workflow and cancels every lookup without waiting. An in-flight
     /// start still cancels and releases its reservation on its own thread.
     pub(crate) fn request_stop(&mut self) {
-        if let Some(task) = &mut self.start {
+        for task in &mut self.start {
             task.cancel();
         }
         self.retire_active_catalog();
@@ -168,17 +178,18 @@ impl Jobs {
         }
     }
 
-    /// Process exit: observes the workflow and every lookup against the shared deadline.
+    /// Process exit: observes every workflow and lookup against the shared deadline.
     pub(crate) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
         self.request_stop();
-        let start = self
-            .start
-            .as_mut()
-            .map_or(Ok(()), |task| task.task.join_before(deadline));
-        self.retiring_catalogs
+        self.start
             .iter_mut()
             .map(|task| task.task.join_before(deadline))
-            .fold(start, std::io::Result::and)
+            .chain(
+                self.retiring_catalogs
+                    .iter_mut()
+                    .map(|task| task.task.join_before(deadline)),
+            )
+            .fold(Ok(()), std::io::Result::and)
     }
 
     fn ensure_catalog(&mut self, state: &mut State, path: Option<OsString>) -> bool {
@@ -244,7 +255,7 @@ impl Jobs {
 
     #[cfg(test)]
     pub(crate) fn queue_completion_t(&mut self, state: &State, report: Report) -> bool {
-        let Some(operation) = &state.operation else {
+        let Some(operation) = state.presented() else {
             return false;
         };
         let (sender, outcomes) = mpsc::sync_channel(1);
@@ -262,7 +273,9 @@ impl Jobs {
         let Ok((_reader, wake)) = LocalStream::pair() else {
             return false;
         };
-        self.start = Some(StartTask {
+        self.start.push(StartTask {
+            generation: operation.generation,
+            panel: operation.panel.clone(),
             progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
@@ -282,13 +295,18 @@ impl Drop for Jobs {
 
 fn report_phase(report: &Report) -> Phase {
     match &report.verdict {
-        Verdict::Started { .. } => Phase::Started,
+        Verdict::Started { .. } | Verdict::Observed => Phase::Started,
         Verdict::Failed { failure, .. }
             if failure.timed_out()
                 && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>
         {
             Phase::Unconfirmed
         }
+        // Observation showed the Panel back at its shell prompt: no Agent holds it.
+        Verdict::Failed {
+            failure: Failure::Start(StartFailure::AgentExited | StartFailure::LaunchFailed),
+            ..
+        } => Phase::Failed,
         Verdict::Failed { failure, .. }
             if failure.unknown()
                 || matches!(
@@ -386,6 +404,8 @@ struct Completion {
 }
 
 struct StartTask {
+    generation: u64,
+    panel: WorkbenchPanelId,
     progress: Arc<Mutex<Option<Progress>>>,
     outcomes: Receiver<Completion>,
     wake: LocalStream,
@@ -404,6 +424,7 @@ impl StartTask {
     ) -> std::io::Result<Self> {
         let (sender, outcomes) = mpsc::sync_channel(1);
         let (reader, wake) = LocalStream::pair()?;
+        let task_panel = panel.clone();
         let completion_panel = panel.clone();
         let progress = Arc::new(Mutex::new(None));
         let task_progress = Arc::clone(&progress);
@@ -416,7 +437,7 @@ impl StartTask {
                 Some(reader.as_local_io()),
                 &origin,
                 clock,
-                panel,
+                task_panel,
                 &|value| {
                     if let Ok(mut progress) = task_progress.lock() {
                         *progress = Some(value);
@@ -430,6 +451,8 @@ impl StartTask {
             });
         })?;
         Ok(Self {
+            generation,
+            panel,
             progress,
             outcomes,
             wake,

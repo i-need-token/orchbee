@@ -1061,7 +1061,14 @@ impl AgentBoard {
         self.clamp_viewport();
     }
 
-    pub(crate) fn open_with_start_catalog(&mut self, path: Option<std::ffi::OsString>) {
+    /// Opens the Board to start in `target`, the focused Panel. The form presents only that
+    /// Panel's operation, so another Panel's running start never locks it.
+    pub(crate) fn open_with_start_catalog(
+        &mut self,
+        path: Option<std::ffi::OsString>,
+        target: Option<orchbee_workbench_protocol::WorkbenchPanelId>,
+    ) {
+        self.start.set_target(target);
         self.open();
         // PATH is only captured here. Probe admission waits for this episode's
         // complete empty List result and is fenced again in `drain_start`.
@@ -1402,11 +1409,17 @@ impl AgentBoard {
         } else {
             start::CatalogAdmission::Closed
         };
+        let expired = self.start.expire(now);
         let drained = jobs(&mut self.start, admission);
         if drained.started {
             self.request_refresh(now);
         }
-        drained.changed
+        drained.changed || expired
+    }
+
+    /// The latest phase a start job settled since the last call, for the status notice.
+    pub(crate) fn take_start_notice(&mut self) -> Option<start::Phase> {
+        self.start.take_notice()
     }
 
     #[cfg(test)]

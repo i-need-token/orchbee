@@ -15,34 +15,6 @@ impl super::CliText {
         }
     }
 
-    /// Local integration preflight refusals: nothing was reserved or sent, so
-    /// the copy is the cause plus the one command that resolves it.
-    fn cli_agent_start_preflight(self, reason: &str, provider: &str) -> Option<String> {
-        let integration = crate::agent_provider::integration_id(provider).unwrap_or(provider);
-        let executable = crate::agent_provider::executable(provider).unwrap_or(provider);
-        Some(match (self.locale, reason) {
-            (Locale::EnUs, "provider-not-found") => format!(
-                "The {executable} command for the {provider} Agent was not found on PATH; nothing was started. Install it, then retry.\n"
-            ),
-            (Locale::ZhCn, "provider-not-found") => format!(
-                "PATH 中找不到 {provider} 智能体的命令 {executable}；未启动任何内容。请先安装再重试。\n"
-            ),
-            (Locale::EnUs, "integration-not-enabled") => format!(
-                "The {integration} integration is not enabled, so Orchbee cannot confirm the Agent is ready; nothing was started. Run: orchbee agent integration enable --provider {integration}\n"
-            ),
-            (Locale::ZhCn, "integration-not-enabled") => format!(
-                "{integration} 集成尚未启用，Orchbee 无法确认智能体就绪；未启动任何内容。请运行：orchbee agent integration enable --provider {integration}\n"
-            ),
-            (Locale::EnUs, "integration-blocked") => format!(
-                "The {integration} integration cannot be managed in its current state; nothing was started. Inspect it with: orchbee agent integration explain --provider {integration}\n"
-            ),
-            (Locale::ZhCn, "integration-blocked") => format!(
-                "{integration} 集成当前状态无法管理；未启动任何内容。请运行以下命令查看：orchbee agent integration explain --provider {integration}\n"
-            ),
-            _ => return None,
-        })
-    }
-
     pub(super) fn cli_agent_start_failure(self, failure: &Failure) -> String {
         if matches!(
             failure.usage.as_deref(),
@@ -72,10 +44,6 @@ impl super::CliText {
                 Locale::EnUs => "The target panel was not found. Run `orchbee panel list`, then pass an existing panel ID to --panel.\n",
                 Locale::ZhCn => "未找到目标面板。请运行 `orchbee panel list`，再将现有面板 ID 传给 --panel。\n",
             }.to_owned();
-        }
-        if let Some(message) = self.cli_agent_start_preflight(field("reason"), field("providerId"))
-        {
-            return message;
         }
         let cause = failure
             .details
@@ -163,10 +131,10 @@ impl super::CliText {
                 "编码后的 Windows 启动命令超过 8000 个字符，请缩短参数。"
             }
             (Locale::EnUs, "start-deadline") => {
-                "The Agent did not confirm readiness before the deadline. Inspect its terminal and provider hooks."
+                "The Agent did not confirm readiness before the deadline; its command may still be running. Inspect its terminal."
             }
             (Locale::ZhCn, "start-deadline") => {
-                "智能体未在时限内确认就绪。请检查终端输出和提供方 hook。"
+                "智能体未在时限内确认就绪，其命令可能仍在运行。请检查终端输出。"
             }
             (Locale::EnUs, "agent-blocked") => {
                 "The Agent needs attention. Resolve the prompt shown in its terminal."

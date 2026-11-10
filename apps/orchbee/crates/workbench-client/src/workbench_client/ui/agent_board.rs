@@ -85,7 +85,12 @@ impl WorkbenchClientUi {
             }
             return ClientActionDisposition::KeepNavigator;
         }
-        self.board.open_with_start_catalog(std::env::var_os("PATH"));
+        let target = self
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_panel_id().cloned());
+        self.board
+            .open_with_start_catalog(std::env::var_os("PATH"), target);
 
         self.enqueue_board_snapshot_refresh();
         ClientActionDisposition::DismissNavigator
@@ -401,18 +406,13 @@ impl WorkbenchClientUi {
         changed |= self
             .board
             .drive_intent(now, |request| self.board_reads.issue(request));
+        changed |= self.board.drain_start(now, |start, admission| {
+            self.start_jobs.drain(start, admission)
+        });
+        if let Some(phase) = self.board.take_start_notice()
+            && let Some(state) = self.state.as_mut()
         {
-            let before = self.board.start_phase();
-            changed |= self.board.drain_start(now, |start, admission| {
-                self.start_jobs.drain(start, admission)
-            });
-            let after = self.board.start_phase();
-            if before != after
-                && let Some(phase) = after
-                && let Some(state) = self.state.as_mut()
-            {
-                state.set_notice(ClientNotice::AgentStart(phase));
-            }
+            state.set_notice(ClientNotice::AgentStart(phase));
         }
         if allow_jump {
             changed |= self.drive_agent_jump(now);

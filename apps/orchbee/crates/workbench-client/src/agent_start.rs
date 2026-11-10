@@ -1,9 +1,10 @@
 //! Typed Agent startup shared by the CLI adapter and native Client surfaces.
 //!
-//! The workflow owns the reserve -> one input submission -> canonical readiness
-//! sequence. Callers inject an exact Panel, one absolute deadline, and an
-//! optional cancellation wake. Presentation, process-wide signals, and surface
-//! generations remain with their callers.
+//! The workflow owns the reserve -> one input submission -> readiness sequence.
+//! Readiness is canonical, or for native surfaces also observed from the Panel's
+//! process identity and published state. Callers inject an exact Panel, one
+//! absolute deadline, and an optional cancellation wake. Presentation,
+//! process-wide signals, and surface generations remain with their callers.
 
 use std::time::Instant;
 
@@ -91,9 +92,12 @@ pub enum Submission {
 /// Delivery and reservation facts in the Report remain authoritative even when this verdict fails.
 #[derive(Debug)]
 pub enum Verdict {
-    Started {
-        session: AgentSessionId,
-    },
+    /// The canonical Session the Agent's integration reported is ready and holds the name.
+    Started { session: AgentSessionId },
+    /// Before any canonical Session reported, the Server's process identity named the requested
+    /// provider in the Panel and its published state was idle or blocked. No name is bound and the
+    /// reservation was released. Only [`Confirmation::CanonicalOrObserved`] produces it.
+    Observed,
     Failed {
         failure: Failure,
         read_cause: Option<Box<Failure>>,
@@ -142,6 +146,7 @@ pub use workflow::step_deadline;
 /// Native admission precedes startup effects. Every path drops the Client before returning,
 /// so the caller may then finalize its process-wide signal source without a live lane.
 /// Failures preserve reservation and delivery facts in the returned Report; input is never replayed.
+/// Only a canonical Session confirms this start, so the verdict is never [`Verdict::Observed`].
 pub fn run_on_client(
     request: Request,
     started: Instant,
@@ -156,8 +161,25 @@ pub fn run_on_client(
         return Report::preflight(request, started, Failure::Unsupported);
     }
     workflow::run_admitted(
-        &request, started, deadline, wake, client, snapshot, panel, None,
+        &request,
+        started,
+        deadline,
+        wake,
+        client,
+        snapshot,
+        panel,
+        None,
+        Confirmation::Canonical,
     )
+}
+
+/// Which evidence may confirm a start.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Confirmation {
+    /// Only a ready canonical Session, so the result can name it.
+    Canonical,
+    /// A ready canonical Session or, while none has reported, the Panel's observed Agent.
+    CanonicalOrObserved,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -169,6 +191,7 @@ pub(crate) enum Progress {
 /// Open one lane on the supplied origin and run startup within the original clock and deadline.
 /// Native admission precedes lane creation. Progress callbacks describe observations only;
 /// callers retain signal finalization and surface-generation ownership after this returns.
+/// A canonical Session or, while none has reported, the observed Agent confirms this start.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_on_origin(
     request: Request,

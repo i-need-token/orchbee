@@ -53,6 +53,12 @@ otherwise the hook exits silently and successfully. After a completed enable or 
 removes the other version folders of its own Capsule folder once a fresh inspection shows that no
 entry can name one; the current version stays until uninstall.
 
+Because only an installed Capsule lets an entry name an environment, `may_have_been_enabled` answers
+from the presence of this environment's Capsule folder and, for release, the shared legacy folder,
+without running provider commands or reading provider configuration. `false` proves that no entry
+names this environment, so an implicit caller such as the diagnostics bundle skips inspection;
+`true`, including an unreadable location, proves nothing about current entries.
+
 ## Conformance fixtures
 
 `tests/fixtures/` holds the corpora replayed by this crate's harnesses. The `test-support`

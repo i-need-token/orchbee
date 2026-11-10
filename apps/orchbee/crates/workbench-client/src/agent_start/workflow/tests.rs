@@ -93,3 +93,32 @@ fn typed_send_verdict_not_process_status_decides_delivery() {
         assert_eq!(delivery_disposition(verdict), expected);
     }
 }
+
+/// Without a canonical Session, only the requested provider's published idle or blocked state
+/// confirms a start; a working, unknown or ended state, another Agent, or no named Agent never does.
+#[test]
+fn observation_confirms_only_the_requested_agent_waiting_for_its_user() {
+    use agent_start_runtime::state::Published;
+    let codex = orchbee_agent_observation_protocol::AgentProviderId::parse("codex").unwrap();
+    let claude = orchbee_agent_observation_protocol::AgentProviderId::parse("claude-code").unwrap();
+    let published = |agent: Option<&str>, state| Published {
+        agent: agent.map(str::to_owned),
+        state,
+    };
+    for state in [PanelAgentState::Idle, PanelAgentState::Blocked] {
+        assert!(observed_ready(&published(Some("codex"), state), &codex));
+        // The report label names the provider whose native identity differs.
+        assert!(observed_ready(&published(Some("claude"), state), &claude));
+        assert!(!observed_ready(&published(Some("claude"), state), &codex));
+        assert!(!observed_ready(&published(None, state), &codex));
+        assert!(!observed_ready(&published(Some("my-agent"), state), &codex));
+    }
+    for state in [
+        PanelAgentState::Working,
+        PanelAgentState::Unknown,
+        PanelAgentState::Done,
+        PanelAgentState::Error,
+    ] {
+        assert!(!observed_ready(&published(Some("codex"), state), &codex));
+    }
+}

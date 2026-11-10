@@ -7,6 +7,7 @@ pub(crate) mod observation;
 pub(crate) mod processes;
 pub(crate) mod send;
 pub(crate) mod snapshot;
+pub(crate) mod state;
 use crate::local_client::{
     LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
 };

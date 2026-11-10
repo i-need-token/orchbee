@@ -65,8 +65,9 @@ fn default_config_uses_the_setting_and_client_action_registries() {
 #[cfg(any(unix, windows))]
 #[test]
 fn integration_list_documents_cover_the_entire_provider_registry() {
-    use crate::agent_integrations::model::{Availability, ManagementMode};
+    use crate::agent_integrations::model::Availability;
     use crate::agent_integrations::{CapsuleStatus, IntegrationId, SnapshotItem, State};
+    use orchbee_agent_integration::ManagementMode;
     let schema: Value =
         serde_json::from_str(include_str!("schemas/orchbee.agent.integrations.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();

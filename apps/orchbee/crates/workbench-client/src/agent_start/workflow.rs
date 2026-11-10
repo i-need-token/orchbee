@@ -2,7 +2,9 @@
 //! the single send, observation and best-effort name release.
 
 use super::failure::ExchangeFailure;
-use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
+use super::{
+    Confirmation, DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms,
+};
 use super::{Failure, StartFailure, Submission};
 use crate::agent_runtime::startup as agent_start_runtime;
 use crate::agent_runtime::startup::binding::PrimaryTerminal;
@@ -13,12 +15,12 @@ use crate::local_client::{
 use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
     AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
-    AgentPresentationId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
-    ShellRoot, idle_shell_only,
+    AgentPresentationId, AgentReportProvider, AgentSafeInteger, AgentSemanticStatus,
+    AgentSessionId, ObapRequestId, ShellRoot, idle_shell_only,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_terminal_protocol::{TerminalLaunchKind, TerminalProcess, TerminalProcessInfo};
-use orchbee_workbench_protocol::{Snapshot, WorkbenchPanelId};
+use orchbee_workbench_protocol::{PanelAgentState, Snapshot, WorkbenchPanelId};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -30,6 +32,7 @@ mod tests;
 
 struct Workflow<'a> {
     progress: Option<&'a dyn Fn(super::Progress)>,
+    confirmation: Confirmation,
     request: &'a Request,
     started: Instant,
     deadline: Instant,
@@ -67,6 +70,7 @@ pub(super) fn run_on_origin(
             snapshot,
             panel,
             Some(progress),
+            Confirmation::CanonicalOrObserved,
         ),
         Err(failure) => Report::preflight(request, started, failure),
     }
@@ -94,9 +98,11 @@ pub(super) fn run_admitted(
     snapshot: Snapshot,
     panel: WorkbenchPanelId,
     progress: Option<&dyn Fn(super::Progress)>,
+    confirmation: Confirmation,
 ) -> Report {
     let mut workflow = Workflow {
         progress,
+        confirmation,
         request,
         started,
         deadline,
@@ -153,7 +159,7 @@ impl Workflow<'_> {
         panel: &WorkbenchPanelId,
         text: &str,
         wake: Option<LocalIo<'_>>,
-    ) -> Result<AgentSessionId, Failure> {
+    ) -> Result<Confirmed, Failure> {
         let terminal =
             agent_start_runtime::binding::primary(snapshot, panel).map_err(Failure::Primary)?;
         let answer = self.launch_on_session(client, snapshot, &terminal, text, wake);
@@ -170,7 +176,7 @@ impl Workflow<'_> {
         terminal: &PrimaryTerminal,
         text: &str,
         wake: Option<LocalIo<'_>>,
-    ) -> Result<AgentSessionId, Failure> {
+    ) -> Result<Confirmed, Failure> {
         let sample = self.sample(client, terminal, wake)?;
         let shell = idle_shell(&sample.info)?;
         let before = shell.clone();
@@ -318,7 +324,7 @@ impl Workflow<'_> {
         reservation: &AgentLaunchReservation,
         submitted: Instant,
         wake: Option<LocalIo<'_>>,
-    ) -> Result<AgentSessionId, Failure> {
+    ) -> Result<Confirmed, Failure> {
         loop {
             interrupted(wake)?;
             let outcome = exchange(
@@ -388,6 +394,31 @@ impl Workflow<'_> {
             if submitted.elapsed() >= SETTLE && idle_shell(&process.info).is_ok() {
                 return Err(Failure::Start(StartFailure::AgentExited));
             }
+            let requested = foreground.is_some_and(|foreground| {
+                foreground.selection == agent_start_runtime::Selection::AgentChain
+                    && foreground.provider == Some(self.request.provider.as_str())
+            });
+            // Without a canonical Session, the Server's process identity for the requested
+            // provider and its published idle or blocked state confirm the start. No name binds
+            // without that Session, so the reservation is released.
+            if candidate.is_none()
+                && self.confirmation == Confirmation::CanonicalOrObserved
+                && requested
+                && submitted.elapsed() >= SETTLE
+                && agent_start_runtime::state::read(
+                    client,
+                    snapshot,
+                    &terminal.presentation,
+                    &reservation.binding,
+                    self.step()?,
+                    wake,
+                )
+                .is_some_and(|published| observed_ready(&published, &self.request.provider))
+            {
+                interrupted(wake)?;
+                self.release(client);
+                return Ok(Confirmed::Observed);
+            }
             if let Some(session_id) = candidate {
                 let observed =
                     agent_start_runtime::observation::read(client, &session_id, self.step()?, wake)
@@ -431,10 +462,7 @@ impl Workflow<'_> {
                             | AgentSemanticStatus::Interrupted { .. }
                     );
                 if ready
-                    && foreground.is_some_and(|foreground| {
-                        foreground.selection == agent_start_runtime::Selection::AgentChain
-                            && foreground.provider == Some(self.request.provider.as_str())
-                    })
+                    && requested
                     && submitted.elapsed() >= SETTLE
                     && pending.settle_remaining_ms.value() == 0
                 {
@@ -461,7 +489,7 @@ impl Workflow<'_> {
                             && confirmed == session_id =>
                         {
                             self.state = ReservationState::Completed;
-                            return Ok(session_id);
+                            return Ok(Confirmed::Canonical(session_id));
                         }
                         AgentLaunchOutcome::Rejected {
                             reason:
@@ -562,9 +590,10 @@ impl Workflow<'_> {
         }
     }
 
-    fn finish(self, result: Result<AgentSessionId, Failure>) -> Report {
+    fn finish(self, result: Result<Confirmed, Failure>) -> Report {
         let verdict = match result {
-            Ok(session) => Verdict::Started { session },
+            Ok(Confirmed::Canonical(session)) => Verdict::Started { session },
+            Ok(Confirmed::Observed) => Verdict::Observed,
             Err(failure) => Verdict::Failed {
                 failure,
                 read_cause: self.last_read_failure,
@@ -582,6 +611,29 @@ impl Workflow<'_> {
             verdict,
         }
     }
+}
+
+/// Whether the published state shows the requested provider's Agent waiting for its user: idle,
+/// or blocked on a prompt such as trust or login. Working, unknown and ended states never confirm.
+fn observed_ready(
+    published: &agent_start_runtime::state::Published,
+    provider: &orchbee_agent_observation_protocol::AgentProviderId,
+) -> bool {
+    matches!(
+        published.state,
+        PanelAgentState::Idle | PanelAgentState::Blocked
+    ) && published
+        .agent
+        .as_deref()
+        .and_then(AgentReportProvider::lookup)
+        .map(AgentReportProvider::native_provider_id)
+        == Some(provider.as_str())
+}
+
+/// The evidence that confirmed a start.
+enum Confirmed {
+    Canonical(AgentSessionId),
+    Observed,
 }
 
 const fn delivery_disposition(verdict: agent_start_runtime::SendVerdict) -> DeliveryDisposition {

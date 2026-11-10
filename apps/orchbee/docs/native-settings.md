@@ -191,12 +191,14 @@ order, under a "Local Agent status adapters" heading, then a disabled "Remote ho
 row with the GUI's manual-only description. Each Agent row carries a checkbox for the enabled
 state and the GUI's status word, with the same precedence: Working, Manual setup, Status
 unavailable, Agent not found, then the reported state. Rows start Unknown and change only from a
-Worker report; opening, navigating, searching and closing read and write nothing. The footer
-offers Refresh status and Back, and the state line shows the last failure, a running job, the
-not-yet-checked hint or the GUI's disclosure.
+Worker report. Entering the page is the explicit request to inspect: it starts one refresh unless
+a job already runs. Opening, navigating, searching and closing Settings read and write nothing,
+so without that request no provider command runs and no provider configuration is read. The
+footer offers Refresh status and Back, and the state line shows the last failure, a running job,
+the not-yet-checked hint or the GUI's disclosure.
 
-Refresh status, Enter/Space or a click on an Agent row, and Explain each start one Server-authorized
-Worker job over the shared carrier, through the same `workbench.agent-integration` start, poll and
+Entering the page, Refresh status, Enter/Space or a click on an Agent row, and Explain each start
+one Server-authorized Worker job over the shared carrier, through the same `workbench.agent-integration` start, poll and
 cancel exchanges as the GUI. One job runs at a time; while it runs the Agent rows, Refresh and
 Explain are disabled and the affected rows show Working with a pending status glyph. A row takes
 the GUI's switch rule: manual-only, conflicting, unknown and missing Agents cannot change, and
