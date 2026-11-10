@@ -19,7 +19,11 @@ import {
 	type MessagePortMain,
 } from 'electron';
 
-import { serveDesktopBackgroundStatus, type DesktopWindowBackground } from '../background-tray';
+import {
+	serveDesktopBackgroundStatus,
+	type DesktopBackgroundStatusPort,
+	type DesktopWindowBackground,
+} from '../background-tray';
 import { isSameDesktopRendererOrigin } from '../desktop-renderer-protocol';
 import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import {
@@ -69,9 +73,12 @@ function openExternalLink(address: string): void {
 	shell.openExternal(url.href).catch(() => undefined);
 }
 
-/** What Main holds for one document: its Client connection and the folder picker it may open. */
+/**
+ * What Main holds for one document: its Client connection, the folder picker it may open, and its
+ * background-status port.
+ */
 interface DocumentConnection {
-	readonly closeBackgroundStatus: () => void;
+	readonly backgroundStatus: DesktopBackgroundStatusPort;
 	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
 	readonly relay: ServerConnectionRelay;
 }
@@ -89,6 +96,8 @@ function isSupersededLoad(error: unknown): boolean {
  * the window instead, as the background lifecycle decides.
  */
 export class DesktopServerClientApplication {
+	/** The current document's connection, which Quit All's Session stop goes through. */
+	#document: DocumentConnection | undefined;
 	readonly #options: DesktopServerClientApplicationOptions;
 	#opening: Promise<void> | undefined;
 	#window: BrowserWindow | undefined;
@@ -120,6 +129,11 @@ export class DesktopServerClientApplication {
 		if (window === undefined || window.isDestroyed()) return 'unavailable';
 		if (window.isFullScreen()) return 'full-screen';
 		return window.isMaximized() ? 'maximized' : 'normal';
+	}
+
+	/** Asks the current document's page to stop the Session under `stopId`; false without one. */
+	requestSessionStop(stopId: string): boolean {
+		return this.#document?.backgroundStatus.requestSessionStop(stopId) ?? false;
 	}
 
 	/** Opens the window, or brings the open one forward. */
@@ -248,7 +262,8 @@ export class DesktopServerClientApplication {
 		const end = (): void => {
 			requests += 1;
 			current?.relay.close();
-			current?.closeBackgroundStatus();
+			current?.backgroundStatus.close();
+			if (this.#document === current) this.#document = undefined;
 			// A folder made for a Project the document never confirmed is reported to the person here.
 			current?.folderAcquisition.dispose();
 			current = undefined;
@@ -277,6 +292,7 @@ export class DesktopServerClientApplication {
 					},
 					document: document.data,
 				});
+				this.#document = current;
 				everConnected = true;
 			});
 		});
@@ -299,7 +315,7 @@ export class DesktopServerClientApplication {
 			new DesktopProjectFolderAcquisitionRuntime(window),
 		);
 		folderAcquisition.start();
-		const closeBackgroundStatus = serveDesktopBackgroundStatus(
+		const backgroundStatusPort = serveDesktopBackgroundStatus(
 			backgroundStatus.port1,
 			options.background,
 		);
@@ -313,6 +329,6 @@ export class DesktopServerClientApplication {
 			reply,
 			DESKTOP_SERVER_CONNECTION_PORT_ROLES.map((role) => pagePorts[role]),
 		);
-		return { closeBackgroundStatus, folderAcquisition, relay };
+		return { backgroundStatus: backgroundStatusPort, folderAcquisition, relay };
 	}
 }

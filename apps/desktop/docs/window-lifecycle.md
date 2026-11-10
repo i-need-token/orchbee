@@ -72,20 +72,23 @@ latest summary across a document's replacement and counts nothing itself. A Sess
 reports none.
 
 `desktop-background-lifecycle.ts` holds the model: the window as `absent`, `shown`, or `hidden`; the
-application as running, `quitting`, or `session-ending`; the latest summary; and whether the
-one-time notice has been shown. `transitionDesktopBackground` applies close, show, closed, summary,
-quit, session-end, and notice events and returns `hide-window`, `quit`, `show-notice`, and
-`record-notice` commands; `projectDesktopTray` derives the icon.
+application as running, `quitting`, or `session-ending`; Quit All as `idle`, `confirming`,
+`stopping`, or `failed` with its reason; the latest summary; and whether the one-time notice has
+been shown. `transitionDesktopBackground` applies close, show, closed, summary, quit, session-end,
+notice, and Quit All events and returns `hide-window`, `quit`, `show-notice`, `record-notice`,
+`confirm-quit-all`, `stop-session`, and `report-quit-all-failure` commands; `projectDesktopTray`
+derives the icon.
 
 - A close while the window shows with terminals running becomes a hide. Without a running
   terminal, the close proceeds and Desktop quits, as it always has.
 - No close is turned into a hide once the application is quitting, which every quit passes through
   in `before-quit`, the development runtime's restart included, or once the window has reported
   `query-session-end` or `session-end`. Desktop never delays logoff or shutdown.
-- While the application runs, the icon exists exactly when the window is hidden and terminals run;
-  it is created when the window hides and removed when it shows, so a hidden window always has an
-  icon and a shown one never does.
-- When the last terminal ends while the window is hidden, Desktop quits.
+- While the application runs, the icon exists exactly when the window is hidden and either
+  terminals run or a Quit All is stopping or reporting its failure; it is created when the window
+  hides and removed when it shows, so a hidden window always has an icon and a shown one never does.
+- When the last terminal ends while the window is hidden, Desktop quits, unless a Quit All is
+  stopping the Session, which ends every terminal before it completes, or has failed.
 - The first hide shows a notice from the icon, which Windows withholds during Do Not Disturb. Only a
   notice Windows reports as shown is recorded in `internal/state/desktop-tray.json`, so a withheld
   one is shown at a later hide. Each distribution profile records its own.
@@ -93,13 +96,24 @@ quit, session-end, and notice events and returns `hide-window`, `quit`, `show-no
   notification clicked while the window is hidden all show and focus the window; the page asks Main
   for it, because a page cannot show a window Main hid. Quit Orchbee, Keep Terminals Running quits
   Desktop and leaves the Session running.
+- Quit All… asks every time, in a native dialog that needs no window, with Cancel focused and on
+  Esc; its body counts the terminals that stop and the Agents working in them. Cancel changes
+  nothing. Only a confirmation stops the Session: Main chooses a stop identity and asks the page
+  over the background-status port, the page sends `workbench.session-stop` once through its Server
+  connection and answers, and Main then reads `server stop-status` every half second. Desktop quits
+  only once a stopped receipt proves the stop, which also ends every Client, an attached TUI
+  included. A stop that was refused, never sent, failed, or not proven within 75 seconds shows the
+  window with the reason, naming the stop identity when a stop was recorded, and nothing quits.
+  While the stop runs, the menu holds only its status line and Reopen Orchbee.
 - Only a release icon has a fixed GUID, so Windows remembers whether it is shown in the taskbar.
   Test and Dev run from changing paths, to which Windows ties an unsigned executable's GUID.
 - A window started hidden for automation, macOS, and Linux keep no icon and close as before.
 
 Deterministic tests of the model cover the close decision, closes never intercepted while ending,
-the quit when the last terminal ends, and the icon invariant over every reachable state. The tray
-adapter, the notice, and the native events have no automated evidence.
+the quit when the last terminal ends, Quit All stopping only after a confirmation, a cancel that
+changes nothing, a failure that returns to the shown window, and the icon invariant over every
+reachable state. The tray adapter, the notice, the dialogs, the stop request and its status reads,
+and the native events have no automated evidence.
 
 ## State model and invariants
 

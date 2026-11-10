@@ -36,6 +36,7 @@ function shown(terminals: number): DesktopBackgroundState {
 }
 
 const close: DesktopBackgroundEvent = { kind: 'close-requested' };
+const STOP_ID = '0123456789abcdef0123456789abcdef';
 
 describe('Desktop background lifecycle', () => {
 	it('hides the window on close while terminals run, and lets the close proceed without them', () => {
@@ -82,10 +83,68 @@ describe('Desktop background lifecycle', () => {
 		expect(visible.commands).toEqual([]);
 	});
 
-	it('shows the icon exactly while the window is hidden with terminals running', () => {
+	it('stops the Session only once the person confirms Quit All, and a cancel changes nothing', () => {
+		const hidden = run(shown(3), [close]);
+		const asked = transitionDesktopBackground(hidden, { kind: 'quit-all-requested' });
+		expect(asked.commands).toEqual([{ kind: 'confirm-quit-all' }]);
+		const cancelled = transitionDesktopBackground(asked.state, { kind: 'quit-all-cancelled' });
+		expect(cancelled.commands).toEqual([]);
+		expect(cancelled.state).toEqual(hidden);
+
+		const confirmed = transitionDesktopBackground(asked.state, { kind: 'quit-all-confirmed' });
+		expect(confirmed.commands).toEqual([{ kind: 'stop-session' }]);
+		// The stop ends every terminal before it completes, and only its completion quits.
+		const ended = transitionDesktopBackground(confirmed.state, {
+			kind: 'summary-changed',
+			summary: summary(0),
+		});
+		expect(ended.commands).toEqual([]);
+		expect(projectDesktopTray(ended.state)?.stopping).toBe(true);
+		const stopped = transitionDesktopBackground(ended.state, { kind: 'quit-all-stopped' });
+		expect(stopped.commands).toEqual([{ kind: 'quit' }]);
+		expect(projectDesktopTray(stopped.state)).toBeNull();
+	});
+
+	it('shows the window with the reason when the stop fails, and nothing quits', () => {
+		const stopping = run(shown(2), [
+			close,
+			{ kind: 'quit-all-requested' },
+			{ kind: 'quit-all-confirmed' },
+		]);
+		const failed = transitionDesktopBackground(stopping, {
+			kind: 'quit-all-failed',
+			reason: 'stop-failed',
+			stopId: STOP_ID,
+		});
+		expect(failed.commands).toEqual([
+			{ kind: 'report-quit-all-failure', reason: 'stop-failed', stopId: STOP_ID },
+		]);
+		const reported = run(failed.state, [
+			{ kind: 'window-shown' },
+			{ kind: 'summary-changed', summary: summary(0) },
+		]);
+		expect(reported.ending).toBe('none');
+		expect(projectDesktopTray(reported)).toBeNull();
+		// No second Quit All starts while the report shows; once it is dismissed, Quit All asks again.
+		expect(transitionDesktopBackground(reported, { kind: 'quit-all-requested' }).commands).toEqual(
+			[],
+		);
+		const dismissed = run(reported, [{ kind: 'quit-all-failure-dismissed' }]);
+		expect(transitionDesktopBackground(dismissed, { kind: 'quit-all-requested' }).commands).toEqual(
+			[{ kind: 'confirm-quit-all' }],
+		);
+	});
+
+	it('shows the icon exactly while the window is hidden with terminals running or a Quit All under way', () => {
 		const events: readonly DesktopBackgroundEvent[] = [
 			close,
 			{ kind: 'notice-shown' },
+			{ kind: 'quit-all-requested' },
+			{ kind: 'quit-all-cancelled' },
+			{ kind: 'quit-all-confirmed' },
+			{ kind: 'quit-all-stopped' },
+			{ kind: 'quit-all-failed', reason: 'unconfirmed', stopId: STOP_ID },
+			{ kind: 'quit-all-failure-dismissed' },
 			{ kind: 'quit-requested' },
 			{ kind: 'session-ending' },
 			{ kind: 'summary-changed', summary: summary(0) },
@@ -102,13 +161,24 @@ describe('Desktop background lifecycle', () => {
 			if (seen.has(key)) continue;
 			seen.add(key);
 			const tray = projectDesktopTray(state) !== null;
-			const hiddenWithTerminals = state.window === 'hidden' && state.summary.runningTerminals > 0;
+			const underWay = state.quitAll.kind === 'stopping' || state.quitAll.kind === 'failed';
+			const kept = state.window === 'hidden' && (state.summary.runningTerminals > 0 || underWay);
 			// No icon while the window shows, and no hidden window without an icon to reopen it from.
-			const holds = state.ending === 'none' ? tray === hiddenWithTerminals : !tray;
+			const holds = state.ending === 'none' ? tray === kept : !tray;
 			if (!holds || (state.ending === 'none' && state.window === 'hidden' && !tray)) {
 				violations.push(state);
 			}
-			for (const event of events) pending.push(transitionDesktopBackground(state, event).state);
+			for (const event of events) {
+				const next = transitionDesktopBackground(state, event);
+				// Only the person's confirmation ever stops the Session.
+				if (
+					next.commands.some(({ kind }) => kind === 'stop-session') &&
+					(event.kind !== 'quit-all-confirmed' || state.quitAll.kind !== 'confirming')
+				) {
+					violations.push(state);
+				}
+				pending.push(next.state);
+			}
 		}
 		expect(violations).toEqual([]);
 		expect(seen.size).toBeGreaterThan(20);

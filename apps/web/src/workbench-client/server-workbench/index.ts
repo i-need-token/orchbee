@@ -49,3 +49,4 @@ export {
 export { mergeServerTerminalTitle } from './mergeServerTerminalTitle';
 export type { ServerTerminalTitle, ServerTerminalTitleCursor } from './mergeServerTerminalTitle';
 export { admitsAutomaticWorkspace, workspaceLaunchAction } from './workspace-launch';
+export { stopServerSession } from './stopServerSession';

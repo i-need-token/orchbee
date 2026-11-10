@@ -37,6 +37,7 @@ import {
 	DesktopSecureKeyboardEntry,
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
+import { readServerStopStatus } from '../server-connection';
 import { createUpgradeBackup } from '../upgrade-backup';
 import { DesktopWindowActions } from '../window-actions';
 import {
@@ -187,11 +188,15 @@ function resolveTrayIconDirectory(): string {
  * On Windows, closing the window while terminals run keeps Desktop in the notification area; a
  * window started hidden for automation keeps none. macOS and Linux keep their close behavior.
  */
-async function createBackground(): Promise<DesktopBackgroundRuntime | undefined> {
+async function createBackground(
+	sessionArguments: readonly string[],
+): Promise<DesktopBackgroundRuntime | undefined> {
 	if (process.platform !== 'win32' || process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined) {
 		return undefined;
 	}
 	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
+	const clientExecutable = resolveClientExecutable();
+	const clientEnvironment = resolveClientEnvironment(dataRoot);
 	return new DesktopBackgroundRuntime({
 		applicationName: distribution.applicationName,
 		distribution: distribution.dataScope.kind,
@@ -199,8 +204,15 @@ async function createBackground(): Promise<DesktopBackgroundRuntime | undefined>
 		intl: createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages())),
 		noticeShown: await record.readNoticeShown(),
 		quit: () => app.quit(),
+		readStopStatus: (stopId) =>
+			readServerStopStatus(clientExecutable, sessionArguments, clientEnvironment, stopId),
 		record,
 		reopen: () => void application?.openWindow().catch(() => undefined),
+		requestSessionStop: (stopId) => application?.requestSessionStop(stopId) ?? false,
+		showWindow: async () => {
+			await application?.openWindow().catch(() => undefined);
+			return application?.window;
+		},
 	});
 }
 
@@ -322,7 +334,8 @@ async function start(): Promise<void> {
 		throw new Error('The Desktop renderer URL is not permitted.');
 	}
 	const session = process.env[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
-	background = await createBackground();
+	const sessionArguments = session === undefined ? [] : ['--session', session];
+	background = await createBackground(sessionArguments);
 	const started = new DesktopServerClientApplication({
 		background,
 		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
@@ -333,7 +346,7 @@ async function start(): Promise<void> {
 		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 		recordEvent,
 		rendererUrl,
-		sessionArguments: session === undefined ? [] : ['--session', session],
+		sessionArguments,
 		windowHidden: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined,
 		windowStateOwner: new DesktopWindowStateOwner(
 			new FileDesktopWindowStateStore(dataRoot.windowStateFile, {

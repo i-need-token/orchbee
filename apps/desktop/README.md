@@ -19,7 +19,8 @@ with it: Main records the window's place and the Session's terminals keep runnin
 closing the window while terminals run hides it, and Desktop keeps running in the notification area
 until the window is reopened, Orchbee is quit from the icon, or the last terminal ends, as
 [Window lifecycle](docs/window-lifecycle.md#running-in-the-notification-area) describes; with no
-terminal running, closing it quits as before.
+terminal running, closing it quits as before. Quit All, also in the icon's menu, is the one quit that
+stops the Session, and it asks first.
 
 ## Server connection
 
@@ -30,7 +31,9 @@ process and the first port without reading any; the second is the document's
 as long as the connection; the third is its background-status port, over which the page reports how
 many terminals run and which Agent states need the person, and asks for the window when a
 notification is clicked. Main parses each report and counts nothing itself; where no
-notification-area icon is kept, it closes that port. The process owns activation, peer validation and admission, and the page
+notification-area icon is kept, it closes that port. Over the same port Main asks the page for Quit
+All's Session stop, which the page sends through its Server connection because Main never speaks
+the Client protocol. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's
@@ -77,8 +80,9 @@ with.
   image is the Orchbee mark with a hexagon for the most urgent Agent state, red for a failure,
   yellow for one needing attention, green for a finished turn not yet seen, and outside a release
   the Dev circle or Test square; its tooltip and its menu's first line count the running terminals
-  and those Agents. Left click and double-click reopen the window; the menu holds Reopen Orchbee
-  and Quit Orchbee, Keep Terminals Running. The icons are generated into
+  and those Agents. Left click and double-click reopen the window; the menu holds Reopen Orchbee,
+  Quit Orchbee, Keep Terminals Running, and Quit All…, which asks in a native dialog before it stops
+  every terminal and quits. The icons are generated into
   `resources/brand/ico/tray/`, which a Windows package carries as `resources/tray`.
 - On Windows, Save Diagnostic Bundle… in the Help menu and in the taskbar's Jump List of a packaged
   build, since the title bar overlay hides the menu bar. It asks where to save, starting in the
@@ -280,5 +284,5 @@ pnpm --filter @orchbee/desktop build
 Unit tests cover the data root and distribution identities, the window-state record with its
 migration and upgrade backup, the window-state owner, window and Secure Keyboard Entry Actions, the
 menu, the renderer scheme, the preload bridge, the Project Folder broker and runtime, and the
-background lifecycle's close, quit, and icon invariants. No automated test drives a native window or the Server
+background lifecycle's close, quit, Quit All, and icon invariants. No automated test drives a native window or the Server
 connection; the Desktop Electron suite that did retired with Desktop's Main-owned runtime.

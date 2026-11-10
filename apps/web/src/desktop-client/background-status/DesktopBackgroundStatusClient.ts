@@ -1,19 +1,33 @@
-import type {
-	DesktopBackgroundStatusRendererMessage,
-	DesktopBackgroundStatusSummary,
+import {
+	DesktopBackgroundStatusMainMessageSchema,
+	type DesktopBackgroundStatusRendererMessage,
+	type DesktopBackgroundStatusSummary,
+	type DesktopSessionStopAnswer,
 } from '@orchbee/desktop-client-protocol';
+
+type SessionStop = (stopId: string) => Promise<DesktopSessionStopAnswer>;
 
 /**
  * This document's background-status port: what Main's notification-area icon shows while the
- * window is hidden, and the request to show the window, which a page cannot make for itself.
+ * window is hidden, the request to show the window, which a page cannot make for itself, and the
+ * answer to each Session stop Main asks for.
  */
 export class DesktopBackgroundStatusClient {
 	#disposed = false;
 	#reported: DesktopBackgroundStatusSummary | undefined;
 	readonly #port: MessagePort;
+	#sessionStop: SessionStop | undefined;
 
 	constructor(port: MessagePort) {
 		this.#port = port;
+		// Main may ask before a Server connection serves stops; such a stop is answered at once.
+		port.addEventListener('message', ({ data }) => this.#receive(data));
+		port.start();
+	}
+
+	/** Serves Main's Session stops with `stop`; without it, each is answered as not sent. */
+	serveSessionStop(stop: SessionStop): void {
+		this.#sessionStop = stop;
 	}
 
 	/** Sends `summary` unless it equals the last one sent. */
@@ -38,6 +52,23 @@ export class DesktopBackgroundStatusClient {
 
 	#post(message: DesktopBackgroundStatusRendererMessage): void {
 		this.#port.postMessage(message);
+	}
+
+	#receive(data: unknown): void {
+		const message = DesktopBackgroundStatusMainMessageSchema.safeParse(data);
+		if (this.#disposed || !message.success) return;
+		const { stopId } = message.data;
+		const stop = this.#sessionStop;
+		// A stop that failed to settle may still have been recorded, so its status decides.
+		const answer: Promise<DesktopSessionStopAnswer> =
+			stop === undefined
+				? Promise.resolve('not-sent')
+				: stop(stopId).catch((): DesktopSessionStopAnswer => 'unknown');
+		void answer.then((settled) => {
+			if (!this.#disposed) {
+				this.#post({ answer: settled, stopId, type: 'desktop-session-stop-answered' });
+			}
+		});
 	}
 }
 

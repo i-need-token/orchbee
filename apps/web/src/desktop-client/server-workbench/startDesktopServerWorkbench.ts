@@ -45,6 +45,7 @@ import {
 	ServerTerminalLaunchProfileClient,
 	ServerUserPreferencesClient,
 	ServerWorkbenchSession,
+	stopServerSession,
 	workspaceLaunchAction,
 	type ProjectedTerminalPlatformEffects,
 	type ServerWorkbenchRuntime,
@@ -190,6 +191,8 @@ async function run(
 		);
 		return;
 	}
+	// Quit All in Main's notification-area menu stops the Session through this connection.
+	backgroundStatus.serveSessionStop((stopId) => stopServerSession(session, stopId));
 
 	// Search is withheld in every distribution until it is finished (ORC-424); its code stays
 	// for later.

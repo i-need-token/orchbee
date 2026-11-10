@@ -14,10 +14,15 @@ export {
 	type DesktopSessionRefusal,
 } from './desktop-server-connection-contract';
 
-export { DesktopBackgroundStatusRendererMessageSchema } from './desktop-background-status-contract';
+export {
+	DesktopBackgroundStatusMainMessageSchema,
+	DesktopBackgroundStatusRendererMessageSchema,
+} from './desktop-background-status-contract';
 export type {
+	DesktopBackgroundStatusMainMessage,
 	DesktopBackgroundStatusRendererMessage,
 	DesktopBackgroundStatusSummary,
+	DesktopSessionStopAnswer,
 } from './desktop-background-status-contract';
 
 export {

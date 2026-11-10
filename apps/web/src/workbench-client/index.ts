@@ -11,6 +11,7 @@ export {
 	ServerTerminalLaunchProfileClient,
 	ServerUserPreferencesClient,
 	ServerWorkbenchSession,
+	stopServerSession,
 	workspaceLaunchAction,
 } from './server-workbench';
 export { ProjectedTerminalSurface } from './projected-terminal-surface';

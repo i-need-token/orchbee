@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { desktopTrayMessages, type IntlShape } from '@orchbee/i18n';
-import { Menu, Tray } from 'electron';
+import { Menu, Tray, type MenuItemConstructorOptions } from 'electron';
 
 import type { DesktopTrayStatus, DesktopTrayView } from './desktop-background-lifecycle';
 
@@ -36,13 +36,15 @@ export interface DesktopBackgroundTrayOptions {
 	readonly intl: IntlShape;
 	readonly onNoticeShown: () => void;
 	readonly onQuit: () => void;
+	readonly onQuitAll: () => void;
 	readonly onReopen: () => void;
 }
 
 /**
  * The Windows notification-area icon, which exists only while the lifecycle's view says so: its
  * image marks the most urgent Agent state and, outside a release, the environment; its tooltip and
- * its menu's first line say how many terminals run. Left click and double-click reopen the window.
+ * its menu's first line say how many terminals run, or that Quit All is stopping them. Left click
+ * and double-click reopen the window.
  */
 export class DesktopBackgroundTray {
 	readonly #options: DesktopBackgroundTrayOptions;
@@ -67,33 +69,46 @@ export class DesktopBackgroundTray {
 			tray.setImage(image);
 		}
 		const { intl } = this.#options;
-		const status = intl.formatMessage(desktopTrayMessages.status, {
-			attention: view.summary.attention,
-			done: view.summary.doneUnseen,
-			failed: view.summary.failed,
-			terminals: view.summary.runningTerminals,
-		});
+		const status = view.stopping
+			? intl.formatMessage(desktopTrayMessages.quitAllStopping)
+			: intl.formatMessage(desktopTrayMessages.status, {
+					attention: view.summary.attention,
+					done: view.summary.doneUnseen,
+					failed: view.summary.failed,
+					terminals: view.summary.runningTerminals,
+				});
 		tray.setToolTip(
 			intl.formatMessage(desktopTrayMessages.tooltip, {
 				application: this.#options.applicationName,
 				status,
 			}),
 		);
-		// Quit All… joins the menu with the Session stop that it needs (ORC-403 phase 2b).
+		const statusAndReopen: MenuItemConstructorOptions[] = [
+			{ enabled: false, label: status },
+			{ type: 'separator' },
+			{
+				click: () => this.#options.onReopen(),
+				label: intl.formatMessage(desktopTrayMessages.reopen),
+			},
+		];
+		// While Quit All stops the Session, there is nothing left to quit but the window to reopen.
 		tray.setContextMenu(
-			Menu.buildFromTemplate([
-				{ enabled: false, label: status },
-				{ type: 'separator' },
-				{
-					click: () => this.#options.onReopen(),
-					label: intl.formatMessage(desktopTrayMessages.reopen),
-				},
-				{ type: 'separator' },
-				{
-					click: () => this.#options.onQuit(),
-					label: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
-				},
-			]),
+			Menu.buildFromTemplate(
+				view.stopping
+					? statusAndReopen
+					: [
+							...statusAndReopen,
+							{ type: 'separator' },
+							{
+								click: () => this.#options.onQuit(),
+								label: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
+							},
+							{
+								click: () => this.#options.onQuitAll(),
+								label: intl.formatMessage(desktopTrayMessages.quitAll),
+							},
+						],
+			),
 		);
 	}
 
