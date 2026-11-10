@@ -57,7 +57,9 @@ check, including other Clients. The user activates **Start Agent** with
 injects the exact currently focused Panel id and runs the same typed reserve and single-submission
 workflow as the CLI. It needs no Agent integration: it is confirmed by canonical readiness or, while
 no canonical Session has reported, by the Panel's observed Agent, the Server's published run for
-the requested provider with an idle or blocked published state. It never installs a provider,
+the requested provider with an idle or blocked published state. Observation waits longer while an
+integration may be enabled, so an enabled hook binds the name first
+([timing](windows-agent-start.md#workflow-and-invariants)). It never installs a provider,
 inspects an integration or changes integration/default configuration; manual selection does not
 bypass terminal preflight or readiness. Accepted startup closes the overlay and restores terminal input immediately. The background task keeps one five-minute deadline, reports pinned canonical attention as input needed, and continues observing after the user responds. Startup notices and the reopened board share the same typed phase. A fully sent command that times out is unconfirmed; its deadline has passed, so its Panel may start again. A lost delivery receipt remains unknown and guards its Panel until the deadline. An active or retained startup result replaces empty-session guidance and remains visible alongside any canonical rows. Closing the overlay leaves accepted startup work running; `c` or the
 visible cancel control is the explicit cancellation path. Cancellation wakes cancellable reads and

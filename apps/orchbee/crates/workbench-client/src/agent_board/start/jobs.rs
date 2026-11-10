@@ -295,7 +295,7 @@ impl Drop for Jobs {
 
 fn report_phase(report: &Report) -> Phase {
     match &report.verdict {
-        Verdict::Started { .. } | Verdict::Observed => Phase::Started,
+        Verdict::Started { .. } | Verdict::Observed { .. } => Phase::Started,
         Verdict::Failed { failure, .. }
             if failure.timed_out()
                 && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>

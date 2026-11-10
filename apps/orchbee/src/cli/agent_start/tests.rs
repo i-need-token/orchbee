@@ -252,6 +252,28 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
         let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
         assert!(success_schema.is_valid(&document), "{document}");
         assert_eq!(document["result"]["submission"], receipt);
+        assert_eq!(document["result"]["confirmation"], "session");
+
+        // An observed start has no Session to name and still satisfies the same contract.
+        let answer = project(
+            report(
+                &receipt,
+                ReservationState::Released,
+                Verdict::Observed {
+                    panel: orchbee_workbench_protocol::WorkbenchPanelId::parse(&"a".repeat(32))
+                        .unwrap(),
+                },
+            ),
+            OutputFormat::Json,
+            locale,
+            None,
+        );
+        assert_eq!(answer.status, 0);
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(success_schema.is_valid(&document), "{document}");
+        assert_eq!(document["result"]["confirmation"], "observed");
+        assert!(document["result"].get("sessionId").is_none());
+        assert_eq!(document["result"]["submission"], receipt);
     }
 }
 

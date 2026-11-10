@@ -10,8 +10,12 @@ use std::time::Instant;
 /// Presentation of startup completion or failure, including the CLI reason and optional read cause.
 #[derive(Debug)]
 pub(crate) enum Verdict {
-    Started {
-        session: AgentSessionId,
+    /// The integration's canonical Session confirmed readiness and holds the name.
+    Started { session: AgentSessionId },
+    /// The Agent was observed ready in `panel` before any canonical Session reported; no name is
+    /// bound.
+    Observed {
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
     Failed {
         failure: Failure,
@@ -72,14 +76,17 @@ impl Report {
     /// Expose the current presentation failure for signal-finalization arbitration.
     pub(crate) const fn failure_kind(&self) -> Option<FailureKind> {
         match &self.verdict {
-            Verdict::Started { .. } => None,
+            Verdict::Started { .. } | Verdict::Observed { .. } => None,
             Verdict::Failed { failure, .. } => Some(failure.kind),
         }
     }
 
     /// Report confirmed startup completion; accepted input alone does not satisfy this condition.
     pub(crate) const fn completed(&self) -> bool {
-        matches!(self.verdict, Verdict::Started { .. })
+        matches!(
+            self.verdict,
+            Verdict::Started { .. } | Verdict::Observed { .. }
+        )
     }
 
     /// Apply a CLI signal-boundary failure without replacing the recorded submission or reservation.
@@ -99,7 +106,7 @@ impl Report {
             {
                 cause.clone()
             }
-            Verdict::Started { .. } | Verdict::Failed { .. } => None,
+            Verdict::Started { .. } | Verdict::Observed { .. } | Verdict::Failed { .. } => None,
         };
         let reason = failure
             .details
@@ -169,9 +176,7 @@ impl From<crate::agent_start::Report> for Report {
         };
         let verdict = match report.verdict {
             DomainVerdict::Started { session } => Verdict::Started { session },
-            DomainVerdict::Observed => {
-                unreachable!("the CLI start confirms only a canonical Session")
-            }
+            DomainVerdict::Observed { panel } => Verdict::Observed { panel },
             DomainVerdict::Failed {
                 failure,
                 read_cause,

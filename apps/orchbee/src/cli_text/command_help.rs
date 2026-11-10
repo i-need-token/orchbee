@@ -330,11 +330,11 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_ZH,
             (Locale::EnUs, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
                 "orchbee agent start <name> --provider <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows: start an interactive Agent in an idle terminal, then bind its name after verified readiness.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nOnly the provider's integration confirms readiness here; without one the Agent still starts\nand this command fails at the timeout. Use agent integration and agent doctor to check setup.\nUse --provider antigravity consistently for start, integration and doctor.",
+                "Windows: start an interactive Agent in an idle terminal and wait until it is ready.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nWith an enabled integration its session confirms readiness and receives the name. Otherwise\nthe Agent seen waiting in the terminal confirms it, and the name stays unbound.\nUse --provider antigravity consistently for start, integration and doctor.",
             ),
             (Locale::ZhCn, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
                 "orchbee agent start <name> --provider <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows：在空闲终端启动交互式智能体，确认就绪后绑定名称。默认目标为调用者面板。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止智能体。此命令只能通过提供方集成确认就绪；未启用集成时智能体仍会启动，但此命令会在超时后失败。可用 agent integration 和 agent doctor 检查配置。\nstart、integration 和 doctor 统一使用 --provider antigravity。",
+                "Windows：在空闲终端启动交互式智能体并等待其就绪。默认目标为调用者面板。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止智能体。已启用集成时，由其会话确认就绪并获得名称；否则以终端中观察到智能体等待输入作为就绪，名称不绑定。\nstart、integration 和 doctor 统一使用 --provider antigravity。",
             ),
             (Locale::EnUs, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
             (Locale::ZhCn, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,

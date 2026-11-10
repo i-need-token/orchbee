@@ -15,6 +15,19 @@ impl super::CliText {
         }
     }
 
+    /// The Agent was seen ready without an integration's Session, so `name` was not bound and the
+    /// next step addresses its Panel.
+    pub(crate) fn cli_agent_observed(self, name: &str, panel: &str) -> String {
+        match self.locale {
+            Locale::EnUs => format!(
+                "The Agent is ready in Panel {panel}. No integration reported its session, so the name {name} was not given to it.\nNext: orchbee agent prompt --panel {panel} <text>\n"
+            ),
+            Locale::ZhCn => format!(
+                "智能体已在面板 {panel} 中就绪。没有集成报告它的会话，因此未把名称 {name} 分配给它。\n下一步：orchbee agent prompt --panel {panel} <text>\n"
+            ),
+        }
+    }
+
     pub(super) fn cli_agent_start_failure(self, failure: &Failure) -> String {
         if matches!(
             failure.usage.as_deref(),

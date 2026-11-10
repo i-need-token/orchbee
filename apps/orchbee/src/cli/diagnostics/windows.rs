@@ -52,7 +52,7 @@ pub(super) fn collect(locale: Locale) -> Result<Collected, Failure> {
     collected.document("sessions.json", sessions);
     // Without any installed Capsule no provider entry names this environment: provider commands
     // and configuration stay untouched.
-    let integrations = if !orchbee_agent_integration_writer::may_have_been_enabled() {
+    let integrations = if !orchbee_local_runtime::agent_integration_may_have_been_enabled() {
         Some(json!({"state": "never-enabled"}))
     } else if default_running {
         answered(

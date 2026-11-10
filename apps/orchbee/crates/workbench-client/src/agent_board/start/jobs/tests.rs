@@ -680,7 +680,7 @@ fn an_observed_start_is_started_and_a_returned_prompt_is_retryable() {
         DeliveryDisposition::Applied,
         Some(0),
     );
-    observed.verdict = Verdict::Observed;
+    observed.verdict = Verdict::Observed { panel: panel(1) };
     assert_eq!(report_phase(&observed), Phase::Started);
     for failure in [StartFailure::AgentExited, StartFailure::LaunchFailed] {
         for reservation in [ReservationState::Released, ReservationState::Unknown] {

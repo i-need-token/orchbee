@@ -16,7 +16,7 @@
 			"type": "object",
 			"required": [
 				"kind",
-				"sessionId",
+				"confirmation",
 				"name",
 				"providerId",
 				"reservationId",
@@ -25,9 +25,27 @@
 				"interactiveReady"
 			],
 			"additionalProperties": false,
+			"if": {
+				"properties": {
+					"confirmation": {
+						"const": "session"
+					}
+				}
+			},
+			"then": {
+				"required": ["sessionId"]
+			},
+			"else": {
+				"not": {
+					"required": ["sessionId"]
+				}
+			},
 			"properties": {
 				"kind": {
 					"const": "started"
+				},
+				"confirmation": {
+					"enum": ["session", "observed"]
 				},
 				"sessionId": {
 					"$ref": "#/$defs/opaqueId"

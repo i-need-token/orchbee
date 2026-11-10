@@ -1,10 +1,11 @@
 //! Typed Agent startup shared by the CLI adapter and native Client surfaces.
 //!
 //! The workflow owns the reserve -> one input submission -> readiness sequence.
-//! Readiness is canonical, or for native surfaces also observed from the Panel's
-//! process identity and published state. Callers inject an exact Panel, one
-//! absolute deadline, and an optional cancellation wake. Presentation,
-//! process-wide signals, and surface generations remain with their callers.
+//! Readiness is canonical, or observed from the Panel's process identity and
+//! published state while no canonical Session has reported. Callers inject an
+//! exact Panel, one absolute deadline, and an optional cancellation wake.
+//! Presentation, process-wide signals, and surface generations remain with their
+//! callers.
 
 use std::time::Instant;
 
@@ -95,9 +96,11 @@ pub enum Verdict {
     /// The canonical Session the Agent's integration reported is ready and holds the name.
     Started { session: AgentSessionId },
     /// Before any canonical Session reported, the Server's process identity named the requested
-    /// provider in the Panel and its published state was idle or blocked. No name is bound and the
-    /// reservation was released. Only [`Confirmation::CanonicalOrObserved`] produces it.
-    Observed,
+    /// provider in `panel` and its published state was idle, or blocked for a caller that reports
+    /// progress. No name is bound and the reservation was released.
+    Observed {
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    },
     Failed {
         failure: Failure,
         read_cause: Option<Box<Failure>>,
@@ -146,7 +149,7 @@ pub use workflow::step_deadline;
 /// Native admission precedes startup effects. Every path drops the Client before returning,
 /// so the caller may then finalize its process-wide signal source without a live lane.
 /// Failures preserve reservation and delivery facts in the returned Report; input is never replayed.
-/// Only a canonical Session confirms this start, so the verdict is never [`Verdict::Observed`].
+/// The Client is local, so this environment's own Capsule evidence decides the canonical head start.
 pub fn run_on_client(
     request: Request,
     started: Instant,
@@ -169,17 +172,10 @@ pub fn run_on_client(
         snapshot,
         panel,
         None,
-        Confirmation::Canonical,
+        workflow::observation_delay(
+            orchbee_local_runtime::agent_integration_may_have_been_enabled(),
+        ),
     )
-}
-
-/// Which evidence may confirm a start.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Confirmation {
-    /// Only a ready canonical Session, so the result can name it.
-    Canonical,
-    /// A ready canonical Session or, while none has reported, the Panel's observed Agent.
-    CanonicalOrObserved,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -191,7 +187,6 @@ pub(crate) enum Progress {
 /// Open one lane on the supplied origin and run startup within the original clock and deadline.
 /// Native admission precedes lane creation. Progress callbacks describe observations only;
 /// callers retain signal finalization and surface-generation ownership after this returns.
-/// A canonical Session or, while none has reported, the observed Agent confirms this start.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_on_origin(
     request: Request,

@@ -2,9 +2,7 @@
 //! the single send, observation and best-effort name release.
 
 use super::failure::ExchangeFailure;
-use super::{
-    Confirmation, DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms,
-};
+use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
 use super::{Failure, StartFailure, Submission};
 use crate::agent_runtime::startup as agent_start_runtime;
 use crate::agent_runtime::startup::binding::PrimaryTerminal;
@@ -26,13 +24,16 @@ use std::time::{Duration, Instant};
 
 const READ_BUDGET: Duration = Duration::from_secs(5);
 const SETTLE: Duration = Duration::from_millis(3000);
+/// How long after submission observation waits while an integration may report the canonical
+/// Session, so an enabled hook binds the name before observation confirms without one.
+const CANONICAL_HEAD_START: Duration = Duration::from_secs(10);
 
 #[cfg(test)]
 mod tests;
 
 struct Workflow<'a> {
     progress: Option<&'a dyn Fn(super::Progress)>,
-    confirmation: Confirmation,
+    observe_after: Duration,
     request: &'a Request,
     started: Instant,
     deadline: Instant,
@@ -60,6 +61,11 @@ pub(super) fn run_on_origin(
         agent_start_runtime::snapshot_from_origin(origin, clock, step, wake)
             .map_err(|error| Failure::Admission(Box::new(error)))
     });
+    // A remote origin's integrations live on its host, where this Client's Capsule evidence says
+    // nothing, so the canonical Session keeps its head start there.
+    let observe_after = observation_delay(
+        !origin.is_local() || orchbee_local_runtime::agent_integration_may_have_been_enabled(),
+    );
     match settle_cancellation(admitted, wake) {
         Ok((client, snapshot)) => run_admitted(
             &request,
@@ -70,7 +76,7 @@ pub(super) fn run_on_origin(
             snapshot,
             panel,
             Some(progress),
-            Confirmation::CanonicalOrObserved,
+            observe_after,
         ),
         Err(failure) => Report::preflight(request, started, failure),
     }
@@ -88,6 +94,16 @@ pub fn step_deadline(deadline: Instant) -> Result<Instant, Failure> {
     Ok(deadline.min(now + READ_BUDGET))
 }
 
+/// How long after submission observation may confirm a start without a canonical Session: the
+/// settling period, or the canonical head start while an integration may have been enabled.
+pub(super) const fn observation_delay(integration_may_be_enabled: bool) -> Duration {
+    if integration_may_be_enabled {
+        CANONICAL_HEAD_START
+    } else {
+        SETTLE
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_admitted(
     request: &Request,
@@ -98,11 +114,11 @@ pub(super) fn run_admitted(
     snapshot: Snapshot,
     panel: WorkbenchPanelId,
     progress: Option<&dyn Fn(super::Progress)>,
-    confirmation: Confirmation,
+    observe_after: Duration,
 ) -> Report {
     let mut workflow = Workflow {
         progress,
-        confirmation,
+        observe_after,
         request,
         started,
         deadline,
@@ -125,7 +141,7 @@ pub(super) fn run_admitted(
     };
     let result = settle_cancellation(result, wake);
     drop(client);
-    workflow.finish(result)
+    workflow.finish(result, panel)
 }
 
 fn settle_cancellation<T>(
@@ -401,11 +417,8 @@ impl Workflow<'_> {
             // Without a canonical Session, the Server's process identity for the requested
             // provider and its published idle or blocked state confirm the start. No name binds
             // without that Session, so the reservation is released.
-            if candidate.is_none()
-                && self.confirmation == Confirmation::CanonicalOrObserved
-                && requested
-                && submitted.elapsed() >= SETTLE
-                && agent_start_runtime::state::read(
+            if candidate.is_none() && requested && submitted.elapsed() >= self.observe_after {
+                let published = agent_start_runtime::state::read(
                     client,
                     snapshot,
                     &terminal.presentation,
@@ -413,11 +426,17 @@ impl Workflow<'_> {
                     self.step()?,
                     wake,
                 )
-                .is_some_and(|published| observed_ready(&published, &self.request.provider))
-            {
-                interrupted(wake)?;
-                self.release(client);
-                return Ok(Confirmed::Observed);
+                .filter(|published| observed_ready(published, &self.request.provider));
+                if let Some(published) = published {
+                    // A caller without progress keeps the blocked-start refusal it applies to a
+                    // canonical attention request: its result promises an Agent ready for input.
+                    if self.progress.is_none() && published.state == PanelAgentState::Blocked {
+                        return Err(Failure::Start(StartFailure::AgentBlocked));
+                    }
+                    interrupted(wake)?;
+                    self.release(client);
+                    return Ok(Confirmed::Observed);
+                }
             }
             if let Some(session_id) = candidate {
                 let observed =
@@ -590,10 +609,10 @@ impl Workflow<'_> {
         }
     }
 
-    fn finish(self, result: Result<Confirmed, Failure>) -> Report {
+    fn finish(self, result: Result<Confirmed, Failure>, panel: WorkbenchPanelId) -> Report {
         let verdict = match result {
             Ok(Confirmed::Canonical(session)) => Verdict::Started { session },
-            Ok(Confirmed::Observed) => Verdict::Observed,
+            Ok(Confirmed::Observed) => Verdict::Observed { panel },
             Err(failure) => Verdict::Failed {
                 failure,
                 read_cause: self.last_read_failure,

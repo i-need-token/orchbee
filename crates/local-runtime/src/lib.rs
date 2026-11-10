@@ -59,7 +59,8 @@ mod cohort;
 mod data_root;
 pub use data_root::{
     DataRoot, DataRootError, HOME_VARIABLE, LAYOUT, LayoutRefusal, PRODUCT_VERSION, StateRecord,
-    TUI_POSITION_RECORD, default_runtime_base,
+    TUI_POSITION_RECORD, agent_integration_may_have_been_enabled, default_runtime_base,
+    legacy_agent_observation_capsules,
 };
 mod record_migration;
 #[cfg(windows)]

@@ -128,6 +128,14 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/runtime/<session>/`                        | A Session's runtime folder in every environment, unless `ORCHBEE_RUNTIME_BASE` names another base                                            |
 | `internal/tmp/`                                      | Scrollback documents the Terminal Host writes for an editor, removed a day after their last write                                            |
 
+Release Orchbee once installed Capsules for every environment in `~/.orchbee/agent-observation-adapters`;
+`legacy_agent_observation_capsules` names that folder for release only.
+`agent_integration_may_have_been_enabled` answers `false` only when neither this environment's
+Capsule folder nor that legacy folder exists, which proves that no provider entry names this
+environment; an unresolved root or unreadable folder answers `true`. It runs no provider command
+and reads no provider configuration, so implicit callers use it to skip integration inspection
+and to give an enabled integration's Session a head start over observed Agent startup.
+
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
 Orchbee wrote records its layout. The record is `{"layout":1,"newestVersion":"<version>"}`, and

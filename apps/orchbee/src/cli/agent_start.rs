@@ -1,5 +1,5 @@
 //! Agent startup composes a name reservation, one terminal submission and
-//! canonical readiness. Every failure retains the independently known effects.
+//! canonical or observed readiness. Every failure retains the independently known effects.
 
 use super::Failure;
 use super::output;
@@ -149,16 +149,31 @@ fn project(
     locale: Locale,
     finalization: Option<super::SourceFinalization>,
 ) -> Output {
-    if let Verdict::Started { session } = &report.verdict {
-        let document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
-            "kind":"started", "interactiveReady":true, "name":&report.name, "providerId":&report.provider,
-            "sessionId":session, "reservationId":&report.reservation, "elapsedMs":report.elapsed_ms, "submission":&report.submission,
+    let text = CliText::new(locale);
+    let started = match &report.verdict {
+        Verdict::Started { session } => Some((
+            Some(session),
+            text.cli_agent_started(report.name.as_str(), session.as_str()),
+        )),
+        Verdict::Observed { panel } => Some((
+            None,
+            text.cli_agent_observed(report.name.as_str(), panel.as_str()),
+        )),
+        Verdict::Failed { .. } => None,
+    };
+    if let Some((session, rendered)) = started {
+        let mut document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
+            "kind":"started", "confirmation":if session.is_some() {"session"} else {"observed"},
+            "interactiveReady":true, "name":&report.name, "providerId":&report.provider,
+            "reservationId":&report.reservation, "elapsedMs":report.elapsed_ms, "submission":&report.submission,
         }});
+        // Only the canonical Session holds the name; an observed start has none to report.
+        if let Some(session) = session {
+            document["result"]["sessionId"] = json!(session);
+        }
         let bytes = match format {
             OutputFormat::Json => output::encode_document(&document),
-            OutputFormat::Text => output::encode_text(
-                &CliText::new(locale).cli_agent_started(report.name.as_str(), session.as_str()),
-            ),
+            OutputFormat::Text => output::encode_text(&rendered),
         };
         if let Ok(stdout) = bytes {
             return Output {
