@@ -146,7 +146,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, windows-latest]
+        # GitHub rejects the macOS runner label while this repository is private. Once it is
+        # public, restore the macOS job by setting the next line to: os: [macos-14, windows-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

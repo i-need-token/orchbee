@@ -228,8 +228,12 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   Linux `verify` job never compiles. Formatting, documentation, TypeScript and TLA checks are
   platform-independent and stay in `verify`.
 - Platform exclusions are explicit. macOS has no Rust job because the native Client is only an
-  unsigned per-user Apple Silicon development cohort; its native Terminal Host runs in
-  `terminal-host-native`. No job runs `test:cross`; cross-compilation stays explicit.
+  unsigned per-user Apple Silicon development cohort. `terminal-host-native` runs the native
+  Terminal Host tests and formatting check on `windows-latest` only: GitHub rejects the
+  `macos-14` runner label while this repository is private, so a macOS entry could only fail.
+  The job keeps its macOS setup step; once the repository is public, restore the macOS job by
+  setting its matrix to `os: [macos-14, windows-latest]`. Until then macOS has no CI evidence.
+  No job runs `test:cross`; cross-compilation stays explicit.
 - The required `verify` job does not run TLC. The required `tla` job selects and runs
   change-triggered checks from the tracked inventory; an unrelated change completes that job
   without provisioning Java or TLC.

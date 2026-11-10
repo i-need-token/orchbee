@@ -220,6 +220,10 @@ syncBuiltinESMExports();
 		const env = { ...process.env };
 		delete env.ORCHBEE_TLA2TOOLS_JAR;
 		delete env.ORCHBEE_TLA_TIMEOUT_MILLISECONDS;
+		// These fixtures assert local worktree selection. A CI runner's own variables would drop
+		// untracked files from the selection and append fixture results to the real step output.
+		delete env.CI;
+		delete env.GITHUB_OUTPUT;
 		const invoke = (entry, args, extra = {}) =>
 			runChild(process.execPath, [path.join(scripts, entry), ...args], {
 				cwd: root,
