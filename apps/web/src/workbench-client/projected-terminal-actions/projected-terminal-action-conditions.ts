@@ -3,7 +3,7 @@ import { projectedTerminalMessages } from '@orchbee/i18n';
 import { ActiveScreen, type ActiveScreenValue } from '@orchbee/terminal-protocol';
 
 /** Why this Client cannot drive its terminal, in the words its surface already shows. */
-export type ProjectedTerminalInputBlocker = 'disconnected' | 'exited' | 'failed' | 'view-only';
+type ProjectedTerminalInputBlocker = 'disconnected' | 'exited' | 'failed' | 'view-only';
 
 /** What the surface showing a terminal knows about it, read only to say why an action cannot run. */
 export interface ProjectedTerminalActionConditions {
