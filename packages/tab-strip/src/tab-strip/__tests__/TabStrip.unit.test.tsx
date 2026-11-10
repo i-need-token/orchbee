@@ -2001,22 +2001,30 @@ describe('TabStrip', () => {
 		expect(order).toEqual(['pressed', 'action']);
 	});
 
-	it('creates a Tab by double-clicking only the blank strip, as the New Tab control does', () => {
-		const model = createModel();
-		render(<TabStrip model={model} />);
-		const track = requireDefined(document.querySelector('[data-horizontal-track]'));
-		const tabCount = () => model.getSnapshot().tabs.length;
-		const before = tabCount();
+	it.each([TabStripOrientation.Horizontal, TabStripOrientation.Vertical])(
+		'creates a Tab by double-clicking only the blank %s strip, as the New Tab control does',
+		(orientation) => {
+			const model = createModel();
+			render(<TabStrip model={model} orientation={orientation} />);
+			// The vertical strip's first marked blank container is its regions element.
+			const blankSelector =
+				orientation === TabStripOrientation.Horizontal
+					? '[data-horizontal-track]'
+					: '[data-tab-strip-blank]';
+			const blank = requireDefined(document.querySelector(blankSelector));
+			const tabCount = () => model.getSnapshot().tabs.length;
+			const before = tabCount();
 
-		// A single click on the blank strip, and a double-click on a Tab, leave the Tabs alone.
-		fireEvent.click(track);
-		fireEvent.doubleClick(requireDefined(document.querySelector('[data-tab-id="loose"]')));
-		fireEvent.doubleClick(track, { ctrlKey: true });
-		expect(tabCount()).toBe(before);
+			// A single click on the blank strip, and a double-click on a Tab, leave the Tabs alone.
+			fireEvent.click(blank);
+			fireEvent.doubleClick(requireDefined(document.querySelector('[data-tab-id="loose"]')));
+			fireEvent.doubleClick(blank, { ctrlKey: true });
+			expect(tabCount()).toBe(before);
 
-		fireEvent.doubleClick(track);
-		expect(tabCount()).toBe(before + 1);
-	});
+			fireEvent.doubleClick(blank);
+			expect(tabCount()).toBe(before + 1);
+		},
+	);
 
 	it('lists the New Tab choices in order and opens no menu for a single choice', () => {
 		const model = createModel();

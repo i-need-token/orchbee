@@ -50,7 +50,7 @@ Horizontal hosts may provide `horizontalLeadingActions` and `horizontalTrailingA
 
 New Tab and Close use the shared `ProductIcon` glyphs and compact system control states. Chromium-derived layout and interaction geometry does not determine their product icon size, semantic color, or hover shape.
 
-Double-clicking the horizontal track's own blank space with the plain primary button creates a Tab through the same `tabs.tab.create` path as the New Tab control, while creation is available; a single click there does nothing, and a double-click on a Tab, a group, or the New Tab control keeps that target's behavior. A host whose blank track is an operating-system window drag region never receives that double-click.
+Double-clicking the strip's own blank space with the plain primary button creates a Tab through the same `tabs.tab.create` path as the New Tab control, while creation is available. This covers both orientations: the horizontal track, and the vertical strip's blank space around and below its Tabs. A single click there does nothing, and a double-click on a Tab, a group, or the New Tab control keeps that target's behavior. A host whose blank horizontal track is an operating-system window drag region never receives that double-click.
 
 Hosts that support both orientations pass the controlled `orientation` value and `onOrientationChange`. Right-clicking blank strip space then exposes the localized action for opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
 

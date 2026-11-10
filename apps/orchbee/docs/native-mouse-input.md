@@ -28,9 +28,10 @@ release cancels the pair. The first click is not a decision, so it does not fenc
 read: a console that queues both clicks before the Client reads, as a fast double-click or a
 coalescing transport can, delivers them in one packet, and the second click must still complete
 the pair. Pane content with a current Tab keeps its program/selection owner.
-The GUI offers the same shortcut on its blank horizontal Tab strip and on a Workspace's content with
-no Tab, through the browser's own double-click; the Desktop window's blank Tab bar stays its native
-drag region, where the operating system's double-click maximizes the window instead.
+The GUI offers the same shortcut on its blank Tab strip, horizontal or vertical, and on a
+Workspace's content with no Tab, through the browser's own double-click; the Desktop window's
+blank horizontal Tab bar stays its native drag region, where the operating system's double-click
+maximizes the window instead.
 
 Native [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navigation) owns
 press/drag/release, selected membership, group boundaries and static feedback. InputDispatcher

@@ -3,6 +3,7 @@ import styles from './HorizontalContents.module.css';
 import { type CSSProperties, type ReactNode } from 'react';
 import { calculateTabContainerZValue } from '../../../../layout/calculateTabContainerZValue';
 import { requireDefined } from '../../../../utils/requireDefined';
+import { isPlainPrimaryDoubleClick } from '../../../../utils/isPlainPrimaryDoubleClick';
 import { calculateHorizontalTabGroupUnderlineBounds } from '../../../../layout/tab-group-style';
 import { TAB_SURFACE_HORIZONTAL_INSET } from '../../../../layout/tab-style-views';
 import { TabStripControlButton } from './components/tab-strip-control-button/TabStripControlButton';
@@ -190,11 +191,7 @@ export function HorizontalContents({
 					// Only the strip's own blank space: Tabs, groups and the New Tab control keep theirs.
 					if (
 						event.target !== event.currentTarget ||
-						event.button !== 0 ||
-						event.altKey ||
-						event.ctrlKey ||
-						event.metaKey ||
-						event.shiftKey ||
+						!isPlainPrimaryDoubleClick(event) ||
 						!newTabCreationEnabled
 					) {
 						return;

@@ -18,6 +18,7 @@ import {
 } from '../../../../layout/unpinned-tab-container-view-layout';
 import { type TabCloseSource } from '../../../../layout/tab-closing-mode';
 import { requireDefined } from '../../../../utils/requireDefined';
+import { isPlainPrimaryDoubleClick } from '../../../../utils/isPlainPrimaryDoubleClick';
 import {
 	TabStripOrientation,
 	VerticalTabStripCollapseState,
@@ -360,9 +361,24 @@ export function VerticalContents({
 					onTabSearchClick={onTabSearchClick}
 				/>
 			) : null}
-			<div ref={regionsRef} className={styles['ct-vertical-regions']}>
+			<div
+				ref={regionsRef}
+				className={styles['ct-vertical-regions']}
+				data-tab-strip-blank=''
+				onDoubleClick={(event) => {
+					// Only the marked blank containers: Tabs, groups and the New Tab control keep theirs.
+					const onBlankSpace =
+						event.target instanceof HTMLElement &&
+						event.target.hasAttribute('data-tab-strip-blank');
+					if (!onBlankSpace || !isPlainPrimaryDoubleClick(event) || !newTabCreationEnabled) {
+						return;
+					}
+					addTab();
+				}}
+			>
 				<div
 					className={styles['ct-vertical-pinned-scroll-shell']}
+					data-tab-strip-blank=''
 					data-vertical-region='pinned'
 					aria-hidden={!tabStripViewLayout.pinnedVisible || undefined}
 					style={{
@@ -375,10 +391,12 @@ export function VerticalContents({
 					<div
 						ref={pinnedScrollRef}
 						className={styles['ct-vertical-pinned-scroll']}
+						data-tab-strip-blank=''
 						data-tab-strip-scroll-viewport=''
 					>
 						<div
 							className={styles['ct-vertical-pinned']}
+							data-tab-strip-blank=''
 							data-pin-animation={pinned.some((entry) => entry.phase !== 'stable') || undefined}
 							style={{ '--ob-comp-tab-strip-block-size': `${pinnedLayout.hostSize.height}px` }}
 						>
@@ -427,6 +445,7 @@ export function VerticalContents({
 				) : null}
 				<div
 					className={styles['ct-vertical-scroll-shell']}
+					data-tab-strip-blank=''
 					data-vertical-region='unpinned'
 					style={{
 						'--ob-comp-tab-strip-inline-start': `${tabStripViewLayout.unpinnedBounds.x}px`,
@@ -438,10 +457,12 @@ export function VerticalContents({
 					<div
 						ref={scrollRef}
 						className={styles['ct-vertical-scroll']}
+						data-tab-strip-blank=''
 						data-tab-strip-scroll-viewport=''
 					>
 						<div
 							className={styles['ct-vertical-scroll__content']}
+							data-tab-strip-blank=''
 							data-tab-strip-scroll-content=''
 							data-tab-count-changed={tabCountTransitionSuppressed || undefined}
 							data-pin-animation={unpinned.some((entry) => entry.phase !== 'stable') || undefined}
