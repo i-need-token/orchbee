@@ -169,7 +169,7 @@ The list's keys follow the TUI. Tab enters at the current Workspace, else the he
 it, else the first row. ↑ ↓ Home End move between headings, Workspaces and Agent rows; → unfolds a
 row and then moves into it; ← folds it and then moves to its parent. Enter or Space folds a heading
 and opens a Workspace or Agent, then hands the keyboard to its terminal, as a pointer click does.
-Shift+N starts a Workspace, `/` opens Search and F1 opens the shortcut reference; Ctrl+↑ and Ctrl+↓,
+Shift+N starts a Workspace and F1 opens the shortcut reference; Ctrl+↑ and Ctrl+↓,
 ⌘ on macOS, move a Project or Workspace among its siblings, as a drag does; Shift+← and Shift+→
 change the width by `10px` and `0` returns it to `250px`; Esc returns to the terminal. The rules
 live in the pure `resolveSidebarNavigationKey` and `resolveSiblingReorder`, which unit tests cover.

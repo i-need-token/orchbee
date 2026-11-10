@@ -29,6 +29,7 @@ function renderWorkbench(
 	withProject = false,
 	collapseProject = false,
 	activateRecentWorkspace = false,
+	searchOffered = false,
 ): string {
 	const tabs = [snapshotTab(1), snapshotTab(2)];
 	// A Workspace outside the Project, which Recents holds.
@@ -76,6 +77,7 @@ function renderWorkbench(
 					authority: inertWorkbenchAuthority(),
 					layoutStorage: { getItem, setItem: () => undefined },
 					projectWorkspaceRuntime,
+					searchOffered,
 					shortcutPlatform: 'apple',
 				}),
 			),
@@ -113,7 +115,7 @@ describe('Workbench', () => {
 	});
 
 	it('renders the sidebar chrome and the host-owned tab model', () => {
-		const markup = renderWorkbench();
+		const markup = renderWorkbench(() => null, 'en-US', false, false, false, true);
 
 		expect(markup).toContain('data-slot="workbench-left-panel"');
 		expect(markup).toContain('data-slot="workbench-right-panel"');
@@ -152,7 +154,7 @@ describe('Workbench', () => {
 	});
 
 	it('renders the sidebar chrome in Simplified Chinese', () => {
-		const markup = renderWorkbench(() => null, 'zh-CN');
+		const markup = renderWorkbench(() => null, 'zh-CN', false, false, false, true);
 
 		expect(markup).toContain('aria-label="工作区导航"');
 		expect(markup).toContain('新建工作区');

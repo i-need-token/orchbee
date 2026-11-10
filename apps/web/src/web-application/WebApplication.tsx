@@ -56,7 +56,7 @@ export interface WebApplicationProps {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
-	/** Whether the window offers Search; a release withholds every entry point. Defaults to offered. */
+	/** Whether the window offers Search, which the Workbench follows. Search defaults to withheld. */
 	readonly searchOffered?: boolean | undefined;
 
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;

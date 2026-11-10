@@ -169,6 +169,7 @@ type WorkbenchTestProps = Pick<
 > & {
 	readonly authority?: WorkbenchAuthority | undefined;
 	readonly locale?: 'en-US' | 'zh-CN' | undefined;
+	readonly searchOffered?: boolean | undefined;
 	readonly shortcutPlatform?: 'apple' | 'standard' | undefined;
 };
 
@@ -179,6 +180,7 @@ function renderWorkbench({
 	navigation,
 	projectFolderAcquisition,
 	projectWorkspaceRuntime,
+	searchOffered,
 	shortcutPlatform = 'apple',
 	terminalSurface,
 }: WorkbenchTestProps) {
@@ -192,6 +194,7 @@ function renderWorkbench({
 					navigation={navigation}
 					projectFolderAcquisition={projectFolderAcquisition}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
+					searchOffered={searchOffered}
 					shortcutPlatform={shortcutPlatform}
 					terminalSurface={terminalSurface}
 				/>
@@ -437,6 +440,7 @@ describe('Workbench Project and Workspace management', () => {
 		renderWorkbench({
 			authority: inertWorkbenchAuthority({ change, create }),
 			projectWorkspaceRuntime: runtime,
+			searchOffered: true,
 			shortcutPlatform: 'standard',
 		});
 		const newWorkspace = screen.getByRole('button', { name: /^New workspace/ });
@@ -672,7 +676,11 @@ describe('Workbench Project and Workspace management', () => {
 			type: 'workspace-activated',
 			workspaceId: fixtureWorkspaceId(2),
 		});
-		renderWorkbench({ projectWorkspaceRuntime, terminalSurface: FocusTestTerminalSurface });
+		renderWorkbench({
+			projectWorkspaceRuntime,
+			searchOffered: true,
+			terminalSurface: FocusTestTerminalSurface,
+		});
 		const overlay = () => document.querySelector('[data-slot="workbench-sidebar-overlay"]');
 		const openOverlay = async () => {
 			fireEvent.click(screen.getByRole('button', { name: 'Show Sidebar' }));
@@ -1146,6 +1154,7 @@ describe('Workbench Project and Workspace management', () => {
 				authority: inertWorkbenchAuthority({ create: authorityCreate }),
 				locale,
 				projectWorkspaceRuntime,
+				searchOffered: true,
 			});
 
 			// Without the host's new-folder capability, New Project offers only an existing Folder.
@@ -1259,6 +1268,7 @@ describe('Workbench Project and Workspace management', () => {
 					selectExistingFolder: async () => ({ kind: 'cancelled' }),
 				},
 				projectWorkspaceRuntime: runtime,
+				searchOffered: true,
 				shortcutPlatform: 'standard',
 			});
 			const open = async () => {
@@ -1303,6 +1313,7 @@ describe('Workbench Project and Workspace management', () => {
 			authority: inertWorkbenchAuthority({ create }),
 			projectFolderAcquisition: { selectExistingFolder },
 			projectWorkspaceRuntime,
+			searchOffered: true,
 		});
 
 		await startNewProject('New Project…', 'Select Folder…');
@@ -1328,6 +1339,7 @@ describe('Workbench Project and Workspace management', () => {
 				}),
 			},
 			projectWorkspaceRuntime,
+			searchOffered: true,
 		});
 
 		await startNewProject('新建项目…', '选择文件夹…');

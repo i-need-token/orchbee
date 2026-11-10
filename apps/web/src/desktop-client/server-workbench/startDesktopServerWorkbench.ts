@@ -191,9 +191,9 @@ async function run(
 		return;
 	}
 
-	// A release withholds the entry points of features not yet polished; this is the renderer's one
-	// reading of the build. A Web Client a Server serves would take it from that Server's build.
-	const searchOffered = bootstrap.distribution !== 'release';
+	// Search is withheld in every distribution until it is finished (ORC-424); its code stays
+	// for later.
+	const searchOffered = false;
 	const environmentMarker =
 		bootstrap.distribution === 'release'
 			? undefined

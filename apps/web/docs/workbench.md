@@ -133,16 +133,18 @@ The maintained behavior, ownership, transition, and correctness model lives in [
 
 ### Release-withheld Search
 
-A release withholds Search across Agents, Actions and Settings until it is polished, as the TUI
-withholds its sidebar search; development and test builds offer everything. The sidebar Search row
-and its `/` key are absent, the All-search binding is neither registered nor listed in the shortcut
-settings or their search, and the Search Action is hidden for every filter except `Actions`.
-`Mod+Shift+P` still opens the surface with the `Actions` filter alone and no filter tabs, because it
-is the counterpart of the TUI's action menu, which stays, and the only route to Actions without a
-default key. Desktop Main names its distribution (`development`, `release` or `test`) in the
-document's connection bootstrap; the renderer derives `searchOffered` from it once and passes it to
-the shortcut settings controller and the Workbench. A Web Client that a Server serves will take
-release-ness from that Server's build.
+Every distribution withholds Search across Agents, Actions and Settings until it is polished; the
+TUI withholds its sidebar search only in a release build, and the Search implementation stays in
+place. The sidebar Search row and its `/` key are absent, the All-search binding is neither
+registered nor listed in the shortcut settings or their search, and the Search Action is hidden for
+every filter except `Actions`. `Mod+Shift+P` still opens the surface with the `Actions` filter alone
+and no filter tabs, because it is the counterpart of the TUI's action menu, which stays, and the
+only route to Actions without a default key. The renderer passes `searchOffered` as `false` to the
+shortcut settings controller and the Workbench in every distribution. Desktop Main still names its
+distribution (`development`, `release` or `test`) in the document's connection bootstrap, which the
+renderer reads only for the environment marker. A Web Client gets the Workbench's default, which
+also withholds Search; the shortcut settings controller still defaults to offered, so pass
+`searchOffered: false` to it too.
 
 The sidebar Search control and the platform All-search binding—`Mod+Shift+F` on Apple and `Mod+Shift+K` on Standard—open one upper-viewport modal with the `All` filter and an empty query. `Mod+Shift+P` opens the same surface with the `Actions` filter. Each global open starts a new in-memory session; switching among `All`, `Agents`, `Actions`, and `Settings` preserves the current query, while closing discards the session. File search is intentionally absent.
 

@@ -881,6 +881,7 @@ export const UnifiedSearchAll: Story = {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
+		searchOffered: true,
 		shortcutPlatform: 'apple',
 	},
 	play: () => {
@@ -904,6 +905,7 @@ export const UnifiedSearchActionsChinese: Story = {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createTerminalTabsRuntime(['终端 1', '终端 2', '终端 3']),
+		searchOffered: true,
 		shortcutPlatform: 'apple',
 	},
 	play: () => {
@@ -927,6 +929,7 @@ export const UnifiedSearchProviderFailure: Story = {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
+		searchOffered: true,
 		searchProviders: [unavailableSearchProvider],
 		shortcutPlatform: 'apple',
 	},

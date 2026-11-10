@@ -17,8 +17,8 @@ File search, persistent query or action history, user-defined keybindings, actio
 ranking, telemetry containing query or result data, and Workbench-owned Agent or Terminal runtime
 state are excluded.
 
-A release offers only the `Actions` filter, without filter tabs, and no entry point to the others;
-see [release-withheld Search](workbench.md#release-withheld-search).
+Every distribution offers only the `Actions` filter, without filter tabs, and no entry point to
+the others; see [release-withheld Search](workbench.md#release-withheld-search).
 
 ## Domain contract
 

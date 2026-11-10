@@ -97,7 +97,7 @@ interface WorkbenchProps {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
-	/** Whether the window offers Search; a release withholds every entry point. Defaults to offered. */
+	/** Whether the window offers Search in the Workbench. Search defaults to withheld. */
 	readonly searchOffered?: boolean | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -125,7 +125,7 @@ export function Workbench({
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
-	searchOffered = true,
+	searchOffered = false,
 	shortcutBindings,
 	shortcutPlatform,
 	terminalActionShortcutLabels,
