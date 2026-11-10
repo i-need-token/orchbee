@@ -122,6 +122,17 @@ fn remove(path: &Path, prefix: &str) {
     }
 }
 
+/// Repair puts the removed member back, wherever it lands, and keeps every other byte.
+fn assert_restored(repaired: &str, damaged: &str, member: &str) {
+    let restored = [format!(",{member}"), format!("{member},")]
+        .iter()
+        .any(|inserted| {
+            repaired.matches(inserted.as_str()).count() == 1
+                && repaired.replacen(inserted.as_str(), "", 1) == damaged
+        });
+    assert!(restored, "{repaired}");
+}
+
 #[test]
 fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
     use std::os::windows::process::CommandExt;
@@ -362,7 +373,11 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         "update-required"
     );
     fixture.provider_document("enable", "devin", 0);
-    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    assert_restored(
+        &fs::read_to_string(&target).unwrap(),
+        &missing,
+        &installed[event_start..event_end - 1],
+    );
 
     let command_pattern = regex::Regex::new(r"EncodedCommand ([A-Za-z0-9+/=]+)").unwrap();
     let captures = command_pattern.captures(&installed).unwrap();
@@ -1445,6 +1460,10 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
     }
     inspect("disable");
     assert_eq!(inspect("explain")["result"]["state"], "not-installed");
+    assert_eq!(
+        fs::read_to_string(&config).unwrap(),
+        "unrelated = 'retain'\n[plugins]\ndisabled = []\n"
+    );
     let before = calls();
     inspect("disable");
     assert_eq!(calls(), before);
@@ -2332,8 +2351,9 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
     // Keep the large foreign value raw; remove only the selected event using RawValue.
     let mut partial: std::collections::BTreeMap<String, Box<serde_json::value::RawValue>> =
         serde_json::from_str(&installed).unwrap();
-    partial.remove("AgentEnd");
-    fs::write(&target, serde_json::to_vec(&partial).unwrap()).unwrap();
+    let removed = partial.remove("AgentEnd").unwrap();
+    let damaged = serde_json::to_string(&partial).unwrap();
+    fs::write(&target, &damaged).unwrap();
     assert_eq!(
         fixture.provider_document("explain", id, 0)["result"]["state"],
         "update-required"
@@ -2354,7 +2374,11 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
         "update-required"
     );
     fixture.provider_document("enable", id, 0);
-    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    assert_restored(
+        &fs::read_to_string(&target).unwrap(),
+        &damaged,
+        &format!("\"AgentEnd\":{}", removed.get()),
+    );
     let changed = installed.replace("\"timeout\":10000", "\"timeout\":10");
     assert_ne!(changed, installed);
     fs::write(&target, &changed).unwrap();

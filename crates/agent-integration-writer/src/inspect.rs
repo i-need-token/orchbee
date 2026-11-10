@@ -474,6 +474,12 @@ pub(crate) fn codex_home(home: &Path) -> Option<PathBuf> {
     windows::codex_home(home)
 }
 
+/// The Windows Grok user configuration that inspection reads and disable cleans.
+#[cfg(windows)]
+pub(crate) fn grok_configuration(home: &Path) -> Option<PathBuf> {
+    windows::grok_configuration(home)
+}
+
 #[cfg(unix)]
 pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInspection {
     let configuration_path = home.join(".codex/config.toml");

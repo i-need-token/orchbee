@@ -127,6 +127,76 @@ fn entries_of_other_environments_stay_as_they_are() {
     ));
 }
 
+/// A user document in each JSON shape, formatted by hand and holding a user hook where the
+/// integration adds its own.
+fn user_document(kind: HookConfigurationKind) -> String {
+    use HookConfigurationKind as Kind;
+    if kind == Kind::Antigravity {
+        return "{\r\n  \"user-hook\" : { \"enabled\": false, \"PreInvocation\": [ { \"command\": \"echo user\" } ] },\r\n  \"zeta\": 1e999\r\n}\r\n".into();
+    }
+    let event = if kind == Kind::Cursor {
+        "sessionStart"
+    } else {
+        "SessionStart"
+    };
+    let command = r#"{ "type": "command", "command": "echo user" }"#;
+    let entry = if matches!(kind, Kind::Cursor | Kind::Mastracode) {
+        command.to_owned()
+    } else {
+        format!(r#"{{ "hooks": [ {command} ] }}"#)
+    };
+    let events = format!("\"{event}\": [\r\n\t\t{entry}\r\n\t]");
+    if matches!(kind, Kind::Mastracode | Kind::DroidStandalone) {
+        format!("{{\r\n\t\"version\": 1,\r\n\t{events},\r\n\t\"zeta\": 1e999\r\n}}\r\n")
+    } else {
+        format!(
+            "{{\r\n\t\"version\": 1,\r\n\t\"hooks\": {{\r\n\t{events},\r\n\t\"Custom\": []\r\n\t}},\r\n\t\"zeta\": 1e999\r\n}}\r\n"
+        )
+    }
+}
+
+/// Enable only adds the integration's entries and disable takes exactly them away, so the user's
+/// bytes outside them survive: member order, formatting, numbers and the containers they wrote.
+/// A container the integration created leaves with its entries, and repair replaces an older
+/// entry where it stands.
+#[test]
+fn enable_repair_and_disable_keep_the_users_bytes() {
+    use HookConfigurationKind as Kind;
+    let old = Path::new(r"C:\owned\0.4.16");
+    let root = Path::new(r"C:\owned\0.4.17");
+    for kind in [
+        Kind::Cursor,
+        Kind::Qoder,
+        Kind::Antigravity,
+        Kind::Mastracode,
+        Kind::DroidStandalone,
+        Kind::DroidSettings,
+        Kind::Letta,
+        Kind::Devin,
+    ] {
+        for document in [
+            "{\n    \"zeta\": 123456789012345678901234567890,\n    \"version\": 1,\n    \"alpha\": {\"nested\": [1, 2], \"text\": \"\\u00e9\"}\n}\n".to_owned(),
+            "{\"version\":1}".to_owned(),
+            user_document(kind),
+        ] {
+            let installed = patch(kind, Some(document.as_bytes()), root, true).unwrap();
+            assert!(
+                matches!(scan_hook_configuration(kind, &installed), HookConfigurationScan::Owned(found) if found == root),
+                "{kind:?} {document}"
+            );
+            assert_eq!(
+                patch(kind, Some(&installed), root, true).unwrap(),
+                installed
+            );
+            let removed = patch(kind, Some(&installed), root, false).unwrap();
+            assert_eq!(String::from_utf8(removed).unwrap(), document, "{kind:?}");
+            let outdated = patch(kind, Some(document.as_bytes()), old, true).unwrap();
+            let repaired = patch(kind, Some(&outdated), root, true).unwrap();
+            assert_eq!(repaired, installed, "{kind:?} {document}");
+        }
+    }
+}
+
 #[test]
 fn raw_user_values_survive_enable_repair_and_disable() {
     let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
@@ -319,5 +389,40 @@ fn droid_document_shapes_preserve_foreign_data_and_own_only_session_group() {
         let entry=hooks["SessionStart"][0].clone();
         hooks["Stop"]=json!([entry]);
         assert!(matches!(scan_hook_configuration(kind,&serde_json::to_vec(&owned).unwrap()),HookConfigurationScan::Conflict));
+    }
+}
+
+/// Publication takes a splice only when the strict grammar accepts it and it holds exactly the
+/// value the change intends; values compare by meaning, not spelling.
+#[test]
+fn publication_refuses_an_edit_that_misses_its_intent() {
+    let text = r#"{"user":1.50,"hooks":{"sessionStart":[{"command":"x"}]}}"#;
+    let events = Change::Array {
+        elements: vec![(0, Change::Remove)],
+        append: Vec::new(),
+    };
+    let hooks = Change::Object {
+        members: vec![("sessionStart", events)],
+        append: Vec::new(),
+    };
+    let change = Change::Object {
+        members: vec![("hooks", hooks)],
+        append: vec![("version", serde_json::json!(1))],
+    };
+    let publish =
+        |edited: &str, accepts: bool| publishable(text, edited.to_owned(), &change, |_| accepts);
+    let spliced = splice::apply(text, &change).unwrap();
+    assert!(publish(&spliced, true).is_some());
+    assert!(publish("{ \"version\": 1, \"user\": 1.5 }", true).is_some());
+    assert!(publish(&spliced, false).is_none());
+    for wrong in [
+        r#"{"user":2,"version":1}"#,
+        r#"{"version":1}"#,
+        r#"{"user":1.50,"hooks":{},"version":1}"#,
+        r#"{"user":1.50,"hooks":{"sessionStart":[{"command":"x"}]},"version":1}"#,
+        r#"{"user":1.50,"version":"1"}"#,
+        r#"{"user":1.50,"version":1,"version":1}"#,
+    ] {
+        assert!(publish(wrong, true).is_none(), "{wrong}");
     }
 }

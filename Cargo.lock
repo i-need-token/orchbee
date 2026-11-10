@@ -945,7 +945,6 @@ dependencies = [
  "process-wrap",
  "rustix",
  "serde",
- "serde_core",
  "serde_json",
  "sha2",
  "toml",

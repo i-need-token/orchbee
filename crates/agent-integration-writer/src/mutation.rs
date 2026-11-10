@@ -48,6 +48,8 @@ mod codex_windows;
 #[cfg(windows)]
 mod file_publication_windows;
 #[cfg(windows)]
+mod grok_windows;
+#[cfg(windows)]
 mod hermes_windows;
 #[cfg(windows)]
 mod hook_configuration_windows;
@@ -1437,7 +1439,7 @@ fn disable_vector(
                     let Some(exe) = exec::resolve_executable("grok", context.path_env) else {
                         return Attempt::Failed(FailureCode::OperationFailed);
                     };
-                    run_step(
+                    let uninstalled = run_step(
                         &exe,
                         &[
                             "plugin",
@@ -1449,7 +1451,19 @@ fn disable_vector(
                         reserve,
                         attempted,
                         effect,
-                    )
+                    );
+                    #[cfg(windows)]
+                    if uninstalled == Attempt::Attempted {
+                        return grok_windows::forget_activation(
+                            context,
+                            EffectTrace {
+                                attempted,
+                                residuals,
+                                begun: effect,
+                            },
+                        );
+                    }
+                    uninstalled
                 }
             }
         }

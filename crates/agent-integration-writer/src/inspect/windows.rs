@@ -35,6 +35,10 @@ fn configuration_path(home: &Path, variable: &str, default: &str) -> Option<Path
     configuration_home(home, variable, default).map(|root| root.join("config.toml"))
 }
 
+pub(super) fn grok_configuration(home: &Path) -> Option<PathBuf> {
+    configuration_path(home, "GROK_HOME", ".grok")
+}
+
 fn read_configuration(path: &Path) -> Option<Table> {
     match bounded_file_follow(path, MAX_CODEX_CONFIGURATION_BYTES).ok()? {
         Some(bytes) => std::str::from_utf8(&bytes).ok()?.parse().ok(),
@@ -174,7 +178,7 @@ pub(super) fn inspect_grok(
 ) -> Option<PluginInspection> {
     // Even a missing plugin must not authorize install through an invalid
     // configuration root or a broken document that the provider cannot update.
-    let path = configuration_path(home, "GROK_HOME", ".grok")?;
+    let path = grok_configuration(home)?;
     let configuration = read_configuration(&path)?;
     plugin_names(&configuration, "enabled")?;
     plugin_names(&configuration, "disabled")?;

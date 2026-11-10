@@ -10,11 +10,14 @@ use super::{
     model::State,
 };
 use crate::configuration_windows::{HookConfigurationTarget, hook_configuration_candidates};
-use serde_json::json;
+use serde_json::{Value, json};
+use splice::Change;
 use std::{io, path::Path};
 
 mod event_sets;
+mod intent;
 mod kimi;
+mod splice;
 
 pub(super) const LIMIT: u64 = 512 * 1024;
 /// No root belongs to another environment: every Orchbee entry counts as this environment's.
@@ -42,15 +45,71 @@ fn with_policy<T>(options: &ResourceOptions, read: impl FnOnce(RootPolicy<'_>) -
     read(ROOT_POLICY.owned_elsewhere(&elsewhere))
 }
 
-impl Object {
-    fn bytes(&self) -> Option<Vec<u8>> {
-        serde_json::to_vec(&self.0).ok()
+/// The change to the member `key` of `object`: `change` applies to an existing member in place,
+/// and `value` is appended as a new member when there is none.
+fn member(
+    object: &Object,
+    key: &'static str,
+    change: Option<Change>,
+    value: Option<Value>,
+) -> Change {
+    let (members, append) = if object.0.contains_key(key) {
+        (
+            change.map(|change| (key, change)).into_iter().collect(),
+            Vec::new(),
+        )
+    } else {
+        (
+            Vec::new(),
+            value.map(|value| (key, value)).into_iter().collect(),
+        )
+    };
+    Change::Object { members, append }
+}
+
+/// The change to one event's entries: the owned entry at `owned` is replaced with `item` or
+/// removed, and without an owned entry `item` is appended.
+fn entries(owned: Option<usize>, item: Option<&Value>) -> Option<Change> {
+    match (owned, item) {
+        (Some(index), Some(item)) => Some(Change::Array {
+            elements: vec![(index, Change::Replace(item.clone()))],
+            append: Vec::new(),
+        }),
+        (Some(index), None) => Some(Change::Array {
+            elements: vec![(index, Change::Remove)],
+            append: Vec::new(),
+        }),
+        (None, Some(item)) => Some(Change::Array {
+            elements: Vec::new(),
+            append: vec![item.clone()],
+        }),
+        (None, None) => None,
     }
-    fn set(&mut self, key: &str, value: impl serde_core::Serialize) -> Option<()> {
-        self.0
-            .insert(key.into(), serde_json::value::to_raw_value(&value).ok()?);
-        Some(())
-    }
+}
+
+/// `bytes` with `change` applied and the user's other bytes kept. `accepts` is the read path's
+/// strict grammar for the edited document.
+fn splice(
+    bytes: Option<&[u8]>,
+    change: &Change,
+    accepts: impl FnOnce(&[u8]) -> bool,
+) -> Option<Vec<u8>> {
+    let text = std::str::from_utf8(bytes.unwrap_or(b"{}")).ok()?;
+    publishable(text, splice::apply(text, change)?, change, accepts)
+}
+
+/// `edited` only when it stays within the read bound, passes the strict grammar and holds exactly
+/// the value that `change` makes of `text`; otherwise the step fails and writes nothing.
+fn publishable(
+    text: &str,
+    edited: String,
+    change: &Change,
+    accepts: impl FnOnce(&[u8]) -> bool,
+) -> Option<Vec<u8>> {
+    let fits = edited.len() as u64 <= LIMIT
+        && accepts(edited.as_bytes())
+        && intent::agrees(text, &edited, change);
+    fits.then(|| edited.into_bytes())
 }
 
 fn patch_named(
@@ -59,17 +118,18 @@ fn patch_named(
     enable: bool,
     policy: RootPolicy<'_>,
 ) -> Option<Vec<u8>> {
-    let (mut object, _) = grammar::parse_named(bytes.unwrap_or(b"{}"), policy).ok()?;
-    if enable {
-        object.set(
-            NAMED_HOOK,
-            json!({"enabled":true,"PreInvocation":[declaration("antigravity-cli",root)?]}),
-        )?;
+    let (object, _) = grammar::parse_named(bytes.unwrap_or(b"{}"), policy).ok()?;
+    let block = if enable {
+        Some(json!({"enabled":true,"PreInvocation":[declaration("antigravity-cli",root)?]}))
     } else {
-        object.0.remove(NAMED_HOOK);
-    }
-    let bytes = object.bytes()?;
-    (bytes.len() as u64 <= LIMIT).then_some(bytes)
+        None
+    };
+    let change = block.clone().map_or(Change::Remove, Change::Replace);
+    splice(
+        bytes,
+        &member(&object, NAMED_HOOK, Some(change), block),
+        |edited| grammar::parse_named(edited, policy).is_ok(),
+    )
 }
 
 pub(super) fn read(path: &Path) -> Result<Option<Vec<u8>>, io::Error> {
@@ -181,37 +241,52 @@ fn patch_with(
     if id == "antigravity-cli" {
         return patch_named(bytes, root, enable, policy);
     }
-    let (mut object, mut hooks, mut entries, owned) =
-        grammar::parse(kind, bytes.unwrap_or(b"{}"), policy).ok()?;
-    if let Some((index, _)) = owned {
-        entries.remove(index);
-    }
-    if enable {
+    let (object, hooks, _, owned) = grammar::parse(kind, bytes.unwrap_or(b"{}"), policy).ok()?;
+    let accepts = |edited: &[u8]| grammar::parse(kind, edited, policy).is_ok();
+    let item = if enable {
         let entry = declaration(id, root)?;
-        let item = if matches!(
-            kind,
-            HookConfigurationKind::Qoder
-                | HookConfigurationKind::Letta
-                | HookConfigurationKind::DroidStandalone
-                | HookConfigurationKind::DroidSettings
-        ) {
-            json!({"hooks":[entry]})
-        } else {
-            entry
-        };
-        entries.push(serde_json::value::to_raw_value(&item).ok()?);
-    }
-    hooks.set(event_name(id)?, entries)?;
+        Some(
+            if matches!(
+                kind,
+                HookConfigurationKind::Qoder
+                    | HookConfigurationKind::Letta
+                    | HookConfigurationKind::DroidStandalone
+                    | HookConfigurationKind::DroidSettings
+            ) {
+                json!({"hooks":[entry]})
+            } else {
+                entry
+            },
+        )
+    } else {
+        None
+    };
+    let event = event_name(id)?;
+    let events = member(
+        &hooks,
+        event,
+        entries(owned.map(|(index, _)| index), item.as_ref()),
+        item.as_ref().map(|item| json!([item])),
+    );
     if kind == HookConfigurationKind::DroidStandalone {
-        let bytes = hooks.bytes()?;
-        return (bytes.len() as u64 <= LIMIT).then_some(bytes);
+        return splice(bytes, &events, accepts);
     }
-    object.set("hooks", hooks.0)?;
-    if id == "cursor" && !object.0.contains_key("version") {
-        object.set("version", 1)?;
+    let Change::Object {
+        members,
+        mut append,
+    } = member(
+        &object,
+        "hooks",
+        Some(events),
+        item.as_ref().map(|item| json!({ event: [item] })),
+    )
+    else {
+        return None;
+    };
+    if id == "cursor" && enable && !object.0.contains_key("version") {
+        append.push(("version", json!(1)));
     }
-    let bytes = object.bytes()?;
-    (bytes.len() as u64 <= LIMIT).then_some(bytes)
+    splice(bytes, &Change::Object { members, append }, accepts)
 }
 
 #[cfg(test)]

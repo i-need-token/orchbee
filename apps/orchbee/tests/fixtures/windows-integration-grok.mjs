@@ -45,10 +45,13 @@ if (words.join(' ') === 'plugin list --json') {
 		assert.deepEqual(words, ['plugin', 'uninstall', name, '--confirm']);
 		state.installed = false;
 	}
-	fs.writeFileSync(
-		path.join(root, 'config.toml'),
-		`unrelated = 'retain'\n[plugins]\nenabled = ${JSON.stringify(state.installed ? [name] : [])}\ndisabled = []\n`,
-	);
+	// Grok 1.0.77 keeps the activation entry when it uninstalls a plugin.
+	if (state.installed) {
+		fs.writeFileSync(
+			path.join(root, 'config.toml'),
+			`unrelated = 'retain'\n[plugins]\nenabled = ${JSON.stringify([name])}\ndisabled = []\n`,
+		);
+	}
 	fs.appendFileSync(path.join(root, 'grok-calls.jsonl'), `${JSON.stringify(words)}\n`);
 	fs.writeFileSync(statePath, JSON.stringify(state));
 	process.stdout.write('{}');

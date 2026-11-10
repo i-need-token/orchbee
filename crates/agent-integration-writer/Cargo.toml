@@ -19,7 +19,7 @@ serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 # Capsule payload digests are canonical sha256.
 sha2.workspace = true
-# Syntax-preserving Kimi hook inspection; Windows also owns hook editing.
+# Syntax-preserving Kimi hook inspection; Windows also edits Kimi hooks and Grok activation.
 toml_edit.workspace = true
 
 [target.'cfg(unix)'.dependencies]
@@ -27,8 +27,6 @@ nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "user"] }
 rustix = { workspace = true, features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
-# Windows hook configuration documents reuse the workspace-pinned serde.
-serde_core = { version = "1.0.229", default-features = false, features = ["std"] }
 # Complete, bounded provider-owned TOML configuration inspection.
 toml.workspace = true
 # Suspended Job Object assignment and bounded process-tree cancellation.
