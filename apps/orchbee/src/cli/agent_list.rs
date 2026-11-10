@@ -6,6 +6,7 @@ use super::{
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, query,
     results::{self, Projection},
+    stale_retry::{Ended, StaleRetry},
     success_output,
 };
 use crate::{
@@ -54,7 +55,8 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
             );
         }
     };
-    let answer = (|| {
+    let mut retry = StaleRetry::<()>::new(true);
+    let mut attempt = || {
         let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
         signals.check_before(deadline)?;
         let checkpoint = read(
@@ -182,7 +184,15 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
                 client: selected.clone(),
             })),
         ))
-    })();
+    };
+    // A read the Workbench outran (ORC-413) repeats under the same deadline while the retry grants
+    // fresh reads; the last failure stands once they are spent.
+    let answer = loop {
+        match attempt() {
+            Err(failure) if retry.reread(Ended::resolution(&failure)) => {}
+            settled => break settled,
+        }
+    };
     let (answer, finalization) = match signals.finish() {
         Ok(Finish::Clear) => (answer, None),
         Ok(Finish::Cancelled { finalization, .. }) => {
