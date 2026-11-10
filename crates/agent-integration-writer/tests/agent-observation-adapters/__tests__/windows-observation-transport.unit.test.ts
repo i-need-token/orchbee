@@ -1,5 +1,6 @@
 import { execFile, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type Socket } from 'node:net';
 import path from 'node:path';
@@ -273,9 +274,13 @@ function codexHookShells(
 			verbatim: true,
 		},
 	];
-	const pwsh = spawnSync('where.exe', ['pwsh.exe'], { encoding: 'utf8', windowsHide: true });
-	const pwshPath = pwsh.status === 0 ? pwsh.stdout.split(/\r?\n/u)[0]?.trim() : undefined;
-	if (pwshPath !== undefined && pwshPath !== '') {
+	// The first `pwsh.exe` on PATH, as the shell Codex detects would find it.
+	const pwshPath = (process.env['PATH'] ?? '')
+		.split(path.delimiter)
+		.filter((directory) => directory !== '')
+		.map((directory) => path.join(directory, 'pwsh.exe'))
+		.find((candidate) => existsSync(candidate));
+	if (pwshPath !== undefined) {
 		shells.push({ file: pwshPath, args: ['-NoProfile', '-Command', command], verbatim: false });
 	}
 	return shells;
