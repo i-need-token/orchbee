@@ -3785,7 +3785,7 @@ impl WorkbenchClientUi {
         // Under zoom the drawn set follows the focus: the pointer map and
         // the observed geometry are stale the moment the move lands.
         let zoomed = state.zoom_active();
-        if let Err(closed) = mailbox.publish_desired(pane) {
+        if let Err(closed) = mailbox.publish_desired(pane, state.focus_landing()) {
             self.retire(closed.failure());
             return None;
         }
@@ -3923,7 +3923,7 @@ impl WorkbenchClientUi {
         // Under zoom the drawn set follows the focus: the pointer map and
         // the observed geometry are stale the moment the move lands.
         let zoomed = state.zoom_active();
-        if let Err(closed) = mailbox.publish_desired(pane) {
+        if let Err(closed) = mailbox.publish_desired(pane, state.focus_landing()) {
             self.retire(closed.failure());
         }
         if zoomed {

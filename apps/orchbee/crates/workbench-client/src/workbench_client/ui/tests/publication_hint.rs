@@ -733,7 +733,18 @@ pub(in crate::workbench_client::ui) fn starting_split_ui() -> (
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
-    let split = split_snapshot(1);
+    starting_ui_over(&split_snapshot(1))
+}
+
+/// `starting_split_ui` over another snapshot whose first Tab's first leaf is the bound focus.
+fn starting_ui_over(
+    split: &Snapshot,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Arc<AtomicU64>,
+) {
     let elapsed = Arc::new(AtomicU64::new(0));
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));
     let mailbox = Arc::new(CommandMailbox::new(
@@ -745,7 +756,7 @@ pub(in crate::workbench_client::ui) fn starting_split_ui() -> (
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: project_preferred_workspace(&split).unwrap(),
+                cache: project_preferred_workspace(split).unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::workbench_state::OPERATION_TOTAL),
             &clock,
@@ -776,7 +787,21 @@ pub(in crate::workbench_client) fn ready_split_ui_with_mode(
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
-    let (mut ui, mailbox, clock, elapsed) = starting_split_ui();
+    ready_ui_over(&split_snapshot(1), mode)
+}
+
+/// `ready_split_ui_with_mode` over another snapshot whose first Tab's first leaf is the bound
+/// focus; only that leaf attaches.
+pub(in crate::workbench_client::ui) fn ready_ui_over(
+    split: &Snapshot,
+    mode: ControllerMode,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Arc<AtomicU64>,
+) {
+    let (mut ui, mailbox, clock, elapsed) = starting_ui_over(split);
     let key = ui.state.as_ref().unwrap().desired().unwrap().clone();
     let applied_geometry =
         matches!(mode, ControllerMode::Controlling(_)).then(|| mailbox.latest_geometry().unwrap());

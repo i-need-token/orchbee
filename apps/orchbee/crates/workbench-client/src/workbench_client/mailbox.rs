@@ -7,9 +7,10 @@ use crate::workbench_state::{
     AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,
     CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseReconciliationMarker,
     CloseResult, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
-    CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipResultKey, MoveDecision,
-    MoveOperation, MoveResult, OperationDeadlines, PaneKey, PaneRef, PendingRefreshStage,
-    ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision, SetupEventDisposition,
+    CreateTerminalProvenance, FocusLanding, FrameIdentity, MembershipCleanup, MembershipResultKey,
+    MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PaneKey, PaneRef,
+    PendingRefreshStage, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
+    SetupEventDisposition,
 };
 use crate::{
     exchange_values::workbench::{
@@ -2563,11 +2564,17 @@ impl CommandMailbox {
 
     /// Republishes the focus pane after a local panel focus move: the anchor
     /// generation is unchanged, so admission is proven against the admitted
-    /// pane set rather than a fresh membership install.
-    pub(super) fn publish_desired(&self, key: PaneKey) -> Result<(), MailboxClosed> {
+    /// pane set rather than a fresh membership install. A move onto an unbound
+    /// member keeps that set: focus-scoped input finds no pane to reach while
+    /// the live siblings keep polling and resizing.
+    pub(super) fn publish_desired(
+        &self,
+        key: PaneKey,
+        landing: FocusLanding,
+    ) -> Result<(), MailboxClosed> {
         let mut state = self.lock();
         Self::ensure_open(&state)?;
-        if let Err(failure) = Self::publish_desired_locked(&mut state, key) {
+        if let Err(failure) = Self::publish_desired_locked(&mut state, key, landing) {
             return Err(self.close_locked(&mut state, failure));
         }
         self.abandon_stale_poll_locked(&mut state)
@@ -3741,6 +3748,7 @@ impl CommandMailbox {
     fn publish_desired_locked(
         state: &mut MailboxState,
         key: PaneKey,
+        landing: FocusLanding,
     ) -> Result<(), CarrierFailure> {
         let Some(current) = state.desired.key() else {
             return Err(CarrierFailure::Protocol);
@@ -3752,15 +3760,16 @@ impl CommandMailbox {
             return Ok(());
         }
         if key.anchor() == current.anchor() {
-            // Local panel focus move inside one epoch: only an admitted live
-            // pane incarnation may become the focus.
+            // Local panel focus move inside one epoch: a live viewer must be an
+            // admitted pane incarnation, and an unbound member, which owns no
+            // incarnation, must not be one.
             let admitted = match &state.desired {
                 MailboxMembership::Live { panes, .. } => {
                     panes.iter().any(|pane| pane.pane() == &key)
                 }
                 MailboxMembership::AwaitingBootstrap => false,
             };
-            if !admitted {
+            if admitted != (landing == FocusLanding::Viewer) {
                 return Err(CarrierFailure::Protocol);
             }
         } else if key.anchor().generation() == current.anchor().generation()

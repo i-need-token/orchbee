@@ -152,7 +152,9 @@ publication that removes the leaf.
 
 Mailbox admission partitions by command scope: input admits only while its pane is the logical
 focus at enqueue time; resize and polls admit every exact non-departing incarnation of the
-desired set. The state owner requests sizes only for attached controlling panes in the visible
+desired set. A focus move onto an unbound member, such as a held restore, keeps that set, which
+never names the member: input then has no pane to reach while the siblings keep polling and
+resizing. The state owner requests sizes only for attached controlling panes in the visible
 set: all unmaximized leaves, or the focused leaf under maximization. Read-only and hidden panes do not resize. An admitted command keeps the `PaneRef` it captured at enqueue — dispatch fences on
 that exact reference and does not re-check focus, so accepted input still lands on its original
 pane after a focus move and never migrates to the newly focused pane. A requested Workspace or

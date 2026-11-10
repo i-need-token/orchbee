@@ -172,7 +172,9 @@ review covers both locales, narrow wrapping, copying and recovery.
 
 A Panel whose checkpoint restore found its saved directory unavailable is selected without
 attaching and shows a placeholder instead of a terminal: "Directory unavailable", the saved path,
-and Retry, Start in home folder and Close. Retry is focused first; Tab, Shift+Tab and the left and
+and Retry, Start in home folder and Close. This holds whether the Panel is selected at startup or
+focus reaches it from a live Panel of the same split by pointer, by key or by `panel focus`: the
+Client stays connected and the live Panels keep their terminals. Retry is focused first; Tab, Shift+Tab and the left and
 right arrows move between the buttons, and Enter or Space activates one; other keys are refused as
 for any unattached member. A pointer press activates a button on release. Retry and Start in home
 folder send one `panel.restore-terminal` at a time and keep the buttons disabled until the reply.

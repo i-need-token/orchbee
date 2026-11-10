@@ -660,6 +660,16 @@ pub(crate) enum ControllerMode {
     ReadOnly,
 }
 
+/// What a same-Tab local focus move landed on. The mailbox checks it against the pane
+/// incarnations it admitted, so the two never disagree about whether the focus has a viewer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FocusLanding {
+    /// A live viewer, whose incarnation the mailbox admitted.
+    Viewer,
+    /// An unbound member, such as a held restore: it owns no viewer incarnation.
+    Unbound,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct FrameIdentity(u64);
 
@@ -3802,6 +3812,8 @@ impl WorkbenchClientState {
     /// focus pane, its observed geometry, and its controller mode swap without
     /// touching any attachment. Queued input/resize commands keep their frozen
     /// `PaneRef` tags and remain valid — the membership set does not change.
+    /// An unbound member is selected without attaching; [`Self::focus_landing`]
+    /// then reports it.
     pub(crate) fn move_panel_focus_local(&mut self, pane: PaneKey) -> bool {
         if self.plan_panel_focus_local_at(pane.panel()).as_ref() != Some(&pane) {
             return false;
@@ -3832,6 +3844,16 @@ impl WorkbenchClientState {
         }
         self.desired = Some(pane);
         true
+    }
+
+    /// What the focus rests on after an accepted local focus move: an unbound
+    /// member when the selected member has no binding, else its live viewer.
+    pub(crate) fn focus_landing(&self) -> FocusLanding {
+        if self.selected_is_unbound() {
+            FocusLanding::Unbound
+        } else {
+            FocusLanding::Viewer
+        }
     }
 
     /// `Ctrl+B z`: a volatile per-Tab Client-local zoom flag, sharing the

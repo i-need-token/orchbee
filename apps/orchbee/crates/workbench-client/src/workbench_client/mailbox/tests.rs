@@ -1214,7 +1214,9 @@ fn superseded_poll_result_is_stale_and_does_not_publish_or_retire() {
     let lease = mailbox.try_recv().unwrap().unwrap();
     let poll_key = lease.poll_key().unwrap();
     mailbox.lock().attachment_generation = 2;
-    mailbox.publish_desired(pane_key(&key(2, 2))).unwrap();
+    mailbox
+        .publish_desired(pane_key(&key(2, 2)), FocusLanding::Viewer)
+        .unwrap();
     assert_eq!(
         mailbox
             .publish_poll_result_before_using(
@@ -1548,7 +1550,9 @@ fn stale_after_draw_settlement_is_inert_after_desired_generation_changes() {
         .unwrap();
     mailbox.take_event_before_using(&clock).unwrap().unwrap();
     mailbox.lock().attachment_generation = 2;
-    mailbox.publish_desired(pane_key(&key(2, 2))).unwrap();
+    mailbox
+        .publish_desired(pane_key(&key(2, 2)), FocusLanding::Viewer)
+        .unwrap();
     assert_eq!(mailbox.cells(), ("empty", "empty"));
     assert_eq!(
         mailbox

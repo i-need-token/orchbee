@@ -1317,7 +1317,7 @@ impl UiDriver {
             return Err(test_error("local focus move was refused"));
         }
         self.mailbox
-            .publish_desired(pane.clone())
+            .publish_desired(pane.clone(), self.state().focus_landing())
             .map_err(|closed| test_error(&format!("mailbox closed: {:?}", closed.failure())))?;
         Ok(pane)
     }

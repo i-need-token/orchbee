@@ -328,3 +328,6 @@ fn keys(mut input: &[u8]) -> Option<Vec<Key>> {
     }
     (!keys.is_empty()).then_some(keys)
 }
+
+#[cfg(test)]
+mod tests;
