@@ -931,13 +931,15 @@ export const workbenchMessages = defineMessages({
 	projectFolderAcquisitionNotFound: {
 		id: 'workbench.projects.folderAcquisition.failure.notFound',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.notFound'],
-		description: 'Failure shown when the selected Folder disappears before validation.',
+		description:
+			'Failure shown when New Folder finds that the selected parent Folder no longer exists.',
 	},
 	projectFolderAcquisitionPermissionDenied: {
 		id: 'workbench.projects.folderAcquisition.failure.permissionDenied',
 		defaultMessage:
 			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.permissionDenied'],
-		description: 'Failure shown when the selected Folder cannot be read and traversed.',
+		description:
+			'Failure shown when New Folder may not create a Folder inside the selected parent Folder.',
 	},
 	projectFolderAcquisitionTitle: {
 		id: 'workbench.projects.folderAcquisition.failure.title',
