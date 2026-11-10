@@ -647,24 +647,28 @@ mod workflow {
                 &mut snapshot,
                 deadline,
                 &mut Unarmed,
-                |snapshot| {
+                |_, snapshot, _| {
                     (|| {
                         let project_id = resolve_project(snapshot, project)?.project_id.clone();
-                        Ok(Resolved {
-                            session_id: snapshot.session_id.clone(),
-                            expected_revision: snapshot.revision,
-                            request_id: request_id()?,
-                            action: WorkbenchAction::WorkspaceCreate {
-                                project_id: Some(project_id),
-                                label: label.clone(),
+                        Ok((
+                            (),
+                            Resolved {
+                                session_id: snapshot.session_id.clone(),
+                                expected_revision: snapshot.revision,
+                                request_id: request_id()?,
+                                action: WorkbenchAction::WorkspaceCreate {
+                                    project_id: Some(project_id),
+                                    label: label.clone(),
+                                },
                             },
-                        })
+                            (),
+                        ))
                     })()
                     .map_err(|failure: Failure| failure.source(results::snapshot_source(snapshot)))
                 },
             );
             drop(client);
-            submission.map(|(receipt, _)| receipt)
+            submission.map(|((), receipt, _)| receipt)
         })();
         match result {
             Ok(receipt) => success_output(&receipt, format, locale),
@@ -713,22 +717,23 @@ mod workflow {
             &mut snapshot,
             deadline,
             &mut Unarmed,
-            |snapshot| {
+            |_, snapshot, _| {
                 let mut exact = command.clone();
                 if let (Some(caller), MutationCommand::PanelInput { target, .. }) =
                     (&caller, &mut exact)
                 {
                     *target = Some(caller.resolve(snapshot)?);
                 }
-                resolve(&exact, snapshot)
-                    .map_err(|failure| failure.source(results::snapshot_source(snapshot)))
+                let resolved = resolve(&exact, snapshot)
+                    .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
+                Ok(((), resolved, ()))
             },
         );
         // The Client Connection is fully dropped before the outcome is mapped or
         // any output is prepared; an ambiguous submission already retired the
         // connection inside the transport, and nothing is replayed.
         drop(client);
-        submission.map(|(receipt, action)| Receipt {
+        submission.map(|((), receipt, action)| Receipt {
             closing: closing(&action, &snapshot),
             ..receipt
         })
@@ -745,28 +750,33 @@ mod workflow {
         }
     }
 
-    /// Resolve the command against `snapshot` and submit it once. After a definite
-    /// `revision-mismatch`, read a fresh snapshot on the same session and resolve again under the
-    /// original deadline; submit again, under a fresh request identity, only when the action is
-    /// unchanged, at most `stale_retry::RETRIES` times. Any other end, including a resolution that
-    /// now fails or differs or a fresh read that fails, reports the last refusal. On success
-    /// `snapshot` is the one the committed command was based on.
-    fn submit_fresh(
+    /// Prepare one command from `snapshot` and submit it. After a definite `revision-mismatch`,
+    /// read a fresh snapshot on the same session and prepare again under the original deadline;
+    /// submit again, under a fresh request identity, only when the resolved action and every
+    /// further value `prepare` derived from the snapshot are unchanged, at most
+    /// `stale_retry::RETRIES` times. Any other end, including a preparation that now fails or
+    /// differs or a fresh read that fails, reports the last refusal. On success `snapshot` is the
+    /// one the committed command was prepared from.
+    fn submit_fresh<P, I: PartialEq, S: SignalWatch>(
         client: &mut LocalClient,
         snapshot: &mut Snapshot,
         deadline: Instant,
-        signals: &mut impl SignalWatch,
-        mut resolve: impl FnMut(&Snapshot) -> Result<Resolved, Failure>,
-    ) -> Result<(Receipt, WorkbenchAction), Failure> {
+        signals: &mut S,
+        mut prepare: impl FnMut(
+            &mut LocalClient,
+            &Snapshot,
+            &mut S,
+        ) -> Result<(P, Resolved, I), Failure>,
+    ) -> Result<(P, Receipt, WorkbenchAction), Failure> {
         let mut retry = StaleRetry::new(true);
         let mut refused = None;
         loop {
-            let resolved = match resolve(snapshot) {
-                Ok(resolved) => resolved,
+            let (prepared, resolved, derived) = match prepare(client, snapshot, signals) {
+                Ok(attempt) => attempt,
                 Err(failure) => return Err(refused.unwrap_or(failure)),
             };
             let action = resolved.action.clone();
-            if !retry.submit(action.clone()) {
+            if !retry.submit((action.clone(), derived)) {
                 return Err(refused.unwrap_or_else(|| Failure::new(FailureKind::InternalFailure)));
             }
             let source = command_source(
@@ -775,7 +785,7 @@ mod workflow {
                 resolved.expected_revision,
             );
             let failure = match submit_with_wake(client, deadline, resolved, signals.poll_fd()) {
-                Ok(receipt) => return Ok((receipt, action)),
+                Ok(receipt) => return Ok((prepared, receipt, action)),
                 Err(failure) => failure.source(source),
             };
             if !retry.reread(Ended::submission(&failure)) {
@@ -1424,27 +1434,36 @@ mod workflow {
         .cloned()
     }
 
-    /// Submit exactly one command on the admitted session and map the typed
-    /// submission into the receipt/failure matrix.
-    ///
-    /// Creation workflows never follow a stale refusal to a fresh snapshot: their labels,
-    /// directory and plugin context were prepared from this snapshot outside target resolution,
-    /// and the revision fence is what keeps those prepared values current (ORC-413).
-    pub(in crate::cli) fn submit_creation(
+    /// Submit one creation that `prepare` derives from `snapshot` under the stale-view retry. A
+    /// creation takes more from its snapshot than its targets — its label, including a first-free
+    /// suffix, its directory, its plugin context and its Client — so every attempt prepares all of
+    /// it again, and returns the request it would submit with the derived values a resubmission
+    /// must find unchanged. On success `snapshot` is the one the committed creation was prepared
+    /// from, and the preparation of that attempt is returned with its receipt.
+    pub(in crate::cli) fn submit_creation<P, I: PartialEq, S: SignalWatch>(
         client: &mut LocalClient,
-        snapshot: &Snapshot,
-        command: &MutationCommand,
+        snapshot: &mut Snapshot,
         deadline: Instant,
-        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
-    ) -> Result<Receipt, Failure> {
-        let resolved = resolve(command, snapshot)
-            .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
-        let source = command_source(
-            resolved.session_id.as_str(),
-            resolved.request_id.as_str(),
-            resolved.expected_revision,
-        );
-        submit_with_wake(client, deadline, resolved, wake).map_err(|failure| failure.source(source))
+        signals: &mut S,
+        mut prepare: impl FnMut(
+            &mut LocalClient,
+            &Snapshot,
+            &mut S,
+        ) -> Result<(P, MutationCommand, I), Failure>,
+    ) -> Result<(P, Receipt), Failure> {
+        submit_fresh(
+            client,
+            snapshot,
+            deadline,
+            signals,
+            |client, snapshot, signals| {
+                let (prepared, command, derived) = prepare(client, snapshot, signals)?;
+                let resolved = resolve(&command, snapshot)
+                    .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
+                Ok((prepared, resolved, derived))
+            },
+        )
+        .map(|(prepared, receipt, _)| (prepared, receipt))
     }
 
     /// Submit an already resolved action from a phased CLI workflow on the same snapshot.

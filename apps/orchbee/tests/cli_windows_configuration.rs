@@ -589,7 +589,7 @@ fn workspace_tab_and_panel_creation_apply_the_session_cwd_and_allow_override() {
                         request_id: request.request_id,
                         outcome: WorkbenchCommandOutcome::Rejected {
                             revision: WorkbenchRevision::new(12),
-                            reason: WorkbenchRejectionReason::RevisionMismatch,
+                            reason: WorkbenchRejectionReason::ResourceLimit,
                         },
                     }),
                 )

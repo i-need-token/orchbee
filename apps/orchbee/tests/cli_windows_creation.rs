@@ -147,7 +147,7 @@ fn create(stream: &mut LocalStream, split: bool, cut: Cut) -> bool {
         return false;
     }
     let outcome = if cut == Cut::Refused {
-        json!({"kind":"rejected","revision":"14","reason":"revision-mismatch"})
+        json!({"kind":"rejected","revision":"12","reason":"resource-limit"})
     } else if split {
         json!({"kind":"panel-split-pending","revision":"13","terminalContextId":id(4),"tabId":id(5),"panelId":id(6),"newPanelId":id(20),"splitId":id(30),"firstSlotId":id(31),"secondSlotId":id(32),"presentationId":id(120)})
     } else {
@@ -544,6 +544,95 @@ fn creation_phase_faults_preserve_known_effects_and_stop_later_submissions() {
                     ["kind"],
                 "layout-adjusted"
             );
+        }
+    }
+}
+
+/// A `revision-mismatch` applied nothing, so the CLI prepares the creation again from a fresh
+/// Snapshot and submits it under a fresh request identity only when the target and the derived
+/// label are unchanged; a Tab or Panel that appeared meanwhile changes the label (ORC-413).
+#[test]
+fn a_stale_creation_is_submitted_again_only_when_every_derived_value_is_unchanged() {
+    for split in [false, true] {
+        for changed in [false, true] {
+            let fixture = Fixture::new();
+            let rendezvous = fixture.rendezvous();
+            let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+            let handler = peer(&fixture, listener, move |mut stream| {
+                snapshot_reply(&mut stream, snapshot(false, split));
+                configuration_reply(&mut stream, "follow", None);
+                let WorkbenchRequest::Command(refused) =
+                    read_workbench_request(&mut stream).unwrap()
+                else {
+                    panic!("canonical create");
+                };
+                let action = json!(refused.action);
+                assert_eq!(action["label"], if split { "3" } else { "2" });
+                let refused_id = refused.request_id.clone();
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Command(WorkbenchCommandResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: refused.request_id,
+                        outcome: serde_json::from_value(
+                            json!({"kind":"rejected","revision":"13","reason":"revision-mismatch"}),
+                        )
+                        .unwrap(),
+                    }),
+                )
+                .unwrap();
+                let mut fresh = snapshot(changed, split);
+                fresh.revision = WorkbenchRevision::new(13);
+                snapshot_reply(&mut stream, fresh);
+                if changed {
+                    assert_closed(&mut stream);
+                    return;
+                }
+                let WorkbenchRequest::Command(again) = read_workbench_request(&mut stream).unwrap()
+                else {
+                    panic!("canonical create again");
+                };
+                assert_ne!(again.request_id, refused_id);
+                assert_eq!(again.expected_revision, WorkbenchRevision::new(13));
+                assert_eq!(json!(again.action), action);
+                let outcome = if split {
+                    json!({"kind":"panel-split-pending","revision":"14","terminalContextId":id(4),"tabId":id(5),"panelId":id(6),"newPanelId":id(20),"splitId":id(30),"firstSlotId":id(31),"secondSlotId":id(32),"presentationId":id(120)})
+                } else {
+                    json!({"kind":"tab-create-pending","revision":"14","terminalContextId":id(4),"tabId":id(19),"panelId":id(20),"presentationId":id(120)})
+                };
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Command(WorkbenchCommandResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: again.request_id,
+                        outcome: serde_json::from_value(outcome).unwrap(),
+                    }),
+                )
+                .unwrap();
+                assert_closed(&mut stream);
+            });
+            let args: &[&str] = if split {
+                &["panel", "split", "--direction=right", "@panel:0x6"]
+            } else {
+                &["tab", "create", "--workspace", "Workspace"]
+            };
+            let mut args = args.to_vec();
+            args.extend(["--no-focus", "--timeout=30000", "--format=json"]);
+            let output = fixture.run(&args);
+            assert!(
+                handler.join().is_ok(),
+                "{split}/{changed}: {} {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+            if changed {
+                assert_eq!(output.status.code(), Some(3), "{doc}");
+                assert_eq!(doc["failure"]["details"]["reason"], "revision-mismatch");
+            } else {
+                assert!(output.status.success(), "{doc}");
+                assert_eq!(doc["result"]["revision"], "14");
+            }
         }
     }
 }

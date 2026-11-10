@@ -124,7 +124,7 @@ fn execute(
     locale: Locale,
 ) -> Result<(), Failure> {
     signals.check_before(deadline)?;
-    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
     let mut configured = command.clone();
     super::creation_defaults::apply_directory(
         &mut client,
@@ -135,41 +135,54 @@ fn execute(
         &mut configured.options,
     )?;
     let command = &configured;
-    let prepared = source::prepare(command, &mut client, &snapshot, deadline, signals, locale)?;
-    signals.check_before(deadline)?;
-    *output = Some(Receipt {
-        workspace: None,
-        directory: prepared.directory,
-        client_id: prepared
-            .selected
-            .as_ref()
-            .map(|client| client.client_id.clone()),
-        requested_focus: command.focus,
-        focus: None,
-        stage: "workspace",
-        failure: None,
-    });
-    let receipt = output.as_mut().ok_or_else(internal)?;
-    signals.check_before(deadline)?;
-    let mut options = command.options.clone();
-    options.cwd = Some(receipt.directory.path.clone());
-    receipt.workspace = Some(mutation::submit_creation(
+    // Every stale-view retry prepares the label, its first-free suffix included, the directory,
+    // the Project and the Client again from the fresh snapshot (ORC-413).
+    let (prepared, workspace) = mutation::submit_creation(
         &mut client,
-        &snapshot,
-        &MutationCommand::WorkspaceLaunch {
-            project: prepared
-                .project
-                .map(|project| Target::Id(project.to_string())),
-            label: prepared.label,
-            automatic_label: prepared.automatic_label,
-            geometry: command.geometry,
-            launch: command.launch.clone(),
-            profile: command.profile.clone(),
-            options,
-        },
+        &mut snapshot,
         deadline,
-        signals.poll_fd(),
-    )?);
+        signals,
+        |client, snapshot, signals| {
+            let prepared = source::prepare(command, client, snapshot, deadline, signals, locale)?;
+            signals.check_before(deadline)?;
+            let client_id = prepared
+                .selected
+                .as_ref()
+                .map(|client| client.client_id.clone());
+            // A resubmission carries the same Client and directory, so the first attempt's
+            // receipt describes every submitted attempt and any refusal that stands.
+            output.get_or_insert_with(|| Receipt {
+                workspace: None,
+                directory: prepared.directory.clone(),
+                client_id: client_id.clone(),
+                requested_focus: command.focus,
+                focus: None,
+                stage: "workspace",
+                failure: None,
+            });
+            signals.check_before(deadline)?;
+            let mut options = command.options.clone();
+            options.cwd = Some(prepared.directory.path.clone());
+            let launch = MutationCommand::WorkspaceLaunch {
+                project: prepared
+                    .project
+                    .as_ref()
+                    .map(|project| Target::Id(project.to_string())),
+                label: prepared.label.clone(),
+                automatic_label: prepared.automatic_label,
+                geometry: command.geometry,
+                launch: command.launch.clone(),
+                profile: command.profile.clone(),
+                options,
+            };
+            // Besides the launch itself, a resubmission must find the same Client and
+            // directory provenance.
+            let derived = (client_id, prepared.directory.document());
+            Ok((prepared, launch, derived))
+        },
+    )?;
+    let receipt = output.as_mut().ok_or_else(internal)?;
+    receipt.workspace = Some(workspace);
     let canonical = receipt.workspace.as_ref().ok_or_else(internal)?;
     receipt.stage = "terminal";
     if let Some(kind) = canonical.launch_failure() {

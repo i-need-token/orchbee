@@ -2213,12 +2213,13 @@ resulting action — every target identity and argument — is identical to the 
 When any target now resolves differently or not at all, the fresh read fails, the deadline
 passes, or three retries are spent, the CLI reports the last refusal unchanged (exit 3,
 `reason:"revision-mismatch"`). It never acts on a different target and never submits without a
-base. Two kinds of workflow do not retry, and their refusal reports as before: phased workflows
-that submit an action resolved in an earlier phase — `panel move` with `--into-tab`, `--new-tab`
-or `--new-workspace`, `layout apply`, and plugin pane management — and the Windows creation
-workflows of `tab create`, `panel split` and `workspace create`, whose labels, directory and
-plugin context are prepared from the preflight snapshot outside target resolution and stay
-current only through the revision fence.
+base. The Windows creation workflows of `tab create`, `panel split` and `workspace create` take
+more from the snapshot than their targets, so each retry prepares all of it again: the parent
+target, the label (a `workspace create` label with its first-free ` (2)` suffix), the directory and its source, the plugin
+context and the selected Client. They submit again only when every derived value and target is
+identical. Phased workflows that submit an action resolved in an earlier phase — `panel move`
+with `--into-tab`, `--new-tab` or `--new-workspace`, `layout apply`, and plugin pane management —
+do not retry; their refusal reports as before.
 
 Safety contract:
 

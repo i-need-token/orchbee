@@ -98,7 +98,7 @@ fn launch_named(stream: &mut LocalStream, path: &str, outcome: &str, label: &str
         reply_command(
             stream,
             request,
-            json!({"kind":"rejected","revision":"14","reason":"revision-mismatch"}),
+            json!({"kind":"rejected","revision":"12","reason":"resource-limit"}),
         );
         return true;
     }
@@ -437,6 +437,69 @@ fn launch_unknown_and_terminal_failures_keep_identity_without_project_effects() 
         if matches!(cut, "failed" | "unavailable" | "terminal-unknown") {
             assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
             assert!(doc["workspace"]["result"]["projectId"].is_null());
+        }
+    }
+}
+
+/// A `revision-mismatch` applied nothing, so the CLI prepares the launch again from a fresh
+/// snapshot and submits it under a fresh request identity only when the label, its first-free
+/// suffix included, and every other derived value are unchanged (ORC-413).
+#[test]
+fn a_stale_launch_is_submitted_again_only_when_its_derived_label_is_unchanged() {
+    for collides in [false, true] {
+        let (status, doc) = run(
+            &["workspace", "create", "--cwd=C:/repo", "--format=json"],
+            (None, None),
+            move |mut stream| {
+                snapshot(&mut stream, state(0, false, false, 12));
+                let refused = command(&mut stream);
+                let action = json!(refused.action);
+                assert_eq!(action["label"], "repo");
+                let refused_id = refused.request_id.clone();
+                reply_command(
+                    &mut stream,
+                    refused,
+                    json!({"kind":"rejected","revision":"13","reason":"revision-mismatch"}),
+                );
+                // The fresh read either changed something unrelated, or holds a Workspace that
+                // now takes the label `repo`, so the omitted label would become `repo (2)`.
+                let mut fresh = state(0, false, false, 13);
+                if collides {
+                    fresh.navigation.workspaces.push(
+                        serde_json::from_value(json!({
+                            "workspaceId":id(100), "projectId":null, "terminalContextId":id(200),
+                            "label":"repo", "primaryDirectoryId":null
+                        }))
+                        .unwrap(),
+                    );
+                    fresh.terminal_contexts.push(
+                        serde_json::from_value(
+                            json!({"terminalContextId":id(200),"groups":[],"tabs":[]}),
+                        )
+                        .unwrap(),
+                    );
+                }
+                snapshot(&mut stream, fresh);
+                if collides {
+                    assert_closed(&mut stream);
+                    return;
+                }
+                let again = command(&mut stream);
+                assert_ne!(again.request_id, refused_id);
+                assert_eq!(again.expected_revision.value(), 13);
+                assert_eq!(json!(again.action), action);
+                let reply = json!({"kind":"workspace-launch-pending","revision":"14","projectId":null,"workspaceId":id(20),"directoryId":id(25),"terminalContextId":id(21),"tabId":id(22),"panelId":id(23),"presentationId":id(24)});
+                reply_command(&mut stream, again, reply);
+                assert_closed(&mut stream);
+            },
+        );
+        if collides {
+            assert_eq!(status, 3, "{doc}");
+            assert_eq!(doc["failure"]["details"]["reason"], "revision-mismatch");
+            assert!(doc["workspace"].is_null(), "{doc}");
+        } else {
+            assert_eq!(status, 0, "{doc}");
+            assert_eq!(doc["workspace"]["result"]["label"], "repo");
         }
     }
 }

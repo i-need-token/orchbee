@@ -26,6 +26,7 @@ pub(super) struct Prepared {
     pub(super) automatic_label: bool,
     pub(super) selected: Option<ClientViewRecord>,
 }
+#[derive(Clone)]
 pub(super) struct Directory {
     pub(super) path: WorkbenchDirectoryPath,
     policy: &'static str,

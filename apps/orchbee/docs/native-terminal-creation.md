@@ -31,14 +31,20 @@ The TUI resolves ratios through existing Client control; Server owns their canon
 | Phase     | Guard and result                                                                                                                                                                                                                                                                                                                                           |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Preflight | Parse every input; arm interruption; admit one session and read one Snapshot. Resolve explicit/caller targets. Select a ready Client before mutation whenever routing, ratio or focus requires one.                                                                                                                                                        |
-| Create    | Submit one exact canonical Tab create or Panel split. Preserve its Pending/Created launch facts and allocated identities. A refusal or unknown outcome stops all later phases.                                                                                                                                                                             |
+| Create    | Submit one exact canonical Tab create or Panel split. Preserve its Pending/Created launch facts and allocated identities. A `revision-mismatch` repeats Preflight on a fresh Snapshot and submits again only an identical request; other refusals and unknown outcomes stop all later phases.                                                              |
 | Observe   | After a known commit, observe the original Client at or beyond that revision; unchanged empty views can use command-driven refresh below. Context, Tab, Panel and maximized state must remain selected as before; only the count increase caused by this creation is allowed. An empty destination may naturally select the exact first created Tab/Panel. |
 | Ratio     | Read one fresh canonical Snapshot, locate the committed split and both ordered slots in the original Tab, and submit one path setter carrying that exact expected identity. A replaced split or slot is a refusal, never a different target.                                                                                                               |
 | Focus     | If requested, observe the original Client again and submit one focus to the newly created Panel. Existing view-revision, interruption, attachment and draw guards apply.                                                                                                                                                                                   |
 | Finish    | Report canonical creation separately from requested Client effects. A later failure, signal or deadline never hides a known creation or ratio result.                                                                                                                                                                                                      |
 
 All phases share one absolute deadline. Reads may poll within that budget; canonical and Client
-submissions are never replayed. Signals stop future phases and waiting, not already accepted effects.
+submissions are never replayed. The one exception is the bounded stale-view retry of the
+[mutation contract](native-cli-query.md#mutations): after a definite `revision-mismatch`, Preflight
+runs again on a fresh Snapshot and derives the parent target, label, directory and its source,
+plugin context and Client again, at most three times; the canonical command is submitted again,
+under a fresh request identity, only when every derived value and target is identical, and
+otherwise the refusal stands. Later phases then use that attempt's Snapshot and Client. Signals
+stop future phases and waiting, not already accepted effects.
 There is no automatic close, inverse ratio or other compensation. Known canonical commits survive
 all later failures. An unknown canonical result never causes a speculative ratio or focus.
 
@@ -76,7 +82,8 @@ contracts. Panel right-click policy is owned separately; dynamic positional nami
 default settings are not claimed by this contract.
 
 Grammar and completion witnesses cover omission, explicit forms, ambiguity, conflicts and bounds.
-Windows named-pipe process traces fault each phase and assert no replay and known-effect retention.
+Windows named-pipe process traces fault each phase and assert no replay and known-effect retention;
+a stale refusal is submitted again only when the derived label and target are unchanged.
 Both canonical carriers exercise cancellation wake. Independent Rust, TypeScript and JSON Schema
 validators cover optional split identity and mismatched receipts; the TUI rejects identity/slot
 replacement before writing ratios. Two real Windows TUIs check headless/default/explicit focus,
@@ -110,7 +117,7 @@ canonical retry. Attachment drop/detach, reads and mutation share the command de
 | Targeted  | One Snapshot fixes context, Panel and primary Terminal; unrelated Client selection is never used.                   |
 | Observing | One cancellable viewer sample has no controller, focus, resize or terminal input effect.                            |
 | Resolved  | A usable absolute cwd becomes the per-launch override; a known absence retains launch defaults.                     |
-| Creating  | The original Snapshot revision and existing canonical carrier fence the one submission.                             |
+| Creating  | The Snapshot revision and canonical carrier fence the submission; a retry resolves the cwd again.                   |
 | Finished  | Creation receipt v1 records requested policy, observed source/path and source Panel separately from launch success. |
 
 Process cwd is a point-in-time observation, not a lease; a later process-directory change is allowed.

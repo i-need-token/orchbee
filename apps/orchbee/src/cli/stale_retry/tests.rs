@@ -62,3 +62,14 @@ fn only_a_marked_definite_refusal_earns_a_fresh_read() {
     assert!(!retry.reread(Ended::Settled));
     assert!(retry.reread(Ended::Stale));
 }
+
+#[test]
+fn a_creation_is_submitted_again_only_when_every_derived_value_matches() {
+    // A creation's identity pairs its resolved request with the Client and directory it derived.
+    let mut retry = StaleRetry::new(true);
+    assert!(retry.submit(("tab.create 2", Some(7), "C:/repo")));
+    assert!(retry.submit(("tab.create 2", Some(7), "C:/repo")));
+    assert!(!retry.submit(("tab.create 2", Some(7), "C:/other")));
+    assert!(!retry.submit(("tab.create 2", None, "C:/repo")));
+    assert!(!retry.submit(("tab.create 3", Some(7), "C:/repo")));
+}

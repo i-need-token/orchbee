@@ -103,13 +103,14 @@ fn execute(
         CreationKind::Split { ratio, .. } => ratio,
         _ => None,
     };
-    let needs_client = command.client.is_some() || command.focus || ratio.is_some();
-    let caller = if command.client.is_none() && (needs_client || targeting::needs_source(command)) {
+    let caller = if command.client.is_none()
+        && (needs_client(command) || targeting::needs_source(command))
+    {
         PanelTarget::prepare_optional(|name| std::env::var_os(name))?
     } else {
         None
     };
-    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
     let mut configured = command.clone();
     if configured.options.plugin_pane.is_none() {
         crate::cli::creation_defaults::apply_directory(
@@ -122,174 +123,42 @@ fn execute(
         )?;
     }
     let command = &configured;
-    let caller = caller.map(|caller| caller.resolve(&snapshot)).transpose()?;
-    check(signals, deadline)?;
-    let selected = if needs_client || (targeting::needs_source(command) && caller.is_none()) {
-        let reply = control::exchange(
-            &mut client,
-            &snapshot.session_id,
-            ClientViewAction::List {},
-            deadline,
-            signals,
-        )?;
-        let clients = match reply.outcome {
-            ClientViewOutcome::Listed { clients } => clients,
-            ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-            ClientViewOutcome::Unavailable { .. } => {
-                return Err(Failure::new(FailureKind::ServiceUnavailable));
-            }
-            ClientViewOutcome::Synchronized { .. }
-            | ClientViewOutcome::Found { .. }
-            | ClientViewOutcome::Operation { .. }
-            | ClientViewOutcome::NotFound { .. }
-            | ClientViewOutcome::Conflict { .. } => {
-                return Err(Failure::new(FailureKind::ProtocolInvalid));
-            }
-        };
-        let selected =
-            selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
-        if selected.view.phase != ClientViewPhase::Ready {
-            return Err(Failure::new(FailureKind::ServiceUnavailable));
-        }
-        Some(selected)
-    } else {
-        None
-    };
-    let mut canonical = targeting::resolve(
-        command,
-        &snapshot,
-        if command.overlay {
-            None
-        } else {
-            caller.as_ref()
-        },
-        selected.as_ref(),
-    )?;
-    let (overlay_return, overlay_source) = if command.overlay {
-        let selected = selected.as_ref().ok_or_else(internal)?;
-        let panel = selected
-            .view
-            .selection
-            .as_ref()
-            .and_then(|s| s.panel_id.clone())
-            .ok_or_else(internal)?;
-        let answer = control::submit_control(
-            &mut client,
-            &snapshot.session_id,
-            ClientViewControl {
-                operation_id: query::request_id()?,
-                client_id: selected.client_id.clone(),
-                expected_view_revision: selected.view_revision,
-                minimum_workbench_revision: snapshot.revision,
-                intent: ClientViewIntent::Presentation { panel_id: panel },
-            },
-            deadline,
-            signals,
-        )?;
-        let member = match answer.reply.as_ref().map(|reply| &reply.outcome) {
-            Some(ClientViewOutcome::Operation { operation }) => match &operation.status {
-                orchbee_workbench_protocol::ClientViewControlStatus::PresentationRead {
-                    presentation,
-                    ..
-                } => presentation
-                    .presentation
-                    .as_ref()
-                    .ok_or_else(|| Failure::new(FailureKind::ServiceUnavailable))?,
-                orchbee_workbench_protocol::ClientViewControlStatus::PopupOpened { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::PopupClosed { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::ViewportRead { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::NavigationRead { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::TerminalAttentionRead {
-                    ..
-                }
-                | orchbee_workbench_protocol::ClientViewControlStatus::AttentionRead { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::LayoutAdjusted { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::DirectionFocused {
-                    ..
-                }
-                | orchbee_workbench_protocol::ClientViewControlStatus::DirectionUnchanged {
-                    ..
-                }
-                | orchbee_workbench_protocol::ClientViewControlStatus::LayoutRead { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::Queued { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::Delivered { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::Applied { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::ZoomUnchanged { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::ZoomToggled { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::Rejected { .. }
-                | orchbee_workbench_protocol::ClientViewControlStatus::Incomplete { .. } => {
-                    return Err(Failure::new(FailureKind::ServiceUnavailable));
-                }
-            },
-            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
-            _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
-        };
-        (
-            Some(overlay::capture_return(&snapshot, selected, member)?),
-            Some(member.clone()),
-        )
-    } else {
-        (None, None)
-    };
-    let directory = super::directory::resolve(
-        command,
-        &mut canonical,
-        &snapshot,
-        (caller.as_ref(), selected.as_ref()),
+    // One correlation identity names the logical creation, so preparing it again derives the
+    // same plugin context.
+    let correlation = query::request_id()?;
+    let (prepared, canonical) = mutation::submit_creation(
         &mut client,
+        &mut snapshot,
         deadline,
         signals,
-    )?;
-    if command.options.plugin_pane.is_some() {
-        let (context, observed_member) = crate::cli::plugin_preparation::context::observe(
-            &mut client,
-            &snapshot,
-            crate::cli::plugin_preparation::context::Source::creation(
-                &canonical,
-                &snapshot,
-                command.overlay,
-                selected.as_ref().map(|record| &record.client_id),
-            )?,
-            Default::default(),
-            query::request_id()?.as_str(),
-            deadline,
-            signals,
-        )
-        .map_err(crate::cli::plugin_preparation::failure::client_refusal)?;
-        if let Some(pinned) = overlay_source
-            && !observed_member
-                .as_ref()
-                .is_some_and(|member| pinned.same_member(member))
-        {
-            return Err(crate::cli::query::workbench_failure("client-changed"));
-        }
-        if let Some(original) = &selected {
-            // The source reads may move the Client's view revision; only its selection fences
-            // the plugin context.
-            crate::cli::client_control::view_fence::ViewFence::Selection.next_record(
-                &mut client,
-                &snapshot.session_id,
-                original,
+        |client, snapshot, signals| {
+            let (prepared, canonical) = prepare(
+                command,
+                caller.as_ref(),
+                correlation.as_str(),
+                client,
+                snapshot,
                 deadline,
                 signals,
             )?;
-        }
-        match &mut canonical {
-            crate::invocation::MutationCommand::TabCreate { options, .. }
-            | crate::invocation::MutationCommand::PanelSplit { options, .. } => {
-                options.plugin_context = Some(Box::new(context));
-            }
-            _ => return Err(internal()),
-        }
-    }
-    check(signals, deadline)?;
-    let canonical = mutation::submit_creation(
-        &mut client,
-        &snapshot,
-        &canonical,
-        deadline,
-        signals.poll_fd(),
+            // Besides the request itself, a resubmission must find the same Client, overlay
+            // return and directory provenance.
+            let derived = (
+                prepared
+                    .selected
+                    .as_ref()
+                    .map(|record| record.client_id.clone()),
+                prepared.overlay_return.clone(),
+                prepared.directory.document(),
+            );
+            Ok((prepared, canonical, derived))
+        },
     )?;
+    let Prepared {
+        selected,
+        overlay_return,
+        directory,
+    } = prepared;
     *output = Some(Receipt {
         directory,
         canonical,
@@ -488,6 +357,204 @@ fn read_snapshot(
             Err(Failure::new(FailureKind::ServiceUnavailable))
         }
     }
+}
+
+/// What one attempt prepared from its snapshot besides the canonical request.
+struct Prepared {
+    selected: Option<ClientViewRecord>,
+    overlay_return: Option<orchbee_workbench_protocol::ClientOverlayMember>,
+    directory: super::directory::Resolution,
+}
+
+/// Whether routing, a ratio or focus needs one selected Client.
+fn needs_client(command: &CreationCommand) -> bool {
+    command.client.is_some()
+        || command.focus
+        || matches!(command.kind, CreationKind::Split { ratio: Some(_), .. })
+}
+
+/// Prepare the canonical creation and everything it takes from `snapshot`: the caller and Client
+/// targets, the label, the directory, the overlay return and the plugin context. A stale-view
+/// retry prepares all of it again from a fresh snapshot (ORC-413).
+fn prepare(
+    command: &CreationCommand,
+    caller: Option<&PanelTarget>,
+    correlation: &str,
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<(Prepared, crate::invocation::MutationCommand), Failure> {
+    let caller = caller.map(|caller| caller.resolve(snapshot)).transpose()?;
+    check(signals, deadline)?;
+    let selected =
+        if needs_client(command) || (targeting::needs_source(command) && caller.is_none()) {
+            let reply = control::exchange(
+                client,
+                &snapshot.session_id,
+                ClientViewAction::List {},
+                deadline,
+                signals,
+            )?;
+            let clients = match reply.outcome {
+                ClientViewOutcome::Listed { clients } => clients,
+                ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
+                ClientViewOutcome::Unavailable { .. } => {
+                    return Err(Failure::new(FailureKind::ServiceUnavailable));
+                }
+                ClientViewOutcome::Synchronized { .. }
+                | ClientViewOutcome::Found { .. }
+                | ClientViewOutcome::Operation { .. }
+                | ClientViewOutcome::NotFound { .. }
+                | ClientViewOutcome::Conflict { .. } => {
+                    return Err(Failure::new(FailureKind::ProtocolInvalid));
+                }
+            };
+            let selected =
+                selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
+            if selected.view.phase != ClientViewPhase::Ready {
+                return Err(Failure::new(FailureKind::ServiceUnavailable));
+            }
+            Some(selected)
+        } else {
+            None
+        };
+    let mut canonical = targeting::resolve(
+        command,
+        snapshot,
+        if command.overlay {
+            None
+        } else {
+            caller.as_ref()
+        },
+        selected.as_ref(),
+    )?;
+    let (overlay_return, overlay_source) = if command.overlay {
+        let selected = selected.as_ref().ok_or_else(internal)?;
+        let panel = selected
+            .view
+            .selection
+            .as_ref()
+            .and_then(|s| s.panel_id.clone())
+            .ok_or_else(internal)?;
+        let answer = control::submit_control(
+            client,
+            &snapshot.session_id,
+            ClientViewControl {
+                operation_id: query::request_id()?,
+                client_id: selected.client_id.clone(),
+                expected_view_revision: selected.view_revision,
+                minimum_workbench_revision: snapshot.revision,
+                intent: ClientViewIntent::Presentation { panel_id: panel },
+            },
+            deadline,
+            signals,
+        )?;
+        let member = match answer.reply.as_ref().map(|reply| &reply.outcome) {
+            Some(ClientViewOutcome::Operation { operation }) => match &operation.status {
+                orchbee_workbench_protocol::ClientViewControlStatus::PresentationRead {
+                    presentation,
+                    ..
+                } => presentation
+                    .presentation
+                    .as_ref()
+                    .ok_or_else(|| Failure::new(FailureKind::ServiceUnavailable))?,
+                orchbee_workbench_protocol::ClientViewControlStatus::PopupOpened { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::PopupClosed { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::ViewportRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::NavigationRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::TerminalAttentionRead {
+                    ..
+                }
+                | orchbee_workbench_protocol::ClientViewControlStatus::AttentionRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::LayoutAdjusted { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::DirectionFocused {
+                    ..
+                }
+                | orchbee_workbench_protocol::ClientViewControlStatus::DirectionUnchanged {
+                    ..
+                }
+                | orchbee_workbench_protocol::ClientViewControlStatus::LayoutRead { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Queued { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Delivered { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Applied { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::ZoomUnchanged { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::ZoomToggled { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Rejected { .. }
+                | orchbee_workbench_protocol::ClientViewControlStatus::Incomplete { .. } => {
+                    return Err(Failure::new(FailureKind::ServiceUnavailable));
+                }
+            },
+            // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
+            _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
+        };
+        (
+            Some(overlay::capture_return(snapshot, selected, member)?),
+            Some(member.clone()),
+        )
+    } else {
+        (None, None)
+    };
+    let directory = super::directory::resolve(
+        command,
+        &mut canonical,
+        snapshot,
+        (caller.as_ref(), selected.as_ref()),
+        client,
+        deadline,
+        signals,
+    )?;
+    if command.options.plugin_pane.is_some() {
+        let (context, observed_member) = crate::cli::plugin_preparation::context::observe(
+            client,
+            snapshot,
+            crate::cli::plugin_preparation::context::Source::creation(
+                &canonical,
+                snapshot,
+                command.overlay,
+                selected.as_ref().map(|record| &record.client_id),
+            )?,
+            Default::default(),
+            correlation,
+            deadline,
+            signals,
+        )
+        .map_err(crate::cli::plugin_preparation::failure::client_refusal)?;
+        if let Some(pinned) = overlay_source
+            && !observed_member
+                .as_ref()
+                .is_some_and(|member| pinned.same_member(member))
+        {
+            return Err(crate::cli::query::workbench_failure("client-changed"));
+        }
+        if let Some(original) = &selected {
+            // The source reads may move the Client's view revision; only its selection fences
+            // the plugin context.
+            crate::cli::client_control::view_fence::ViewFence::Selection.next_record(
+                client,
+                &snapshot.session_id,
+                original,
+                deadline,
+                signals,
+            )?;
+        }
+        match &mut canonical {
+            crate::invocation::MutationCommand::TabCreate { options, .. }
+            | crate::invocation::MutationCommand::PanelSplit { options, .. } => {
+                options.plugin_context = Some(Box::new(context));
+            }
+            _ => return Err(internal()),
+        }
+    }
+    check(signals, deadline)?;
+    Ok((
+        Prepared {
+            selected,
+            overlay_return,
+            directory,
+        },
+        canonical,
+    ))
 }
 
 fn split_path(
