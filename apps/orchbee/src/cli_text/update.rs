@@ -12,8 +12,8 @@ impl super::CliText {
                 "频道偏好已保存；更新失败时也会保留该偏好。",
             ),
             "non-release-build" => (
-                "This is a development or test build, so it does not update the release installation. Nothing was changed. Run orchbee update from the installed release.",
-                "当前是开发或测试构建，不会更新正式版安装，未做任何改动。请用已安装正式版的 orchbee update。",
+                "This is a development or test build, so it does not update the release installation. Nothing was changed.",
+                "当前是开发或测试构建，不会更新正式版安装，未做任何改动。",
             ),
             "configuration" => (
                 "Cannot read or save configuration. Run orchbee config check.",

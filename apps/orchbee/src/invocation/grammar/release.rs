@@ -7,7 +7,8 @@
 pub(crate) enum Withheld {
     Plugin,
     Popup,
-    PreviewChannel,
+    Update,
+    Channel,
 }
 
 impl Withheld {
@@ -16,7 +17,8 @@ impl Withheld {
         match self {
             Self::Plugin => "plugin",
             Self::Popup => "popup",
-            Self::PreviewChannel => "preview-channel",
+            Self::Update => "update",
+            Self::Channel => "channel",
         }
     }
 }
@@ -44,7 +46,8 @@ fn reached(words: &[&str]) -> Option<Withheld> {
     match words {
         ["plugin", ..] => Some(Withheld::Plugin),
         ["popup", ..] => Some(Withheld::Popup),
-        ["channel", "set", "preview", ..] => Some(Withheld::PreviewChannel),
+        ["update", ..] => Some(Withheld::Update),
+        ["channel", ..] => Some(Withheld::Channel),
         _ => None,
     }
 }

@@ -507,7 +507,7 @@
 					"const": "withheld-in-release"
 				},
 				"feature": {
-					"enum": ["plugin", "popup", "preview-channel"]
+					"enum": ["plugin", "popup", "update", "channel"]
 				}
 			}
 		},

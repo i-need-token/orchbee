@@ -55,7 +55,7 @@ Windows `channel show [--format text|json]` reads the strict stable/preview pref
 
 Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profiles with remote Windows readiness checks before add. See [saved Windows machines](docs/machines.md) for persistence, partial outcomes, command routing, and live TUI switching.
 
-Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation).
+Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
 
 The [TUI platform boundary](docs/tui-platforms.md) defines the shared Client implementation,
 optional OS adapters, localized unsupported outcomes and native-platform evidence. State, input,
@@ -972,7 +972,7 @@ the release stem until ORC-328, so every POSIX build counts as release.
 | Surface                       | What a release withholds                                                                                                                                                                                                                                                                                     |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `plugin` and `popup` families | Help, completion and the `--skill` guide leave them out. Any invocation that reaches one, including `help plugin`, a family without a verb or a usage error, is refused before grammar or runtime work with `stage: "release"`, `reason: "withheld-in-release"`, `feature: "plugin"` or `"popup"`, exit `4`. |
-| `channel set preview`         | Help names only `stable`; `channel set preview` is refused the same way with `feature: "preview-channel"`. Non-release builds still refuse `channel set` itself with `non-release-build`.                                                                                                                    |
+| `update` and `channel`        | Withheld the same way, the whole `channel` family included, with `feature: "update"` or `"channel"`. Development and test builds offer both, and there `update` and `channel set` still refuse with `non-release-build` before saving a channel or touching the installation.                                |
 
 Sidebar Search is withheld in every build, not only in a release, until it is finished (ORC-424):
 the TUI leaves out the Search row and its `/` key, and its code stays in place. The Machines action
