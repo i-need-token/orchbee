@@ -71,7 +71,8 @@ below; it does not guarantee that the Client can navigate.
 ## Agent identity and explicit acknowledgement
 
 `agent-focus` retains the resolved canonical Session or full physical binding with its exact
-TerminalContext, Tab and primary Panel. The CLI resolves once and checks the owning Agent source;
+TerminalContext, Tab and primary Panel. The CLI resolves the target and checks the owning Agent
+source, again only for the stale-view retry below;
 the Client revalidates the target before effects and completion. A physical target additionally
 requires the selected frame's actual Host epoch/terminal identity before success. An old frame or
 replacement cannot authorize focus acknowledgement. Child-only presentations are not substituted
@@ -91,6 +92,14 @@ operation reports existing outcomes, and status reads never repeat the effect. C
 carries this intent. The matched Client/Server cohort must be updated
 together. Pure identity/acknowledgement and bounded controller/protocol checks precede final live
 Windows acceptance; they do not by themselves prove multi-Client or authenticated-provider behavior.
+
+A `stale-view` rejection and an Agent read that the Workbench outran, reported as `changed`, both
+prove that nothing happened. The CLI then reads a fresh snapshot and selects the Client and resolves
+the Agent target again under the original deadline, at most three times. It submits again, under a
+fresh operation identity, only when the Client and the `agent-focus` intent are identical and
+`--request-id` did not name the operation; otherwise the last rejection is reported. A `changed`
+failure that outlasts the retries points to the current Agent list, not to Server health.
+Incomplete, pending and unknown outcomes are never submitted again.
 
 ## Returning to terminal mode
 

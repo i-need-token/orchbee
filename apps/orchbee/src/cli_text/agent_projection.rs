@@ -62,10 +62,16 @@ impl super::CliText {
             (Locale::ZhCn, FailureKind::Ambiguous, _) => {
                 "匹配到多个智能体，请选择下面的当前候选项："
             }
-            (Locale::EnUs, _, "changed" | "cursor-restart") => {
+            (Locale::EnUs, _, "changed") => {
+                "The Agent list changed while it was being read. Run the command again; orchbee agent list shows the current Agents."
+            }
+            (Locale::ZhCn, _, "changed") => {
+                "读取期间智能体列表发生了变化。请重新运行该命令；orchbee agent list 可查看当前智能体。"
+            }
+            (Locale::EnUs, _, "cursor-restart") => {
                 "The Agent list changed or its cursor is obsolete. Restart with orchbee agent list without --cursor."
             }
-            (Locale::ZhCn, _, "changed" | "cursor-restart") => {
+            (Locale::ZhCn, _, "cursor-restart") => {
                 "智能体列表已变化或游标已失效。请运行不带 --cursor 的 orchbee agent list 重新列举。"
             }
             (Locale::EnUs, FailureKind::Cancelled, _) => "The Agent projection read was cancelled.",

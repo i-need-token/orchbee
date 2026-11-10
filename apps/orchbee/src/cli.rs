@@ -91,6 +91,7 @@ mod server_connect;
 mod server_diagnose;
 mod server_query;
 mod server_stop;
+mod stale_retry;
 mod terminal_observation;
 pub(crate) mod update;
 mod workbench_agents;
@@ -339,6 +340,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         failure_schema: None,
         display: None,
         client_refusal: None,
+        stale_view: false,
     };
     let format = match failure.envelope {
         crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),

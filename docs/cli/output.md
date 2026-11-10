@@ -96,6 +96,10 @@ every failure kind and terminal result to exactly one code, and the mapping is t
   applied. Only unknown outcome admits that an effect may exist. An activation verb follows its
   own rule: its `rejected` refusal means half-activated runtime state may persist, so the command
   reports the refusal and never claims nothing was applied.
+- A stale-base refusal still exits `3` after the
+  [stale-base retry](process.md#side-effects-and-request-identity): the retries were spent or a
+  target no longer resolved to the same identity. Its document carries the last attempt's request
+  identity, and running the command again is a new invocation that reads and resolves afresh.
 - An interrupted wait does not cancel the observed operation; see
   [`process.md`](process.md#signals-and-cancellation).
 - Codes not in the table are reserved and unreachable, except the source-stage interruption

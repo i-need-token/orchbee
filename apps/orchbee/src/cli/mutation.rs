@@ -363,10 +363,14 @@ mod workflow {
     };
     use serde_json::{Map, json};
 
-    use super::super::query::{request_id, snapshot_session, snapshot_session_until};
+    use super::super::console_interrupt::SignalWatch;
+    use super::super::query::{
+        refresh_snapshot, request_id, snapshot_session, snapshot_session_until,
+    };
     use super::super::schema::{
         CLOSE_FAILURE_ID, LAUNCH_PROFILE_FAILURE_ID, MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID,
     };
+    use super::super::stale_retry::{Ended, StaleRetry};
     use super::super::{
         Failure, FailureKind, Output, failure_output, output, results, stage_details,
         stage_reason_details,
@@ -637,28 +641,30 @@ mod workflow {
         locale: Locale,
     ) -> Output {
         let result = (|| {
-            let (mut client, deadline, snapshot) = snapshot_session()?;
-            let resolved = (|| {
-                let project_id = resolve_project(&snapshot, project)?.project_id.clone();
-                Ok(Resolved {
-                    session_id: snapshot.session_id.clone(),
-                    expected_revision: snapshot.revision,
-                    request_id: request_id()?,
-                    action: WorkbenchAction::WorkspaceCreate {
-                        project_id: Some(project_id),
-                        label: label.clone(),
-                    },
-                })
-            })()
-            .map_err(|failure: Failure| failure.source(results::snapshot_source(&snapshot)))?;
-            let source = command_source(
-                resolved.session_id.as_str(),
-                resolved.request_id.as_str(),
-                resolved.expected_revision,
+            let (mut client, deadline, mut snapshot) = snapshot_session()?;
+            let submission = submit_fresh(
+                &mut client,
+                &mut snapshot,
+                deadline,
+                &mut Unarmed,
+                |snapshot| {
+                    (|| {
+                        let project_id = resolve_project(snapshot, project)?.project_id.clone();
+                        Ok(Resolved {
+                            session_id: snapshot.session_id.clone(),
+                            expected_revision: snapshot.revision,
+                            request_id: request_id()?,
+                            action: WorkbenchAction::WorkspaceCreate {
+                                project_id: Some(project_id),
+                                label: label.clone(),
+                            },
+                        })
+                    })()
+                    .map_err(|failure: Failure| failure.source(results::snapshot_source(snapshot)))
+                },
             );
-            let submission = submit(&mut client, deadline, resolved);
             drop(client);
-            submission.map_err(|failure| failure.source(source))
+            submission.map(|(receipt, _)| receipt)
         })();
         match result {
             Ok(receipt) => success_output(&receipt, format, locale),
@@ -701,27 +707,92 @@ mod workflow {
         };
         // One admitted session plus one bounded snapshot read; a read failure
         // already dropped the session inside `snapshot_session`.
-        let (mut client, deadline, snapshot) = snapshot_session()?;
-        let mut exact = command.clone();
-        if let (Some(caller), MutationCommand::PanelInput { target, .. }) = (caller, &mut exact) {
-            *target = Some(caller.resolve(&snapshot)?);
-        }
-        let resolved = resolve(&exact, &snapshot)
-            .map_err(|failure| failure.source(results::snapshot_source(&snapshot)))?;
-        let source = command_source(
-            resolved.session_id.as_str(),
-            resolved.request_id.as_str(),
-            resolved.expected_revision,
+        let (mut client, deadline, mut snapshot) = snapshot_session()?;
+        let submission = submit_fresh(
+            &mut client,
+            &mut snapshot,
+            deadline,
+            &mut Unarmed,
+            |snapshot| {
+                let mut exact = command.clone();
+                if let (Some(caller), MutationCommand::PanelInput { target, .. }) =
+                    (&caller, &mut exact)
+                {
+                    *target = Some(caller.resolve(snapshot)?);
+                }
+                resolve(&exact, snapshot)
+                    .map_err(|failure| failure.source(results::snapshot_source(snapshot)))
+            },
         );
-        let closing = closing(&resolved.action, &snapshot);
-        let submission = submit(&mut client, deadline, resolved);
         // The Client Connection is fully dropped before the outcome is mapped or
         // any output is prepared; an ambiguous submission already retired the
         // connection inside the transport, and nothing is replayed.
         drop(client);
-        submission
-            .map(|receipt| Receipt { closing, ..receipt })
-            .map_err(|failure| failure.source(source))
+        submission.map(|(receipt, action)| Receipt {
+            closing: closing(&action, &snapshot),
+            ..receipt
+        })
+    }
+
+    /// A mutation that arms no console interrupt: only its deadline bounds a fresh read.
+    struct Unarmed;
+    impl SignalWatch for Unarmed {
+        fn poll_fd(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
+            None
+        }
+        fn take(&mut self) -> std::io::Result<Option<i32>> {
+            Ok(None)
+        }
+    }
+
+    /// Resolve the command against `snapshot` and submit it once. After a definite
+    /// `revision-mismatch`, read a fresh snapshot on the same session and resolve again under the
+    /// original deadline; submit again, under a fresh request identity, only when the action is
+    /// unchanged, at most `stale_retry::RETRIES` times. Any other end, including a resolution that
+    /// now fails or differs or a fresh read that fails, reports the last refusal. On success
+    /// `snapshot` is the one the committed command was based on.
+    fn submit_fresh(
+        client: &mut LocalClient,
+        snapshot: &mut Snapshot,
+        deadline: Instant,
+        signals: &mut impl SignalWatch,
+        mut resolve: impl FnMut(&Snapshot) -> Result<Resolved, Failure>,
+    ) -> Result<(Receipt, WorkbenchAction), Failure> {
+        let mut retry = StaleRetry::new(true);
+        let mut refused = None;
+        loop {
+            let resolved = match resolve(snapshot) {
+                Ok(resolved) => resolved,
+                Err(failure) => return Err(refused.unwrap_or(failure)),
+            };
+            let action = resolved.action.clone();
+            if !retry.submit(action.clone()) {
+                return Err(refused.unwrap_or_else(|| Failure::new(FailureKind::InternalFailure)));
+            }
+            let source = command_source(
+                resolved.session_id.as_str(),
+                resolved.request_id.as_str(),
+                resolved.expected_revision,
+            );
+            let failure = match submit_with_wake(client, deadline, resolved, signals.poll_fd()) {
+                Ok(receipt) => return Ok((receipt, action)),
+                Err(failure) => failure.source(source),
+            };
+            if !retry.reread(Ended::submission(&failure)) {
+                return Err(failure);
+            }
+            match refresh_snapshot(
+                client,
+                &snapshot.session_id,
+                snapshot.revision,
+                deadline,
+                signals,
+            ) {
+                Ok(fresh) => *snapshot = fresh,
+                Err(_) => return Err(failure),
+            }
+            refused = Some(failure);
+        }
     }
 
     /// The label and bound-terminal count a Tab or Workspace close ends.
@@ -1355,6 +1426,10 @@ mod workflow {
 
     /// Submit exactly one command on the admitted session and map the typed
     /// submission into the receipt/failure matrix.
+    ///
+    /// Creation workflows never follow a stale refusal to a fresh snapshot: their labels,
+    /// directory and plugin context were prepared from this snapshot outside target resolution,
+    /// and the revision fence is what keeps those prepared values current (ORC-413).
     pub(in crate::cli) fn submit_creation(
         client: &mut LocalClient,
         snapshot: &Snapshot,
@@ -1392,14 +1467,6 @@ mod workflow {
             resolved.expected_revision,
         );
         submit_with_wake(client, deadline, resolved, wake).map_err(|failure| failure.source(source))
-    }
-
-    fn submit(
-        client: &mut LocalClient,
-        deadline: Instant,
-        resolved: Resolved,
-    ) -> Result<Receipt, Failure> {
-        submit_with_wake(client, deadline, resolved, None)
     }
 
     fn submit_with_wake(
@@ -2413,12 +2480,20 @@ mod workflow {
     /// without it.
     fn precommit_failure(precommit: Precommit, action: &WorkbenchAction) -> Failure {
         match precommit {
-            Precommit::Rejected { revision, reason } => Failure::new(FailureKind::Rejected)
-                .details(Map::from_iter([
+            Precommit::Rejected { revision, reason } => {
+                let failure = Failure::new(FailureKind::Rejected).details(Map::from_iter([
                     ("stage".to_owned(), json!("command")),
                     ("reason".to_owned(), json!(rejection_reason(reason))),
                     ("revision".to_owned(), json!(revision)),
-                ])),
+                ]));
+                // The Server checks the base revision before anything else, so this refusal
+                // applied nothing and a fresh snapshot may resolve the same command again.
+                if reason == WorkbenchRejectionReason::RevisionMismatch {
+                    failure.mark_stale_view()
+                } else {
+                    failure
+                }
+            }
             Precommit::Denied => Failure::new(FailureKind::Denied),
             Precommit::Unavailable { reason } => Failure::new(FailureKind::ServiceUnavailable)
                 .details(stage_reason_details("command", unavailable_reason(reason))),

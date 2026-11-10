@@ -138,7 +138,10 @@ pub(crate) fn read(
     let revision = revision.ok_or(Error::Invalid)?;
     let physical = machine_agents::read_states_at(client, snapshot, deadline, cancel);
     check(deadline, cancel)?;
-    let physical = physical.map_err(|_| Error::Unavailable)?;
+    let physical = match physical {
+        Ok(physical) => physical,
+        Err(()) => return Err(outran(client, snapshot, deadline, cancel)),
+    };
     let rows = super::project(items, &physical).map_err(|_| Error::TooLarge)?;
     let mut total = 0usize;
     for (i, row) in rows.iter().enumerate() {
@@ -161,6 +164,24 @@ pub(crate) fn read(
     };
     confirm(client, snapshot, &result, include_ended, deadline, cancel)?;
     Ok(result)
+}
+
+/// Classify a failed physical read. A Workbench that moved past the snapshot during the read is a
+/// changed view, which a fresh snapshot can resolve; anything else leaves the source unavailable.
+fn outran(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    cancel: Cancellation<'_>,
+) -> Error {
+    let current = machine_observation::snapshot(client, deadline, cancel);
+    if let Err(error) = check(deadline, cancel) {
+        return error;
+    }
+    match current {
+        Ok(current) if current.revision != snapshot.revision => Error::Changed,
+        Ok(_) | Err(_) => Error::Unavailable,
+    }
 }
 
 /// Canonical records cannot change around the physical span. A final physical

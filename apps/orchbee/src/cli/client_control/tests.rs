@@ -1263,3 +1263,71 @@ fn a_refused_read_step_retains_the_clients_typed_reason_without_new_details() {
     );
     assert!(exchange::submission_refusal(0, Some(&reply.outcome)).is_none());
 }
+
+#[test]
+fn only_a_stale_view_refusal_before_any_action_is_submitted_again() {
+    use orchbee_workbench_protocol::{ClientViewControlReason, ClientViewControlStatus};
+    let answer = |status: ClientViewControlStatus, unknown: bool, wait: Option<Wait>| {
+        let WorkbenchResponse::ClientView(mut reply) =
+            serde_json::from_value(sample("canonical-agent-focus-applied")).unwrap()
+        else {
+            panic!("Client view response")
+        };
+        let ClientViewOutcome::Operation { operation } = &mut reply.outcome else {
+            panic!("operation")
+        };
+        operation.status = status;
+        Answer {
+            status_only: false,
+            operation_id: Some(operation.command.operation_id.clone()),
+            session_id: Some(reply.session_id.clone()),
+            reply: Some(reply),
+            unknown,
+            wait,
+        }
+    };
+    let stale = ClientViewControlReason::StaleView;
+    assert!(
+        answer(
+            ClientViewControlStatus::Rejected { reason: stale },
+            false,
+            None
+        )
+        .stale_refusal()
+    );
+    for refused in [
+        answer(
+            ClientViewControlStatus::Rejected { reason: stale },
+            true,
+            None,
+        ),
+        answer(
+            ClientViewControlStatus::Rejected { reason: stale },
+            false,
+            Some(Wait::ObservationFailed),
+        ),
+        answer(
+            ClientViewControlStatus::Incomplete {
+                reason: stale,
+                view: None,
+            },
+            false,
+            None,
+        ),
+        answer(
+            ClientViewControlStatus::Rejected {
+                reason: ClientViewControlReason::Busy,
+            },
+            false,
+            None,
+        ),
+        answer(
+            ClientViewControlStatus::Queued {},
+            false,
+            Some(Wait::TimedOut),
+        ),
+    ] {
+        assert!(!refused.stale_refusal());
+    }
+    assert!(!answer_without_reply(None).stale_refusal());
+}

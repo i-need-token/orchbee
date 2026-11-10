@@ -92,6 +92,10 @@ pub(crate) struct Failure {
     /// serialized here: a command owner publishes it only through its own
     /// closed details vocabulary.
     pub(crate) client_refusal: Option<orchbee_workbench_protocol::ClientViewControlReason>,
+    /// Set only on a refusal that applied nothing because the view it was resolved from had
+    /// gone stale: a Workbench `revision-mismatch`, or a source read the Workbench outran. Never
+    /// serialized; only the bounded stale-view retry reads it.
+    pub(crate) stale_view: bool,
 }
 
 /// Text-only failure evidence; each variant belongs to one failure family.
@@ -169,7 +173,14 @@ impl Failure {
             failure_schema: None,
             display: None,
             client_refusal: None,
+            stale_view: false,
         }
+    }
+
+    /// Mark a refusal that applied nothing because its view had gone stale.
+    pub(crate) const fn mark_stale_view(mut self) -> Self {
+        self.stale_view = true;
+        self
     }
 
     /// Attach what an ended Agent wait was waiting for, for the localized

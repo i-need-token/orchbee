@@ -2199,29 +2199,45 @@ performs two further stages under the same 5-second deadline:
    target resolves with the query resolver's exact semantics (`not-found`/`ambiguous`
    possible, zero commands submitted), the snapshot supplies `sessionId` and
    `expectedRevision`, and one fresh `WorkbenchRequestId` is generated.
-7. **Command** — exactly one `workbench.command` submission on the admitted session. The
-   Client Connection is then fully released before the outcome is mapped or output prepared.
+7. **Command** — one `workbench.command` submission on the admitted session. A definite
+   `revision-mismatch` refusal repeats stages 5–7 on the same session under the same deadline,
+   at most three more times, as described below. The Client Connection is then fully released
+   before the outcome is mapped or output prepared.
 
 The `expectedRevision` choice is the protocol's optimistic-concurrency contract: the Server
-compares the command's base revision to its current revision and rejects a mismatch without
-applying anything, so reading once and submitting at that revision is the admitted
-interaction sequence — the CLI never re-reads to chase a moving base and never submits
-without a base.
+compares the command's base revision to its current revision before any effect and rejects a
+mismatch without applying anything. A `revision-mismatch` therefore proves that nothing
+happened, and the CLI follows the moving base a bounded number of times: it reads a fresh
+snapshot, resolves every target again with the same semantics, and submits again only when the
+resulting action — every target identity and argument — is identical to the first submission.
+When any target now resolves differently or not at all, the fresh read fails, the deadline
+passes, or three retries are spent, the CLI reports the last refusal unchanged (exit 3,
+`reason:"revision-mismatch"`). It never acts on a different target and never submits without a
+base. Two kinds of workflow do not retry, and their refusal reports as before: phased workflows
+that submit an action resolved in an earlier phase — `panel move` with `--into-tab`, `--new-tab`
+or `--new-workspace`, `layout apply`, and plugin pane management — and the Windows creation
+workflows of `tab create`, `panel split` and `workspace create`, whose labels, directory and
+plugin context are prepared from the preflight snapshot outside target resolution and stay
+current only through the revision fence.
 
 Safety contract:
 
-- **At most one effect.** Exactly one command is submitted per invocation; all argument and
-  target validation completes before the command is built, so a parse defect or unresolved
-  target submits nothing.
-- **Fresh identity.** Each invocation generates one new globally unique
-  `WorkbenchRequestId`; receipts and `outcome-unknown` failures report it for operator
+- **At most one effect.** Every submission before the last ended in a definite no-effect
+  refusal, so at most one submission per invocation can apply. All argument and target
+  validation completes before each command is built, so a parse defect or unresolved target
+  submits nothing.
+- **Fresh identity.** Each submission generates one new globally unique `WorkbenchRequestId`.
+  The Server ledger retains a refusal under its request ID, so reusing that ID with a new
+  `expectedRevision` would be a request-identity conflict. The attempts remain one logical
+  request; receipts and failures report the identity of the last submission for operator
   reconciliation.
 - **Server-owned revision.** `expectedRevision` always comes from the same validated
-  snapshot that resolved the targets — never guessed, incremented client-side, or reused.
-- **No automatic replay.** An ambiguous post-submission outcome — lost write, lost,
-  malformed, or miscorrelated response, or an answer that fails validation — retires the
-  session and surfaces as `outcome-unknown` (exit 8). The command may or may not have been
-  applied; it is never resent. The localized diagnostic says so and directs the operator to
+  snapshot that resolved the targets of that submission — never guessed, incremented
+  client-side, or reused.
+- **No automatic replay.** Only a definite `revision-mismatch` refusal is submitted again. An
+  ambiguous post-submission outcome — lost write, lost, malformed, or miscorrelated response,
+  or an answer that fails validation — retires the session and surfaces as `outcome-unknown`
+  (exit 8). The command may or may not have been applied; it is never resent. The localized diagnostic says so and directs the operator to
   inspect Workbench state (`status`, `tab list`, `panel list`, …) before deciding whether
   to repeat the command.
 - **Close confirmation.** `tab close`, `panel close`, and `workspace close` are
@@ -2477,6 +2493,9 @@ command, `"agent doctor"`), or the agent-read family —
 and the embedded schemas reject documents outside those shapes. Read-path errors never become
 outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
 `rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
+Of these, only `revision-mismatch` earns the bounded fresh-read retry described under
+[Mutations](#mutations); a `rejected` failure with that reason means the retries were spent or
+the target no longer resolved to the same identity.
 The send stage follows the same rule for its single input record: a `RequestNotSubmitted` is
 definite non-submission, an `OutcomeUnknown` means the record may already have landed, and the
 typed `terminal.send.result` answers are the Server's own verdicts, never a client guess. A
@@ -2967,7 +2986,7 @@ Windows `status server` lists the Session's processes and their versions with on
 
 ## Agent navigation
 
-Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint and read-only `agent attention` keep their existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. An unready Client refuses before Agent reads; loss/replacement yields rejection or incomplete navigation, without retargeting. `orchbee.client.control` v1 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
+Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint and read-only `agent attention` keep their existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. An unready Client refuses before Agent reads; loss/replacement yields rejection or incomplete navigation, without retargeting. A `stale-view` rejection is settled before anything reaches the Client, and an Agent read that the Workbench outran ends as `changed`; either reads a fresh snapshot and resolves the Client and Agent again under the same deadline, at most three times. A rejected control is submitted again, under a fresh operation identity, only when the Client and intent are identical and `--request-id` did not name the operation; otherwise the last rejection stands. Incomplete, pending and unknown outcomes are never submitted again. `orchbee.client.control` v1 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
 
 ## Windows Agent change pages
 

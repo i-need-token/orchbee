@@ -60,9 +60,10 @@ impl PanelTarget {
         }
     }
 
-    pub(super) fn resolve(self, snapshot: &Snapshot) -> Result<Target, Failure> {
-        match self.0 {
-            PanelTargetKind::Explicit(target) => Ok(target),
+    /// Borrowed, so a stale-view retry can resolve the same caller against a fresh snapshot.
+    pub(super) fn resolve(&self, snapshot: &Snapshot) -> Result<Target, Failure> {
+        match &self.0 {
+            PanelTargetKind::Explicit(target) => Ok(target.clone()),
             PanelTargetKind::Caller(caller) => caller.panel(snapshot),
         }
     }

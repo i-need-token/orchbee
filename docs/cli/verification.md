@@ -48,6 +48,10 @@ refused in review regardless of its tests.
 - A mutation is run against a scripted endpoint that fails after accepting the submission; the
   test asserts one submission, no retry, and an unknown-outcome document carrying the request
   identity.
+- A command that declares the stale-base retry is run against a scripted endpoint that refuses
+  with a qualifying reason; the test asserts a fresh identity and fresh base per attempt, the same
+  resolved target, the attempt bound, and no further submission once a target resolves
+  differently or a caller-supplied identity was given.
 - A declared workflow faults every phase boundary and submission response. Evidence checks its
   finite phase order, exact receipt dependencies, one submission per effect phase, unchanged total
   deadline, and retained known effects on later failure, cancellation or unknown outcome. Rejected

@@ -74,6 +74,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         failure_schema: None,
         display: None,
         client_refusal: None,
+        stale_view: false,
         usage: Some(Box::new(usage)),
     };
 
@@ -134,6 +135,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         failure_schema: None,
         display: None,
         client_refusal: None,
+        stale_view: false,
         usage: None,
     };
     assert_eq!(
@@ -156,6 +158,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         failure_schema: None,
         display: None,
         client_refusal: None,
+        stale_view: false,
         usage: None,
     };
     assert!(

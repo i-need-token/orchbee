@@ -22,6 +22,7 @@ enum Case {
     Duplicate,
     PageDrift,
     PartialPhysical,
+    PhysicalDrift,
     CanonicalDrift,
     ReportDrift,
     WorkbenchDrift,
@@ -105,7 +106,13 @@ fn states(stream: &mut LocalStream, case: Case, fence: bool) -> io::Result<()> {
             request_id: request.request_id,
             session_id: request.session_id,
             outcome: PanelAgentOutcome::States {
-                workbench_revision: WorkbenchRevision::new(1),
+                workbench_revision: WorkbenchRevision::new(
+                    if matches!(case, Case::PhysicalDrift) {
+                        2
+                    } else {
+                        1
+                    },
+                ),
                 report_revision: WorkbenchRevision::new(
                     if fence && matches!(case, Case::ReportDrift) {
                         8
@@ -115,6 +122,24 @@ fn states(stream: &mut LocalStream, case: Case, fence: bool) -> io::Result<()> {
                 ),
                 presentations,
             },
+        }),
+    )
+    .map_err(io::Error::other)
+}
+fn snapshot(stream: &mut LocalStream, revision: u64) -> io::Result<()> {
+    let WorkbenchRequest::SnapshotRead(request) =
+        read_workbench_request(stream).map_err(io::Error::other)?
+    else {
+        panic!("only a topology read is allowed");
+    };
+    let mut snapshot = orchbee_workbench_client::test_support::machine_agents::fixture();
+    snapshot.revision = WorkbenchRevision::new(revision);
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
         }),
     )
     .map_err(io::Error::other)
@@ -155,6 +180,10 @@ fn peer(case: Case) -> io::Result<FakeServer> {
         if matches!(case, Case::PartialPhysical) {
             return Ok(());
         }
+        if matches!(case, Case::PhysicalDrift) {
+            // The physical read outran the snapshot; only a topology read classifies it.
+            return snapshot(&mut stream, 2);
+        }
         list(
             &mut stream,
             listed(
@@ -175,24 +204,14 @@ fn peer(case: Case) -> io::Result<FakeServer> {
         if matches!(case, Case::ReportDrift) {
             return Ok(());
         }
-        let WorkbenchRequest::SnapshotRead(request) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("final topology fence");
-        };
-        let mut snapshot = orchbee_workbench_client::test_support::machine_agents::fixture();
-        if matches!(case, Case::WorkbenchDrift) {
-            snapshot.revision = WorkbenchRevision::new(2);
-        }
-        write_workbench_response(
+        snapshot(
             &mut stream,
-            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available { snapshot },
-            }),
+            if matches!(case, Case::WorkbenchDrift) {
+                2
+            } else {
+                1
+            },
         )
-        .map_err(io::Error::other)
     })
 }
 #[test]
@@ -204,6 +223,7 @@ fn complete_read_requires_both_sources_and_all_revision_fences() -> io::Result<(
         (Case::Duplicate, Some(Error::Invalid)),
         (Case::PageDrift, Some(Error::Changed)),
         (Case::PartialPhysical, Some(Error::Unavailable)),
+        (Case::PhysicalDrift, Some(Error::Changed)),
         (Case::CanonicalDrift, Some(Error::Changed)),
         (Case::ReportDrift, Some(Error::Changed)),
         (Case::WorkbenchDrift, Some(Error::Changed)),

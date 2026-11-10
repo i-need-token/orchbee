@@ -110,7 +110,13 @@ pub(super) fn classify(error: Error) -> Failure {
         Error::Timeout => (FailureKind::Timeout, "timeout"),
         Error::Cancelled => (FailureKind::Cancelled, "cancelled"),
     };
-    failure(kind, reason)
+    let failure = failure(kind, reason);
+    // A read outrun by its sources changed nothing; a fresh snapshot may read it again.
+    if error == Error::Changed {
+        failure.mark_stale_view()
+    } else {
+        failure
+    }
 }
 pub(super) fn read(
     client: &mut LocalClient,

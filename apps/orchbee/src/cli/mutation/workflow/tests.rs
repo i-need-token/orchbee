@@ -350,3 +350,32 @@ fn an_expired_close_wait_names_the_close_it_awaited() {
         assert!(!text.contains(session), "{locale:?}: {text}");
     }
 }
+
+#[test]
+fn only_a_revision_mismatch_refusal_is_submitted_again() {
+    use crate::cli::stale_retry::Ended;
+    let action = WorkbenchAction::ProjectCreate {
+        label: orchbee_workbench_protocol::WorkbenchLabel::parse("retry").unwrap(),
+    };
+    let refusal = |reason| {
+        precommit_failure(
+            Precommit::Rejected {
+                revision: WorkbenchRevision::new(4),
+                reason,
+            },
+            &action,
+        )
+    };
+    assert_eq!(
+        Ended::submission(&refusal(WorkbenchRejectionReason::RevisionMismatch)),
+        Ended::Stale
+    );
+    for failure in [
+        refusal(WorkbenchRejectionReason::SessionMismatch),
+        refusal(WorkbenchRejectionReason::TabUnavailable),
+        unknown_failure(request(0x78), "response-loss"),
+        not_submitted_failure(NotSubmitted::Request),
+    ] {
+        assert_eq!(Ended::submission(&failure), Ended::Settled);
+    }
+}

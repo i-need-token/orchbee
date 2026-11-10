@@ -607,3 +607,99 @@ fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_dead
 
 #[path = "cli_windows_agent_focus/attention.rs"]
 mod attention;
+
+/// A focus refused as `stale-view` applied nothing, so the CLI resolves the Client and Agent again
+/// on a fresh read and submits the same intent under a fresh operation identity against the
+/// Client's new view revision, at most three times; a changed target, or a caller-named
+/// operation identity, keeps the refusal (ORC-413).
+#[test]
+fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_times() {
+    for case in ["same", "moved", "persistent", "named"] {
+        let fixture = FocusFixture::new();
+        let rendezvous = fixture.rendezvous();
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let (sent, received) = std::sync::mpsc::channel();
+        let server = peer(&fixture, listener, move |mut stream| {
+            snapshot_reply(&mut stream);
+            let mut operations = Vec::new();
+            for attempt in 0..4_u64 {
+                let mut current = record(7, 6);
+                current["viewRevision"] = json!((2 + attempt).to_string());
+                list_reply(&mut stream, vec![current]);
+                let moved = case == "moved" && attempt == 1;
+                get_reply(&mut stream, detail(if moved { &[106] } else { &[108] }));
+                if moved {
+                    break;
+                }
+                let request = view_request(&mut stream);
+                let ClientViewAction::Submit { command } = &request.action else {
+                    panic!("one Submit per attempt");
+                };
+                assert_eq!(command.client_id.as_str(), id(7));
+                assert_eq!(
+                    json!(command.expected_view_revision),
+                    json!((2 + attempt).to_string())
+                );
+                assert_eq!(
+                    json!(command.intent),
+                    json!({"kind":"agent-focus","terminalContextId":id(4),"tabId":id(5),"panelId":id(8),
+                        "presentationId":id(108),"target":{"kind":"session","sessionId":"sess-alpha"}})
+                );
+                assert!(
+                    !operations.contains(&command.operation_id),
+                    "{case}: every attempt has a fresh operation identity"
+                );
+                operations.push(command.operation_id.clone());
+                if case == "same" && attempt == 1 {
+                    settled(&mut stream, &request, command);
+                    break;
+                }
+                view_reply(
+                    &mut stream,
+                    &request,
+                    json!({"kind":"operation","operation":{"command":command,"status":{"kind":"rejected","reason":"stale-view"}}}),
+                );
+                if case == "named" || attempt == 3 {
+                    break;
+                }
+                snapshot_reply(&mut stream);
+            }
+            assert_closed(&mut stream);
+            sent.send(operations).unwrap();
+        });
+        let named = id(90);
+        let mut args = vec!["agent", "focus", "--agent-session", "sess-alpha"];
+        if case == "named" {
+            args.extend(["--request-id", &named]);
+        }
+        args.push("--format=json");
+        let output = fixture.run(&args);
+        server.join().unwrap();
+        let operations = received.recv().unwrap();
+        let document = document(&output);
+        receipt(&document);
+        assert_eq!(
+            document["operationId"],
+            operations.last().unwrap().as_str(),
+            "{case}: {document}"
+        );
+        let attempts = match case {
+            "same" => 2,
+            "moved" | "named" => 1,
+            _ => 4,
+        };
+        assert_eq!(operations.len(), attempts, "{case}");
+        if case == "same" {
+            assert!(output.status.success(), "{case}: {document}");
+        } else {
+            assert_eq!(output.status.code(), Some(3), "{case}: {document}");
+            assert_eq!(
+                document["observation"]["reply"]["outcome"]["operation"]["status"]["reason"],
+                "stale-view"
+            );
+        }
+        if case == "named" {
+            assert_eq!(document["operationId"], named.as_str());
+        }
+    }
+}

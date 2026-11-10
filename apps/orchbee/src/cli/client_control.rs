@@ -46,6 +46,18 @@ impl Answer {
             self.unknown = true;
         }
     }
+    /// A control the Server or Client refused before any action because the view it named had
+    /// gone stale. An unknown, incomplete, still pending or unobserved outcome never qualifies.
+    pub(super) fn stale_refusal(&self) -> bool {
+        !self.unknown
+            && self.wait.is_none()
+            && self.reply.as_ref().is_some_and(|reply| {
+                matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
+                if operation.status == ClientViewControlStatus::Rejected {
+                    reason: orchbee_workbench_protocol::ClientViewControlReason::StaleView,
+                })
+            })
+    }
     fn pending(&self) -> bool {
         self.reply.as_ref().is_some_and(|reply| {
             matches!(&reply.outcome,

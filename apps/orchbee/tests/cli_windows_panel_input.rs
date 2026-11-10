@@ -47,11 +47,6 @@ fn exact_policy_mutation_has_one_exchange_and_truthful_known_or_unknown_receipts
         ),
         ("denied", json!({"kind":"denied"}), Some("denied")),
         (
-            "stale",
-            json!({"kind":"rejected","revision":"10","reason":"revision-mismatch"}),
-            Some("rejected"),
-        ),
-        (
             "missing",
             json!({"kind":"rejected","revision":"9","reason":"panel-unavailable"}),
             Some("rejected"),
