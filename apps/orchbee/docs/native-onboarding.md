@@ -1,5 +1,9 @@
 # Native first-run guidance
 
+## Current status
+
+The card is withheld for now, and its code is kept (ORC-402). `WELCOME_CARD_OFFERED` in the onboarding state owner is `false`, so no Client shows the card and the Sidebar keeps the layout it has after dismissal. A withheld card reads and writes nothing: `internal/state/onboarding.json` stays exactly as an earlier build left it and remains readable with no migration. The card, its rendering, dismissal and the record code stay compiled, and setting the switch offers the card again. The rest of this document describes the card when it is offered.
+
 ## Ownership and scope
 
 The Windows native Client owns non-capturing welcome guidance in the sidebar. Its purpose is to expose the next available actions while terminal input retains focus. The card introduces Workspace creation, choosing and starting an Agent through the existing Agent board, action search, and shortcut help. It never launches an Agent, installs software or creates a Workspace by itself. The existing operation owners revalidate every explicit action. GUI clients retain their own discovery surfaces; native learning state is not shared because the native prefix vocabulary is Client-specific.

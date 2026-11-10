@@ -4,6 +4,9 @@ use orchbee_local_runtime::{DataRoot, OpenedRecord, VersionedFile, VersionedReco
 use serde::{Deserialize, Serialize};
 use std::io;
 const MAX_BYTES: usize = 1024;
+/// Whether this build offers the welcome card. Launch withholds it (ORC-402); the card, its
+/// rendering, dismissal and the record stay compiled so that setting this offers it again.
+const WELCOME_CARD_OFFERED: bool = false;
 #[cfg(test)]
 const DISMISSED: &[u8] = b"{\"version\":1,\"dismissed\":true}\n";
 
@@ -111,8 +114,12 @@ fn decode(bytes: Option<Vec<u8>>) -> io::Result<bool> {
     Ok(matches!(read(opened)?, Stored::Current(document) if document.dismissed))
 }
 impl State {
-    /// A load keeps a migrated earlier record in memory; only a dismissal persists it.
+    /// A load keeps a migrated earlier record in memory; only a dismissal persists it. A withheld
+    /// card reads nothing and shows nothing, which leaves the record exactly as it is.
     pub fn load() -> Self {
+        if !WELCOME_CARD_OFFERED {
+            return Self::default();
+        }
         let record = DataRoot::resolve(|name| std::env::var_os(name))
             .ok()
             .map(|root| VersionedFile::device(root, VersionedRecord::Onboarding));

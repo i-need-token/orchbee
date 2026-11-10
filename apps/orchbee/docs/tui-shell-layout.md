@@ -119,7 +119,7 @@ top edge and ends with the [sidebar toggle](#sidebar-toggle-and-help), as the Se
 with Help. The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above Settings, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Projects in their canonical
+remain outside the scrolling navigation tree. Undismissed first-run guidance, when offered, also reserves space above Settings, leaving at least four navigation rows; it never paints into the terminal. It is withheld for now; see [native onboarding](native-onboarding.md). Projects in their canonical
 display order and their children follow, then the Workspaces outside any Project under a localized
 Recents heading (`Recents`; `最近` in Chinese), always last. Headings show no member count; only the
 label truncates. Optional Projects group
@@ -529,17 +529,17 @@ cover both locales, themes, configured rows, tree connectors, picker/Settings en
 points and the Full/Compact/Minimal/Mobile/TooSmall matrix. Host interaction requires
 separate native evidence.
 
-### Release-withheld search
+### Withheld search
 
-A release build withholds sidebar search until it is polished; development and test builds offer
-it. The composition input `Capabilities` carries that build policy beside the host effects, so pure
-UI traces still compose every entry point. A release leaves out the fixed Search row, whose
-plain-layout line then joins the list while a touch-spaced list leaves its lines blank, and the `/`
-key, which then behaves as an unbound sidebar key and leaves F1. Without New workspace either,
-the toggle keeps the first row on its own. The machine picker itself is the remote-machines feature
-and stays whole: `Ctrl+B Shift+M`, its action-menu row and F1 entry open it as in development
-builds, with all three modes and Tab switching. The
-GUI withholds its Search the same way; see the
+Every build, not only a release, withholds sidebar search until it is finished (ORC-424); the
+Search code stays in place. The composition input `Capabilities` carries that build policy beside
+the host effects: `Capabilities::for_host()` sets `search` to `false`, while pure UI traces still
+compose every entry point. The TUI leaves out the fixed Search row, whose plain-layout line then
+joins the list while a touch-spaced list leaves its lines blank, and the `/` key, which then
+behaves as an unbound sidebar key and leaves F1. Without New workspace either, the toggle keeps the
+first row on its own. The machine picker itself is the remote-machines feature and stays whole:
+`Ctrl+B Shift+M`, its action-menu row and F1 entry open it, with all three modes and Tab switching.
+The GUI withholds its Search too; see the
 [Web Workbench](../../web/docs/workbench.md#release-withheld-search).
 
 ## Sidebar navigation model

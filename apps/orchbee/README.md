@@ -971,12 +971,16 @@ the release stem until ORC-328, so every POSIX build counts as release.
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `plugin` and `popup` families | Help, completion and the `--skill` guide leave them out. Any invocation that reaches one, including `help plugin`, a family without a verb or a usage error, is refused before grammar or runtime work with `stage: "release"`, `reason: "withheld-in-release"`, `feature: "plugin"` or `"popup"`, exit `4`. |
 | `channel set preview`         | Help names only `stable`; `channel set preview` is refused the same way with `feature: "preview-channel"`. Non-release builds still refuse `channel set` itself with `non-release-build`.                                                                                                                    |
-| TUI Search                    | The sidebar Search row and its `/` key are absent. The Machines action (`Ctrl+B Shift+M`) still opens the whole machine picker, because remote machines ship. See [shell layout](docs/tui-shell-layout.md#release-withheld-search).                                                                          |
+
+Sidebar Search is withheld in every build, not only in a release, until it is finished (ORC-424):
+the TUI leaves out the Search row and its `/` key, and its code stays in place. The Machines action
+(`Ctrl+B Shift+M`) still opens the whole machine picker, because remote machines ship. See
+[shell layout](docs/tui-shell-layout.md#withheld-search).
 
 The `--skill` guide encloses withheld passages between `<!-- unreleased -->` and
 `<!-- /unreleased -->` lines; a release leaves the passages out and every build drops the marker
 lines. Unit tests describe the development grammar on every host. The Desktop and Web Client
-withhold their Search the same way and keep the Actions-only palette, as the TUI keeps its action
+withhold their Search too and keep the Actions-only palette, as the TUI keeps its action
 menu; see the [Web Workbench](../web/docs/workbench.md#release-withheld-search).
 
 ## Windows Worktree operations
@@ -1148,4 +1152,4 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 
 Press Ctrl+B F4 in the Windows or Linux TUI to open General and Launch profiles; Windows also exposes Settings through navigation. All common preferences use the same device record as Desktop, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Edits remain drafts until Save, reset requires confirmation, and stale sources or unknown results remain explicit without replay. See the [native Settings contract](docs/native-settings.md) and [shared inventory](../../crates/workbench-protocol/docs/user-preferences.md).
 
-Windows first-run guidance keeps terminal input active while exposing Workspace creation, Agent selection, actions and Help. Dismissal is remembered per native configuration profile. See [native first-run guidance](docs/native-onboarding.md).
+Windows first-run guidance keeps terminal input active while exposing Workspace creation, Agent selection, actions and Help. Dismissal is remembered per native configuration profile. The guidance is withheld for now and its code is kept. See [native first-run guidance](docs/native-onboarding.md).
