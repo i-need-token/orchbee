@@ -112,7 +112,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.folderAcquisition.failure.dialogFailed':
 		'The system folder picker could not be opened.',
 	'workbench.projects.folderAcquisition.failure.dismiss': 'OK',
-	'workbench.projects.folderAcquisition.failure.notDirectory': 'The selected item is not a folder.',
 	'workbench.projects.folderAcquisition.failure.notFound':
 		'The selected folder is no longer available.',
 	'workbench.projects.folderAcquisition.failure.permissionDenied':

@@ -928,12 +928,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.dismiss'],
 		description: 'Action that dismisses a native Folder-selection failure.',
 	},
-	projectFolderAcquisitionNotDirectory: {
-		id: 'workbench.projects.folderAcquisition.failure.notDirectory',
-		defaultMessage:
-			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.notDirectory'],
-		description: 'Failure shown when the native selection is not a directory.',
-	},
 	projectFolderAcquisitionNotFound: {
 		id: 'workbench.projects.folderAcquisition.failure.notFound',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.notFound'],

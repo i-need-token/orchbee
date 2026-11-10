@@ -1111,7 +1111,6 @@ export function useWorkbench({
 					workbenchMessages.projectFolderAcquisitionControlUnavailable,
 				),
 				'dialog-failed': intl.formatMessage(workbenchMessages.projectFolderAcquisitionDialogFailed),
-				'not-directory': intl.formatMessage(workbenchMessages.projectFolderAcquisitionNotDirectory),
 				'not-found': intl.formatMessage(workbenchMessages.projectFolderAcquisitionNotFound),
 				'permission-denied': intl.formatMessage(
 					workbenchMessages.projectFolderAcquisitionPermissionDenied,

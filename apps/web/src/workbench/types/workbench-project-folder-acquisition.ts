@@ -4,7 +4,6 @@ export type WorkbenchProjectFolderAcquisitionFailureCode =
 	| 'control-unavailable'
 	| 'dialog-failed'
 	| 'invalid-name'
-	| 'not-directory'
 	| 'not-found'
 	| 'permission-denied'
 	| 'stale-parent'

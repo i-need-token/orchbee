@@ -104,7 +104,6 @@ export const zhCNWorkbenchMessages = {
 		'桌面端文件夹选择功能已断开。请等待窗口重新连接后再试。',
 	'workbench.projects.folderAcquisition.failure.dialogFailed': '无法打开系统文件夹选择器。',
 	'workbench.projects.folderAcquisition.failure.dismiss': '确定',
-	'workbench.projects.folderAcquisition.failure.notDirectory': '所选项目不是文件夹。',
 	'workbench.projects.folderAcquisition.failure.notFound': '所选文件夹已不存在或不可用。',
 	'workbench.projects.folderAcquisition.failure.permissionDenied':
 		'Orchbee 无法读取或进入所选文件夹。',

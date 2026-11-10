@@ -65,7 +65,6 @@ const DesktopProjectFolderAcquisitionFailureCodeSchema = z.enum([
 	'control-unavailable',
 	'dialog-failed',
 	'invalid-name',
-	'not-directory',
 	'not-found',
 	'permission-denied',
 	'stale-parent',

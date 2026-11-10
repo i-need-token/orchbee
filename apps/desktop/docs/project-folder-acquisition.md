@@ -5,7 +5,7 @@
 This reference owns Desktop selection of one existing local Folder, or explicit creation of one new
 child Folder, for Workbench Project creation or existing-Folder addition. Workbench owns the user intent and organization/resource mutation, `apps/web` owns the
 Electron renderer adapter, `@orchbee/desktop-client-protocol` owns the records on the dedicated
-renderer capability port, and Desktop Main owns the native dialog, filesystem observation and bounded child creation.
+renderer capability port, and Desktop Main owns the native dialog, the form check of a chosen path and bounded child creation.
 
 Git discovery or mutation, persistent availability monitoring, remote Folder access, and generic
 renderer filesystem access are excluded.
@@ -19,9 +19,9 @@ renderer filesystem access are excluded.
 | Untrusted input | Renderer commands, request IDs, native dialog results, returned paths, asynchronous completion order, and messages received after either endpoint retires.                                             |
 | Success         | Main returns one validated, absolute, host-normalized path; Workbench invokes the existing Project-create or Folder-add Action for the still-current target.                                           |
 | Cancellation    | Native cancellation returns `cancelled`, closes the pending interaction, restores focus through the native dialog lifecycle, and invokes no Workbench Action.                                          |
-| Failure         | Busy, permission-denied, missing, non-directory, dialog, validation, or control failure invokes no Workbench Action and projects one localized dismissible failure.                                    |
+| Failure         | Busy, dialog, validation, or control failure invokes no Workbench Action and projects one localized dismissible failure.                                                                               |
 | No-op           | A repeated UI request while one request is pending, a stale or unknown completion, completion after disposal, and a selected Folder already present in the target resource namespace commit no change. |
-| Side effects    | Main opens one window-modal native dialog and performs read-only path observation. Selection never creates, changes, or removes filesystem content.                                                    |
+| Side effects    | Main opens one window-modal native dialog and checks only the form of the chosen path. Selection never creates, changes, or removes filesystem content.                                                |
 
 ## Selection data and ownership
 
@@ -30,7 +30,7 @@ renderer filesystem access are excluded.
 | Current acquisition phase                      | Mounted Workbench Folder-acquisition workflow                                    |
 | Renderer request identity and completion       | Electron Folder-acquisition client                                               |
 | One active native operation                    | Desktop Folder-acquisition broker                                                |
-| Native dialog and path observation             | Desktop Folder-acquisition runtime                                               |
+| Native dialog and selected-path form check     | Desktop Folder-acquisition runtime                                               |
 | Project organization and Workspace Directories | The Server, through Workbench Actions                                            |
 | Renderer-document capability lifetime          | `DesktopServerClientApplication`, together with the document's Server connection |
 
@@ -41,15 +41,15 @@ exactly one of `selected(Path)`, `cancelled`, or `failed(FailureCode)`.
 
 ## Selection path policy
 
-| Decision              | Rule                                                                                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Selection cardinality | Request one existing Folder; multiple selection and file selection are rejected.                                                                                |
-| Canonical path        | Require an absolute native path and apply the host `resolve` normalization before validation and publication.                                                   |
-| Symbolic links        | Preserve the normalized path spelling selected by the person; directory and access checks follow the link target.                                               |
-| Validation            | The selected path must still exist, resolve to a directory, and permit read and traversal at observation time.                                                  |
-| Removable locations   | A mounted location may be selected; later removal is handled by existing terminal-launch and future Directory-reconciliation behavior, not by this acquisition. |
-| Privacy               | The selected path may enter the canonical Workbench document but never enters capability diagnostics or failure text.                                           |
-| Compensation          | Selection and validation are read-only, so a later rejected Workbench commit has no external effect to compensate.                                              |
+| Decision              | Rule                                                                                                                                                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Selection cardinality | Request one existing Folder; multiple selection is rejected, and Main does not check what the chosen path is.                                                                                                                                                                              |
+| Canonical path        | Require an absolute native path and apply the host `resolve` normalization before validation and publication.                                                                                                                                                                              |
+| Symbolic links        | Preserve the normalized path spelling selected by the person; Main does not check the link target.                                                                                                                                                                                         |
+| Validation            | Main checks only that the chosen path is a well-formed absolute native path and applies the host `resolve` normalization; whether the folder can hold a Workspace is the Server's decision ([project-workspace.md](../../web/docs/project-workspace.md)), so Main never stats or opens it. |
+| Removable locations   | A mounted location may be selected; later removal is handled by existing terminal-launch and future Directory-reconciliation behavior, not by this acquisition.                                                                                                                            |
+| Privacy               | The selected path may enter the canonical Workbench document but never enters capability diagnostics or failure text.                                                                                                                                                                      |
+| Compensation          | Selection and validation are read-only, so a later rejected Workbench commit has no external effect to compensate.                                                                                                                                                                         |
 
 ## Selection transitions
 
@@ -75,7 +75,7 @@ already-open operating-system dialog, but it revokes delivery and Workbench muta
 - A Workbench Action is invoked only for the matching live request's validated `selected` result.
 - Cancellation, failure, duplicate target membership, disposal, and stale completion invoke no
   Project mutation.
-- Main validates before publishing a selected path; Workbench never receives a generic filesystem
+- Main checks the form of a selected path before publishing it; Workbench never receives a generic filesystem
   primitive.
 - No request is replayed after an ambiguous client or broker transport failure.
 
@@ -93,7 +93,7 @@ behavior above.
 | Creating                | One exact request and monotonically increasing attempt; disable edits, dismissal and repeated submission. Retirement cancels preparation before mkdir; an already issued mkdir must settle.                                                                                              |
 | Filesystem commit       | Successful non-recursive `mkdir` creates one absent directory. Main consumes the parent token and retains the exact request/path receipt until acknowledgement or Main-lifetime fallback reporting.                                                                                      |
 | Known no effect         | Invalid name, parent validation failure, or rejected atomic mkdir leaves the parent selected. A corrected name can be explicitly submitted with a new attempt; an old attempt is never replayed.                                                                                         |
-| Created but unavailable | Validation after successful mkdir failed. Preserve and display the created path; do not create a Project, delete the Folder or retry mkdir.                                                                                                                                              |
+| Created but unavailable | Form validation after successful mkdir failed. Preserve and display the created path; do not create a Project, delete the Folder or retry mkdir.                                                                                                                                         |
 | Opening                 | Retain the actual Project-create `ActionExecution` and await its result. The Action settles only once the Server's publication carries the Project, so exact receipt validation reads the current publication with no flush.                                                             |
 | Opened                  | The exact Workspace/Directory/path/context/first-presentation receipt is still canonical and current; the existing Workspace activation Action accepts that exact destination. First-shell provisioning or failure remains terminal-lifecycle-owned.                                     |
 | Created but not opened  | Action, publication, exact-target or activation failure retains the Folder and any already committed Project facts. Display the path and offer the existing Select Folder recovery.                                                                                                      |
@@ -103,12 +103,12 @@ behavior above.
 Names contain 1–255 UTF-16 code units and at most 255 UTF-8 bytes. Reject whitespace-only names,
 `.`/`..`, separators, absolute/drive/UNC forms, control characters, `<>:"|?*`, trailing dots or Unicode whitespace,
 Win32 device aliases (including aliases with extensions and superscript COM/LPT digits), unpaired Unicode surrogates, and ADS.
-Do not silently trim or rewrite names. Main revalidates the name and selected parent before
-`mkdir(path, { recursive: false })`; the normalized child's dirname must equal the selected parent.
-Keep the selected symlink spelling and follow the existing validation policy without `realpath`
+Do not silently trim or rewrite names. Main checks the name and the selected parent's form before
+`mkdir(path, { recursive: false })`; the normalized child's dirname must equal the selected parent. A parent that has vanished or is not a directory fails that atomic `mkdir`.
+Keep the selected symlink spelling without `realpath`
 relocation. Atomic no-overwrite creation reports `EEXIST` as a visible conflict, including files and
-symlinks. Filesystem validation is observation-time evidence, not protection against another process
-replacing an ancestor between observation and mkdir.
+symlinks. The atomic `mkdir` is the only filesystem check of the parent; it gives no protection against another process
+replacing an ancestor before that call.
 
 While route preparation is pending, keep the opening UI pending. The existing activation Action waits for exact route acceptance; retirement, replacement, rejection or its bounded deadline produce recovery. After acceptance the workflow checks canonical and current receipt again before ACK.
 
@@ -135,7 +135,7 @@ Deterministic owner tests cover explicit submission, separate filesystem and Pro
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | One live request and selected-only mutation  | deterministic Workbench transition tests, and client/broker tests                                                                     | Named and generated traces cover the implementation, not exhaustive interleavings.                     |
 | Cancellation, failure, and retirement safety | Client/broker late-completion tests and renderer unmount tests                                                                        | Native operating-system dialog cancellation is represented by an injected deterministic result.        |
-| Existing readable directory validation       | Runtime tests for absolute normalization, directory, symlink, permission, disappearance, and unexpected failures                      | Validation is an observation-time claim, not continuous availability.                                  |
+| Selected-path form validation                | Resolver unit tests for relative rejection and absolute normalization                                                                 | Form only; the Server decides whether the folder can hold a Workspace.                                 |
 | Electron-only capability delivery            | Protocol schema, preload bridge, and renderer client tests                                                                            | A trusted Electron renderer holding the port may request a dialog without a second user-gesture proof. |
 | Observable native integration                | Manual current-platform inspection; the Desktop system trace with an injected native selector retired with the Desktop Electron suite | No automated test drives the real macOS, Windows, or Linux system picker UI.                           |
 
