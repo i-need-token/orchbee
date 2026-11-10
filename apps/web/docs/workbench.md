@@ -134,7 +134,7 @@ The maintained behavior, ownership, transition, and correctness model lives in [
 ### Release-withheld Search
 
 Every distribution withholds Search across Agents, Actions and Settings until it is polished; the
-TUI withholds its sidebar search only in a release build, and the Search implementation stays in
+TUI withholds its sidebar search in every build as well, and the Search implementation stays in
 place. The sidebar Search row and its `/` key are absent, the All-search binding is neither
 registered nor listed in the shortcut settings or their search, and the Search Action is hidden for
 every filter except `Actions`. `Mod+Shift+P` still opens the surface with the `Actions` filter alone
