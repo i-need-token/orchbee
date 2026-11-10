@@ -171,6 +171,9 @@ pub(super) fn render(
             PersistentStatus::DirectoryMissing => {
                 (copy.directory_missing.to_owned(), Role::StatusWarning)
             }
+            PersistentStatus::DirectoryUnavailable => {
+                (locale.held_restore_title().to_owned(), Role::StatusWarning)
+            }
             PersistentStatus::Disconnected => (copy.disconnected.to_owned(), Role::StatusError),
             PersistentStatus::TerminalEnded(TerminalEnd::Exited(_)) => {
                 (copy.terminal_exited.to_owned(), Role::StatusWarning)

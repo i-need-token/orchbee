@@ -5119,7 +5119,11 @@ impl WorkbenchClientUi {
         }
     }
 
+    /// Retires the connection on `failure`. The caller's location names the Client step that
+    /// decided it when the mailbox was still open.
+    #[track_caller]
     fn retire(&mut self, failure: CarrierFailure) {
+        let decided_at = std::panic::Location::caller();
         // Titles stay: a Disconnected surface keeps the names it last showed.
         self.retained_frames.clear();
         {
@@ -5156,12 +5160,21 @@ impl WorkbenchClientUi {
             state.cancel_rename_draft();
             state.cancel_setup_on_retirement();
         }
-        let failure = self
-            .mailbox
-            .as_ref()
-            .map_or(failure, |mailbox| mailbox.close(failure).failure());
+        // Called outside a closure, so a mailbox the step closes records the step's caller.
+        let (failure, site) = match &self.mailbox {
+            Some(mailbox) => {
+                let failure = mailbox.close(failure).failure();
+                (failure, mailbox.closed_site())
+            }
+            None => (failure, None),
+        };
+        let site = site.unwrap_or(super::mailbox::ClosedSite {
+            location: decided_at,
+            command: None,
+        });
         if self.retirement_failure.is_none() {
             self.retirement_failure = Some(failure);
+            super::diagnostic_events::connection_retired(failure, site);
         }
         self.clear_projections();
     }

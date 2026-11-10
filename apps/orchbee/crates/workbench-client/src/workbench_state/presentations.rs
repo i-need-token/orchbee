@@ -39,10 +39,21 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn panel_is_unbound(&self, id: &WorkbenchPanelId) -> bool {
+        self.active_tab_panel(id)
+            .is_some_and(|panel| self.selected_presentation(panel).binding().is_none())
+    }
+
+    /// Whether a restore holds the member shown in `id` because its saved directory was
+    /// unavailable.
+    pub(crate) fn panel_is_held(&self, id: &WorkbenchPanelId) -> bool {
+        self.active_tab_panel(id)
+            .is_some_and(|panel| self.selected_presentation(panel).held_directory().is_some())
+    }
+
+    fn active_tab_panel(&self, id: &WorkbenchPanelId) -> Option<&ClientPanel> {
         self.active()
             .and_then(|active| self.cache.tabs().get(active.index()))
             .and_then(|tab| tab.panel_index(id).and_then(|index| tab.panel(index)))
-            .is_some_and(|panel| self.selected_presentation(panel).binding().is_none())
     }
 
     pub(crate) fn selected_is_unbound(&self) -> bool {

@@ -7,6 +7,7 @@ mod client_control;
 mod command_notice;
 mod completion_reminders;
 mod copy_episode;
+mod diagnostic_events;
 pub(crate) mod input;
 pub use input::InputAction;
 mod configuration;

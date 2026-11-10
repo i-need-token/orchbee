@@ -121,6 +121,9 @@ impl Locale {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PersistentStatus {
     DirectoryMissing,
+    /// The focused Panel is held by a restore whose saved directory was unavailable; its
+    /// placeholder offers the actions.
+    DirectoryUnavailable,
     Disconnected,
     TerminalEnded(super::TerminalEnd),
 }

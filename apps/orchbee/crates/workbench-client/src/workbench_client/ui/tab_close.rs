@@ -745,6 +745,7 @@ impl WorkbenchClientUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
+        let focus = state.desired().cloned();
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |_| {
             state
                 .settle_close_exchange(&operation, &outcome)
@@ -752,7 +753,19 @@ impl WorkbenchClientUi {
             Ok(UiReply::Close(operation.key().clone()))
         });
         match result {
-            Ok(MutationResult::Applied) => self.validate_state(),
+            Ok(MutationResult::Applied) => {
+                // A stopped Panel close shows its Panel again and moves a focus left on a closing
+                // Panel onto it: a local focus move, which the mailbox learns as any other.
+                if let Some(state) = self.state.as_ref()
+                    && let Some(pane) = state.desired().filter(|pane| Some(*pane) != focus.as_ref())
+                    && let Err(closed) =
+                        mailbox.publish_desired(pane.clone(), state.focus_landing())
+                {
+                    self.retire(closed.failure());
+                    return true;
+                }
+                self.validate_state()
+            }
             Ok(MutationResult::Stale) => false,
             Err(error) => self.handle_event_error(error),
         }

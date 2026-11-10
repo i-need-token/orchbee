@@ -4408,6 +4408,9 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn panel_is_unbound(&self, panel: &WorkbenchPanelId) -> bool {
         self.state.panel_is_unbound(panel)
     }
+    pub(crate) fn panel_is_held(&self, panel: &WorkbenchPanelId) -> bool {
+        self.state.panel_is_held(panel)
+    }
 
     pub(crate) fn selected_presentation(
         &self,

@@ -227,6 +227,14 @@ impl<'a> WorkbenchClientView<'a> {
         self.focus_panel_id()
             .is_some_and(|id| self.panel_is_unbound(id))
     }
+    /// Whether the focused member is held by a restore whose saved directory was unavailable.
+    pub(crate) fn selected_is_held(&self) -> bool {
+        self.focus_panel_id().is_some_and(|id| {
+            self.state
+                .as_ref()
+                .is_some_and(|state| state.panel_is_held(id))
+        })
+    }
     pub(crate) fn selected_presentation(
         &self,
         panel: &'a super::super::ClientPanel,

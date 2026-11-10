@@ -124,6 +124,14 @@ impl WorkbenchClientView<'_> {
         {
             Some(PersistentStatus::DirectoryMissing)
         } else if text == phase
+            && view.retirement().is_none()
+            && view.notice().is_none()
+            && view.setup_status().is_none()
+            && view.phase() == crate::localization::DisplayPhase::SelectedWithoutAttachment
+            && view.selected_is_held()
+        {
+            Some(PersistentStatus::DirectoryUnavailable)
+        } else if text == phase
             // A retired connection is Disconnected whatever its last operation's outcome; the
             // pane keeps the full fact, including an unknown outcome that will not replay.
             && (view.retirement().is_some()
@@ -188,7 +196,14 @@ impl WorkbenchClientView<'_> {
             && view.selected_is_unbound()
             && view.retirement().is_none()
         {
-            return locale.native_unbound_terminal().to_owned();
+            // A held restore names what its placeholder says; any other unbound member is an
+            // empty slot.
+            return if view.selected_is_held() {
+                locale.held_restore_title()
+            } else {
+                locale.native_unbound_terminal()
+            }
+            .to_owned();
         }
         let tab = view
             .active_position()

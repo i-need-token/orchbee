@@ -25,6 +25,7 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::{WorkbenchRequestId, WorkbenchSnapshotOutcome};
 use std::{
     collections::VecDeque,
+    panic::Location,
     sync::{Condvar, Mutex, MutexGuard, TryLockError},
     time::{Duration, Instant},
 };
@@ -270,6 +271,31 @@ pub(super) enum QueuedCommand {
     /// One settlement read of an accepted Workspace or Project close. It never holds the refresh
     /// slot, so Context selection and publication reads run between reads.
     WorkspaceCloseRead(crate::workbench_state::workspace_close::WorkspaceCloseSettlementRead),
+}
+
+impl QueuedCommand {
+    /// The command's kind, as the diagnostic log names the command a failure interrupted.
+    const fn kind(&self) -> &'static str {
+        match self {
+            Self::Input(_) => "input",
+            Self::Resize(_) => "resize",
+            Self::Poll(_) => "poll",
+            Self::Viewport(_) => "viewport",
+            Self::Selection(_) => "selection",
+            Self::ClearTerminal(_) => "clear-terminal",
+            Self::ReconcilePanes(_) => "reconcile-panes",
+            Self::Switch(_) => "switch",
+            Self::Create(_) => "create",
+            Self::Refresh(_) => "refresh",
+            Self::Move(_) => "move",
+            Self::Panel(_) => "panel",
+            Self::Rename(_) => "rename",
+            Self::WorkspaceSetup(_) => "workspace-setup",
+            Self::Close(_) => "close",
+            Self::ReconcileClose(_) => "reconcile-close",
+            Self::WorkspaceCloseRead(_) => "workspace-close-read",
+        }
+    }
 }
 
 /// The desired pane set for one epoch, as the state last reported it. The
@@ -1252,6 +1278,8 @@ struct ActiveLease {
     /// Derived from the received `QueuedCommand`: exactly one ordinary Poll may be queued
     /// or active per Client, so the canonical lease must remember whether it owns one.
     ordinary_poll: bool,
+    /// The leased command's kind, which a failure closing the mailbox meanwhile interrupted.
+    command: &'static str,
 }
 
 impl ActiveLease {
@@ -1259,8 +1287,17 @@ impl ActiveLease {
         Self {
             serial,
             ordinary_poll: matches!(command, QueuedCommand::Poll(_)),
+            command: command.kind(),
         }
     }
+}
+
+/// Where the first failure closed the mailbox: the source location of the check or Client step
+/// that hit it, and the kind of the command the worker held then, if any.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ClosedSite {
+    pub(super) location: &'static Location<'static>,
+    pub(super) command: Option<&'static str>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1325,6 +1362,7 @@ struct MailboxState {
     /// cleared by event, causal, or selection bookkeeping.
     publication_hint_pending: bool,
     closed: Option<CarrierFailure>,
+    closed_site: Option<ClosedSite>,
 }
 
 pub(super) struct UiReplyTransaction<'a> {
@@ -1520,6 +1558,7 @@ impl CommandMailbox {
                 close_deposited_result: None,
                 publication_hint_pending: false,
                 closed: None,
+                closed_site: None,
             }),
             changed: Condvar::new(),
             ui_wakeup: Mutex::new(None),
@@ -3630,6 +3669,7 @@ impl CommandMailbox {
             .map(|flight| (flight.generation, flight.stage))
     }
 
+    #[track_caller]
     pub(super) fn close(&self, failure: CarrierFailure) -> MailboxClosed {
         let mut state = self.lock();
         self.close_locked(&mut state, failure)
@@ -3646,6 +3686,11 @@ impl CommandMailbox {
 
     pub(super) fn is_closed(&self) -> Option<CarrierFailure> {
         self.lock().closed
+    }
+
+    /// Where the first failure closed the mailbox.
+    pub(super) fn closed_site(&self) -> Option<ClosedSite> {
+        self.lock().closed_site
     }
 
     fn transition_refresh(
@@ -3972,7 +4017,14 @@ impl CommandMailbox {
         }
     }
 
+    #[track_caller]
     fn close_locked(&self, state: &mut MailboxState, failure: CarrierFailure) -> MailboxClosed {
+        if state.closed.is_none() {
+            state.closed_site = Some(ClosedSite {
+                location: Location::caller(),
+                command: state.active_lease.map(|lease| lease.command),
+            });
+        }
         let failure = *state.closed.get_or_insert(failure);
         state.queue.clear();
         state.active_lease = None;
@@ -3995,6 +4047,7 @@ impl CommandMailbox {
         MailboxClosed { failure }
     }
 
+    #[track_caller]
     fn close_admission<BuildError>(
         &self,
         state: &mut MailboxState,
@@ -4003,18 +4056,22 @@ impl CommandMailbox {
         AdmissionError::Closed(self.close_locked(state, failure))
     }
 
+    #[track_caller]
     fn close_protocol(&self, state: &mut MailboxState) -> EventError {
         EventError::Closed(self.close_locked(state, CarrierFailure::Protocol))
     }
 
+    #[track_caller]
     fn close_identity_exhausted(&self, state: &mut MailboxState) -> EventError {
         EventError::Closed(self.close_locked(state, CarrierFailure::IdentityExhausted))
     }
 
+    #[track_caller]
     fn close_deadline(&self, state: &mut MailboxState) -> EventError {
         EventError::Closed(self.close_locked(state, CarrierFailure::Deadline))
     }
 
+    #[track_caller]
     fn close_failure(&self, state: &mut MailboxState, failure: CarrierFailure) -> EventError {
         EventError::Closed(self.close_locked(state, failure))
     }

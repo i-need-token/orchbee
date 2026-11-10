@@ -1149,6 +1149,219 @@ fn a_panel_close_confirmed_while_another_close_reads_is_never_dropped_silently()
     );
 }
 
+/// Regression (ORC-430): when every Panel of the only Tab was closing and one close stopped, the
+/// Panel it showed again took the focus in the Client but not in the mailbox, so the next keystroke
+/// or publication retired the Client. A focus that a close settlement moves is the focus input
+/// reaches.
+#[test]
+fn a_panel_a_stopped_close_shows_again_takes_typing_and_keeps_the_client() {
+    use crate::exchange_values::workbench::panel_close::WorkbenchPanelCloseAccepted;
+    use crate::workbench_client::mailbox::{CommandLease, MutationResult};
+    use crate::workbench_state::{CloseOperationKind, CloseResult, PanelResult};
+    use orchbee_client_server_protocol::ControllerId;
+    use orchbee_workbench_protocol::{
+        PanelNode, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+        WorkbenchTabClosePhase, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus,
+    };
+    use std::sync::atomic::Ordering;
+
+    // One Tab of two Panels; the second is unbound, so the focus can move onto it without an
+    // attach.
+    let mut source = super::super::tests::publication_hint::split_snapshot(1);
+    source.terminal_contexts[0].tabs.truncate(1);
+    let PanelNode::Split { children, .. } = &mut source.terminal_contexts[0].tabs[0].root else {
+        unreachable!("the split fixture");
+    };
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut children[1].node
+    else {
+        unreachable!("the split fixture's second leaf");
+    };
+    primary_presentation.binding = None;
+    let (mut ui, mailbox, clock, elapsed) =
+        super::super::tests::move_membership::ready_ui_with_mode(
+            source.clone(),
+            ControllerMode::Controlling(ControllerId::parse(&format!("{:032x}", 1)).unwrap()),
+        );
+
+    // Plays the worker for everything this test does not hold: a Poll finishes unanswered and a
+    // publication read finds the Workbench unchanged. Returns the first other command.
+    let serve = |ui: &mut WorkbenchClientUi| -> Option<CommandLease> {
+        while let Some(lease) = mailbox.try_recv().unwrap() {
+            match lease.record() {
+                QueuedCommand::Poll(_) => mailbox.finish_lease(lease).unwrap(),
+                QueuedCommand::Refresh(marker) => {
+                    let (generation, deadline) = (marker.generation(), marker.deadline());
+                    assert_eq!(
+                        mailbox.mark_refresh_in_flight(generation).unwrap(),
+                        MutationResult::Applied
+                    );
+                    let wait = mailbox
+                        .publish_refresh_result_before(
+                            generation,
+                            WorkbenchSnapshotOutcome::Available {
+                                snapshot: source.clone(),
+                            },
+                            deadline,
+                            &clock,
+                        )
+                        .unwrap();
+                    ui.tick();
+                    let _ = mailbox.take_deposited_reply(&wait);
+                    mailbox.finish_lease(lease).unwrap();
+                }
+                _ => return Some(lease),
+            }
+        }
+        None
+    };
+    // Closes the focused Panel and has the Server accept the close.
+    let close_focused_panel = |ui: &mut WorkbenchClientUi| -> WorkbenchPanelId {
+        ui.apply_client_action(ClientAction::ClosePanel);
+        if panel_confirmation_drawn(ui) {
+            draw_panel_prompt(ui);
+            assert!(ui.capture_confirmation_key(ClientKey::Enter));
+        }
+        let lease = serve(ui).expect("the Panel close");
+        let QueuedCommand::Panel(marker) = lease.record() else {
+            panic!("one Panel marker");
+        };
+        let operation = marker.operation().clone();
+        assert_eq!(
+            mailbox.mark_panel_in_flight(&operation).unwrap(),
+            MutationResult::Applied
+        );
+        let wait = mailbox
+            .publish_panel_result_before(
+                operation.clone(),
+                PanelResult::CloseAccepted(WorkbenchPanelCloseAccepted {
+                    close_request_id: operation.request_id().clone(),
+                    terminal_context_id: operation
+                        .baseline()
+                        .terminal_context_id()
+                        .unwrap()
+                        .clone(),
+                    tab_id: operation.target().tab_id().clone(),
+                    panel_id: operation.panel_id().clone(),
+                    accepted_revision: operation.baseline().revision(),
+                }),
+                operation.deadline(),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+        mailbox.finish_lease(lease).unwrap();
+        ui.tick();
+        operation.panel_id().clone()
+    };
+    // Answers each status read the Client sends with the status `answer` gives the Panel it reads,
+    // until `until` has been read.
+    let read_until =
+        |ui: &mut WorkbenchClientUi,
+         until: &WorkbenchPanelId,
+         answer: &dyn Fn(&WorkbenchPanelId) -> WorkbenchTabCloseStatus| {
+            for _ in 0..8 {
+                elapsed.fetch_add(1_000, Ordering::SeqCst);
+                ui.tick();
+                while let Some(lease) = serve(ui) {
+                    let QueuedCommand::Close(marker) = lease.record() else {
+                        mailbox.finish_lease(lease).unwrap();
+                        continue;
+                    };
+                    let read = marker.operation().clone();
+                    let CloseOperationKind::Read {
+                        expected_operation: Some(close_request_id),
+                        ..
+                    } = read.kind().clone()
+                    else {
+                        panic!("an accepted Panel close is read by its operation");
+                    };
+                    let panel = read.key().target().panel_id().unwrap().clone();
+                    assert_eq!(
+                        mailbox.mark_close_in_flight(&read).unwrap(),
+                        MutationResult::Applied
+                    );
+                    let wait = mailbox
+                        .publish_close_result_before(
+                            read.clone(),
+                            CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
+                                close_request_id,
+                                terminal_context_id: read
+                                    .key()
+                                    .target()
+                                    .terminal_context_id()
+                                    .clone(),
+                                tab_id: read.key().target().tab_id().clone(),
+                                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1)
+                                    .unwrap(),
+                                status: answer(&panel),
+                            }),
+                            read.deadline(),
+                            &clock,
+                        )
+                        .unwrap();
+                    ui.tick();
+                    let _ = mailbox.take_deposited_reply(&wait);
+                    mailbox.finish_lease(lease).unwrap();
+                    if &panel == until {
+                        return;
+                    }
+                }
+            }
+            panic!("the Client never read the close of {until:?}");
+        };
+    let closing = |_: &WorkbenchPanelId| WorkbenchTabCloseStatus::Closing {
+        phase: WorkbenchTabClosePhase::WaitingGrace,
+    };
+    assert!(serve(&mut ui).is_none());
+
+    // The live Panel closes first and the focus moves onto the unbound one, which closes next:
+    // every Panel of the only Tab is now closing.
+    let live = close_focused_panel(&mut ui);
+    read_until(&mut ui, &live, &closing);
+    let unbound = close_focused_panel(&mut ui);
+    assert_ne!(live, unbound);
+    assert!(!ui.retirement_requested());
+
+    // The live Panel's close stops: that Panel shows again and takes the focus.
+    let blocked = |panel: &WorkbenchPanelId| {
+        if *panel == live {
+            WorkbenchTabCloseStatus::CleanupBlocked {
+                reason: WorkbenchTabCloseBlockedReason::HostRefused,
+                resumable: true,
+            }
+        } else {
+            closing(panel)
+        }
+    };
+    read_until(&mut ui, &live, &blocked);
+    assert!(!ui.retirement_requested());
+    assert_eq!(ui.state.as_ref().unwrap().focus_panel_id(), Some(&live));
+
+    // Typing reaches the Panel shown again, and a publication keeps the Client connected.
+    let typed = ui.forward(b"ls\r");
+    assert!(!ui.retirement_requested(), "typing retired the Client");
+    assert!(typed, "typing into the focused Panel");
+    let lease = serve(&mut ui).expect("the typed input");
+    assert!(matches!(
+        lease.record(),
+        QueuedCommand::Input(tagged) if tagged.key().pane().panel() == &live
+    ));
+    mailbox.finish_lease(lease).unwrap();
+    ui.state.as_mut().unwrap().note_publication_hint();
+    ui.tick();
+    while let Some(lease) = serve(&mut ui) {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert!(
+        !ui.retirement_requested(),
+        "a publication retired the Client"
+    );
+}
+
 /// The Tab close confirmation follows the same rule: confirmed while a background publication
 /// read holds the slot its submission needs, the close goes out exactly once, or a visible reason
 /// shows.
