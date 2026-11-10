@@ -25,13 +25,21 @@
 }
 
 /* Both sides hold both sides' contents, one of them hidden, so they start at the same width and
-   grow alike. A window too narrow for that first narrows the current Tab to 96 px; then the start
-   gives up the hidden copy, down to the sidebar button's place, so nothing leaves the bar. The
-   Tab's shrink weight dwarfs the start's, so the start's share before then stays under a pixel. */
+   grow alike. The end never shrinks, so the window's own controls and both buttons keep their
+   places; a window too narrow for both sides takes only the start's and the current Tab's shared
+   box. That box first narrows the current Tab to 96 px, since the Tab's shrink weight dwarfs the
+   start's; then the start gives up the hidden copy, down to the sidebar button's place, by its
+   maximum width; then the current Tab narrows to its icon and hides. */
+.lead {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: var(--ob-ref-space-0);
+	column-gap: var(--ob-ref-space-3);
+}
+
 .start,
 .end {
 	display: grid;
-	flex: 1 0 content;
 }
 
 .start > *,
@@ -39,12 +47,16 @@
 	grid-area: 1 / 1;
 }
 
+/* Its growth weight dwarfs the current Tab's, so it takes the box's whole share of the bar while
+   the Tab fits, and the Tab takes what the maximum width leaves once it does not. */
 .start {
-	flex-shrink: 1;
+	flex: 10000 1 content;
+	max-width: calc(100% - var(--ob-ref-space-24) - var(--ob-ref-space-3));
 	justify-items: start;
 }
 
 .end {
+	flex: 1 0 content;
 	justify-items: end;
 }
 
@@ -62,35 +74,60 @@
 	flex: none;
 }
 
-/* The sidebar button's place: its fill and 4 px on each side. As the start's width, it is also
-   the start's floor, because a flex item's automatic minimum never exceeds its own width. */
-.start,
+/* The sidebar button's place: its fill and 4 px on each side. As the start's minimum width, it is
+   also the start's floor, which its maximum width never cuts. */
 .leading {
 	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-2));
 }
 
-.root[data-touch] .start,
+.start {
+	min-width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-2));
+}
+
 .root[data-touch] .leading {
 	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
-.middle {
-	display: flex;
-	flex: 0 10000 auto;
-	min-width: var(--ob-ref-space-24);
-	align-items: flex-end;
-	align-self: stretch;
-	justify-content: center;
-	margin: var(--ob-ref-space-0);
-	padding: var(--ob-ref-space-0);
-	border: none;
-	background: none;
-	color: inherit;
-	cursor: default;
+.root[data-touch] .start {
+	min-width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
-.middle:focus-visible {
-	outline: none;
+/* The current Tab's place: its 96 px strut keeps it that wide while the bar has the room, so the
+   sides around it stay alike, and in Desktop it is the window's drag surface beside the Tab. */
+.middle {
+	display: grid;
+	flex: 1 10000 auto;
+	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
+	min-width: var(--ob-ref-space-0);
+	align-self: stretch;
+	overflow: hidden;
+}
+
+.middle::before {
+	width: var(--ob-ref-space-24);
+	content: '';
+}
+
+.middle::before,
+.row {
+	grid-area: 1 / 1;
+}
+
+/* The bar-high strut keeps the Tab on the first line while its icon fits, and a narrower place
+   wraps the Tab to a second line, which the place clips. */
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	align-items: flex-end;
+	justify-content: center;
+	min-width: var(--ob-ref-space-0);
+}
+
+.row::before {
+	flex: none;
+	height: 100%;
+	content: '';
 }
 
 /* The current Tab as the strip draws it: the content's surface, 4 px below the bar's top and joined
@@ -98,21 +135,27 @@
 .tab {
 	display: flex;
 	box-sizing: border-box;
+	flex: 0 1 auto;
 	height: calc(100% - var(--ob-ref-space-1));
-	min-width: var(--ob-ref-space-0);
+	min-width: calc(var(--ob-ref-size-icon-md) + 2 * var(--ob-ref-space-2));
 	max-width: 100%;
 	align-items: center;
 	gap: var(--ob-ref-space-1-5);
+	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-0) var(--ob-ref-space-2) var(--ob-ref-space-1);
+	overflow: hidden;
+	border: none;
 	border-radius: var(--ob-ref-radius-ui-md) var(--ob-ref-radius-ui-md) var(--ob-ref-radius-none)
 		var(--ob-ref-radius-none);
 	background: var(--ob-sys-color-surface-raised);
 	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-label-md);
 	white-space: nowrap;
+	cursor: default;
 }
 
-.middle:focus-visible .tab {
+.tab:focus-visible {
+	outline: none;
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 

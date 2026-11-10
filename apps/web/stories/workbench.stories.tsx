@@ -861,6 +861,26 @@ export const MobileLayout: Story = {
 	),
 };
 
+/** The mobile layout in Chinese, whose wider `标签页 8` leaves the current Tab less of the bar. */
+export const MobileLayoutChinese: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(
+			Array.from({ length: 8 }, (_, index) => `终端 ${index + 1}`),
+		),
+		shortcutPlatform: 'standard',
+	},
+	globals: { viewport: { isRotated: false, value: 'mobile2' } },
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
+			<div style={{ height: '100dvh' }}>
+				<Workbench {...arguments_} />
+			</div>
+		</OrchbeeI18nProvider>
+	),
+};
+
 /** The window while the Server holds no Workspace. */
 export const NoWorkspace: Story = {
 	args: {

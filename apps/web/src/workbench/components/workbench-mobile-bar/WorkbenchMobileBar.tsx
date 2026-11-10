@@ -30,6 +30,8 @@ interface WorkbenchMobileBarProps {
  * list. The sidebar button itself floats above the start, where it stands in every layout. Each
  * side holds both sides' contents, one of them hidden, so the two take the same width and the
  * current Tab stays centered whatever stands at either edge, a desktop window's controls included.
+ * The start and the current Tab share one box, so a narrow window takes their space and never the
+ * end's.
  */
 export function WorkbenchMobileBar({
 	covered,
@@ -83,32 +85,34 @@ export function WorkbenchMobileBar({
 			inert={covered}
 			onClick={onOpenTabList}
 		>
-			<span className={styles['start']} data-slot='workbench-mobile-bar-start'>
-				{leading(true)}
-				{end(false)}
+			<span className={styles['lead']}>
+				<span className={styles['start']} data-slot='workbench-mobile-bar-start'>
+					{leading(true)}
+					{end(false)}
+				</span>
+				<span className={styles['middle']}>
+					{current === null || title === null ? null : (
+						<span className={styles['row']}>
+							<button
+								aria-label={intl.formatMessage(workbenchMessages.mobileCurrentTab, { name: title })}
+								className={styles['tab']}
+								data-slot='workbench-mobile-bar-current-tab'
+								type='button'
+							>
+								<TabIcon
+									identityIcon={identityIcons?.get(current.id)}
+									statusAdornment={statusAdornments?.get(current.id)}
+									tab={current}
+								/>
+								<span className={styles['name']}>{title}</span>
+								{statusAdornments?.get(current.id)?.unreadLabel === undefined ? null : (
+									<span className={styles['dot']} />
+								)}
+							</button>
+						</span>
+					)}
+				</span>
 			</span>
-			{current === null || title === null ? (
-				<span className={styles['middle']} />
-			) : (
-				<button
-					aria-label={intl.formatMessage(workbenchMessages.mobileCurrentTab, { name: title })}
-					className={styles['middle']}
-					data-slot='workbench-mobile-bar-current-tab'
-					type='button'
-				>
-					<span className={styles['tab']}>
-						<TabIcon
-							identityIcon={identityIcons?.get(current.id)}
-							statusAdornment={statusAdornments?.get(current.id)}
-							tab={current}
-						/>
-						<span className={styles['name']}>{title}</span>
-						{statusAdornments?.get(current.id)?.unreadLabel === undefined ? null : (
-							<span className={styles['dot']} />
-						)}
-					</span>
-				</button>
-			)}
 			<span className={styles['end']}>
 				{leading(false)}
 				{end(true)}
