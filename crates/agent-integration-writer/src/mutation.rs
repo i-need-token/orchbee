@@ -1396,7 +1396,12 @@ fn disable_vector(
                             "--json".into(),
                         ]);
                     }
-                    if inspection.marketplace == Marketplace::Outdated {
+                    #[cfg(windows)]
+                    let removes_marketplace =
+                        codex_windows::disable_removes_marketplace(inspection.marketplace);
+                    #[cfg(not(windows))]
+                    let removes_marketplace = inspection.marketplace == Marketplace::Outdated;
+                    if removes_marketplace {
                         commands.push(vec![
                             "plugin".into(),
                             "marketplace".into(),
@@ -1405,11 +1410,18 @@ fn disable_vector(
                             "--json".into(),
                         ]);
                     }
-                    if commands.is_empty() {
+                    let attempt = if commands.is_empty() {
                         Attempt::Attempted
                     } else {
                         run_codex_sequence(&exe, &commands, context, reserve, attempted, effect)
+                    };
+                    #[cfg(windows)]
+                    if attempt == Attempt::Attempted {
+                        return codex_windows::finish_disable(
+                            context, attempted, residuals, effect,
+                        );
                     }
+                    attempt
                 }
             }
         }

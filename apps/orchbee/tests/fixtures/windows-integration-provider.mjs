@@ -22,14 +22,27 @@ if (
 	// Codex canonicalizes local sources with Rust's verbatim drive prefix.
 	state.source = words[3].startsWith('\\\\?\\') ? words[3] : `\\\\?\\${words[3]}`;
 } else if (
+	words.length === 5 &&
+	words.slice(0, 3).join(' ') === 'plugin marketplace remove' &&
+	words[3] === 'orchbee-local' &&
+	words[4] === '--json'
+) {
+	state.source = null;
+} else if (
 	words.length === 4 &&
 	words[0] === 'plugin' &&
 	words[2] === id &&
 	words[3] === '--json'
 ) {
-	if (words[1] === 'add') state.plugin = true;
-	else if (words[1] === 'remove') state.plugin = false;
-	else process.exit(2);
+	// Like Codex 0.167, removal keeps the marketplace's now empty cache folder.
+	const cache = path.join(root, 'plugins', 'cache', 'orchbee-local');
+	if (words[1] === 'add') {
+		state.plugin = true;
+		fs.mkdirSync(path.join(cache, 'orchbee-agent-observation', 'installed'), { recursive: true });
+	} else if (words[1] === 'remove') {
+		state.plugin = false;
+		fs.rmSync(path.join(cache, 'orchbee-agent-observation'), { recursive: true, force: true });
+	} else process.exit(2);
 } else {
 	process.exit(2);
 }

@@ -82,6 +82,16 @@ The capsule uses Copilot's exec hook form with Node. The fixed import guard read
 
 Provider package versions remain required inventory metadata, but never order capsule identities. Missing metadata is uninspectable; a different managed source digest requires repair.
 
+## Windows Codex hooks
+
+Codex 0.167 runs a plugin hook's `commandWindows` through the session shell it detected: PowerShell with `-NoProfile -Command` (PowerShell 7, else Windows PowerShell), or `cmd.exe /C` when it detected none. The hook inherits the Agent's environment, including the observation endpoint and run token, plus `PLUGIN_ROOT`, the plugin's cache copy under the Codex root; under an explicit `CODEX_HOME` that root has the verbatim `\\?\` spelling. A cmd-only command fails every hook with exit 1 under PowerShell, so the capsule uses one fixed base64 Node bootstrap that runs unchanged in all three shells and reads `PLUGIN_ROOT` only as data. The [adapter guide](../../../crates/agent-integration-writer/agent-observation-adapters/README.md#windows-codex-transport) owns the command and its transport evidence.
+
+Codex runs a plugin's hooks only after the user trusts them in its Hooks review (`/hooks`), and stores that decision as `[hooks.state."<hook key>"]` hashes in its configuration and a baseline under `.hook-trust`. Codex documents no non-interactive trust for one plugin; its bypass flag trusts every hook of an invocation. Orchbee therefore never writes or bypasses trust. Until the user trusts the hooks, a start from the Agent board waits and asks the user to check the Agent terminal, where Codex shows the review. Trusted hooks run from the next event of the same Codex session.
+
+Codex 0.167 starts every hook with `CREATE_NO_WINDOW`, which gives the hook process its own hidden console. The envelope reaches the Server, but the correlation hint the transport writes to `\\.\CONOUT$` lands in that hidden console instead of the Agent's terminal, and the Server binds an observation only with both halves. A Windows Codex Agent therefore keeps its terminal-detected state, with no canonical session, start confirmation or resume. The same hook run in the Agent's console binds, so delivery and the hook command are not the cause. Binding without the hint would make an environment value grant terminal identity, which the transport contract forbids; that limitation stays open until the contract changes.
+
+Disable removes Orchbee's plugin, then Orchbee's own marketplace whether current or outdated, then the `plugins/cache/orchbee-local` folder Codex leaves empty. A folder that still has content stays and is named as a residual. Trust records stay: Codex wrote them to record the user's security decision, which makes them provider configuration under the ownership rule above. They are inert without the plugin, and Codex asks again whenever the hooks change.
+
 ## Windows TOML and Grok local state
 
 Windows Codex inspection and mutation share one validated configuration root: a nonempty

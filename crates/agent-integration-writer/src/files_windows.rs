@@ -397,6 +397,28 @@ pub(crate) fn remove_owned(target: &Path, is_directory: bool) -> FsStep {
     }
 }
 
+/// Removes `path` only while it is an empty ordinary directory. `Ok(false)`
+/// means it, or its parent, is absent; a nonempty directory stays and returns
+/// `DirectoryNotEmpty`.
+pub(crate) fn remove_empty_directory(path: &Path) -> io::Result<bool> {
+    let _parents = match pin_parent(path) {
+        Ok(parents) => parents,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    if !metadata.is_dir() || metadata.file_attributes() & REPARSE != 0 {
+        return Err(denied());
+    }
+    // Parent handles pin the path, and the system removes only an empty
+    // directory, so no content can be lost to a concurrent arrival.
+    fs::remove_dir(path).map(|()| true)
+}
+
 fn remove_entry(
     path: &Path,
     is_directory: bool,

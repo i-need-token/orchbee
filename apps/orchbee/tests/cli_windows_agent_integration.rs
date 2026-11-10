@@ -2177,11 +2177,26 @@ fn onboarding_is_idempotent_and_disable_preserves_user_configuration() {
     let calls = fixture.calls();
     fixture.document("enable", 0);
     assert_eq!(fixture.calls(), calls, "enabled entry must not reinstall");
-    fixture.document("disable", 0);
+    let cache = fixture.config_home().join("plugins/cache/orchbee-local");
+    assert!(cache.is_dir());
+    let disabled = fixture.document("disable", 0);
+    assert!(
+        disabled["result"]["attempted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|step| step["operation"] == "remove-entry"),
+        "{disabled}"
+    );
     assert_eq!(
         fixture.document("list", 0)["result"]["integrations"][0]["state"],
         "not-installed"
     );
+    // Disable removes everything enable added: the marketplace as well as the
+    // plugin, and the empty cache folder Codex keeps under the marketplace name.
+    let configuration = fs::read_to_string(fixture.config_home().join("config.toml")).unwrap();
+    assert!(!configuration.contains("orchbee"), "{configuration}");
+    assert!(!cache.exists());
     let calls = fixture.calls();
     fixture.document("disable", 0);
     assert_eq!(

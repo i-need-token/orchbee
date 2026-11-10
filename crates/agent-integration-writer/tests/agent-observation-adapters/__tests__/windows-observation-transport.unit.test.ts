@@ -150,117 +150,136 @@ describe('Windows Agent observation transport', () => {
 	);
 
 	it.runIf(process.platform === 'win32')(
-		'provides silent Windows hooks that succeed when the plugin runtime is missing',
+		'runs every Codex Windows hook silently in each shell Codex uses when the plugin runtime is missing',
 		async () => {
-			const hooks = z
-				.object({
-					hooks: z.record(
-						z.string(),
-						z.array(
-							z.object({
-								hooks: z.array(z.object({ command: z.string(), commandWindows: z.string() })),
-							}),
-						),
-					),
-				})
-				.parse(JSON.parse(await readFile(path.join(resourceRoot, 'hooks/codex.json'), 'utf8')));
-			const commands = new Set<string>();
-			for (const groups of Object.values(hooks.hooks)) {
-				for (const group of groups) {
-					for (const hook of group.hooks) {
-						expect(hook.command).toContain('command -v node');
-						expect(hook.commandWindows).toContain('%PLUGIN_ROOT%');
-						commands.add(hook.commandWindows);
-					}
-				}
-			}
-			expect(commands.size).toBe(1);
-			for (const command of commands) {
-				const child = spawnSync(
-					process.env['COMSPEC'] ?? 'cmd.exe',
-					['/d', '/s', '/c', `"${command}"`],
-					{
-						windowsVerbatimArguments: true,
+			for (const command of await codexWindowsCommands()) {
+				for (const shell of codexHookShells(command)) {
+					const child = spawnSync(shell.file, shell.args, {
+						windowsVerbatimArguments: shell.verbatim,
 						encoding: 'utf8',
 						env: { ...process.env, PLUGIN_ROOT: path.join(resourceRoot, 'missing-plugin-root') },
 						input: '{}',
-						timeout: 5_000,
+						timeout: 10_000,
 						windowsHide: true,
-					},
-				);
-				expect(child.error).toBeUndefined();
-				expect(child.status).toBe(0);
-				expect(child.stdout).toBe('');
-				expect(child.stderr).toBe('');
+					});
+					expect({
+						shell: shell.file,
+						error: child.error,
+						status: child.status,
+						stdout: child.stdout,
+						stderr: child.stderr,
+					}).toEqual({ shell: shell.file, error: undefined, status: 0, stdout: '', stderr: '' });
+				}
 			}
 		},
 	);
 
 	it.runIf(process.platform === 'win32')(
-		'executes the declared Codex Windows command and sends only sanitized data',
+		'delivers only sanitized data from the Codex Windows hook in each shell Codex uses',
 		async () => {
-			const hooks = z
-				.object({
-					hooks: z.object({
-						SessionStart: z.array(
-							z.object({ hooks: z.array(z.object({ commandWindows: z.string() })) }),
-						),
-					}),
-				})
-				.parse(JSON.parse(await readFile(path.join(resourceRoot, 'hooks/codex.json'), 'utf8')));
-			const command = hooks.hooks.SessionStart[0]?.hooks[0]?.commandWindows;
-			expect(command).toBeDefined();
-			const envelopes: string[] = [];
-			// Reject the envelope so this process test never writes to the runner's console.
-			await withPipe(
-				'{"accepted":false,"version":1}\n',
-				async (pipe) => {
-					const child = promisify(execFile)(
-						process.env['COMSPEC'] ?? 'cmd.exe',
-						['/d', '/s', '/c', `"${command}"`],
-						{
-							// The source Capsule has no owner record, so it is release's.
-							env: {
-								...process.env,
-								ORCHBEE_ENVIRONMENT: 'orchbee',
-								PLUGIN_ROOT: resourceRoot,
-								[endpointName]: pipe,
+			const commands = await codexWindowsCommands();
+			for (const command of commands) {
+				for (const shell of codexHookShells(command)) {
+					// Codex canonicalizes an explicit CODEX_HOME, which gives a verbatim plugin root.
+					for (const pluginRoot of [resourceRoot, `\\\\?\\${resourceRoot}`]) {
+						const envelopes: string[] = [];
+						// Reject the envelope so this process test never writes to the runner's console.
+						await withPipe(
+							'{"accepted":false,"version":1}\n',
+							async (pipe) => {
+								const child = promisify(execFile)(shell.file, shell.args, {
+									// The source Capsule has no owner record, so it is release's.
+									env: {
+										...process.env,
+										ORCHBEE_ENVIRONMENT: 'orchbee',
+										PLUGIN_ROOT: pluginRoot,
+										[endpointName]: pipe,
+									},
+									timeout: 10_000,
+									windowsHide: true,
+									windowsVerbatimArguments: shell.verbatim,
+								});
+								child.child.stdin?.end(
+									JSON.stringify({
+										hook_event_name: 'SessionStart',
+										session_id: 'windows-session-1',
+										prompt: 'PRIVATE_PROMPT',
+										cwd: 'PRIVATE_DIRECTORY',
+									}),
+								);
+								const output = await child;
+								expect(output.stdout).toBe('');
+								expect(output.stderr).toBe('');
+								return true;
 							},
-							timeout: 5_000,
-							windowsHide: true,
-							windowsVerbatimArguments: true,
-						},
-					);
-					child.child.stdin?.end(
-						JSON.stringify({
-							hook_event_name: 'SessionStart',
-							session_id: 'windows-session-1',
-							prompt: 'PRIVATE_PROMPT',
-							cwd: 'PRIVATE_DIRECTORY',
-						}),
-					);
-					const output = await child;
-					expect(output.stdout).toBe('');
-					expect(output.stderr).toBe('');
-					return true;
-				},
-				(payload) => envelopes.push(payload),
-			);
-			expect(envelopes).toHaveLength(1);
-			const envelope = z
-				.object({
-					adapterId: z.literal('codex'),
-					observation: z.object({
-						sessionKey: z.literal('windows-session-1'),
-						event: z.literal('session-started'),
-					}),
-				})
-				.parse(JSON.parse(envelopes[0] ?? 'null'));
-			expect(envelope.adapterId).toBe('codex');
-			expect(envelopes.join('')).not.toContain('PRIVATE_');
+							(payload) => envelopes.push(payload),
+						);
+						expect({ shell: shell.file, pluginRoot, count: envelopes.length }).toEqual({
+							shell: shell.file,
+							pluginRoot,
+							count: 1,
+						});
+						const envelope = z
+							.object({
+								adapterId: z.literal('codex'),
+								observation: z.object({
+									sessionKey: z.literal('windows-session-1'),
+									event: z.literal('session-started'),
+								}),
+							})
+							.parse(JSON.parse(envelopes[0] ?? 'null'));
+						expect(envelope.adapterId).toBe('codex');
+						expect(envelopes.join('')).not.toContain('PRIVATE_');
+					}
+				}
+			}
 		},
 	);
 });
+
+async function codexWindowsCommands(): Promise<Set<string>> {
+	const hooks = z
+		.object({
+			hooks: z.record(
+				z.string(),
+				z.array(z.object({ hooks: z.array(z.object({ commandWindows: z.string() })) })),
+			),
+		})
+		.parse(JSON.parse(await readFile(path.join(resourceRoot, 'hooks/codex.json'), 'utf8')));
+	return new Set(
+		Object.values(hooks.hooks).flatMap((groups) =>
+			groups.flatMap((group) => group.hooks.map((hook) => hook.commandWindows)),
+		),
+	);
+}
+
+/**
+ * Codex runs a Windows hook through its session shell: PowerShell (pwsh, else Windows
+ * PowerShell) with `-NoProfile -Command`, or cmd with `/c` and the command quoted raw.
+ */
+function codexHookShells(
+	command: string,
+): Array<{ file: string; args: string[]; verbatim: boolean }> {
+	const systemRoot = process.env['SystemRoot'] ?? String.raw`C:\Windows`;
+	const shells = [
+		{
+			file: path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+			args: ['-NoProfile', '-Command', command],
+			verbatim: false,
+		},
+		{
+			file: process.env['COMSPEC'] ?? 'cmd.exe',
+			args: ['/c', `"${command}"`],
+			verbatim: true,
+		},
+	];
+	const pwsh = spawnSync('where.exe', ['pwsh.exe'], { encoding: 'utf8', windowsHide: true });
+	const pwshPath = pwsh.status === 0 ? pwsh.stdout.split(/\r?\n/u)[0]?.trim() : undefined;
+	if (pwshPath !== undefined && pwshPath !== '') {
+		shells.push({ file: pwshPath, args: ['-NoProfile', '-Command', command], verbatim: false });
+	}
+	return shells;
+}
 
 async function withPipe(
 	response: string,

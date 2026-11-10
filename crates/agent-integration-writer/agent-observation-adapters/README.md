@@ -11,8 +11,12 @@ installs it; native staging and Desktop packaging copy it into each cohort.
 ## Windows Codex transport
 
 The native Windows cohort uses the same v1 rich-envelope/private-APC join. The capsule
-supplies Codex `commandWindows` hooks, using the provider's existing `cmd.exe /C`
-execution contract and `PLUGIN_ROOT`. The Windows x64 cohort must include its pinned ConPTY runtime: the inbox ConHost may
+supplies Codex `commandWindows` hooks. Codex 0.167 runs them through the session shell:
+PowerShell with `-NoProfile -Command`, or `cmd.exe /C` when it detects no shell. Each hook is
+therefore the fixed base64 Node bootstrap described for Grok, which runs unchanged in
+PowerShell 5.1, PowerShell 7 and cmd. It reads `PLUGIN_ROOT` as data, accepts the verbatim
+`\\?\` spelling Codex gives it under an explicit `CODEX_HOME`, sets the literal script and
+provider arguments, and stays silent when the root or script is absent. The Windows x64 cohort must include its pinned ConPTY runtime: the inbox ConHost may
 consume private APC sequences. Windows does not gain Unix remote discovery or
 additional provider installation support through this adapter change. Native managed
 enable/disable and start/prompt remain separate CLI obligations.
@@ -20,7 +24,7 @@ enable/disable and start/prompt remain separate CLI obligations.
 | Field                    | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem and owner        | Codex command hooks in an Orchbee ConPTY must reach the native Server's existing observation ingress. The shared adapter owns delivery; Server/Host retain envelope validation, generation identity and the exact join.                                                                                                                                                                                                                                                |
-| Inputs and reference     | Allowlisted normalized Codex events, the inherited `ORCHBEE_AGENT_OBSERVATION_SOCKET` and the provider-supplied plugin root. Codex 0.155.1's Windows hook contract accepts `commandWindows` and retains the parent's console despite redirecting standard streams. Environment strings never grant Agent or terminal identity.                                                                                                                                         |
+| Inputs and reference     | Allowlisted normalized Codex events, the inherited `ORCHBEE_AGENT_OBSERVATION_SOCKET` and the provider-supplied plugin root. Codex 0.167.0's Windows hook contract accepts `commandWindows` and runs it in the session shell, but with `CREATE_NO_WINDOW`, so the hook has its own hidden console and its correlation hint never reaches the Agent's terminal. Environment strings never grant Agent or terminal identity.                                             |
 | Endpoint policy          | Admit only the exact local pipe spelling `\\.\pipe\orchbee-<32-lowercase-hex>-observation`. Missing, malformed, remote UNC and non-observation targets produce no delivery. Windows never scans pipes, files or Unix SSH forwards. The injected endpoint and native Server ACL provide routing; the adapter does not claim to inspect pipe ownership.                                                                                                                  |
 | Correlation target       | Use only the literal device `\\.\CONOUT$`, opened with read/write access and verified as a character device before writing. Never use a relative `CONOUT$`, environment-selected device, stdout or stderr. Direct visibility remains unknown. Missing console means no hint; no fallback may redirect the hint into a file.                                                                                                                                            |
 | Workflow and transitions | Validate observation → resolve exact endpoint and fixed console target → send bounded content-free envelope → wait for exact bounded ACK → write the matching private APC → close the console handle. Missing endpoint, invalid input, timeout, rejected ACK and open/write failure stop the affected delivery. Rich-only events expire under the existing ingress rules.                                                                                              |
@@ -33,7 +37,7 @@ enable/disable and start/prompt remain separate CLI obligations.
 | Adapter            | Reference version                       | Integration surface      | Maximum status evidence                                                                                      |
 | ------------------ | --------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Claude Code        | Current documented hook/plugin contract | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion, failure                           |
-| Codex              | `0.150.1` (Unix), `0.155.1` (Windows)   | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
+| Codex              | `0.150.1` (Unix), `0.167.0` (Windows)   | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
 | Grok               | `1.0.5`                                 | Command-hook plugin      | Session, Turn, tool, approval, compaction, subagent, idle, completion, failure, cancellation, interruption   |
 | OpenCode           | `1.3.4`–`1.18.30`; `2.2.5` Windows TUI  | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error (1.x); displayed root session, busy/idle (2.x)     |
 | Kilo               | `cb67014f`                              | JavaScript plugin events | Session, busy/retry/idle/offline question, chat, tool, question, approval, error                             |
@@ -100,7 +104,7 @@ codex plugin marketplace add <adapter-root>
 codex plugin add orchbee-agent-observation@orchbee-local
 ```
 
-Review and trust the bundled hooks when Codex asks. Use
+Codex runs the bundled hooks only after you trust them in its Hooks review (`/hooks`). Use
 `codex plugin remove orchbee-agent-observation@orchbee-local` to roll back.
 
 ### Grok
