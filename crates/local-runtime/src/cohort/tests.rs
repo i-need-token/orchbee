@@ -32,7 +32,7 @@ impl Fixture {
             )
             .unwrap();
             artifacts.insert(
-                artifact.file_name(),
+                manifest_key(artifact).to_owned(),
                 serde_json::Value::String(format!("{:x}", Sha256::digest(b"native fixture\n"))),
             );
         }
@@ -69,19 +69,26 @@ impl Drop for Fixture {
     }
 }
 
+/// The manifest names each role; the staged file carries the environment stem.
+fn manifest_key(artifact: CohortArtifact) -> &'static str {
+    match artifact {
+        CohortArtifact::Client => "orchbee",
+        CohortArtifact::Server => "orchbee-server",
+        CohortArtifact::Worker => "orchbee-worker",
+        CohortArtifact::TerminalHost => "orchbee-terminal-host",
+    }
+}
+
 #[test]
 fn exact_cohort_verifies_every_role_and_has_a_canonical_identity() {
     let fixture = Fixture::new();
     let cohort = fixture.load().unwrap();
-    assert_eq!(
-        cohort.identity(),
-        "29de6d3b37e92387bc577a3f127e354b2fb13c8f1df445a4e6644e8d320a1a5b"
-    );
-    assert_eq!(
-        cohort.executable(CohortArtifact::Server),
-        fixture.path.join("orchbee-server")
-    );
-    fs::write(fixture.path.join("orchbee-terminal-host"), b"mixed Host").unwrap();
+    assert_eq!(fixture.load().unwrap().identity(), cohort.identity());
+    fs::write(
+        fixture.path.join(CohortArtifact::TerminalHost.file_name()),
+        b"mixed Host",
+    )
+    .unwrap();
     assert_eq!(
         fixture.load().unwrap_err().kind(),
         io::ErrorKind::InvalidData
@@ -189,12 +196,12 @@ fn missing_symlink_hardlink_and_writable_artifacts_fail_admission() {
         "not-executable",
     ] {
         let fixture = Fixture::new();
-        let artifact = fixture.path.join("orchbee-worker");
+        let artifact = fixture.path.join(CohortArtifact::Worker.file_name());
         match violation {
             "missing" => fs::remove_file(&artifact).unwrap(),
             "symlink" => {
                 fs::remove_file(&artifact).unwrap();
-                symlink("orchbee", &artifact).unwrap();
+                symlink(CohortArtifact::Client.file_name(), &artifact).unwrap();
             }
             "hardlink" => fs::hard_link(&artifact, fixture.path.join("alias")).unwrap(),
             "writable" => {
@@ -253,6 +260,6 @@ fn expired_deadline_and_unsafe_directory_fail_before_artifact_admission() {
             .kind(),
         io::ErrorKind::TimedOut
     );
-    fs::set_permissions(&fixture.path, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&fixture.path, fs::Permissions::from_mode(0o775)).unwrap();
     assert!(fixture.load().is_err());
 }

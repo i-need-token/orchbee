@@ -10,7 +10,6 @@ import { packager } from '@electron/packager';
 import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
-	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
@@ -47,10 +46,9 @@ const distributionProfile = (() => {
 	}
 	return resolveDesktopDistributionProfile(profileId);
 })();
-// The environment stem every cohort executable compiles in, which the handshake compares.
+// The environment stem every cohort executable compiles in, which the handshake compares; it also
+// names the Client in the cohort and, on Windows, the packaged executable.
 const cohortEnvironmentStem = distributionProfile.artifactStem;
-// The Client's name in the cohort, and on Windows the packaged executable's stem. Other platforms keep `orchbee`.
-const cohortArtifactStem = resolveDesktopCohortArtifactStem(distributionProfile, process.platform);
 // Only a cohort compiled with the release stem may ship as release (ORC-382).
 if (distributionProfile.profileId === 'release' && cohortEnvironmentStem !== 'orchbee') {
 	throw new Error(
@@ -61,7 +59,7 @@ if (distributionProfile.profileId === 'release' && cohortEnvironmentStem !== 'or
 // and from every other environment's (ORC-382).
 const packagedExecutableName =
 	process.platform === 'win32'
-		? `${cohortArtifactStem}-desktop`
+		? `${cohortEnvironmentStem}-desktop`
 		: distributionProfile.applicationName;
 const usesDarwinApplicationIcon = process.platform === 'darwin';
 const applicationPackage = JSON.parse(
@@ -119,7 +117,7 @@ try {
 	await access(path.join(cohortRoot, 'cohort.json'));
 	// Staging names the Client after the stem it compiled, so this proves the cohort's stem.
 	if (process.platform === 'win32') {
-		await access(path.join(cohortRoot, `${cohortArtifactStem}.exe`));
+		await access(path.join(cohortRoot, `${cohortEnvironmentStem}.exe`));
 	}
 	await mkdir(stagingRoot, { mode: 0o700 });
 	await cp(desktopBuild, path.join(stagingRoot, 'dist'), { recursive: true });

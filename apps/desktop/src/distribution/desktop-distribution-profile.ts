@@ -95,8 +95,7 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 } as const satisfies Record<DesktopDistributionProfileId, DesktopDistributionProfileDefinition>;
 
 interface DesktopDistributionProfileBase extends DesktopDistributionProfileDefinition {
-	// The environment stem every cohort executable compiles in on every platform; Windows file names
-	// also carry it, see `resolveDesktopCohortArtifactStem`.
+	// The environment stem every cohort executable compiles in and every cohort file name carries.
 	readonly artifactStem: string;
 	readonly bundleIdentifier: string;
 	readonly profileId: DesktopDistributionProfileId;
@@ -144,18 +143,6 @@ export function createDesktopDevelopmentScope(
 		.digest('hex')
 		.slice(0, DEVELOPMENT_SCOPE_DIGEST_LENGTH);
 	return { digest, digestVersion: DEVELOPMENT_SCOPE_DIGEST_VERSION, sourceRoot };
-}
-
-/**
- * The stem the native cohort's file names carry on this platform. Environment stems name Windows
- * cohort files only until the POSIX cohort names move (ORC-328); elsewhere the shipped `orchbee`
- * names remain, while every executable still compiles in the profile's `artifactStem`.
- */
-export function resolveDesktopCohortArtifactStem(
-	profile: DesktopDistributionProfile,
-	platform: NodeJS.Platform,
-): string {
-	return platform === 'win32' ? profile.artifactStem : RELEASE_ARTIFACT_STEM;
 }
 
 export function resolveDesktopDistributionProfile(

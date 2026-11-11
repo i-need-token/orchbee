@@ -3,7 +3,6 @@ export {
 	createDesktopDevelopmentScope,
 	parseDesktopDistributionDescriptor,
 	resolveDesktopCheckoutName,
-	resolveDesktopCohortArtifactStem,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,

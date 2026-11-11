@@ -20,7 +20,6 @@ import { promisify } from 'node:util';
 
 import {
 	createDesktopDevelopmentScope,
-	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
@@ -128,7 +127,7 @@ async function prepareWindowsDevelopmentShell(options) {
 		'dev',
 		createDesktopDevelopmentScope(sourceRoot, process.platform),
 	);
-	const executableName = `${resolveDesktopCohortArtifactStem(profile, process.platform)}-desktop.exe`;
+	const executableName = `${profile.artifactStem}-desktop.exe`;
 	const sourceDirectory = path.dirname(sourceExecutable);
 	const marker = `${JSON.stringify(
 		{

@@ -246,7 +246,7 @@ function main() {
 	let temporary;
 	let outputCreated = false;
 	try {
-		// The stem names the environment; macOS and Linux file names stay `orchbee` until ORC-328.
+		// The stem names the environment and every staged file name.
 		runCommand(
 			'cargo',
 			[
@@ -291,9 +291,11 @@ function main() {
 				artifact === 'orchbee-terminal-host'
 					? path.join(hostPrefix, 'bin', artifact)
 					: accessible(path.posix.join(target, 'release', artifact));
-			const staged = path.join(destination, artifact);
+			// Cargo and Zig name the sources; the staged cohort carries the environment stem.
+			const stagedName = artifactStem + artifact.slice('orchbee'.length);
+			const staged = path.join(destination, stagedName);
 			copyFileSync(source, staged, constants.COPYFILE_EXCL);
-			runCommand('chmod', ['700', path.posix.join(output, artifact)]);
+			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
 		const capsuleDestination = path.join(destination, CAPSULE_DIRECTORY);
@@ -321,7 +323,7 @@ function main() {
 		const displayPlatform = distro ? `${platform} (WSL)` : platform;
 		process.stdout.write(
 			`Staged ${displayPlatform} ${artifactStem} cohort: ${output}\n` +
-				`Run in an interactive ${displayPlatform} terminal: ${path.posix.join(output, 'orchbee')}\n`,
+				`Run in an interactive ${displayPlatform} terminal: ${path.posix.join(output, artifactStem)}\n`,
 		);
 	} catch (error) {
 		if (outputCreated) rmSync(destination, { force: true, recursive: true });

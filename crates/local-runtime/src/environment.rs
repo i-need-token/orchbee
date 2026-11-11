@@ -22,9 +22,9 @@ const _: () = assert!(
 );
 
 /// This build's environment stem: `orchbee` for release, otherwise `ob-dev-<digest>` or
-/// `ob-test-<digest>`. It is fixed at compile time; no runtime input changes it. Windows cohort
-/// file names derive from it, while macOS and Linux cohorts keep the shipped `orchbee` names until
-/// ORC-328, so a rule about file names asks [`CohortArtifact`](crate::CohortArtifact) instead.
+/// `ob-test-<digest>`. It is fixed at compile time; no runtime input changes it. Cohort file names
+/// derive from it on every platform; a rule about file names asks
+/// [`CohortArtifact`](crate::CohortArtifact).
 pub const fn environment_stem() -> &'static str {
     ENVIRONMENT_STEM
 }

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	createDesktopDevelopmentScope,
 	parseDesktopDistributionDescriptor,
-	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDistributionProfile,
@@ -84,25 +83,6 @@ process.stdout.write(packaging.resolveDesktopTestApplicationName({}));`,
 			digestVersion: 1,
 			sourceRoot: '/source/orchbee-worktrees/feature',
 		});
-	});
-
-	it('names Windows cohorts by environment stem and other platforms by the shipped names', () => {
-		const developmentProfile = resolveDesktopDistributionProfile(
-			'dev',
-			createDesktopDevelopmentScope('/source/orchbee', 'win32'),
-		);
-		const testProfile = resolveDesktopDistributionProfile('test', undefined, {
-			artifactStem: testArtifactStem,
-		});
-		const releaseProfile = resolveDesktopDistributionProfile('release');
-
-		expect(resolveDesktopCohortArtifactStem(developmentProfile, 'win32')).toBe(
-			developmentProfile.artifactStem,
-		);
-		expect(resolveDesktopCohortArtifactStem(testProfile, 'win32')).toBe(testArtifactStem);
-		expect(resolveDesktopCohortArtifactStem(releaseProfile, 'win32')).toBe('orchbee');
-		expect(resolveDesktopCohortArtifactStem(developmentProfile, 'darwin')).toBe('orchbee');
-		expect(resolveDesktopCohortArtifactStem(testProfile, 'linux')).toBe('orchbee');
 	});
 
 	it('derives a test stem per home directory in the ob-test grammar', () => {

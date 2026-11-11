@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 import {
 	createDesktopDevelopmentScope,
-	resolveDesktopCohortArtifactStem,
 	resolveDesktopDistributionProfile,
 	resolveDesktopSessionName,
 } from '../distribution';
@@ -68,10 +67,8 @@ export async function prepareDesktopDevelopmentCohort(input: {
 	);
 	// Every executable compiles in the environment stem, which the handshake compares, so a release
 	// Client in one of this Desktop's terminals is refused on every platform. The Client, Server and
-	// Worker find their siblings by the file stem, which macOS and Linux keep at `orchbee` until
-	// ORC-328.
+	// Worker find their siblings by the same stem in their file names.
 	const environmentStem = profile.artifactStem;
-	const fileStem = resolveDesktopCohortArtifactStem(profile, process.platform);
 	const suffix = process.platform === 'win32' ? '.exe' : '';
 	const hostRoot = path.join(sourceRoot, 'apps', 'terminal-host');
 	await run(
@@ -136,7 +133,7 @@ export async function prepareDesktopDevelopmentCohort(input: {
 			sourceRoot,
 		);
 	}
-	const executable = path.join(cohort, `${fileStem}${suffix}`);
+	const executable = path.join(cohort, `${environmentStem}${suffix}`);
 	const session =
 		input.environment['ORCHBEE_DESKTOP_SESSION'] ?? resolveDesktopSessionName(profile);
 	if (session === undefined || !SESSION_NAME_PATTERN.test(session)) return executable;
@@ -164,7 +161,7 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		} else {
 			const previousExecutable = await findCohortClient(
 				path.join(store, previous),
-				fileStem,
+				environmentStem,
 				suffix,
 			);
 			if (previousExecutable !== undefined) {

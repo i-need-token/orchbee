@@ -14,11 +14,7 @@ import {
 import { app, dialog, net, protocol } from 'electron';
 
 import { DesktopDevelopmentRestartRequestSchema } from '../../development';
-import {
-	resolveDesktopCheckoutName,
-	resolveDesktopCohortArtifactStem,
-	resolveDesktopSessionName,
-} from '../../distribution';
+import { resolveDesktopCheckoutName, resolveDesktopSessionName } from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
 import { DesktopBackgroundRuntime, FileDesktopTrayRecord } from '../background-tray';
 import {
@@ -148,15 +144,13 @@ const reportWindowStateRecord: DesktopWindowStateRecordReporter = (problem, vers
 };
 
 /**
- * What `orchbee` runs under: the same data root as Desktop, so a Session it starts keeps this
- * root's configuration and preferences rather than another environment's.
+ * What `orchbee` runs under: Desktop's own environment. The natives are compiled with the profile's
+ * stem and derive the same data root, and an inherited `ORCHBEE_HOME` names it for both, so a
+ * Session it starts keeps this root's configuration and preferences rather than another
+ * environment's.
  */
-function resolveClientEnvironment(root: DesktopDataRoot): NodeJS.ProcessEnv {
-	// Windows natives are compiled with the profile's stem and derive the same root, and an inherited
-	// ORCHBEE_HOME names it for both. Other platforms build release names until ORC-328, so a
-	// development or test Desktop names its root for them.
-	if (process.platform === 'win32' || root.scope.kind === 'release') return process.env;
-	return { ...process.env, ORCHBEE_HOME: root.path };
+function resolveClientEnvironment(): NodeJS.ProcessEnv {
+	return process.env;
 }
 
 function requiredEnvironment(key: string): string {
@@ -168,7 +162,7 @@ function requiredEnvironment(key: string): string {
 /** The bundled cohort's Client, or in a checkout the one its development runtime staged. */
 function resolveClientExecutable(): string {
 	if (!packaged) return requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY);
-	const stem = resolveDesktopCohortArtifactStem(distribution, process.platform);
+	const stem = distribution.artifactStem;
 	return path.join(
 		process.resourcesPath,
 		PACKAGED_COHORT_DIRECTORY,
@@ -196,7 +190,7 @@ async function createBackground(
 	}
 	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
 	const clientExecutable = resolveClientExecutable();
-	const clientEnvironment = resolveClientEnvironment(dataRoot);
+	const clientEnvironment = resolveClientEnvironment();
 	return new DesktopBackgroundRuntime({
 		applicationName: distribution.applicationName,
 		distribution: distribution.dataScope.kind,
@@ -238,7 +232,7 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 	const windowActions = new DesktopWindowActions(application);
 	const diagnosticsActions = new DesktopDiagnosticsActions(
 		new DesktopDiagnosticsRuntime({
-			clientEnvironment: resolveClientEnvironment(dataRoot),
+			clientEnvironment: resolveClientEnvironment(),
 			clientExecutable: resolveClientExecutable(),
 			intl,
 			recordEvent,
@@ -339,7 +333,7 @@ async function start(): Promise<void> {
 	const started = new DesktopServerClientApplication({
 		background,
 		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
-		clientEnvironment: resolveClientEnvironment(dataRoot),
+		clientEnvironment: resolveClientEnvironment(),
 		clientExecutable: resolveClientExecutable(),
 		distribution: distribution.dataScope.kind,
 		platform: process.platform,
