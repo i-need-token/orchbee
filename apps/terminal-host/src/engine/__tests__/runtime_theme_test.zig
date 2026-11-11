@@ -221,6 +221,46 @@ test "mode 2031 reports only effective appearance changes, not palette-only edit
     cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[?997;2n"));
 }
 
+test "mode 2031 ends at reset-mode, RIS, or a Host reset, and DECRQM reports the subscription" {
+    var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        probe.probe.copied.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
+
+    var dark = replacement;
+    dark.color_scheme = .dark;
+    const endings = [_][]const u8{ "\x1b[?2031l", "\x1bc", "" };
+    var light = true;
+    for (endings) |ending| {
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?2031h\x1b[?2031$p"),
+        );
+        cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[?2031;1$y"));
+
+        // An empty ending stands for the Host-driven reset control.
+        if (ending.len == 0) {
+            _ = try runtime.applyTerminalControl(.reset);
+        } else {
+            try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, ending));
+        }
+        _ = try runtime.applyTheme(if (light) replacement else dark);
+        light = !light;
+        try expectNoQueuedTerminalBytes(runtime);
+
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?2031$p"),
+        );
+        cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[?2031;2$y"));
+    }
+}
+
 test "an unqueued color-scheme notice is dropped and the theme still applies" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
