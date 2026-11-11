@@ -1,12 +1,15 @@
 export { AGENT_INTEGRATION_PROVIDERS } from './workbench-agent-integration-contract';
+export type { WorkbenchAgentCatalog } from './workbench-agent-catalog-contract';
 export {
 	WORKBENCH_MAXIMUM_LABEL_LENGTH,
 	WORKBENCH_PROTOCOL_VERSION,
+	WorkbenchAgentStartProviderSchema,
 	WorkbenchLabelSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchStopIdSchema,
 } from './workbench-semantic-contract';
 export type {
+	WorkbenchAgentStartProvider,
 	WorkbenchPanelNode,
 	WorkbenchPresentation,
 	WorkbenchSnapshot,

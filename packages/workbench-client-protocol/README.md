@@ -416,7 +416,9 @@ owns which directory answers.
 `workbench.agent-catalog`, its `current` and `refresh` actions and its `current`/`failed` outcomes,
 and the 32 KiB result budget. Row provider ids use `WorkbenchAgentStartProviderSchema`, whose order
 is the catalog order every result's rows must follow; product names, commands and states come from
-the wire, so the package holds no Agent table. It consumes the
+the wire, so the package holds no Agent table. The entry exports the `WorkbenchAgentCatalog` type,
+`WorkbenchAgentStartProviderSchema` and its `WorkbenchAgentStartProvider` type for the GUI's Start
+Agent dialog, which reads the catalog through the parsed response union. It consumes the
 [shared corpus](../../schemas/workbench/v1/workbench-agent-catalog-conformance-v1.json) and
 [schema](../../schemas/workbench/v1/workbench-agent-catalog.schema.json) with the independent Rust
 binding. The [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the catalog. Its test

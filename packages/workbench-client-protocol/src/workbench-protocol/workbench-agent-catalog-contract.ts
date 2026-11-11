@@ -57,6 +57,8 @@ const WorkbenchAgentCatalogSchema = z
 			.readonly(),
 	})
 	.readonly();
+/** One Session's Agent catalog as the Server publishes it. */
+export type WorkbenchAgentCatalog = z.output<typeof WorkbenchAgentCatalogSchema>;
 
 const identity = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),

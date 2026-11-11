@@ -254,6 +254,7 @@ export const WorkbenchAgentStartProviderSchema = z.enum([
 	'openclaw',
 	'prime-agent',
 ]);
+export type WorkbenchAgentStartProvider = z.output<typeof WorkbenchAgentStartProviderSchema>;
 
 /**
  * The Server found that the Agent start the Presentation's creation carried did not happen in the

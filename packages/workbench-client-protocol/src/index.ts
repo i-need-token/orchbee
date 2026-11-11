@@ -20,6 +20,7 @@ export {
 	AGENT_INTEGRATION_PROVIDERS,
 	WORKBENCH_MAXIMUM_LABEL_LENGTH,
 	WORKBENCH_PROTOCOL_VERSION,
+	WorkbenchAgentStartProviderSchema,
 	WorkbenchLabelSchema,
 	WorkbenchLaunchSelectionSchema,
 	WorkbenchRequestIdSchema,
@@ -29,6 +30,8 @@ export {
 	parseWorkbenchResponse,
 } from './workbench-protocol';
 export type {
+	WorkbenchAgentCatalog,
+	WorkbenchAgentStartProvider,
 	WorkbenchCommand,
 	WorkbenchCommandResult,
 	WorkbenchPanelNode,
