@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 5;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 6;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -309,14 +309,15 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
             &["node_modules/@deveco/deveco-code/bin/deveco"],
             &grammar::DEFAULT,
         ),
-        // The npm launcher `mimo.js` runs the bundled `vendor/mimo.exe`; both sit in the root.
+        // The npm launcher `mimo.js` runs the bundled `vendor/mimo.exe`; both sit in the root. MiMo
+        // Code is a shell around OpenCode 1.x and takes its grammar.
         AgentProviderEntry {
             install_roots: &[AgentInstallRoot(&["node_modules", "@mimo-ai", "cli"])],
             ..entry(
                 P::Mimo,
                 &[shared("mimo")],
                 &["node_modules/@mimo-ai/cli/mimo.js"],
-                &grammar::DEFAULT,
+                &grammar::OPENCODE,
             )
         },
         entry(

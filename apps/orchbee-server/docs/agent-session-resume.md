@@ -37,8 +37,10 @@ A provider joins when all four hold:
 
 Same-id evidence from source is preferred. Documentation or Herdr precedent is enough under rules
 2–4, because a wrong id then costs one failed resume and never sends a prompt. Each provider id is
-both its native process provider id and its hook-contract provider id; a test asserts both, since a
-mismatch would silently drop all of that provider's candidates.
+its native process provider id and, for every provider with a hook adapter, its hook-contract
+provider id; a test asserts both, since a mismatch would silently drop all of that provider's
+candidates. MiMo Code alone has no hook adapter, and the same test asserts that, so only its
+[command line](#command-line) names its session.
 
 ### Rows
 
@@ -55,6 +57,7 @@ own directory changes the outcome; the retained-directory gate applies to every 
 | `grok`           | `grok`         | `--resume=<id>`                                                             | U, 36                                                            | no                 | error; UUIDs never match titles             | yes                          | S          |
 | `opencode`       | `opencode`     | `--session=<id>`                                                            | `^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`, 30                          | 1.1.25 yes; 2.x no | 1.x exits 1; 2.x empty session with that id | 1.x on first prompt; 2.x yes | S          |
 | `kilo`           | `kilo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | no                 | error, exits                                | on first prompt              | S          |
+| `mimo`           | `mimo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | as OpenCode 1.x    | as OpenCode 1.x                             | never: no hook               | D (help)   |
 | `cursor`         | `cursor-agent` | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new chat                           | probably no                  | D, H       |
 | `qodercli`       | `qodercli`     | `--resume=<id>`                                                             | U, 36                                                            | yes                | error or new session                        | yes                          | D, bundle  |
 | `antigravity`    | `agy`          | `--conversation <id>`                                                       | U, 36                                                            | undocumented       | error or new conversation                   | on first prompt              | D          |
@@ -95,6 +98,14 @@ A 2.x Panel therefore holds the exact id of the root it shows, or no reference a
 `--session=<id>`: `--continue` opens the most recently updated root session of the directory
 across every client of the shared session store, which may be another Panel's.
 
+MiMo Code is a shell around OpenCode 1.x and follows its row: its 0.1.16 help documents
+`-s`/`--session <id>` to continue a session, `-c`/`--continue` and `--fork`, and its ids take
+OpenCode's `ses_` form. It has no hook adapter, and none of OpenCode's plugin reporting extends to
+it, since its plugin directory is unverified. Only a run whose command line binds an id, such as a
+hand-typed `mimo --session <id>` or a delivered resume, is ever captured; a bare `mimo`, which
+documents no launch-time id, names no session and is not resumed. Its directory and wrong-id
+behavior are assumed to be OpenCode 1.x's, unverified by a real run.
+
 Not in the table:
 
 - **Mastracode.** Below 0.45.0, `mastracode resume <id>` runs a headless model turn whose prompt is
@@ -102,8 +113,9 @@ Not in the table:
   its hook payload nor its hook environment proves which version runs, a package-version check
   races upgrades and `PATH` order, and no argument form resumes on 0.45.0 or later while failing
   harmlessly earlier. A typed resume could therefore send a prompt, which rule 2 forbids.
-- **Amp, Kiro, Maki, Muse, AtomCode, CodeBuddy Code, Command Code, DevEco Code, MiMo Code,
-  Reasonix, Snow CLI, MiniMax Code, MothX, J-Code, OpenClaw and Prime Agent** have no hook adapter, so no session key is ever observed.
+- **Amp, Kiro, Maki, Muse, AtomCode, CodeBuddy Code, Command Code, DevEco Code, Reasonix, Snow
+  CLI, MiniMax Code, MothX, J-Code, OpenClaw and Prime Agent** have no hook adapter and no admitted
+  resume form, so no session of theirs is ever captured.
 
 ### Tokens and quoting
 
@@ -277,24 +289,24 @@ ever read. A capture admits a conversation id from them only when all of these h
 - exactly one id is bound;
 - the id is valid in the provider's grammar.
 
-| Provider id        | Binds the id                                     | Binds nothing                        |
-| ------------------ | ------------------------------------------------ | ------------------------------------ |
-| `claude-code`      | `--resume`, `-r`, `--session-id`                 | `-c`, `--continue`, `--fork-session` |
-| `codex`            | the positional after a first positional `resume` | `--last`                             |
-| `grok`             | `--resume`, `-r`, `--session-id`, `-s`           | `-c`, `--continue`, `--fork-session` |
-| `opencode`, `kilo` | `--session`, `-s`                                | `-c`, `--continue`                   |
-| `cursor`, `droid`  | `--resume`                                       |                                      |
-| `qodercli`         | `--resume`, `-r`                                 | `-c`, `--continue`                   |
-| `antigravity`      | `--conversation`                                 |                                      |
-| `kimi`             | `--session`, `-S`                                |                                      |
-| `letta`            | `--conversation`, `--conv`, `-C`                 |                                      |
-| `devin`, `hermes`  | `--resume`, `-r`                                 |                                      |
-| `pi`               | `--session`, `--session-id`                      | `-c`, `--continue`, `-r`, `--resume` |
-| `omp`              | `--resume`                                       | `-c`, `--continue`                   |
-| `gemini`           | `--resume`, `-r`, `--session-id`                 |                                      |
-| `github-copilot`   | `--resume`, `-r`, `--session-id`                 | `--continue`                         |
-| `qwen-code`        | `--resume`, `-r`, `--session-id`                 | `-c`, `--continue`                   |
-| `cline`            | `--id`                                           |                                      |
+| Provider id                | Binds the id                                     | Binds nothing                        |
+| -------------------------- | ------------------------------------------------ | ------------------------------------ |
+| `claude-code`              | `--resume`, `-r`, `--session-id`                 | `-c`, `--continue`, `--fork-session` |
+| `codex`                    | the positional after a first positional `resume` | `--last`                             |
+| `grok`                     | `--resume`, `-r`, `--session-id`, `-s`           | `-c`, `--continue`, `--fork-session` |
+| `opencode`, `kilo`, `mimo` | `--session`, `-s`                                | `-c`, `--continue`                   |
+| `cursor`, `droid`          | `--resume`                                       |                                      |
+| `qodercli`                 | `--resume`, `-r`                                 | `-c`, `--continue`                   |
+| `antigravity`              | `--conversation`                                 |                                      |
+| `kimi`                     | `--session`, `-S`                                |                                      |
+| `letta`                    | `--conversation`, `--conv`, `-C`                 |                                      |
+| `devin`, `hermes`          | `--resume`, `-r`                                 |                                      |
+| `pi`                       | `--session`, `--session-id`                      | `-c`, `--continue`, `-r`, `--resume` |
+| `omp`                      | `--resume`                                       | `-c`, `--continue`                   |
+| `gemini`                   | `--resume`, `-r`, `--session-id`                 |                                      |
+| `github-copilot`           | `--resume`, `-r`, `--session-id`                 | `--continue`                         |
+| `qwen-code`                | `--resume`, `-r`, `--session-id`                 | `-c`, `--continue`                   |
+| `cline`                    | `--id`                                           |                                      |
 
 "Binds nothing" lists flags that continue the latest conversation, fork a new one or open a picker;
 any of them gives none, since the process may hold another conversation than any bound id.
@@ -317,6 +329,10 @@ any of them gives none, since the process may hold another conversation than any
   `grok --resume <id>`, leaves the id where the provider's mode grammar reads a positional
   argument. Grok, Qoder, Kimi, Droid and Copilot classify that as unclassified, so identity stays
   `Unknown` and nothing is read. The `=` form, which delivery types, is read.
+- **Unlisted options.** An option outside the provider's mode grammar leaves the run unclassified,
+  so nothing is read. OpenCode's grammar, which Kilo and MiMo Code share, lists no `--fork`, so
+  `--session <id> --fork`, which opens a new fork, gives none; nor does it list MiMo's own flags
+  such as `--yolo`, `--never-ask`, `--trust` and `--pure`, so a MiMo run carrying one gives none.
 - **Stale ids.** The command line names the conversation the process started in. When the person
   switches conversation inside the Agent (`/resume`, `/new`, `/clear` and the like) and no hook
   session reports the switch, the next restart reopens the conversation the process started in,
@@ -568,7 +584,7 @@ Deterministic tests cover the checkpoint rows (every fault, the omitted list, ca
 override, the directory-row requirement, first-Presentation dedupe and recording off), each
 provider's id grammar (its accepted forms and alternates, a leading `-`, whitespace, a wrong prefix,
 wrong case where it matters, overlong ids and an embedded `'`), that every provider id is a native
-and a hook-contract provider id, the process identity matrix for every typed form, and the
+and, MiMo Code's alone excepted, a hook-contract provider id, the process identity matrix for every typed form, and the
 capture decision table (run token match, mismatch and tokenless; open, completed and unmarked
 command evidence; same provider, other provider, `None`, `Unknown` and `Unsupported` identities;
 ambiguity and invalid ids), the process source decision table (the published run's own entry
@@ -606,7 +622,8 @@ refusal retry and the give-up's commit are not claimed by unit tests.
 one Session, with one Panel per [table](#rows) row: every provider, Letta's conversation and
 default forms, Claude Code once more without hooks, and two more hookless rows named only by their
 command lines, a Grok started with `--session-id <id>` as an Agent start types it and a hand-typed
-`codex --search resume <id>`, 23 rows. Each row's stub is a Node script at a path process identity recognises as
+`codex --search resume <id>`, 24 rows. MiMo Code's row is hookless too: a hand-typed
+`mimo --session <id>` names its session only on its command line. Each row's stub is a Node script at a path process identity recognises as
 that provider, and it reports its session as the provider's adapter does: a command-hook payload
 through the shipped hook script, or the shipped OpenCode, Kilo, Cline, Pi or OMP module driven as
 its provider drives it. The Kilo stub first admits the module's plugin definition, the one the
@@ -625,8 +642,8 @@ Per row, the witness proves:
 
 - capture of the fresh session without ambiguity, with Kilo's child session and the OpenCode
   TUI's displayed child session and other root present; the hookless Claude Code row's from its run
-  table entry alone, the hooked one's from its hook session over its entry, and the hookless Grok
-  and Codex rows' from their command lines alone;
+  table entry alone, the hooked one's from its hook session over its entry, and the hookless Grok,
+  Codex and MiMo Code rows' from their command lines alone;
 - after a restart, the exact cmd line on screen and the exact recorded argument tokens, Claude
   Code's `--resume=<id>` and Letta's split `default:<agent>` key included, in the retained
   directory;
@@ -656,8 +673,8 @@ It does not prove:
   rest on the decision tables and the end batch's real-window checks;
 - any real provider: that its hook key is the id it resumes, that it parses the typed form, or
   where it looks up a session. Same-id and directory evidence rests on the table's sources, and
-  where that is documentation only (Cursor, Droid, Devin, Copilot and Antigravity) a resume may
-  fail until a real run confirms the id;
+  where that is documentation only (Cursor, Droid, Devin, Copilot, Antigravity and MiMo Code's help
+  text) a resume may fail until a real run confirms the id;
 - that a real Grok, Gemini, Qwen Code, Copilot or Pi accepts `--session-id <uuid>` and opens a new
   conversation under it that its resume form reopens, or that any real provider keeps the bound id
   on its command line: the forms follow each provider's documentation or source, unrun here;

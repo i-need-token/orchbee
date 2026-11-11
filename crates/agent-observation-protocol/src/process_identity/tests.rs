@@ -680,6 +680,12 @@ fn recognition_matrix_rows_and_counterexamples() {
         ),
         (
             "resume",
+            r"{npm}\node_modules\@mimo-ai\cli\vendor\mimo.exe",
+            Some(vec!["mimo", "--session={ses}"]),
+            interactive(P::Mimo, S::NativeImage),
+        ),
+        (
+            "resume",
             r"{cursor}\cursor-agent.exe",
             Some(vec!["cursor-agent", "--resume={id}"]),
             interactive(P::Cursor, S::NativeImage),

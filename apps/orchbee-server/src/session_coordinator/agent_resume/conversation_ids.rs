@@ -31,7 +31,7 @@ pub(crate) fn resume_arguments(session: &RetainedAgentSession) -> Vec<String> {
         | P::QwenCode => {
             vec![format!("--resume={id}")]
         }
-        P::OpenCode | P::Kilo | P::Kimi => vec![format!("--session={id}")],
+        P::OpenCode | P::Kilo | P::Mimo | P::Kimi => vec![format!("--session={id}")],
         P::Antigravity => separate("--conversation"),
         P::Letta => match id.strip_prefix("default:") {
             Some(agent) => ["--conversation", "default", "--agent", agent]
@@ -83,7 +83,7 @@ const fn binding(provider: AgentResumeProvider) -> Binding {
             &["--resume", "-r", "--session-id", "-s"],
             &["-c", "--continue", "--fork-session"],
         ),
-        P::OpenCode | P::Kilo => options(&["--session", "-s"], &["-c", "--continue"]),
+        P::OpenCode | P::Kilo | P::Mimo => options(&["--session", "-s"], &["-c", "--continue"]),
         P::Cursor | P::Droid => options(&["--resume"], &[]),
         P::QoderCli => options(&["--resume", "-r"], &["-c", "--continue"]),
         P::Antigravity => options(&["--conversation"], &[]),

@@ -114,7 +114,7 @@ fn each_provider_admits_only_its_own_inert_id_grammar() {
     .map(|provider| (provider, uuid_rows.to_vec(), uuid_faults.clone()))
     .collect();
     let opencode = "ses_0123456789abCdEfGhIjKlMnOp";
-    for provider in [P::OpenCode, P::Kilo] {
+    for provider in [P::OpenCode, P::Kilo, P::Mimo] {
         table.push((
             provider,
             vec![opencode.to_owned()],

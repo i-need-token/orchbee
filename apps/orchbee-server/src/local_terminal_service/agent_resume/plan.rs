@@ -33,6 +33,7 @@ const fn resume_program(provider: AgentResumeProvider) -> &'static str {
         P::Grok => "grok",
         P::OpenCode => "opencode",
         P::Kilo => "kilo",
+        P::Mimo => "mimo",
         P::Cursor => "cursor-agent",
         P::QoderCli => "qodercli",
         P::Antigravity => "agy",

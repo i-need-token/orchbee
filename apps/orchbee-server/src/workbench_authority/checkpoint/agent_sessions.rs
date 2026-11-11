@@ -15,8 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 /// A provider whose native session a restart may resume. The table is closed: a provider joins it
 /// only when its resume form is source-verified or documented, the id is bound to a value-taking
 /// option or a resume subcommand, a strict validator below admits only inert ids, and a wrong or
-/// stale id can only fail or open an empty or new session. Each spelling is both the provider's
-/// native process id and its hook-contract provider id.
+/// stale id can only fail or open an empty or new session. Each spelling is the provider's native
+/// process id and, for every provider but hookless MiMo Code, its hook-contract provider id.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum AgentResumeProvider {
     #[serde(rename = "claude-code")]
@@ -29,6 +29,8 @@ pub enum AgentResumeProvider {
     OpenCode,
     #[serde(rename = "kilo")]
     Kilo,
+    #[serde(rename = "mimo")]
+    Mimo,
     #[serde(rename = "cursor")]
     Cursor,
     #[serde(rename = "qodercli")]
@@ -61,12 +63,13 @@ pub enum AgentResumeProvider {
 
 impl AgentResumeProvider {
     /// Every resumable provider.
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 20] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
         Self::OpenCode,
         Self::Kilo,
+        Self::Mimo,
         Self::Cursor,
         Self::QoderCli,
         Self::Antigravity,
@@ -100,6 +103,7 @@ impl AgentResumeProvider {
             Self::Grok => "grok",
             Self::OpenCode => "opencode",
             Self::Kilo => "kilo",
+            Self::Mimo => "mimo",
             Self::Cursor => "cursor",
             Self::QoderCli => "qodercli",
             Self::Antigravity => "antigravity",
@@ -166,7 +170,7 @@ fn valid_id(provider: AgentResumeProvider, id: &str) -> bool {
         | P::Gemini
         | P::GitHubCopilot
         | P::QwenCode => hyphenated_uuid(id),
-        P::OpenCode | P::Kilo => opencode_session(id),
+        P::OpenCode | P::Kilo | P::Mimo => opencode_session(id),
         P::Kimi => id.strip_prefix("session_").is_some_and(uuid_v4),
         P::Letta => letta_conversation(id),
         P::Devin => devin_session(id),

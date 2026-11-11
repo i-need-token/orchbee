@@ -138,13 +138,14 @@ reuse it rather than keeping their own tables.
   the positional rule. Each grammar lists the resume option the Server types for its provider and
   that option's documented short alias, and the launch-time `--session-id` an Agent start passes
   Grok, Gemini, Qwen Code, Copilot and Pi, with Grok's `-s` alias. OMP's grammar is Pi's without
-  that option, which OMP does not document. A grammar that requires a command (OpenClaw `chat` and
+  that option, which OMP does not document. Kilo and MiMo Code, both built on OpenCode, share
+  OpenCode's grammar. A grammar that requires a command (OpenClaw `chat` and
   `tui`) leaves every invocation without one of its interactive commands unclassified, the bare
   launch included.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 5. It changes whenever an entry's recognition meaning
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 6. It changes whenever an entry's recognition meaning
   changes: a provider, alias, package entry or grammar option joining or leaving the registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one

@@ -16,7 +16,8 @@
 //! row's entry names another session that its hook session must outrank. Two more rows have no
 //! hook and no run table, so only the Agent's own command line names the session: a Grok started
 //! the way an Agent start types it, with a fresh `--session-id`, and a hand-typed `codex resume`
-//! with a leading option. Every run records its
+//! with a leading option. MiMo Code has no hook at all, so its only row is a hand-typed
+//! `mimo --session <id>`, named the same way. Every run records its
 //! arguments, directory and session in the fixture root and stays alive like an interactive Agent
 //! until it reads `q`. Every wait reads the Agent list, as a Client showing it does: a hook report
 //! joins its Panel only when a Client's Agent read drains it within 10 s.
@@ -139,8 +140,9 @@ const OPENCODE_ID: &str = "`ses_${hex(12)}${alnum(14)}`";
 const DECOY: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
 /// The resume table: every resumable provider, with Letta's two forms, Claude Code once more
-/// without hooks, and Grok and Codex once more without hooks, named only by their command lines.
-const TABLE: [Row; 23] = [
+/// without hooks, and Grok and Codex once more without hooks, named only by their command lines,
+/// as hookless MiMo Code always is.
+const TABLE: [Row; 24] = [
     Row {
         label: "claude-code",
         provider: "claude-code",
@@ -241,6 +243,20 @@ const TABLE: [Row; 23] = [
         reports_on_resume: false,
         hooked: true,
         start: Start::Bare,
+    },
+    Row {
+        label: "mimo",
+        provider: "mimo",
+        program: "mimo",
+        entry: "node_modules/@mimo-ai/cli/mimo.js",
+        relay: None,
+        fresh: OPENCODE_ID,
+        resume: &["--session={id}"],
+        key: "{id}",
+        report: "async () => {}",
+        reports_on_resume: false,
+        hooked: false,
+        start: Start::With(&["--session", "{id}"], "ses_0123456789abCdEfGhIjKlMnOp"),
     },
     Row {
         label: "cursor",

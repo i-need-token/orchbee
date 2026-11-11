@@ -721,13 +721,15 @@ fn kimi_hook_boundary_accepts_session_lifecycle_only() {
     }
 }
 
-/// Every resume provider id is a native process provider id and the provider id of a hook-contract
-/// adapter; otherwise that provider's candidates would silently never match.
+/// Every resume provider id is a native process provider id and, unless the provider is hookless,
+/// the provider id of a hook-contract adapter; otherwise that provider's candidates would silently
+/// never match. A hookless provider has no adapter, so only its own process names its session.
 #[test]
 fn every_resume_provider_is_a_native_and_hook_contract_provider() {
     use super::super::hook_contract::{HookObservationEvent as E, resolve_adapter};
     use orchbee_agent_observation_protocol::AgentReportProvider;
     use orchbee_server::AgentResumeProvider;
+    const HOOKLESS: [AgentResumeProvider; 1] = [AgentResumeProvider::Mimo];
     const EVENTS: [E; 19] = [
         E::SessionIdentified,
         E::SessionStarted,
@@ -756,16 +758,18 @@ fn every_resume_provider_is_a_native_and_hook_contract_provider() {
                 .map(AgentReportProvider::native_provider_id),
             Some(id)
         );
-        assert!(
-            orchbee_agent_integration::IntegrationId::ALL
-                .iter()
-                .any(|adapter| {
-                    EVENTS.iter().any(|event| {
-                        resolve_adapter(adapter.as_str(), *event)
-                            .is_some_and(|definition| definition.provider_id == id)
-                    })
-                }),
-            "{id} is no hook-contract provider"
+        let hooked = orchbee_agent_integration::IntegrationId::ALL
+            .iter()
+            .any(|adapter| {
+                EVENTS.iter().any(|event| {
+                    resolve_adapter(adapter.as_str(), *event)
+                        .is_some_and(|definition| definition.provider_id == id)
+                })
+            });
+        assert_eq!(
+            hooked,
+            !HOOKLESS.contains(&provider),
+            "{id}: hook-contract provider {hooked}"
         );
         assert_eq!(AgentResumeProvider::from_provider_id(id), Some(provider));
     }

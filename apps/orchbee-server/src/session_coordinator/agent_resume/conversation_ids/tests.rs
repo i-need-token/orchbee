@@ -9,7 +9,7 @@ const OPENCODE_ID: &str = "ses_0123456789abCdEfGhIjKlMnOp";
 fn ids(provider: AgentResumeProvider) -> [&'static str; 2] {
     use AgentResumeProvider as P;
     match provider {
-        P::OpenCode | P::Kilo => [OPENCODE_ID, "ses_abcdef012345ZyXwVuTsRqPoNm"],
+        P::OpenCode | P::Kilo | P::Mimo => [OPENCODE_ID, "ses_abcdef012345ZyXwVuTsRqPoNm"],
         P::Kimi => [
             "session_0f8fad5b-d9cb-469f-a165-70867728950e",
             "session_c56a4180-65aa-42ec-a945-5fd21dec0538",
