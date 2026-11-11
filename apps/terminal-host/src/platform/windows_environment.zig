@@ -14,6 +14,9 @@ const EnvironmentMap = std.process.Environ.Map;
 // Values synthesized for an interactive logon are not all stored under the
 // two environment registry keys. Retain this closed Windows runtime set while
 // rebuilding arbitrary configured variables from the fresh snapshot.
+// The Worker's Agent probe repeats this projection for PATH alone
+// (apps/orchbee-worker/src/agent_probe_jobs/lookup/shell_path.rs): a change to
+// the scopes, the expansion order or this set changes both.
 const windows_runtime_inherited_names = [_][]const u8{
     "ALLUSERSPROFILE",
     "APPDATA",
