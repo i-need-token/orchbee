@@ -1,8 +1,9 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-settings.schema.json",
-	"title": "Session-scoped shared user settings",
-	"description": "Matched native cohorts use the shared preference grammar and a 2 MiB request/result budget. Save confirms persistence; live client application is a separate observation. Launch-profile semantic bounds are inherited from the shared preferences contract.",
+	"title": "Session-scoped settings file reads and edits",
+	"description": "Reads and edits of config.toml on the Server's machine, keyed by setting path. The contract checks structure only; the settings registry decides which keys exist and what each admits.",
+	"$comment": "Bindings additionally enforce 2 MiB encoded requests and results, UTF-8 byte bounds where maxLength counts code points, unique change keys within one edit, a 64 KiB encoded bound on each structured value, strictly ascending set order, strictly ascending (field, reason) diagnostics, and the launch-profile catalog rules of the user-preferences contract (trimmed names, unique ids, default membership, a null name only on system-default).",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"
@@ -12,16 +13,117 @@
 		}
 	],
 	"$defs": {
-		"source": {
+		"identity": {
 			"type": "string",
-			"pattern": "^(?:missing|unreadable|[0-9a-f]{64})$"
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
 		},
-		"changes": {
-			"type": "object",
-			"minProperties": 1,
-			"allOf": [
+		"key": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$"
+		},
+		"token": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+		},
+		"text": {
+			"type": "string",
+			"maxLength": 4096,
+			"pattern": "^[^\\u0000]*$",
+			"$comment": "Bindings enforce the 4096-byte UTF-8 limit."
+		},
+		"position": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 4294967295
+		},
+		"scalar": {
+			"anyOf": [
 				{
-					"$ref": "https://orchbee.dev/schemas/workbench/v1/user-preferences.schema.json#/$defs/patch"
+					"type": "boolean"
+				},
+				{
+					"type": "integer"
+				},
+				{
+					"$ref": "#/$defs/text"
+				}
+			],
+			"$comment": "Integers are signed 64-bit."
+		},
+		"entries": {
+			"type": "array",
+			"maxItems": 64,
+			"items": {
+				"type": "object",
+				"propertyNames": {
+					"maxLength": 128,
+					"pattern": "^[a-z0-9_]+$"
+				},
+				"additionalProperties": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "integer"
+						},
+						{
+							"type": "string",
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string",
+								"pattern": "^[^\\u0000]*$"
+							}
+						}
+					]
+				}
+			},
+			"$comment": "The array in the file's form, such as launch profiles as {id, name, kind, login | executable, arguments}. Bindings enforce the 64 KiB encoded bound."
+		},
+		"change": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["key", "value"],
+					"properties": {
+						"key": {
+							"$ref": "#/$defs/key"
+						},
+						"value": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/scalar"
+								},
+								{
+									"$ref": "#/$defs/entries"
+								}
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["key", "restore"],
+					"properties": {
+						"key": {
+							"$ref": "#/$defs/key"
+						},
+						"restore": {
+							"const": true
+						}
+					}
 				}
 			]
 		},
@@ -37,22 +139,10 @@
 					"const": 1
 				},
 				"requestId": {
-					"type": "string",
-					"minLength": 32,
-					"maxLength": 32,
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
+					"$ref": "#/$defs/identity"
 				},
 				"sessionId": {
-					"type": "string",
-					"minLength": 32,
-					"maxLength": 32,
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
+					"$ref": "#/$defs/identity"
 				},
 				"operation": {
 					"oneOf": [
@@ -62,123 +152,376 @@
 							"required": ["kind"],
 							"properties": {
 								"kind": {
-									"const": "open"
+									"const": "read"
 								}
 							}
 						},
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "source", "changes"],
+							"required": ["kind", "changes"],
 							"properties": {
 								"kind": {
-									"const": "save"
-								},
-								"source": {
-									"$ref": "#/$defs/source"
+									"const": "edit"
 								},
 								"changes": {
-									"$ref": "#/$defs/changes"
-								}
-							},
-							"allOf": [
-								{
-									"if": {
-										"properties": {
-											"source": {
-												"const": "unreadable"
-											}
-										}
-									},
-									"then": {
-										"properties": {
-											"changes": {
-												"type": "object",
-												"required": [
-													"locale",
-													"applicationTheme",
-													"lightTheme",
-													"darkTheme",
-													"tuiColorSource",
-													"terminalDisplayTheme",
-													"customForeground",
-													"customBackground",
-													"copyOnSelect",
-													"trimTrailingBlankRowsForAgents",
-													"resumeAgentsOnRestore",
-													"restoreTerminalOutput",
-													"agentNotificationMode",
-													"completionReminderMode",
-													"completionReminderMinimumSeconds",
-													"soundEnabled",
-													"scrollbackBytes",
-													"launchProfiles"
-												],
-												"properties": {
-													"locale": {
-														"type": "null"
-													},
-													"applicationTheme": {
-														"type": "null"
-													},
-													"lightTheme": {
-														"type": "null"
-													},
-													"darkTheme": {
-														"type": "null"
-													},
-													"tuiColorSource": {
-														"type": "null"
-													},
-													"terminalDisplayTheme": {
-														"type": "null"
-													},
-													"customForeground": {
-														"type": "null"
-													},
-													"customBackground": {
-														"type": "null"
-													},
-													"copyOnSelect": {
-														"type": "null"
-													},
-													"trimTrailingBlankRowsForAgents": {
-														"type": "null"
-													},
-													"resumeAgentsOnRestore": {
-														"type": "null"
-													},
-													"restoreTerminalOutput": {
-														"type": "null"
-													},
-													"agentNotificationMode": {
-														"type": "null"
-													},
-													"completionReminderMode": {
-														"type": "null"
-													},
-													"completionReminderMinimumSeconds": {
-														"type": "null"
-													},
-													"soundEnabled": {
-														"type": "null"
-													},
-													"scrollbackBytes": {
-														"type": "null"
-													},
-													"launchProfiles": {
-														"type": "null"
-													}
-												}
-											}
-										}
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 64,
+									"items": {
+										"$ref": "#/$defs/change"
 									}
 								}
-							]
+							}
 						}
 					]
 				}
 			}
+		},
+		"file": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["status"],
+					"properties": {
+						"status": {
+							"enum": ["ok", "missing"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["status", "reason", "line", "column"],
+					"properties": {
+						"status": {
+							"const": "syntax-error"
+						},
+						"reason": {
+							"enum": ["invalid-toml", "invalid-utf8"]
+						},
+						"line": {
+							"$ref": "#/$defs/position"
+						},
+						"column": {
+							"$ref": "#/$defs/position"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["status", "reason"],
+					"properties": {
+						"status": {
+							"const": "unreadable"
+						},
+						"reason": {
+							"$ref": "#/$defs/token"
+						}
+					}
+				}
+			]
+		},
+		"diagnostics": {
+			"type": "object",
+			"required": ["items", "omittedCount"],
+			"additionalProperties": false,
+			"properties": {
+				"items": {
+					"type": "array",
+					"maxItems": 128,
+					"uniqueItems": true,
+					"items": {
+						"type": "object",
+						"required": ["field", "reason", "disposition"],
+						"additionalProperties": false,
+						"properties": {
+							"field": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 256,
+								"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+							},
+							"reason": {
+								"$ref": "#/$defs/token"
+							},
+							"disposition": {
+								"enum": ["defaulted", "disabled", "ignored"]
+							}
+						}
+					}
+				},
+				"omittedCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65536
+				}
+			}
+		},
+		"launchProfiles": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["version", "defaultProfileId", "profiles"],
+			"properties": {
+				"version": {
+					"const": 1
+				},
+				"defaultProfileId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+				},
+				"profiles": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 64,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["id", "name", "command"],
+						"properties": {
+							"id": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 128,
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+							},
+							"name": {
+								"anyOf": [
+									{
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 512,
+										"pattern": "^[^\\u0000]*$"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"command": {
+								"oneOf": [
+									{
+										"type": "object",
+										"additionalProperties": false,
+										"required": ["kind", "login"],
+										"properties": {
+											"kind": {
+												"const": "system-shell"
+											},
+											"login": {
+												"type": "boolean"
+											}
+										}
+									},
+									{
+										"type": "object",
+										"additionalProperties": false,
+										"required": ["kind", "executable", "arguments"],
+										"properties": {
+											"kind": {
+												"const": "custom-executable"
+											},
+											"executable": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 32768,
+												"pattern": "^[^\\u0000]*$"
+											},
+											"arguments": {
+												"type": "array",
+												"maxItems": 128,
+												"items": {
+													"type": "string",
+													"maxLength": 32768,
+													"pattern": "^[^\\u0000]*$"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		"snapshot": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"revision",
+				"filePath",
+				"file",
+				"platform",
+				"values",
+				"set",
+				"launchProfiles",
+				"diagnostics"
+			],
+			"properties": {
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"maxLength": 20,
+					"format": "orchbee-uint64",
+					"$comment": "The configuration snapshot's revision counter."
+				},
+				"filePath": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"file": {
+					"$ref": "#/$defs/file"
+				},
+				"platform": {
+					"enum": ["windows", "macos", "linux"]
+				},
+				"values": {
+					"type": "object",
+					"maxProperties": 1024,
+					"propertyNames": {
+						"$ref": "#/$defs/key"
+					},
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/$defs/scalar"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"set": {
+					"type": "array",
+					"maxItems": 1024,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/key"
+					}
+				},
+				"launchProfiles": {
+					"$ref": "#/$defs/launchProfiles"
+				},
+				"diagnostics": {
+					"$ref": "#/$defs/diagnostics"
+				}
+			}
+		},
+		"refusal": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "reason"],
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"enum": [
+								"denied",
+								"unavailable",
+								"session-mismatch",
+								"busy",
+								"read-only",
+								"file-in-use",
+								"locked",
+								"changed",
+								"too-large",
+								"write-failed"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "reason", "key"],
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"const": "unknown-key"
+						},
+						"key": {
+							"$ref": "#/$defs/key"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "reason", "key", "detail"],
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"const": "invalid-value"
+						},
+						"key": {
+							"$ref": "#/$defs/key"
+						},
+						"detail": {
+							"$ref": "#/$defs/token"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "reason", "detail", "line", "column"],
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"const": "syntax-error"
+						},
+						"detail": {
+							"enum": ["invalid-toml", "invalid-utf8"]
+						},
+						"line": {
+							"$ref": "#/$defs/position"
+						},
+						"column": {
+							"$ref": "#/$defs/position"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["outcome", "reason", "detail"],
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"const": "unusable-file"
+						},
+						"detail": {
+							"$ref": "#/$defs/token"
+						}
+					}
+				}
+			]
 		},
 		"response": {
 			"type": "object",
@@ -192,48 +535,36 @@
 					"const": 1
 				},
 				"requestId": {
-					"type": "string",
-					"minLength": 32,
-					"maxLength": 32,
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
+					"$ref": "#/$defs/identity"
 				},
 				"sessionId": {
-					"type": "string",
-					"minLength": 32,
-					"maxLength": 32,
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
+					"$ref": "#/$defs/identity"
 				},
 				"outcome": {
 					"oneOf": [
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "snapshot"],
+							"required": ["outcome", "snapshot"],
 							"properties": {
-								"kind": {
-									"const": "opened"
+								"outcome": {
+									"const": "current"
 								},
 								"snapshot": {
-									"$ref": "https://orchbee.dev/schemas/workbench/v1/user-preferences.schema.json#/$defs/snapshot"
+									"$ref": "#/$defs/snapshot"
 								}
 							}
 						},
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "snapshot", "changed"],
+							"required": ["outcome", "snapshot", "changed"],
 							"properties": {
-								"kind": {
-									"const": "saved"
+								"outcome": {
+									"const": "edited"
 								},
 								"snapshot": {
-									"$ref": "https://orchbee.dev/schemas/workbench/v1/user-preferences.schema.json#/$defs/snapshot"
+									"$ref": "#/$defs/snapshot"
 								},
 								"changed": {
 									"type": "boolean"
@@ -241,37 +572,7 @@
 							}
 						},
 						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["kind"],
-							"properties": {
-								"kind": {
-									"const": "outcome-unknown"
-								}
-							}
-						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["kind", "reason"],
-							"properties": {
-								"kind": {
-									"const": "refused"
-								},
-								"reason": {
-									"enum": [
-										"denied",
-										"unavailable",
-										"session-mismatch",
-										"busy",
-										"source-changed",
-										"invalid-source",
-										"invalid-changes",
-										"write-failed",
-										"response-too-large"
-									]
-								}
-							}
+							"$ref": "#/$defs/refusal"
 						}
 					]
 				}

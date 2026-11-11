@@ -291,8 +291,13 @@ pub use command::configuration::{
     MAXIMUM_CONFIGURATION_DIAGNOSTICS, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
 };
 pub use command::settings::{
-    MAXIMUM_SETTINGS_REQUEST_BYTES, SettingsChanges, SettingsFailure, SettingsOperation,
-    SettingsOutcome, SettingsRequest, SettingsResult, SettingsSource,
+    MAXIMUM_SETTING_ENTRIES, MAXIMUM_SETTING_ENTRIES_BYTES, MAXIMUM_SETTING_KEY_BYTES,
+    MAXIMUM_SETTING_TEXT_BYTES, MAXIMUM_SETTINGS_BYTES, MAXIMUM_SETTINGS_CHANGES,
+    MAXIMUM_SETTINGS_FILE_PATH_BYTES, MAXIMUM_SETTINGS_REQUEST_BYTES, MAXIMUM_SETTINGS_TOKEN_BYTES,
+    MAXIMUM_SNAPSHOT_SETTING_KEYS, SettingChange, SettingEntry, SettingEntryValue, SettingPath,
+    SettingScalar, SettingValue, SettingsFile, SettingsOperation, SettingsOutcome,
+    SettingsPlatform, SettingsRefusal, SettingsRequest, SettingsResult, SettingsSnapshot,
+    SettingsSyntaxReason,
 };
 
 pub use command::notification::{

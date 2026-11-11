@@ -1918,7 +1918,7 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             result.validate()
         }
         WorkbenchResponse::Settings(result) => {
-            enforce_encoded_limit(encoded, crate::MAXIMUM_USER_PREFERENCES_BYTES)?;
+            enforce_encoded_limit(encoded, settings::MAXIMUM_SETTINGS_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::AgentManifests(result) => {

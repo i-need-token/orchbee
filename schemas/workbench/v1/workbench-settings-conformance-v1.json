@@ -2,7 +2,7 @@
 	"contractVersion": 1,
 	"valid": [
 		{
-			"name": "open",
+			"name": "read",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.settings",
@@ -10,12 +10,12 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"operation": {
-					"kind": "open"
+					"kind": "read"
 				}
 			}
 		},
 		{
-			"name": "save-all-common-values",
+			"name": "edit-scalars-and-restore",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.settings",
@@ -23,26 +23,109 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"locale": "system",
-						"applicationTheme": "light",
-						"lightTheme": "orchbee-light",
-						"darkTheme": "orchbee-dark",
-						"tuiColorSource": "theme",
-						"terminalDisplayTheme": "host",
-						"customForeground": "#141414",
-						"customBackground": "#fcfcfc",
-						"copyOnSelect": true,
-						"trimTrailingBlankRowsForAgents": true,
-						"resumeAgentsOnRestore": true,
-						"restoreTerminalOutput": false,
-						"agentNotificationMode": "never",
-						"completionReminderMode": "never",
-						"completionReminderMinimumSeconds": 5,
-						"soundEnabled": false,
-						"scrollbackBytes": 10000000,
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.mode",
+							"value": "dark"
+						},
+						{
+							"key": "terminal.copy_on_select",
+							"value": true
+						},
+						{
+							"key": "terminal.scrollback_bytes",
+							"value": 20000000
+						},
+						{
+							"key": "notifications.agent_reminder",
+							"restore": true
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "edit-launch-profiles-and-default",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "terminal.profiles.windows",
+							"value": [
+								{
+									"id": "pwsh",
+									"name": "PowerShell",
+									"kind": "custom-executable",
+									"executable": "C:/Program Files/PowerShell/7/pwsh.exe",
+									"arguments": ["-NoLogo"]
+								},
+								{
+									"id": "system-default",
+									"kind": "system-shell",
+									"login": false
+								}
+							]
+						},
+						{
+							"key": "terminal.default_profile.windows",
+							"value": "pwsh"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "edit-empty-launch-profiles",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "terminal.profiles.linux",
+							"value": []
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "current-ok",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "current",
+					"snapshot": {
+						"revision": "3",
+						"filePath": "C:\\Users\\person\\.orchbee\\config.toml",
+						"file": {
+							"status": "ok"
+						},
+						"platform": "windows",
+						"values": {
+							"appearance.mode": "dark",
+							"general.language": "system",
+							"notifications.agent_reminder": "when-hidden",
+							"terminal.copy_on_select": false,
+							"terminal.scrollback_bytes": 10000000,
+							"worktrees.directory": null
+						},
+						"set": ["appearance.mode", "notifications.agent_reminder"],
 						"launchProfiles": {
 							"version": 1,
 							"defaultProfileId": "system-default",
@@ -56,13 +139,262 @@
 									}
 								}
 							]
+						},
+						"diagnostics": {
+							"items": [
+								{
+									"field": "terminal.font_size",
+									"reason": "wrong-type",
+									"disposition": "defaulted"
+								}
+							],
+							"omittedCount": 0
 						}
 					}
 				}
 			}
 		},
 		{
-			"name": "reset-explicit-leaves",
+			"name": "current-missing-without-location",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "current",
+					"snapshot": {
+						"revision": "0",
+						"filePath": null,
+						"file": {
+							"status": "missing"
+						},
+						"platform": "linux",
+						"values": {},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "current-syntax-error-keeps-last-values",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "current",
+					"snapshot": {
+						"revision": "18446744073709551615",
+						"filePath": "/home/person/.orchbee/config.toml",
+						"file": {
+							"status": "syntax-error",
+							"reason": "invalid-toml",
+							"line": 4,
+							"column": 7
+						},
+						"platform": "macos",
+						"values": {
+							"appearance.mode": "light"
+						},
+						"set": ["appearance.mode"],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "zsh",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": true
+									}
+								},
+								{
+									"id": "zsh",
+									"name": "Zsh",
+									"command": {
+										"kind": "custom-executable",
+										"executable": "/bin/zsh",
+										"arguments": ["-l"]
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [
+								{
+									"field": "file",
+									"reason": "invalid-toml",
+									"disposition": "defaulted"
+								}
+							],
+							"omittedCount": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "edited-unreadable-unchanged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "edited",
+					"changed": false,
+					"snapshot": {
+						"revision": "7",
+						"filePath": "D:/settings/config.toml",
+						"file": {
+							"status": "unreadable",
+							"reason": "io-error"
+						},
+						"platform": "windows",
+						"values": {
+							"terminal.font_size": 13
+						},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "refused-without-members",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "refused",
+					"reason": "changed"
+				}
+			}
+		},
+		{
+			"name": "refused-unknown-key",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "refused",
+					"reason": "unknown-key",
+					"key": "appearance.unknown"
+				}
+			}
+		},
+		{
+			"name": "refused-invalid-value",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "refused",
+					"reason": "invalid-value",
+					"key": "appearance.mode",
+					"detail": "invalid-mode"
+				}
+			}
+		},
+		{
+			"name": "refused-syntax-error",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "refused",
+					"reason": "syntax-error",
+					"detail": "invalid-utf8",
+					"line": 1,
+					"column": 1
+				}
+			}
+		},
+		{
+			"name": "refused-unusable-file",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "refused",
+					"reason": "unusable-file",
+					"detail": "not-file"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "former-open-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "open"
+				}
+			}
+		},
+		{
+			"name": "former-save-operation",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.settings",
@@ -73,14 +405,13 @@
 					"kind": "save",
 					"source": "missing",
 					"changes": {
-						"soundEnabled": null,
-						"launchProfiles": null
+						"applicationTheme": "dark"
 					}
 				}
 			}
 		},
 		{
-			"name": "save-one-dirty-leaf",
+			"name": "read-with-changes",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.settings",
@@ -88,271 +419,261 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"copyOnSelect": true
-					}
+					"kind": "read",
+					"changes": []
 				}
 			}
 		},
 		{
-			"name": "opened",
-			"direction": "response",
+			"name": "edit-without-changes",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "opened",
-					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"locale": "system",
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": false,
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
+				"operation": {
+					"kind": "edit",
+					"changes": []
+				}
+			}
+		},
+		{
+			"name": "change-with-value-and-restore",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.mode",
+							"value": "dark",
+							"restore": true
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "change-without-value-or-restore",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.mode"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "change-restore-false",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.mode",
+							"restore": false
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "change-null-value",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.mode",
+							"value": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "change-fractional-value",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "terminal.font_size",
+							"value": 13.5
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "change-object-value",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.mode",
+							"value": {
+								"mode": "dark"
 							}
-						},
-						"claimed": [
-							"locale",
-							"applicationTheme",
-							"terminalDisplayTheme",
-							"customForeground",
-							"customBackground",
-							"copyOnSelect",
-							"trimTrailingBlankRowsForAgents",
-							"resumeAgentsOnRestore",
-							"restoreTerminalOutput",
-							"agentNotificationMode",
-							"completionReminderMode",
-							"completionReminderMinimumSeconds",
-							"soundEnabled",
-							"scrollbackBytes",
-							"launchProfiles"
-						]
-					}
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "saved",
-			"direction": "response",
+			"name": "change-array-of-strings",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "saved",
-					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"locale": "system",
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": false,
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
-							}
-						},
-						"claimed": [
-							"locale",
-							"applicationTheme",
-							"terminalDisplayTheme",
-							"customForeground",
-							"customBackground",
-							"copyOnSelect",
-							"trimTrailingBlankRowsForAgents",
-							"resumeAgentsOnRestore",
-							"restoreTerminalOutput",
-							"agentNotificationMode",
-							"completionReminderMode",
-							"completionReminderMinimumSeconds",
-							"soundEnabled",
-							"scrollbackBytes",
-							"launchProfiles"
-						]
-					},
-					"changed": true
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "terminal.profiles.windows",
+							"value": ["pwsh"]
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "no-change",
-			"direction": "response",
+			"name": "entry-member-with-capital",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "saved",
-					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"locale": "system",
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": false,
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
-							}
-						},
-						"claimed": [
-							"locale",
-							"applicationTheme",
-							"terminalDisplayTheme",
-							"customForeground",
-							"customBackground",
-							"copyOnSelect",
-							"trimTrailingBlankRowsForAgents",
-							"resumeAgentsOnRestore",
-							"restoreTerminalOutput",
-							"agentNotificationMode",
-							"completionReminderMode",
-							"completionReminderMinimumSeconds",
-							"soundEnabled",
-							"scrollbackBytes",
-							"launchProfiles"
-						]
-					},
-					"changed": false
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "terminal.profiles.windows",
+							"value": [
+								{
+									"Id": "pwsh"
+								}
+							]
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "outcome-unknown",
-			"direction": "response",
+			"name": "key-with-hyphen",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "outcome-unknown"
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance.light-theme",
+							"value": "orchbee-light"
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "refused-denied",
-			"direction": "response",
+			"name": "key-naming-an-array-element",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "refused",
-					"reason": "denied"
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "terminal.profiles.windows[].id",
+							"value": "pwsh"
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "refused-unavailable",
-			"direction": "response",
+			"name": "key-with-empty-segment",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "refused",
-					"reason": "unavailable"
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "appearance..mode",
+							"restore": true
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "refused-session-mismatch",
-			"direction": "response",
+			"name": "key-longer-than-128-bytes",
+			"direction": "request",
 			"document": {
-				"kind": "workbench.settings.result",
+				"kind": "workbench.settings",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "refused",
-					"reason": "session-mismatch"
+				"operation": {
+					"kind": "edit",
+					"changes": [
+						{
+							"key": "keys.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+							"restore": true
+						}
+					]
 				}
 			}
 		},
 		{
-			"name": "refused-busy",
+			"name": "former-kind-tagged-outcome",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -366,7 +687,7 @@
 			}
 		},
 		{
-			"name": "refused-source-changed",
+			"name": "outcome-unknown-left-the-wire",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -374,13 +695,26 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "refused",
+					"outcome": "outcome-unknown"
+				}
+			}
+		},
+		{
+			"name": "refused-former-reason",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"outcome": "refused",
 					"reason": "source-changed"
 				}
 			}
 		},
 		{
-			"name": "refused-invalid-source",
+			"name": "refused-invalid-value-without-detail",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -388,13 +722,14 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "refused",
-					"reason": "invalid-source"
+					"outcome": "refused",
+					"reason": "invalid-value",
+					"key": "appearance.mode"
 				}
 			}
 		},
 		{
-			"name": "refused-invalid-changes",
+			"name": "refused-syntax-error-without-position",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -402,13 +737,14 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "refused",
-					"reason": "invalid-changes"
+					"outcome": "refused",
+					"reason": "syntax-error",
+					"detail": "invalid-toml"
 				}
 			}
 		},
 		{
-			"name": "refused-write-failed",
+			"name": "refused-busy-with-key",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -416,13 +752,14 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "refused",
-					"reason": "write-failed"
+					"outcome": "refused",
+					"reason": "busy",
+					"key": "appearance.mode"
 				}
 			}
 		},
 		{
-			"name": "refused-response-too-large",
+			"name": "refused-null-key",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -430,194 +767,14 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "refused",
-					"reason": "response-too-large"
+					"outcome": "refused",
+					"reason": "unknown-key",
+					"key": null
 				}
 			}
 		},
 		{
-			"name": "unreadable-reset-all",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "unreadable",
-					"changes": {
-						"locale": null,
-						"applicationTheme": null,
-						"lightTheme": null,
-						"darkTheme": null,
-						"tuiColorSource": null,
-						"terminalDisplayTheme": null,
-						"customForeground": null,
-						"customBackground": null,
-						"copyOnSelect": null,
-						"trimTrailingBlankRowsForAgents": null,
-						"resumeAgentsOnRestore": null,
-						"restoreTerminalOutput": null,
-						"agentNotificationMode": null,
-						"completionReminderMode": null,
-						"completionReminderMinimumSeconds": null,
-						"soundEnabled": null,
-						"scrollbackBytes": null,
-						"launchProfiles": null
-					}
-				}
-			}
-		}
-	],
-	"invalid": [
-		{
-			"name": "empty-patch",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {}
-				}
-			}
-		},
-		{
-			"name": "unknown-setting",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"themeName": "one-light"
-					}
-				}
-			}
-		},
-		{
-			"name": "invalid-duration",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"completionReminderMinimumSeconds": 0
-					}
-				}
-			}
-		},
-		{
-			"name": "invalid-scroll-budget",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"scrollbackBytes": 1000000001
-					}
-				}
-			}
-		},
-		{
-			"name": "invalid-locale",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"locale": "fr-FR"
-					}
-				}
-			}
-		},
-		{
-			"name": "invalid-color",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"customForeground": "#ABCDEF"
-					}
-				}
-			}
-		},
-		{
-			"name": "open-extra",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "open",
-					"path": "C:/other"
-				}
-			}
-		},
-		{
-			"name": "old-revision-protocol",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "missing",
-					"changes": {
-						"soundEnabled": true
-					},
-					"expectedRevision": "1"
-				}
-			}
-		},
-		{
-			"name": "wrong-session",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.settings",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "bad",
-				"operation": {
-					"kind": "open"
-				}
-			}
-		},
-		{
-			"name": "unknown-outcome",
+			"name": "snapshot-syntax-error-at-line-zero",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -625,65 +782,43 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "saved-applied",
+					"outcome": "current",
 					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"locale": "system",
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": false,
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
-							}
+						"revision": "1",
+						"filePath": null,
+						"file": {
+							"status": "syntax-error",
+							"reason": "invalid-toml",
+							"line": 0,
+							"column": 1
 						},
-						"claimed": [
-							"locale",
-							"applicationTheme",
-							"terminalDisplayTheme",
-							"customForeground",
-							"customBackground",
-							"copyOnSelect",
-							"trimTrailingBlankRowsForAgents",
-							"resumeAgentsOnRestore",
-							"restoreTerminalOutput",
-							"agentNotificationMode",
-							"completionReminderMode",
-							"completionReminderMinimumSeconds",
-							"soundEnabled",
-							"scrollbackBytes",
-							"launchProfiles"
-						]
+						"platform": "linux",
+						"values": {},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
 					}
 				}
 			}
 		},
 		{
-			"name": "unknown-extra",
+			"name": "snapshot-integer-revision",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -691,79 +826,40 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "outcome-unknown",
-					"retry": true
-				}
-			}
-		},
-		{
-			"name": "invalid-complete-value",
-			"direction": "response",
-			"document": {
-				"kind": "workbench.settings.result",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"sessionId": "00000000000000000000000000000002",
-				"outcome": {
-					"kind": "opened",
+					"outcome": "current",
 					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"locale": "system",
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": "on",
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
-							}
+						"revision": 1,
+						"filePath": null,
+						"file": {
+							"status": "missing"
 						},
-						"claimed": [
-							"locale",
-							"applicationTheme",
-							"terminalDisplayTheme",
-							"customForeground",
-							"customBackground",
-							"copyOnSelect",
-							"trimTrailingBlankRowsForAgents",
-							"resumeAgentsOnRestore",
-							"restoreTerminalOutput",
-							"agentNotificationMode",
-							"completionReminderMode",
-							"completionReminderMinimumSeconds",
-							"soundEnabled",
-							"scrollbackBytes",
-							"launchProfiles"
-						]
+						"platform": "linux",
+						"values": {},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
 					}
 				}
 			}
 		},
 		{
-			"name": "duplicate-claims",
+			"name": "snapshot-without-file-path",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -771,49 +867,39 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "opened",
+					"outcome": "current",
 					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"locale": "system",
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": false,
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
-							}
+						"revision": "1",
+						"file": {
+							"status": "missing"
 						},
-						"claimed": ["locale", "locale"]
+						"platform": "linux",
+						"values": {},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
 					}
 				}
 			}
 		},
 		{
-			"name": "incomplete-snapshot",
+			"name": "snapshot-other-platform",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.settings.result",
@@ -821,126 +907,136 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "opened",
+					"outcome": "current",
 					"snapshot": {
-						"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-						"values": {
-							"applicationTheme": "light",
-							"lightTheme": "orchbee-light",
-							"darkTheme": "orchbee-dark",
-							"tuiColorSource": "theme",
-							"terminalDisplayTheme": "host",
-							"customForeground": "#141414",
-							"customBackground": "#fcfcfc",
-							"copyOnSelect": true,
-							"trimTrailingBlankRowsForAgents": true,
-							"resumeAgentsOnRestore": true,
-							"restoreTerminalOutput": false,
-							"agentNotificationMode": "never",
-							"completionReminderMode": "never",
-							"completionReminderMinimumSeconds": 5,
-							"soundEnabled": false,
-							"scrollbackBytes": 10000000,
-							"launchProfiles": {
-								"version": 1,
-								"defaultProfileId": "system-default",
-								"profiles": [
-									{
-										"id": "system-default",
-										"name": null,
-										"command": {
-											"kind": "system-shell",
-											"login": false
-										}
-									}
-								]
-							}
+						"revision": "1",
+						"filePath": null,
+						"file": {
+							"status": "missing"
 						},
-						"claimed": [
-							"locale",
-							"applicationTheme",
-							"terminalDisplayTheme",
-							"customForeground",
-							"customBackground",
-							"copyOnSelect",
-							"trimTrailingBlankRowsForAgents",
-							"resumeAgentsOnRestore",
-							"restoreTerminalOutput",
-							"agentNotificationMode",
-							"completionReminderMode",
-							"completionReminderMinimumSeconds",
-							"soundEnabled",
-							"scrollbackBytes",
-							"launchProfiles"
-						]
+						"platform": "freebsd",
+						"values": {},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
 					}
 				}
 			}
 		},
 		{
-			"name": "invalid-source",
-			"direction": "request",
+			"name": "snapshot-structured-value",
+			"direction": "response",
 			"document": {
-				"kind": "workbench.settings",
+				"kind": "workbench.settings.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "BAD",
-					"changes": {
-						"soundEnabled": true
+				"outcome": {
+					"outcome": "current",
+					"snapshot": {
+						"revision": "1",
+						"filePath": null,
+						"file": {
+							"status": "missing"
+						},
+						"platform": "linux",
+						"values": {
+							"terminal.profiles.linux": []
+						},
+						"set": [],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
 					}
 				}
 			}
 		},
 		{
-			"name": "unreadable-partial-reset",
-			"direction": "request",
+			"name": "snapshot-repeated-set-key",
+			"direction": "response",
 			"document": {
-				"kind": "workbench.settings",
+				"kind": "workbench.settings.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "unreadable",
-					"changes": {
-						"applicationTheme": null
+				"outcome": {
+					"outcome": "current",
+					"snapshot": {
+						"revision": "1",
+						"filePath": null,
+						"file": {
+							"status": "ok"
+						},
+						"platform": "linux",
+						"values": {},
+						"set": ["appearance.mode", "appearance.mode"],
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						},
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						}
 					}
 				}
 			}
 		},
 		{
-			"name": "unreadable-update",
-			"direction": "request",
+			"name": "snapshot-former-preference-shape",
+			"direction": "response",
 			"document": {
-				"kind": "workbench.settings",
+				"kind": "workbench.settings.result",
 				"protocolVersion": 1,
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
-				"operation": {
-					"kind": "save",
-					"source": "unreadable",
-					"changes": {
-						"locale": null,
-						"applicationTheme": "dark",
-						"lightTheme": null,
-						"darkTheme": null,
-						"tuiColorSource": null,
-						"terminalDisplayTheme": null,
-						"customForeground": null,
-						"customBackground": null,
-						"copyOnSelect": null,
-						"trimTrailingBlankRowsForAgents": null,
-						"resumeAgentsOnRestore": null,
-						"restoreTerminalOutput": null,
-						"agentNotificationMode": null,
-						"completionReminderMode": null,
-						"completionReminderMinimumSeconds": null,
-						"soundEnabled": null,
-						"scrollbackBytes": null,
-						"launchProfiles": null
+				"outcome": {
+					"outcome": "current",
+					"snapshot": {
+						"source": "missing",
+						"values": {},
+						"claimed": []
 					}
 				}
 			}

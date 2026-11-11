@@ -284,7 +284,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
     let maximum = if kind == 59 {
         crate::MAXIMUM_SETTINGS_REQUEST_BYTES
     } else if kind == 60 {
-        crate::MAXIMUM_USER_PREFERENCES_BYTES
+        crate::MAXIMUM_SETTINGS_BYTES
     } else if kind == 57 {
         crate::MAXIMUM_GRAPHICS_REQUEST_BYTES
     } else if kind == 58 {

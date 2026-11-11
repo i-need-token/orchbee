@@ -142,7 +142,7 @@ impl UserLaunchProfiles {
         None
     }
 
-    pub(super) fn validate(&self) -> Result<(), PreferencesFailure> {
+    pub(crate) fn validate(&self) -> Result<(), PreferencesFailure> {
         self.validation()
             .map_err(|_| PreferencesFailure::InvalidChanges)
     }

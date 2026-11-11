@@ -45,15 +45,13 @@ fn settings_requires_exact_correlation_and_matching_operation() {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000001").unwrap(),
         session_id: SessionId::parse("00000000000000000000000000000002").unwrap(),
-        operation: SettingsOperation::Open {},
+        operation: SettingsOperation::Read {},
     };
     let result = SettingsResult {
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
         session_id: request.session_id.clone(),
-        outcome: SettingsOutcome::Refused {
-            reason: SettingsFailure::Busy,
-        },
+        outcome: SettingsOutcome::refused(SettingsRefusal::Busy),
     };
     assert!(result.answers(&request));
     let mut other = request.clone();
@@ -62,66 +60,27 @@ fn settings_requires_exact_correlation_and_matching_operation() {
     other = request.clone();
     other.request_id = WorkbenchRequestId::parse("00000000000000000000000000000004").unwrap();
     assert!(!result.answers(&other));
-}
-
-#[test]
-fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_without_live_acknowledgment()
- {
-    let before = UserPreferencesValues::default();
-    let mut after = before.clone();
-    after.application_theme = ApplicationAppearance::Dark;
-    let changes = UserPreferencesPatch::between(&before, &after);
-    let request = SettingsRequest {
-        protocol_version: ProtocolVersion,
-        request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
-        session_id: SessionId::parse(&"2".repeat(32)).unwrap(),
-        operation: SettingsOperation::Save {
-            source: SettingsSource::parse("missing").unwrap(),
-            changes,
-        },
+    let Ok(WorkbenchResponse::Settings(current)) = parse_workbench_response(
+        &serde_json::to_vec(
+            &serde_json::from_str::<serde_json::Value>(include_str!(
+                "../../../schemas/workbench/v1/workbench-settings-conformance-v1.json"
+            ))
+            .unwrap()["valid"][4]["document"],
+        )
+        .unwrap(),
+    ) else {
+        panic!("current snapshot case");
     };
-    let snapshot = UserPreferencesSnapshot {
-        source: "a".repeat(64),
-        values: after,
-        claimed: [PreferenceKey::ApplicationTheme].into(),
-    };
-    let mut result = SettingsResult {
-        protocol_version: ProtocolVersion,
-        request_id: request.request_id.clone(),
-        session_id: request.session_id.clone(),
-        outcome: SettingsOutcome::Saved {
-            snapshot: snapshot.clone(),
-            changed: true,
-        },
-    };
-    assert!(result.answers(&request));
-    let mut wrong = snapshot.clone();
-    wrong.values.application_theme = ApplicationAppearance::Light;
-    result.outcome = SettingsOutcome::Saved {
-        snapshot: wrong,
-        changed: true,
+    assert!(current.answers(&request));
+    other = request;
+    other.operation = SettingsOperation::Edit {
+        changes: vec![SettingChange::Restore {
+            key: SettingPath::parse("appearance.mode").unwrap(),
+        }],
     };
     assert!(
-        !result.answers(&request),
-        "another value cannot acknowledge this save"
-    );
-    let mut unclaimed = snapshot;
-    unclaimed.claimed.clear();
-    result.outcome = SettingsOutcome::Saved {
-        snapshot: unclaimed,
-        changed: false,
-    };
-    assert!(
-        !result.answers(&request),
-        "a migration may not overwrite acknowledged edits"
-    );
-    result.outcome = SettingsOutcome::OutcomeUnknown {};
-    assert!(result.answers(&request));
-    let mut read = request;
-    read.operation = SettingsOperation::Open {};
-    assert!(
-        !result.answers(&read),
-        "a write receipt cannot answer a read"
+        !current.answers(&other),
+        "a read snapshot cannot answer an edit"
     );
 }
 
@@ -131,7 +90,7 @@ fn settings_checks_request_size_and_direction_before_body_admission() {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("00000000000000000000000000000001").unwrap(),
         session_id: SessionId::parse("00000000000000000000000000000002").unwrap(),
-        operation: SettingsOperation::Open {},
+        operation: SettingsOperation::Read {},
     };
     let mut encoded =
         serialize_workbench_request(&WorkbenchRequest::Settings(request.clone())).unwrap();
