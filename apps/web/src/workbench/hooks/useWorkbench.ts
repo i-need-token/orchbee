@@ -91,9 +91,10 @@ import type {
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import type { WorkbenchAgentStartInput } from '../types/workbench-agent-start';
 import {
-	useWorkbenchAgentStart,
+	useWorkbenchAgentDialogs,
+	type WorkbenchAgentBoardDialogModel,
 	type WorkbenchAgentStartDialogModel,
-} from './useWorkbenchAgentStart';
+} from './useWorkbenchAgentDialogs';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
 import { useWorkbenchMobileFocusRouter } from './useWorkbenchMobileFocusRouter';
@@ -117,7 +118,6 @@ import {
 	findWorkbenchConfiguredCommandForKey,
 	type WorkbenchConfiguredCommandKeys,
 } from '../model/workbench-configured-command-keys';
-import type { WorkbenchAgentBoard } from '../types/workbench-agent-board';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import {
 	useWorkbenchAuthorityNotice,
@@ -170,13 +170,15 @@ interface ResizablePanelSize {
 
 interface WorkbenchView {
 	/** Present while the Agent board is open. */
-	readonly agentBoard: WorkbenchAgentBoard | undefined;
-	readonly agentBoardFinalFocus: () => HTMLElement | false | null;
+	readonly agentBoard: WorkbenchAgentBoardDialogModel | undefined;
 	readonly closeAgentBoard: () => void;
 	/** Closes the board after a jump and hands the shown terminal the keyboard. */
 	readonly showAgentBoardSession: () => void;
+	/** Present while the Session can start an Agent: opens Start Agent in the board's place. */
+	readonly startAgentFromBoard: (() => void) | undefined;
 	/** Present while Start Agent is open. */
 	readonly agentStart: WorkbenchAgentStartDialogModel | undefined;
+	/** Esc, Cancel or the backdrop: back to the board Start Agent replaced, otherwise closed. */
 	readonly closeAgentStart: () => void;
 	/** Closes Start Agent and runs `workbench.agent.start-provider`. */
 	readonly startAgent: (input: WorkbenchAgentStartInput) => void;
@@ -528,34 +530,10 @@ export function useWorkbench({
 		reconcile();
 		return projectWorkspaceRuntime.subscribeTerminalTopology(reconcile);
 	}, [nameEditor, projectWorkspaceRuntime]);
-	const agentBoardReturnFocus = React.useRef<HTMLElement | null>(null);
-	const agentBoardLanded = React.useRef(false);
-	const [agentBoardOpen, setAgentBoardOpen] = React.useState(false);
-	const openAgentBoard = useMemoizedFn(() => {
-		const focused = typeof document === 'undefined' ? null : document.activeElement;
-		agentBoardReturnFocus.current =
-			focused instanceof HTMLElement && focused !== document.body ? focused : null;
-		agentBoardLanded.current = false;
-		setAgentBoardOpen(true);
-	});
-	const closeAgentBoard = useMemoizedFn(() => setAgentBoardOpen(false));
-	const showAgentBoardSession = useMemoizedFn(() => {
-		// The terminal the jump showed takes the keyboard once the board has gone.
-		const handover = focusRouting.beginTerminalHandover();
-		agentBoardLanded.current = true;
-		setAgentBoardOpen(false);
-		handover.complete();
-	});
-	const agentBoardFinalFocus = useMemoizedFn((): HTMLElement | false | null => {
-		const capturedTarget = agentBoardReturnFocus.current;
-		agentBoardReturnFocus.current = null;
-		if (agentBoardLanded.current) return false;
-		return capturedTarget?.isConnected === true
-			? capturedTarget
-			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
-	});
-	const agentStart = useWorkbenchAgentStart({
+	const agentDialogs = useWorkbenchAgentDialogs({
+		agentBoard: authorityNotice.authority.agentBoard,
 		agentCatalog: authorityNotice.authority.agentCatalog,
+		beginTerminalHandover: focusRouting.beginTerminalHandover,
 		projectWorkspaceRuntime,
 	});
 	const toggleSidebar = sidebar.toggle;
@@ -696,8 +674,8 @@ export function useWorkbench({
 		onSettings,
 		onShortcuts,
 		onTerminalFontSizeChange,
-		openAgentBoard,
-		openAgentStart: agentStart.open,
+		openAgentBoard: agentDialogs.openBoard,
+		openAgentStart: agentDialogs.openStart,
 		openSearch,
 		openTabTitleEditor: openNameEditor,
 		openPanelNameEditor: openNameEditor,
@@ -711,8 +689,11 @@ export function useWorkbench({
 		worktreeLabel,
 	});
 	const startAgent = useMemoizedFn((input: WorkbenchAgentStartInput) => {
-		agentStart.close();
+		agentDialogs.endStart();
 		actions.invoke(WORKBENCH_ACTION_IDS.startAgent, input, 'button');
+	});
+	const startAgentFromBoard = useMemoizedFn(() => {
+		actions.invoke(WORKBENCH_ACTION_IDS.openAgentStart, undefined, 'keyboard');
 	});
 	const createProject = useMemoizedFn((path: string) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
@@ -952,12 +933,12 @@ export function useWorkbench({
 		configuredCommandKeys.heldLabels.has(label) ? undefined : label;
 
 	return {
-		agentBoard: agentBoardOpen ? authorityNotice.authority.agentBoard : undefined,
-		agentBoardFinalFocus,
-		closeAgentBoard,
-		showAgentBoardSession,
-		agentStart: agentStart.dialog,
-		closeAgentStart: agentStart.close,
+		agentBoard: agentDialogs.board,
+		closeAgentBoard: agentDialogs.closeBoard,
+		showAgentBoardSession: agentDialogs.showBoardSession,
+		startAgentFromBoard: agentDialogs.startOffered ? startAgentFromBoard : undefined,
+		agentStart: agentDialogs.start,
+		closeAgentStart: agentDialogs.closeStart,
 		startAgent,
 		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,

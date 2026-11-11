@@ -6,6 +6,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 	Kbd,
+	ProductIcon,
 } from '@orchbee/ui/components';
 import type * as React from 'react';
 
@@ -20,18 +21,29 @@ interface WorkbenchAgentBoardDialogProps {
 	readonly finalFocus: () => HTMLElement | false | null;
 	readonly onClose: () => void;
 	readonly onShown: () => void;
+	/** Present while an Agent can be started: the first row and `S` open Start Agent. */
+	readonly onStartAgent: (() => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 }
 
-/** The Server's Agent sessions, one per row, from which a jump shows a session's terminal. */
+/**
+ * The Server's Agent sessions, one per row, from which a jump shows a session's terminal, below the
+ * row that opens Start Agent in the board's place.
+ */
 export function WorkbenchAgentBoardDialog({
 	board,
 	finalFocus,
 	onClose,
 	onShown,
+	onStartAgent,
 	projectWorkspaceRuntime,
 }: WorkbenchAgentBoardDialogProps): React.ReactNode {
-	const view = useWorkbenchAgentBoardDialog({ board, onShown, projectWorkspaceRuntime });
+	const view = useWorkbenchAgentBoardDialog({
+		board,
+		onShown,
+		onStartAgent,
+		projectWorkspaceRuntime,
+	});
 
 	return (
 		<Dialog
@@ -60,6 +72,24 @@ export function WorkbenchAgentBoardDialog({
 					role='listbox'
 					tabIndex={0}
 				>
+					{view.startRow === null ? null : (
+						<div
+							aria-selected={view.startRow.selected}
+							className={styles['row']}
+							data-highlighted={view.startRow.selected}
+							data-slot='workbench-agent-board-start'
+							id={view.startRow.elementId}
+							ref={view.startRow.elementRef}
+							role='option'
+							onClick={view.startRow.onClick}
+							onDoubleClick={view.startRow.onDoubleClick}
+						>
+							<span className={styles['startGlyph']}>
+								<ProductIcon name='add' />
+							</span>
+							<span className={styles['status']}>{view.startRow.label}</span>
+						</div>
+					)}
 					{view.rows.length === 0 ? (
 						<p className={styles['empty']} data-slot='workbench-agent-board-empty'>
 							{view.emptyMessage}

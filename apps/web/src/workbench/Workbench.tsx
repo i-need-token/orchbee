@@ -574,10 +574,11 @@ export function Workbench({
 			)}
 			{view.agentBoard === undefined ? null : (
 				<WorkbenchAgentBoardDialog
-					board={view.agentBoard}
-					finalFocus={view.agentBoardFinalFocus}
+					board={view.agentBoard.board}
+					finalFocus={view.agentBoard.finalFocus}
 					onClose={view.closeAgentBoard}
 					onShown={view.showAgentBoardSession}
+					onStartAgent={view.startAgentFromBoard}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 				/>
 			)}

@@ -126,6 +126,7 @@ const meta = {
 		finalFocus: () => null,
 		onClose: () => undefined,
 		onShown: () => undefined,
+		onStartAgent: () => undefined,
 		projectWorkspaceRuntime: englishRuntime,
 	},
 	render: (arguments_) => (
