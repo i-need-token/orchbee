@@ -55,6 +55,30 @@ diagnostics and migration reports are management operations rather than preferen
 field admission requires both UI entries, actual runtime behavior and updates to this inventory and
 the shared conformance corpus; an unimplemented adapter is not a platform-inapplicability reason.
 
+## Setting keys
+
+[`v1/setting-keys-v1.json`](v1/setting-keys-v1.json) lists every `config.toml` key, in registry
+order, with `contractVersion: 1` and the per-platform table names in `platforms`. Each entry has:
+
+| Member                       | Meaning                                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `path`                       | Dotted key; `<platform>`, `<action>` and `*` stand for a platform, a Client action and any name, and `[]` for array entries |
+| `type`                       | `boolean`, `integer`, `choice`, `text`, `color`, `theme`, `path` or `structured`                                            |
+| `minimum`, `maximum`, `step` | Integer bounds                                                                                                              |
+| `choices`                    | The strings a `choice` admits                                                                                               |
+| `maximumBytes`               | Longest `text` or `theme` value in UTF-8 bytes, or longest JSON encoding of a `structured` value                            |
+| `maximumEntries`             | Most entries in a `structured` value                                                                                        |
+| `default`                    | Effective value when the key is absent; `null` when absent means no value                                                   |
+| `scope`                      | `client` (read from the Client's own machine) or `server` (read from the attached Server's machine)                         |
+| `clients`                    | `both`, `tui` or `desktop`                                                                                                  |
+| `effect`                     | `immediate`, `new-terminals` or `restart`                                                                                   |
+| `category`, `group`          | Settings-page placement ids                                                                                                 |
+| `page`                       | Whether the settings page shows the key                                                                                     |
+
+The file is generated from the Rust registry, which stays its authority; a `local-runtime` test
+fails while it is stale and rewrites it under `ORCHBEE_REGENERATE_SETTING_KEYS=1`
+([user settings](../../crates/local-runtime/README.md#published-key-file)). Never edit it by hand.
+
 ## Semantic events
 
 `v1/workbench-events.schema.json` and its shared corpus define closed OBWP55/56 shapes for

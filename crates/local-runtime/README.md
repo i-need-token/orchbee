@@ -24,15 +24,15 @@ This crate owns admitted shared capabilities and stable runtime lifecycle contra
 Settings and plugin schemas, command outcome types, named-Session syntax, Windows path operands
 and literal command encoding are available on every supported platform. Windows path admission
 uses its explicit grammar even on Unix; environment and cwd are supplied by the execution owner.
-OS effects stay in their owning adapter. The Windows private cache, legacy settings source and
-plugin registry refuse unsupported Unix operations before opening a path or spawning a process;
-private-cache errors use `io::ErrorKind::Unsupported`, the settings error uses the stable
-`platform` / `unsupported-platform` diagnosis, and the registry uses `PluginRegistryError::Unsupported`.
-Existing cross-platform `UserPreferencesStore` support is independent of these legacy facilities.
+OS effects stay in their owning adapter. The Windows private cache and plugin registry refuse
+unsupported Unix operations before opening a path or spawning a process; private-cache errors use
+`io::ErrorKind::Unsupported` and the registry uses `PluginRegistryError::Unsupported`. The
+[user settings](#user-settings) reader and editor run on every host. Existing cross-platform
+`UserPreferencesStore` support is independent of these legacy facilities.
 Applications decide action visibility and localized feedback through their
 [TUI platform contract](../../apps/orchbee/docs/tui-platforms.md).
 
-Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint, registered-child and retained-command operations return `io::ErrorKind::Unsupported` before effects. Deletion uses `NamedSessionDeleteReason::Unsupported`; configuration reset and channel writes use the same `platform` / `unsupported-platform` diagnosis. Existing Unix rendezvous, cohort, retained-child and shared preference implementations remain with their own adapters.
+Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint, registered-child and retained-command operations return `io::ErrorKind::Unsupported` before effects. Deletion uses `NamedSessionDeleteReason::Unsupported`; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort, retained-child and shared preference implementations remain with their own adapters.
 
 ## Shared user preference storage
 
@@ -60,10 +60,14 @@ owns the recovery token and Client notice.
 ## Shared launch and notification policy
 
 `default_interactive_launch` owns pure platform shell selection and native executable admission,
-shared by Desktop's matched helper and Native Worker. It starts no process. The preference store
-captures scrollback and the selected launch profile together; an explicit executable bypasses
-default shell resolution while retaining the shared scrollback default. POSIX login is explicit;
-Windows login is refused. Invalid shared storage fails the operation before Host handoff.
+shared by Desktop's matched helper and Native Worker. It starts no process.
+`UserTerminalLaunchIntent::capture` takes scrollback, colors and the selected launch profile
+together from one set of preference values, and the preference store's `terminal_launch_intent`
+applies it to the current record; an explicit executable bypasses default shell resolution while
+retaining the shared scrollback default. A custom executable must be absolute in its platform's
+form; POSIX login is explicit and Windows login is refused. The preference store and `config.toml`
+launch profiles apply this one rule. Invalid shared storage fails the operation before Host
+handoff.
 
 `UserTerminalColors` resolves terminal default colors for both native presentation and new Worker
 profiles. Theme and Host take the canvas of the active slot's theme when application appearance is
@@ -822,10 +826,28 @@ Initialization and encoded helpers consume only the owned assets.
 
 `config.toml` is the one user settings file; settings pages will become a view over it. The
 registry, `SETTING_KEYS` in `src/user_settings/registry.rs`, declares every key once: its dotted
-path, value type with allowed values or range, default, page category and group ids, the Clients it
-applies to, when a change applies, whether the settings page shows it, and the shared preference it
-mirrors. The reader, the `orchbee --default-config` reference, `config check` key knowledge and the
-single-key editor all derive from it, so adding a key starts there.
+path, value type with allowed values or range, default, page category and group ids, its scope,
+the Clients it applies to, when a change applies, whether the settings page shows it, and the
+shared preference it mirrors. The reader, the `orchbee --default-config` reference, `config check`
+key knowledge, the editor and the published key file all derive from it, so adding a key starts
+there.
+
+A key's `SettingScope` says whose file holds it. `Client` keys describe how one Client looks and
+takes input (`general.language`, `appearance.*`, the terminal font, padding, opacity, Option,
+selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
+Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
+`focus_new_panel`, `scrollback_bytes`, `restore_output`, the launch profiles and default profile,
+`worktrees.directory`, `agents.resume_on_restore`, `agent_detection.auto_update`, `update.channel`)
+and are read from the attached Server's file. With a local Server both are the same file.
+
+### Published key file
+
+[`schemas/workbench/v1/setting-keys-v1.json`](../../schemas/workbench/v1/setting-keys-v1.json)
+is the registry as data: every key with its `path`, `type`, bounds or `choices`, `default` (`null`
+when unset), `scope`, `clients`, `effect`, `category`, `group` and `page`, in registry order. The
+test `setting_key_file_matches_the_registry` fails while the file differs from the registry, and
+running it with `ORCHBEE_REGENERATE_SETTING_KEYS=1` rewrites the file. The output already has the
+repository formatter's layout, so commit it as written.
 
 ### Tables and keys
 
@@ -884,6 +906,17 @@ preference keys (those with a `preference` in the registry) and the launch profi
 Desktop's own state until later phases move consumers onto the file. The notification profile the
 Server publishes keeps its `[ui.toast]` wire spelling.
 
+`preference_values(lookup, launch_profiles)` is the one derivation of the preference values from
+key values: `lookup` returns a key path's `Scalar`, or `None` when the file leaves it unset, and a
+value its key does not admit (`SettingKey::admit`) keeps its default. The reader builds
+`UserSettings::preferences` with it over the file, and a Client holding a copy of the file's values
+builds the same values with it.
+
+Each `[[terminal.profiles.<platform>]]` table is admitted by its own platform's launch rules on
+every host: a custom executable must be an absolute path in that platform's form (a drive or
+`\\server` path on Windows, `/` elsewhere), and a Windows system shell cannot be a login shell. A
+table that breaks them falls back as a whole with `invalid-value`.
+
 ### Reading
 
 The reader is strict per key and tolerant per file:
@@ -906,8 +939,10 @@ The reader is strict per key and tolerant per file:
 Diagnostics are deduplicated before display truncation, sorted by field and reason, capped at 128
 entries with an exact omitted count, and never retain source values or commands. See
 [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The reader
-runs on Windows, and the editor shares that gate; other hosts get `unsupported-platform` until
-their Clients adopt the file.
+and the editor run on every host and read `config.toml` as a plain file under the data root. Path
+keys (`terminal.new_cwd` folders and `worktrees.directory`) still use the Windows user-path grammar
+on every host, so a POSIX absolute folder there is `invalid-path` until those keys gain a POSIX
+grammar.
 
 The same reader owns `UpdateChannel` (`stable`/`preview`, default stable) with default/file
 provenance; native `channel show` consumes it offline and infers nothing about the installed
@@ -916,34 +951,46 @@ keeps absolute literals verbatim; applications own wire projection, activation c
 child arguments.
 
 `user_settings_path` resolves the same file without opening it. It preserves explicit
-`ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the data root; a missing home leaves the
-location absent, and an invalid `ORCHBEE_HOME` is a settings error. Detection rules, preferences
-and other records follow the data root, never the settings file's folder.
+`ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the data root; `ORCHBEE_CONFIG_FILE` takes
+the same absolute-path admission as `ORCHBEE_HOME`. A missing home leaves the location absent, and
+an invalid `ORCHBEE_HOME` is a settings error. Detection rules, preferences and other records follow
+the data root, never the settings file's folder.
 
 ### Editing
 
-`set_setting(key, value, env)` and `restore_setting_default(key, env)` change one registered key
-and keep every other byte:
+`edit_settings(changes, env)` applies one to 64 changes (`SettingChanges`, no two naming the same
+key), each `SettingChange::Set` or `SettingChange::Restore`, in one write or none, keeps every other
+byte, and returns whether the file changed. `set_setting(key, value, env)` and
+`restore_setting_default(key, env)` are the same edit with one change.
 
-1. Take `internal/config.lock` in the data root, waiting up to two seconds (`locked`).
-2. Read the file, following a symbolic link to the file it names, and record its SHA-256.
-3. Change the key with `toml_edit`: a key already present keeps its comments and inline comment; a
-   new key goes into its table, and a missing table is created with a header after any comments
-   that end the file. Restoring removes the key and any table it leaves empty, unless that table carries
-   a comment.
-4. Validate the result with the reader and refuse a value it would not accept for that key
-   (`invalid-value` with the reader's reason) or an unregistered key (`unknown-key`). An array of
-   tables is edited whole, never one element.
-5. Write `config.pending` beside the file and flush it, then compare the file with the recorded
+1. Refuse an unregistered key, or one part of a key that is edited whole (`unknown-key`), and a
+   structured value over 64 entries or 64 KiB of JSON (`value-too-long`), before opening anything.
+2. Take `internal/config.lock` in the data root, waiting up to two seconds (`locked`).
+3. Read the file, following a symbolic link to the file it names, and record its SHA-256.
+4. Apply every change to one candidate with `toml_edit`: a key already present keeps its comments
+   and inline comment; a new key goes into its table, and a missing table is created with a header
+   after any comments that end the file. A structured key such as `terminal.profiles.<platform>`
+   takes its whole value, an array of tables written as `[[...]]` entries. Restoring removes the key
+   and any table it leaves empty, unless that table carries a comment.
+5. Validate the candidate once with the reader. A diagnostic the file did not already have, on a
+   changed key or on any registered key, refuses the whole edit as `invalid-value` with the
+   reader's field and reason; a default profile left naming a removed profile is refused this way.
+6. Write `config.pending` beside the file and flush it, then compare the file with the recorded
    digest; when another program changed it, redo the edit once from the new text, then report
    `changed`.
-6. Replace the file atomically. A symbolic link keeps its link and the target is replaced.
+7. Replace the file atomically. A symbolic link keeps its link and the target is replaced.
 
-A missing file is created holding only that key. A file that does not parse is never written: the
-edit returns `Syntax` with its line and column. A read-only file is `read-only`; on Windows a file
-another program holds open is retried for two seconds, then `in-use`. Nothing changes when the file
-already says what the edit asks for. `set_update_channel` is `set_setting` on `update.channel`;
-its errors map onto the file failure vocabulary `channel set` already publishes.
+A missing file is created holding only the changed keys. A file that does not parse is never
+written: the edit returns `Syntax` with its line and column. A read-only file is `read-only`; on
+Windows a file another program holds open is retried for two seconds, then `in-use`. Nothing
+changes when the file already says what the changes ask for.
+
+`SettingsEditError` keeps one variant per refusal: `UnknownKey { key }`, `InvalidValue { key, field,
+reason }`, `Syntax` (reason, line, column), `ReadOnly`, `InUse`, `Locked`, `Changed`, `TooLarge`,
+`Source` for an unusable location or file, and `Io` for any other write failure. `key` names the
+change a refusal is charged to; `field` can name another key the change affects.
+`set_update_channel` is `set_setting` on `update.channel`; its errors map onto the file failure
+vocabulary `channel set` already publishes.
 
 ### Reference
 
@@ -983,7 +1030,7 @@ The Windows plugin catalog boundary supplies bounded manifest parsing, normalize
 
 ## Windows update channel writes
 
-`set_update_channel` saves the channel through the [single-key editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads or rolls back a saved preference after a caller's update failure.
+`set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads or rolls back a saved preference after a caller's update failure.
 
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 
