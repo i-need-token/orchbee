@@ -92,7 +92,6 @@ struct Subscription {
     observed: u64,
     overruns: u8,
     last_overrun: Option<Instant>,
-    next_file_sample: Option<Instant>,
     _request_claim: Claim,
     last_claim: Claim,
 }
@@ -464,12 +463,6 @@ fn dispatch(
                         }
                         Err(error) => return Err(io::Error::other(error)),
                     };
-                    // Invalidation mode carries Server commit hints only. External-file
-                    // observation belongs to subscriptions that deliver semantic snapshots.
-                    let next_file_sample = (mode != StreamMode::Invalidations)
-                        .then(|| parsed.external_preferences_interval())
-                        .flatten()
-                        .map(|interval| Instant::now() + interval);
                     let Ok(last_claim) = Claim::reserve(budget, record.len().saturating_mul(3))
                     else {
                         return write_multiplex_message(
@@ -507,7 +500,6 @@ fn dispatch(
                                 observed: captured_at,
                                 overruns: 0,
                                 last_overrun: None,
-                                next_file_sample,
                                 _request_claim: claim,
                                 last_claim,
                             },
@@ -595,26 +587,13 @@ fn dispatch(
             // count is only invalidation: unrelated commits must never imply event loss.
             let observed = stream_revision(signal, subscription.mode, &subscription.request);
             let backlog = observed.wrapping_sub(subscription.observed);
-            let file_sample_due = subscription
-                .next_file_sample
-                .is_some_and(|deadline| Instant::now() >= deadline);
-            if backlog > 0
-                || subscription.more
-                || subscription.request.requires_sampling()
-                || file_sample_due
-            {
+            if backlog > 0 || subscription.more || subscription.request.requires_sampling() {
                 let record = if subscription.mode == StreamMode::Invalidations {
                     observed.to_be_bytes().to_vec()
                 } else {
                     execute(subscription.lane, &subscription.continuation)
                         .map_err(io::Error::other)?
                 };
-                if subscription.next_file_sample.is_some() {
-                    subscription.next_file_sample = subscription
-                        .request
-                        .external_preferences_interval()
-                        .map(|interval| Instant::now() + interval);
-                }
                 let (more, gap) = ApplicationRequest::event_page(&record);
                 subscription.more = more;
                 if gap {
@@ -673,8 +652,7 @@ fn dispatch(
                 },
             );
         }
-        // OS/Host probes retain their existing cadence. Shared-preferences files have a
-        // separate absolute deadline: ordinary frames and other samples cannot rearm it.
+        // OS/Host probes retain their existing cadence.
         let sampling = subscriptions
             .values()
             .any(|subscription| subscription.request.requires_sampling())
@@ -683,11 +661,6 @@ fn dispatch(
             let timeout = sampling
                 .into_iter()
                 .chain(expiry.map(|at| at.saturating_duration_since(Instant::now())))
-                .chain(subscriptions.values().filter_map(|subscription| {
-                    subscription
-                        .next_file_sample
-                        .map(|at| at.saturating_duration_since(Instant::now()))
-                }))
                 .min();
             signal.wait(wake_revision, timeout);
         }
@@ -744,12 +717,6 @@ fn resnapshot(
     let observed = stream_revision(signal, subscription.mode, &subscription.request);
     let fresh = subscription.request.fresh_snapshot();
     let record = execute(subscription.lane, &fresh).map_err(io::Error::other)?;
-    if subscription.next_file_sample.is_some() {
-        subscription.next_file_sample = subscription
-            .request
-            .external_preferences_interval()
-            .map(|interval| Instant::now() + interval);
-    }
     let last_claim = Claim::reserve(budget, record.len().saturating_mul(3))?;
     subscription.sequence = subscription
         .sequence

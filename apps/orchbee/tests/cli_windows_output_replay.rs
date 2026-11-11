@@ -11,10 +11,7 @@
 #[path = "support/windows_tui_session.rs"]
 mod session;
 
-use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
-use orchbee_workbench_protocol::{
-    PreferenceKey, UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse,
-};
+use orchbee_workbench_protocol::PreferenceKey;
 use serde_json::{Value, json};
 use session::{Fixture, system_program};
 use sha2::{Digest, Sha256};
@@ -368,28 +365,8 @@ impl Witness {
         }
     }
 
-    fn store(&self) -> UserPreferencesStore {
-        UserPreferencesStore::new(
-            UserPreferencesScope::from_environment(self.fixture.state_environment()).unwrap(),
-        )
-    }
-
     fn set_preference(&self, key: PreferenceKey, value: Value) {
-        let source = match self.store().execute(&UserPreferencesRequest::Read {}) {
-            UserPreferencesResponse::Snapshot { snapshot, .. } => snapshot.source,
-            other => panic!("the preference record is unreadable: {other:?}"),
-        };
-        let response = self.store().execute(&UserPreferencesRequest::Update {
-            source,
-            changes: UserPreferencesPatch::set(key, value).unwrap(),
-        });
-        assert!(
-            matches!(
-                response,
-                UserPreferencesResponse::Snapshot { changed: true, .. }
-            ),
-            "{response:?}"
-        );
+        self.fixture.set_preference(key, value);
     }
 }
 

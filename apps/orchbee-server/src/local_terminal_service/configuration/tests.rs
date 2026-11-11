@@ -539,8 +539,8 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         )
         .unwrap();
         assert_eq!(parsed.delivery.as_str(), delivery);
-        // Automatic Agent delivery and the global sound switch are shared user preferences whose
-        // runtime source is still the preference store, so the file's values do not reach here.
+        // Automatic Agent delivery and the global sound switch are shared settings that Clients
+        // read from the settings snapshot, so the file's values do not reach this profile.
         let defaults = orchbee_local_runtime::NotificationSettings::default();
         assert_eq!(
             parsed.agent_delivery.as_str(),
@@ -618,79 +618,243 @@ fn warning_record_changes_advance_revision_when_effective_settings_are_equal() {
     assert_eq!(clean.notification_profile, warning.notification_profile);
 }
 
+fn settings(registry: &Registry) -> SettingsSnapshot {
+    let SettingsOutcome::Current { snapshot } = registry.settings_current() else {
+        panic!("current settings");
+    };
+    *snapshot
+}
+
+fn sampled(
+    path: Option<&std::path::Path>,
+    explicit: bool,
+) -> Result<UserSettingsLoad, SettingsError> {
+    read_user_settings_at(path, explicit, |_| None)
+}
+
+fn watched(registry: &Registry) -> std::sync::Arc<orchbee_server::SessionChangeSignal> {
+    let signal = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
+    registry.changes.watch(&signal);
+    signal
+}
+
+fn set(key: &str, value: orchbee_workbench_protocol::SettingValue) -> SettingChange {
+    SettingChange::Set {
+        key: orchbee_workbench_protocol::SettingPath::parse(key).unwrap(),
+        value,
+    }
+}
+
+fn value(
+    snapshot: &SettingsSnapshot,
+    key: &str,
+) -> Option<orchbee_workbench_protocol::SettingScalar> {
+    snapshot
+        .values
+        .get(&orchbee_workbench_protocol::SettingPath::parse(key).unwrap())
+        .cloned()
+        .flatten()
+}
+
+/// Edits through the real editor, with the fixture as the data root.
+fn edit_in(
+    fixture: &Fixture,
+) -> impl FnOnce(Option<&std::path::Path>, &SettingChanges) -> Result<bool, SettingsEditError> + '_
+{
+    move |path, changes| {
+        let path = path.map(|path| path.as_os_str().to_owned());
+        orchbee_local_runtime::edit_settings(changes, |name| match name {
+            "ORCHBEE_HOME" => Some(fixture.0.clone().into_os_string()),
+            "ORCHBEE_CONFIG_FILE" => path.clone(),
+            _ => None,
+        })
+    }
+}
+
 #[test]
-fn sampler_publishes_only_changed_files_and_retains_fatal_edits() {
+fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() {
+    let fixture = Fixture::new();
+    fixture.write("[terminal]\nfocus_new_panel = true\n[keys\n");
+    let startup = fixture.load(true);
+    let syntax = startup.syntax.unwrap();
+    let registry = Registry::default();
+    registry.initialize_load(&startup).unwrap();
+    let signal = watched(&registry);
+    let before = std::fs::read(fixture.file()).unwrap();
+    let (outcome, output_off) = registry.edit_with(
+        &[set(
+            "terminal.focus_new_panel",
+            orchbee_workbench_protocol::SettingValue::Boolean(false),
+        )],
+        edit_in(&fixture),
+        sampled,
+        |_| panic!("nothing was written"),
+    );
+    assert!(!output_off);
+    assert_eq!(
+        outcome,
+        SettingsOutcome::Refused {
+            reason: SettingsRefusal::SyntaxError,
+            key: None,
+            detail: Some("invalid-toml".into()),
+            line: Some(u32::try_from(syntax.line).unwrap()),
+            column: Some(u32::try_from(syntax.column).unwrap()),
+        }
+    );
+    assert_eq!(std::fs::read(fixture.file()).unwrap(), before);
+    assert_eq!(signal.revision(), 0);
+}
+
+#[test]
+fn a_refused_edit_publishes_nothing() {
+    let fixture = Fixture::new();
+    fixture.write("[terminal]\nfocus_new_panel = true\n");
+    let registry = Registry::default();
+    registry.initialize_load(&fixture.load(true)).unwrap();
+    let signal = watched(&registry);
+    let (configuration, published) = (current(&registry), settings(&registry));
+    let (outcome, _) = registry.edit_with(
+        &[set(
+            "terminal.focus_new_panel",
+            orchbee_workbench_protocol::SettingValue::Text("yes".into()),
+        )],
+        edit_in(&fixture),
+        sampled,
+        |_| panic!("nothing was written"),
+    );
+    assert!(matches!(
+        outcome,
+        SettingsOutcome::Refused {
+            reason: SettingsRefusal::InvalidValue,
+            key: Some(ref key),
+            ..
+        } if key.as_str() == "terminal.focus_new_panel"
+    ));
+    assert_eq!(
+        std::fs::read_to_string(fixture.file()).unwrap(),
+        "[terminal]\nfocus_new_panel = true\n"
+    );
+    assert_eq!(signal.revision(), 0);
+    assert_eq!(current(&registry), configuration);
+    assert_eq!(settings(&registry), published);
+}
+
+#[test]
+fn one_committed_edit_publishes_exactly_one_snapshot_with_a_higher_revision() {
+    let fixture = Fixture::new();
+    fixture.write("[terminal]\nfocus_new_panel = true\n");
+    let registry = Registry::default();
+    registry.initialize_load(&fixture.load(true)).unwrap();
+    let signal = watched(&registry);
+    let before = settings(&registry);
+    let (outcome, _) = registry.edit_with(
+        &[set(
+            "terminal.focus_new_panel",
+            orchbee_workbench_protocol::SettingValue::Boolean(false),
+        )],
+        edit_in(&fixture),
+        sampled,
+        |_| true,
+    );
+    let SettingsOutcome::Edited {
+        snapshot,
+        changed: true,
+    } = outcome
+    else {
+        panic!("edited: {outcome:?}");
+    };
+    assert!(snapshot.revision.value() > before.revision.value());
+    assert_eq!(
+        value(&snapshot, "terminal.focus_new_panel"),
+        Some(orchbee_workbench_protocol::SettingScalar::Boolean(false))
+    );
+    assert_eq!(settings(&registry), *snapshot);
+    assert!(!current(&registry).focus_new_panel);
+    assert_eq!(signal.revision(), 1);
+    // The sampler then finds the file it would publish already published.
+    let mut sampler = Sampler::default();
+    registry.sample(&mut sampler, Instant::now(), sampled, |_| {
+        panic!("equal candidate")
+    });
+    assert_eq!(signal.revision(), 1);
+    assert_eq!(settings(&registry), *snapshot);
+}
+
+#[test]
+fn an_external_edit_is_observed_and_published() {
     let fixture = Fixture::new();
     fixture.write("[keys]\nprefix='ctrl+a'");
     let registry = Registry::default();
     registry.initialize_load(&fixture.load(true)).unwrap();
-    let signal = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
-    registry.changes.watch(&signal);
-    let load =
-        |path: Option<&std::path::Path>, explicit| read_user_settings_at(path, explicit, |_| None);
+    let signal = watched(&registry);
     let mut sampler = Sampler::default();
     let at = |samples: u32| Instant::now() + SAMPLE_INTERVAL * samples;
-    // The first observation rereads the startup file but publishes nothing equal.
-    registry.sample(&mut sampler, at(0), load, |_| panic!("equal candidate"));
-    assert_eq!(current(&registry).revision.value(), 0);
+    registry.sample(&mut sampler, at(0), sampled, |_| panic!("equal candidate"));
+    assert_eq!(signal.revision(), 0);
     // Lengths differ so coarse modification times cannot hide an edit.
-    fixture.write("[keys]\nprefix='ctrl+d'\n[terminal]\nnew_cwd='home'\n");
-    registry.sample(&mut sampler, at(0), load, |_| panic!("sample is not due"));
-    registry.sample(&mut sampler, at(1), load, |_| true);
-    let published = current(&registry);
-    assert_eq!(published.revision.value(), 1);
-    assert!(published.keys_profile.contains("ctrl+d"));
-    assert_eq!(published.new_cwd, "home");
-    assert_eq!(signal.revision(), 1);
-
-    fixture.write("[keys\nprefix='ctrl+x'");
-    registry.sample(&mut sampler, at(2), load, |_| panic!("fatal file"));
-    registry.sample(&mut sampler, at(3), load, |_| {
-        panic!("unchanged fatal file")
-    });
-    assert_eq!(current(&registry), published);
-
+    fixture.write("[keys]\nprefix='ctrl+d'\n[appearance]\nmode='dark'\n");
     // Refused application, such as busy manifest maintenance, retries the same file.
-    fixture.write("[keys]\nprefix='ctrl+x'");
-    registry.sample(&mut sampler, at(4), load, |_| false);
-    assert_eq!(current(&registry), published);
-    registry.sample(&mut sampler, at(5), load, |_| true);
-    assert!(current(&registry).keys_profile.contains("ctrl+x"));
-    assert_eq!(signal.revision(), 2);
+    registry.sample(&mut sampler, at(1), sampled, |_| false);
+    assert_eq!(signal.revision(), 0);
+    registry.sample(&mut sampler, at(2), sampled, |_| true);
+    assert_eq!(signal.revision(), 1);
+    let configuration = current(&registry);
+    let published = settings(&registry);
+    assert!(configuration.keys_profile.contains("ctrl+d"));
+    assert_eq!(configuration.revision.value(), 1);
+    assert_eq!(published.revision.value(), 1);
+    assert_eq!(
+        value(&published, "appearance.mode"),
+        Some(orchbee_workbench_protocol::SettingScalar::Text(
+            "dark".into()
+        ))
+    );
 }
 
 #[test]
-fn unreadable_preferences_are_one_retained_session_fact_across_configuration_reload() {
+fn the_last_valid_values_are_served_during_a_syntax_error() {
     let fixture = Fixture::new();
-    fixture.write("");
+    fixture.write("[appearance]\nmode = 'dark'\n");
     let registry = Registry::default();
-    // Detection can precede configuration startup; publication must retain it.
-    registry.note_unreadable_preferences();
     registry.initialize_load(&fixture.load(true)).unwrap();
-    let first = current(&registry);
-    assert!(
-        first
-            .diagnostics
-            .items
-            .iter()
-            .any(|item| item.field == "sharedPreferences"
-                && item.reason == "unreadable"
-                && item.disposition == ConfigurationDiagnosticDisposition::Defaulted)
+    let signal = watched(&registry);
+    let configuration = current(&registry);
+    let mut sampler = Sampler::default();
+    let at = |samples: u32| Instant::now() + SAMPLE_INTERVAL * samples;
+    registry.sample(&mut sampler, at(0), sampled, |_| panic!("equal candidate"));
+    fixture.write("[appearance\nmode = 'light'\n");
+    let syntax = fixture.load(true).syntax.unwrap();
+    registry.sample(&mut sampler, at(1), sampled, |_| {
+        panic!("a file that does not parse is never applied")
+    });
+    assert_eq!(signal.revision(), 1);
+    let broken = settings(&registry);
+    assert_eq!(
+        broken.file,
+        SettingsFile::SyntaxError {
+            reason: orchbee_workbench_protocol::SettingsSyntaxReason::InvalidToml,
+            line: u32::try_from(syntax.line).unwrap(),
+            column: u32::try_from(syntax.column).unwrap(),
+        }
     );
-    registry.note_unreadable_preferences();
-    assert_eq!(current(&registry), first);
-    fixture.write("[appearance]\nwindow_title = 'changed'\n");
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
-        panic!("reload");
-    };
-    assert_eq!(snapshot.diagnostics, first.diagnostics);
-    let registry = Registry::default();
-    registry.initialize_load(&fixture.load(true)).unwrap();
-    let before = current(&registry);
-    registry.note_unreadable_preferences();
-    let after = current(&registry);
-    assert_eq!(after.revision.value(), before.revision.value() + 1);
-    registry.note_unreadable_preferences();
-    assert_eq!(current(&registry), after);
+    assert_eq!(
+        value(&broken, "appearance.mode"),
+        Some(orchbee_workbench_protocol::SettingScalar::Text(
+            "dark".into()
+        ))
+    );
+    assert!(
+        broken
+            .set
+            .iter()
+            .any(|key| key.as_str() == "appearance.mode")
+    );
+    assert_eq!(current(&registry), configuration);
+    assert!(matches!(
+        registry.execute(&request(Action::Reload), |_| panic!("not applied")),
+        Outcome::Failed {
+            reason: Failure::LoadFailed,
+            ..
+        }
+    ));
 }

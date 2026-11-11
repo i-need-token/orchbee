@@ -7,6 +7,7 @@
 mod inherited_environment;
 
 use orchbee_local_runtime::CohortArtifact;
+use orchbee_workbench_protocol::{PreferenceKey, UserPreferencesPatch, UserPreferencesValues};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -180,6 +181,25 @@ impl Fixture {
             };
             Some(root.join(directory).into_os_string())
         }
+    }
+
+    /// The common preference values this fixture's `config.toml` gives the runtime.
+    pub fn preferences(&self) -> UserPreferencesValues {
+        orchbee_local_runtime::read_user_settings(self.state_environment())
+            .unwrap()
+            .settings
+            .preferences
+    }
+
+    /// Sets one preference in this fixture's `config.toml` the way the settings page saves it.
+    pub fn set_preference(&self, key: PreferenceKey, value: Value) {
+        let baseline = self.preferences();
+        let values = UserPreferencesPatch::set(key, value)
+            .and_then(|patch| patch.apply(&baseline))
+            .unwrap();
+        let changes = orchbee_local_runtime::preference_changes(&baseline, &values, &[]);
+        let changes = orchbee_local_runtime::setting_changes(&changes).unwrap();
+        assert!(orchbee_local_runtime::edit_settings(&changes, self.state_environment()).unwrap());
     }
 
     /// The CLI under test in this fixture's isolated environment.

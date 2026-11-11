@@ -27,22 +27,18 @@ impl LocalTerminalService {
         self.terminal_output.get()
     }
 
-    /// Whether this Session keeps and replays terminal output, read from the frozen store before
-    /// the caller takes any lock. A refused record or a missing store reads as off.
+    /// Whether this Session keeps and replays terminal output, read from the last valid settings
+    /// before the caller takes any lock. Before startup installs configuration it reads as off.
     pub(crate) fn output_replay_enabled(&self) -> bool {
-        self.preferences.get().is_some_and(|store| {
-            store
-                .read()
-                .is_ok_and(|snapshot| snapshot.values.restore_terminal_output)
-        })
+        self.configuration
+            .with_preferences(|values| values.restore_terminal_output)
+            .unwrap_or(false)
     }
 
     fn output_locale(&self) -> Locale {
         let preference = self
-            .preferences
-            .get()
-            .and_then(|store| store.read().ok())
-            .map(|snapshot| snapshot.values.locale)
+            .configuration
+            .with_preferences(|values| values.locale)
             .unwrap_or_default();
         Locale::configured(preference, |name| std::env::var_os(name))
     }

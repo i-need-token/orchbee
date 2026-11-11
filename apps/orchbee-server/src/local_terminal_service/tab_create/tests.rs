@@ -367,11 +367,12 @@ fn a_tab_created_on_a_reporting_worker_publishes_its_system_shell() -> TestResul
     let owner_thread = thread::spawn(move || owner.run(server));
 
     let service = LocalTerminalService::workspace_fixture(Arc::clone(&registry));
-    // A fresh preference store selects the System shell default profile.
-    let scope = orchbee_local_runtime::UserPreferencesScope::for_data_root(
-        &orchbee_local_runtime::DataRoot::at(configuration.0.clone()),
-    );
-    service.initialize_preferences(scope)?;
+    // A missing settings file selects the System shell default profile.
+    service.install_configuration(&orchbee_local_runtime::read_user_settings_at(
+        Some(&configuration.0.join("config.toml")),
+        false,
+        |_| None,
+    )?)?;
     let service = Arc::new(service);
     let command = command(&service, 1_201, 0);
     let creator_service = Arc::clone(&service);

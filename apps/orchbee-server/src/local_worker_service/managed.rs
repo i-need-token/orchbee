@@ -159,11 +159,8 @@ pub(super) fn run(
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle()
             .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
-        let (mut terminals, pending) = LocalTerminalService::from_checkpoint(
-            registry,
-            checkpoint,
-            super::configuration_windows::preferences_scope()?,
-        )?;
+        let (mut terminals, pending) =
+            LocalTerminalService::from_checkpoint(registry, checkpoint, &configuration)?;
         terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
@@ -175,17 +172,11 @@ pub(super) fn run(
         Arc::new(terminals)
     };
     #[cfg(not(windows))]
-    terminals.initialize_preferences(
-        orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
-            std::env::var_os(name)
-        })
-        .map_err(|_| io::Error::other("Settings scope is unavailable"))?,
-    )?;
-    #[cfg(not(windows))]
     terminals.start_close_maintenance()?;
     #[cfg(not(windows))]
     terminals.start_title_reads()?;
-    // Hosts here cannot sample processes, so the observer refuses before reading settings.
+    // Hosts here cannot sample processes: the observer refuses after installing the startup read
+    // as the Session's configuration.
     #[cfg(not(windows))]
     match terminals.start_process_observer(
         || {

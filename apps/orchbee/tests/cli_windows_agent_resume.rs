@@ -45,11 +45,7 @@
 #[path = "support/windows_tui_session.rs"]
 mod session;
 
-use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
-use orchbee_workbench_protocol::{
-    PreferenceKey, UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse,
-    UserPreferencesSnapshot,
-};
+use orchbee_workbench_protocol::PreferenceKey;
 use serde_json::{Value, json};
 use session::{Control, Fixture, system_program};
 use std::{
@@ -1275,10 +1271,10 @@ impl Witness {
         assert_eq!(stopped.code, Some(0), "{stopped}");
     }
 
-    /// Starts the default Session again once its preference record still selects cmd: an
-    /// unreadable record would restore PowerShell, which resolves only through `PATH`.
+    /// Starts the default Session again once its settings file still selects cmd: an unreadable
+    /// file would restore PowerShell, which resolves only through `PATH`.
     fn start_session(&self) {
-        let values = serde_json::to_value(&self.preferences().values).unwrap();
+        let values = serde_json::to_value(self.fixture.preferences()).unwrap();
         assert_eq!(
             values["launchProfiles"]["defaultProfileId"], CMD_PROFILE,
             "{values}"
@@ -1396,35 +1392,8 @@ impl Witness {
         }
     }
 
-    fn store(&self) -> UserPreferencesStore {
-        UserPreferencesStore::new(
-            UserPreferencesScope::from_environment(self.fixture.state_environment()).unwrap(),
-        )
-    }
-
-    fn preferences(&self) -> UserPreferencesSnapshot {
-        match self.store().execute(&UserPreferencesRequest::Read {}) {
-            UserPreferencesResponse::Snapshot { snapshot, .. }
-                if snapshot.source != "unreadable" =>
-            {
-                *snapshot
-            }
-            other => panic!("the preference record is unreadable: {other:?}"),
-        }
-    }
-
     fn set_preference(&self, key: PreferenceKey, value: Value) {
-        let response = self.store().execute(&UserPreferencesRequest::Update {
-            source: self.preferences().source,
-            changes: UserPreferencesPatch::set(key, value).unwrap(),
-        });
-        assert!(
-            matches!(
-                response,
-                UserPreferencesResponse::Snapshot { changed: true, .. }
-            ),
-            "{response:?}"
-        );
+        self.fixture.set_preference(key, value);
     }
 }
 

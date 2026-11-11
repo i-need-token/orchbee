@@ -10,7 +10,7 @@ mod observation;
 mod pane_graphics;
 mod plugins;
 pub(crate) mod semantic_events;
-mod user_preferences;
+mod settings;
 use std::{
     num::NonZeroU64,
     sync::{Arc, Mutex},
@@ -92,7 +92,6 @@ const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
     controller_focus: Mutex<controller_focus::FocusRegistry>,
-    preferences: std::sync::OnceLock<orchbee_local_runtime::UserPreferencesStore>,
     configuration: configuration::Registry,
     observer: observation::Observer,
     graphics_preparation: Mutex<()>,
@@ -145,7 +144,6 @@ impl LocalTerminalService {
     ) -> Self {
         Self {
             controller_focus: Mutex::default(),
-            preferences: std::sync::OnceLock::new(),
             configuration: configuration::Registry::default(),
             observer: observation::Observer::default(),
             graphics_preparation: Mutex::default(),
@@ -261,7 +259,7 @@ impl LocalTerminalService {
             );
         }
         let busy = busy_result(&request);
-        // Only a creation reads the preference store, and it does so before either lock. A raw
+        // Only a creation reads the Session's settings, and it does so before either lock. A raw
         // terminal creation binds no Presentation, so it needs no reported System shell.
         let capture = match &request {
             ClientMessage::TerminalCreate(_) => self.launch_capture(),

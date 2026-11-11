@@ -102,13 +102,13 @@ impl LocalTerminalService {
         Ok((revision, bytes))
     }
 
-    /// Reconstructs and reserves every terminal before any request can launch a Host. The
-    /// Session's preference scope is frozen first, so restored launches capture the same
-    /// preferences as any later creation.
+    /// Reconstructs and reserves every terminal before any request can launch a Host. Restored
+    /// launches take their settings from `configuration`, the Session's startup read that later
+    /// becomes its configuration, so they capture the same values as the first later creation.
     pub(crate) fn from_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,
-        preferences: orchbee_local_runtime::UserPreferencesScope,
+        configuration: &orchbee_local_runtime::UserSettingsLoad,
     ) -> io::Result<(Self, CheckpointRestore)> {
         let handle = workers
             .lock()
@@ -132,13 +132,13 @@ impl LocalTerminalService {
             .restoration_targets(&owner)
             .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
-        service.initialize_preferences(preferences)?;
-        // The setting decides resuming once, from the store the scope just froze.
-        let resume = service.agent_resume_enabled();
+        let values = &configuration.settings.preferences;
+        // The setting decides resuming once, from the startup read.
+        let resume = values.resume_agents_on_restore;
         // Output replays only while the setting is on; otherwise the first save removes it.
-        let replay = service.output_replay_enabled();
-        // One read serves every restored launch, after the scope it reads is frozen.
-        let capture = service.launch_capture();
+        let replay = values.restore_terminal_output;
+        // One read serves every restored launch.
+        let capture = super::settings::launch_capture(values);
         let coordinator = service
             .coordinator
             .get_mut()

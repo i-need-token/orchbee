@@ -114,23 +114,15 @@ pub(crate) fn run(
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
+    let configuration = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+        .map_err(io::Error::other)?;
+    // Hosts here cannot sample processes, so the Session serves its settings without an observer.
     #[cfg(not(windows))]
-    terminals.initialize_preferences(
-        orchbee_local_runtime::UserPreferencesScope::from_environment(|name| {
-            std::env::var_os(name)
-        })
-        .map_err(|_| io::Error::other("Settings scope is unavailable"))?,
-    )?;
+    terminals.install_configuration(&configuration)?;
     terminals.start_close_maintenance()?;
     terminals.start_title_reads()?;
     #[cfg(windows)]
-    {
-        let configuration =
-            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
-                .map_err(io::Error::other)?;
-        terminals.initialize_preferences(configuration_windows::preferences_scope()?)?;
-        terminals.start_process_observer_with_configuration(configuration, false)?;
-    }
+    terminals.start_process_observer_with_configuration(configuration, false)?;
     let _client_service = endpoints
         .client
         .as_deref()

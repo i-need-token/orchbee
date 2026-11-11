@@ -147,8 +147,8 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
             ConfigurationAction::Reload => Intent,
         },
         WorkbenchRequest::Settings(request) => match request.operation {
-            SettingsOperation::Open {} => Read,
-            SettingsOperation::Save { .. } => Intent,
+            SettingsOperation::Read {} => Read,
+            SettingsOperation::Edit { .. } => Intent,
         },
         WorkbenchRequest::Notification(request) => match request.action {
             NotificationAction::Listen { .. } => Read,

@@ -67,9 +67,7 @@ fn toml_value(value: &WireValue) -> toml::Value {
 pub fn settings_refusal(error: &SettingsEditError, first: &SettingPath) -> SettingsOutcome {
     let charged = |key: &str| SettingPath::parse(key).unwrap_or_else(|_| first.clone());
     let detail = |reason: &str, fallback: &str| {
-        Some(
-            if token(reason) { reason } else { fallback }.to_owned(),
-        )
+        Some(if token(reason) { reason } else { fallback }.to_owned())
     };
     let position = |value: usize| Some(u32::try_from(value).unwrap_or(u32::MAX).max(1));
     match error {

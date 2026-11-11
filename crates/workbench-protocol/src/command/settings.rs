@@ -162,8 +162,13 @@ impl SettingValue {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "ChangeDocument", into = "ChangeDocument")]
 pub enum SettingChange {
-    Set { key: SettingPath, value: SettingValue },
-    Restore { key: SettingPath },
+    Set {
+        key: SettingPath,
+        value: SettingValue,
+    },
+    Restore {
+        key: SettingPath,
+    },
 }
 impl SettingChange {
     pub const fn key(&self) -> &SettingPath {
@@ -316,7 +321,9 @@ pub enum SettingsFile {
         column: u32,
     },
     /// The file could not be read; the values are the last valid ones.
-    Unreadable { reason: String },
+    Unreadable {
+        reason: String,
+    },
 }
 
 /// The whole settings file of the machine that produced it.
@@ -346,20 +353,19 @@ impl SettingsSnapshot {
             SettingsFile::SyntaxError { line, column, .. } => *line >= 1 && *column >= 1,
             SettingsFile::Unreadable { reason } => token(reason),
         };
-        let valid = file
-            && self.file_path.as_ref().is_none_or(|path| {
+        let valid =
+            file && self.file_path.as_ref().is_none_or(|path| {
                 !path.is_empty()
                     && path.len() <= MAXIMUM_SETTINGS_FILE_PATH_BYTES
                     && !path.chars().any(char::is_control)
-            })
-            && self.values.len() <= MAXIMUM_SNAPSHOT_SETTING_KEYS
-            && self
-                .values
-                .values()
-                .all(|value| value.as_ref().is_none_or(SettingScalar::valid))
-            && self.set.len() <= MAXIMUM_SNAPSHOT_SETTING_KEYS
-            && self.set.windows(2).all(|pair| pair[0] < pair[1])
-            && self.launch_profiles.validate().is_ok();
+            }) && self.values.len() <= MAXIMUM_SNAPSHOT_SETTING_KEYS
+                && self
+                    .values
+                    .values()
+                    .all(|value| value.as_ref().is_none_or(SettingScalar::valid))
+                && self.set.len() <= MAXIMUM_SNAPSHOT_SETTING_KEYS
+                && self.set.windows(2).all(|pair| pair[0] < pair[1])
+                && self.launch_profiles.validate().is_ok();
         if valid {
             self.diagnostics.validate()
         } else {

@@ -112,7 +112,7 @@ impl WorkbenchService {
             WorkbenchRequest::AgentIntegration(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, orchbee_workbench_protocol::ConfigurationAction::Current => self.policy.read },
-            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::SettingsOperation::Save { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::SettingsOperation::Open {} => self.policy.read },
+            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::SettingsOperation::Edit { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::SettingsOperation::Read {} => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
                 orchbee_workbench_protocol::AgentManifestsAction::Current {} | orchbee_workbench_protocol::AgentManifestsAction::Operation { .. } => self.policy.read,
@@ -567,13 +567,11 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 protocol_version: request.protocol_version,
                 request_id: request.request_id,
                 session_id: request.session_id,
-                outcome: orchbee_workbench_protocol::SettingsOutcome::Refused {
-                    reason: if denied {
-                        orchbee_workbench_protocol::SettingsFailure::Denied
-                    } else {
-                        orchbee_workbench_protocol::SettingsFailure::Unavailable
-                    },
-                },
+                outcome: orchbee_workbench_protocol::SettingsOutcome::refused(if denied {
+                    orchbee_workbench_protocol::SettingsRefusal::Denied
+                } else {
+                    orchbee_workbench_protocol::SettingsRefusal::Unavailable
+                }),
             })
         }
         WorkbenchRequest::PaneGraphics(request) => {

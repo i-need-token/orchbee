@@ -24,7 +24,7 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
             matches!(request.action, ConfigurationAction::Current)
         }
         WorkbenchRequest::Settings(request) => {
-            matches!(request.operation, SettingsOperation::Open { .. })
+            matches!(request.operation, SettingsOperation::Read {})
         }
         WorkbenchRequest::WindowTitle(request) => {
             matches!(request.action, WindowTitleAction::Listen { .. })

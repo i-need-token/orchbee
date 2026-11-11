@@ -111,7 +111,7 @@ impl ProcessObserver {
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
         // can become visible. Installation remains after manifest initialization so a later
         // manifest failure cannot leave the configuration owner half-started.
-        let configuration = super::configuration::Registry::prepare_initial(&current)?;
+        let configuration = super::configuration::Registry::prepare_initial(&current, true)?;
         self.wake.manifests.initialize_settings(
             root,
             settings,
@@ -221,18 +221,22 @@ impl LocalTerminalService {
     }
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
     /// `configuration` is the Server's single startup read. Revision zero, diagnostics, every
-    /// live profile and the frozen reload location all come from it; nothing rereads the file
-    /// until an explicit reload. The composition root has already frozen the preference scope
-    /// from the same read.
-    /// Starts the observer where Hosts sample processes, reading the startup configuration only
-    /// then. Elsewhere it refuses with `Unsupported`, and the Session runs without an observer.
+    /// live profile and the frozen reload location all come from it; after that the sampler
+    /// observes the file.
+    /// Starts the observer where Hosts sample processes. Elsewhere it installs the startup read as
+    /// the Session's configuration and refuses with `Unsupported`; the Session then runs without
+    /// an observer, and nothing observes the file.
     pub(crate) fn start_process_observer(
         self: &Arc<Self>,
         configuration: impl FnOnce() -> io::Result<orchbee_local_runtime::UserSettingsLoad>,
         background: bool,
     ) -> io::Result<()> {
-        host_sampling::require()?;
-        self.start_process_observer_with_configuration(configuration()?, background)
+        let configuration = configuration()?;
+        if let Err(unsupported) = host_sampling::require() {
+            self.install_configuration(&configuration)?;
+            return Err(unsupported);
+        }
+        self.start_process_observer_with_configuration(configuration, background)
     }
     pub(crate) fn start_process_observer_with_configuration(
         self: &Arc<Self>,

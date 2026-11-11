@@ -5,8 +5,6 @@ use orchbee_workbench_protocol::{
 };
 use std::sync::mpsc;
 
-mod preferences;
-
 fn open(id: u64, lane: u64, mode: StreamMode) -> MultiplexMessage {
     let mut request = Vec::new();
     write_workbench_request(

@@ -5,7 +5,6 @@ use crate::{
 };
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, LaunchPreferences, read_message};
 use orchbee_local_ipc::LocalStream as UnixStream;
-use orchbee_local_runtime::UserPreferencesScope;
 use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 use orchbee_workbench_protocol::{PresentationBinding, SessionId, TerminalId};
 use std::{error::Error, path::PathBuf, thread, time::Duration};
@@ -17,9 +16,9 @@ impl Drop for PrivateRoot {
     }
 }
 
-/// Windows restoration launches before the process observer starts. Restoration therefore
-/// freezes the preference scope itself; an unfrozen store would capture `Unavailable`, which the
-/// Worker refuses for every restored terminal.
+/// Windows restoration launches before the process observer starts. Restoration therefore takes
+/// its settings from the startup read itself; launching without them would capture `Unavailable`,
+/// which the Worker refuses for every restored terminal.
 #[test]
 fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Error + Send + Sync>>
 {
@@ -62,10 +61,16 @@ fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Er
         &serde_json::to_string(&root.0.to_string_lossy())?,
     );
     let checkpoint = WorkbenchCheckpoint::parse(checkpoint.as_bytes())?;
-    let scope =
-        UserPreferencesScope::for_data_root(&orchbee_local_runtime::DataRoot::at(root.0.clone()));
-    let (service, restore) =
-        LocalTerminalService::from_checkpoint(Arc::clone(&registry), Some(checkpoint), scope)?;
+    let configuration = orchbee_local_runtime::read_user_settings_at(
+        Some(&root.0.join("config.toml")),
+        false,
+        |_| None,
+    )?;
+    let (service, restore) = LocalTerminalService::from_checkpoint(
+        Arc::clone(&registry),
+        Some(checkpoint),
+        &configuration,
+    )?;
     let service = Arc::new(service);
     let restoring = {
         let service = Arc::clone(&service);
