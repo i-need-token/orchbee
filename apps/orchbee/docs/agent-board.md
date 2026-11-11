@@ -58,6 +58,12 @@ or provider id. `Esc` first clears a query, then returns to the Board when the p
 else closes; the close control acts like `Esc` with an empty query, and an outside press closes the
 whole owner. No key reaches the Panel.
 
+Outside the TUI, `orchbee agent start <provider>` is the scriptable entry. It takes the picker's
+places as flags beside a reference Panel — `--new-tab`, its default, `--split right|down` or
+`--here` — and uses the same Tab creation, split and catalog id as the picker, so an exact catalog
+start in a new Panel types nothing; it adds the named start the picker does not offer. See
+[Windows Agent startup](windows-agent-start.md#invocation-and-prerequisites).
+
 Groups follow the list order: **Recent** holds at most three installed providers, most recent
 first; **Installed** follows A–Z; the rest fold into one row, "N more not found on this computer",
 that expands on `Enter` or a click and scrolls the N providers into view with the cursor on the

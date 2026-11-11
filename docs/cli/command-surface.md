@@ -67,8 +67,10 @@ Cardinal `--direction` values are `left|right|up|down`. Ordered Tab movement use
 `--order previous|next|first|last`; text search uses `--search-direction forward|backward`.
 A Panel-family target is positional, with `--current` for contextual selection; other families
 use typed `--panel` or `--terminal` selectors. Names use `--label` for display metadata and
-`--name` for managed identity. Provider selection always uses `--provider` and canonical
-provider names; capability subsets must be documented. Key modifiers use `ctrl+`, `alt+`,
+`--name` for managed identity. Provider selection uses `--provider` and canonical provider names,
+except that a command whose sole subject is one provider to start, such as `agent start`, takes it
+as its first positional operand with the same closed set; capability subsets must be documented.
+Key modifiers use `ctrl+`, `alt+`,
 `shift+`, `super+`, with canonical lowercase named keys and literal printable scalar input.
 
 ## Options

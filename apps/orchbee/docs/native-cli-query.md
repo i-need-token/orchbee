@@ -2882,7 +2882,7 @@ JSON carries the value verbatim.
 
 ## Windows Agent startup
 
-[Windows Agent startup](windows-agent-start.md) owns `agent start`, its single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent names` v1 includes separate pending reservations; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
+[Windows Agent startup](windows-agent-start.md) owns `agent start`, its places, first-command start, single submission, early check, reservation and readiness workflow, Windows quoting, budgets and recovery. `agent names` v1 includes separate pending reservations; names failures use v1 for launch-pending. The catalog exposes the current documents and command paths.
 
 ## Windows Session stop
 

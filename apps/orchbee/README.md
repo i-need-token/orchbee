@@ -47,11 +47,14 @@ sends semantic keys through the existing terminal input receipt. Both also accep
 unblocked preflight. It observes activity before waiting for a condition and retains the
 input receipt on later timeout or cancellation; it does not promise turn causality.
 
-`agent start --provider codex --panel <id>` types an Agent's command at the confirmed prompt of
-an idle Windows terminal and returns after a three-second check; the Agent then shows as opening
-and is observed like one typed by hand. With `--name alpha` it also waits for readiness: the
-integration's canonical Session confirms it and binds the name; without an integration the Agent
-observed ready in its Panel confirms it and no name is bound.
+`agent start codex` starts an Agent on Windows in a new Tab beside the caller's Panel, or with
+`--split right|down` in a new split, or with `--here --panel <id>` at the confirmed prompt of that
+idle terminal. Without arguments or a name, a new Panel's shell runs the Agent as its first command
+and the CLI returns once the Panel exists; otherwise the command is typed and the CLI returns after
+a three-second check. The Agent then shows as opening and is observed like one typed by hand. With
+`--name alpha` it also waits for readiness: the integration's canonical Session confirms it and
+binds the name; without an integration the Agent observed ready in its Panel confirms it and no
+name is bound.
 See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and recovery.
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Session. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).

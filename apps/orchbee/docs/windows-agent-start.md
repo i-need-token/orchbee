@@ -1,7 +1,9 @@
 # Windows Agent startup
 
-`agent start` types one provider command at the confirmed prompt of a Panel's idle shell on a
-running Windows Session. Without a name that is the whole start: after a short
+`agent start` starts one provider command on a running Windows Session, in a new Tab, a new split
+or an existing Panel's idle shell. A new Panel's shell can run the exact catalog command as its
+first command; otherwise the command is typed once at the confirmed prompt. Without a name that is
+the whole start: after a short
 [early check](#workflow-and-invariants) the Agent is observed exactly like one the person typed by
 hand, and its row shows it [opening](../../orchbee-server/docs/agent-screen-model.md#opening) until
 its screen is recognised. With a name, the start also composes the Server's bounded name
@@ -12,23 +14,49 @@ inspect or require an Agent integration, or infer readiness from process creatio
 ## Invocation and prerequisites
 
 ```text
-orchbee agent start --provider codex [--name alpha] --panel <id> --timeout 30000 --format json -- <args>...
+orchbee agent start <provider> [--new-tab | --here | --split right|down] [--name <name>]
+    [--panel <id> | --current] [--timeout <ms>] [--format text|json] [-- <args>...]
 ```
 
-The optional name uses `[a-z][a-z0-9_-]{0,31}`. `--provider` selects a canonical provider ID from
-the runtime recognition registry; executable aliases do not become additional kinds. The target
-is the Panel's primary terminal. Omitting `--panel`, or using `--current`, requires valid
-caller context. `--panel` and `--current` conflict. Agent arguments follow `--`; a word before
-`--` is refused, so it never reaches the Agent. Repeated `--arg=<value>` is an alternative
-to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
-characters are refused, and the encoded command must fit 8000 ASCII characters. Help and the
-invalid-value diagnostic list the complete `--provider` set.
+The positional `<provider>` is a canonical provider ID from the runtime recognition registry, the
+same ID `agent integration` and `agent doctor` take with `--provider`; executable aliases do not
+become additional kinds. `--provider` is not an `agent start` option, and any other word before
+`--` is refused, so it never reaches the Agent. Help and the invalid-value diagnostic list the
+complete provider set. The optional name uses `[a-z][a-z0-9_-]{0,31}`.
+
+The place is relative to a reference Panel, named by `--panel`, by `--current`, or, with neither,
+by valid caller context; `--panel` and `--current` conflict, and there is no Client-selection
+fallback. `--new-tab`, the default, opens a new Tab in the reference Panel's Workspace;
+`--split right|down` splits the reference Panel; `--here` types into the reference Panel's own idle
+shell. The place flags are mutually exclusive. `--here` aimed at the caller's own Panel, whose
+shell is running the command, is refused with `own-panel` (exit 2) before any effect: from the
+caller context alone when `--panel` is absent, or once the Snapshot resolves an explicit `--panel`
+to the caller's Panel. The target is the chosen Panel's primary terminal.
+
+Agent arguments follow `--`. Repeated `--arg=<value>` is an alternative to trailing arguments;
+mixing both forms is refused. Empty arguments are retained, control characters are refused, and the
+encoded command must fit 8000 ASCII characters.
+
+A new Tab or split is created with the TUI's Server operations, `tab.create` or `panel.split`,
+under one stale-view-retried request identity. A start with no arguments and no name is exactly
+the catalog command: the creation carries `options.agentStart` and the new shell runs the Agent
+as its [first command](#start-as-the-shells-first-command); the CLI returns once the Panel exists
+and that shell is confirmed managed PowerShell, and types the start like the TUI on any other
+shell. A start with arguments or a name creates a plain shell and types the workflow once at its
+first confirmed prompt; a named start keeps the reservation and readiness wait. While the new
+terminal is unbound or its shell is not idle, the CLI only reads again, every 250 ms until two
+seconds before the deadline. A submission the [prompt gate](#prompt-gated-input) refused typed
+nothing and is this workflow's stale-base refusal: it is attempted again under a fresh request
+identity at most three times. A refused creation reports `place-failed` with the Server's reason;
+a Panel created before a later step fails stays open, and the outcome names it.
 
 Agent integrations are opt-in, so starting never inspects one and never refuses because one is
 missing: neither the CLI nor the TUI runs a provider command or reads provider configuration
 before it types. A start without a name reserves nothing. A named start without an integration is
 confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
-names the next step: `agent wait --panel <panel> --until idle` after a start without a name,
+is one outcome line that names the place and Panel, such as
+`Started Codex in a new Tab (Panel <id>).`, then the next step:
+`agent wait --panel <panel> --until idle` after a start without a name,
 `agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
 after an observed one, whose name was not bound.
 
@@ -169,7 +197,8 @@ after a restart without a hook:
 
 ### Start as the shell's first command
 
-A picker start in a new Tab, split or Worktree types nothing. The Client sends the ordinary
+A picker start in a new Tab, split or Worktree types nothing, nor does a CLI start in a new Tab or
+split without arguments or a name. The Client sends the ordinary
 `tab.create`, or the split keys' `panel.split` of the focused Panel, with `options.agentStart`, or
 the New Worktree form's create with `agentStart`, the provider's canonical id from the closed
 startable Agent catalog; no request carries command text. A Worktree create hands the id to the
@@ -196,8 +225,10 @@ from the start's acceptance with a 10000 ms settle that also covers the shell's 
 shell after the Agent was seen is `agent-exited`; an idle shell with no Agent seen by the end is
 `command-not-found`. Any other shell, such as cmd or a custom launch profile, gets the typed start at
 its first idle prompt, repeated while the new shell settles within a 30000 ms deadline. Such a start
-reserves nothing and offers no name. POSIX shells have no managed startup that takes a first command,
-and the TUI starts no Agent there.
+reserves nothing and offers no name. The CLI does the same, except that once the new shell is
+confirmed managed PowerShell it returns `launched` without the early check. POSIX shells have no
+managed startup that takes a first command, and the TUI starts no Agent there; the CLI parses the
+same grammar on POSIX and reports its existing unsupported outcome.
 
 ## Workflow and invariants
 
@@ -316,16 +347,22 @@ for any further interpretation it performs internally.
 ## Results and recovery
 
 Success is `orchbee.agent.start` v1 with `confirmation`, the requested name, provider,
-reservation identity, elapsed time and the original terminal-send receipt. `confirmation` is
-`sent` after a start without a name: `name` and `reservationId` are null, `panelId` names the
-Panel and `interactiveReady` is false, because nothing waited for readiness. It is
-`session` when the canonical Session confirmed readiness; `sessionId` then names it and holds the
-name. It is `observed` when observation confirmed readiness; `sessionId` is absent and the name is
-not bound, so later commands address the Agent by `--panel` or `--terminal`. Failure is `orchbee.cli.failure.agent-start` v1
-with independently retained reservation disposition, last observed reservation, bounded upstream cause and input
-receipt or submission failure. Remaining time in the last observation is historical.
-Known partial input retains exit 9; unknown input or a lost mutating reply retains exit 8.
-Accepted input with unconfirmed cleanup is not startup success.
+reservation identity, elapsed time, the original terminal-send receipt, `place` (`new-tab`,
+`here`, `split-right` or `split-down`) and `panelId`, the Panel the Agent started in.
+`confirmation` is `launched` when a new Panel's shell runs the Agent as its first command:
+`submission` is null, because nothing was typed. It is `sent` after a typed start without a name.
+After either, `name` and `reservationId` are null and `interactiveReady` is false, because nothing
+waited for readiness. It is `session` when the canonical Session confirmed readiness; `sessionId`
+then names it and holds the name. It is `observed` when observation confirmed readiness;
+`sessionId` is absent and the name is not bound, so later commands address the Agent by `--panel`
+or `--terminal`. Failure is `orchbee.cli.failure.agent-start` v1 with independently retained
+reservation disposition, last observed reservation, bounded upstream cause, input receipt or
+submission failure, `place`, and `createdPanelId`, the Panel this invocation created, which stays
+open, or null. `own-panel` is a usage refusal. `place-failed` follows the creation's own failure
+kind; its cause names the `tab.create` or `panel.split` operation and the Server's reason, or
+`terminal-launch-failed` when the created Panel's shell did not start. Remaining time in the last
+observation is historical. Known partial input retains exit 9; unknown input or a lost mutating
+reply retains exit 8. Accepted input with unconfirmed cleanup is not startup success.
 
 The picker's startup owner keeps an unknown result for any pending or unknown reservation, accepted
 or partially accepted input, unknown delivery frontier, or accepted worker that disconnects without
@@ -355,7 +392,8 @@ Client, original absolute deadline and wake; process-read failures still reach o
 detach, and the Paste/optional Codex Right/Enter line is typed at most once; it is submitted a
 second time only after a `settling` refusal that typed nothing.
 
-`src/cli/agent_start.rs` retains CLI selection and signal finalization;
+`src/cli/agent_start.rs` retains CLI selection, the reference and own-Panel check, the new-Panel
+attempt loop and signal finalization; `src/cli/agent_start/place.rs` creates the new Tab or split;
 `src/cli/agent_start/report.rs` projects domain facts into the existing CLI failure, status and
 JSON fields. Workbench consumes typed reservation, delivery and failure facts directly.
 The Server's [canonical model](../../orchbee-server/docs/agent-canonical-model.md) owns reservation
