@@ -25,11 +25,18 @@ fn blank_workspace_names_have_recoverable_localized_display_names() {
 
 #[test]
 fn location_label_results_name_the_target_and_distinguish_unchanged_from_renamed() {
-    for (target, name) in [
-        (Target::Project, "Project"),
-        (Target::Workspace, "Workspace"),
+    for (target, names) in [
+        (
+            Target::Project,
+            [(Locale::EnUs, "Project"), (Locale::ZhCn, "项目")],
+        ),
+        (
+            Target::Workspace,
+            [(Locale::EnUs, "Workspace"), (Locale::ZhCn, "工作区")],
+        ),
     ] {
-        for locale in [Locale::EnUs, Locale::ZhCn] {
+        // Each locale names the target with its glossary term.
+        for (locale, name) in names {
             let unchanged = locale.location_label_status(target, Status::Unchanged);
             let renamed = locale.location_label_status(target, Status::Renamed);
             let unavailable = locale.location_label_status(target, Status::Unavailable);
