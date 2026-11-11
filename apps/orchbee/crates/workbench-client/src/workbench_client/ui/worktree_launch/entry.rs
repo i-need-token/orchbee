@@ -2,9 +2,7 @@
 use super::{WorkbenchClientUi, WorktreeNotice};
 use crate::workbench_client::ui::{ActionBuildError, ClientProjectionStatus, finish_action};
 use crate::workbench_state::{ClientPhaseKind, OperationDeadlines};
-use orchbee_workbench_protocol::{
-    Snapshot, WorkbenchWorktreeOutcome, WorktreeIntent, WorktreeOperationStatus,
-};
+use orchbee_workbench_protocol::{Snapshot, WorkbenchWorktreeOutcome, WorktreeOperationStatus};
 use std::time::{Duration, Instant};
 pub(super) struct Entry {
     member: crate::workbench_projection::ClientMemberTarget,
@@ -26,28 +24,6 @@ enum EntryStage {
 mod membership;
 
 impl WorkbenchClientUi {
-    /// Counts the Agent a create from the Start Agent picker runs in its new Workspace's first
-    /// shell among this Client's starts, once per operation, as a new Tab's start counts; a reused
-    /// Workspace or a shell that did not start launched no Agent. The Server watches that start
-    /// and reports one that did not happen on the Presentation.
-    pub(super) fn count_worktree_agent(&mut self) {
-        let Some(op) = self.worktrees.launcher.operation() else {
-            return;
-        };
-        let WorktreeIntent::Create {
-            agent_start: Some(selector),
-            ..
-        } = &op.plan.intent
-        else {
-            return;
-        };
-        if self.worktrees.counted.as_ref() == Some(&op.plan.operation_id) || !launched_agent(op) {
-            return;
-        }
-        let provider = selector.agent().id();
-        self.worktrees.counted = Some(op.plan.operation_id.clone());
-        self.board.start_state().note_started(provider);
-    }
     pub(super) fn begin_worktree_entry(&mut self, snapshot: Option<Snapshot>) {
         let Some(op) = self.worktrees.launcher.operation() else {
             return;
@@ -309,24 +285,6 @@ fn entry(
         stage: EntryStage::Refresh,
         deadline: OperationDeadlines::from_sample(now)?.total(),
     })
-}
-
-/// Whether this operation opened a new Workspace whose first shell started.
-fn launched_agent(op: &crate::workbench_state::worktree_launch::Operation) -> bool {
-    matches!(
-        op.outcome.as_ref(),
-        Some(WorkbenchWorktreeOutcome::Available { status, .. })
-            if matches!(
-                status.as_ref(),
-                WorktreeOperationStatus::Opened {
-                    reused: false,
-                    terminal_outcome: Some(
-                        orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. }
-                    ),
-                    ..
-                }
-            )
-    )
 }
 
 fn target_context(

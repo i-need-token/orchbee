@@ -1368,9 +1368,6 @@ pub(crate) struct WorkbenchClientState {
         orchbee_workbench_protocol::TerminalPresentationId,
         LaunchDescription,
     >,
-    /// Providers of committed creations whose shell the Server launched with the Agent as its
-    /// first command, oldest first, until the Agent board counts them among this Client's starts.
-    started_agents: Vec<&'static str>,
     cache: ClientContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
     retained_contexts: Vec<context_selection::RetainedContext>,
@@ -1523,7 +1520,6 @@ impl WorkbenchClientState {
     fn initial(cache: ClientContextTabs, geometry: Geometry) -> Self {
         Self {
             launch_descriptions: std::collections::HashMap::new(),
-            started_agents: Vec::new(),
             context_selection: None,
             retained_contexts: Vec::new(),
             navigation_memory: navigation_memory::NavigationMemory::default(),
@@ -2992,17 +2988,8 @@ impl WorkbenchClientState {
             self.launch_descriptions
                 .insert(committed.expectation.presentation_id().clone(), description);
         }
-        if let Some(provider) = committed.operation.agent_start {
-            self.started_agents.push(provider);
-        }
         self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
         true
-    }
-
-    /// The providers of creations committed with the Agent as their shell's first command since
-    /// the last call.
-    pub(crate) fn take_started_agents(&mut self) -> Vec<&'static str> {
-        std::mem::take(&mut self.started_agents)
     }
 
     pub(crate) fn begin_switch(&mut self, target: AttachTarget) -> bool {

@@ -320,22 +320,13 @@ impl WorkbenchClientUi {
         let _disposition = self.structure_action(super::StructureAction::CreateAgentTab(provider));
     }
 
-    /// Moves refused starts to new Tabs, and counts each Agent a created Tab's or split's shell
-    /// runs as its first command among this Client's starts. The Server watches that start and
-    /// reports one that did not happen on the Presentation.
+    /// Moves refused starts to new Tabs. The Server delivers and watches each Agent a created
+    /// Tab's or split's shell runs as its first command, reports one that did not happen on the
+    /// Presentation, and lists it among the Session's recent providers.
     fn drive_start_places(&mut self) -> bool {
         let mut changed = false;
         while let Some(provider) = self.board.start_state().take_fallback() {
             self.start_in_new_tab(provider);
-            changed = true;
-        }
-        let started = self
-            .state
-            .as_mut()
-            .map(crate::workbench_state::WorkbenchClientState::take_started_agents)
-            .unwrap_or_default();
-        for provider in started {
-            self.board.start_state().note_started(provider);
             changed = true;
         }
         changed

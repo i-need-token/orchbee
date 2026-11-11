@@ -815,7 +815,6 @@ impl WorkbenchClientState {
                 return PanelDecision::Retire;
             }
             PreparedPanelResult::Committed { pending, candidate } => {
-                self.note_started_agent(&pending);
                 self.settled_panel = Some(pending.clone());
                 if let Some(candidate) = candidate {
                     if !self.merge_projection(candidate) {
@@ -840,15 +839,6 @@ impl WorkbenchClientState {
             self.leave_accepted_panel_close(&prepared.operation, &accepted);
         }
         PanelDecision::Continue
-    }
-
-    /// A committed split whose new shell runs an Agent first counts as a start like a new Tab's.
-    fn note_started_agent(&mut self, pending: &PendingPanelCommit) {
-        if let Some(provider) = pending.operation.agent_start
-            && pending.commit.new_panel_id().is_some()
-        {
-            self.started_agents.push(provider);
-        }
     }
 
     fn panel_result_is_current(&self, operation: &PanelOperation) -> bool {
@@ -880,7 +870,6 @@ impl WorkbenchClientState {
             return Err(CarrierFailure::Protocol);
         };
         self.notice = if let Some(pending) = pending {
-            self.note_started_agent(&pending);
             self.settled_panel = Some(pending);
             None
         } else {
