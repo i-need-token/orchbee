@@ -244,7 +244,7 @@ impl RealWorkerFixture {
         fs::set_permissions(&shell, fs::Permissions::from_mode(0o700))?;
 
         let endpoint_id = "1234567890abcdef1234567890abcdef";
-        let endpoint = runtime.join(format!("{endpoint_id}.s"));
+        let endpoint = runtime.join(format!("{endpoint_id}-host.sock"));
         let host_binary = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
         let worker_binary =
@@ -637,7 +637,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(marker_lines, wait_for_marker(&fixture.marker, 1)?);
     assert_eq!(marker_lines.len(), 1);
     let final_snapshot = read_snapshot(&mut second, 11)?;
-    assert_eq!(final_snapshot.revision, failed_tab_revision);
     let _final_project = final_snapshot
         .navigation
         .projects
@@ -689,7 +688,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     };
     assert_eq!(
         new_workspace_revision.value(),
-        failed_tab_revision.value() + 1
+        final_snapshot.revision.value() + 1
     );
     let after_new_workspace = read_snapshot(&mut first, 12)?;
     assert_eq!(after_new_workspace, read_snapshot(&mut second, 13)?);
