@@ -19,6 +19,13 @@ prompt-box bottom and a key-hint footer ending in `commands`, without an interru
 spinner; a narrow pane wraps each hint, so a lone `interrupt` row is busy chrome. Its `MC |`-prefixed
 title only names the session.
 
+Kilo CLI 7.x is also built on OpenCode 1.x and keeps Herdr's permission and interrupt-hint rules.
+Its idle rule needs the prompt-box bottom with the key-hint footer ending in `commands` on the row
+directly beneath it, without an interrupt hint, progress squares or question footer. The start
+screen centres the box above notices and tips, so the rule reads the whole screen instead of its
+last rows. An open command list covers both rows and stays unknown, as does a pane narrow enough to
+wrap the footer. Its `Kilo CLI` title carries no state.
+
 Orchbee authored the AtomCode, Reasonix, Snow CLI, MiniMax Code, MothX, Prime Agent and J-Code
 rules from Windows captures. Where the CLI writes its state into the OSC title,
 the title decides: AtomCode's green or yellow status light, MiniMax Code's `Ready`, `Working`,

@@ -208,7 +208,7 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
 }
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
 /// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code, deveco
-/// 0.3.0 and gemini 0.67.0 and 0.68.0. Busy chrome outranks the composer that stays on screen, a startup question blocks only
+/// 0.3.0, gemini 0.67.0 and 0.68.0 and kilo 7.8.27. Busy chrome outranks the composer that stays on screen, a startup question blocks only
 /// while its live choices or empty answer row are shown, and stray words stay unknown.
 #[test]
 fn new_provider_rules_follow_redacted_windows_captures() {
@@ -279,6 +279,29 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         "{gemini_trust_first}\n\n Gemini CLI is restarting to apply the trust changes...\n\n ▝▜▄     Gemini CLI v0.68.0\n ▝▀\n\n{gemini_ready}"
     );
     let gemini_busy = gemini_live(" ⠏ Thinking... (esc to cancel, 3s)", "abc");
+    // Kilo CLI 7.8.27 start screen: the prompt box sits mid-screen, above a notice and a tip.
+    let kilo_box = |input: &str| {
+        format!(
+            "       ┃\n       ┃  {input}\n       ┃\n       ┃  Code  · Model\n       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n"
+        )
+    };
+    let kilo_tail = "\n        ● Tip Use /editor or ctrl+x e to compose messages in your external editor\n\n  ~\\src\\app                          7.8.27";
+    let kilo_home = format!(
+        "{}                    tab agents  ctrl+p commands\n\n       ● Move your opencode configuration\n         Kilo no longer falls back to opencode configuration.\n{kilo_tail}",
+        kilo_box("Ask anything... \"Fix broken tests\"")
+    );
+    let kilo_typed = format!(
+        "{}                    tab agents  ctrl+p commands\n{kilo_tail}",
+        kilo_box("abc")
+    );
+    let kilo_busy = format!(
+        "{}       esc interrupt        tab agents  ctrl+p commands\n{kilo_tail}",
+        kilo_box("abc")
+    );
+    let kilo_menu = format!(
+        "                   Commands                      esc\n       ┃  Ask a    Suggested\n       ╹▀▀▀▀▀▀▀    System                        ▀▀▀▀▀▀▀\n                   Hide tips         ctrl+x h    ommands\n       ● Move y    Reload Reload config, skills, agents, and commands f\n{kilo_tail}"
+    );
+    let kilo_clipped = kilo_box("abc");
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
         (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
@@ -292,6 +315,12 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         (P::Gemini, &gemini_trust_first, "◇  Ready (app)", Blocked), // The title is Ready while the box waits.
         (P::Gemini, &gemini_busy, "◇  Ready (app)", Working),
         (P::Gemini, gemini_foot, "◇  Ready (app)", Unknown), // No composer.
+        (P::Kilo, &kilo_home, "Kilo CLI", Idle),
+        (P::Kilo, &kilo_typed, "Kilo CLI", Idle),
+        (P::Kilo, &kilo_busy, "Kilo CLI", Working),
+        (P::Kilo, &kilo_menu, "Kilo CLI", Unknown), // The command list covers the footer.
+        (P::Kilo, &kilo_clipped, "Kilo CLI", Unknown), // No footer under the box.
+        (P::Kilo, "the docs say ctrl+p commands", "", Unknown),
         (P::AtomCode, atom_idle.as_str(), "🟢 atomcode", Idle),
         (P::AtomCode, &atom_idle, "", Idle),
         (P::AtomCode, &atom_busy, "🟡 Summary", Working),
