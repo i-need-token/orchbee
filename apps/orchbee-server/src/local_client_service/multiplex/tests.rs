@@ -407,7 +407,12 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
         BTreeSet::from([MultiplexLaneId::new(3).unwrap()]),
         "a late request cannot resurrect the closed lane"
     );
-    peer.shutdown(std::net::Shutdown::Both).unwrap();
+    // macOS reports NotConnected once the Server has already closed; Linux shuts down quietly.
+    match peer.shutdown(std::net::Shutdown::Both) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotConnected => {}
+        Err(error) => panic!("peer shutdown: {error}"),
+    }
     let _closed = task.join().unwrap();
 }
 

@@ -79,6 +79,11 @@ fn a_late_worker_lists_no_host_by_the_deadline_and_keeps_its_carrier() {
     let patient = Instant::now() + Duration::from_secs(5);
     assert_eq!(service.connected_hosts(patient), vec![host]);
     worker.join().unwrap();
-    stop.shutdown(std::net::Shutdown::Both).unwrap();
+    // macOS reports NotConnected once the carrier has already closed; Linux shuts down quietly.
+    match stop.shutdown(std::net::Shutdown::Both) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotConnected => {}
+        Err(error) => panic!("stop shutdown: {error}"),
+    }
     owner.join().unwrap();
 }
