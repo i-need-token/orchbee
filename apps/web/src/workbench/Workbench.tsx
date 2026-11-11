@@ -23,6 +23,7 @@ import {
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
 import { WorkbenchAgentBoardDialog } from './components/workbench-agent-board-dialog/WorkbenchAgentBoardDialog';
+import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-dialog/WorkbenchAgentStartDialog';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
@@ -578,6 +579,15 @@ export function Workbench({
 					onClose={view.closeAgentBoard}
 					onShown={view.showAgentBoardSession}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
+				/>
+			)}
+			{view.agentStart === undefined ? null : (
+				<WorkbenchAgentStartDialog
+					catalog={view.agentStart.catalog}
+					finalFocus={view.agentStart.finalFocus}
+					onClose={view.closeAgentStart}
+					onStart={view.startAgent}
+					places={view.agentStart.places}
 				/>
 			)}
 			{projectWorkspaceConfirmationSurface}

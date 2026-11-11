@@ -1,0 +1,68 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.agent-start",
+	"kind": "experience",
+	"status": "candidate",
+	"name": "Start Agent",
+	"description": "Lists the Session's Agents from the Server's catalog, recent and installed first, filters them as the person types, and starts the chosen one in a new Tab, a split, or a new Worktree.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["start-agent"],
+	"implementation": ["apps/web/src/workbench/components/workbench-agent-start-dialog"],
+	"stories": [
+		{
+			"exportName": "Checking",
+			"file": "apps/web/stories/workbench-agent-start-dialog.stories.tsx",
+			"id": "applications-web-start-agent--checking",
+			"states": [
+				"See the first lookup run: only the Agents already found show under Recent and Installed, with no fold row and the status line saying the lookup runs."
+			]
+		},
+		{
+			"exportName": "Listed",
+			"file": "apps/web/stories/workbench-agent-start-dialog.stories.tsx",
+			"id": "applications-web-start-agent--listed",
+			"states": [
+				"Inspect Recent, the rest of Installed A to Z, and one row that counts the Agents not found; Enter on it unfolds them.",
+				"Move the highlight with Up and Down, change Opens in, and see Start follow the highlighted Agent."
+			]
+		},
+		{
+			"exportName": "ListedChinese",
+			"file": "apps/web/stories/workbench-agent-start-dialog.stories.tsx",
+			"id": "applications-web-start-agent--listed-chinese",
+			"states": ["Inspect the same groups, fold row, places and footer in Simplified Chinese."]
+		},
+		{
+			"exportName": "FailedLookup",
+			"file": "apps/web/stories/workbench-agent-start-dialog.stories.tsx",
+			"id": "applications-web-start-agent--failed-lookup",
+			"states": [
+				"See every Agent stay startable under Not checked on this machine, the ones known missing under Not found, and the warning that the lookup could not check."
+			]
+		},
+		{
+			"exportName": "NoMatch",
+			"file": "apps/web/stories/workbench-agent-start-dialog.stories.tsx",
+			"id": "applications-web-start-agent--no-match",
+			"states": [
+				"See a query no Agent matches empty the list, disable Start, and say so in the status line."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": ["A person starts one of the Session's Agents in a new terminal of the Workbench."],
+	"avoidWhen": [
+		"The person goes to an Agent session that already runs; use the Agent Board.",
+		"The person runs any action by name; use the Unified Search Surface."
+	],
+	"invariants": [
+		"The dialog follows the Server's catalog stream without polling, asks for a new lookup when it opens, and keeps the last catalog when the stream fails.",
+		"Rows follow the shared Start Agent rows rule: Recent, then Installed A to Z, then one fold row for the Agents not found, or Not checked and Not found when no lookup gave a result.",
+		"The search field holds the keyboard: typing filters by name, command or id, Up and Down move the highlight, Enter starts the highlighted Agent or unfolds, and a key held with Ctrl, Alt, or Meta passes through.",
+		"Escape clears a query first and closes only an empty field's dialog; Escape, Cancel, the close button, and backdrop dismissal return focus to where it was when the dialog opened.",
+		"One status line keeps its height and says, highest first, that this platform cannot start an Agent, that the lookup runs or could not check, or that no Agent matches.",
+		"Opens in lists only the places a start can use now, New Tab first; New Worktree creates the Worktree at once with its defaults, and starting closes the dialog."
+	],
+	"references": ["apps/web/docs/workbench.md"]
+}

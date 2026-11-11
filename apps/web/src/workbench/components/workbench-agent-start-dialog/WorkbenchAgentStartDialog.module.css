@@ -1,0 +1,139 @@
+.surface {
+	display: flex;
+	flex-direction: column;
+	max-height: calc(100% - var(--ob-ref-space-8));
+}
+
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.search {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+/* One column set for every row, as the Agent board's, so names and details line up. */
+.list {
+	display: grid;
+	min-height: var(--ob-ref-space-0);
+	flex: 1;
+	grid-template-columns:
+		var(--ob-ref-size-icon-sm) max-content
+		minmax(var(--ob-ref-space-0), 1fr);
+	align-content: start;
+	column-gap: var(--ob-ref-space-2);
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.group {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+}
+
+/* A heading names its group and is never selected, so it takes no fill. */
+.heading {
+	grid-column: 1 / -1;
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-2) var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.row {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	min-height: var(--ob-ref-size-control-md);
+	padding-inline: var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-primary);
+	cursor: default;
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.row:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.row[data-highlighted='true'] {
+	background: var(--ob-sys-color-surface-selected);
+}
+
+.row[data-highlighted='true']:hover {
+	background: var(--ob-sys-color-surface-selected-hover);
+}
+
+.icon {
+	display: inline-flex;
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+	align-items: center;
+	justify-content: center;
+	font: var(--ob-sys-typography-label-lg);
+}
+
+.name {
+	white-space: nowrap;
+}
+
+.detail {
+	overflow: hidden;
+	color: var(--ob-sys-color-text-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fold {
+	overflow: hidden;
+	grid-column: 2 / -1;
+	color: var(--ob-sys-color-text-secondary);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* One line that keeps its height, so the list never jumps when the status changes. */
+.statusLine {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	overflow: hidden;
+	font: var(--ob-sys-typography-body-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.statusLine[data-warning='true'] {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.footer {
+	align-items: center;
+}
+
+.place {
+	display: inline-flex;
+	align-items: center;
+	margin-inline-end: auto;
+	gap: var(--ob-ref-space-2);
+}
+
+.placeLabel {
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}
