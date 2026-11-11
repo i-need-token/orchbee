@@ -58,6 +58,7 @@ import {
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
 	ServerAgentNameSource,
+	ServerAgentCatalog,
 	ServerFocusNewPanelSource,
 	ServerLeaving,
 	ServerTerminalAgentSource,
@@ -276,6 +277,10 @@ export function createServerWorkbenchRuntime({
 		connection,
 		sessionId: session.snapshot.sessionId,
 	});
+	const agentCatalog = new ServerAgentCatalog({
+		connection,
+		sessionId: session.snapshot.sessionId,
+	});
 	const configuredCommands = bindServerConfiguredCommands({
 		clientView,
 		connection,
@@ -290,6 +295,7 @@ export function createServerWorkbenchRuntime({
 	});
 	const authority = createServerWorkbenchAuthority({
 		agentBoard: agentBoard.board,
+		agentCatalog,
 		configuredCommands: configuredCommands.commands,
 		defaultDirectory,
 		defaultWorkspaceLabel: () =>
@@ -486,6 +492,7 @@ export function createServerWorkbenchRuntime({
 				[
 					() => stopPublication(),
 					() => agentBoard.dispose(),
+					() => agentCatalog.dispose(),
 					() => configuredCommands.dispose(),
 					() => focusNewPanel.dispose(),
 					() => clientView?.dispose(),

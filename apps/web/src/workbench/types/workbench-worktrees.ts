@@ -1,3 +1,5 @@
+import type { WorkbenchAgentStartProvider } from '@orchbee/workbench-client-protocol';
+
 import type { WorkbenchPanelTerminal } from './workbench-focused-panel';
 
 /** One Git checkout a Workspace can open, other than the one it stands in. */
@@ -89,6 +91,8 @@ export type WorkbenchWorktreeCommand =
 	 * a Panel, which showed the person nothing, the authority reads Git there first.
 	 */
 	| {
+			/** The Agent the new Workspace's first terminal runs first; a reused Workspace starts nothing. */
+			readonly agentStart?: WorkbenchAgentStartProvider | undefined;
 			readonly kind: 'create';
 			readonly label: string;
 			readonly panel?: WorkbenchPanelTerminal;

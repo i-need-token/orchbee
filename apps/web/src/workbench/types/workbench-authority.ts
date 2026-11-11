@@ -3,9 +3,11 @@ import type { TabStripArrangementChange } from '@orchbee/tab-strip';
 import type {
 	UserLaunchProfile,
 	UserLaunchProfileCatalog,
+	WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchAgentBoard } from './workbench-agent-board';
+import type { WorkbenchAgentCatalogSource } from './workbench-agent-start';
 import type { WorkbenchConfiguredCommands } from './workbench-configured-commands';
 import type { WorkbenchFocusedPanel } from './workbench-focused-panel';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
@@ -134,6 +136,8 @@ export type WorkbenchAuthorityCreation =
 
 /** A Tab with its first terminal, committed as one change. */
 export interface WorkbenchAuthorityTabCreation {
+	/** The Agent the new terminal runs first; the Server delivers the start, and this Client types nothing. */
+	readonly agentStart?: WorkbenchAgentStartProvider | undefined;
 	/** Where the terminal starts. Without one, the authority chooses as it does for any new Tab. */
 	readonly cwd?: string | undefined;
 	/** Null goes last, in no group. */
@@ -198,6 +202,8 @@ export type WorkbenchAuthorityTabDuplicationReport =
 
 /** A terminal joining a Tab's Panels by a split, committed as one change. */
 export interface WorkbenchAuthorityPanelTerminalCreation extends WorkbenchAuthorityTabTarget {
+	/** The Agent the new terminal runs first; the Server delivers the start, and this Client types nothing. */
+	readonly agentStart?: WorkbenchAgentStartProvider | undefined;
 	/** Where the terminal starts. Without one, the authority chooses as it does for any new terminal. */
 	readonly cwd?: string | undefined;
 	readonly direction: WorkbenchAuthorityPanelDirection;
@@ -362,6 +368,8 @@ export interface WorkbenchAuthority {
 	readonly minimumSplitPercent: number;
 	/** Absent where this authority cannot read the Server's Agent sessions. */
 	readonly agentBoard?: WorkbenchAgentBoard | undefined;
+	/** Absent where no Server publishes the Session's Agent catalog, so no Agent can be started. */
+	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where no Server resumes Agent conversations after a restart. */
 	readonly agentResumeNotices?: WorkbenchAgentResumeNotices | undefined;
 	/** Absent where this authority runs no configured commands. */

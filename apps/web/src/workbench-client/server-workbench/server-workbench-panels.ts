@@ -309,11 +309,18 @@ export function panelTerminalCreateAction(
 	creation: WorkbenchAuthorityPanelTerminalCreation,
 	snapshot: WorkbenchSnapshot,
 ): ServerWorkbenchAction | null {
-	const { cwd, direction, panelId, tabId, terminalContextId } = creation;
+	const { agentStart, cwd, direction, panelId, tabId, terminalContextId } = creation;
 	const tab = findTab(snapshot, terminalContextId, tabId);
 	if (tab === undefined) return null;
 	return readServerWorkbenchAction({
-		...(cwd === undefined ? {} : { options: { cwd } }),
+		...(agentStart === undefined && cwd === undefined
+			? {}
+			: {
+					options: {
+						...(agentStart === undefined ? {} : { agentStart }),
+						...(cwd === undefined ? {} : { cwd }),
+					},
+				}),
 		direction,
 		geometry: DEFAULT_TERMINAL_GEOMETRY,
 		kind: 'panel.split',

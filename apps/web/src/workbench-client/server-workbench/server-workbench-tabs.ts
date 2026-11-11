@@ -150,10 +150,14 @@ export function serverProfileLaunch(
  * its source's name and whether that name follows the terminal.
  */
 export function tabCreateAction(
-	{ cwd, placement, terminalContextId }: WorkbenchAuthorityTabCreation,
+	{ agentStart, cwd, placement, terminalContextId }: WorkbenchAuthorityTabCreation,
 	snapshot: WorkbenchSnapshot,
 	launch?: ServerLaunchSelection,
 ): ServerWorkbenchAction | null {
+	const options = {
+		...(agentStart === undefined ? {} : { agentStart }),
+		...(cwd === undefined ? {} : { cwd }),
+	};
 	const context = terminalContextOf(snapshot, terminalContextId);
 	if (context === undefined) return null;
 	const source =
@@ -167,7 +171,7 @@ export function tabCreateAction(
 		kind: 'tab.create',
 		label: source?.label ?? `${context.tabs.length + 1}`,
 		...(launch === undefined ? {} : { launch }),
-		...(cwd === undefined ? {} : { options: { cwd } }),
+		...(agentStart === undefined && cwd === undefined ? {} : { options }),
 		...(placement === null ? {} : { placement }),
 		terminalContextId,
 	});

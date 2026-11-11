@@ -19,6 +19,7 @@ export type {
 	WorkbenchAgentBoardRow,
 	WorkbenchAgentBoardSnapshot,
 } from './types/workbench-agent-board';
+export type { WorkbenchAgentCatalogSource } from './types/workbench-agent-start';
 export type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 export type {
 	WorkbenchConfiguredCommandOutcome,

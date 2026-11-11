@@ -1,5 +1,6 @@
 import type {
 	WorkbenchAgentBoard,
+	WorkbenchAgentCatalogSource,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityCreation,
@@ -51,6 +52,8 @@ export interface ServerLaunchProfileSource {
 interface ServerWorkbenchAuthorityOptions {
 	/** The Server's Agent sessions, which the Agent board reads over this window's connection. */
 	readonly agentBoard?: WorkbenchAgentBoard | undefined;
+	/** The Session's Agent catalog, which Start Agent reads over this window's connection. */
+	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where this window publishes no view for a command to start from. */
 	readonly configuredCommands?: WorkbenchConfiguredCommands | undefined;
 	/** Where this Client works when nothing it shows names a directory. */
@@ -256,6 +259,7 @@ function launchPlan(
  */
 export function createServerWorkbenchAuthority({
 	agentBoard,
+	agentCatalog,
 	configuredCommands,
 	defaultDirectory,
 	defaultWorkspaceLabel,
@@ -268,6 +272,7 @@ export function createServerWorkbenchAuthority({
 	return {
 		...createServerWorkbenchClose(session, leave),
 		...(agentBoard === undefined ? {} : { agentBoard }),
+		...(agentCatalog === undefined ? {} : { agentCatalog }),
 		...(configuredCommands === undefined ? {} : { configuredCommands }),
 		...(focusNewPanel === undefined ? {} : { focusNewPanel }),
 		...(launchProfiles === undefined

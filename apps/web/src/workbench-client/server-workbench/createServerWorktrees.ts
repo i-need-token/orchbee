@@ -502,6 +502,7 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 						intent: {
 							kind: 'create',
 							...launch,
+							...(command.agentStart === undefined ? {} : { agentStart: command.agentStart }),
 							label: command.label,
 							...(path === undefined ? {} : { path }),
 						},
