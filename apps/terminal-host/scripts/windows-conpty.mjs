@@ -66,43 +66,37 @@ export async function stageConptyBundle(output) {
 			throw new Error('ConPTY package digest mismatch');
 		}
 		const archive = path.join(temporary, 'package.zip');
-		const expanded = path.join(temporary, 'expanded');
 		writeFileSync(archive, bytes, { flag: 'wx' });
 		const systemRoot = process.env.SystemRoot;
 		if (typeof systemRoot !== 'string' || !path.isAbsolute(systemRoot))
 			throw new Error('Missing Windows system root');
-		// Windows PowerShell must load its own Archive module. A PowerShell 7 parent leaves its module
-		// path in the environment, and that module's extraction call does not exist in this host.
+		// Windows PowerShell must load its own modules. A PowerShell 7 parent leaves its module path in
+		// the environment, and this host must not inherit it.
 		const windowsPowerShell = path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0');
 		const inherited = Object.fromEntries(
 			Object.entries(process.env).filter(([name]) => name.toLowerCase() !== 'psmodulepath'),
 		);
+		const prepared = path.join(temporary, 'prepared');
+		mkdirSync(prepared);
+		const entries = Object.values(manifest.files).map(({ source, name }) => ({ source, name }));
+		// The .NET calls need the long-path form because the staging folder is deeper than the output.
+		const extractCommand = String.raw`$ErrorActionPreference='Stop'; function Long([string]$p) { if ($p -match '^[A-Za-z]:\\') { '\\?\' + $p } else { $p } }; Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[System.IO.Compression.ZipFile]::OpenRead((Long $env:ORCHBEE_CONPTY_ARCHIVE)); try { foreach ($e in (ConvertFrom-Json $env:ORCHBEE_CONPTY_ENTRIES)) { $want=$e.source.Replace('\','/'); $entry=$zip.Entries | Where-Object { $_.FullName -eq $want } | Select-Object -First 1; if ($null -eq $entry) { throw ('ConPTY package entry missing: ' + $want) }; [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Long (Join-Path $env:ORCHBEE_CONPTY_PREPARED $e.name)), $false) } } finally { $zip.Dispose() }`;
 		execFileSync(
 			path.join(windowsPowerShell, 'powershell.exe'),
-			[
-				'-NoLogo',
-				'-NoProfile',
-				'-NonInteractive',
-				'-Command',
-				"$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath $env:ORCHBEE_CONPTY_ARCHIVE -DestinationPath $env:ORCHBEE_CONPTY_EXPANDED",
-			],
+			['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', extractCommand],
 			{
 				env: {
 					...inherited,
 					PSModulePath: path.join(windowsPowerShell, 'Modules'),
 					ORCHBEE_CONPTY_ARCHIVE: archive,
-					ORCHBEE_CONPTY_EXPANDED: expanded,
+					ORCHBEE_CONPTY_ENTRIES: JSON.stringify(entries),
+					ORCHBEE_CONPTY_PREPARED: prepared,
 				},
 				stdio: 'inherit',
 				timeout: 30_000,
 				windowsHide: true,
 			},
 		);
-		const prepared = path.join(temporary, 'prepared');
-		mkdirSync(prepared);
-		for (const entry of Object.values(manifest.files)) {
-			copyFileSync(path.join(expanded, entry.source), path.join(prepared, entry.name));
-		}
 		copyFileSync(
 			path.join(packageRoot, 'licenses', manifest.license.name),
 			path.join(prepared, manifest.license.name),
