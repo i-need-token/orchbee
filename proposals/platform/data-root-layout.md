@@ -43,7 +43,6 @@
 └── internal/
     ├── version.json
     ├── state/
-    │   ├── preferences.json
     │   ├── onboarding.json
     │   ├── machines.json
     │   ├── desktop-window.json
@@ -60,22 +59,22 @@
         └── <plugin id>/{config,data,source/<version>}/
 ```
 
-| Entry                   | Holds                                                                                                                            | Default uninstall              | Safe to delete by hand                              |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
-| `config.toml`           | Settings the person writes                                                                                                       | Kept                           | No                                                  |
-| `sessions`              | One folder per Session: lifecycle record, checkpoints, earlier layouts, kept output, TUI position                                | Kept                           | Only through `session delete`                       |
-| `logs`                  | Daily logs and destructive-command records                                                                                       | Removed                        | Yes                                                 |
-| `agent-detection`       | Detection rule overrides the person writes; absent unless created                                                                | Kept                           | Yes; bundled rules return                           |
-| `internal`              | Everything below; a person has no reason to open it                                                                              | Partly removed, as below       | No                                                  |
-| `internal/version.json` | The layout version, and the newest Orchbee version that used the root so a refusal can name it                                   | Kept                           | No                                                  |
-| `internal/state`        | Device records: Settings preferences, onboarding dismissal, saved machines, Desktop window geometry and notification-area notice | Kept                           | No                                                  |
-| `internal/integrations` | The Agent observation Capsule that Agent configurations run                                                                      | Removed with the Agent entries | Only through `agent integration disable`            |
-| `internal/desktop`      | Electron `userData`, in Chromium's own layout                                                                                    | Kept                           | While Desktop is closed; resets Desktop preferences |
-| `internal/backups`      | Copies taken before a migration or a reset                                                                                       | Kept                           | Yes                                                 |
-| `internal/cache`        | Downloaded detection rules                                                                                                       | Removed                        | Yes; rebuilt on demand                              |
-| `internal/runtime`      | Locks, markers, Host registrations, and frame files of live Sessions                                                             | Removed                        | Only a stopped Session's folder                     |
-| `internal/tmp`          | Scrollback documents opened in an editor                                                                                         | Removed                        | While no such document is open                      |
-| `internal/plugins`      | Plugin registry, managed sources, and each plugin's own configuration and data                                                   | Kept                           | No                                                  |
+| Entry                   | Holds                                                                                                      | Default uninstall              | Safe to delete by hand                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
+| `config.toml`           | Settings the person writes                                                                                 | Kept                           | No                                                  |
+| `sessions`              | One folder per Session: lifecycle record, checkpoints, earlier layouts, kept output, TUI position          | Kept                           | Only through `session delete`                       |
+| `logs`                  | Daily logs and destructive-command records                                                                 | Removed                        | Yes                                                 |
+| `agent-detection`       | Detection rule overrides the person writes; absent unless created                                          | Kept                           | Yes; bundled rules return                           |
+| `internal`              | Everything below; a person has no reason to open it                                                        | Partly removed, as below       | No                                                  |
+| `internal/version.json` | The layout version, and the newest Orchbee version that used the root so a refusal can name it             | Kept                           | No                                                  |
+| `internal/state`        | Device records: onboarding dismissal, saved machines, Desktop window geometry and notification-area notice | Kept                           | No                                                  |
+| `internal/integrations` | The Agent observation Capsule that Agent configurations run                                                | Removed with the Agent entries | Only through `agent integration disable`            |
+| `internal/desktop`      | Electron `userData`, in Chromium's own layout                                                              | Kept                           | While Desktop is closed; resets Desktop preferences |
+| `internal/backups`      | Copies taken before a migration or a reset                                                                 | Kept                           | Yes                                                 |
+| `internal/cache`        | Downloaded detection rules                                                                                 | Removed                        | Yes; rebuilt on demand                              |
+| `internal/runtime`      | Locks, markers, Host registrations, and frame files of live Sessions                                       | Removed                        | Only a stopped Session's folder                     |
+| `internal/tmp`          | Scrollback documents opened in an editor                                                                   | Removed                        | While no such document is open                      |
+| `internal/plugins`      | Plugin registry, managed sources, and each plugin's own configuration and data                             | Kept                           | No                                                  |
 
 - Only `config.toml`, `agent-detection/*.toml`, and a plugin's `config/` folder are meant for hand
   editing. Every other file is internal, and Orchbee refuses an edited record instead of guessing.
@@ -97,7 +96,7 @@
   `window-state-v1.json`, for example, becomes `internal/state/desktop-window.json` with its version
   inside.
 - A writer lock and a staging file sit beside the record they protect, named after it with `.lock`
-  and `.pending`: `preferences.lock` and `preferences.pending` beside `preferences.json`. A record
+  and `.pending`: `onboarding.lock` and `onboarding.pending` beside `onboarding.json`. A record
   made of several files names them after its index file, as `catalog.lock` beside
   `internal/cache/agent-detection/catalog.json`. Both are internal; delete neither while Orchbee
   runs.
@@ -162,7 +161,7 @@ ships, and the person removes it.
 | Earlier location                                                                                                                                                                                                                                                                     | New location                                                                                                                                                                                                                                                                                                                                      | Owner                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `%APPDATA%\Orchbee\config.toml`; macOS `~/Library/Application Support/Orchbee/config.toml`; Linux `$XDG_CONFIG_HOME/Orchbee/config.toml`                                                                                                                                             | `config.toml`                                                                                                                                                                                                                                                                                                                                     | `user_settings` in `crates/local-runtime`            |
-| `preferences-<sha256>/preferences.json` beside the configuration file                                                                                                                                                                                                                | `internal/state/preferences.json`                                                                                                                                                                                                                                                                                                                 | `user_preferences`                                   |
+| `preferences-<sha256>/preferences.json` beside the configuration file                                                                                                                                                                                                                | Not moved: its settings live in `config.toml`, and a leftover file, there or at `internal/state/preferences.json`, is ignored and left in place                                                                                                                                                                                                   | `user_settings` in `crates/local-runtime`            |
 | `config.toml.native-state/onboarding.json`                                                                                                                                                                                                                                           | `internal/state/onboarding.json`                                                                                                                                                                                                                                                                                                                  | `onboarding` in `workbench-client`                   |
 | `machines/catalog.json` beside the configuration file                                                                                                                                                                                                                                | `internal/state/machines.json`                                                                                                                                                                                                                                                                                                                    | `machines::store` in `workbench-client`              |
 | `plugins/` beside the configuration file, then `internal/plugins/` with the same inner layout: `registry.json`, `config/p-<id digest>`, `state/p-<id digest>`, `managed/checkouts.lock`, `managed/i-<installation id>/checkout`; that `registry.json` reads as invalid until deleted | `internal/plugins/registry.json`, which records each plugin's folder, `internal/plugins/<id>/config`, `internal/plugins/<id>/data`, `internal/plugins/<id>/source/<version>`                                                                                                                                                                      | `plugins::store`                                     |
@@ -229,9 +228,9 @@ ships, and the person removes it.
 - A CLI command and a Desktop menu action write the diagnostic bundle as one archive where the
   person chooses; nothing stays in the data root. It holds product and build versions of every
   component and running process, the operating system, architecture, locale, and terminal,
-  `config check` output, `config.toml` and `internal/state/preferences.json` with every command,
-  argument, environment value, home path, and URL credential replaced by a placeholder, the Session
-  list with states, integration status, and the logs of the last 7 days. It excludes checkpoints,
+  `config check` output, `config.toml` with every command, argument, environment value, home path,
+  and URL credential replaced by a placeholder, the Session list with states, integration status,
+  and the logs of the last 7 days. It excludes checkpoints,
   layouts, terminal output, plugin data, and saved machines.
 - Phase 6 delivers this on Windows as `orchbee diagnostics create --output <path>`, a stored ZIP
   archive. It also replaces settings values no documented option covers and URL queries, leaves

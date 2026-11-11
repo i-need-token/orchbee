@@ -294,10 +294,10 @@ followed by UTF-8 bytes; it stays literal intent, and the Capability Node resolv
 not ship to its default theme of that polarity. Program tag 0
 accompanies every explicit kind. Kind 0 requires program tag 1, the System shell followed by a u8
 login flag of 0 or 1, or tag 2, a custom program encoded like an explicit selection. A custom
-program keeps the preference store's literal path and shares the 30 KiB selection budget. Unknown
+program keeps the launch profile's literal path and shares the 30 KiB selection budget. Unknown
 tags, out-of-range values and a program tag that disagrees with the launch kind are rejected.
 
-The capture is user intent only. The Capability Node never opens the preference store; it resolves
+The capture is user intent only. The Capability Node never reads the settings file; it resolves
 device facts such as System shell discovery and `PATH` itself, so the same capture suits a Worker
 on another device.
 

@@ -14,7 +14,7 @@ This crate owns admitted shared capabilities and stable runtime lifecycle contra
 | `session_name`, `session_catalog`, `activation_record`, `durable_sessions` | Client enumeration/activation/deletion and Server retention/stop depend on the same identity and lifecycle records; the catalog deletion fence also guards rendezvous admission. Internal records are not exposed as mutable application APIs.              |
 | `process_registration`, `process_observation`, `registered_child`          | Client-created Server, Server-created Worker and Worker-created Host share registration-before-execution and exact process identity recovery.                                                                                                               |
 | `session_store`, `checkpoint_rotation`, `checkpoint_restore_notice`        | Server checkpoint publication/rotation and Client recovery diagnosis/stopped deletion share fixed slots, activation generations and storage lock guards.                                                                                                    |
-| `user_preferences`, `default_interactive_launch`, `notification_policy`    | The Desktop settings bridge, Client, Server and Worker consume shared preferences, launch snapshots or notification profiles; settings decoding uses notification types directly without platform aliases.                                                  |
+| `default_interactive_launch`, `notification_policy`                        | The Client, Server and Worker consume launch snapshots or notification profiles; settings decoding uses notification types directly without platform aliases.                                                                                               |
 | `data_root`, `user_settings`, `plugins`, `user_path`                       | Server configuration and the Client's minimal `config.toml` reads (activation, release channel and `config check`) share the bounded settings schema; plugins and paths also serve Worker execution, and Windows path grammar stays explicit on every host. |
 | `command`, `command_outcome`, `command_child`, `directory`                 | Client commands/provisioning, Server restart and Worker commands/directory observations share encoding, outcomes and process settlement contracts.                                                                                                          |
 | `private_cache`, `private_filesystem`, `host_appearance`                   | Runtime storage, CLI release storage and Server frame reads share exact handle admission; Client and Worker share read-only Windows theme observation.                                                                                                      |
@@ -27,47 +27,21 @@ uses its explicit grammar even on Unix; environment and cwd are supplied by the 
 OS effects stay in their owning adapter. The Windows private cache and plugin registry refuse
 unsupported Unix operations before opening a path or spawning a process; private-cache errors use
 `io::ErrorKind::Unsupported` and the registry uses `PluginRegistryError::Unsupported`. The
-[user settings](#user-settings) reader and editor run on every host. Existing cross-platform
-`UserPreferencesStore` support is independent of these legacy facilities.
+[user settings](#user-settings) reader and editor run on every host.
 Applications decide action visibility and localized feedback through their
 [TUI platform contract](../../apps/orchbee/docs/tui-platforms.md).
 
-Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint, registered-child and retained-command operations return `io::ErrorKind::Unsupported` before effects. Deletion uses `NamedSessionDeleteReason::Unsupported`; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort, retained-child and shared preference implementations remain with their own adapters.
-
-## Shared user preference storage
-
-`UserPreferencesStore` owns the versioned, bounded device preference record described by the
-[shared contract](../../schemas/workbench/README.md#shared-user-preferences). Its scope is frozen
-from the data root: the record is `internal/state/preferences.json`, an explicit settings file does
-not move it, and only another data root does. Reads create nothing; invalid or unreadable records are refused.
-Updates acquire an OS-held writer lock, compare the observed source, apply only supplied leaves,
-validate the complete candidate and publish a flushed atomic replacement. A reset claims its keys
-just like an edit. Windows uses the pinned private-cache boundary; Unix uses descriptor-relative,
-no-follow private files and synchronizes the containing directory after replacement. A failure after
-replacement reports an unknown outcome and never authorizes automatic replay.
-
-Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. A record whose version this build cannot use is never rewritten: reads give the defaults, and updates apply to values the store keeps in memory, with a `memory-` source token, until the Session stops. Resetting every setting is the one update that replaces it, after a copy goes to the `reset-settings` backup folder ([persisted data versions](#persisted-data-versions)). Desktop import fields are outside the current strict record.
-
-An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The desktop helper still consumes this storage owner; the native Session and the TUI read and edit their settings in `config.toml` instead.
-
-An explicit full-null reset with recovery source `unreadable` may replace a safely readable but
-invalid record under the same OS writer lock. A valid/missing record refuses that recovery source,
-so a concurrent repair is preserved; partial resets and ordinary edits cannot use it. Unsafe
-paths, ACL failures and bounded-read failures retain their storage refusal. Reads never repair a
-record. The [shared preference contract](../workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
-owns the recovery token and Client notice.
+Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint, registered-child and retained-command operations return `io::ErrorKind::Unsupported` before effects. Deletion uses `NamedSessionDeleteReason::Unsupported`; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
 
 ## Shared launch and notification policy
 
 `default_interactive_launch` owns pure platform shell selection and native executable admission,
 shared by Desktop's matched helper and Native Worker. It starts no process.
 `UserTerminalLaunchIntent::capture` takes scrollback, colors and the selected launch profile
-together from one set of preference values, and the preference store's `terminal_launch_intent`
-applies it to the current record; an explicit executable bypasses default shell resolution while
-retaining the shared scrollback default. A custom executable must be absolute in its platform's
-form; POSIX login is explicit and Windows login is refused. The preference store and `config.toml`
-launch profiles apply this one rule. Invalid shared storage fails the operation before Host
-handoff.
+together from one confirmed set of setting values; an explicit executable bypasses default shell
+resolution while retaining the shared scrollback default, and a catalog without its default profile
+refuses the creation. A custom executable must be absolute in its platform's form; POSIX login is
+explicit and Windows login is refused. Every `config.toml` launch profile applies this one rule.
 
 `UserTerminalColors` resolves terminal default colors for both native presentation and new Worker
 profiles. Theme and Host take the canvas of the active slot's theme when application appearance is
@@ -84,7 +58,7 @@ Retained query state and reversible Client appearance follow the [native theme b
 `NotificationSettings` owns portable bounded delivery/sound policy. Windows configuration
 decoding accepts the declared current keys; TUI observation and card scheduling consume the
 portable type. Its complete private notification profile carries the current effective delivery
-and global sound policy, including values governed by shared preferences.
+and global sound policy, including the values the common setting keys set.
 
 ## Windows host appearance fallback
 
@@ -120,11 +94,10 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/version.json`                              | Layout record and the newest Orchbee version that used the root; `version.lock` and `version.pending` guard its replacement                  |
 | `internal/config.lock`                               | Writer lock of the default settings file                                                                                                     |
 | `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
-| `internal/state/<record>.json`                       | `StateRecord`: preferences, onboarding, and the machine catalog                                                                              |
+| `internal/state/<record>.json`                       | `StateRecord`: onboarding and the machine catalog                                                                                            |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
 | `internal/backups/<date>-reset-keys/`                | Copy of the settings file taken by `config reset-keys`                                                                                       |
 | `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
-| `internal/backups/<date>-<reset>/`                   | Copy of a record taken before a reset the person requested; never deleted automatically                                                      |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
 | `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |
@@ -207,20 +180,17 @@ Desktop Main backs its window state record up into the same folders; search for
 `upgrade-backup-folders` before changing the naming, the copies, or retention. A failed step, backup,
 or replacement leaves the record byte-identical, and the store treats it as not updated: the notice
 is reported, and the process keeps treating that record so until it ends, so its readers and writers
-agree. `back_up_for_reset` copies a record into `internal/backups/<YYYY-MM-DD>-<reset>/`, or the next
-free `-2`, `-3`, before a reset the person requested replaces it, and nothing deletes those folders.
-Backups are Windows effects; on POSIX a writer's opening reports an earlier record as not updated
+agree. Backups are Windows effects; on POSIX a writer's opening reports an earlier record as not updated
 until ORC-328.
 
-| Record                            | Version and extension object | While its version is one this build cannot use                                                                                                          |
-| --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/state/preferences.json` | `version`; `extensions`      | Reads give the defaults, and accepted changes stay in the store's memory until the Session stops; resetting every setting backs it up, then replaces it |
-| `internal/plugins/registry.json`  | `version`; `extensions`      | Readers see no plugin; link, install, folder assignment and cleanup are refused with `UnusableRegistry`                                                 |
-| `sessions/<session>/session.json` | `version`; `extensions`      | The catalog lists the Session as unrecognized with reason `Version`; it is neither started nor deleted                                                  |
+| Record                            | Version and extension object | While its version is one this build cannot use                                                          |
+| --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `internal/plugins/registry.json`  | `version`; `extensions`      | Readers see no plugin; link, install, folder assignment and cleanup are refused with `UnusableRegistry` |
+| `sessions/<session>/session.json` | `version`; `extensions`      | The catalog lists the Session as unrecognized with reason `Version`; it is neither started nor deleted  |
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
 release adds an optional field there without a migration. A record migrates only in a process that
-writes it: preferences on an accepted update, the plugin registry when a writer changes it, and
+writes it: the plugin registry when a writer changes it, and
 `session.json` when it is published, which outside the Server happens only after proving no Server
 of the Session runs. Workbench Client owns the onboarding, machine and TUI position records, kept
 through `VersionedFile`, with the same rules. `inspect_records` reads every versioned
@@ -429,8 +399,7 @@ before changing the shape, a limit, or the names. POSIX processes do not log unt
 `recent_diagnostic_logs` reads today's file and the six before it without creating anything and
 keeps only lines that are exactly records this grammar writes, counting the rest, so a bundle never
 carries text a writer did not produce. `redact_settings` writes `config.toml` again from its values,
-so its comments are not carried, and `redact_preferences` keeps the preference record's shape; both
-replace a value under a command, executable or program key with `<command>`, every argument under
+so its comments are not carried, and replaces a value under a command, executable or program key with `<command>`, every argument under
 an args or arguments key with `<argument>`, every value under an env, environment or
 environmentVariables key with `<environment>`, every value under a key that names a token, secret,
 password, API key or credential with `<credential>`, and a settings value that no documented option
@@ -827,10 +796,9 @@ Initialization and encoded helpers consume only the owned assets.
 `config.toml` is the one user settings file; settings pages will become a view over it. The
 registry, `SETTING_KEYS` in `src/user_settings/registry.rs`, declares every key once: its dotted
 path, value type with allowed values or range, default, page category and group ids, its scope,
-the Clients it applies to, when a change applies, whether the settings page shows it, and the
-shared preference it mirrors. The reader, the `orchbee --default-config` reference, `config check`
-key knowledge, the editor and the published key file all derive from it, so adding a key starts
-there.
+the Clients it applies to, when a change applies and whether the settings page shows it. The
+reader, the `orchbee --default-config` reference, `config check` key knowledge, the editor and the
+published key file all derive from it, so adding a key starts there.
 
 A key's `SettingScope` says whose file holds it. `Client` keys describe how one Client looks and
 takes input (`general.language`, `appearance.*`, the terminal font, padding, opacity, Option,
@@ -899,9 +867,9 @@ every key's purpose, allowed values and default.
 | `agent_detection.auto_update`                                                               | `true`                           | file only                            |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
 
-The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The
-preference keys (those with a `preference` in the registry) and the launch profiles parse into
-`UserSettings::preferences`, the Session Server's and the TUI's runtime source. The Desktop font,
+The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The keys
+that carry a `UserSettingsField` and the launch profiles parse into `UserSettings::values`, the
+common values that are the Session Server's and the TUI's runtime source. The Desktop font,
 padding, opacity and Option keys parse into `UserSettings::desktop`, but their runtime source is
 still the Desktop's own state until a later phase moves it onto the file. The notification profile the
 Server publishes uses the file's spelling: one `[notifications]` table with `cli_delivery`,
@@ -910,19 +878,20 @@ Server publishes uses the file's spelling: one `[notifications]` table with `cli
 `notifications` and still reads a profile spelled `[ui.toast]` and `[ui.sound]`, which nothing
 writes any more.
 
-`preference_values(lookup, launch_profiles)` is the one derivation of the preference values from
-key values: `lookup` returns a key path's `Scalar`, or `None` when the file leaves it unset, and a
+`settings_values(lookup, launch_profiles)` is the one derivation of the common values from key
+values: `lookup` returns a key path's `Scalar`, or `None` when the file leaves it unset, and a
 value its key does not admit (`SettingKey::admit`) keeps its default. The reader builds
-`UserSettings::preferences` with it over the file, and a Client holding a copy of the file's values
+`UserSettings::values` with it over the file, and a Client holding a copy of the file's values
 builds the same values with it.
 
 `settings_snapshot(load, revision)` builds the `workbench.settings` snapshot of a load: each
 concrete scalar key's file value or default, the keys the file sets, the effective launch catalog,
 the bounded diagnostics and the file status, which a load that kept its last valid settings reports
-as `syntax-error`. `snapshot_preferences(snapshot)` derives the preference values from a snapshot
-through `preference_values`. `preference_changes(baseline, values, restored)` goes the other way:
-the edit, in the file's spelling, that turns one set of preference values into another, restoring
-each listed key that did not change. `setting_changes` admits a wire edit's changes, and
+as `syntax-error` and a startup load that could not read the file as `unreadable`.
+`snapshot_values(snapshot)` derives the common values from a snapshot through `settings_values`.
+`value_changes(baseline, values, restored)` goes the other way: the edit, in the file's spelling,
+that turns one set of values into another, restoring each listed `UserSettingsField` that did not
+change. `setting_changes` admits a wire edit's changes, and
 `settings_refusal` maps an edit refusal onto the wire reason and its members.
 
 Each `[[terminal.profiles.<platform>]]` table is admitted by its own platform's launch rules on
@@ -936,7 +905,10 @@ The reader is strict per key and tolerant per file:
 
 - A file over 2 MiB (`MAXIMUM_USER_SETTINGS_BYTES`), a directory, an unreadable file, a missing
   explicit file and an invalid location variable are errors; a missing default file is the
-  defaults.
+  defaults. `read_startup_settings`, the managed Server's first read on macOS and Linux, starts
+  with the defaults instead and names the file's reason in `UserSettingsLoad::unreadable`, which
+  the snapshot publishes as `unreadable`; only an invalid location variable still refuses, and an
+  edit is refused while the file cannot be read.
 - A file that is not valid UTF-8 or TOML gives the defaults, or the last valid settings through
   `UserSettingsLoad::or_last_valid`, plus a `file` diagnostic. `UserSettingsLoad::syntax` names the
   reason and the 1-based line and column, counted in characters. Startup paths (Client activation
@@ -969,8 +941,8 @@ child arguments.
 `user_settings_path` resolves the same file without opening it. It preserves explicit
 `ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the data root; `ORCHBEE_CONFIG_FILE` takes
 the same absolute-path admission as `ORCHBEE_HOME`. A missing home leaves the location absent, and
-an invalid `ORCHBEE_HOME` is a settings error. Detection rules, preferences and other records follow
-the data root, never the settings file's folder.
+an invalid `ORCHBEE_HOME` is a settings error. Detection rules and other records follow the data
+root, never the settings file's folder.
 
 ### Editing
 
@@ -1047,7 +1019,7 @@ The Windows plugin catalog boundary supplies bounded manifest parsing, normalize
 
 ## Windows update channel writes
 
-`set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads or rolls back a saved preference after a caller's update failure.
+`set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads, and never rolls back the saved channel after a caller's update failure.
 
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 

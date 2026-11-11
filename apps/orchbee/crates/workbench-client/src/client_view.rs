@@ -179,7 +179,7 @@ pub struct ClientView {
     /// The build environment the sidebar marks; `None` for release and in pure UI traces.
     environment_marker: Option<crate::environment_marker::EnvironmentMarker>,
     pub onboarding: crate::onboarding::State,
-    /// Confirmed shared preferences. `apply_user_preferences` is the single writer;
+    /// Confirmed common setting values. `apply_user_preferences` is the single writer;
     /// `WorkbenchClientUi` receives its copy from here in the same settlement.
     user_preferences: Option<orchbee_workbench_protocol::UserSettingsValues>,
     pub machines: crate::machine_picker::Picker,

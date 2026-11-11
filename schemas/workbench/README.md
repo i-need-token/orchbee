@@ -1,60 +1,5 @@
 # Workbench Cross-Language Contract
 
-## Shared user preferences
-
-[`v1/user-preferences.schema.json`](v1/user-preferences.schema.json) owns the closed common
-preference values, patches and bridge receipts. Its conformance corpus is consumed by the Rust
-binding; no TypeScript client uses this contract, since Desktop reads and edits settings through
-`workbench.settings`. The schema's default values are canonical; neither UI invents defaults,
-reset semantics or a second durable writer. The runtime owner is
-[`UserPreferencesStore`](../../crates/local-runtime/README.md#shared-user-preference-storage).
-
-| Key                                | Allowed value and default                                               | Effect boundary                                                                                                         |
-| ---------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `locale`                           | `system` (default), `en-US`, `zh-CN`                                    | Application copy; user text and terminal output are unchanged                                                           |
-| `applicationTheme`                 | `system` (default), `light`, `dark`                                     | Active theme slot; System follows GUI system appearance or the native host's reported background                        |
-| `lightTheme`                       | Kebab-case id, at most 64 bytes, default `orchbee-light`                | Light slot; consumers resolve an unshipped or dark id to Orchbee Light                                                  |
-| `darkTheme`                        | Kebab-case id, at most 64 bytes, default `orchbee-dark`                 | Dark slot; consumers resolve an unshipped or light id to Orchbee Dark                                                   |
-| `tuiColorSource`                   | `theme` (default), `terminal`                                           | Native Client only: Theme paints the active slot on truecolor hosts of known appearance; Terminal keeps the host colors |
-| `terminalDisplayTheme`             | `theme` (default), `host`, `custom`                                     | Terminal default colors; explicit program colors retain their authority                                                 |
-| `customForeground`                 | Lowercase `#RRGGBB`, default `#141414`                                  | Used only by Custom terminal appearance                                                                                 |
-| `customBackground`                 | Lowercase `#RRGGBB`, default `#fcfcfc`                                  | Used only by Custom terminal appearance                                                                                 |
-| `copyOnSelect`                     | Boolean, default `false`                                                | Selection completion                                                                                                    |
-| `trimTrailingBlankRowsForAgents`   | Boolean, default `true`                                                 | Projection of a currently observed live Agent's trailing blank rows                                                     |
-| `resumeAgentsOnRestore`            | Boolean, default `true`; a record that omits it reads as `true`         | Server checkpoint recording and resuming of supported Agent sessions at its next restart                                |
-| `restoreTerminalOutput`            | Boolean, default `false`; a record that omits it reads as `false`       | Server capture of recent terminal output beside its checkpoint and its replay at the next restart                       |
-| `agentNotificationMode`            | `never` (default), `hidden`                                             | Future Agent attention events; Hidden requires no visible focused attachment                                            |
-| `completionReminderMode`           | `never` (default), `unfocused`, `always`                                | Future qualifying command-completion events                                                                             |
-| `completionReminderMinimumSeconds` | Integer 1–3,600, default 5                                              | Minimum command duration for a completion reminder                                                                      |
-| `soundEnabled`                     | Boolean, default `false`                                                | Sound for future eligible reminders; permission and host mute remain host-owned                                         |
-| `scrollbackBytes`                  | Integer 0–1,000,000,000, default 10,000,000                             | Newly provisioned terminals; no live history eviction                                                                   |
-| `launchProfiles`                   | Version-1 catalog, default `system-default` with non-login system shell | Newly provisioned terminals; running and restored launches retain their captured command                                |
-
-All values belong to one explicitly selected configuration/device scope. They do not become
-Workbench-document, all-Workspace or all-device values. Browser preview origins and isolated
-Desktop development identities are distinct scopes unless composition explicitly selects the same
-configuration. A Settings adapter never derives its write scope from a navigation change.
-
-A patch omits untouched keys; `null` resets and claims an explicitly named key at its canonical default. Requests admit only `read` and source-bound `update`; Desktop Main/renderer imports, `part` identities and completion markers are outside the current contract. Native explicit initial values and later user edits remain with the same storage authority.
-
-The launch catalog preserves literal argument order, unique profile identities and membership of
-the selected default. Only `system-default` may have a null localized name. Names must be canonical
-trimmed Unicode and at most 512 UTF-8 bytes; executable paths and each argument are at most 32 KiB,
-with at most 128 arguments and 64 profiles. The catalog is at most 1 MiB and an envelope at most
-2 MiB. These byte and relational checks supplement JSON Schema. The device adapter additionally
-requires absolute custom executables and rejects Windows system-shell login mode.
-
-`snapshot` confirms a read, no-op or atomic storage commit, not application by every client.
-`refused` is a definite rejection; `outcome-unknown` cannot authorize a write replay. A failure after
-publication, such as an unconfirmed directory flush, is unknown. Callers may read the current state
-and present recovery; they must not turn missing or malformed output into a claimed refusal.
-
-Typography, pixel padding, window opacity, physical macOS Option handling and terminal-host input
-bindings stay with their actual presentation/input owners. Integration installation, credentials,
-diagnostics and migration reports are management operations rather than preference fields. Common
-field admission requires both UI entries, actual runtime behavior and updates to this inventory and
-the shared conformance corpus; an unimplemented adapter is not a platform-inapplicability reason.
-
 ## Setting keys
 
 [`v1/setting-keys-v1.json`](v1/setting-keys-v1.json) lists every `config.toml` key, in registry
@@ -783,7 +728,7 @@ not establish the public CLI export/apply roundtrip.
 
 The [Windows configuration owner](../../apps/orchbee/docs/windows-cli-configuration.md#live-configuration-reload) owns authorization, frozen path, candidate validation, publication, Client installation and shutdown. A publication is not an acknowledgement from every Client. Lost submitted reload replies remain unknown and are not retried automatically. No Desktop command is added; matched private cohorts roll out together without a persisted migration.
 
-Snapshots also carry the creation defaults the native Client consumes: required boolean `focusNewPanel` (`terminal.focus_new_panel`) and required nullable `worktreesDirectory` (`worktrees.directory`, a nonempty control-free absolute path of at most 4096 UTF-8 bytes; null selects the sibling checkout) and required string `newCwd` (`terminal.new_cwd`: `follow`, `home`, `current`, `workspace`, or a path under the same grammar as `worktreesDirectory`). Native CLI creation reads both from the current snapshot instead of `config.toml`. Snapshots carry no launch program or theme: shared preferences own the default launch profile and application appearance. Matched private cohorts change together, and the sole version-1 public CLI configuration document projects the same fields.
+Snapshots also carry the creation defaults the native Client consumes: required boolean `focusNewPanel` (`terminal.focus_new_panel`) and required nullable `worktreesDirectory` (`worktrees.directory`, a nonempty control-free absolute path of at most 4096 UTF-8 bytes; null selects the sibling checkout) and required string `newCwd` (`terminal.new_cwd`: `follow`, `home`, `current`, `workspace`, or a path under the same grammar as `worktreesDirectory`). Native CLI creation reads both from the current snapshot instead of `config.toml`. Snapshots carry no launch program or theme: the settings snapshot carries the default launch profile and application appearance. Matched private cohorts change together, and the sole version-1 public CLI configuration document projects the same fields.
 
 ## Transient Client notifications
 
@@ -895,6 +840,14 @@ Canonical split `ratio` is optional with an equal default and finite 0.1–0.9 b
 ## Native Settings wire contract
 
 [Settings](v1/workbench-settings.schema.json) defines the closed `read` and `edit` requests and their `current`, `edited` and `refused` outcomes. An edit carries 1 to 64 changes with unique dotted keys; each change has `key` and exactly one of `value` (a boolean, an integer, a string, or for a structured key an array of entries) and `restore: true`. A snapshot carries a decimal-string `revision` shared with the configuration snapshot, a nullable display `filePath`, the file `status` (`ok`, `missing`, `syntax-error` with `reason`, `line` and `column`, or `unreadable` with `reason`), the `platform`, every scalar key in `values` (null for an unset default), the keys the file holds in `set`, the effective `launchProfiles` and bounded `diagnostics`. A refusal carries `reason` and exactly the members that reason admits: `key` for `unknown-key`; `key` and `detail` for `invalid-value`; `detail` (`invalid-toml` or `invalid-utf8`), `line` and `column` for `syntax-error`; `detail` for `unusable-file`; none otherwise. Requests and results are each bounded at 2 MiB. The schema is self-contained and checks structure only; the [settings registry](../../crates/local-runtime/README.md#published-key-file) decides which keys exist. The shared corpus runs in Rust, TypeScript and JSON Schema. The [native Settings owner](../../apps/orchbee/docs/native-settings.md) governs the TUI page.
+
+The launch catalog, in a snapshot's `launchProfiles` and in an edit of `terminal.profiles.<platform>`,
+preserves literal argument order, unique profile ids and membership of the selected default. Only
+`system-default` may have a null name. Names are trimmed and at most 512 UTF-8 bytes; executable paths
+and each argument are at most 32 KiB, with at most 128 arguments and 64 profiles, and the catalog is
+at most 1 MiB. These byte and relational checks supplement JSON Schema. The settings reader also
+requires a custom executable to be absolute in its platform's form and refuses a Windows system shell
+as a login shell.
 
 ## Cross-Client parity sources
 

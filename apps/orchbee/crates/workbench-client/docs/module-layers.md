@@ -61,7 +61,7 @@ receives the owner's value through composition:
 
 - Host capabilities are a compile-time admission. Each holder receives them once at construction,
   and nothing writes them afterwards.
-- `ClientView::apply_user_preferences` writes the confirmed user preferences. `WorkbenchClientUi`
+- `ClientView::apply_user_preferences` writes the confirmed common setting values. `WorkbenchClientUi`
   receives the owner's values in the same settlement.
 - The configuration watcher writes the notification policy into the `ClientView` notifications.
   `WorkbenchClientUi` receives that policy with the revision that admitted it.

@@ -1,5 +1,5 @@
 //! Shipped chrome palette names, independent of rendering and host capabilities.
-/// The chrome palette drawn before shared preferences select the application theme.
+/// The chrome palette drawn before the settings select the application theme.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ThemeName {
     /// Preserve the host terminal's default foreground and background.

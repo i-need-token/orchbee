@@ -676,7 +676,7 @@ background guard until both collectors have withdrawn cached sources and subscri
 
 | Consumer                                                                                              | Shared-carrier behavior                                                                                                                                                                                                   |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Window title, configuration, Settings                                                                 | UI-owned state subscriptions; configuration reload and preference writes are asynchronous one-shot requests. No forwarding thread.                                                                                        |
+| Window title, configuration, Settings                                                                 | UI-owned state subscriptions; configuration reload and settings edits are asynchronous one-shot requests. No forwarding thread.                                                                                           |
 | Notifications                                                                                         | UI-owned bounded event subscription; cancellation stops only that listener.                                                                                                                                               |
 | Client control                                                                                        | Stable commit invalidations plus one-shot Synchronize/completion, configured-command and layout requests. Its domain worker coordinates snapshot/control ordering; it owns no socket, admission retry or heartbeat timer. |
 | Workbench membership, Worktree operations, Agent registry/retained physical reports, graphics catalog | Commit invalidations schedule existing bounded reads. Empty/unbound views no longer issue periodic membership reads.                                                                                                      |
@@ -1123,7 +1123,7 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 ## Windows CLI configuration
 
-Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. See [native themes](docs/native-themes.md).
+Shared application and terminal themes apply to the native TUI from the same Server settings as Desktop. See [native themes](docs/native-themes.md).
 
 `config check` also validates `config.toml` in the data root, `%USERPROFILE%/.orchbee` for release, which `ORCHBEE_HOME` moves, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI creation reads these defaults from the running Session's published configuration, so file errors are reported by the Server and `config check`, not by creation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 
@@ -1155,6 +1155,6 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 
 ## Native Settings
 
-Press Ctrl+B F4 in the Windows or Linux TUI to open General and Launch profiles; Windows also exposes Settings through navigation. All common preferences use the same device record as Desktop, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Edits remain drafts until Save, reset requires confirmation, and stale sources or unknown results remain explicit without replay. See the [native Settings contract](docs/native-settings.md) and [shared inventory](../../crates/workbench-protocol/docs/user-preferences.md).
+Press Ctrl+B F4 in the Windows or Linux TUI to open General and Launch profiles; Windows also exposes Settings through navigation. All common settings are the same `config.toml` keys Desktop edits through the Server, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Edits remain drafts until Save, reset requires confirmation, and a refused or unknown result remains explicit without replay. See the [native Settings contract](docs/native-settings.md) and the [settings registry](../../crates/local-runtime/README.md#user-settings).
 
 Windows first-run guidance keeps terminal input active while exposing Workspace creation, Agent selection, actions and Help. Dismissal is remembered per native configuration profile. The guidance is withheld for now and its code is kept. See [native first-run guidance](docs/native-onboarding.md).

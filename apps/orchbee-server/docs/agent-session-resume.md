@@ -1,6 +1,6 @@
 # Agent session resume
 
-Status: implemented for the managed Windows Session: the preference, the retained format, capture,
+Status: implemented for the managed Windows Session: the `agents.resume_on_restore` setting, the retained format, capture,
 delivery after a restart at a prompt the Host confirms, the one-shot notice when a resume is given
 up, carry-forward of a delivered reference, and two [process sources](#process-source) that need
 no hook: Claude Code's own run table, and the conversation id bound on the Agent process's own
@@ -348,7 +348,7 @@ per-provider flag.
   3. Otherwise a bound reference is dropped. An unbound reference is kept for its first run but
      never written, so a resume that fails fast is never typed again.
 - **Other drops.** A binding or generation change, or the Presentation going away, drops it. With
-  the preference off it is not written. The creation time defeats process id reuse, and a run that
+  the setting off it is not written. The creation time defeats process id reuse, and a run that
   hands off to a new anchor no longer matches, so its reference drops.
 
 One pure decision, `carried_outcome`, gives each moment's `Bind`, `Write`, `Keep` or `Drop`.
@@ -393,7 +393,7 @@ command's start and finish markers and keeps the line out of history, as for an 
 
 ### Startup
 
-Startup reads the preference once, after the Session's preference scope is frozen. Off discards
+Startup reads `agents.resume_on_restore` once, from the settings the Server loaded. Off discards
 every pending reference and starts no driver. A Presentation whose directory is unavailable is
 held without launching and keeps its reference
 ([held restore](workbench-checkpoint.md#held-restore)); see [Retry](#retry). The remaining
@@ -403,7 +403,7 @@ observer starts, before any Client listener opens.
 
 ### Retry
 
-While the preference is on, a Retry that starts a held Panel's shell in its saved directory hands a
+While the setting is on, a Retry that starts a held Panel's shell in its saved directory hands a
 still pending reference to the driver under the registry and coordinator locks it committed the
 new binding under. The candidate queues behind the running driver, which takes it after its other
 candidates, or, when the driver already ended in this Server lifetime, starts a new run. A run
@@ -549,8 +549,8 @@ installs its configuration reads as off. The
   live process its delivery started. The capture rule's process source admits only the run table
   entry, or the one conversation id bound on the command line, of the published run's exact
   process.
-- With the preference off, no row is written and nothing is typed.
-- Delivery happens only when all of these hold: the preference was on at startup, the binding and
+- With the setting off, no row is written and nothing is typed.
+- Delivery happens only when all of these hold: the setting was on at startup, the binding and
   Terminal generation are unchanged, no Client input reached that terminal, no command was
   observed, the directory equals the retained one, the strict idle-shell rule holds, the shell
   reports its prompt, and the Host confirms the prompt and types the line itself. No resume is
@@ -634,7 +634,7 @@ Per row, the witness proves:
 - capture after a resume: from the report where the provider re-reports, and from the carried
   reference bound to its run where it stays silent, which then survives the second restart;
 - a silent Agent that exits drops its carried reference from the next checkpoint;
-- with the preference off at startup, nothing is typed and the next capture writes no row.
+- with the setting off at startup, nothing is typed and the next capture writes no row.
 
 It also keeps the earlier cases: a missing directory restores a plain shell in home, Client input
 during the settle refutes the delivery, every run is a stub under the fixture root, and no session

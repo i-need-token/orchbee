@@ -3,7 +3,7 @@
 	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-settings.schema.json",
 	"title": "Session-scoped settings file reads and edits",
 	"description": "Reads and edits of config.toml on the Server's machine, keyed by setting path. The contract checks structure only; the settings registry decides which keys exist and what each admits.",
-	"$comment": "Bindings additionally enforce 2 MiB encoded requests and results, UTF-8 byte bounds where maxLength counts code points, unique change keys within one edit, a 64 KiB encoded bound on each structured value, strictly ascending set order, strictly ascending (field, reason) diagnostics, and the launch-profile catalog rules of the user-preferences contract (trimmed names, unique ids, default membership, a null name only on system-default).",
+	"$comment": "Bindings additionally enforce 2 MiB encoded requests and results, UTF-8 byte bounds where maxLength counts code points, unique change keys within one edit, a 64 KiB encoded bound on each structured value, strictly ascending set order, strictly ascending (field, reason) diagnostics, and the launch-catalog rules of the Native Settings wire contract in schemas/workbench/README.md (trimmed names, unique ids, default membership, a null name only on system-default).",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"

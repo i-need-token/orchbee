@@ -362,8 +362,8 @@ codec/schema/process-test evidence, not model claims.
 
 ## Default interactive launch resolution
 
-The Worker never opens the shared preference store or `config.toml`. The Session reads its frozen
-store once before it admits each creation and sends the confirmed scrollback, terminal default colors
+The Worker never opens `config.toml`. The Session reads its last valid settings once before it
+admits each creation and sends the confirmed scrollback, terminal default colors
 and, for a default launch, the selected profile's command in the
 [launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture).
 A saved change therefore reaches only later creations; running terminals, cached launch facts and

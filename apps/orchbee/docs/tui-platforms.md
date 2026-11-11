@@ -43,25 +43,25 @@ and SSH-guard retirement scheduling keep their original cadence.
 
 ## Current adapters
 
-| Responsibility                                                                       | Windows                                      | Linux and macOS                                    |
-| ------------------------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------------- |
-| Inherited terminal admission, raw mode, output, signals and pointer capture          | Retained console adapter                     | Existing POSIX TTY adapter                         |
-| Workbench protocol, local selection, pane layout, menus, help and Agent observations | Shared Client implementation                 | Shared Client implementation                       |
-| Shared preference drafts and confirmed settings                                      | Shared preference protocol and store         | Shared preference protocol and existing Unix store |
-| Keyboard copy-mode navigation, selection and search                                  | Shared Client implementation                 | Shared Client implementation                       |
-| System clipboard writes                                                              | Hidden Win32 owner                           | Unsupported                                        |
-| Browser link activation and saved-machine SSH carriers                               | Windows shell and owned OpenSSH processes    | Unsupported                                        |
-| Saved-machine catalog, remembered position and first-run dismissal storage           | Private Windows cache                        | Unsupported                                        |
-| Local directory entry and Agent launch/provider probing                              | Existing Windows adapters                    | Unsupported                                        |
-| Legacy TOML configuration and plugin registry persistence                            | Existing Windows adapters                    | Unsupported                                        |
-| Host window title, terminal/system notification transport and terminal graphics      | Existing Windows adapters and host admission | Unsupported                                        |
-| Notification cards and ordinary terminal bell                                        | Shared TUI / admitted terminal               | Shared TUI / admitted terminal                     |
-| Login-shell preference                                                               | Unsupported by the Windows shell adapter     | Existing POSIX shell adapter                       |
+| Responsibility                                                                       | Windows                                      | Linux and macOS                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------- | ----------------------------------- |
+| Inherited terminal admission, raw mode, output, signals and pointer capture          | Retained console adapter                     | Existing POSIX TTY adapter          |
+| Workbench protocol, local selection, pane layout, menus, help and Agent observations | Shared Client implementation                 | Shared Client implementation        |
+| Settings drafts and confirmed settings                                               | Server settings snapshots and edits          | Server settings snapshots and edits |
+| Keyboard copy-mode navigation, selection and search                                  | Shared Client implementation                 | Shared Client implementation        |
+| System clipboard writes                                                              | Hidden Win32 owner                           | Unsupported                         |
+| Browser link activation and saved-machine SSH carriers                               | Windows shell and owned OpenSSH processes    | Unsupported                         |
+| Saved-machine catalog, remembered position and first-run dismissal storage           | Private Windows cache                        | Unsupported                         |
+| Local directory entry and Agent launch/provider probing                              | Existing Windows adapters                    | Unsupported                         |
+| Legacy TOML configuration and plugin registry persistence                            | Existing Windows adapters                    | Unsupported                         |
+| Host window title, terminal/system notification transport and terminal graphics      | Existing Windows adapters and host admission | Unsupported                         |
+| Notification cards and ordinary terminal bell                                        | Shared TUI / admitted terminal               | Shared TUI / admitted terminal      |
+| Login-shell preference                                                               | Unsupported by the Windows shell adapter     | Existing POSIX shell adapter        |
 
 The optional-capability list does not gate the whole TUI. In particular, an absent saved-machine
 adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
 A local Client on Unix does not read the Windows catalog or invent an empty persisted catalog.
-Shared preferences keep their existing platform support independently of legacy Windows TOML.
+Settings drafts and edits use the Server's settings snapshots on every platform.
 Local activation retains the admitted runtime directory on every platform. Remembered-position
 storage derives its cache path only inside the Windows adapter; the Unix adapter returns the
 typed `PositionStorage` refusal without reading Windows environment variables or inventing a path.

@@ -58,10 +58,8 @@ A release joins the default Session, Test joins `desktop-test`, and Dev joins
 `desktop-dev-<scope-digest>`, so each distribution profile keeps its own terminals;
 `ORCHBEE_DESKTOP_SESSION` names another. Outside a release, both `orchbee` commands run under the
 data root's configuration file, as [Desktop data root](docs/data-root.md) describes, so a Session
-they start keeps its
-[shared preferences](../../crates/workbench-protocol/docs/user-preferences.md#scope-and-persistence)
-apart from the installed release's. A Session already running keeps the configuration it started
-with.
+they start keeps its [settings](../../crates/local-runtime/README.md#user-settings) apart from the
+installed release's. A Session already running keeps the configuration it started with.
 
 ## Window
 

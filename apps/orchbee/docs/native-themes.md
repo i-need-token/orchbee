@@ -2,8 +2,7 @@
 
 ## Selection and ownership
 
-The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
-choose an application appearance (Light, Dark, System), one theme for each of the light and dark
+The [appearance settings](../../../crates/local-runtime/README.md#tables-and-keys) choose an application appearance (Light, Dark, System), one theme for each of the light and dark
 slots, the native Client's color source (Theme or Terminal colors) and terminal defaults (Theme,
 Host, Custom). The TUI does not change the outer host's font or configured theme. While it owns the screen,
 its named canvas temporarily sets the default background on admitted hosts, as described below.
@@ -11,7 +10,7 @@ its named canvas temporarily sets the default background on admitted hosts, as d
 The [source resolver](../crates/workbench-client/src/tui_theme/source.rs) decides what the TUI
 paints. The first matching row wins:
 
-| Host and preferences                                 | The TUI paints                    |
+| Host and settings                                    | The TUI paints                    |
 | ---------------------------------------------------- | --------------------------------- |
 | The host is below truecolor                          | Terminal colors                   |
 | Colors is Terminal colors                            | Terminal colors                   |
@@ -26,7 +25,7 @@ terminal's unreported colors need not match it. A slot id this build does not sh
 the other polarity, paints that slot's Orchbee theme and keeps the stored id. Below truecolor the
 named themes are unavailable: a quantized canvas and ANSI palette would show a different theme, so
 Settings disables the theme rows and says why. Reaching truecolor, or the host appearance
-settling, repaints the confirmed preferences without a restart.
+settling, repaints the confirmed settings without a restart.
 
 Named themes take every role from the [shipped catalog](../../../crates/color-themes/README.md)
 through its role resolver. The [named-theme adapter](../crates/workbench-client/src/tui_theme/shipped.rs)
@@ -64,7 +63,7 @@ Each controller grant reports the Client's effective confirmed defaults, cursor 
 through `host-colors`, including named themes before any outer-terminal reply. The Worker applies
 known colors through revision-fenced `ApplyTerminalTheme` for every controlled terminal, regardless
 of launch display mode. Subsequent live/history polling also synchronizes changed confirmed
-preferences without waiting for keyboard input. A read-only Client changes only its own rendering.
+settings without waiting for keyboard input. A read-only Client changes only its own rendering.
 The Worker's OS fallback applies before any Client reports; the latest reported defaults seed new
 Host-following launches. Reversible Settings previews remain local until committed.
 
@@ -289,7 +288,7 @@ final drawing correctness. Never add application-specific text coloring to hide 
 
 ## Publication and reload
 
-The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and their resolved theme. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read owned state, never files or environment. Native configuration reload remains responsible for its own fields and cannot replace confirmed common preferences.
+The ordered Settings lane observes the Server's pushed settings snapshots in revision order. Only a complete snapshot updates the cached values and their resolved theme; a file the Server cannot parse keeps the last valid values, and a lost reply keeps the last confirmed ones. GUI and TUI edits use this same path without restarting terminals. Renderers read owned state, never files or environment.
 
 [Settings appearance drafts](native-settings.md#apply-timing-and-capability-boundaries) supply a separate reversible palette and locale to the whole-frame compositor, including background chrome and terminal default markers. This projection never publishes runtime policy or replaces the confirmed cache; closing reveals the newest confirmed appearance, and program colors retain their independent authority.
 
@@ -302,7 +301,7 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 | Shared Orchbee interaction palette remains aligned           | Conformance tests in both Clients against the shared theme colors, with exact shared-input verification edges     | The shared colors cover Orchbee action, hover, press and Agent states; other themes keep the catalog resolver's roles |
 | Agent state colors never follow the theme                    | Agent glyph styles compared under every shipped theme and Terminal colors                                         | Truecolor; quantization maps the fixed values per level                                                               |
 | Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                     |
-| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                  |
+| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen settings snapshots and Worker launch-adapter profile cases                      | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                  |
 | Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and Orchbee Light/Dark; monochrome, 16/256 colors and truecolor; physical host appearance is separate    |
 | Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Theme/Host/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate         |
 | Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and edit traces; physical display capability remains separate                                    |

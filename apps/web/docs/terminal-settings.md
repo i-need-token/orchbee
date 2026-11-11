@@ -232,7 +232,7 @@ One appearance update follows this order:
 1. Validate the complete candidate against the values the page admits; an invalid candidate sends
    nothing.
 2. Send one edit of the keys that differ.
-3. When the snapshot arrives, derive an immutable preference snapshot, source-neutral presentation
+3. When the snapshot arrives, derive the immutable setting values, source-neutral presentation
    configuration, and, when theme-affecting values changed, a complete runtime-theme candidate.
    Publish presentation configuration only when those derived values changed, and start one
    latest-wins runtime-theme barrier when theme-derived values changed.

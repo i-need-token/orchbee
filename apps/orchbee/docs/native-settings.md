@@ -4,18 +4,18 @@
 
 `Ctrl+B F4`, the sidebar Settings row and the global action menu open Settings
 on supported native TUI hosts. The capturing surface edits a
-local draft while pane output continues. It covers every common preference in
-[the shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect),
-including launch profiles and new-terminal scrollback defaults. Host-owned fonts,
-pixel metrics and management workflows follow the inventory's explicit boundaries.
+local draft while pane output continues. It covers every common setting both Clients present in
+the [settings registry](../../../crates/local-runtime/README.md#user-settings), including launch
+profiles and new-terminal scrollback defaults. Host-owned fonts, pixel metrics and management
+workflows stay with their own owners.
 The native Settings feature maps the thirteen shared keys once to their row,
 category, control kind, availability, integer unit, bounds, steps and effect
 horizon. The editor, localization and renderer currently consume the row,
 category, control, availability and bounded-integer facts. Effect metadata
 documents and tests the feature contract; the existing domain owners still apply
 those effects. The batch edit, restoring defaults and snapshot publication stay with the
-settings editor and the Session Server. Workbench Protocol remains the value, default
-and validation owner.
+settings editor and the Session Server. The settings registry owns keys, defaults and validation,
+and Workbench Protocol the value types and their bounds.
 
 The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles,
 and on a local origin adds an [Agent integrations](#agent-integrations) entry.
@@ -293,8 +293,8 @@ The Session Server and the TUI keep every setting in one store, `config.toml`: t
 | Reader                                  | Reads                                        | Rule                                                                                                                                                                                                                                                                                                                                                                              |
 | --------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Session Server                          | `config.toml`                                | The runtime authority. It reads `config.toml` at startup, on reload, after each committed edit and, on Windows, when its sampler sees a change. Each change publishes a configuration and a settings snapshot over shared-carrier subscriptions; a refused candidate keeps the previous snapshot and publishes diagnostics, and an unparsable file keeps the last valid settings. |
-| Worker                                  | Neither store                                | Server dispatch carries the launch intent; the Worker resolves device facts, such as System shell discovery, itself.                                                                                                                                                                                                                                                              |
-| Local Session activation                | The `config.toml` location and file validity | Rejects an unreadable file and freezes the location the Server reads.                                                                                                                                                                                                                                                                                                             |
+| Worker                                  | No settings file                             | Server dispatch carries the launch intent; the Worker resolves device facts, such as System shell discovery, itself.                                                                                                                                                                                                                                                              |
+| Local Session activation                | The `config.toml` location and file validity | Freezes the location the Server reads. On Windows it rejects an unreadable file; on macOS and Linux the Server's first read starts with the defaults instead, publishes the file as `unreadable` and refuses edits while it cannot be read. An inadmissible location refuses on every host.                                                                                       |
 | `channel show`, `channel set`, `update` | `update.channel`                             | Release operations run without a Session.                                                                                                                                                                                                                                                                                                                                         |
 | `config check`                          | The whole `config.toml`                      | Validates the file the user edits; applies no runtime policy.                                                                                                                                                                                                                                                                                                                     |
 
@@ -302,9 +302,9 @@ Every other Client consumer, including the TUI, Desktop windows, and CLI creatio
 
 ## Apply timing and capability boundaries
 
-Every shared key persists through the same atomic Save and private record. The
-[shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect)
-owns values, validation and defaults. The native editor exposes these effect
+Every shared key persists through the same edit of `config.toml`. The
+[settings registry](../../../crates/local-runtime/README.md#user-settings) owns keys, validation and
+defaults. The native editor exposes these effect
 horizons in localized row help:
 
 | Key                                | Draft behavior                                                                | Effect after confirmed Save or external observation                                                                     |
@@ -349,7 +349,7 @@ not sample yet. Neither publication is an acknowledgment from every connected Cl
 | `terminal.new_cwd`                                                                                                                                 | Windows CLI creation reads the published value when it runs; does not move an existing process                                                            |
 | `agent_detection.auto_update`                                                                                                                      | Reload updates the existing rule-check scheduler; automatic checks retain their managed-release/capability restrictions                                   |
 | `update.channel`                                                                                                                                   | Consumed by subsequent release/update operations; does not recolor or restart the current TUI                                                             |
-| Pointer capture (`--mouse off`, default prefix `m`), sidebar visibility/width                                                                      | Immediate Client-local interaction state; these actions do not persist a shared preference                                                                |
+| Pointer capture (`--mouse off`, default prefix `m`), sidebar visibility/width                                                                      | Immediate Client-local interaction state; these actions do not persist a setting                                                                          |
 
 Unknown configuration keys warn and are ignored; loading them does not change Client behavior. Fonts, pixel size, opacity and physical Option-key handling
 belong to the enclosing host. Clipboard, terminal/OS notifications and sound need

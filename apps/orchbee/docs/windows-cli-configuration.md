@@ -31,11 +31,9 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ## Named chrome themes
 
-The shared [application appearance preference](../../../crates/workbench-protocol/docs/user-preferences.md)
-supports Light (`light`), Dark (`dark`) and System (`system`); System is the
-common default. In the native TUI, System follows the host-default background and uses
-terminal-native contrast when no host background is observed. Shared preferences own application
-appearance. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
+`appearance.mode` supports Light (`light`), Dark (`dark`) and System (`system`); System is the
+default. In the native TUI, System follows the host-default background and uses terminal-native
+contrast when no host background is observed. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
 consumers, shared reload and rollback.
 
 `appearance.mode`, `appearance.light_theme` and `appearance.dark_theme` are the Session Server's and
@@ -132,8 +130,8 @@ Windows replacement acceptance remain separate obligations.
 
 ## Automatic Windows shell
 
-The shared [launch profile preference](../../../crates/workbench-protocol/docs/user-preferences.md)
-selects the program for every default terminal launch. The built-in System shell profile resolves
+The default launch profile, `terminal.default_profile.windows` among
+`[[terminal.profiles.windows]]`, selects the program for every default terminal launch. The built-in System shell profile resolves
 the first compatible `pwsh.exe` in absolute PATH directories, then the absolute
 `SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe`. COMSPEC/SHELL and current-directory
 lookup do not override this policy, and selection never executes a probe. Existing PowerShell
@@ -280,8 +278,9 @@ Clients do not automatically resubmit mutations and can read current state for r
 
 The Server also samples the frozen location about once per second. A changed size or modification
 time reloads the file with the same admission, preflight and commit as `server reload-config`, except
-that an unchanged candidate publishes nothing. A fatal file or TOML error keeps the previous revision
-until the file changes again; a refused commit retries the same file at the next sample. The first
+that an unchanged candidate publishes nothing. A file that cannot be read or parsed keeps the last
+valid settings: the settings snapshot publishes the file's `unreadable` or `syntax-error` status
+over them, and the configuration snapshot stays as it was until the file is valid again; a refused commit retries the same file at the next sample. The first
 sample after startup reloads once, so an edit made while the Session started is not missed. Sampled
 publications wake every configuration subscriber; they have no reply and show no notice beyond the
 configuration-warning summary. `server reload-config` remains the way to confirm a publication
@@ -317,9 +316,8 @@ field/reason/disposition record.
 
 ## Live defaults for subsequent Windows terminals
 
-Production now reads the [shared device launch profile](../../../crates/workbench-protocol/docs/user-preferences.md)
-and scrollback from one confirmed snapshot before each new Host launch. An absent record uses
-canonical launch defaults. Configuration receipts carry no launch program.
+The Server reads the default launch profile and scrollback from its last valid settings before each
+new Host launch; a file that sets neither uses the built-in defaults. Configuration receipts carry no launch program.
 
 Existing PTYs, prepared launches, exact replay and deferred Start never acquire later defaults.
 Configuration reload commits the registry, then manifest scheduling; candidate validation precedes
@@ -335,7 +333,7 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Custom-notification configuration
 
-`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `notifications.position` selects the four-corner default. Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic Agent notifications and sound; the file's `notifications.agent_reminder` and `notifications.sound` are read into the settings model, but those preferences remain the runtime source. `notifications.delay_seconds` supplies the delay (one second by default, 0–3600); `[notifications.sound_by_agent]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v1 carry the 16 KiB `notificationProfile`, spelled like the file: one `[notifications]` table with `cli_delivery`, `agent_delivery` (profile only), `delay_seconds`, `position` and `sound`, and `[notifications.sound_by_agent]`; a profile that cannot be admitted is refused with field `notifications`. `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `notifications.position` selects the four-corner default. `notifications.agent_reminder` and `notifications.sound` govern automatic Agent notifications and sound. `notifications.delay_seconds` supplies the delay (one second by default, 0–3600); `[notifications.sound_by_agent]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v1 carry the 16 KiB `notificationProfile`, spelled like the file: one `[notifications]` table with `cli_delivery`, `agent_delivery` (profile only), `delay_seconds`, `position` and `sound`, and `[notifications.sound_by_agent]`; a profile that cannot be admitted is refused with field `notifications`. `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
 
 Common Agent reminder mode and global sound remain authoritative; manual notification delivery
 and per-Agent sound overrides retain their separate ownership.
@@ -452,4 +450,4 @@ keys, notifications and both sidebar profiles before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
 including escaping.
 
-`terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client applies this preference from each published configuration snapshot, so the next split after a publication uses it. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.
+`terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client applies this setting from each published configuration snapshot, so the next split after a publication uses it. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.

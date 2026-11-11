@@ -70,12 +70,14 @@ sequence unchanged. The [shared Panel Agent contract](../../schemas/workbench/RE
 owns wire compatibility and the [attention owner](../../apps/orchbee/docs/native-client-attention.md)
 owns physical identity, transitions and Client seen state.
 
-## Shared user preferences
+## Common setting values
 
-[The common preference contract](docs/user-preferences.md) owns the GUI/TUI inventory,
-defaults, validation, scope, effect horizons and capability boundaries. Native Settings
-uses the same typed record and source-checked patch as the matched Desktop helper.
-The JSON schema and cross-language corpus live under `schemas/workbench/v1`.
+`UserSettingsValues` is the typed view of the common settings both Clients present, with the value
+types its fields use and their bounds, including the launch catalog. This crate owns only the
+types: `orchbee-local-runtime` builds them from `config.toml` keys or a `workbench.settings`
+snapshot, and the [settings registry](../local-runtime/README.md#user-settings) owns keys,
+defaults and effects. The [Native Settings wire contract](../../schemas/workbench/README.md#native-settings-wire-contract)
+owns the launch catalog's relational rules.
 
 ## Project organization and stable Workspace identity
 

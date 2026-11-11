@@ -35,21 +35,23 @@ and canonical plus physical observations are never merged heuristically. A notif
 normalized detected Agent label and bounded workspace, Tab and pane context. It never includes the
 Agent's prompt, response, report message or terminal contents.
 
-Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic reminders.
-Both default to off (`never` and `false`). Native configuration supplies the delay and per-Agent
-sound overrides independently of manual delivery:
+`notifications.agent_reminder` and `notifications.sound` govern automatic reminders. Both
+default to off (`never` and `false`). The same table supplies the delay and per-Agent sound
+overrides independently of manual delivery:
 
 ```toml
 [notifications]
 cli_delivery = "off"             # manual `notification show`; existing default
+agent_reminder = "never"         # never or when-hidden
+sound = false                    # global sound for automatic reminders
 delay_seconds = 1                # 0 through 3600
 
 [notifications.sound_by_agent]
 codex = "off"                    # default, on, or off
 ```
 
-These preferences do not change manual `cli_delivery` or explicit `notification show` sound.
-Shared `soundEnabled = false` is a hard stop; with sound enabled, a per-Agent `off` mutes
+These settings do not change manual `cli_delivery` or explicit `notification show` sound.
+`notifications.sound = false` is a hard stop; with sound enabled, a per-Agent `off` mutes
 that detected label and `default` or `on` permits the built-in cue.
 Agent keys are lowercase detector IDs of at most 64 ASCII letters, digits, dots or hyphens, with an
 alphanumeric first and last character. No Agent is muted by default. Done uses the Windows information cue and request uses the Windows
@@ -94,8 +96,8 @@ unreadable, oversized, non-UTF-8 or malformed-TOML startup/reload source retains
 profile. An invalid notification leaf uses its safe default, emits a warning and participates in the
 complete atomic candidate; a malformed private wire profile is still rejected before Client
 installation. A valid changed revision cancels all old automatic candidates and undrawn notification
-effects; later state transitions use the new profile. Shared preferences enable in-app automatic
-popups and global sound; their default is off. Disable both in Settings to stop automatic delivery.
+effects; later state transitions use the new profile. `notifications.agent_reminder` and
+`notifications.sound` enable in-app automatic popups and global sound; their default is off. Disable both in Settings to stop automatic delivery.
 
 ### Opening the notification target
 

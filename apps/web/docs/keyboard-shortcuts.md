@@ -280,18 +280,19 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
 - **Problem and inputs:** A person needs to resize every terminal without opening Settings. Input
   is one semantic `increase`, `decrease`, or `reset` Action while the Workbench shortcut scope is
   active; no terminal focus or Panel identity is required.
-- **Data, model, and ownership:** Web's `TerminalSettingsController` remains the sole writer for
-  the device-local appearance snapshot. Increase and decrease use a two-point step, clamp to the
-  existing inclusive `8`–`48` range, and reset restores only the product-default font size.
-- **Outputs and transitions:** A changed value publishes one complete presentation configuration
-  to every mounted terminal and persists the existing appearance record. A persistence failure
-  keeps the session value. A boundary or already-default request is `unchanged`.
+- **Data, model, and ownership:** Web's `TerminalSettingsController` sends each step as one edit
+  of `terminal.font_size`, and steps accumulate until the settings file answers. Increase and
+  decrease use a two-point step, clamp to the existing inclusive `8`–`48` range, and reset
+  restores only the product-default font size.
+- **Outputs and transitions:** A changed value is one edit; the snapshot it publishes gives every
+  mounted terminal one complete presentation configuration, and a refused edit keeps the file's
+  value. A boundary or already-default request is `unchanged`.
 - **Invariants and revalidation:** All mounted terminals observe one application-wide value;
-  unrelated appearance preferences never change. An admitted exact chord is consumed even for an
+  unrelated appearance settings never change. An admitted exact chord is consumed even for an
   unchanged boundary result, so it cannot become browser page zoom. Settings deactivates the
   Workbench shortcut scope and preserves its own editing keys.
-- **Verification and exclusions:** Pure tests cover step, clamp, reset, publication, persistence,
-  and disposal. Action and application tests cover all three intents, physical dispatch, and
+- **Verification and exclusions:** Pure tests cover step, clamp, reset, publication, the edit and
+  disposal. Action and application tests cover all three intents, physical dispatch, and
   Settings fallthrough. Per-Panel zoom, browser-page zoom, keypad aliases, shifted-plus aliases,
   and multiple simultaneous bindings are excluded.
 

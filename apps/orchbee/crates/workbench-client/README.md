@@ -155,7 +155,8 @@ ownership.
 ## Unusable settings file
 
 When `config.toml` has a syntax error or cannot be read, the Server keeps serving the last valid
-settings and the settings snapshot's file status says so. The main frame then shows a terse notice
+settings, or the defaults when it could not read the file at startup, and the settings snapshot's
+file status says so. The main frame then shows a terse notice
 in both locales that the file can't be used and the last valid settings stay in use, pointing to
 `orchbee config check`; it ends when a snapshot reports the file usable again. Settings stays
 editable over the last valid values, and a Save against the broken file is refused without writing
