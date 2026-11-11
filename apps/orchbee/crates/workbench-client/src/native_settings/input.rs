@@ -228,15 +228,30 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     } else {
         SettingsHintLabel::Close
     };
-    let mut hints = vec![hint(EXIT, exit), hint(MOVE, SettingsHintLabel::Move)];
-    if !page.narrow() {
-        hints.push(hint(SWITCH, SettingsHintLabel::Switch));
+    let primary = hint(PRIMARY, primary_label(page, selected));
+    let restore = page
+        .changed(selected)
+        .then(|| hint(RESTORE, SettingsHintLabel::Restore));
+    if page.narrow() {
+        // Width drops trailing records first. A narrow page shows no search field beside the
+        // rows, so search and restore outrank the arrows, which the focus marker already implies.
+        let mut hints = vec![
+            hint(EXIT, exit),
+            primary,
+            hint(SEARCH, SettingsHintLabel::Search),
+        ];
+        hints.extend(restore);
+        hints.push(hint(MOVE, SettingsHintLabel::Move));
+        return hints;
     }
-    hints.push(hint(PRIMARY, primary_label(page, selected)));
-    hints.push(hint(SEARCH, SettingsHintLabel::Search));
-    if page.changed(selected) {
-        hints.push(hint(RESTORE, SettingsHintLabel::Restore));
-    }
+    let mut hints = vec![
+        hint(EXIT, exit),
+        hint(MOVE, SettingsHintLabel::Move),
+        hint(SWITCH, SettingsHintLabel::Switch),
+        primary,
+        hint(SEARCH, SettingsHintLabel::Search),
+    ];
+    hints.extend(restore);
     hints
 }
 

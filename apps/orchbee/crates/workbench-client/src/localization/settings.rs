@@ -43,7 +43,7 @@ use orchbee_workbench_protocol::{
 pub(crate) use parameters::{
     SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
     SettingsFieldRequirement, SettingsFileFact, SettingsGroup, SettingsHintLabel,
-    SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsProfileLabel, SettingsRow, SettingsTextRequirement, SettingsValue,
 };
 use parameters::{SettingsChoice as Choice, SettingsGroup as Group, SettingsRow as Row};
 impl Locale {
@@ -520,6 +520,30 @@ impl Locale {
                 "Arguments pass as written. Edits apply when you leave this page.",
                 "参数按原文传递。离开此页时应用修改。",
             ),
+        }
+    }
+
+    /// Why a row editor kept a typed value it did not send, in the Desktop's words.
+    pub(crate) fn settings_text_requirement(self, requirement: &SettingsTextRequirement) -> String {
+        match (self, requirement) {
+            (_, SettingsTextRequirement::Color) => self
+                .setting(
+                    "Enter a color in #RRGGBB format.",
+                    "请输入 #RRGGBB 格式的颜色。",
+                )
+                .to_owned(),
+            (Self::EnUs, SettingsTextRequirement::WholeNumber { minimum, maximum }) => {
+                format!("Enter a whole number from {minimum} to {maximum}.")
+            }
+            (Self::ZhCn, SettingsTextRequirement::WholeNumber { minimum, maximum }) => {
+                format!("请输入 {minimum} 到 {maximum} 之间的整数。")
+            }
+            (Self::EnUs, SettingsTextRequirement::Number { minimum, maximum }) => {
+                format!("Enter a number from {minimum} to {maximum}.")
+            }
+            (Self::ZhCn, SettingsTextRequirement::Number { minimum, maximum }) => {
+                format!("请输入 {minimum} 到 {maximum} 之间的数字。")
+            }
         }
     }
 

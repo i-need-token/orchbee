@@ -629,13 +629,32 @@ fn render_heading(
             .then(|| locale.settings_in_use());
         let mut used = 1;
         put(frame, area.x, y, 1, frames.top_left, frame_style);
+        // A theme list whose slot the file sets carries the changed marker; Del on a line restores it.
+        let slot = match group {
+            Group::LightThemes => Some(Row::LightTheme),
+            Group::DarkThemes => Some(Row::DarkTheme),
+            _ => None,
+        };
+        if slot.is_some_and(|slot| page.changed(slot)) && width > 8 {
+            put(frame, area.x + 1, y, 1, " ", frame_style);
+            put(
+                frame,
+                area.x + 2,
+                y,
+                1,
+                theme.glyphs.status_bullet,
+                theme.style(Role::AccentAction),
+            );
+            used = 3;
+        }
         if let Some(name) = &name {
             let text = format!(" {name} ");
             put(
                 frame,
-                area.x + 1,
+                area.x + u16::try_from(used).unwrap_or(0),
                 y,
-                area.width.saturating_sub(2),
+                area.width
+                    .saturating_sub(u16::try_from(used + 1).unwrap_or(u16::MAX)),
                 &text,
                 theme.style(Role::TextPrimary),
             );
@@ -1472,9 +1491,24 @@ fn render_field(frame: &mut Frame<'_>, area: Rect, text: &str, cursor: usize, th
     ));
 }
 
-/// The keys the focused row answers, local return first, on the page's status line.
+/// The keys the focused row answers, local return first, on the page's status line. A row editor
+/// holding a text the page refused names what it accepts there instead, until the text changes.
 fn render_hints(frame: &mut Frame<'_>, area: Rect, view: View<'_>, locale: Locale, theme: &Theme) {
     if area.is_empty() {
+        return;
+    }
+    if let View::Page(page) = view
+        && let Some(requirement) = page.text_requirement()
+    {
+        let reason = locale.settings_text_requirement(&requirement);
+        put(
+            frame,
+            area.x,
+            area.y,
+            area.width,
+            &reason,
+            theme.style(Role::StatusError),
+        );
         return;
     }
     let resolved: Vec<(String, &str)> = footer_bindings(view)

@@ -1,6 +1,7 @@
 //! Pure scalar and catalog edits on the page's values; executable paths and arguments remain
 //! literal data.
 use super::{AdjustmentStep, ChoicePicker, Edit, PageState as Draft, Row, SettingControl, setting};
+use crate::localization::SettingsTextRequirement;
 use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
 
@@ -272,6 +273,26 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
         Edit::Line(key) => draft.invalid = editor.apply(key).is_err(),
         _ => {}
     }
+}
+/// What a common row's editor accepts, for the reason a refused text names.
+pub(super) fn requirement(row: Row) -> Option<SettingsTextRequirement> {
+    Some(match row {
+        Row::Foreground | Row::Background => SettingsTextRequirement::Color,
+        Row::CompletionThreshold => {
+            let (minimum, maximum) =
+                integer_bounds(UserSettingsField::CompletionReminderMinimumSeconds);
+            SettingsTextRequirement::WholeNumber { minimum, maximum }
+        }
+        Row::Scrollback => {
+            let (minimum, maximum) = integer_bounds(UserSettingsField::ScrollbackBytes);
+            let megabytes = |bytes: u64| scrollback_megabytes(u32::try_from(bytes).unwrap_or(0));
+            SettingsTextRequirement::Number {
+                minimum: megabytes(minimum),
+                maximum: megabytes(maximum),
+            }
+        }
+        _ => return None,
+    })
 }
 /// Writes an accepted text into the page's values; alse leaves them as they were.
 pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {

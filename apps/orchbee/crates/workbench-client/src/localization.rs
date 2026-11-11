@@ -34,7 +34,7 @@ pub(crate) use settings::{
     IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown, SettingUnit,
     SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
     SettingsFileFact, SettingsGroup, SettingsHintLabel, SettingsNotice, SettingsProfileLabel,
-    SettingsRow, SettingsValue,
+    SettingsRow, SettingsTextRequirement, SettingsValue,
 };
 mod status;
 mod terminal_feedback;

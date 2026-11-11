@@ -107,6 +107,16 @@ impl Coordinator {
         if let Some(notice) = self.editor.take_notice() {
             self.note(notice);
         }
+        // A notice about the file's state lasts only while that state does.
+        if crate::native_settings::FileState::of(&snapshot)
+            == crate::native_settings::FileState::Usable
+            && matches!(
+                self.notice(),
+                Some(Notice::SyntaxError | Notice::Unreadable)
+            )
+        {
+            self.clear_notice();
+        }
         self.observed_revision = Some(revision);
         self.snapshot = Some(snapshot);
         true
@@ -448,6 +458,7 @@ impl WorkbenchClientUi {
         true
     }
     pub(in crate::workbench_client) fn capture_settings_key(&mut self, event: KeyEvent) {
+        let visible = self.settings.editor.visible();
         let edit = self
             .settings
             .editor
@@ -456,6 +467,21 @@ impl WorkbenchClientUi {
         if let Some(edit) = edit {
             let submission = self.settings.editor.edit(edit);
             self.submit_settings_change(submission);
+            // A text the page refused names its reason on the status line, over an older notice.
+            let refused_text = match self.settings.editor.view() {
+                Some(View::Page(page)) => page.text_requirement().is_some(),
+                _ => false,
+            };
+            if refused_text {
+                self.settings.clear_notice();
+            }
+        }
+        self.settle_settings_left(visible);
+    }
+    /// Leaving the page withdraws the notice it showed about one change.
+    fn settle_settings_left(&mut self, was_visible: bool) {
+        if was_visible && !self.settings.editor.visible() {
+            self.settings.clear_notice();
         }
     }
     pub(in crate::workbench_client) fn capture_settings_paste(&mut self, text: Option<&str>) {
@@ -470,8 +496,10 @@ impl WorkbenchClientUi {
         token: Token,
         control: crate::native_settings::Control,
     ) {
+        let visible = self.settings.editor.visible();
         let submission = self.settings.editor.control(token, control);
         self.submit_settings_change(submission);
+        self.settle_settings_left(visible);
     }
     pub(in crate::workbench_client) fn click_settings(&mut self, token: Token, row: Row) {
         let submission = self.settings.editor.click(token, row);

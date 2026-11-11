@@ -21,15 +21,21 @@ that is always visible, and its control at the row's end. Themes shows the light
 list; the list the current appearance paints is tagged in use, and System follows the canvas. A row
 that only applies in some state, such as custom colors outside Custom or the reminder threshold while
 reminders are off, is hidden until it applies. The last line names More options in `config.toml` and
-its path. Below 56 columns the page shows one column at a time; Esc or the title's Back steps from
-rows to categories before it leaves. The page requires 24 columns by 8 rows. A frame below that is
-not presented: before the first successful frame the page is refused with the enlarge-and-reopen
-notice, and later it suspends drawn interaction while staying the selected capture.
+its path; a path too long for the line drops its leading folders first, so the file name stays.
+Text that does not fit its cells ends in the ellipsis at a grapheme boundary, counted in display
+cells, and every TUI description fits its row from 100 columns up in both locales, shortened from
+the Desktop wording where needed while keeping its meaning. Below 56 columns the page shows one
+column at a time; Esc or the title's Back steps from rows to categories before it leaves. The page
+requires 24 columns by 8 rows. A frame below that is not presented: before the first successful
+frame the page is refused with the enlarge-and-reopen notice, and later it suspends drawn interaction while staying the selected capture.
 
 The page's last line is its status line. It names the keys for the focused row, or shows a Settings
-notice, which stays until the next change replaces it. Up/Down, PageUp/PageDown and Home/End move
-within the focused column; Left or Shift+Tab moves to the categories and Right, Tab or Enter to the
-rows. `/` or the painted search field starts global search. The bounded query matches every term
+notice. A notice about the file's state leaves once a snapshot finds the file usable; a refusal of
+one change leaves with the next change sent or when the page closes. A row editor holding a text the
+page refused names what it accepts there instead, in the Desktop's words, until the text changes.
+Width drops trailing hints first; a narrow page, which shows no search field beside its rows, ranks
+search and restore ahead of the arrow keys. Up/Down, PageUp/PageDown and Home/End move within the
+focused column; Left or Shift+Tab moves to the categories and Right, Tab or Enter to the rows. `/` or the painted search field starts global search. The bounded query matches every term
 against English and Simplified Chinese category names, labels and descriptions in stable category
 order; values and user-authored profile text are excluded. Search shows its result count and an
 explicit empty result; Enter or Tab focuses the matching row without changing it, and Esc clears the
@@ -69,7 +75,8 @@ drops every waiting change and names that reason once. No request is replayed au
 
 A row whose key the file sets carries a changed marker. Del on a changed row, or its painted Restore
 default action, sends one `restore` for that key; the launch-profile row restores both platform keys.
-There is no page-wide reset.
+A theme list whose slot the file sets carries the marker on its heading, and Del on any of its lines
+restores that slot alone; the appearance and Colors keep their own rows. There is no page-wide reset.
 
 Snapshots from the settings subscription show on the open page at once, whoever wrote them, while
 focus stays on its row. A snapshot whose revision is not newer than the last one observed is dropped.

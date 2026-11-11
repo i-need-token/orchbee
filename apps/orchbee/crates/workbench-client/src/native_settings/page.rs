@@ -288,8 +288,16 @@ impl PageState {
         &profiles[self.profile.min(profiles.len() - 1)]
     }
 
-    /// The edit that puts a row's keys back to their defaults.
+    /// The edit that puts a row's keys back to their defaults. A theme line restores the slot of
+    /// its list, which picking a theme there set, and leaves the other slot alone.
     pub(super) fn restore_changes(&self, row: Row) -> Vec<SettingChange> {
+        let row = match row {
+            Row::ThemeOption(theme) => match theme.theme().polarity() {
+                orchbee_color_themes::Polarity::Light => Row::LightTheme,
+                orchbee_color_themes::Polarity::Dark => Row::DarkTheme,
+            },
+            row => row,
+        };
         if let Some(key) = text_key(row) {
             return orchbee_workbench_protocol::SettingPath::parse(key)
                 .map(|key| vec![SettingChange::Restore { key }])
@@ -531,6 +539,14 @@ impl<'a> PageView<'a> {
     }
     pub(crate) const fn invalid(self) -> bool {
         self.state.invalid
+    }
+    /// What the open row editor accepts, while it holds a text the page refused before sending.
+    pub(crate) fn text_requirement(self) -> Option<crate::localization::SettingsTextRequirement> {
+        let state = self.state;
+        if !state.invalid || state.text.is_none() || state.page != Page::General {
+            return None;
+        }
+        super::values::requirement(state.row)
     }
     pub(crate) const fn invalid_field(self) -> Option<(usize, UserLaunchField)> {
         self.state.invalid_field

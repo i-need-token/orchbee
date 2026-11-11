@@ -167,6 +167,14 @@ pub(crate) enum SettingsDetailKind {
     LiteralArguments,
 }
 
+/// What a row editor's typed value must be, named when the page refuses one before sending it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SettingsTextRequirement {
+    Color,
+    WholeNumber { minimum: u64, maximum: u64 },
+    Number { minimum: String, maximum: String },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingUnit {
     Seconds,
