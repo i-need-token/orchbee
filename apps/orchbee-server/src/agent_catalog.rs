@@ -6,7 +6,21 @@
 //!
 //! Rows follow the startable catalog's order. A provider whose start command the registry classes
 //! as generic ([`StartableAgent::checkable`]) is `CantCheck`, and its command is never sent; every
-//! other row shows the last completed lookup's answer for its command.
+//! other row shows the last completed lookup's answer for its command unless a run mark below
+//! outranks it.
+//!
+//! # Run marks
+//!
+//! A start whose shell came back without the provider's process
+//! ([`AgentCatalog::mark_not_found`]) makes its row `NotFound` until the next completed lookup. A
+//! run of the provider that the Session coordinator first publishes ([`AgentCatalog::mark_found`])
+//! makes it `Found` until such a start or the next Worker generation's registration; completed
+//! lookups keep the found mark. The lookup searches the `PATH` a shell has before its profile runs,
+//! so an Agent that only a profile puts on `PATH`, as a version manager's activation does, runs in
+//! a Panel and still misses in every lookup. A refresh, which a Client may send each time it shows
+//! the list, would otherwise move that row back among the not-found providers while the list is
+//! open. A new generation ends the mark, since the run it records belonged to the previous Worker.
+//! Rows the catalog cannot check take neither mark.
 //!
 //! # Lookup schedule
 //!
@@ -300,22 +314,38 @@ impl AgentCatalog {
         }
     }
 
-    /// A start of `agent` found its command missing in a new shell: its row reads `NotFound` until
-    /// the next completed lookup. A row the catalog cannot check, or one no completed lookup has
-    /// answered, stays as it is.
+    /// A start of `agent` found its command missing in a new shell: its row loses a found mark
+    /// and reads `NotFound` until the next completed lookup. A row the catalog cannot check stays
+    /// as it is, and one no completed lookup has answered only loses its found mark.
     #[cfg(windows)]
     pub(crate) fn mark_not_found(&self, agent: StartableAgent) {
         self.change(|state| {
-            let index = state
-                .entries
-                .iter()
-                .find(|entry| entry.agent.id() == agent.id())
-                .and_then(|entry| entry.probe);
-            if let Some(answer) = index
-                .zip(state.answers.as_mut())
-                .and_then(|(index, answers)| answers.get_mut(index))
+            let Some(index) = state.probe(agent) else {
+                return;
+            };
+            if let Some(ran) = state.ran.get_mut(index) {
+                *ran = false;
+            }
+            if let Some(answer) = state
+                .answers
+                .as_mut()
+                .and_then(|answers| answers.get_mut(index))
             {
                 *answer = AgentProbeResult::Missing;
+            }
+        });
+    }
+
+    /// A run of `agent` was first published: its row reads `Found` until a start finds its command
+    /// missing or another Worker generation registers. A row the catalog cannot check stays as it
+    /// is.
+    pub(crate) fn mark_found(&self, agent: StartableAgent) {
+        self.change(|state| {
+            if let Some(ran) = state
+                .probe(agent)
+                .and_then(|index| state.ran.get_mut(index))
+            {
+                *ran = true;
             }
         });
     }
@@ -414,6 +444,9 @@ struct State {
     status: LookupStatus,
     /// The last completed lookup's answers, one per command.
     answers: Option<Vec<AgentProbeResult>>,
+    /// One per command: the found mark of a provider whose run was published under the registered
+    /// Worker generation.
+    ran: Vec<bool>,
     checked_at: Option<u64>,
     owed: Option<Owed>,
     recent: Recent,
@@ -461,6 +494,7 @@ impl State {
             lookups: 0,
             status: LookupStatus::Running,
             answers: None,
+            ran: vec![false; count],
             checked_at: None,
             owed: None,
             recent: Recent::default(),
@@ -485,6 +519,7 @@ impl State {
         }
         self.worker = Some((worker, generation));
         self.begun = true;
+        self.ran.fill(false);
         self.owed = None;
         self.lookup = Lookup::Due;
         self.status = LookupStatus::Running;
@@ -669,12 +704,23 @@ impl State {
         });
     }
 
+    /// `agent`'s position among a lookup's commands, when the catalog can check it.
+    fn probe(&self, agent: StartableAgent) -> Option<usize> {
+        self.entries
+            .iter()
+            .find(|entry| entry.agent.id() == agent.id())
+            .and_then(|entry| entry.probe)
+    }
+
     fn state(&self, entry: &Entry) -> AgentRowState {
         let Some(index) = entry.probe else {
             return AgentRowState::CantCheck;
         };
         if self.status == LookupStatus::Unsupported {
             return AgentRowState::Unknown;
+        }
+        if self.ran.get(index).copied().unwrap_or(false) {
+            return AgentRowState::Found;
         }
         match self.answers.as_ref().and_then(|answers| answers.get(index)) {
             Some(AgentProbeResult::Found) => AgentRowState::Found,

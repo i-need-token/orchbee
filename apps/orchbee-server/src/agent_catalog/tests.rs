@@ -2,7 +2,7 @@ use super::{
     AgentCatalog, AgentCatalogSnapshot, AgentRowState, LOOKUP_DEADLINE, LookupStatus,
     POLL_INTERVAL, REFRESH_FLOOR, Step, Ticket,
 };
-use orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS;
+use orchbee_agent_observation_protocol::{STARTABLE_AGENT_PROVIDER_IDS, StartableAgent};
 use orchbee_capability_node_protocol::{
     AgentProbeJobAction as Action, AgentProbeJobOutcome as Outcome,
     AgentProbeJobPollOutcome as Poll, AgentProbeJobResult, AgentProbeJobStartOutcome as Start,
@@ -160,6 +160,32 @@ fn a_first_lookup_absorbs_refreshes_and_a_failed_later_one_keeps_its_rows() {
         (4, LookupStatus::Failed, Some(UNIX_MS))
     );
     assert_eq!(failed.agents, completed.agents);
+
+    // Found mark: a published run outranks the lookup that missed it, and a later one that still
+    // misses it, until another Worker generation registers.
+    catalog.mark_found(StartableAgent::parse("gemini").unwrap());
+    let marked = catalog.read().unwrap();
+    assert_eq!(
+        (marked.revision.get(), state(&marked, "gemini")),
+        (5, AgentRowState::Found)
+    );
+    now += REFRESH_FLOOR;
+    catalog.refresh(now);
+    let (ticket, _) = exchange(&catalog, now);
+    answer(&catalog, ticket, Some(Outcome::Start(Start::Accepted)), now);
+    now += POLL_INTERVAL;
+    let (ticket, _) = exchange(&catalog, now);
+    let results = vec![AgentProbeResult::Missing; commands.len()];
+    let missed = answer(
+        &catalog,
+        ticket,
+        Some(Outcome::Poll(Poll::Completed { results })),
+        now,
+    );
+    assert_eq!(state(&missed, "gemini"), AgentRowState::Found);
+    begin(&catalog, 2);
+    let replaced = catalog.read().unwrap();
+    assert_eq!(state(&replaced, "gemini"), AgentRowState::NotFound);
 }
 
 #[test]

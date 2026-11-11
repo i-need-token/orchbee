@@ -262,7 +262,8 @@ impl SessionCoordinator {
             None
         };
         let same = prior.filter(|p| p.published() == retained);
-        // A run this sample publishes for the first time, typed by hand or not, feeds Recent.
+        // A run this sample publishes for the first time, typed by hand or not, feeds Recent and
+        // marks its catalog row found.
         let first_published = retained.filter(|_| same.is_none());
         let first_seen = same.map_or(started, |p| p.first_seen);
         let recognised = same.is_some_and(|p| p.recognised);
@@ -333,7 +334,7 @@ impl SessionCoordinator {
         if let Some(agent) = first_published.and_then(|run| {
             orchbee_workbench_protocol::AgentStartSelector::parse(run.provider.native_provider_id())
         }) {
-            self.record_agent_start(agent);
+            self.record_agent_run(agent);
         }
         if let Some(directory) = &directory {
             self.follow_first_terminal_directory(&physical.binding, directory);

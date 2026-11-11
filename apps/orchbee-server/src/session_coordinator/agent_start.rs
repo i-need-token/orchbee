@@ -86,11 +86,20 @@ pub(super) fn agent_start_command(
 }
 
 impl SessionCoordinator {
-    /// Moves `agent` to the front of Recent: a creation starting it was accepted, or a run of it
-    /// was first published, typed by hand or not. A Session without a catalog records nothing.
+    /// Moves `agent` to the front of Recent: a creation starting it was accepted. A Session without
+    /// a catalog records nothing.
     pub(super) fn record_agent_start(&self, agent: AgentStartSelector) {
         if let Some(catalog) = &self.agent_catalog {
             catalog.started(agent);
+        }
+    }
+
+    /// A run of `agent` was first published, typed by hand or not: it moves to the front of Recent
+    /// and its catalog row reads found, since the run proves its command starts.
+    pub(super) fn record_agent_run(&self, agent: AgentStartSelector) {
+        if let Some(catalog) = &self.agent_catalog {
+            catalog.started(agent);
+            catalog.mark_found(agent.agent());
         }
     }
 }
