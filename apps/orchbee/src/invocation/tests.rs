@@ -7094,8 +7094,6 @@ fn creation_directory_policies_are_scoped_and_preserve_absolute_overrides() {
         vec!["tab", "create", "--cwd", "Follow"],
         vec!["tab", "create", "--cwd", "relative"],
         vec!["tab", "create", "--cwd", "home", "--cwd", "current"],
-        #[cfg(not(windows))]
-        vec!["workspace", "create", "--cwd", "home"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
     }

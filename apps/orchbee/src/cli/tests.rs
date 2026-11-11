@@ -875,7 +875,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         )
     })
     .collect();
-    #[cfg(windows)]
     bodies.push((
         "default config".to_owned(),
         String::from_utf8(super::default_config(Locale::EnUs).stdout).unwrap(),
@@ -883,21 +882,13 @@ fn fixed_outputs_are_far_below_the_bound() {
     for family in [
         Family::Agent,
         Family::AgentIntegration,
-        #[cfg(windows)]
         Family::Command,
-        #[cfg(windows)]
         Family::Events,
-        #[cfg(windows)]
         Family::Plugin,
-        #[cfg(windows)]
         Family::PluginAction,
-        #[cfg(windows)]
         Family::PluginLog,
-        #[cfg(windows)]
         Family::PluginPane,
-        #[cfg(windows)]
         Family::Popup,
-        #[cfg(windows)]
         Family::Session,
         Family::TerminalTitle,
         Family::WorkbenchClient,
@@ -907,9 +898,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Completion,
         Family::Config,
         Family::Diagnostics,
-        #[cfg(windows)]
         Family::Channel,
-        #[cfg(windows)]
         Family::Machine,
         Family::LaunchProfile,
         Family::Panel,
@@ -940,13 +929,9 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectResume,
         CommandPath::ClientStatus,
         CommandPath::ServerStatus,
-        #[cfg(windows)]
         CommandPath::SessionList,
-        #[cfg(windows)]
         CommandPath::SessionAttach,
-        #[cfg(windows)]
         CommandPath::SessionStop,
-        #[cfg(windows)]
         CommandPath::SessionDelete,
         CommandPath::StatusServer,
         CommandPath::StatusClient,
@@ -956,43 +941,24 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TerminalObserve,
         CommandPath::TerminalControl,
         CommandPath::TerminalRun,
-        #[cfg(windows)]
         CommandPath::TerminalSelectionRead,
-        #[cfg(windows)]
         CommandPath::TerminalCopyMotion,
-        #[cfg(windows)]
         CommandPath::TerminalCopySearch,
-        #[cfg(windows)]
         CommandPath::TerminalLinkResolve,
-        #[cfg(windows)]
         CommandPath::TerminalLinkActivate,
-        #[cfg(windows)]
         CommandPath::TerminalClear,
-        #[cfg(windows)]
         CommandPath::TerminalEditScrollback,
-        #[cfg(windows)]
         CommandPath::PanelCreateTerminal,
-        #[cfg(windows)]
         CommandPath::PanelGraphicsSet,
-        #[cfg(windows)]
         CommandPath::PanelGraphicsClear,
-        #[cfg(windows)]
         CommandPath::PanelGraphicsInfo,
-        #[cfg(windows)]
         CommandPath::PanelGraphicsStream,
-        #[cfg(windows)]
         CommandPath::AgentViewGet,
-        #[cfg(windows)]
         CommandPath::AgentViewSet,
-        #[cfg(windows)]
         CommandPath::AgentViewClear,
-        #[cfg(windows)]
         CommandPath::PluginPaneOpen,
-        #[cfg(windows)]
         CommandPath::PluginPaneFocus,
-        #[cfg(windows)]
         CommandPath::PluginPaneClose,
-        #[cfg(windows)]
         CommandPath::PopupClose,
         CommandPath::ClientList,
         CommandPath::ClientGet,
@@ -1006,9 +972,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PanelEdges,
         CommandPath::PanelResize,
         CommandPath::LayoutSetSplitRatio,
-        #[cfg(windows)]
         CommandPath::LayoutExport,
-        #[cfg(windows)]
         CommandPath::LayoutApply,
         CommandPath::AgentDoctor,
         CommandPath::AgentExplain,
@@ -1031,23 +995,14 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentWait,
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
-        #[cfg(windows)]
         CommandPath::ChannelShow,
-        #[cfg(windows)]
         CommandPath::MachineList,
-        #[cfg(windows)]
         CommandPath::MachineAdd,
-        #[cfg(windows)]
         CommandPath::MachineRename,
-        #[cfg(windows)]
         CommandPath::MachineRemove,
-        #[cfg(windows)]
         CommandPath::MachineEnable,
-        #[cfg(windows)]
         CommandPath::MachineDisable,
-        #[cfg(windows)]
         CommandPath::ChannelSet,
-        #[cfg(windows)]
         CommandPath::Update,
         CommandPath::ConfigCheck,
         CommandPath::ConfigResetKeys,
@@ -1078,37 +1033,21 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ServerConfig,
         CommandPath::ServerReloadConfig,
         CommandPath::NotificationShow,
-        #[cfg(windows)]
         CommandPath::CommandList,
-        #[cfg(windows)]
         CommandPath::EventsSubscribe,
-        #[cfg(windows)]
         CommandPath::EventsWait,
-        #[cfg(windows)]
         CommandPath::CommandInvoke,
-        #[cfg(windows)]
         CommandPath::PluginLink,
-        #[cfg(windows)]
         CommandPath::PluginUnlink,
-        #[cfg(windows)]
         CommandPath::PluginEnable,
-        #[cfg(windows)]
         CommandPath::PluginDisable,
-        #[cfg(windows)]
         CommandPath::PluginList,
-        #[cfg(windows)]
         CommandPath::PluginConfigDir,
-        #[cfg(windows)]
         CommandPath::PluginActionList,
-        #[cfg(windows)]
         CommandPath::PluginActionInvoke,
-        #[cfg(windows)]
         CommandPath::PluginLogList,
-        #[cfg(windows)]
         CommandPath::PluginInstall,
-        #[cfg(windows)]
         CommandPath::PluginUninstall,
-        #[cfg(windows)]
         CommandPath::PluginUpdate,
         CommandPath::TerminalTitleSet,
         CommandPath::TerminalTitleClear,
@@ -1175,17 +1114,11 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
-        #[cfg(windows)]
         "command",
-        #[cfg(windows)]
         "events",
-        #[cfg(windows)]
         "popup",
-        #[cfg(windows)]
         "machine",
-        #[cfg(windows)]
         "channel",
-        #[cfg(windows)]
         "update",
         "plugin",
         "notification",

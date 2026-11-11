@@ -18,32 +18,16 @@ fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
             .iter()
             .any(|candidate| candidate == "--help")
     );
-    #[cfg(windows)]
-    {
-        assert!(
-            advice(UsageContext::Root, "--sesion")
-                .iter()
-                .any(|candidate| candidate == "--session")
-        );
-        assert!(
-            advice(UsageContext::Root, "--machne")
-                .iter()
-                .any(|candidate| candidate == "--machine")
-        );
-    }
-    #[cfg(not(windows))]
-    {
-        assert!(
-            !advice(UsageContext::Root, "--sesion")
-                .iter()
-                .any(|candidate| candidate == "--session")
-        );
-        assert!(
-            !advice(UsageContext::Root, "--machne")
-                .iter()
-                .any(|candidate| candidate == "--machine")
-        );
-    }
+    assert!(
+        advice(UsageContext::Root, "--sesion")
+            .iter()
+            .any(|candidate| candidate == "--session")
+    );
+    assert!(
+        advice(UsageContext::Root, "--machne")
+            .iter()
+            .any(|candidate| candidate == "--machine")
+    );
     assert!(
         advice(UsageContext::Path("agent"), "--prvider")
             .iter()
