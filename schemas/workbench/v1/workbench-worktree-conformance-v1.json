@@ -602,9 +602,137 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "create-with-agent-start",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000006"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "agent/codex",
+						"agentStart": "codex"
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
+		{
+			"name": "create-unknown-agent-start",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000006"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"agentStart": "codex --dangerously-bypass-approvals"
+					}
+				}
+			}
+		},
+		{
+			"name": "explicit-null-agent-start",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000006"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"agentStart": null
+					}
+				}
+			}
+		},
+		{
+			"name": "open-agent-start",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "open",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000006"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"selector": {
+							"kind": "branch",
+							"branch": "main"
+						},
+						"agentStart": "codex"
+					}
+				}
+			}
+		},
 		{
 			"name": "unadmitted-focus-flag",
 			"direction": "request",

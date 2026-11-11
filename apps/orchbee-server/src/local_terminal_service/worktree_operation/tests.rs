@@ -285,6 +285,7 @@ fn absent_checkout_ends_partial_create_recovery_without_replaying_add() {
         label: None,
         geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
         trust_repository: false,
+        agent_start: None,
     });
     fixture.finish_job(checkout(false));
     let create = fixture.finish_job(Completion::Failed(

@@ -37,6 +37,7 @@ pub(super) fn intent_from_source(
             label: command.label.clone(),
             geometry: command.geometry,
             trust_repository: command.trust_repository,
+            agent_start: None,
         },
         WorktreeStartKind::Open { selector } => WorktreeIntent::Open {
             source,

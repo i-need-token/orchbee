@@ -112,6 +112,7 @@ impl Fixture {
                 label: None,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 trust_repository: false,
+                agent_start: None,
             },
             source,
             source_workspace_id: Some(workspace_id),

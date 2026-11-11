@@ -9,6 +9,7 @@ import {
 	WorkbenchLabelSchema,
 } from './workbench-semantic-contract';
 import {
+	WorkbenchAgentStartProviderSchema,
 	WorkbenchTerminalGeometrySchema,
 	WorkbenchTerminalOutcomeSchema,
 } from './workbench-terminal-launch-contract';
@@ -64,6 +65,8 @@ const WorktreeIntentSchema = z.discriminatedUnion('kind', [
 			branch: WorktreeReferenceSchema.optional(),
 			base: WorktreeReferenceSchema.optional(),
 			path: WorkbenchDirectoryPathSchema.optional(),
+			/** The Agent the new Workspace's first shell runs first; a reused Workspace starts nothing. */
+			agentStart: WorkbenchAgentStartProviderSchema.optional(),
 		})
 		.readonly(),
 	z

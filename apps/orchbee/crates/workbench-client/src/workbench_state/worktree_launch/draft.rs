@@ -231,6 +231,7 @@ impl Draft {
                 label: None,
                 geometry,
                 trust_repository: false,
+                agent_start: None,
             },
             WorktreeMode::Open => {
                 let selected = self.discovery.entries.get(self.selected_checkout)?;

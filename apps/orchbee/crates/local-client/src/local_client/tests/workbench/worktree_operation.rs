@@ -28,6 +28,7 @@ fn start() -> R {
             label: None,
             geometry: terminal_geometry(),
             trust_repository: false,
+            agent_start: None,
         },
     })
 }

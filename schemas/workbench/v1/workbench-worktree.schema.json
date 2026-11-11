@@ -170,6 +170,47 @@
 			"minimum": 1,
 			"maximum": 64
 		},
+		"agentStartProvider": {
+			"enum": [
+				"pi",
+				"claude-code",
+				"codex",
+				"gemini",
+				"cursor",
+				"devin",
+				"antigravity",
+				"cline",
+				"omp",
+				"mastracode",
+				"opencode",
+				"github-copilot",
+				"kimi",
+				"kiro",
+				"droid",
+				"amp",
+				"grok",
+				"hermes",
+				"kilo",
+				"qodercli",
+				"qwen-code",
+				"letta",
+				"maki",
+				"muse",
+				"atomcode",
+				"codebuddy",
+				"command-code",
+				"deveco",
+				"mimo",
+				"reasonix",
+				"snow",
+				"minimax-code",
+				"mothx",
+				"jcode",
+				"openclaw",
+				"prime-agent"
+			],
+			"$comment": "The startable Agent catalog of orchbee-agent-observation-protocol, in its order; the same set as workbench-command's agentStartProvider."
+		},
 		"source": {
 			"oneOf": [
 				{
@@ -274,6 +315,10 @@
 						},
 						"path": {
 							"$ref": "#/$defs/directoryPath"
+						},
+						"agentStart": {
+							"$ref": "#/$defs/agentStartProvider",
+							"$comment": "The Agent the new Workspace's first shell runs as its first command; a reused Workspace starts nothing."
 						}
 					},
 					"required": ["kind", "source", "geometry", "trustRepository"],

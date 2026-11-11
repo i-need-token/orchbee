@@ -240,6 +240,7 @@ fn explicit_paths_use_the_final_cli_context_in_complete_typed_intents() {
                             label: None,
                             geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
                             trust_repository: true,
+                            agent_start: None,
                         }
                     } else {
                         WorktreeIntent::Open {

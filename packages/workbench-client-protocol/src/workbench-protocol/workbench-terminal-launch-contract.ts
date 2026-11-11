@@ -67,7 +67,7 @@ export const WorkbenchLaunchEnvironmentSchema = z
 	.readonly();
 
 /** The startable Agent catalog; the Server resolves an id to the new shell's first command. */
-const WorkbenchAgentStartProviderSchema = z.enum([
+export const WorkbenchAgentStartProviderSchema = z.enum([
 	'pi',
 	'claude-code',
 	'codex',

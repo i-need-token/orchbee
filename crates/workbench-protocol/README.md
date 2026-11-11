@@ -311,6 +311,8 @@ Plugin Pane launch options may carry `pluginPane: { pluginId, entrypointId }` on
 
 `AgentStartSelector` (`agentStart`) names one startable Agent by its exact canonical provider id from `StartableAgent`'s closed catalog on `tab.create`, `panel.split` and `workspace.launch`. It is exclusive with `pluginPane` and rejected on `panel.create-terminal`; it combines with an explicit launch or profile, since a custom default profile travels as an explicit launch. The Server resolves the catalog command and any launch-time conversation id; the selector never carries command text.
 
+A Worktree Create intent may carry the same selector as optional `agentStart` for the first shell of the Workspace it launches; Open and Remove refuse it, explicit null is refused like the intent's other optional fields, and an absent field serializes exactly as before. The selector is part of the intent, so a Start replay with a different selector conflicts and a Resume launches with the original one. Both schemas copy the closed catalog, and a test holds each copy to `STARTABLE_AGENT_PROVIDER_IDS`.
+
 Plugin PaneGet is read-only and returns PaneFound with a nonzero canonical revision, closed selector, exact context/Tab/Panel/Presentation and binding. Response correlation requires the requested Panel; the result is not an action Job receipt or caller display context.
 
 ## Agent integration jobs

@@ -37,6 +37,34 @@ fn shared_worktree_corpus_keeps_rust_and_typescript_semantics_aligned() {
         assert_eq!(canonical, case["canonical"], "{}", case["name"]);
     }
 }
+/// Each schema keeps its own copy of the startable catalog; both must name exactly the catalog the
+/// Rust binding admits, or a binding accepts what another refuses.
+#[test]
+fn schema_agent_start_enums_match_the_startable_catalog() {
+    for (name, schema) in [
+        (
+            "workbench-command",
+            include_str!("../../../schemas/workbench/v1/workbench-command.schema.json"),
+        ),
+        (
+            "workbench-worktree",
+            include_str!("../../../schemas/workbench/v1/workbench-worktree.schema.json"),
+        ),
+    ] {
+        let schema: serde_json::Value = serde_json::from_str(schema).unwrap();
+        let ids: Vec<&str> = schema["$defs"]["agentStartProvider"]["enum"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| id.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            ids,
+            orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS,
+            "{name}"
+        );
+    }
+}
 fn id() -> WorkbenchRequestId {
     WorkbenchRequestId::parse("11111111111111111111111111111111").unwrap()
 }
@@ -96,6 +124,17 @@ fn request_variants_preserve_identity_intent_and_strict_frame_direction() {
             label: None,
             geometry,
             trust_repository: true,
+            agent_start: None,
+        },
+        WorktreeIntent::Create {
+            source: source(),
+            branch: None,
+            base: None,
+            path: None,
+            label: None,
+            geometry,
+            trust_repository: false,
+            agent_start: orchbee_workbench_protocol::AgentStartSelector::parse("codex"),
         },
         WorktreeIntent::Open {
             source: WorktreeSource::Workspace {
@@ -147,6 +186,54 @@ fn request_variants_preserve_identity_intent_and_strict_frame_direction() {
         let mut json: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
         json["action"]["unexpected"] = true.into();
         assert!(parse_workbench_request(&serde_json::to_vec(&json).unwrap()).is_err());
+    }
+}
+/// A create names its Agent only by a catalog id; without one the request keeps its earlier bytes.
+#[test]
+fn create_agent_start_is_an_optional_catalog_id_never_command_text() {
+    let create = |agent_start| {
+        request(Action::Start {
+            operation_id: id(),
+            project_id: None,
+            intent: WorktreeIntent::Create {
+                source: source(),
+                branch: None,
+                base: None,
+                path: None,
+                label: None,
+                geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+                trust_repository: false,
+                agent_start,
+            },
+        })
+    };
+    let absent: serde_json::Value =
+        serde_json::from_slice(&serialize_workbench_request(&create(None)).unwrap()).unwrap();
+    assert!(absent["action"]["intent"].get("agentStart").is_none());
+    let present = create(orchbee_workbench_protocol::AgentStartSelector::parse(
+        "claude-code",
+    ));
+    let encoded: serde_json::Value =
+        serde_json::from_slice(&serialize_workbench_request(&present).unwrap()).unwrap();
+    assert_eq!(encoded["action"]["intent"]["agentStart"], "claude-code");
+    for (name, value, accepted) in [
+        ("catalog id", serde_json::json!("codex"), true),
+        ("unknown id", serde_json::json!("not-an-agent"), false),
+        ("command text", serde_json::json!("codex --yolo"), false),
+        ("explicit null", serde_json::Value::Null, false),
+        (
+            "not a string",
+            serde_json::json!({"provider": "codex"}),
+            false,
+        ),
+    ] {
+        let mut document = absent.clone();
+        document["action"]["intent"]["agentStart"] = value;
+        assert_eq!(
+            parse_workbench_request(&serde_json::to_vec(&document).unwrap()).is_ok(),
+            accepted,
+            "{name}"
+        );
     }
 }
 #[test]

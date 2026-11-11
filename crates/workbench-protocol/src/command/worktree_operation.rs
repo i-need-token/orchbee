@@ -1,9 +1,9 @@
 //! Bounded native Worktree operation requests and independently observable partial outcomes.
 use super::json_fields::{deserialize_i32 as deserialize_status, deserialize_nullable};
 use crate::{
-    ContractError, ProtocolVersion, SessionId, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    WorkbenchWorkspaceId,
+    AgentStartSelector, ContractError, ProtocolVersion, SessionId, WorkbenchDirectoryPath,
+    WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchWorkspaceId,
 };
 use serde::{Deserialize, Deserializer, Serialize, de};
 
@@ -98,6 +98,15 @@ pub enum WorktreeIntent {
         label: Option<WorkbenchLabel>,
         geometry: WorkbenchTerminalGeometry,
         trust_repository: bool,
+        /// The Agent the new Workspace's first shell runs as its first command, under the same
+        /// rule as `LaunchOptions::agent_start`. A reused Workspace launches nothing, so it starts
+        /// nothing; the selector never carries command text.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_present"
+        )]
+        agent_start: Option<AgentStartSelector>,
     },
     Open {
         source: WorktreeSource,

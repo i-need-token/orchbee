@@ -33,6 +33,7 @@ fn intent() -> WorktreeIntent {
         label: None,
         geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
         trust_repository: false,
+        agent_start: None,
     }
 }
 fn start(project: &WorkbenchProjectId, id: u128) -> Action {
