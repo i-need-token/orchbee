@@ -70,7 +70,10 @@ On Windows each opening repeats the lookup of mapped commands on the Client's in
 using fixed System32 `where.exe` helpers, keeping the previous list until it completes. At most
 four owned workers run concurrently, with a six-second shared deadline, a 900 ms lookup slot and
 bounded Job termination. Results publish one at a time; a missing, failed or timed-out lookup never
-discards other results, and an incomplete first lookup claims nothing installed. Found commands are
+discards other results, and an incomplete first lookup claims nothing installed. Until the first
+lookup completes, a provider it has not found yet is still being checked: it is listed nowhere and
+never counted as not found, the folded row waits for every check, and the status row says the
+lookup is running. A late result never moves the cursor off the provider it rests on. Found commands are
 hints about this Client's PATH, not guarantees about the target terminal.
 
 There is no name field. `Enter` or a row click, against the current successful draw, closes the

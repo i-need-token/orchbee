@@ -251,6 +251,23 @@ impl State {
         }
     }
 
+    /// The providers whose check has not completed: until the first lookup completes, every
+    /// checkable provider it has not found yet. They are neither installed nor not found; a later
+    /// lookup keeps the completed list instead.
+    pub(super) fn pending(&self) -> Vec<&'static str> {
+        if self.catalog_completed || !matches!(self.catalog, Catalog::Unloaded | Catalog::Loading) {
+            return Vec::new();
+        }
+        crate::agent_provider::CANONICAL_IDS
+            .iter()
+            .copied()
+            .filter(|id| {
+                crate::agent_provider::detection_executable(id).is_some()
+                    && !self.detected.contains(id)
+            })
+            .collect()
+    }
+
     pub(super) fn missing(&self) -> &[&'static str] {
         &self.missing
     }
@@ -433,6 +450,22 @@ impl State {
         self.detected = providers.to_vec();
         self.catalog_completed = true;
         self.touch();
+    }
+
+    /// Test seam: the first local lookup begins and reports `found` as its results arrive.
+    #[cfg(test)]
+    pub(super) fn begin_lookup_finding(&mut self, found: &[&'static str]) {
+        self.origin_local = Some(true);
+        let _begun = self.begin_catalog(false);
+        for provider in found {
+            self.settle_catalog_found(provider);
+        }
+    }
+
+    /// Test seam: one more result of the running lookup arrives.
+    #[cfg(test)]
+    pub(super) fn find(&mut self, provider: &'static str) -> bool {
+        self.settle_catalog_found(provider)
     }
 
     #[cfg(test)]

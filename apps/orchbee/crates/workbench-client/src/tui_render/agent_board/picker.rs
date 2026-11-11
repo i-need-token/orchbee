@@ -63,14 +63,16 @@ pub(super) fn render(
             copy.unsupported.into(),
             Role::StatusWarning,
         )),
+        // A provider still being checked is listed nowhere yet, so an empty list while checking
+        // is not "no match".
+        AgentStartCatalogStatus::Loading if board.can_start_agent() => {
+            Some(DialogRow::Status(copy.checking.into(), Role::StatusPending))
+        }
         _ if !items
             .iter()
             .any(|item| matches!(item, Item::Provider { .. } | Item::Fold(_))) =>
         {
             Some(DialogRow::Item(copy.no_match.into(), Role::TextSecondary))
-        }
-        AgentStartCatalogStatus::Loading if board.can_start_agent() => {
-            Some(DialogRow::Status(copy.checking.into(), Role::StatusPending))
         }
         // With nothing to report the list takes the row, so no blank row sits under a list
         // that has more rows below.

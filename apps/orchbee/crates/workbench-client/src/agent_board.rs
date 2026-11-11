@@ -1380,6 +1380,7 @@ impl AgentBoard {
             start::CatalogAdmission::Closed
         };
         let expired = self.start.expire(now);
+        self.hold_picker_cursor();
         let drained = jobs(&mut self.start, admission);
         if drained.started {
             self.request_refresh(now);

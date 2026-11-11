@@ -87,6 +87,8 @@ pub(crate) struct Sources<'a> {
     pub(crate) installed: Option<&'a [&'static str]>,
     /// Providers whose start found no command.
     pub(crate) missing: &'a [&'static str],
+    /// Providers whose check has not completed: listed nowhere and never counted as not found.
+    pub(crate) pending: &'a [&'static str],
 }
 
 /// Whether `id` matches the query by its product name, its command line or its id.
@@ -109,13 +111,16 @@ fn by_product(ids: &mut [&'static str]) {
 /// The picker's rows: Recent (at most three, still available, most recent first), then the
 /// rest. Locally the rest is Installed A–Z and a Not found group that stays folded into one row
 /// until it is opened or a query searches it; for a remote Session it is one Not checked group.
-/// A provider whose start found no command is listed as not found in both.
+/// A provider whose start found no command is listed as not found in both. A provider whose
+/// check is still running is not listed until it completes, and the fold waits for every check.
 pub(crate) fn items(sources: Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
     let query = query.trim();
     let all: Vec<_> = crate::agent_provider::choices().collect();
     let missing = |id: &str| sources.missing.contains(&id);
+    let pending = |id: &str| !missing(id) && sources.pending.contains(&id);
     let available = |id: &str| {
         !missing(id)
+            && !pending(id)
             && sources
                 .installed
                 .is_none_or(|installed| installed.contains(&id))
@@ -136,9 +141,10 @@ pub(crate) fn items(sources: Sources<'_>, query: &str, expanded: bool) -> Vec<It
     let mut unavailable: Vec<&'static str> = all
         .iter()
         .map(|choice| choice.id)
-        .filter(|id| !available(id))
+        .filter(|id| !available(id) && !pending(id))
         .collect();
     by_product(&mut unavailable);
+    let checking = all.iter().any(|choice| pending(choice.id));
 
     let mut rows = Vec::new();
     let group = |rows: &mut Vec<Item>, group: Group, ids: &[&'static str]| {
@@ -167,7 +173,8 @@ pub(crate) fn items(sources: Sources<'_>, query: &str, expanded: bool) -> Vec<It
     if sources.installed.is_some() {
         group(&mut rows, Group::Installed, &rest);
         if query.is_empty() && !expanded {
-            if !unavailable.is_empty() {
+            // While a check runs the count is not known; the status row says so instead.
+            if !unavailable.is_empty() && !checking {
                 rows.push(Item::Fold(unavailable.len()));
             }
         } else {
@@ -393,15 +400,35 @@ impl AgentBoard {
             return Vec::new();
         };
         let (recent, installed) = self.picker_sources();
+        let pending = self.start.pending();
         items(
             Sources {
                 recent: &recent,
                 installed: installed.as_deref(),
                 missing: self.start.missing(),
+                pending: &pending,
             },
             picker.query(),
             picker.expanded,
         )
+    }
+
+    /// Holds a resting cursor on the provider it rests on, so a late lookup result that lists a
+    /// provider above it never moves the cursor.
+    pub(super) fn hold_picker_cursor(&mut self) {
+        if self
+            .picker
+            .as_ref()
+            .is_none_or(|picker| picker.cursor.is_some())
+        {
+            return;
+        }
+        let items = self.picker_items();
+        if let Some(picker) = self.picker.as_mut() {
+            picker.cursor = picker
+                .cursor_index(&items)
+                .and_then(|index| items[index].target());
+        }
     }
 
     pub(crate) const fn can_start_agent(&self) -> bool {

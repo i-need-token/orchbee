@@ -103,6 +103,7 @@ fn groups_hold_recent_then_installed_then_the_rest_once_each() {
                 recent: case.recent,
                 installed: case.installed,
                 missing: case.missing,
+                pending: &[],
             },
             "",
             false,
@@ -173,6 +174,7 @@ fn not_found_rows_say_why_and_generic_commands_cannot_be_checked() {
             recent: &[],
             installed: Some(&["codex"]),
             missing: &["gemini"],
+            pending: &[],
         },
         "",
         true,
@@ -202,6 +204,7 @@ fn query_matches_name_command_or_id_and_searches_the_folded_group() {
         recent: &[],
         installed: Some(&["codex"]),
         missing: &[],
+        pending: &[],
     };
     let cases: [(&str, &str, &str); 5] = [
         ("by product name, any case", "CLAUDE", "claude-code"),
@@ -239,6 +242,7 @@ fn the_cursor_rests_on_the_most_recent_provider_else_the_first_installed() {
                 recent,
                 installed: Some(&["codex", "gemini", "claude-code"]),
                 missing: &[],
+                pending: &[],
             },
             "",
             false,
@@ -250,6 +254,142 @@ fn the_cursor_rests_on_the_most_recent_provider_else_the_first_installed() {
             "{recent:?}"
         );
     }
+}
+
+#[test]
+fn a_provider_counts_as_not_found_only_after_its_check_completed() {
+    struct Case {
+        name: &'static str,
+        found: &'static [&'static str],
+        /// Whether the checks of the providers not found yet are still running.
+        rest_pending: bool,
+        missing: &'static [&'static str],
+        expect_fold: Option<usize>,
+        /// Not found besides the generic commands, which are never checked.
+        expect_not_found: &'static [&'static str],
+    }
+    let checkable: Vec<&'static str> = crate::agent_provider::choices()
+        .filter(|choice| choice.checkable)
+        .map(|choice| choice.id)
+        .collect();
+    let generic: Vec<&'static str> = crate::agent_provider::choices()
+        .filter(|choice| !choice.checkable)
+        .map(|choice| choice.id)
+        .collect();
+    let cases = [
+        Case {
+            name: "nothing checked yet",
+            found: &[],
+            rest_pending: true,
+            missing: &[],
+            expect_fold: None,
+            expect_not_found: &[],
+        },
+        Case {
+            name: "results arriving",
+            found: &["gemini", "codex"],
+            rest_pending: true,
+            missing: &[],
+            expect_fold: None,
+            expect_not_found: &[],
+        },
+        Case {
+            name: "a start that found no command is not found while checks run",
+            found: &[],
+            rest_pending: true,
+            missing: &["claude-code"],
+            expect_fold: None,
+            expect_not_found: &["claude-code"],
+        },
+        Case {
+            name: "every check completed",
+            found: &["codex"],
+            rest_pending: false,
+            missing: &[],
+            expect_fold: Some(all().len() - 1),
+            expect_not_found: &[],
+        },
+    ];
+    for case in cases {
+        let pending: Vec<&'static str> = checkable
+            .iter()
+            .copied()
+            .filter(|id| case.rest_pending && !case.found.contains(id))
+            .collect();
+        let sources = Sources {
+            recent: &[],
+            installed: Some(case.found),
+            missing: case.missing,
+            pending: &pending,
+        };
+        let folded = items(sources, "", false);
+        let mut installed = group(&folded, Group::Installed);
+        installed.sort_unstable();
+        let mut expected: Vec<_> = case.found.to_vec();
+        expected.sort_unstable();
+        assert_eq!(installed, expected, "{}: found are installed", case.name);
+        assert_eq!(groups(&folded).1, case.expect_fold, "{}: fold", case.name);
+        let mut not_found = group(&items(sources, "", true), Group::NotFound);
+        not_found.sort_unstable();
+        let mut expected: Vec<&'static str> = if case.rest_pending {
+            generic
+                .iter()
+                .chain(case.expect_not_found)
+                .copied()
+                .collect()
+        } else {
+            all()
+                .into_iter()
+                .filter(|id| !case.found.contains(id))
+                .collect()
+        };
+        expected.sort_unstable();
+        assert_eq!(not_found, expected, "{}: not found", case.name);
+        for id in pending.iter().filter(|id| !case.missing.contains(id)) {
+            for rows in [
+                &folded,
+                &items(sources, "", true),
+                &items(sources, id, false),
+            ] {
+                assert!(
+                    !rows.iter().any(
+                        |row| matches!(row, Item::Provider { id: listed, .. } if listed == id)
+                    ),
+                    "{}: pending {id} is listed nowhere",
+                    case.name
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_late_lookup_result_never_moves_the_cursor() {
+    let mut board = super::super::AgentBoard::new(true);
+    board.open_picker(None, None);
+    board.start.begin_lookup_finding(&["gemini"]);
+    let cursor = |board: &super::super::AgentBoard| {
+        let rows = board.picker_items();
+        let index = board.picker().unwrap().cursor_index(&rows).unwrap();
+        match rows[index] {
+            Item::Provider { id, .. } => id,
+            other => panic!("cursor on {other:?}"),
+        }
+    };
+    assert_eq!(cursor(&board), "gemini");
+    // Codex sorts above Gemini once its check finds it.
+    let changed = board.drain_start(std::time::Instant::now(), |state, _| {
+        super::super::start::Drain {
+            changed: state.find("codex"),
+            started: false,
+        }
+    });
+    assert!(changed);
+    assert_eq!(
+        group(&board.picker_items(), Group::Installed),
+        ["codex", "gemini"]
+    );
+    assert_eq!(cursor(&board), "gemini");
 }
 
 #[test]
