@@ -124,7 +124,7 @@ pub fn requirePeerEffectiveUid(socket: std.posix.socket_t, expected_uid: std.pos
 }
 
 pub fn endpointName(allocator: std.mem.Allocator, endpoint_id: []const u8) ![]u8 {
-    return std.fmt.allocPrint(allocator, "{s}.s", .{endpoint_id});
+    return std.fmt.allocPrint(allocator, "{s}-host.sock", .{endpoint_id});
 }
 
 pub fn lockName(allocator: std.mem.Allocator, endpoint_id: []const u8) ![]u8 {

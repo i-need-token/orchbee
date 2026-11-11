@@ -35,12 +35,21 @@ fn serve(
     options: launcher_arguments.ServeOptions,
 ) !void {
     if (builtin.os.tag == .windows) try platform.process.prepareWindowsTerminalChildren();
-    var server = try local_ipc.LocalServer.initWithIo(
-        io,
-        allocator,
-        options.runtime_directory,
-        options.endpoint_id,
-    );
+    var server = try if (builtin.os.tag == .windows)
+        local_ipc.LocalServer.initWithIo(
+            io,
+            allocator,
+            options.runtime_directory,
+            options.endpoint_id,
+        )
+    else
+        local_ipc.LocalServer.initInEndpointDirectory(
+            io,
+            allocator,
+            options.runtime_directory,
+            options.endpoint_directory orelse options.runtime_directory,
+            options.endpoint_id,
+        );
     defer server.deinit();
     var service = host_service.HostService.initWithOptions(allocator, .{
         .terminal_defaults = options.terminal_defaults,

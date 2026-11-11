@@ -99,6 +99,9 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
 pub const Server = if (builtin.os.tag == .windows) void else struct {
     allocator: std.mem.Allocator,
     directory: std.Io.Dir,
+    /// The folder the endpoint is bound in; the runtime directory unless a separate one was named.
+    endpoint_directory: std.Io.Dir,
+    owns_endpoint_directory: bool,
     io: std.Io,
     listener: std.Io.net.Server,
     lock_file: std.Io.File,
@@ -120,7 +123,20 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         runtime_directory: []const u8,
         endpoint_id: []const u8,
     ) !Server {
+        return initInEndpointDirectory(io, allocator, runtime_directory, runtime_directory, endpoint_id);
+    }
+
+    /// Locks the endpoint in `runtime_directory` and binds it in `endpoint_directory`, which must
+    /// already exist as a private folder of the effective user; it is validated, never repaired.
+    pub fn initInEndpointDirectory(
+        io: std.Io,
+        allocator: std.mem.Allocator,
+        runtime_directory: []const u8,
+        endpoint_directory: []const u8,
+        endpoint_id: []const u8,
+    ) !Server {
         if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+        if (!std.fs.path.isAbsolute(endpoint_directory)) return error.EndpointDirectoryNotAbsolute;
         if (!connection.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
         output_wake.prepare();
 
@@ -137,22 +153,29 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         );
         errdefer lock_file.close(io);
 
+        const owns_endpoint_directory = !std.mem.eql(u8, endpoint_directory, runtime_directory);
+        const bind_directory = if (owns_endpoint_directory)
+            try endpoint_security.validateRuntimeDirectory(io, endpoint_directory)
+        else
+            directory;
+        errdefer if (owns_endpoint_directory) bind_directory.close(io);
+
         const socket_name = try endpoint_security.endpointName(allocator, endpoint_id);
         errdefer allocator.free(socket_name);
         const socket_path = try std.fs.path.join(
             allocator,
-            &.{ runtime_directory, socket_name },
+            &.{ endpoint_directory, socket_name },
         );
         errdefer allocator.free(socket_path);
-        directory.deleteFile(io, socket_name) catch |err| switch (err) {
+        bind_directory.deleteFile(io, socket_name) catch |err| switch (err) {
             error.FileNotFound => {},
             else => return err,
         };
-        errdefer directory.deleteFile(io, socket_name) catch {};
+        errdefer bind_directory.deleteFile(io, socket_name) catch {};
 
         const original_directory = try std.Io.Dir.cwd().openDir(io, ".", .{});
         defer original_directory.close(io);
-        try posix_compat.fchdir(directory.handle);
+        try posix_compat.fchdir(bind_directory.handle);
         var restored_directory = false;
         defer if (!restored_directory) posix_compat.fchdir(original_directory.handle) catch {};
         const address = std.Io.net.UnixAddress.init(socket_name) catch
@@ -160,7 +183,7 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         var listener = try address.listen(io, .{ .kernel_backlog = 8 });
         errdefer listener.deinit(io);
         try endpoint_security.secureEndpoint(
-            directory,
+            bind_directory,
             socket_name,
             std.c.geteuid(),
         );
@@ -170,6 +193,8 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         return .{
             .allocator = allocator,
             .directory = directory,
+            .endpoint_directory = bind_directory,
+            .owns_endpoint_directory = owns_endpoint_directory,
             .io = io,
             .listener = listener,
             .lock_file = lock_file,
@@ -181,8 +206,9 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
 
     pub fn deinit(self: *Server) void {
         self.listener.deinit(self.io);
-        self.directory.deleteFile(self.io, self.socket_name) catch {};
+        self.endpoint_directory.deleteFile(self.io, self.socket_name) catch {};
         self.lock_file.close(self.io);
+        if (self.owns_endpoint_directory) self.endpoint_directory.close(self.io);
         self.directory.close(self.io);
         self.allocator.free(self.socket_path);
         self.allocator.free(self.socket_name);
