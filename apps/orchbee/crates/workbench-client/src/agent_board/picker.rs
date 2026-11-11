@@ -11,8 +11,9 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use super::session_agents::{RECENT_LIMIT, SessionAgents, recent};
 use super::start::{self, StartPlace};
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
-use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
+use crate::workbench_state::AgentStartNotice;
 
 #[cfg(test)]
 mod tests;
@@ -481,7 +482,8 @@ impl AgentBoard {
         };
         let page = isize::try_from(picker.viewport.max(1)).unwrap_or(1);
         match (event.code, event.mods) {
-            (KeyCode::Enter, Modifiers::NONE) => {
+            // A terminal sends Enter as a bare CR, which decodes to its canonical `Ctrl+M`.
+            _ if Binding::new(KeyCode::Enter, Modifiers::NONE).matches(event) => {
                 let target = picker
                     .cursor_index(&items)
                     .and_then(|index| items.get(index).copied());
@@ -547,6 +549,13 @@ impl AgentBoard {
                     provider: id,
                     place,
                 })
+            }
+            Some(Item::Provider { .. }) => {
+                // An unsupported host says why in the status row; any other refusal says it here.
+                if self.start.launch_supported() {
+                    self.start.set_notice(AgentStartNotice::Failed);
+                }
+                PickerOutcome::Handled
             }
             Some(Item::Fold(_)) => {
                 if let Some(picker) = self.picker.as_mut() {

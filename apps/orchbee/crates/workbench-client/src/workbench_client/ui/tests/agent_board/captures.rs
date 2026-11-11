@@ -460,6 +460,155 @@ fn picker_mouse_start_requires_the_current_exact_draw() {
     assert_eq!(ui.board.start_operation_panel_t(), Some(&expected_panel));
 }
 
+/// Hands every routed input to the UI the way the production `WorkbenchClient` port does.
+struct RoutedInput<'a> {
+    ui: &'a mut WorkbenchClientUi,
+    forwarded: &'a mut Vec<u8>,
+}
+
+impl crate::terminal_input::TerminalInputPort for RoutedInput<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::CaptureClaims {
+        self.ui.capture_claims()
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
+    ) -> Option<crate::workbench_client::CaptureContext> {
+        self.ui.capture_context(owner)
+    }
+
+    fn forward(
+        &mut self,
+        input: &[u8],
+    ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        self.forwarded.extend_from_slice(input);
+        Ok(())
+    }
+
+    fn apply_client_action(
+        &mut self,
+        action: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        Some(self.ui.apply_client_action(action))
+    }
+
+    fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
+        self.ui.surface_input(input)
+    }
+
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<ClientActionDisposition> {
+        self.ui.surface_action(action)
+    }
+}
+
+/// A terminal sends Enter as a bare CR, which decodes to the canonical `Ctrl+M`. Whatever opened
+/// the picker, that byte must start the provider under its cursor.
+#[test]
+fn terminal_enter_starts_the_picked_provider_from_every_entry() {
+    #[derive(Clone, Copy, Debug)]
+    enum Entry {
+        PrefixKey,
+        ActionMenu,
+        BoardStartRow,
+        BoardKey,
+        BoardKeyWhileReading,
+        PrefixKeyOverBoard,
+    }
+    fn present(ui: &mut WorkbenchClientUi) {
+        let theme = crate::tui_theme::Theme::terminal_native();
+        render_board_frame(ui, 120, 36, crate::localization::Locale::EnUs, &theme).settle(ui);
+    }
+    for entry in [
+        Entry::PrefixKey,
+        Entry::ActionMenu,
+        Entry::BoardStartRow,
+        Entry::BoardKey,
+        Entry::BoardKeyWhileReading,
+        Entry::PrefixKeyOverBoard,
+    ] {
+        let (mut ui, mailbox, clock) = fixture();
+        bootstrap(&mut ui, &mailbox, &clock);
+        ready(&mut ui);
+        // The Board is open on a settled, empty read, so its Start Agent row holds the cursor.
+        install_capture_empty_read(&mut ui);
+        ui.board.install_start_catalog_t(&["codex"]);
+        ui.board.accept_start_without_task_t();
+        ui.observe_geometry(Geometry::new(120, 36, 8, 16).unwrap());
+        let mut dispatcher = crate::terminal_input::InputDispatcher::default();
+        let mut view = crate::client_view::ClientView::new(120);
+        let mut forwarded = Vec::new();
+        let mut route = |ui: &mut WorkbenchClientUi, bytes: &[u8]| {
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    bytes,
+                    &mut RoutedInput {
+                        ui,
+                        forwarded: &mut forwarded,
+                    },
+                    Instant::now(),
+                    |_, _| Ok::<bool, io::Error>(false),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+        };
+        match entry {
+            Entry::PrefixKey => {
+                ui.board.close();
+                route(&mut ui, b"\x02G");
+            }
+            Entry::ActionMenu => {
+                // The action menu's Start Agent row commits this action.
+                ui.board.close();
+                let _disposition =
+                    ui.apply_client_action(crate::client_view::ClientAction::StartAgent);
+            }
+            Entry::BoardStartRow => {
+                present(&mut ui);
+                route(&mut ui, b"\r");
+            }
+            Entry::BoardKey => {
+                present(&mut ui);
+                route(&mut ui, b"s");
+            }
+            Entry::BoardKeyWhileReading => {
+                ui.board.close();
+                // `Ctrl+B g` opens the Board with its first read still in flight.
+                route(&mut ui, b"\x02g");
+                present(&mut ui);
+                route(&mut ui, b"s");
+            }
+            Entry::PrefixKeyOverBoard => {
+                present(&mut ui);
+                route(&mut ui, b"\x02G");
+            }
+        }
+        assert!(ui.board.picker().is_some(), "{entry:?} opens the picker");
+        present(&mut ui);
+        route(&mut ui, b"\r");
+
+        let focused = ui
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_panel_id().cloned())
+            .expect("fixture has one exact focused Panel");
+        assert_eq!(
+            ui.board.start_operation_panel_t(),
+            Some(&focused),
+            "{entry:?}: Enter starts Codex in the focused idle Panel"
+        );
+        assert!(
+            !ui.board.is_open(),
+            "{entry:?}: the start closes the picker"
+        );
+        assert!(forwarded.is_empty(), "{entry:?}: no key reached the Panel");
+    }
+}
+
 #[test]
 fn captures_whole_shell_agent_board_alignment_frames() {
     use crate::tui_presentation::PresentationPhase;

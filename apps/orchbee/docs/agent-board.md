@@ -73,7 +73,10 @@ hints about this Client's PATH, not guarantees about the target terminal.
 
 There is no name field. `Enter` or a row click, against the current successful draw, closes the
 picker on the same frame and starts the provider through the same typed single-submission workflow
-as the CLI, which keeps its named start. The place is automatic: the focused Panel when its shell
+as the CLI, which keeps its named start. A terminal's Enter arrives as a bare CR, the canonical
+`Ctrl+M`, and starts the same way. A start the picker cannot make leaves it open and says why: the
+status row on a host that cannot start Agents, otherwise "Agent did not start" in the status line.
+The place is automatic: the focused Panel when its shell
 is idle — no known Agent holds it and none of this Client's starts guards it — else a new Tab, and
 the context row says which. A Host refusal because the Panel is no longer at an idle prompt starts
 in a new Tab instead and says "Panel busy · opened a new Tab". A new Tab comes from the ordinary Tab
