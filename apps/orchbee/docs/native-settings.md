@@ -26,7 +26,11 @@ ownership. Checked booleans, `~` changed-draft markers, disabled
 values and picker navigation have independent cues. Reset all, Reload, Close and Save remain in
 a fixed action area below the list; they never appear among scrolling settings. The root keeps
 one contextual description and one state line rather than a persistent preview paragraph or
-row-index counter. A narrow surface removes the contextual description before any required action
+row-index counter. While the newest snapshot finds `config.toml` unparsable or unreadable, the
+state line names the file, the line and column of a syntax error, and that the page shows the last
+valid settings, whether Settings opens in that state or is open when it begins; a narrow line drops
+the path first. The draft's own state returns once a snapshot finds the file usable, and the status
+line's settings-file notice follows the same snapshots. A narrow surface removes the contextual description before any required action
 and uses two fixed action rows; labels truncate by display width and exact integers keep their value.
 
 `/` or the painted Search row starts global search. The bounded 256-byte query matches every term
@@ -154,8 +158,9 @@ saved basis while separately exposing the newest confirmed effective snapshot an
 conflict when its values differ. A snapshot whose revision is not newer than the last one
 observed is dropped. Reload confirms discarding edits and performs a new read. A refused edit
 wrote nothing; it keeps the draft and names its reason: the file was busy, a value or key was
-refused, the file has a syntax error, is read-only or would be too large, its location cannot be
-used, or the write failed. A syntax error points to `orchbee config check` for the position. A
+refused, the file has a syntax error, cannot be read or is not a regular file, is read-only or
+would be too large, its location cannot be used, or the write failed. Read-only names only a
+readable file that does not admit writing. A syntax error points to `orchbee config check` for the position. A
 definite refusal can retry only from a fresh rendered context. A `changed` refusal or unknown
 outcome disables Save until a matched explicit Reload read succeeds; passive observations,
 redraws, cached snapshots and old read completions do not clear that requirement. No request is
@@ -246,7 +251,7 @@ The Session freezes its `config.toml` location at startup. Clients send no paths
 | Hidden → open        | Read a complete snapshot and freeze it as the draft basis.                                                                            |
 | Draft → edit / draw  | Keep edits local, project reversible appearance to the whole frame, and revoke old drawing authority.                                 |
 | Draft → save         | Require a current successful draw, freeze a nonempty batch edit and consume submission before dispatch.                               |
-| Submit → commit      | Lock the file, apply every change or none in one replace and publish one snapshot; keep other keys and comments.                      |
+| Submit → commit      | Lock the file, apply every change or none in one replace and publish one snapshot; keep other keys and comments. A scalar key set to its default is removed, as a restore removes it. |
 | Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                              |
 | External update      | Publish newest effective values and refresh clean views; preserve active edits or child tasks and their frozen basis with a conflict. |
 | Refused / unknown    | Preserve the visible draft and effective values; require a matched explicit read before another Save after `changed` or unknown.      |

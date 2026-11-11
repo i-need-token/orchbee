@@ -211,10 +211,11 @@ by revision, is dropped. `src/__tests__/memoryUserSettings.ts` is the in-memory 
 and Stories.
 
 A commit is one `edit` of every key it changes; restoring a key removes it from the file so its
-default applies. Controls show the file's value and change when the edited snapshot arrives; nothing
+default applies, and the Server's editor removes a scalar key set to its default the same way. Controls show the file's value and change when the edited snapshot arrives; nothing
 is applied optimistically. Text fields keep a draft while focused, commit on Enter or blur at most
 once, and return to the file's value when the edit is refused. A refusal names one of the wire's
-reasons, and the row shows one short localized sentence for it. An edit whose outcome is unknown is
+reasons, and the row shows one short localized sentence for it; an `unusable-file` refusal whose
+detail is `not-file`, `io-error` or `too-large` says the file cannot be read. An edit whose outcome is unknown is
 never replayed; the row asks the user to check the value first. While the Session cannot be reached,
 the page shows the values last received and one dismissible notice.
 

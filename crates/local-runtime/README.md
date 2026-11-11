@@ -962,7 +962,10 @@ byte, and returns whether the file changed. `set_setting(key, value, env)` and
    and inline comment; a new key goes into its table, and a missing table is created with a header
    after any comments that end the file. A structured key such as `terminal.profiles.<platform>`
    takes its whole value, an array of tables written as `[[...]]` entries. Restoring removes the key
-   and any table it leaves empty, unless that table carries a comment.
+   and any table it leaves empty, unless that table carries a comment. Setting a scalar key at a
+   concrete path to its registered default is that restore, so every Client and the CLI leave the
+   key to follow a later default; a `<platform>` key's default is the one registered for every
+   platform. A structured value and a key under a map of names are written as given.
 5. Validate the candidate once with the reader. A diagnostic the file did not already have, on a
    changed key or on any registered key, refuses the whole edit as `invalid-value` with the
    reader's field and reason; a default profile left naming a removed profile is refused this way.
@@ -972,8 +975,11 @@ byte, and returns whether the file changed. `set_setting(key, value, env)` and
 7. Replace the file atomically. A symbolic link keeps its link and the target is replaced.
 
 A missing file is created holding only the changed keys. A file that does not parse is never
-written: the edit returns `Syntax` with its line and column. A read-only file is `read-only`; on
-Windows a file another program holds open is retried for two seconds, then `in-use`. Nothing
+written: the edit returns `Syntax` with its line and column. A file that cannot be read, or is not a
+regular file, is `Source` with the reader's own reason (`io-error`, `not-file`, `too-large`), even
+where the platform reports a denied open, as Windows does for a folder; only a readable file marked
+read-only is `read-only`. On Windows a file another program holds open is retried for two seconds,
+then `in-use`. Nothing
 changes when the file already says what the changes ask for.
 
 `SettingsEditError` keeps one variant per refusal: `UnknownKey { key }`, `InvalidValue { key, field,
