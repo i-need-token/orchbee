@@ -132,6 +132,32 @@ published run and published Agent state. Owned Windows subprocess tests exercise
 they do not establish authenticated provider readiness. References: [Cursor installation](https://cursor.com/docs/cli/installation)
 and [Qoder installation](https://docs.qoder.com/cli/installation).
 
+### Launch-time conversation ids
+
+Grok, Gemini, Qwen Code, Copilot and Pi open a new conversation under an id the caller chooses,
+`--session-id <uuid>`. A start of one of them, from the board or `orchbee agent start`, passes a
+fresh id that way so the Server can [resume the conversation](../../orchbee-server/docs/agent-session-resume.md#command-line)
+after a restart without a hook:
+
+- The id is a version-4 UUID in lowercase hyphenated form, from 16 bytes of operating-system
+  entropy, made once per start, so both launch forms carry the same one. Without entropy the start
+  goes ahead without an id.
+- `agent_provider::launch_session_option()` names the option beside the fixed launch words. It
+  follows them and precedes the caller's arguments; the short form single-quotes the option and the
+  id for PowerShell and leaves them bare for cmd, where both are inert.
+- Caller arguments that already choose a conversation add no id: the session option itself, with or
+  without `=`, a resume, a continue of the latest conversation, a fork, or none at all (Grok `-s`,
+  `--session-id`, `-r`, `--resume`, `-c`, `--continue`, `--load`, `--fork-session`; Gemini
+  `--session-id`, `-r`, `--resume`; Qwen Code adds `-c`, `--continue`; Copilot `--session-id`,
+  `-r`, `--resume`, `--continue`; Pi `--session-id`, `--session`, `-r`, `--resume`, `-c`,
+  `--continue`, `--no-session`). Words after `--` are not options.
+- Orchbee keeps no copy of the id. The Server reads it back from the Agent process's own command
+  line, the same way it reads one the person typed.
+- Claude Code gets no id: its own run table follows the conversation it holds, which a launch id
+  would not. The other providers document no launch-time id.
+- The command budget check reserves room for an id before admission, so a start that fits never
+  fails later for the id it adds.
+
 ## Workflow and invariants
 
 1. Validate and quote all arguments before admission. Resolve and pin the primary terminal,
@@ -153,8 +179,9 @@ and [Qoder installation](https://docs.qoder.com/cli/installation).
    whose integrations this Client cannot see, it waits 10000 ms, so an enabled hook can bind the
    name first. Observation binds no name: the workflow releases the reservation and reports the
    Agent started. The CLI keeps its blocked-start rule and refuses a blocked state as
-   `agent-blocked`; the board accepts it. Session resume needs a hook session or, for Claude
-   Code, its own run table entry for the published run
+   `agent-blocked`; the board accepts it. Session resume needs a hook session or a session the
+   published run's own process names: Claude Code's run table entry, else the conversation id
+   bound on its command line, such as a [launch-time id](#launch-time-conversation-ids)
    ([Agent session resume](../../orchbee-server/docs/agent-session-resume.md#process-source)).
 
 The default total deadline is 30000 ms, with 3001–300000 admitted. Each I/O step is bounded
@@ -220,7 +247,9 @@ foreground for that step and startup keeps polling within its budget.
 
 An argument-free start, from the board or the CLI, uses a short provider command so the shell
 echoes one line: cmd invokes the fixed command name; PowerShell resolves Application/ExternalScript
-explicitly before invocation, excluding functions and aliases. No temporary launcher or
+explicitly before invocation, excluding functions and aliases. A
+[launch-time id](#launch-time-conversation-ids) rides both forms: after the fixed words in the
+short form, and as ordinary arguments ahead of the caller's in the wrapper. No temporary launcher or
 execution-policy change is needed. A start with arguments uses the literal argument wrapper; its
 outer shell receives an ASCII PowerShell UTF-16LE encoded command that sets only UTF-8 encoding
 before dispatch. Script arguments use
@@ -284,7 +313,10 @@ receipt matrix through the production domain-to-CLI conversion; Workbench recove
 and the Panel-scoped guard remain covered in `crates/workbench-client/src/agent_board/start/jobs/tests.rs`. The existing tests also
 exercise real Windows exe/ps1/cmd argument boundaries, parser and completion scope, competing
 reservations, exact expiry, stale bindings, canonical readiness, interrupted delivery and lost
-replies. Windows CLI named-pipe tests retain receipts and prove no automatic replay.
+replies. `crates/workbench-client/src/agent_start/command/tests.rs` covers launch-time ids for
+the five providers in both launch forms: exactly one valid fresh id, none where the caller chose a
+conversation or the provider takes none, and a budget that leaves room for it. Windows CLI
+named-pipe tests retain receipts and prove no automatic replay.
 Real Session/Worker/Host validation checks the combined runtime separately. TLA model execution
 is not required for this Windows slice.
 

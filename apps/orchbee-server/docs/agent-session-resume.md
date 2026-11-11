@@ -2,8 +2,9 @@
 
 Status: implemented for the managed Windows Session: the preference, the retained format, capture,
 delivery after a restart at a prompt the Host confirms, the one-shot notice when a resume is given
-up, carry-forward of a delivered reference, and Claude Code's own run table as a
-[process source](#process-source) that needs no hook.
+up, carry-forward of a delivered reference, and two [process sources](#process-source) that need
+no hook: Claude Code's own run table, and the conversation id bound on the Agent process's own
+command line.
 
 ## Outcome and scope
 
@@ -19,8 +20,9 @@ any process in a Panel schedule execution at the next restart.
 
 ## Provider table
 
-The table is closed and lives in Server code: `AgentResumeProvider` with its id validator, and the
-program and argument builder of delivery.
+The table is closed and lives in Server code: `AgentResumeProvider` with its id validator, the
+program builder of delivery, and the conversation id table, which holds both the typed resume
+arguments and the [command-line bindings](#command-line) in one place.
 
 ### Admission
 
@@ -107,7 +109,9 @@ Not in the table:
 ### Tokens and quoting
 
 - One builder turns a reference into argument tokens; the typed line and
-  [carry-forward](#carry-forward)'s binding both use it.
+  [carry-forward](#carry-forward)'s binding both use it. It sits beside the command-line binding
+  table, and every typed form is one of that table's bindings, so a resumed run's command line
+  names the id it was given.
 - An option whose value is optional is typed `--name=<id>`, so the value stays glued to its option:
   no parser takes it as a positional prompt, and a parser without `=` support rejects it harmlessly.
   A required-value option or a subcommand takes a separate token. Claude Code's value is optional,
@@ -128,7 +132,9 @@ Not in the table:
   Client input, and Claude Code's run table entries, which any process of the user can write
   (strictly parsed, and admitted only for the exact process they name).
 - Trusted after admission: canonical Agent sessions, Workbench membership, and command and process
-  evidence the Worker reports for one exact Terminal generation.
+  evidence the Worker reports for one exact Terminal generation. That includes the command line of
+  the published run's own process in the Host's sample, read only through the closed
+  [binding table](#command-line); the Panel's reports and any reported command text never are.
 - Absence: a Presentation without a reference restores a plain shell.
 
 ## Data
@@ -152,6 +158,9 @@ Not in the table:
   They live only in memory, for one Server lifetime.
 - A `RunTableEntry` is the session one exact process, its pid and creation time, named in its
   Agent's run table. It is read just before one capture and lives only for that capture.
+- Each committed process sample keeps the published run's arguments after its program, read from
+  that run's own row, for as long as the run stays published. They live only in memory and are
+  never written; a conversation id bound in them is the [command-line](#command-line) source.
 
 ## Capture rule
 
@@ -181,9 +190,10 @@ steps decide.
 4. **Result.** Exactly one distinct `(provider, native key)` gives a reference, and only if the key
    is a valid id. Two or more give none.
 5. **Process source.** When no candidate remains, whether none was supplied or steps 2 and 3
-   refuted all, the generation's published run decides through its own Agent's run table: while
-   the generation's identity is `Agent` of a provider with a run table, the entry read for that
-   exact run gives the reference ([process source](#process-source)). Otherwise none.
+   refuted all, the generation's published run decides through its own process while the
+   generation's identity is `Agent` of that run's provider: the run table entry read for that exact
+   run, else the one conversation id bound on that run's own command line, gives the reference
+   ([process source](#process-source)). Otherwise none.
 6. **Excluded sources.** Explicit Panel Agent reports, other report sources, process names alone,
    screen and scrollback content, a directory's most recent session and any reported command text
    never grant a reference.
@@ -205,6 +215,20 @@ and the fresh final capture at clean stop. An Agent started less than 30 seconds
 be missed.
 
 ### Process source
+
+When no hook candidate remains, the generation's published run names its session through its own
+process, in this order:
+
+1. its Agent's [run table](#run-table) entry, Claude Code's alone;
+2. the conversation id bound on its own [command line](#command-line), for every provider in the
+   table.
+
+The run table wins because it follows the conversation the process holds now, while the command
+line names the one the process started in. Both admit only the published run's exact process, its
+pid and creation time, while the generation's identity is `Agent` of that run's provider. The order
+is decided in one place, `select` in the Session coordinator's `agent_resume` module.
+
+#### Run table
 
 Claude Code keeps one entry per running process in its own run table, `sessions/<pid>.json` in its
 configuration directory, naming the conversation that process holds. Version 2.1.322 writes `pid`,
@@ -239,6 +263,66 @@ A capture that meets an entry while Claude Code rewrites it may read nothing for
 at that capture. Whether Claude Code updates `sessionId` when it switches conversation inside the
 process (`/clear`, `/resume`) is unverified; if it does, later captures follow it, once no carried
 reference decides first.
+
+#### Command line
+
+The Host's process sample carries each process's command line. At each committed sample the Session
+coordinator keeps the published run's arguments after its program, read from the row with that
+run's pid and creation time, and only when process identity finds that row interactive for the
+run's provider: `interactive_agent_arguments` in `orchbee-agent-observation-protocol` gives exactly
+the arguments the provider's mode grammar classified, so no runtime, launcher or wrapper token is
+ever read. A capture admits a conversation id from them only when all of these hold:
+
+- the arguments come from the generation's published run, as above;
+- the option or subcommand that binds the id is in the provider's row below;
+- exactly one id is bound;
+- the id is valid in the provider's grammar.
+
+| Provider id        | Binds the id                                     | Binds nothing                        |
+| ------------------ | ------------------------------------------------ | ------------------------------------ |
+| `claude-code`      | `--resume`, `-r`, `--session-id`                 | `-c`, `--continue`, `--fork-session` |
+| `codex`            | the positional after a first positional `resume` | `--last`                             |
+| `grok`             | `--resume`, `-r`, `--session-id`, `-s`           | `-c`, `--continue`, `--fork-session` |
+| `opencode`, `kilo` | `--session`, `-s`                                | `-c`, `--continue`                   |
+| `cursor`, `droid`  | `--resume`                                       |                                      |
+| `qodercli`         | `--resume`, `-r`                                 | `-c`, `--continue`                   |
+| `antigravity`      | `--conversation`                                 |                                      |
+| `kimi`             | `--session`, `-S`                                |                                      |
+| `letta`            | `--conversation`, `--conv`, `-C`                 |                                      |
+| `devin`, `hermes`  | `--resume`, `-r`                                 |                                      |
+| `pi`               | `--session`, `--session-id`                      | `-c`, `--continue`, `-r`, `--resume` |
+| `omp`              | `--resume`                                       | `-c`, `--continue`                   |
+| `gemini`           | `--resume`, `-r`, `--session-id`                 |                                      |
+| `github-copilot`   | `--resume`, `-r`, `--session-id`                 | `--continue`                         |
+| `qwen-code`        | `--resume`, `-r`, `--session-id`                 | `-c`, `--continue`                   |
+| `cline`            | `--id`                                           |                                      |
+
+"Binds nothing" lists flags that continue the latest conversation, fork a new one or open a picker;
+any of them gives none, since the process may hold another conversation than any bound id.
+
+- **Forms.** A long option binds as `--name <id>` or `--name=<id>`, a short one as `-n <id>` only;
+  `-n=<id>` gives none. A value that begins with `-` is no id. Every other option skips the value
+  its provider's mode grammar gives it, so another option's value is never read as an id, and
+  nothing after `--` is read. Codex's `fork <id>` binds nothing, since it opens a new conversation.
+- **Letta.** A bound `default` with exactly one `--agent` or `-a` value is the stored
+  `default:<agent>` key.
+- **Ambiguity.** Two bindings give none, even of one id. An unknown or ambiguous form gives none,
+  never an error.
+- **Coverage.** A command line the person typed counts like an Agent start's: a hand-typed
+  `codex resume <id>` gives that id. An Agent start gives Grok, Gemini, Qwen Code, Copilot and Pi a
+  fresh `--session-id <uuid>` unless the caller's arguments already choose a conversation
+  ([Windows Agent start](../../orchbee/docs/windows-agent-start.md#launch-time-conversation-ids)),
+  so those runs carry an id from their first sample; Orchbee stores it nowhere else. Claude Code
+  starts without one, because its run table follows the conversation it holds.
+- **Optional values.** An option whose value is optional and written with a space, such as
+  `grok --resume <id>`, leaves the id where the provider's mode grammar reads a positional
+  argument. Grok, Qoder, Kimi, Droid and Copilot classify that as unclassified, so identity stays
+  `Unknown` and nothing is read. The `=` form, which delivery types, is read.
+- **Stale ids.** The command line names the conversation the process started in. When the person
+  switches conversation inside the Agent (`/resume`, `/new`, `/clear` and the like) and no hook
+  session reports the switch, the next restart reopens the conversation the process started in,
+  which still exists: stale, never a prompt. Orchbee does not detect the switch.
+- **Platform.** Only the Windows Host samples processes, so the source gives none elsewhere.
 
 ## Carry-forward
 
@@ -463,7 +547,8 @@ on, the built-in default; a Session without a preference store reads as off. The
   prompt.
 - A live reference comes only from the capture rule, or from a delivered reference bound to the
   live process its delivery started. The capture rule's process source admits only the run table
-  entry of the published run's exact process.
+  entry, or the one conversation id bound on the command line, of the published run's exact
+  process.
 - With the preference off, no row is written and nothing is typed.
 - Delivery happens only when all of these hold: the preference was on at startup, the binding and
   Terminal generation are unchanged, no Client input reached that terminal, no command was
@@ -490,7 +575,16 @@ ambiguity and invalid ids), the process source decision table (the published run
 without a hook session; a hook session over an entry naming another; hook ambiguity and a sole
 invalid key staying none; candidates refuted by provider or by an ended command leaving the entry;
 an entry of a reused pid or another process, no published run, and `Unknown`, other-provider,
-`None` and `Unsupported` identities giving none), the run table reader (the exact pid and creation
+`None` and `Unsupported` identities giving none), the command-line source decision table (an id
+alone; a hand-typed resume; Claude Code's own command line without an entry; its run table entry
+over its command line; a hook session over both; two bound ids, one id bound twice, a continue flag,
+another provider's id format, the command line of a reused pid's process, no sampled command line,
+another provider's identity and `Unknown` giving none), the command-line binding table (every typed
+resume reading back its own id for every provider, every binding option in each written form, and
+look-alike options, glued short options, foreign ids, repeated bindings, options after `--`,
+dash-led values and voiding flags giving none, with Codex's subcommand and Letta's default key
+forms), the identity matrix and argument reader for each launch-time session option, the run table
+reader (the exact pid and creation
 time admitted; a reused pid's later or earlier creation time, no entry, an entry filed under
 another pid and a missing directory giving none; an empty, truncated, BOM-prefixed, non-JSON or
 array entry, a numeric, zero-padded, signed or .NET-ticks `procStart`, a textual pid, a missing
@@ -510,7 +604,9 @@ refusal retry and the give-up's commit are not claimed by unit tests.
 
 `apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts in
 one Session, with one Panel per [table](#rows) row: every provider, Letta's conversation and
-default forms, and Claude Code once more without hooks, 21 rows. Each row's stub is a Node script at a path process identity recognises as
+default forms, Claude Code once more without hooks, and two more hookless rows named only by their
+command lines, a Grok started with `--session-id <id>` as an Agent start types it and a hand-typed
+`codex --search resume <id>`, 23 rows. Each row's stub is a Node script at a path process identity recognises as
 that provider, and it reports its session as the provider's adapter does: a command-hook payload
 through the shipped hook script, or the shipped OpenCode, Kilo, Cline, Pi or OMP module driven as
 its provider drives it. The Kilo stub first admits the module's plugin definition, the one the
@@ -529,7 +625,8 @@ Per row, the witness proves:
 
 - capture of the fresh session without ambiguity, with Kilo's child session and the OpenCode
   TUI's displayed child session and other root present; the hookless Claude Code row's from its run
-  table entry alone, and the hooked one's from its hook session over its entry;
+  table entry alone, the hooked one's from its hook session over its entry, and the hookless Grok
+  and Codex rows' from their command lines alone;
 - after a restart, the exact cmd line on screen and the exact recorded argument tokens, Claude
   Code's `--resume=<id>` and Letta's split `default:<agent>` key included, in the retained
   directory;
@@ -561,6 +658,9 @@ It does not prove:
   where it looks up a session. Same-id and directory evidence rests on the table's sources, and
   where that is documentation only (Cursor, Droid, Devin, Copilot and Antigravity) a resume may
   fail until a real run confirms the id;
+- that a real Grok, Gemini, Qwen Code, Copilot or Pi accepts `--session-id <uuid>` and opens a new
+  conversation under it that its resume form reopens, or that any real provider keeps the bound id
+  on its command line: the forms follow each provider's documentation or source, unrun here;
 - a real Claude Code's run table: that the build a person runs, native or launched through npm and
   Node, writes `procStart` as the sampled creation time, and whether it rewrites `sessionId` on
   `/clear` or `/resume`. The format and the native build's equality with the Host's sample were

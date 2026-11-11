@@ -127,20 +127,27 @@ reuse it rather than keeping their own tables.
   never identify a provider, and a forged runtime argv[0] cannot replace the image. `cmd /c`,
   PowerShell `-Command` and `-File`, `.cmd`, `.bat`, and `.ps1` resolve only to the plain command
   they launch; shell syntax never resolves.
+- Provider arguments: `interactive_agent_arguments` returns the provider and the arguments after
+  its program exactly as the classifier read them, and only when it finds the process interactive.
+  A reader of a provider's own command line, such as the Server's conversation id source, uses it,
+  so it never sees a runtime, launcher or wrapper token.
 - Mode: each provider's `AgentModeGrammar` classifies arguments as interactive, noninteractive, or
   unclassified. Anything the grammar does not list is unclassified, and an unreadable command line
   is never interactive. Interactive flags take no value; interactive options consume the next
   argument unless written `--name=value`; interactive optional options are written bare or as
   `--name=value` and never consume the next argument, so `--resume <word>` still leaves `<word>` to
   the positional rule. Each grammar lists the resume option the Server types for its provider and
-  that option's documented short alias. A grammar that requires a command (Kiro Crew and OpenClaw
+  that option's documented short alias, and the launch-time `--session-id` an Agent start passes
+  Grok, Gemini, Qwen Code, Copilot and Pi, with Grok's `-s` alias. OMP's grammar is Pi's without
+  that option, which OMP does not document. A grammar that requires a command (Kiro Crew and OpenClaw
   `chat`, QwenPaw `tui`, Penguin `chat`) leaves every invocation without one of its interactive
   commands unclassified, the bare launch included.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 3: fifteen start-only providers and the required-command
-  grammar joined the registry after version 2's resume options and Qwen entries.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 4: the launch-time session options joined the grammars
+  after version 3's fifteen start-only providers and required-command grammar, and version 2's
+  resume options and Qwen entries.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is
