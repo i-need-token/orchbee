@@ -25,6 +25,7 @@ use crate::{
 
 mod agent_drain;
 mod agent_integration_job;
+mod agent_probe_job;
 mod control;
 mod cwd_validation;
 mod graphics_decode;
@@ -101,6 +102,8 @@ pub enum CapabilityNodeMessage {
     AgentDrainReply(crate::AgentDrainReply),
     AgentIntegrationJobRequest(crate::AgentIntegrationJobRequest),
     AgentIntegrationJobResult(crate::AgentIntegrationJobResult),
+    AgentProbeJobRequest(crate::AgentProbeJobRequest),
+    AgentProbeJobResult(crate::AgentProbeJobResult),
     HostQueryRequest(crate::HostQueryRequest),
     HostQueryResult(crate::HostQueryResult),
 }
@@ -336,6 +339,10 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::AgentIntegrationJobResult(value) => {
             agent_integration_job::encode_result(value)
         }
+        CapabilityNodeMessage::AgentProbeJobRequest(value) => {
+            agent_probe_job::encode_request(value)
+        }
+        CapabilityNodeMessage::AgentProbeJobResult(value) => agent_probe_job::encode_result(value),
         CapabilityNodeMessage::HostQueryRequest(value) => host_query::encode_request(*value),
         CapabilityNodeMessage::HostQueryResult(_) => unreachable!("Host query results use OBNH"),
     }
@@ -435,6 +442,11 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             .map(CapabilityNodeMessage::AgentIntegrationJobRequest),
         Some(agent_integration_job::RESULT_KIND) => agent_integration_job::decode_result(payload)
             .map(CapabilityNodeMessage::AgentIntegrationJobResult),
+        Some(agent_probe_job::REQUEST_KIND) => agent_probe_job::decode_request(payload)
+            .map(CapabilityNodeMessage::AgentProbeJobRequest),
+        Some(agent_probe_job::RESULT_KIND) => {
+            agent_probe_job::decode_result(payload).map(CapabilityNodeMessage::AgentProbeJobResult)
+        }
         Some(host_query::REQUEST_KIND) => {
             host_query::decode_request(payload).map(CapabilityNodeMessage::HostQueryRequest)
         }

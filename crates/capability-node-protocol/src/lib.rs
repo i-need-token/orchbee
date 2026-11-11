@@ -10,6 +10,12 @@ pub use agent_integration_job::{
     AgentIntegrationJobStartOutcome, MAXIMUM_AGENT_INTEGRATION_REPORT_BYTES,
     MAXIMUM_AGENT_INTEGRATION_REQUEST_BYTES,
 };
+mod agent_probe_job;
+pub use agent_probe_job::{
+    AgentProbeJobAction, AgentProbeJobCancelOutcome, AgentProbeJobOutcome,
+    AgentProbeJobPollOutcome, AgentProbeJobRequest, AgentProbeJobResult, AgentProbeJobStartOutcome,
+    AgentProbeResult, MAXIMUM_AGENT_PROBE_COMMAND_BYTES, MAXIMUM_AGENT_PROBE_COMMANDS,
+};
 mod codec;
 mod error;
 mod host_query;

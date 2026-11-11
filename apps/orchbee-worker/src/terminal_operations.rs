@@ -498,6 +498,8 @@ fn run_admitted_with_handoff(
             | CapabilityNodeMessage::PluginJobResult(_)
             | CapabilityNodeMessage::AgentIntegrationJobRequest(_)
             | CapabilityNodeMessage::AgentIntegrationJobResult(_)
+            | CapabilityNodeMessage::AgentProbeJobRequest(_)
+            | CapabilityNodeMessage::AgentProbeJobResult(_)
             | CapabilityNodeMessage::HostQueryRequest(_)
             | CapabilityNodeMessage::HostQueryResult(_) => {
                 return Err(io::Error::new(

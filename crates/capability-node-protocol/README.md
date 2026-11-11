@@ -502,6 +502,28 @@ This crate validates only the byte bounds; it never parses the contract document
 cover every action and outcome arm, both document bounds, action-to-outcome admission, and
 trailing bytes.
 
+## Agent probe job messages
+
+OBCN kind 37 `AgentProbeJobRequest` and kind 38 `AgentProbeJobResult` carry the node's one Agent
+probe job, which answers whether each named command is found on the search path a newly started
+shell would use. A request contains operation ID (16 bytes), Worker ID (16), Worker generation
+(u64), then an action tag: 1 `Start` with a u8 count of 1 through 64 command names, each a u8
+length and 1 through 64 bytes of visible ASCII without `"` or `'`; 2 `Poll` with a job ID (16);
+or 3 `Cancel` with a job ID (16). The job ID is the Start operation's own operation ID. A name is
+one bare command word, never a path, an argument or a command line.
+
+A result echoes the operation ID (16), the action tag, and the job ID (16), then one
+action-scoped outcome byte. Start outcomes: 1 Accepted, 2 Busy (another probe still runs; no
+effect), 3 Unsupported (this Worker's platform has no probe), 4 SpawnThreadFailed, 5 Dead, or 12
+RejectedFencing. Poll outcomes: 1 Pending; 2 Completed with a u8 count of 1 through 64 result
+bytes, one per requested command in request order: 1 Found, 2 Missing, or 3 Unavailable (the
+query ended without an answer); 3 Abandoned (the job ended without results); 10 Unknown; or 12
+RejectedFencing. Cancel outcomes: 1 Registered or 2 AlreadyTerminal (the results stay observable
+through Poll), 10 Unknown, or 12 RejectedFencing.
+
+Codec tests cover every action and outcome arm, the count and name bounds, the refused name
+bytes, action-to-outcome admission, and trailing bytes.
+
 ## Agent drain messages
 
 OBCN kind 17 `AgentDrainRequest` and kind 18 `AgentDrainReply` carry the Server-initiated drain of

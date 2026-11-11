@@ -1904,6 +1904,12 @@ fn validate_response(
         (_, CapabilityNodeMessage::AgentIntegrationJobResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
+        (_, CapabilityNodeMessage::AgentProbeJobRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::AgentProbeJobResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
         | (WorkerOperationRequest::Titles(_), _)
         | (WorkerOperationRequest::TitleChanges(_), _)
