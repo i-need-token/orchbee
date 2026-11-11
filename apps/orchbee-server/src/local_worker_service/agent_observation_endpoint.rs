@@ -352,7 +352,12 @@ fn acknowledgement_for(accepted: Option<HookGeneration>) -> Option<&'static [u8]
 /// fold (via `state_after_admit`) and again before every POLLOUT write
 /// attempt (inside `advance_ack_write` with a fresh instant).
 fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
-    if ready.intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL) {
+    // Readable data wins over a simultaneous hangup: macOS reports a client that shut down its
+    // writing half after the envelope as POLLIN|POLLHUP (Linux as POLLIN|POLLRDHUP), and the ACK
+    // can still be written back. An error, an invalid descriptor, or a bare hangup ends it.
+    if ready.intersects(PollFlags::POLLERR | PollFlags::POLLNVAL)
+        || (ready.contains(PollFlags::POLLHUP) && !ready.contains(PollFlags::POLLIN))
+    {
         return true;
     }
     match &mut conn.state {
