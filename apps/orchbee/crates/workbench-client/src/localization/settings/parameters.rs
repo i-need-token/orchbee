@@ -1,4 +1,4 @@
-//! Copy inputs selected by the Settings feature. No draft, token, picker, profile or persistence authority.
+//! Copy inputs selected by the Settings page. No page state, token or persistence authority.
 use super::IntegrationStatus;
 use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{
     TerminalDisplayAppearance, TuiColorSource,
 };
 
-/// Semantic row description; drawing masks, enablement and row navigation remain feature-owned.
+/// Semantic row description; focus, availability and navigation remain the page's.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsRow {
     Language,
@@ -27,9 +27,8 @@ pub(crate) enum SettingsRow {
     Sound,
     Scrollback,
     LaunchProfiles,
-    ResetAll,
-    Reload,
-    Save,
+    NewTerminalFolder,
+    PrefixKey,
     Profile,
     ProfileName,
     CommandType,
@@ -42,7 +41,6 @@ pub(crate) enum SettingsRow {
     SetDefault,
     AddProfile,
     DeleteProfile,
-    ResetProfiles,
     Back,
     AgentIntegrations,
     Agent(IntegrationId),
@@ -50,20 +48,39 @@ pub(crate) enum SettingsRow {
     RefreshIntegrations,
 }
 
-/// The selected category label, including the general action footer.
+/// One entry of the page's left column.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsCategory {
     General,
     Appearance,
+    Themes,
     Terminal,
     Notifications,
-    LaunchProfiles,
-    AgentIntegrations,
-    LocalAgentAdapters,
-    RemoteAgentHosts,
+    Keyboard,
+    Agents,
 }
 
-/// One already-selected canonical finite value, without its mutable choice picker.
+/// One group heading; some groups have none.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SettingsGroup {
+    Language,
+    AfterRestart,
+    AppAppearance,
+    TerminalColors,
+    LightThemes,
+    DarkThemes,
+    SelectionKeys,
+    Output,
+    LaunchProfiles,
+    WhenToNotify,
+    SoundDelivery,
+    Prefix,
+    AgentIntegrations,
+    LocalAgents,
+    RemoteHosts,
+}
+
+/// One already-selected canonical finite value, without its open list.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsChoice {
     Locale(SettingsLocale),
@@ -76,7 +93,7 @@ pub(crate) enum SettingsChoice {
     CompletionReminders(CompletionReminderMode),
 }
 
-/// A settings file the page cannot use, for its state line; the path is the Server's spelling.
+/// A settings file the page cannot use, for its file line; the path is the Server's spelling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsFileFact<'a> {
     SyntaxError {
@@ -89,21 +106,12 @@ pub(crate) enum SettingsFileFact<'a> {
     },
 }
 
-/// Shared save-feedback priority selected from the draft owner's reconciliation facts.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SettingsDraftState {
-    Unknown,
-    SourceChanged,
-    Dirty,
-    Clean,
-}
-
 /// A selected row value; only the displayed value crosses the text boundary.
 pub(crate) enum SettingsValue<'a> {
     Choice(SettingsChoice),
     Text(&'a str),
     Toggle(bool),
-    Integer(u64),
+    Seconds(u64),
     ScrollbackMegabytes(String),
     ProfileName(Option<&'a str>),
     SystemShell,
@@ -133,7 +141,7 @@ pub(crate) enum SettingsFieldRequirement {
     Argument,
 }
 
-/// A field rule or one feature-selected explanation; text does not inspect the draft.
+/// A field rule or one page-selected explanation; text does not inspect the page.
 #[derive(Clone, Copy)]
 pub(crate) enum SettingsDetail<'a> {
     Field {
@@ -143,18 +151,11 @@ pub(crate) enum SettingsDetail<'a> {
     Message(SettingsDetailKind),
 }
 
-/// Details selected in confirmation/validation/availability/preview order by the draft owner.
-#[derive(Clone, Copy)]
+/// The launch-profile editor's line, in confirmation, validation and availability order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsDetailKind {
-    ConfirmResetAll,
-    ConfirmResetProfiles,
-    ConfirmReload,
     ConfirmDeleteProfile,
     InvalidValue,
-    SourceChangedBeforeSave,
-    UnknownSave,
-    ConflictBeforeSave,
-    NoChanges,
     CustomColorsRequired,
     TruecolorRequired,
     LoginUnsupported,
@@ -164,18 +165,6 @@ pub(crate) enum SettingsDetailKind {
     AlreadyDefault,
     Unavailable,
     LiteralArguments,
-    UnknownPreview,
-    LocalPreview,
-    CopyAfterSave,
-    TrimAgentsAfterSave,
-    ResumeAgentsAfterSave,
-    RestoreOutputAfterSave,
-    AgentNotificationsAfterSave,
-    CompletionAfterSave,
-    SoundAfterSave,
-    ScrollbackAfterSave,
-    LaunchProfilesAfterSave,
-    DeviceSettings,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -184,28 +173,22 @@ pub(crate) enum SettingUnit {
     Bytes,
 }
 
-/// The outcome a Settings child step's primary names.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SettingsAcceptLabel {
-    Apply,
-    Reset,
-    Reload,
-    Delete,
-}
-
-/// Semantic label paired with one locally effective Settings binding group.
+/// Semantic label paired with one group of keys the page answers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsHintLabel {
-    Search,
-    Save,
     Close,
     Back,
     Cancel,
     Confirm,
     Accept,
-    ActivateEdit,
-    Select,
+    Move,
+    Switch,
+    Open,
     Change,
     Toggle,
+    Select,
+    Search,
+    GoTo,
+    Restore,
     Explain,
 }

@@ -1,22 +1,25 @@
-//! A bounded settings draft. Storage, transport and live application remain separate owners.
+//! The Settings page: every change is one edit the Server applies at once. Storage, transport
+//! and live application remain separate owners.
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_agent_integration::IntegrationId;
-use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{
-    SettingChange, SettingsFile, SettingsOperation, SettingsSnapshot, UserLaunchField,
-    UserSettingsValues,
+    SettingScalar, SettingsFile, SettingsOperation, SettingsSnapshot, UserSettingsValues,
 };
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
-mod browse;
-pub(crate) use browse::Entry;
+mod catalog;
+pub(crate) use catalog::{Category, Entry, Group};
 mod choices;
 pub(crate) use choices::{Choice, ChoicePicker};
+mod editing;
 mod input;
 mod integrations;
 pub(crate) use integrations::{Diagnosis, IntegrationJob, Integrations, JobEnd};
 mod metadata;
+mod page;
+use page::{PageState, Pending};
+pub(crate) use page::{PageView, Pane};
 mod rows;
 #[cfg(any(test, feature = "test-support"))]
 mod test_support;
@@ -24,29 +27,19 @@ mod test_support;
 mod tests;
 mod text;
 mod values;
-pub(crate) use input::{SettingsHintLabel, footer_bindings, key_edit, key_edit_for_view};
+pub(crate) use input::{footer_bindings, key_edit, key_edit_for_view};
 #[cfg(test)]
 pub(crate) use metadata::SETTINGS;
 #[cfg(test)]
 use metadata::SettingEffect;
 #[cfg(test)]
 use metadata::SettingUnit;
-pub(crate) use metadata::{
-    SettingAvailability, SettingCategory, SettingControl, setting, setting_for_row,
-};
+pub(crate) use metadata::{SettingAvailability, SettingControl, setting, setting_for_row};
 pub(crate) use rows::{Page, Row};
 pub(crate) use values::scrollback_megabytes;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Token(u64);
-/// The Settings row that presents a launch-profile field, for Save-failure focus.
-fn invalid_row(field: UserLaunchField) -> Row {
-    match field {
-        UserLaunchField::Name => Row::ProfileName,
-        UserLaunchField::Executable => Row::Executable,
-        UserLaunchField::Argument(_) => Row::ArgumentValue,
-    }
-}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsInputReadiness {
     Recovery,
@@ -64,43 +57,24 @@ pub struct SettingsInputContext {
     pub(crate) readiness: SettingsInputReadiness,
     pub(crate) remaining_text_bytes: usize,
 }
-/// Geometry evidence returned by the Settings renderer for one completed frame.
+/// Geometry evidence returned by the Settings renderer for one completed frame: the right
+/// column's first line and line count, and whether it showed one column at a time.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SettingsDraw {
     token: Token,
-    rows: Option<(usize, usize)>,
-    painted: u64,
+    lines: Option<(usize, usize)>,
+    narrow: bool,
 }
 impl SettingsDraw {
-    /// Records the painted slice of a finite-choice child, independently of parent rows.
-    pub(crate) const fn picker(token: Token, first: usize, visible: usize) -> Self {
-        Self {
-            token,
-            rows: Some((first, visible)),
-            painted: 0,
-        }
-    }
     pub(crate) const fn surface(token: Token) -> Self {
         Self {
             token,
-            rows: None,
-            painted: 0,
+            lines: None,
+            narrow: false,
         }
     }
     pub(crate) const fn token(self) -> Token {
         self.token
-    }
-    pub(crate) const fn first_visible(self) -> Option<usize> {
-        match self.rows {
-            Some((first, _)) => Some(first),
-            None => None,
-        }
-    }
-    pub(crate) const fn visible_rows(self) -> Option<usize> {
-        match self.rows {
-            Some((_, visible)) => Some(visible),
-            None => None,
-        }
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -113,38 +87,71 @@ pub(crate) enum AdjustmentStep {
     Small,
     Large,
 }
-/// Painted settings controls retain the same draft authority as keyboard edits.
+/// Painted controls act with the same authority as keys.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Control {
     Adjust {
         row: Row,
         forward: bool,
     },
-    Accept,
     Back,
     Close,
     Search,
+    Category(Category),
+    /// Restores one row's keys to their defaults.
+    Restore(Row),
     Choose(Choice),
     /// One Agent row's auxiliary action: open its read-only diagnosis.
     Explain(IntegrationId),
 }
-/// The confirmed settings a draft starts from: the snapshot's revision orders observations, and
-/// its values are the common setting values the file gives.
+/// The newest settings the Server confirmed: the revision orders observations, `values` are the
+/// common values the file gives, `set` names the keys the file sets.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct Basis {
+pub(crate) struct Confirmed {
     pub(crate) revision: u64,
     pub(crate) values: UserSettingsValues,
+    file_path: Option<String>,
+    set: Vec<String>,
+    texts: Vec<(&'static str, Option<String>)>,
 }
-impl Basis {
+impl Confirmed {
     pub(crate) fn of(snapshot: &SettingsSnapshot) -> Self {
+        let text = |key: &'static str| {
+            let value = orchbee_workbench_protocol::SettingPath::parse(key)
+                .ok()
+                .and_then(|path| snapshot.values.get(&path).cloned().flatten());
+            (
+                key,
+                match value {
+                    Some(SettingScalar::Text(text)) => Some(text),
+                    _ => None,
+                },
+            )
+        };
         Self {
             revision: snapshot.revision.value(),
             values: orchbee_local_runtime::snapshot_values(snapshot),
+            file_path: snapshot.file_path.clone(),
+            set: snapshot
+                .set
+                .iter()
+                .map(|key| key.as_str().to_owned())
+                .collect(),
+            texts: vec![text("terminal.new_cwd"), text("keys.prefix")],
         }
     }
+    fn sets(&self, key: &str) -> bool {
+        self.set.iter().any(|set| set == key)
+    }
+    fn text(&self, key: &str) -> Option<&str> {
+        self.texts
+            .iter()
+            .find(|(candidate, _)| *candidate == key)
+            .and_then(|(_, value)| value.as_deref())
+    }
 }
-/// What the newest snapshot says of the settings file, for the page's state line. The values a
-/// draft starts from stay the last valid ones whatever the file holds.
+/// What the newest snapshot says of the settings file, for the page's file line. The values the
+/// page shows stay the last valid ones whatever the file holds.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) enum FileState {
     /// The file parses, or there is none and the defaults apply.
@@ -177,19 +184,21 @@ pub(crate) enum Edit {
     Previous,
     #[cfg(any(test, feature = "test-support"))]
     Select(Row),
+    /// `←`/`→`: moves between the columns, cycles a selector, or moves a text cursor.
     Adjust(bool),
-    AdjustLarge(bool),
+    /// `Tab`/`Shift+Tab`: moves focus to the rows or back to the categories.
+    Pane(bool),
     Activate,
     Cancel,
     Insert(char),
     Backspace,
+    /// Deletes after a text cursor; on a changed row, restores its default.
     Delete,
     Home,
     End,
     /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`) in a text field.
     Line(LineKey),
     Search,
-    Save,
     Page(bool),
     /// Opens or reruns the selected Agent's diagnosis.
     Explain,
@@ -198,544 +207,16 @@ pub(crate) struct Submission {
     pub(crate) token: Token,
     pub(crate) operation: SettingsOperation,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Confirmation {
-    ResetAll,
-    ResetProfiles,
-    Reload,
-    DeleteProfile,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Observation {
-    Unchanged,
-    Refreshed,
-    Conflict,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Reconciliation {
-    SourceChanged,
-    OutcomeUnknown,
-}
-#[derive(Clone, Copy)]
-pub(crate) struct DraftView<'a> {
-    pub(crate) login_shell_supported: bool,
-    /// The host shows fewer than 24-bit colors, so named themes are unavailable.
-    pub(crate) reduced_color: bool,
-    pub(crate) token: Token,
-    pub(crate) values: &'a UserSettingsValues,
-    pub(crate) basis_values: &'a UserSettingsValues,
-    #[cfg(test)]
-    pub(crate) basis_revision: u64,
-    #[cfg(test)]
-    pub(crate) effective_values: &'a UserSettingsValues,
-    #[cfg(test)]
-    pub(crate) effective_revision: u64,
-    pub(crate) selected: Row,
-    pub(crate) dirty: bool,
-    /// Projected from the draft owner's external-update and dismissal guard.
-    pub(crate) active_task: bool,
-    pub(crate) conflict: bool,
-    pub(crate) reconciliation: Option<Reconciliation>,
-    /// The newest snapshot's file state; the state line names a file that cannot be used.
-    pub(crate) file: &'a FileState,
-    pub(crate) page: Page,
-    /// Requested first row. Renderers clamp it for their concrete visible height.
-    pub(crate) viewport: usize,
-    /// Keyboard navigation reveals the anchor; manual scrolling preserves the requested viewport.
-    pub(crate) follow_selection: bool,
-    pub(crate) profile: usize,
-    pub(crate) argument: usize,
-    pub(crate) text: Option<(&'a str, usize)>,
-    pub(crate) invalid: bool,
-    /// The profile and field of the first invalid value found by the last Save
-    /// attempt; `None` keeps the generic invalid-value copy.
-    pub(crate) invalid_field: Option<(usize, UserLaunchField)>,
-    pub(crate) confirmation: Option<Confirmation>,
-    pub(crate) query: &'a str,
-    pub(crate) search_cursor: usize,
-    pub(crate) searching: bool,
-    pub(crate) picker: Option<ChoicePicker>,
-    /// Agent integrations outlive any one draft; a local origin alone offers them.
-    pub(crate) integrations: &'a Integrations,
-    pub(crate) integrations_available: bool,
-    reset_all: bool,
-    reset_profiles: bool,
-}
-impl DraftView<'_> {
-    pub(crate) fn entries(self) -> Vec<Entry> {
-        browse::entries(self.page, self.query, self.integrations_available)
-    }
-
-    pub(crate) fn content_rows(self) -> Vec<Row> {
-        self.entries()
-            .into_iter()
-            .filter_map(|entry| match entry {
-                Entry::Setting(row) => Some(row),
-                Entry::Heading(_) => None,
-            })
-            .collect()
-    }
-
-    fn navigation_rows(self) -> Vec<Row> {
-        self.content_rows()
-            .into_iter()
-            .chain(self.page.footer_rows().iter().copied())
-            .collect()
-    }
-
-    pub(crate) fn first_visible(self, visible: usize) -> usize {
-        let entries = self.entries();
-        let visible = visible.max(1);
-        let maximum = entries.len().saturating_sub(visible);
-        let requested = self.viewport.min(maximum);
-        if !self.follow_selection {
-            return requested;
-        }
-        let Some(selected) = entries
-            .iter()
-            .position(|entry| *entry == Entry::Setting(self.selected))
-        else {
-            return requested;
-        };
-        // Keep a section title beside its first focused row whenever both fit.
-        let reveal =
-            if selected > 0 && matches!(entries[selected - 1], Entry::Heading(_)) && visible > 1 {
-                selected - 1
-            } else {
-                selected
-            };
-        if selected < requested {
-            reveal
-        } else if selected >= requested.saturating_add(visible) {
-            selected.saturating_add(1).saturating_sub(visible)
-        } else {
-            requested
-        }
-    }
-
-    pub(crate) fn presentation(self, visible: usize) -> SettingsDraw {
-        let entries = self.entries();
-        let visible = visible.max(1).min(entries.len());
-        let first = self.first_visible(visible);
-        let painted = entries
-            .iter()
-            .skip(first)
-            .take(visible)
-            .filter_map(|entry| match entry {
-                Entry::Setting(row) => Some(*row),
-                Entry::Heading(_) => None,
-            })
-            .chain(
-                if self.searching {
-                    &[][..]
-                } else {
-                    self.page.footer_rows()
-                }
-                .iter()
-                .copied(),
-            )
-            .fold(0, |mask, row| mask | row.mask());
-        SettingsDraw {
-            token: self.token,
-            rows: Some((first, visible)),
-            painted,
-        }
-    }
-
-    pub(crate) fn adjustment(self, row: Row) -> Option<Adjustment> {
-        let available = |index: usize, len: usize| Adjustment {
-            backward: len > 1 && index < len,
-            forward: len > 1 && index < len,
-        };
-        match row {
-            Row::CompletionThreshold => {
-                let SettingControl::BoundedInteger {
-                    minimum, maximum, ..
-                } = setting(UserSettingsField::CompletionReminderMinimumSeconds).control
-                else {
-                    unreachable!("integer preference metadata")
-                };
-                let current = u64::from(self.values.completion_reminder_minimum_seconds);
-                Some(Adjustment {
-                    backward: current > minimum,
-                    forward: current < maximum,
-                })
-            }
-            Row::Scrollback => {
-                let SettingControl::BoundedInteger {
-                    minimum, maximum, ..
-                } = setting(UserSettingsField::ScrollbackBytes).control
-                else {
-                    unreachable!("integer preference metadata")
-                };
-                let current = u64::from(self.values.scrollback_bytes);
-                Some(Adjustment {
-                    backward: current > minimum,
-                    forward: current < maximum,
-                })
-            }
-            Row::Profile => Some(available(
-                self.profile,
-                self.values.launch_profiles.profiles.len(),
-            )),
-            Row::Argument => {
-                let arguments = match &self.values.launch_profiles.profiles[self.profile].command {
-                    orchbee_workbench_protocol::UserLaunchCommand::CustomExecutable {
-                        arguments,
-                        ..
-                    } => arguments,
-                    orchbee_workbench_protocol::UserLaunchCommand::SystemShell { .. } => {
-                        return Some(Adjustment {
-                            backward: false,
-                            forward: false,
-                        });
-                    }
-                };
-                Some(available(self.argument, arguments.len()))
-            }
-            _ => None,
-        }
-    }
-
-    pub(crate) fn checked(self, row: Row) -> Option<bool> {
-        match row {
-            Row::Agent(id) => {
-                Some(self.integrations.row(id).state == orchbee_agent_integration::State::Enabled)
-            }
-            Row::CopyOnSelect => Some(self.values.copy_on_select),
-            Row::TrimAgents => Some(self.values.trim_trailing_blank_rows_for_agents),
-            Row::ResumeAgents => Some(self.values.resume_agents_on_restore),
-            Row::RestoreOutput => Some(self.values.restore_terminal_output),
-            Row::Sound => Some(self.values.sound_enabled),
-            Row::Login => match &self.values.launch_profiles.profiles[self.profile].command {
-                orchbee_workbench_protocol::UserLaunchCommand::SystemShell { login } => {
-                    Some(*login)
-                }
-                orchbee_workbench_protocol::UserLaunchCommand::CustomExecutable { .. } => None,
-            },
-            _ => None,
-        }
-    }
-
-    pub(crate) fn changed(self, row: Row) -> bool {
-        let key = setting_for_row(row)
-            .map(|metadata| metadata.key)
-            .or_else(|| {
-                matches!(
-                    row,
-                    Row::Profile
-                        | Row::ProfileName
-                        | Row::CommandType
-                        | Row::Login
-                        | Row::Executable
-                        | Row::Argument
-                        | Row::ArgumentValue
-                        | Row::AddArgument
-                        | Row::DeleteArgument
-                        | Row::SetDefault
-                        | Row::AddProfile
-                        | Row::DeleteProfile
-                )
-                .then_some(UserSettingsField::LaunchProfiles)
-            });
-        let Some(key) = key else {
-            return false;
-        };
-        if self.reset_all || self.reset_profiles && key == UserSettingsField::LaunchProfiles {
-            return true;
-        }
-        match key {
-            UserSettingsField::Locale => self.values.locale != self.basis_values.locale,
-            UserSettingsField::LightTheme => {
-                self.values.light_theme != self.basis_values.light_theme
-            }
-            UserSettingsField::DarkTheme => self.values.dark_theme != self.basis_values.dark_theme,
-            UserSettingsField::TuiColorSource => {
-                self.values.tui_color_source != self.basis_values.tui_color_source
-            }
-            UserSettingsField::ApplicationTheme => {
-                self.values.application_theme != self.basis_values.application_theme
-            }
-            UserSettingsField::TerminalDisplayTheme => {
-                self.values.terminal_display_theme != self.basis_values.terminal_display_theme
-            }
-            UserSettingsField::CustomForeground => {
-                self.values.custom_foreground != self.basis_values.custom_foreground
-            }
-            UserSettingsField::CustomBackground => {
-                self.values.custom_background != self.basis_values.custom_background
-            }
-            UserSettingsField::CopyOnSelect => {
-                self.values.copy_on_select != self.basis_values.copy_on_select
-            }
-            UserSettingsField::TrimTrailingBlankRowsForAgents => {
-                self.values.trim_trailing_blank_rows_for_agents
-                    != self.basis_values.trim_trailing_blank_rows_for_agents
-            }
-            UserSettingsField::ResumeAgentsOnRestore => {
-                self.values.resume_agents_on_restore != self.basis_values.resume_agents_on_restore
-            }
-            UserSettingsField::RestoreTerminalOutput => {
-                self.values.restore_terminal_output != self.basis_values.restore_terminal_output
-            }
-            UserSettingsField::AgentNotificationMode => {
-                self.values.agent_notification_mode != self.basis_values.agent_notification_mode
-            }
-            UserSettingsField::CompletionReminderMode => {
-                self.values.completion_reminder_mode != self.basis_values.completion_reminder_mode
-            }
-            UserSettingsField::CompletionReminderMinimumSeconds => {
-                self.values.completion_reminder_minimum_seconds
-                    != self.basis_values.completion_reminder_minimum_seconds
-            }
-            UserSettingsField::SoundEnabled => {
-                self.values.sound_enabled != self.basis_values.sound_enabled
-            }
-            UserSettingsField::ScrollbackBytes => {
-                self.values.scrollback_bytes != self.basis_values.scrollback_bytes
-            }
-            UserSettingsField::LaunchProfiles => {
-                self.values.launch_profiles != self.basis_values.launch_profiles
-            }
-        }
-    }
-
-    pub(crate) fn enabled(self, row: Row) -> bool {
-        use orchbee_workbench_protocol::UserLaunchCommand;
-        // Integration rows act through the Worker, independently of the settings file.
-        match row {
-            Row::Agent(id) => return self.integrations.block(id).is_none(),
-            Row::RefreshIntegrations => return !self.integrations.pending(),
-            Row::RemoteHosts => return false,
-            Row::AgentIntegrations | Row::Back => return true,
-            _ => {}
-        }
-        let catalog = &self.values.launch_profiles;
-        let profile = &catalog.profiles[self.profile];
-        let arguments = match &profile.command {
-            UserLaunchCommand::CustomExecutable { arguments, .. } => Some(arguments),
-            UserLaunchCommand::SystemShell { .. } => None,
-        };
-        match row {
-            Row::Save => self.dirty && !self.conflict && self.reconciliation.is_none(),
-            row if setting_for_row(row).is_some_and(|metadata| {
-                metadata.availability == SettingAvailability::TerminalDisplayThemeCustom
-            }) =>
-            {
-                self.values.terminal_display_theme
-                    == orchbee_workbench_protocol::TerminalDisplayAppearance::Custom
-            }
-            row if setting_for_row(row).is_some_and(|metadata| {
-                metadata.availability == SettingAvailability::NamedThemes
-            }) =>
-            {
-                !self.reduced_color
-            }
-            Row::Profile => catalog.profiles.len() > 1,
-            Row::Login => {
-                self.login_shell_supported
-                    && matches!(profile.command, UserLaunchCommand::SystemShell { .. })
-            }
-            Row::Executable => arguments.is_some(),
-            Row::Argument | Row::ArgumentValue | Row::DeleteArgument => {
-                arguments.is_some_and(|args| self.argument < args.len())
-            }
-            Row::AddArgument => arguments.is_some_and(|args| args.len() < 128),
-            Row::SetDefault => profile.id != catalog.default_profile_id,
-            Row::AddProfile => catalog.profiles.len() < 64,
-            Row::DeleteProfile => catalog.profiles.len() > 1,
-            _ => true,
-        }
-    }
-}
 #[derive(Clone, Copy)]
 pub(crate) enum View<'a> {
     Loading { token: Token },
-    Draft(DraftView<'a>),
-    Saving { token: Token },
+    Page(PageView<'a>),
 }
 impl View<'_> {
-    /// Only an idle root draft may expose its painted Close action to the backdrop.
-    pub(crate) fn allows_backdrop_close(self) -> bool {
-        matches!(self, Self::Draft(draft) if !draft.active_task)
-    }
-
     pub(crate) const fn token(self) -> Token {
         match self {
-            Self::Loading { token } | Self::Saving { token } => token,
-            Self::Draft(draft) => draft.token,
-        }
-    }
-}
-struct Draft {
-    login_shell_supported: bool,
-    reduced_color: bool,
-    token: Token,
-    basis: Basis,
-    effective: Basis,
-    file: FileState,
-    values: UserSettingsValues,
-    row: Row,
-    page: Page,
-    viewport: usize,
-    visible_rows: usize,
-    follow_selection: bool,
-    activation_ready: bool,
-    /// Where each open child page returns, innermost last.
-    parents: Vec<Navigation>,
-    integrations_available: bool,
-    profile: usize,
-    argument: usize,
-    text: Option<LineEditor>,
-    invalid: bool,
-    invalid_field: Option<(usize, UserLaunchField)>,
-    reset_all: bool,
-    reset_profiles: bool,
-    confirmation: Option<Confirmation>,
-    reconciliation: Option<Reconciliation>,
-    drawn: bool,
-    filter: LineEditor,
-    browse: BrowseMode,
-}
-
-#[derive(Clone, Copy, Default)]
-enum BrowseMode {
-    #[default]
-    Browse,
-    Search,
-    Picker(ChoicePicker),
-}
-#[derive(Clone, Copy)]
-struct Navigation {
-    page: Page,
-    row: Row,
-    viewport: usize,
-    follow_selection: bool,
-}
-impl Draft {
-    fn content_rows(&self) -> Vec<Row> {
-        browse::entries(self.page, self.filter.text(), self.integrations_available)
-            .into_iter()
-            .filter_map(|entry| match entry {
-                Entry::Setting(row) => Some(row),
-                Entry::Heading(_) => None,
-            })
-            .collect()
-    }
-
-    fn reconcile_search(&mut self) {
-        let rows = self.content_rows();
-        if !rows.contains(&self.row) {
-            self.row = rows.first().copied().unwrap_or(Row::Save);
-        }
-        self.viewport = 0;
-        self.follow_selection = true;
-    }
-
-    fn dirty(&self) -> bool {
-        self.reset_all || self.reset_profiles || self.values != self.basis.values
-    }
-
-    fn has_active_task(&self) -> bool {
-        self.dirty()
-            || self.text.is_some()
-            || self.confirmation.is_some()
-            || self.page == Page::Profiles
-            || self.reconciliation.is_some()
-            || !matches!(self.browse, BrowseMode::Browse)
-            || !self.filter.text().is_empty()
-    }
-
-    fn enter_page(&mut self, page: Page, row: Row) {
-        self.parents.push(Navigation {
-            page: self.page,
-            row: self.row,
-            viewport: self.viewport,
-            follow_selection: self.follow_selection,
-        });
-        self.page = page;
-        self.row = row;
-        self.viewport = 0;
-        self.visible_rows = 0;
-        self.follow_selection = true;
-        self.activation_ready = false;
-    }
-
-    fn enter_profiles(&mut self) {
-        self.enter_page(Page::Profiles, Row::Profile);
-    }
-
-    fn return_to_parent(&mut self) {
-        let navigation = self.parents.pop().unwrap_or(Navigation {
-            page: Page::General,
-            row: match self.page {
-                Page::Integrations | Page::Diagnosis(_) => Row::AgentIntegrations,
-                Page::General | Page::Profiles => Row::LaunchProfiles,
-            },
-            viewport: 0,
-            follow_selection: true,
-        });
-        self.page = navigation.page;
-        self.row = navigation.row;
-        self.viewport = navigation.viewport;
-        self.visible_rows = 0;
-        self.follow_selection = navigation.follow_selection;
-        self.activation_ready = false;
-    }
-
-    /// The one batch edit Save sends: each changed key, and each key a reset claims restored to
-    /// its default unless the draft then changed it again.
-    fn changes(&self) -> Vec<SettingChange> {
-        let (baseline, restored) = if self.reset_all {
-            (UserSettingsValues::default(), &UserSettingsField::ALL[..])
-        } else if self.reset_profiles {
-            let mut baseline = self.basis.values.clone();
-            baseline.launch_profiles = Default::default();
-            (baseline, &[UserSettingsField::LaunchProfiles][..])
-        } else {
-            (self.basis.values.clone(), &[][..])
-        };
-        orchbee_local_runtime::value_changes(&baseline, &self.values, restored)
-    }
-    fn project<'a>(&'a self, integrations: &'a Integrations) -> DraftView<'a> {
-        DraftView {
-            login_shell_supported: self.login_shell_supported,
-            reduced_color: self.reduced_color,
-            token: self.token,
-            values: &self.values,
-            basis_values: &self.basis.values,
-            #[cfg(test)]
-            basis_revision: self.basis.revision,
-            #[cfg(test)]
-            effective_values: &self.effective.values,
-            #[cfg(test)]
-            effective_revision: self.effective.revision,
-            selected: self.row,
-            dirty: self.dirty(),
-            active_task: self.has_active_task() || self.page.is_child(),
-            conflict: self.basis.values != self.effective.values,
-            reconciliation: self.reconciliation,
-            file: &self.file,
-            page: self.page,
-            viewport: self.viewport,
-            follow_selection: self.follow_selection,
-            profile: self.profile,
-            argument: self.argument,
-            text: self.text.as_ref().map(|text| (text.text(), text.cursor())),
-            invalid: self.invalid,
-            invalid_field: self.invalid_field,
-            confirmation: self.confirmation,
-            query: self.filter.text(),
-            search_cursor: self.filter.cursor(),
-            searching: matches!(self.browse, BrowseMode::Search),
-            picker: match self.browse {
-                BrowseMode::Picker(picker) => Some(picker),
-                _ => None,
-            },
-            integrations,
-            integrations_available: self.integrations_available,
-            reset_all: self.reset_all,
-            reset_profiles: self.reset_profiles,
+            Self::Loading { token } => token,
+            Self::Page(page) => page.token(),
         }
     }
 }
@@ -747,11 +228,7 @@ enum State {
         token: Token,
         visible: bool,
     },
-    Draft(Box<Draft>),
-    Saving {
-        draft: Box<Draft>,
-        visible: bool,
-    },
+    Open(Box<PageState>),
 }
 #[derive(Default)]
 pub(crate) struct Editor {
@@ -774,27 +251,23 @@ impl Editor {
             ..Self::default()
         }
     }
-    /// Named-theme rows are unavailable on a host below truecolor; an open picker on one closes
-    /// without committing its candidate. Returns whether a visible draft needs a new paint.
+    /// Named themes are unavailable on a host below truecolor; an open list of one closes
+    /// without applying its candidate. Returns whether a visible page needs a new paint.
     pub(crate) fn configure_reduced_color(&mut self, reduced_color: bool) -> bool {
         if self.reduced_color == reduced_color {
             return false;
         }
         self.reduced_color = reduced_color;
-        if let State::Draft(draft)
-        | State::Saving {
-            draft,
-            visible: true,
-        } = &mut self.state
-        {
-            draft.reduced_color = reduced_color;
+        if let State::Open(page) = &mut self.state {
+            page.reduced_color = reduced_color;
             if reduced_color
-                && let BrowseMode::Picker(picker) = draft.browse
-                && setting_for_row(picker.row).is_some_and(|metadata| {
-                    metadata.availability == SettingAvailability::NamedThemes
+                && page.picker.is_some_and(|picker| {
+                    setting_for_row(picker.row()).is_some_and(|metadata| {
+                        metadata.availability == SettingAvailability::NamedThemes
+                    })
                 })
             {
-                draft.browse = BrowseMode::Browse;
+                page.picker = None;
             }
         }
         self.redraw();
@@ -817,7 +290,7 @@ impl Editor {
         };
         Some(token)
     }
-    pub(crate) fn loaded(&mut self, token: Token, basis: Basis) -> bool {
+    pub(crate) fn loaded(&mut self, token: Token, snapshot: &SettingsSnapshot) -> bool {
         if !matches!(self.state, State::Loading { token: current, .. } if current == token) {
             return false;
         }
@@ -831,122 +304,92 @@ impl Editor {
             self.state = State::Closed;
             return false;
         };
-        self.state = State::Draft(Box::new(Draft {
+        self.file = FileState::of(snapshot);
+        let confirmed = Confirmed::of(snapshot);
+        let mut page = PageState {
             login_shell_supported: self.login_shell_supported,
             reduced_color: self.reduced_color,
+            integrations_available: self.integrations_available,
             token,
-            values: basis.values.clone(),
-            effective: basis.clone(),
-            basis,
+            values: confirmed.values.clone(),
+            confirmed,
             file: self.file.clone(),
+            pending: None,
+            category: Category::General,
+            pane: Pane::Categories,
             row: Row::Language,
             page: Page::General,
+            parents: Vec::new(),
             viewport: 0,
             visible_rows: 0,
             follow_selection: true,
             activation_ready: false,
-            parents: Vec::new(),
-            integrations_available: self.integrations_available,
+            drawn: false,
+            narrow: false,
             profile: 0,
             argument: 0,
             text: None,
             invalid: false,
             invalid_field: None,
-            reset_all: false,
-            reset_profiles: false,
-            confirmation: None,
-            reconciliation: None,
-            drawn: false,
+            confirm_delete: false,
             filter: LineEditor::new(String::new(), LengthLimit::Bytes(256)),
-            browse: BrowseMode::Browse,
-        }));
+            searching: false,
+            picker: None,
+        };
+        page.settle_focus();
+        self.state = State::Open(Box::new(page));
         true
     }
-    /// Clean views follow confirmed settings; active tasks retain their original basis while
-    /// projecting the newest confirmed values independently. A revision no newer than the last
-    /// one observed, or one that changed no value the page shows, is not news.
-    pub(crate) fn observe(&mut self, effective: &Basis) -> Observation {
-        let draft = match &mut self.state {
-            State::Draft(draft) => draft,
-            State::Saving { draft, .. } => {
-                if draft.effective.revision < effective.revision {
-                    draft.effective = effective.clone();
-                }
-                return Observation::Unchanged;
-            }
-            _ => return Observation::Unchanged,
+    /// Follows a newer snapshot: its values show at once unless an edit is in flight, and its
+    /// file state names a file the page cannot use. Returns whether a visible page changed.
+    pub(crate) fn observe(&mut self, snapshot: &SettingsSnapshot) -> bool {
+        let file = FileState::of(snapshot);
+        let file_changed = self.file != file;
+        self.file = file;
+        let State::Open(page) = &mut self.state else {
+            return false;
         };
-        if draft.effective.revision >= effective.revision {
-            return Observation::Unchanged;
+        page.file = self.file.clone();
+        let newer = snapshot.revision.value() > page.confirmed.revision;
+        if newer {
+            page.confirmed = Confirmed::of(snapshot);
+            page.follow_confirmed();
         }
-        let unchanged = draft.effective.values == effective.values;
-        draft.effective = effective.clone();
-        if unchanged {
-            return Observation::Unchanged;
-        }
-        if draft.has_active_task() {
-            self.redraw();
-            return Observation::Conflict;
-        }
-        let selected = &draft.values.launch_profiles.profiles[draft.profile].id;
-        draft.profile = effective
-            .values
-            .launch_profiles
-            .profiles
-            .iter()
-            .position(|profile| &profile.id == selected)
-            .unwrap_or(0);
-        draft.argument = 0;
-        draft.values = effective.values.clone();
-        draft.basis = effective.clone();
-        draft.invalid = false;
-        draft.invalid_field = None;
-        self.redraw();
-        Observation::Refreshed
-    }
-    /// Follows the newest snapshot's file state, whose values may not change with it. Returns
-    /// whether a visible page now names a different file state.
-    pub(crate) fn observe_file(&mut self, file: FileState) -> bool {
-        if self.file == file {
+        if !newer && !file_changed {
             return false;
         }
-        if let State::Draft(draft) | State::Saving { draft, .. } = &mut self.state {
-            draft.file = file.clone();
-        }
-        self.file = file;
         self.redraw();
         self.visible()
     }
-    pub(crate) fn complete(&mut self, token: Token) -> bool {
-        let matches = match &self.state {
-            State::Loading { token: current, .. } => *current == token,
-            State::Saving { draft, .. } => draft.token == token,
-            _ => false,
-        };
-        if matches {
+    /// The Server applied the edit `token` names; the page shows the confirmed values.
+    pub(crate) fn edited(&mut self, token: Token) -> bool {
+        self.settle(token)
+    }
+    /// A read or an edit failed. A failed read closes the page; a refused or unanswered edit
+    /// puts its row back to the confirmed value.
+    pub(crate) fn failed(&mut self, token: Token) -> bool {
+        if matches!(self.state, State::Loading { token: current, .. } if current == token) {
             self.state = State::Closed;
             self.surface_presented = false;
-        }
-        matches
-    }
-    /// Failed or unconfirmed saves retain the exact draft and original basis. An explicit
-    /// reconciliation reason blocks another Save until a matched explicit Open completes.
-    pub(crate) fn failed(&mut self, token: Token, reconciliation: Option<Reconciliation>) -> bool {
-        if matches!(&self.state, State::Saving { draft, .. } if draft.token == token)
-            && let State::Saving { mut draft, visible } = std::mem::take(&mut self.state)
-        {
-            self.surface_presented = false;
-            if visible {
-                draft.drawn = false;
-                draft.activation_ready = false;
-                draft.visible_rows = 0;
-                draft.reconciliation = reconciliation;
-                self.state = State::Draft(draft);
-                self.redraw();
-            }
             return true;
         }
-        self.complete(token)
+        self.settle(token)
+    }
+    fn settle(&mut self, token: Token) -> bool {
+        let State::Open(page) = &mut self.state else {
+            return false;
+        };
+        if page
+            .pending
+            .as_ref()
+            .is_none_or(|pending| pending.token != token)
+        {
+            return false;
+        }
+        page.pending = None;
+        page.follow_confirmed();
+        self.redraw();
+        true
     }
     pub(crate) fn visible(&self) -> bool {
         self.view().is_some()
@@ -972,39 +415,33 @@ impl Editor {
             },
         })
     }
-    pub(crate) fn saving(&self) -> bool {
-        matches!(self.state, State::Saving { .. })
+    /// An edit the Server has not answered.
+    pub(crate) fn in_flight(&self) -> bool {
+        matches!(&self.state, State::Open(page) if page.pending.is_some())
     }
     pub(crate) fn retire(&mut self) {
         self.state = State::Closed;
         self.surface_presented = false;
     }
-    /// Borrows reversible presentation values without publishing runtime preferences.
-    ///
-    /// Locally edited leaves overlay the newest confirmed appearance without rebasing the
-    /// frozen draft. Hidden/replaced episodes and an unknown Save have no preview authority.
-    /// A visible accepted Save retains preview until its confirmed snapshot arrives.
+    /// The appearance the page shows: the confirmed or requested values, with an open list's
+    /// candidate, or a focused theme line not yet in use, previewed over them.
     pub(crate) fn appearance_preview(&self) -> Option<AppearancePreview<'_>> {
-        let draft = match &self.state {
-            State::Draft(draft)
-            | State::Saving {
-                draft,
-                visible: true,
-            } => draft,
-            _ => return None,
+        let State::Open(page) = &self.state else {
+            return None;
         };
-        (draft.reconciliation != Some(Reconciliation::OutcomeUnknown)).then(|| {
-            let mut preview = AppearancePreview::project(
-                &draft.basis.values,
-                &draft.values,
-                &draft.effective.values,
-                draft.reset_all,
-            );
-            if let BrowseMode::Picker(picker) = draft.browse {
-                picker.candidate().preview(&mut preview);
-            }
-            preview
-        })
+        let mut preview = AppearancePreview::of(&page.values);
+        if let Some(picker) = page.picker {
+            picker.candidate().preview(&mut preview);
+        } else if let Row::ThemeOption(theme) = page.row
+            && page.pane == Pane::Rows
+            && !page.searching
+            && page.text.is_none()
+            && !page.reduced_color
+            && !theme.current(&page.values)
+        {
+            Choice::ColorTheme(theme).preview(&mut preview);
+        }
+        Some(preview)
     }
     pub(crate) fn view(&self) -> Option<View<'_>> {
         match &self.state {
@@ -1012,11 +449,7 @@ impl Editor {
                 token,
                 visible: true,
             } => Some(View::Loading { token: *token }),
-            State::Saving {
-                draft,
-                visible: true,
-            } => Some(View::Saving { token: draft.token }),
-            State::Draft(draft) => Some(View::Draft(draft.project(&self.integrations))),
+            State::Open(page) => Some(View::Page(PageView::new(page, &self.integrations))),
             _ => None,
         }
     }
@@ -1027,37 +460,31 @@ impl Editor {
         }
         self.presentation.presented();
         self.surface_presented = true;
-        if let State::Draft(draft) = &mut self.state {
-            draft.drawn = true;
-            if let Some((first, visible)) = draw.rows {
-                draft.visible_rows = visible;
-                if let BrowseMode::Picker(picker) = &mut draft.browse {
-                    picker.viewport = first;
-                    draft.activation_ready =
-                        (first..first.saturating_add(visible)).contains(&picker.cursor);
-                } else {
-                    draft.viewport = first;
-                    draft.activation_ready = draw.painted & draft.row.mask() != 0;
-                }
+        if let State::Open(page) = &mut self.state {
+            page.drawn = true;
+            page.narrow = draw.narrow;
+            if let Some((first, visible)) = draw.lines {
+                page.visible_rows = visible;
+                page.viewport = first;
+                page.activation_ready = page.focus_drawn(first, visible);
             } else {
-                draft.visible_rows = 0;
-                draft.activation_ready = false;
+                page.visible_rows = 0;
+                page.activation_ready = false;
             }
         }
     }
     pub(crate) fn not_presented(&mut self) {
         self.surface_presented = false;
-        if let State::Draft(draft) = &mut self.state {
-            draft.drawn = false;
-            draft.activation_ready = false;
-            draft.visible_rows = 0;
+        if let State::Open(page) = &mut self.state {
+            page.drawn = false;
+            page.activation_ready = false;
+            page.visible_rows = 0;
         }
     }
     /// Settles an evaluated geometry block for this Settings incarnation.
     ///
-    /// A first blocked frame refuses the surface without cancelling accepted
-    /// read/save work. Once a frame has been admitted, the same block only
-    /// suspends interaction and retains the complete local draft.
+    /// A first blocked frame refuses the surface without cancelling an accepted read or edit.
+    /// Once a frame has been admitted, the same block only suspends interaction.
     pub(crate) fn geometry_blocked(&mut self) -> Option<GeometrySettlement> {
         self.view()?;
         self.not_presented();
@@ -1068,11 +495,7 @@ impl Editor {
                     token,
                     visible: false,
                 },
-                State::Saving { draft, .. } => State::Saving {
-                    draft,
-                    visible: false,
-                },
-                State::Draft(_) => State::Closed,
+                State::Open(_) => State::Closed,
                 State::Closed => unreachable!("visible settings state"),
             };
         }
@@ -1080,40 +503,42 @@ impl Editor {
     }
     pub(crate) fn paste(&mut self, text: &str) {
         if self.surface_presented
-            && let State::Draft(draft) = &mut self.state
+            && let State::Open(page) = &mut self.state
         {
-            let editor = if matches!(draft.browse, BrowseMode::Search) {
-                Some(&mut draft.filter)
+            let searching = page.searching;
+            let editor = if searching {
+                Some(&mut page.filter)
             } else {
-                draft.text.as_mut()
+                page.text.as_mut()
             };
             let Some(editor) = editor else { return };
-            draft.invalid = text.contains('\0') || editor.insert(text).is_err();
-            draft.invalid_field = None;
-            if matches!(draft.browse, BrowseMode::Search) {
-                draft.reconcile_search();
+            page.invalid = text.contains('\0') || editor.insert(text).is_err();
+            page.invalid_field = None;
+            if searching {
+                page.viewport = 0;
+                page.follow_selection = true;
+                page.settle_focus();
             }
             self.redraw();
         }
     }
     pub(crate) fn reject_paste(&mut self) {
         if self.surface_presented
-            && let State::Draft(draft) = &mut self.state
-            && (draft.text.is_some() || matches!(draft.browse, BrowseMode::Search))
+            && let State::Open(page) = &mut self.state
+            && (page.text.is_some() || page.searching)
         {
-            draft.invalid = true;
-            draft.invalid_field = None;
+            page.invalid = true;
+            page.invalid_field = None;
             self.redraw();
         }
     }
     pub(crate) fn remaining_text_bytes(&self) -> usize {
         match &self.state {
-            State::Draft(draft) if matches!(draft.browse, BrowseMode::Search) => {
-                256_usize.saturating_sub(draft.filter.text().len())
+            State::Open(page) if page.searching => {
+                256_usize.saturating_sub(page.filter.text().len())
             }
-            State::Draft(draft) => draft.text.as_ref().map_or(0, |text| {
-                draft
-                    .row
+            State::Open(page) => page.text.as_ref().map_or(0, |text| {
+                page.row
                     .text_limit()
                     .unwrap_or(0)
                     .saturating_sub(text.text().len())
@@ -1127,493 +552,10 @@ impl Editor {
             self.surface_presented = false;
             return;
         };
-        if let State::Draft(draft) = &mut self.state {
-            draft.token = token;
-            draft.drawn = false;
-            draft.activation_ready = draft.follow_selection && self.surface_presented;
-        }
-    }
-    pub(crate) fn edit(&mut self, edit: Edit) -> Option<Submission> {
-        if matches!(edit, Edit::Cancel) {
-            let mut closes_surface = false;
-            match &mut self.state {
-                State::Draft(draft) if draft.text.is_some() => {
-                    draft.text = None;
-                    draft.invalid = false;
-                    draft.invalid_field = None;
-                    self.redraw();
-                }
-                State::Draft(draft) if draft.confirmation.is_some() => {
-                    draft.confirmation = None;
-                    self.redraw();
-                }
-                State::Draft(draft) if matches!(draft.browse, BrowseMode::Picker(_)) => {
-                    draft.browse = BrowseMode::Browse;
-                    self.redraw();
-                }
-                State::Draft(draft) if matches!(draft.browse, BrowseMode::Search) => {
-                    draft.browse = BrowseMode::Browse;
-                    draft.filter.clear();
-                    draft.invalid = false;
-                    draft.reconcile_search();
-                    self.redraw();
-                }
-                State::Draft(draft) if draft.page.is_child() => {
-                    draft.return_to_parent();
-                    self.redraw();
-                }
-                State::Draft(draft) if !draft.filter.text().is_empty() => {
-                    draft.filter.clear();
-                    draft.reconcile_search();
-                    self.redraw();
-                }
-                State::Loading { visible, .. } | State::Saving { visible, .. } => {
-                    *visible = false;
-                    closes_surface = true;
-                }
-                _ => {
-                    self.state = State::Closed;
-                    closes_surface = true;
-                }
-            }
-            if closes_surface {
-                self.surface_presented = false;
-            }
-            return None;
-        }
-        let State::Draft(draft) = &mut self.state else {
-            return None;
-        };
-        #[cfg(any(test, feature = "test-support"))]
-        let fixture_selection = matches!(edit, Edit::Select(_));
-        #[cfg(not(any(test, feature = "test-support")))]
-        let fixture_selection = false;
-        if !self.surface_presented && !fixture_selection {
-            return None;
-        }
-        #[cfg(any(test, feature = "test-support"))]
-        if fixture_selection {
-            draft.browse = BrowseMode::Browse;
-        }
-        if draft.text.is_some() {
-            values::edit_text(draft, edit);
-            self.redraw();
-            return None;
-        }
-        if draft.confirmation.is_none() {
-            if let BrowseMode::Picker(mut picker) = draft.browse {
-                match edit {
-                    Edit::Next | Edit::Adjust(true) => picker.navigate(true),
-                    Edit::Previous | Edit::Adjust(false) => picker.navigate(false),
-                    Edit::Home => picker.cursor = 0,
-                    Edit::End => picker.cursor = Choice::options(picker.row).len() - 1,
-                    Edit::Activate if draft.drawn => {
-                        picker.candidate().apply(&mut draft.values);
-                        draft.browse = BrowseMode::Browse;
-                        self.redraw();
-                        return None;
-                    }
-                    _ => return None,
-                }
-                draft.browse = BrowseMode::Picker(picker);
-                self.redraw();
-                return None;
-            }
-            if matches!(draft.browse, BrowseMode::Search) {
-                match edit {
-                    Edit::Activate if draft.content_rows().is_empty() => return None,
-                    Edit::Activate | Edit::Next | Edit::Previous => {
-                        draft.browse = BrowseMode::Browse;
-                        draft.reconcile_search();
-                    }
-                    Edit::Insert(character) => {
-                        draft.invalid = draft.filter.insert(&character.to_string()).is_err()
-                    }
-                    Edit::Backspace => {
-                        draft.filter.backspace();
-                        draft.invalid = false;
-                    }
-                    Edit::Delete => {
-                        draft.filter.delete();
-                        draft.invalid = false;
-                    }
-                    Edit::Adjust(false) => {
-                        draft.filter.left();
-                    }
-                    Edit::Adjust(true) => {
-                        draft.filter.right();
-                    }
-                    Edit::Home => {
-                        draft.filter.home();
-                    }
-                    Edit::End => {
-                        draft.filter.end();
-                    }
-                    Edit::Line(key) => {
-                        draft.invalid = draft.filter.apply(key).is_err();
-                    }
-                    _ => return None,
-                }
-                draft.reconcile_search();
-                self.redraw();
-                return None;
-            }
-            if matches!(edit, Edit::Search) && draft.page == Page::General {
-                draft.browse = BrowseMode::Search;
-                draft.invalid = false;
-                self.redraw();
-                return None;
-            }
-            if matches!(edit, Edit::Explain) {
-                let id = match (draft.page, draft.row) {
-                    (Page::Integrations, Row::Agent(id)) if draft.activation_ready => id,
-                    (Page::Diagnosis(id), _) if draft.drawn => id,
-                    _ => return None,
-                };
-                if !self.integrations.begin(IntegrationJob::Explain(id)) {
-                    return None;
-                }
-                if draft.page == Page::Integrations {
-                    draft.enter_page(Page::Diagnosis(id), Row::Back);
-                }
-                self.redraw();
-                return None;
-            }
-            if matches!(edit, Edit::Save) && draft.page == Page::General && draft.drawn {
-                if !draft.project(&self.integrations).enabled(Row::Save) {
-                    return None;
-                }
-                draft.row = Row::Save;
-                draft.activation_ready = true;
-                return self.edit(Edit::Activate);
-            }
-        }
-        if let Some(confirmation) = draft.confirmation {
-            if !matches!(edit, Edit::Activate) || !draft.drawn {
-                return None;
-            }
-            draft.confirmation = None;
-            draft.invalid = false;
-            draft.invalid_field = None;
-            match confirmation {
-                Confirmation::Reload => {
-                    let token = draft.token;
-                    self.state = State::Loading {
-                        token,
-                        visible: true,
-                    };
-                    self.surface_presented = false;
-                    return Some(Submission {
-                        token,
-                        operation: SettingsOperation::Read {},
-                    });
-                }
-                Confirmation::ResetAll => {
-                    draft.values = UserSettingsValues::default();
-                    draft.reset_all = true;
-                    draft.profile = 0;
-                    draft.argument = 0;
-                }
-                Confirmation::ResetProfiles => {
-                    draft.values.launch_profiles = Default::default();
-                    draft.reset_profiles = true;
-                    draft.profile = 0;
-                    draft.argument = 0;
-                }
-                Confirmation::DeleteProfile => values::delete_profile(draft),
-            }
-            self.redraw();
-            return None;
-        }
-        if matches!(
-            edit,
-            Edit::Activate | Edit::Adjust(_) | Edit::AdjustLarge(_)
-        ) && !draft.activation_ready
-        {
-            return None;
-        }
-        if matches!(
-            edit,
-            Edit::Activate | Edit::Adjust(_) | Edit::AdjustLarge(_)
-        ) && !draft.project(&self.integrations).enabled(draft.row)
-        {
-            return None;
-        }
-        let direction = match edit {
-            Edit::Adjust(forward) | Edit::AdjustLarge(forward) => Some(forward),
-            _ => None,
-        };
-        if let Some(forward) = direction
-            && let Some(adjustment) = draft.project(&self.integrations).adjustment(draft.row)
-            && !(if forward {
-                adjustment.forward
-            } else {
-                adjustment.backward
-            })
-        {
-            return None;
-        }
-        if matches!(edit, Edit::Activate) && draft.row == Row::Save {
-            let changes = draft.changes();
-            if !draft.drawn || changes.is_empty() {
-                return None;
-            }
-            if !draft.values.is_valid() {
-                draft.invalid = true;
-                draft.invalid_field = draft.values.launch_profiles.invalid_field();
-                if let Some((index, field)) = draft.invalid_field {
-                    let row = invalid_row(field);
-                    if draft.page != Page::Profiles {
-                        draft.enter_profiles();
-                    }
-                    draft.profile = index;
-                    draft.argument = match field {
-                        UserLaunchField::Argument(index) => index,
-                        UserLaunchField::Name | UserLaunchField::Executable => 0,
-                    };
-                    draft.row = row;
-                    draft.follow_selection = true;
-                    self.redraw();
-                    return None;
-                }
-                self.redraw();
-                return None;
-            }
-            let token = draft.token;
-            if let State::Draft(draft) = std::mem::take(&mut self.state) {
-                self.state = State::Saving {
-                    draft,
-                    visible: true,
-                };
-            }
-            self.surface_presented = false;
-            return Some(Submission {
-                token,
-                operation: SettingsOperation::Edit { changes },
-            });
-        }
-        let rows = draft.project(&self.integrations).navigation_rows();
-        let index = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
-        draft.invalid = false;
-        draft.invalid_field = None;
-        match edit {
-            Edit::Next => {
-                draft.row = rows[(index + 1) % rows.len()];
-                draft.follow_selection = true;
-            }
-            Edit::Previous => {
-                draft.row = rows[(index + rows.len() - 1) % rows.len()];
-                draft.follow_selection = true;
-            }
-            Edit::Home => {
-                draft.row = rows[0];
-                draft.follow_selection = true;
-            }
-            Edit::End => {
-                draft.row = rows[rows.len() - 1];
-                draft.follow_selection = true;
-            }
-            Edit::Page(forward) => {
-                let amount = draft.visible_rows.saturating_sub(1).max(1);
-                let next = if forward {
-                    index.saturating_add(amount).min(rows.len() - 1)
-                } else {
-                    index.saturating_sub(amount)
-                };
-                draft.row = rows[next];
-                draft.follow_selection = true;
-            }
-            #[cfg(any(test, feature = "test-support"))]
-            Edit::Select(row) if rows.contains(&row) => {
-                draft.row = row;
-                draft.follow_selection = true;
-            }
-            Edit::Adjust(forward) => values::adjust(draft, forward, AdjustmentStep::Small),
-            Edit::AdjustLarge(forward) => values::adjust(draft, forward, AdjustmentStep::Large),
-            Edit::Activate => {
-                let job = match draft.row {
-                    Row::Agent(id) => self.integrations.change(id),
-                    Row::RefreshIntegrations => Some(IntegrationJob::Refresh),
-                    _ => None,
-                };
-                if let Some(job) = job {
-                    self.integrations.begin(job);
-                } else if let Some(picker) = ChoicePicker::open(draft.row, &draft.values) {
-                    draft.browse = BrowseMode::Picker(picker);
-                } else if let Some(limit) = draft.row.text_limit() {
-                    if let Some(value) = values::text(draft) {
-                        draft.text = Some(LineEditor::new(value, LengthLimit::Bytes(limit)));
-                    }
-                } else {
-                    let entering = draft.row == Row::AgentIntegrations;
-                    values::activate(draft);
-                    // Opening the page is the explicit request to inspect providers; opening
-                    // Settings is not. A job still running keeps its own result.
-                    if entering && draft.page == Page::Integrations {
-                        self.integrations.begin(IntegrationJob::Refresh);
-                    }
-                }
-            }
-            _ => {}
-        }
-        self.redraw();
-        None
-    }
-    pub(crate) fn scroll(&mut self, token: Token, up: bool, lines: usize) -> Option<Token> {
-        let State::Draft(draft) = &mut self.state else {
-            return None;
-        };
-        if draft.token == token
-            && draft.drawn
-            && let BrowseMode::Picker(picker) = &mut draft.browse
-        {
-            let visible = draft.visible_rows.max(1);
-            let maximum = Choice::options(picker.row).len().saturating_sub(visible);
-            let next = if up {
-                picker.viewport.saturating_sub(lines)
-            } else {
-                picker.viewport.saturating_add(lines).min(maximum)
-            };
-            if next == picker.viewport {
-                return Some(token);
-            }
-            picker.viewport = next;
-            picker.cursor = picker.cursor.clamp(next, next.saturating_add(visible - 1));
-            self.redraw();
-            return self.view().map(|view| view.token());
-        }
-        if draft.token != token
-            || !draft.drawn
-            || draft.text.is_some()
-            || draft.confirmation.is_some()
-            || !matches!(draft.browse, BrowseMode::Browse)
-        {
-            return None;
-        }
-        let next = if up {
-            draft.viewport.saturating_sub(lines)
-        } else {
-            draft.viewport.saturating_add(lines).min(
-                draft
-                    .project(&self.integrations)
-                    .entries()
-                    .len()
-                    .saturating_sub(draft.visible_rows.max(1)),
-            )
-        };
-        if next == draft.viewport {
-            return Some(token);
-        }
-        draft.viewport = next;
-        draft.follow_selection = false;
-        draft.activation_ready = false;
-        self.redraw();
-        self.view().map(|view| view.token())
-    }
-
-    pub(crate) fn click(&mut self, token: Token, row: Row) -> Option<Submission> {
-        if !matches!(&self.state, State::Draft(draft) if draft.token == token
-            && draft.drawn
-            && draft.text.is_none()
-            && draft.confirmation.is_none()
-            && !matches!(draft.browse, BrowseMode::Picker(_))
-            && draft.project(&self.integrations).navigation_rows().contains(&row))
-        {
-            return None;
-        }
-        if let State::Draft(draft) = &mut self.state {
-            draft.row = row;
-            draft.follow_selection = false;
-            draft.activation_ready = true;
-            if matches!(draft.browse, BrowseMode::Search) {
-                draft.browse = BrowseMode::Browse;
-                self.redraw();
-                return None;
-            }
-        }
-        self.edit(Edit::Activate)
-    }
-
-    pub(crate) fn control(&mut self, token: Token, control: Control) -> Option<Submission> {
-        if self.view().is_none_or(|view| view.token() != token) {
-            return None;
-        }
-        if control == Control::Close {
-            match &mut self.state {
-                State::Loading { visible, .. } | State::Saving { visible, .. } => *visible = false,
-                _ => self.state = State::Closed,
-            }
-            self.surface_presented = false;
-            return None;
-        }
-        let State::Draft(draft) = &mut self.state else {
-            return None;
-        };
-        if !draft.drawn {
-            return None;
-        }
-        match control {
-            Control::Search
-                if draft.page == Page::General
-                    && draft.text.is_none()
-                    && draft.confirmation.is_none()
-                    && matches!(draft.browse, BrowseMode::Browse) =>
-            {
-                self.edit(Edit::Search)
-            }
-            Control::Choose(choice) if draft.text.is_none() && draft.confirmation.is_none() => {
-                let BrowseMode::Picker(mut picker) = draft.browse else {
-                    return None;
-                };
-                let cursor = Choice::options(picker.row)
-                    .iter()
-                    .position(|candidate| *candidate == choice)?;
-                picker.cursor = cursor;
-                draft.browse = BrowseMode::Picker(picker);
-                self.edit(Edit::Activate)
-            }
-            Control::Adjust { row, forward }
-                if draft.text.is_none()
-                    && draft.confirmation.is_none()
-                    && matches!(draft.browse, BrowseMode::Browse)
-                    && draft.page.rows().contains(&row)
-                    && draft.project(&self.integrations).enabled(row)
-                    && draft
-                        .project(&self.integrations)
-                        .adjustment(row)
-                        .is_some_and(|adjustment| {
-                            if forward {
-                                adjustment.forward
-                            } else {
-                                adjustment.backward
-                            }
-                        }) =>
-            {
-                draft.row = row;
-                draft.follow_selection = false;
-                draft.activation_ready = true;
-                self.edit(Edit::Adjust(forward))
-            }
-            Control::Accept
-                if draft.text.is_some()
-                    || draft.confirmation.is_some()
-                    || !matches!(draft.browse, BrowseMode::Browse) =>
-            {
-                self.edit(Edit::Activate)
-            }
-            Control::Explain(id)
-                if draft.page == Page::Integrations
-                    && draft.text.is_none()
-                    && draft.confirmation.is_none()
-                    && matches!(draft.browse, BrowseMode::Browse) =>
-            {
-                draft.row = Row::Agent(id);
-                draft.follow_selection = false;
-                draft.activation_ready = true;
-                self.edit(Edit::Explain)
-            }
-            Control::Back => self.edit(Edit::Cancel),
-            _ => None,
+        if let State::Open(page) = &mut self.state {
+            page.token = token;
+            page.drawn = false;
+            page.activation_ready = page.follow_selection && self.surface_presented;
         }
     }
 
@@ -1623,16 +565,13 @@ impl Editor {
             return false;
         }
         self.integrations_available = available;
-        if let State::Draft(draft) | State::Saving { draft, .. } = &mut self.state {
-            draft.integrations_available = available;
+        if let State::Open(page) = &mut self.state {
+            page.integrations_available = available;
             if !available {
-                while draft.page.is_integrations() {
-                    draft.return_to_parent();
+                while page.page.is_integrations() {
+                    page.return_to_parent();
                 }
-                if draft.row == Row::AgentIntegrations {
-                    draft.row = Row::LaunchProfiles;
-                }
-                draft.reconcile_search();
+                page.settle_focus();
             }
         }
         self.redraw();

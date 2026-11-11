@@ -6,7 +6,7 @@ mod sidebar;
 pub use crate::sidebar_width::SidebarWidth;
 pub(crate) use divider::DrawnResize;
 pub use divider::{DividerDrag, DividerSource, DrawnDivider};
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(test)]
 pub(crate) use pane_geometry::arranged_pane_area;
 #[cfg(test)]
 pub(crate) use pane_geometry::arranged_terminal_geometry;
@@ -659,7 +659,7 @@ fn first_leaf(tree: &ClientPanelTree) -> Option<&ClientPanelTree> {
 /// The content rect of the leaf the live terminal attaches to: the active
 /// panel when it is projected, otherwise the first projected leaf (the same
 /// fallback the renderer uses when the active leaf cannot be placed).
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(test)]
 impl PanelTreeProjection<'_> {
     pub(crate) fn active_content(&self, active_panel: Option<usize>) -> Option<Rect> {
         self.leaves

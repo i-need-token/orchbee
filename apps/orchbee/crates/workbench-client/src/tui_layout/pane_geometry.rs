@@ -93,7 +93,7 @@ pub fn active_pane_area(areas: &ShellAreas) -> Option<Rect> {
 /// pane or a Minimal viewport (active pane only, no tree chrome), otherwise the active leaf's
 /// content inside the projected split tree. `None` when the viewport cannot present a pane at
 /// all — explicit, not inferred from a returned rect.
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(test)]
 pub(crate) fn arranged_pane_area(
     areas: &ShellAreas,
     arrangement: &impl PaneArrangement,

@@ -1,4 +1,4 @@
-//! Finite choices separate a provisional preview from the accepted parent draft.
+//! Finite choices: a list's provisional candidate previews; accepting it applies the value.
 use super::{AppearancePreview, Row};
 use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{
@@ -24,6 +24,20 @@ pub enum Choice {
 /// few bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ColorTheme(u8);
+
+impl ColorTheme {
+    /// Whether this theme is the one its slot's stored id resolves to.
+    pub(crate) fn current(self, values: &UserSettingsValues) -> bool {
+        let polarity = self.theme().polarity();
+        Self::effective(
+            polarity,
+            match polarity {
+                Polarity::Light => &values.light_theme,
+                Polarity::Dark => &values.dark_theme,
+            },
+        ) == self
+    }
+}
 
 impl ColorTheme {
     /// The slot's effective theme: an id this build does not ship, or one of the other
@@ -177,13 +191,12 @@ impl Choice {
     }
 }
 
-/// A valid finite-choice episode whose cursor always belongs to its row's closed catalog.
+/// An open choice list whose cursor always belongs to its row's closed catalog.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ChoicePicker {
     pub(super) row: Row,
     pub(super) original: Choice,
     pub(super) cursor: usize,
-    pub(super) viewport: usize,
 }
 
 impl ChoicePicker {
@@ -191,27 +204,9 @@ impl ChoicePicker {
     pub(crate) const fn row(self) -> Row {
         self.row
     }
-    /// Returns the parent draft's accepted value, independently of navigation.
+    /// Returns the row's value when the list opened, independently of navigation.
     pub(crate) const fn original(self) -> Choice {
         self.original
-    }
-    /// Returns the valid provisional position in this row's catalog.
-    pub(crate) const fn cursor(self) -> usize {
-        self.cursor
-    }
-    /// Keeps the provisional choice visible while preserving an admitted wheel viewport.
-    pub(crate) fn first_visible(self, visible: usize) -> usize {
-        let visible = visible.max(1);
-        let first = self
-            .viewport
-            .min(Choice::options(self.row).len().saturating_sub(visible));
-        if self.cursor < first {
-            self.cursor
-        } else if self.cursor >= first.saturating_add(visible) {
-            self.cursor.saturating_add(1).saturating_sub(visible)
-        } else {
-            first
-        }
     }
     pub(super) fn open(row: Row, values: &UserSettingsValues) -> Option<Self> {
         let original = Choice::from_values(row, values)?;
@@ -222,10 +217,9 @@ impl ChoicePicker {
             row,
             original,
             cursor,
-            viewport: 0,
         })
     }
-    pub(super) fn candidate(self) -> Choice {
+    pub(crate) fn candidate(self) -> Choice {
         Choice::options(self.row)[self.cursor]
     }
     pub(super) fn navigate(&mut self, forward: bool) {

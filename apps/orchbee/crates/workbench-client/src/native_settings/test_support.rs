@@ -1,30 +1,20 @@
-//! Test-only presentation of the Settings editor's current draft, as the native painter reports it.
+//! Test-only presentation of the Settings page, as the native painter reports it.
 
-use super::{BrowseMode, Editor, SettingsDraw, State, Token};
+use super::{Editor, SettingsDraw, State, Token};
+
+/// List lines a test frame shows; enough for every category's rows.
+const TEST_LINES: usize = 40;
 
 impl Editor {
+    /// Presents the page as a two-column frame would.
     pub(crate) fn draw(&mut self, token: Token) {
+        self.draw_with(token, false);
+    }
+
+    /// Presents the page as a frame of the given width tier would.
+    pub(crate) fn draw_with(&mut self, token: Token, narrow: bool) {
         let draw = match &self.state {
-            State::Draft(draft) => match &draft.browse {
-                BrowseMode::Picker(picker) => SettingsDraw::picker(
-                    token,
-                    if draft.follow_selection {
-                        picker.cursor
-                    } else {
-                        picker.viewport
-                    },
-                    draft.visible_rows.max(1),
-                ),
-                _ => SettingsDraw {
-                    token,
-                    rows: Some((draft.viewport, draft.visible_rows.max(1))),
-                    painted: if draft.follow_selection {
-                        draft.row.mask()
-                    } else {
-                        0
-                    },
-                },
-            },
+            State::Open(page) => page.presentation(TEST_LINES, narrow),
             _ => SettingsDraw::surface(token),
         };
         self.presented(draw);

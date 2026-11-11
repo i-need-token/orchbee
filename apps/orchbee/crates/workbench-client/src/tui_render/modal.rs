@@ -16,14 +16,6 @@ use ratatui::{
 };
 use std::borrow::Cow;
 
-/// Section headings inside a modal share the frame heading's hierarchy.
-pub(super) fn title_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Line<'a> {
-    Line::from(Span::styled(
-        text,
-        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-    ))
-}
-
 /// Clears and paints the complete modal surface: the neutral frame, its opaque fill, and the task
 /// heading on the top-left edge. Feature content paints only inside the returned layout's slots.
 pub(super) fn paint_modal_frame(frame: &mut Frame<'_>, area: Rect, title: &str, theme: &Theme) {

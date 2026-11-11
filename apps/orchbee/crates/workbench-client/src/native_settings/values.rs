@@ -1,7 +1,6 @@
-//! Pure scalar and catalog draft edits; executable paths and arguments remain literal data.
-use super::{
-    AdjustmentStep, ChoicePicker, Confirmation, Draft, Edit, Page, Row, SettingControl, setting,
-};
+//! Pure scalar and catalog edits on the page's values; executable paths and arguments remain
+//! literal data.
+use super::{AdjustmentStep, ChoicePicker, Edit, PageState as Draft, Row, SettingControl, setting};
 use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
 
@@ -157,15 +156,6 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
 }
 pub(super) fn activate(draft: &mut Draft) {
     match draft.row {
-        Row::LaunchProfiles => draft.enter_profiles(),
-        Row::AgentIntegrations => draft.enter_page(
-            Page::Integrations,
-            Row::Agent(orchbee_agent_integration::IntegrationId::ALL[0]),
-        ),
-        Row::Back => draft.return_to_parent(),
-        Row::ResetAll => draft.confirmation = Some(Confirmation::ResetAll),
-        Row::ResetProfiles => draft.confirmation = Some(Confirmation::ResetProfiles),
-        Row::Reload => draft.confirmation = Some(Confirmation::Reload),
         Row::SetDefault => {
             draft.values.launch_profiles.default_profile_id = draft.values.launch_profiles.profiles
                 [draft.profile]
@@ -173,7 +163,7 @@ pub(super) fn activate(draft: &mut Draft) {
                 .clone()
         }
         Row::DeleteProfile if draft.values.launch_profiles.profiles.len() > 1 => {
-            draft.confirmation = Some(Confirmation::DeleteProfile)
+            draft.confirm_delete = true
         }
         Row::AddProfile if draft.values.launch_profiles.profiles.len() < 64 => {
             let profiles = &mut draft.values.launch_profiles.profiles;
@@ -225,6 +215,9 @@ pub(super) fn delete_profile(draft: &mut Draft) {
 pub(super) fn text(draft: &Draft) -> Option<String> {
     let values = &draft.values;
     match draft.row {
+        Row::NewTerminalFolder | Row::PrefixKey => {
+            Some(draft.text_value(draft.row).unwrap_or_default().to_owned())
+        }
         Row::Foreground => Some(values.custom_foreground.clone()),
         Row::Background => Some(values.custom_background.clone()),
         Row::CompletionThreshold => Some(values.completion_reminder_minimum_seconds.to_string()),
@@ -277,18 +270,11 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
             editor.end();
         }
         Edit::Line(key) => draft.invalid = editor.apply(key).is_err(),
-        Edit::Activate => {
-            let value = editor.text().to_owned();
-            if accept_text(draft, value) {
-                draft.text = None;
-            } else {
-                draft.invalid = true;
-            }
-        }
         _ => {}
     }
 }
-fn accept_text(draft: &mut Draft, value: String) -> bool {
+/// Writes an accepted text into the page's values; alse leaves them as they were.
+pub(super) fn accept_text(draft: &mut Draft, value: String) -> bool {
     match draft.row {
         Row::Foreground | Row::Background => {
             if value.len() != 7

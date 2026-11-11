@@ -1,23 +1,22 @@
-//! Localized common-setting vocabulary and explicit draft/save outcomes.
+//! Localized Settings page vocabulary and the outcomes of its edits.
 use super::Locale;
 
-/// Settings draft and save feedback; persistence and expiry remain in the coordinator.
+/// Settings feedback for the status line; persistence and expiry remain in the coordinator.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsNotice {
-    Saved,
-    NoChange,
+    /// The file changed under the edit; nothing was written.
     SourceChanged,
     Failed,
+    /// The edit's result never arrived; the page shows the file's values.
     Unknown,
     Busy,
     PresentationUnavailable,
     TooSmall,
-    Background,
     /// Another writer or program held the settings file; nothing was written.
     FileBusy,
     /// The settings file refused a value; nothing was written.
     InvalidValue,
-    /// The Server does not know a key the draft changed; nothing was written.
+    /// The Server does not know a key the edit changed; nothing was written.
     Unsupported,
     /// The settings file does not parse; nothing was written.
     SyntaxError,
@@ -42,47 +41,12 @@ use orchbee_workbench_protocol::{
     TerminalDisplayAppearance, TuiColorSource,
 };
 pub(crate) use parameters::{
-    SettingUnit, SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail,
-    SettingsDetailKind, SettingsDraftState, SettingsFieldRequirement, SettingsFileFact,
-    SettingsHintLabel, SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingUnit, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
+    SettingsFieldRequirement, SettingsFileFact, SettingsGroup, SettingsHintLabel,
+    SettingsProfileLabel, SettingsRow, SettingsValue,
 };
-use parameters::{
-    SettingsCategory as SettingCategory, SettingsChoice as Choice, SettingsRow as Row,
-};
+use parameters::{SettingsChoice as Choice, SettingsGroup as Group, SettingsRow as Row};
 impl Locale {
-    pub(crate) fn settings_back_button(self) -> &'static str {
-        match self {
-            Self::EnUs => "Back",
-            Self::ZhCn => "返回",
-        }
-    }
-    /// The child step's primary names its outcome: applying an edit, or the confirmed action.
-    pub(crate) fn settings_accept_button(self, label: SettingsAcceptLabel) -> &'static str {
-        match (self, label) {
-            (Self::EnUs, SettingsAcceptLabel::Apply) => "Apply",
-            (Self::ZhCn, SettingsAcceptLabel::Apply) => "应用",
-            (Self::EnUs, SettingsAcceptLabel::Reset) => "Reset",
-            (Self::ZhCn, SettingsAcceptLabel::Reset) => "重置",
-            (Self::EnUs, SettingsAcceptLabel::Reload) => "Reload",
-            (Self::ZhCn, SettingsAcceptLabel::Reload) => "重新读取",
-            (Self::EnUs, SettingsAcceptLabel::Delete) => "Delete",
-            (Self::ZhCn, SettingsAcceptLabel::Delete) => "删除",
-        }
-    }
-    pub(crate) fn settings_close_button(self) -> &'static str {
-        match self {
-            Self::EnUs => "Close",
-            Self::ZhCn => "关闭",
-        }
-    }
-    pub(crate) fn settings_row_action(self, row: impl Into<SettingsRow>) -> Option<&'static str> {
-        match row.into() {
-            Row::ResetAll => Some(self.setting("Reset all", "全部重置")),
-            Row::Reload => Some(self.setting("Reload", "重新读取")),
-            Row::Save => Some(self.setting("Save", "保存")),
-            _ => None,
-        }
-    }
     fn setting(self, english: &'static str, chinese: &'static str) -> &'static str {
         match self {
             Self::EnUs => english,
@@ -92,37 +56,40 @@ impl Locale {
     pub(crate) fn settings_title(self) -> &'static str {
         self.setting("Settings", "设置")
     }
+    pub(crate) fn settings_back_button(self) -> &'static str {
+        self.setting("Back", "返回")
+    }
     pub(crate) fn settings_row(self, row: impl Into<SettingsRow>) -> &'static str {
         let (en, zh) = match row.into() {
             Row::Language => ("Language", "语言"),
             Row::Theme => ("Application theme", "应用主题"),
             Row::LightTheme => ("Light theme", "浅色主题"),
             Row::DarkTheme => ("Dark theme", "深色主题"),
-            Row::ColorSource => ("Colors", "配色"),
-            Row::TerminalTheme => ("Terminal display theme", "终端显示主题"),
-            Row::Foreground => ("Foreground color", "前景色"),
+            Row::ColorSource => ("Interface colors", "界面配色"),
+            Row::TerminalTheme => ("Terminal colors", "终端配色"),
+            Row::Foreground => ("Text color", "文字颜色"),
             Row::Background => ("Background color", "背景色"),
             Row::CopyOnSelect => ("Copy on select", "选中即复制"),
             Row::TrimAgents => (
                 "Hide empty space below Agent output",
-                "收起智能体输出底部空白",
+                "收起智能体输出下方的空白",
             ),
-            Row::ResumeAgents => ("Resume Agents after restart", "重启后恢复智能体"),
+            Row::ResumeAgents => (
+                "Resume Agent conversations after restart",
+                "重启后恢复智能体会话",
+            ),
             Row::RestoreOutput => (
                 "Restore terminal output after restart",
                 "重启后恢复终端输出",
             ),
             Row::Reminders => ("Agent status notifications", "智能体状态通知"),
-            Row::CompletionReminders => ("Completion reminders", "命令完成提醒"),
-            Row::CompletionThreshold => {
-                ("Minimum command duration (seconds)", "最短命令时长（秒）")
-            }
+            Row::CompletionReminders => ("Command completion reminders", "命令完成提醒"),
+            Row::CompletionThreshold => ("Minimum command duration", "最短命令时长"),
             Row::Sound => ("Notification sound", "通知声音"),
-            Row::Scrollback => ("Terminal history (MB)", "终端历史容量（MB）"),
-            Row::LaunchProfiles => ("Launch profiles", "启动配置"),
-            Row::ResetAll => ("Reset all common settings", "重置全部通用设置"),
-            Row::Reload => ("Reload and discard drafts", "重新读取并丢弃草稿"),
-            Row::Save => ("Save", "保存"),
+            Row::Scrollback => ("Terminal history", "终端历史"),
+            Row::LaunchProfiles => ("Default profile", "默认启动配置"),
+            Row::NewTerminalFolder => ("New terminal folder", "新终端文件夹"),
+            Row::PrefixKey => ("Prefix key", "前缀键"),
             Row::Profile => ("Profile", "启动配置"),
             Row::ProfileName => ("Name", "名称"),
             Row::CommandType => ("Command", "命令"),
@@ -135,8 +102,7 @@ impl Locale {
             Row::SetDefault => ("Use as default", "设为默认"),
             Row::AddProfile => ("Add profile", "添加启动配置"),
             Row::DeleteProfile => ("Delete profile", "删除启动配置"),
-            Row::ResetProfiles => ("Reset launch profiles", "重置启动配置"),
-            Row::Back => ("Back to settings", "返回设置"),
+            Row::Back => ("Back", "返回"),
             Row::AgentIntegrations => return self.integrations_title(),
             Row::Agent(id) => return self.agent_integration_name(id),
             Row::RemoteHosts => return self.integrations_remote_title(),
@@ -149,54 +115,90 @@ impl Locale {
         category: impl Into<SettingsCategory>,
     ) -> &'static str {
         match category.into() {
-            SettingCategory::General => self.setting("General", "通用"),
-            SettingCategory::Appearance => self.setting("Appearance", "外观"),
-            SettingCategory::Terminal => self.setting("Terminal", "终端"),
-            SettingCategory::Notifications => self.setting("Notifications", "通知"),
-            SettingCategory::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
-            SettingCategory::AgentIntegrations => self.integrations_title(),
-            SettingCategory::LocalAgentAdapters => self.integrations_local_section(),
-            SettingCategory::RemoteAgentHosts => self.integrations_remote_section(),
+            SettingsCategory::General => self.setting("General", "通用"),
+            SettingsCategory::Appearance => self.setting("Appearance", "外观"),
+            SettingsCategory::Themes => self.setting("Themes", "主题"),
+            SettingsCategory::Terminal => self.setting("Terminal", "终端"),
+            SettingsCategory::Notifications => self.setting("Notifications", "通知"),
+            SettingsCategory::Keyboard => self.setting("Keyboard", "快捷键"),
+            SettingsCategory::Agents => self.setting("Agents", "智能体"),
         }
     }
-    pub(crate) fn settings_search_label(self) -> &'static str {
-        self.setting("Search", "搜索")
+    /// A group's heading; `None` for a group framed without one.
+    pub(crate) fn settings_group_name(
+        self,
+        group: impl Into<SettingsGroup>,
+    ) -> Option<&'static str> {
+        Some(match group.into() {
+            Group::Language | Group::Prefix => return None,
+            Group::AfterRestart => self.setting("After a restart", "重启之后"),
+            Group::AppAppearance => self.setting("App appearance", "应用外观"),
+            Group::TerminalColors => self.setting("Terminal colors", "终端颜色"),
+            Group::LightThemes => self.setting("Light theme", "浅色主题"),
+            Group::DarkThemes => self.setting("Dark theme", "深色主题"),
+            Group::SelectionKeys => self.setting("Selection and keys", "选择与按键"),
+            Group::Output => self.setting("Output", "输出"),
+            Group::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
+            Group::WhenToNotify => self.setting("When to notify", "何时通知"),
+            Group::SoundDelivery => self.setting("Sound and delivery", "声音与显示"),
+            Group::AgentIntegrations => self.integrations_title(),
+            Group::LocalAgents => self.integrations_local_section(),
+            Group::RemoteHosts => self.integrations_remote_section(),
+        })
     }
-    /// Follows the search key on an idle search row, as in `/ to search settings`.
+    /// The line under a described group's heading.
+    pub(crate) fn settings_group_description(
+        self,
+        group: impl Into<SettingsGroup>,
+    ) -> Option<&'static str> {
+        Some(match group.into() {
+            Group::LaunchProfiles => self.setting(
+                "Which shell a new terminal runs, plus your own profiles.",
+                "新终端运行哪个 Shell，以及你自己的启动配置。",
+            ),
+            Group::LightThemes => self.setting(
+                "Applies when the app appearance is Light.",
+                "应用外观为浅色时才会使用。",
+            ),
+            Group::DarkThemes => self.setting(
+                "Applies when the app appearance is Dark.",
+                "应用外观为深色时才会使用。",
+            ),
+            _ => return None,
+        })
+    }
+    /// The tag on the theme list in effect.
+    pub(crate) fn settings_in_use(self) -> &'static str {
+        self.setting("In use now", "正在使用")
+    }
+    /// When a change takes effect, for a row that does not take effect at once.
+    pub(crate) fn settings_effect(self, row: impl Into<SettingsRow>) -> Option<&'static str> {
+        match row.into() {
+            Row::Scrollback | Row::NewTerminalFolder | Row::LaunchProfiles => {
+                Some(self.setting("new terminals", "新终端生效"))
+            }
+            _ => None,
+        }
+    }
+    pub(crate) fn settings_restore(self) -> &'static str {
+        self.setting("Restore default", "恢复默认")
+    }
+    pub(crate) fn settings_config_file(self) -> &'static str {
+        self.setting("More options in config.toml", "更多选项在 config.toml 中")
+    }
     pub(crate) fn settings_search_prompt(self) -> &'static str {
-        self.setting("to search settings", "搜索设置")
+        self.setting("Search settings", "搜索设置")
+    }
+    pub(crate) fn settings_search_results(self) -> &'static str {
+        self.setting("Search results", "搜索结果")
     }
     pub(crate) fn settings_no_results(self) -> &'static str {
-        self.setting(
-            "No matching settings. Clear the search to see all settings.",
-            "没有匹配的设置。清除搜索以查看全部设置。",
-        )
-    }
-    pub(crate) fn settings_search_count(self, count: usize) -> String {
-        match self {
-            Self::EnUs => format!("{count} found"),
-            Self::ZhCn => format!("{count} 项"),
-        }
-    }
-    pub(crate) fn settings_compact_state(
-        self,
-        state: impl Into<SettingsDraftState>,
-    ) -> &'static str {
-        match state.into() {
-            SettingsDraftState::Unknown => {
-                self.setting("Save unknown; Reload required", "保存结果未知；请重新读取")
-            }
-            SettingsDraftState::SourceChanged => {
-                self.setting("Changed elsewhere; Reload", "已在其他位置更改；请重新读取")
-            }
-            SettingsDraftState::Dirty => self.setting("Unsaved changes", "有未保存的更改"),
-            SettingsDraftState::Clean => self.setting("No unsaved changes", "没有未保存的更改"),
-        }
+        self.setting("No matching settings.", "没有匹配的设置。")
     }
 
-    /// The state line's fact for a settings file the page cannot use: the file, where a syntax
-    /// error is, and that the page shows the last valid settings. A file the Server could not
-    /// name is "the settings file".
+    /// The file line for a settings file the page cannot use: the file, where a syntax error is,
+    /// and that the page shows the last valid settings. A file the Server could not name is "the
+    /// settings file".
     pub(crate) fn settings_file_fact(self, fact: SettingsFileFact<'_>) -> String {
         let named = |path: Option<&str>| {
             path.map(sanitize_terminal_text).map_or_else(
@@ -229,7 +231,7 @@ impl Locale {
         }
     }
 
-    /// The fact without the file's path, for a state line too narrow for it.
+    /// The fact without the file's path, for a line too narrow for it.
     pub(crate) fn settings_file_fact_compact(self, fact: SettingsFileFact<'_>) -> String {
         match (self, fact) {
             (Self::EnUs, SettingsFileFact::SyntaxError { line, column, .. }) => {
@@ -244,18 +246,14 @@ impl Locale {
         }
     }
 
-    pub(crate) fn settings_invalid_short(self) -> &'static str {
-        self.setting("Invalid value", "值无效")
-    }
     pub(crate) fn settings_description(self, row: impl Into<SettingsRow>) -> &'static str {
         match row.into() {
-            Row::Language => self.setting(
-                "Language for application text; previews locally.",
-                "应用文字的语言；在本地预览。",
-            ),
+            Row::Language => {
+                self.setting("Language for menus and messages.", "菜单和提示使用的语言。")
+            }
             Row::Theme => self.setting(
-                "Application appearance; previews locally.",
-                "应用外观主题；在本地预览。",
+                "Light, dark, or follow the system. Pick the light and dark themes under Themes.",
+                "浅色、深色或跟随系统。浅色和深色各用哪套主题，在“主题”里选。",
             ),
             Row::LightTheme => self.setting(
                 "Colors for the interface and terminals when the appearance is light.",
@@ -266,62 +264,75 @@ impl Locale {
                 "外观为深色时，界面和终端使用的配色。",
             ),
             Row::ColorSource => self.setting(
-                "Use the selected theme, or your terminal's own colors.",
-                "使用所选主题，或使用终端自身的配色。",
+                "Use the theme, or your terminal’s own colors, for menus and panels.",
+                "菜单和面板使用主题配色，或使用终端自己的配色。",
             ),
             Row::TerminalTheme => self.setting(
-                "Terminal default colors; program colors stay exact.",
-                "终端默认颜色；保留程序指定的颜色。",
+                "Default text and background colors in terminals; colors a program sets stay as they are.",
+                "终端默认的文字和背景颜色；程序自己指定的颜色不变。",
             ),
-            Row::Foreground | Row::Background => self.setting(
-                "Terminal colors in Custom; use #RRGGBB.",
-                "终端自定义颜色；使用 #RRGGBB。",
+            Row::Foreground => self.setting(
+                "Terminal text color for Custom, as #RRGGBB.",
+                "“自定义”时终端的文字颜色，格式为 #RRGGBB。",
+            ),
+            Row::Background => self.setting(
+                "Terminal background color for Custom, as #RRGGBB.",
+                "“自定义”时终端的背景色，格式为 #RRGGBB。",
             ),
             Row::CopyOnSelect => self.setting(
-                "Copy completed selections after Save; needs host clipboard support.",
-                "保存后复制完成的选区；需要宿主剪贴板支持。",
+                "Copies text as soon as you finish selecting it.",
+                "选择完成后立即复制文字。",
             ),
             Row::TrimAgents => self.setting(
-                "Trim blank agent rows after Save; preserves active history and selection.",
-                "保存后裁剪智能体空白行；保留正在操作的历史和选区。",
+                "Keeps an Agent’s latest output at the bottom of its panel.",
+                "让智能体的最新输出贴住面板底部。",
             ),
             Row::ResumeAgents => self.setting(
-                "Resume Claude Code and Codex Agent sessions in their Panels after a restart.",
-                "重启后在原面板中恢复 Claude Code 和 Codex 智能体会话。",
+                "Reopens Claude Code and Codex conversations in their panels after a restart.",
+                "重启后在原面板中恢复 Claude Code 和 Codex 的会话。",
             ),
             Row::RestoreOutput => self.setting(
-                "Keeps recent output on this computer and shows it after a restart; may hold secrets.",
-                "在本机保存最近的终端输出并在重启后显示；其中可能含有密钥等敏感信息。",
+                "Shows recent output again after a restart. Kept on this computer; may include secrets.",
+                "重启后再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。",
             ),
             Row::Scrollback => self.setting(
-                "History capacity for new terminals: 0–1000 MB; 1 MB = 1,000,000 bytes.",
-                "新终端历史容量：0–1000 MB；1 MB = 1,000,000 字节。",
+                "How much output each terminal keeps for scrolling back.",
+                "每个终端保留多少输出用于回看。",
             ),
             Row::Reminders => self.setting(
-                "Future hidden-agent notifications after Save; host and mute rules apply.",
-                "保存后用于后续隐藏智能体通知；遵循宿主与静音规则。",
+                "Tells you when an Agent you can’t see finishes or needs you.",
+                "看不到的智能体完成或需要你时通知你。",
             ),
             Row::CompletionReminders => self.setting(
-                "Future command reminders after Save; requires shell integration.",
-                "保存后用于后续命令完成提醒；需要 Shell 集成。",
+                "Reminds you when a long command finishes. Command text is never shown.",
+                "长命令结束时提醒你；不会显示命令内容。",
             ),
-            Row::CompletionThreshold => self.setting(
-                "Minimum command duration: 1–3600 seconds; applies after Save.",
-                "最短命令时长：1–3600 秒；保存后生效。",
-            ),
+            Row::CompletionThreshold => {
+                self.setting("Shorter commands don’t remind you.", "比这更短的命令不提醒。")
+            }
             Row::Sound => self.setting(
-                "Sound for future reminders after Save; needs host support.",
-                "保存后用于后续提醒的声音；需要宿主支持。",
+                "Plays a sound with notifications and reminders.",
+                "通知和提醒时播放声音。",
             ),
             Row::LaunchProfiles => self.setting(
-                "Shell and literal arguments for new default launches after Save.",
-                "保存后用于新的默认启动的 Shell 和字面参数。",
+                "Edit profiles and choose the one new terminals use.",
+                "编辑启动配置，并选择新终端使用哪一个。",
             ),
-            Row::AgentIntegrations => self.integrations_description(),
-            _ => self.setting(
-                "Edits stay in this draft until Save.",
-                "编辑保留在此草稿中，保存后生效。",
+            Row::NewTerminalFolder => self.setting(
+                "Where a new terminal starts: follow, home, current, workspace, or a folder. Leave empty for the default.",
+                "新终端的起始位置：follow、home、current、workspace 或一个文件夹。留空使用默认值。",
             ),
+            Row::PrefixKey => self.setting(
+                "Press it before a command key, as in Ctrl+B c for a new tab.",
+                "先按它再按命令键，例如 Ctrl+B c 新建标签页。",
+            ),
+            Row::AgentIntegrations => self.setting(
+                "Lets Orchbee show each Agent’s status. Turning one on changes one file of that Agent.",
+                "让 Orchbee 显示各智能体的状态；开启一项会修改该智能体的一个文件。",
+            ),
+            Row::RemoteHosts => self.integrations_remote_description(),
+            Row::RefreshIntegrations => self.integrations_refresh_description(),
+            _ => "",
         }
     }
     pub(crate) fn settings_choice(self, choice: impl Into<SettingsChoice>) -> &'static str {
@@ -342,26 +353,26 @@ impl Locale {
                 .map_or(id, |theme| theme.name()),
             Choice::ColorSource(TuiColorSource::Theme) => self.setting("Theme", "主题"),
             Choice::ColorSource(TuiColorSource::Terminal) => {
-                self.setting("Terminal colors", "终端配色")
+                self.setting("Match my terminal", "跟随我的终端")
             }
             Choice::TerminalTheme(TerminalDisplayAppearance::Theme) => {
-                self.setting("Theme", "主题")
+                self.setting("Match theme", "跟随主题")
             }
             Choice::TerminalTheme(TerminalDisplayAppearance::Host) => {
-                self.setting("Host default", "宿主默认")
+                self.setting("Terminal default", "终端默认")
             }
             Choice::TerminalTheme(TerminalDisplayAppearance::Custom) => {
                 self.setting("Custom", "自定义")
             }
             Choice::AgentReminders(AgentReminderMode::Never)
             | Choice::CompletionReminders(CompletionReminderMode::Never) => {
-                self.setting("Never", "从不")
+                self.setting("Off", "关闭")
             }
             Choice::AgentReminders(AgentReminderMode::Hidden) => {
-                self.setting("When Agent location is hidden", "智能体位置不可见时")
+                self.setting("When the Agent isn’t visible", "智能体不在视野内时")
             }
             Choice::CompletionReminders(CompletionReminderMode::Unfocused) => {
-                self.setting("When terminal is unfocused", "终端未聚焦时")
+                self.setting("When the terminal isn’t focused", "终端未聚焦时")
             }
             Choice::CompletionReminders(CompletionReminderMode::Always) => {
                 self.setting("Always", "始终")
@@ -375,24 +386,15 @@ impl Locale {
             self.setting("Off", "关闭")
         }
     }
-    pub(crate) fn settings_unit(self, unit: SettingUnit) -> &'static str {
-        match unit {
-            SettingUnit::Seconds => self.setting("s", "秒"),
-            SettingUnit::Bytes => self.setting("B", "字节"),
-        }
-    }
-    pub(crate) fn settings_value_with_unit(self, value: &str, unit: SettingUnit) -> String {
-        match self {
-            Self::EnUs => format!("{value} {}", self.settings_unit(unit)),
-            Self::ZhCn => format!("{value}{}", self.settings_unit(unit)),
-        }
-    }
     pub(crate) fn settings_value<'a>(self, value: impl Into<SettingsValue<'a>>) -> String {
         match value.into() {
             SettingsValue::Choice(choice) => self.settings_choice(choice).into(),
             SettingsValue::Text(value) => value.into(),
             SettingsValue::Toggle(value) => self.settings_toggle(value).into(),
-            SettingsValue::Integer(value) => value.to_string(),
+            SettingsValue::Seconds(value) => match self {
+                Self::EnUs => format!("{value} s"),
+                Self::ZhCn => format!("{value} 秒"),
+            },
             SettingsValue::ScrollbackMegabytes(value) => format!("{value} MB"),
             SettingsValue::ProfileName(name) => name
                 .unwrap_or_else(|| self.setting("System default", "系统默认"))
@@ -413,76 +415,25 @@ impl Locale {
 
     pub(crate) fn settings_hint_label(self, label: SettingsHintLabel) -> &'static str {
         match label {
-            SettingsHintLabel::Search => self.setting("search", "搜索"),
-            SettingsHintLabel::Save => self.setting("save", "保存"),
             SettingsHintLabel::Close => self.setting("close", "关闭"),
             SettingsHintLabel::Back => self.setting("back", "返回"),
             SettingsHintLabel::Cancel => self.setting("cancel", "取消"),
             SettingsHintLabel::Confirm => self.setting("confirm", "确认"),
-            SettingsHintLabel::Accept => self.setting("accept", "接受"),
-            SettingsHintLabel::ActivateEdit => self.setting("activate/edit", "操作／编辑"),
-            SettingsHintLabel::Select => self.setting("select", "选择"),
-            SettingsHintLabel::Change => self.setting("change", "切换"),
+            SettingsHintLabel::Accept => self.setting("accept", "确定"),
+            SettingsHintLabel::Move => self.setting("move", "移动"),
+            SettingsHintLabel::Switch => self.setting("switch", "切换栏"),
+            SettingsHintLabel::Open => self.setting("open", "打开"),
+            SettingsHintLabel::Change => self.setting("change", "更改"),
             SettingsHintLabel::Toggle => self.setting("turn on/off", "开启／关闭"),
+            SettingsHintLabel::Select => self.setting("select", "选择"),
+            SettingsHintLabel::Search => self.setting("search", "搜索"),
+            SettingsHintLabel::GoTo => self.setting("go to", "前往"),
+            SettingsHintLabel::Restore => self.setting("restore", "恢复默认"),
             SettingsHintLabel::Explain => self.setting("explain", "诊断"),
         }
     }
-    pub(crate) fn settings_cancel(self) -> &'static str {
-        self.setting("Cancel", "取消")
-    }
-    pub(crate) fn settings_pending(self, saving: bool) -> &'static str {
-        match (self, saving) {
-            (Self::EnUs, false) => "[..] Opening",
-            (Self::ZhCn, false) => "[..] 正在打开",
-            (Self::EnUs, true) => "[..] Saving",
-            (Self::ZhCn, true) => "[..] 正在保存",
-        }
-    }
-    pub(crate) fn settings_saving_fact(self) -> &'static str {
-        self.setting("Saving continues after close", "保存将在关闭后继续")
-    }
-    pub(crate) fn settings_state_facts(self, state: impl Into<SettingsDraftState>) -> String {
-        match state.into() {
-            SettingsDraftState::Unknown => self
-                .setting(
-                    "Save result unknown · Reload required",
-                    "保存结果未知 · 需要重新读取",
-                )
-                .into(),
-            SettingsDraftState::SourceChanged => self
-                .setting(
-                    "Saved settings changed elsewhere · Reload required",
-                    "已保存的设置已在其他位置更改 · 需要重新读取",
-                )
-                .into(),
-            SettingsDraftState::Dirty => self.setting("Unsaved changes", "有未保存的更改").into(),
-            SettingsDraftState::Clean => self
-                .setting("No unsaved changes", "没有未保存的更改")
-                .into(),
-        }
-    }
-
-    /// The slot a theme row sets is used only when the host matches, while Appearance follows it.
-    pub(crate) fn settings_system_notice(
-        self,
-        row: impl Into<SettingsRow>,
-    ) -> Option<&'static str> {
-        match row.into() {
-            Row::LightTheme => {
-                Some(self.setting("Used when the system is light.", "系统为浅色时使用。"))
-            }
-            Row::DarkTheme => {
-                Some(self.setting("Used when the system is dark.", "系统为深色时使用。"))
-            }
-            _ => None,
-        }
-    }
-    /// Joins two complete sentences as the locale writes them.
-    pub(crate) fn settings_sentences(self, first: &str, second: &str) -> String {
-        match self {
-            Self::EnUs => format!("{first} {second}"),
-            Self::ZhCn => format!("{first}{second}"),
-        }
+    pub(crate) fn settings_pending(self) -> &'static str {
+        self.setting("[..] Opening", "[..] 正在打开")
     }
     pub(crate) fn settings_no_color(self) -> &'static str {
         self.setting(
@@ -527,43 +478,16 @@ impl Locale {
 
     fn settings_detail_text(self, kind: SettingsDetailKind) -> &'static str {
         match kind {
-            SettingsDetailKind::ConfirmResetAll => self.setting(
-                "Reset common settings and launch profiles in this draft?",
-                "在草稿中重置全部通用设置和启动配置？",
-            ),
-            SettingsDetailKind::ConfirmResetProfiles => self.setting(
-                "Reset launch profiles in this draft? Other settings will be kept.",
-                "在草稿中重置启动配置？其他设置将保留。",
-            ),
-            SettingsDetailKind::ConfirmReload => self.setting(
-                "Discard this draft and read the latest shared settings?",
-                "丢弃此草稿并读取最新共享设置？",
-            ),
-            SettingsDetailKind::ConfirmDeleteProfile => self.setting(
-                "Delete this profile from the draft?",
-                "从草稿中删除此启动配置？",
-            ),
-            SettingsDetailKind::InvalidValue => {
-                self.setting("Invalid value; the draft was kept.", "值无效；草稿已保留。")
+            SettingsDetailKind::ConfirmDeleteProfile => {
+                self.setting("Delete this profile?", "删除此启动配置？")
             }
-            SettingsDetailKind::SourceChangedBeforeSave => self.setting(
-                "Source changed; reload before saving.",
-                "来源已变化；请重新读取后再保存。",
+            SettingsDetailKind::InvalidValue => self.setting(
+                "Invalid value; fix it, or press Esc again to discard these edits.",
+                "值无效；请修正，或再按 Esc 放弃这些修改。",
             ),
-            SettingsDetailKind::UnknownSave => self.setting(
-                "Save outcome unknown; reload before saving again.",
-                "保存结果未知；请重新读取后再保存。",
-            ),
-            SettingsDetailKind::ConflictBeforeSave => self.setting(
-                "Settings changed elsewhere; reload before saving.",
-                "另一端已修改设置；请重新读取后再保存。",
-            ),
-            SettingsDetailKind::NoChanges => {
-                self.setting("No changes to save.", "没有需要保存的更改。")
-            }
             SettingsDetailKind::CustomColorsRequired => self.setting(
-                "Select the custom terminal theme to edit these colors.",
-                "选择自定义终端主题后可编辑这些颜色。",
+                "Choose Custom under Terminal colors to edit.",
+                "终端配色选“自定义”后可编辑。",
             ),
             SettingsDetailKind::TruecolorRequired => self.setting(
                 "Themes need a terminal with 24-bit color; this one uses its own colors.",
@@ -593,56 +517,8 @@ impl Locale {
                 "此选项不适用于当前启动配置。",
             ),
             SettingsDetailKind::LiteralArguments => self.setting(
-                "Literal arguments; new terminals use the saved default.",
-                "参数按原文传递；新终端使用已保存的默认配置。",
-            ),
-            SettingsDetailKind::UnknownPreview => self.setting(
-                "Preview paused; reload to check the unknown Save result.",
-                "预览已暂停；请重新读取以核对未知的保存结果。",
-            ),
-            SettingsDetailKind::LocalPreview => self.setting(
-                "Local preview; Save keeps changes. Close discards the draft.",
-                "本地预览；保存后保留更改，关闭则丢弃草稿。",
-            ),
-            SettingsDetailKind::CopyAfterSave => self.setting(
-                "After Save: later selection completion. Clipboard delivery needs host support.",
-                "保存后用于后续选区完成；剪贴板交付需要宿主支持。",
-            ),
-            SettingsDetailKind::TrimAgentsAfterSave => self.setting(
-                "After Save: existing detected agents; active selection and history stay put.",
-                "保存后用于现有已检测智能体；保留正在操作的选区和历史视图。",
-            ),
-            SettingsDetailKind::ResumeAgentsAfterSave => self.setting(
-                "After Save: applies at the next restart; Off also stops saving Agent session IDs.",
-                "保存后于下次重启生效；关闭后也不再保存智能体会话 ID。",
-            ),
-            SettingsDetailKind::RestoreOutputAfterSave => self.setting(
-                "After Save: kept from the next save; Off deletes every kept copy.",
-                "保存后从下次保存起生效；关闭会删除所有已保存的输出。",
-            ),
-            SettingsDetailKind::AgentNotificationsAfterSave => self.setting(
-                "After Save: future hidden-agent events; host delivery and per-agent mute apply.",
-                "保存后用于后续隐藏智能体事件；仍遵循宿主交付与各智能体静音设置。",
-            ),
-            SettingsDetailKind::CompletionAfterSave => self.setting(
-                "After Save: future command completions; requires shell integration; no replay.",
-                "保存后用于后续命令完成；需要 Shell 集成，不补发历史事件。",
-            ),
-            SettingsDetailKind::SoundAfterSave => self.setting(
-                "After Save: eligible future reminders; host sound and per-agent mute apply.",
-                "保存后用于后续符合条件的提醒；仍遵循宿主声音能力与各智能体静音设置。",
-            ),
-            SettingsDetailKind::ScrollbackAfterSave => self.setting(
-                "After Save: new terminals only. Existing terminals keep their captured limit.",
-                "保存后仅用于新终端；现有终端保留创建时的回滚上限。",
-            ),
-            SettingsDetailKind::LaunchProfilesAfterSave => self.setting(
-                "After Save: new default launches. Existing programs keep running unchanged.",
-                "保存后用于新的默认启动；现有程序继续运行。",
-            ),
-            SettingsDetailKind::DeviceSettings => self.setting(
-                "Shared on this device/configuration; font and opacity belong to your terminal.",
-                "在此设备／配置范围共享；字体和透明度由宿主终端管理。",
+                "Arguments pass as written. Edits apply when you leave this page.",
+                "参数按原文传递。离开此页时应用修改。",
             ),
         }
     }
@@ -650,55 +526,50 @@ impl Locale {
     pub(crate) fn settings_notice(self, notice: SettingsNotice) -> &'static str {
         use SettingsNotice::*;
         match notice {
-            Saved => self.setting("Settings saved", "设置已保存"),
-            NoChange => self.setting("No changes to save", "没有需要保存的更改"),
             SourceChanged => self.setting(
-                "Settings changed elsewhere; draft kept · reload to resolve",
-                "另一端已修改设置；草稿已保留 · 请重新读取",
+                "Settings changed elsewhere; change not applied · try again",
+                "设置已在其他位置更改；未应用 · 请重试",
             ),
             FileBusy => self.setting(
-                "Settings file busy; draft kept · save again shortly",
-                "设置文件正忙；草稿已保留 · 请稍后再保存",
+                "Settings file busy; change not applied · try again shortly",
+                "设置文件正忙；未应用 · 请稍后重试",
             ),
             InvalidValue => self.setting(
-                "A value was refused; draft kept · change it and save again",
-                "有设置值被拒绝；草稿已保留 · 修改后再保存",
+                "The value was refused; change not applied",
+                "该值被拒绝；未应用",
             ),
             Unsupported => self.setting(
-                "A setting isn't supported here; nothing saved",
-                "此处不支持某项设置；未保存",
+                "This setting isn't supported here; change not applied",
+                "此处不支持该设置；未应用",
             ),
             SyntaxError => self.setting(
-                "Settings file has a syntax error; nothing saved · run orchbee config check",
-                "设置文件有语法错误；未保存 · 请运行 orchbee config check",
+                "Settings file has a syntax error; change not applied · run orchbee config check",
+                "设置文件有语法错误；未应用 · 请运行 orchbee config check",
             ),
             ReadOnly => self.setting(
-                "Settings file is read-only; nothing saved",
-                "设置文件为只读；未保存",
+                "Settings file is read-only; change not applied",
+                "设置文件为只读；未应用",
             ),
             TooLarge => self.setting(
-                "Settings file would be too large; nothing saved",
-                "设置文件将超出大小上限；未保存",
+                "Settings file would be too large; change not applied",
+                "设置文件将超出大小上限；未应用",
             ),
             UnusableFile => self.setting(
-                "Settings file location can't be used; nothing saved",
-                "无法使用设置文件位置；未保存",
+                "Can't use the settings file's location; not applied",
+                "无法使用设置文件位置；未应用",
             ),
             Unreadable => self.setting(
-                "Settings file can't be read; nothing saved",
-                "无法读取设置文件；未保存",
+                "Settings file can't be read; change not applied",
+                "无法读取设置文件；未应用",
             ),
             WriteFailed => self.setting(
-                "Settings file couldn't be written; nothing saved",
-                "无法写入设置文件；未保存",
+                "Settings file couldn't be written; change not applied",
+                "无法写入设置文件；未应用",
             ),
-            Failed => self.setting(
-                "Settings operation failed; no save confirmed",
-                "设置操作失败；未确认保存",
-            ),
+            Failed => self.setting("Settings operation failed", "设置操作失败"),
             Unknown => self.setting(
-                "Save result unknown; reload to check before saving again",
-                "保存结果未知；再次保存前请重新读取核对",
+                "Change result unknown · the page shows the file's values",
+                "更改结果未知 · 页面显示文件中的值",
             ),
             Busy => self.setting(
                 "Settings busy · finish the current action first",
@@ -712,10 +583,6 @@ impl Locale {
                 "Settings hidden: enlarge the window to resume",
                 "窗口太小，设置暂时隐藏；放大窗口后继续",
             ),
-            Background => self.setting(
-                "Save continues · wait for its result",
-                "保存继续执行 · 请等待结果",
-            ),
         }
     }
 
@@ -725,26 +592,23 @@ impl Locale {
         use SettingsNotice::*;
         match notice {
             SourceChanged => Some(self.setting(
-                "Settings changed elsewhere; draft kept",
-                "另一端已修改设置；草稿已保留",
+                "Settings changed elsewhere; change not applied",
+                "设置已在其他位置更改；未应用",
             )),
-            FileBusy => {
-                Some(self.setting("Settings file busy; draft kept", "设置文件正忙；草稿已保留"))
-            }
-            InvalidValue => Some(self.setting(
-                "A value was refused; draft kept",
-                "有设置值被拒绝；草稿已保留",
+            FileBusy => Some(self.setting(
+                "Settings file busy; change not applied",
+                "设置文件正忙；未应用",
             )),
             SyntaxError => Some(self.setting(
-                "Settings file has a syntax error; nothing saved",
-                "设置文件有语法错误；未保存",
+                "Settings file has a syntax error; change not applied",
+                "设置文件有语法错误；未应用",
             )),
-            Unknown => Some(self.setting("Save result unknown", "保存结果未知")),
+            Unknown => Some(self.setting("Change result unknown", "更改结果未知")),
             PresentationUnavailable => {
                 Some(self.setting("Cannot open Settings here", "当前窗口无法打开设置"))
             }
-            Saved | NoChange | Failed | Busy | TooSmall | Background | Unsupported | ReadOnly
-            | TooLarge | UnusableFile | Unreadable | WriteFailed => None,
+            InvalidValue | Failed | Busy | TooSmall | Unsupported | ReadOnly | TooLarge
+            | UnusableFile | Unreadable | WriteFailed => None,
         }
     }
 }

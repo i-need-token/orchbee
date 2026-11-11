@@ -1,10 +1,11 @@
-//! The UI owns drafts and confirmed observations; the ordered lane never replays a save.
+//! The UI owns the Settings page and confirmed observations; the ordered lane never replays an
+//! edit.
 use super::{ClientActionDisposition, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::{
     client_view::KeyEvent,
     native_settings::{
-        Basis, Edit, Editor, FileState, JobEnd, Observation, Reconciliation, Row, SettingsDraw,
-        SettingsInputContext, Submission, Token, View, key_edit, key_edit_for_view,
+        Edit, Editor, JobEnd, Row, SettingsDraw, SettingsInputContext, Submission, Token, View,
+        key_edit, key_edit_for_view,
     },
     tui_presentation::{GeometrySettlement, PresentationPhase},
     workbench_client::{
@@ -19,8 +20,6 @@ use orchbee_workbench_protocol::{
 use std::time::{Duration, Instant};
 #[cfg(any(test, feature = "test-support"))]
 pub(super) mod test_support;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use crate::localization::SettingsNotice as Notice;
 
@@ -89,13 +88,13 @@ impl Coordinator {
     pub(super) fn clear_notice(&mut self) {
         self.notice.clear();
     }
-    pub(super) fn notice(&self, now: Instant) -> Option<Notice> {
-        self.notice.current(now)
+    pub(super) const fn notice(&self) -> Option<Notice> {
+        self.notice.current()
     }
-    fn note(&mut self, notice: Notice, now: Instant) {
-        self.notice.note(notice, now);
+    fn note(&mut self, notice: Notice) {
+        self.notice.note(notice);
     }
-    fn observe_snapshot(&mut self, snapshot: SettingsSnapshot, now: Instant) -> bool {
+    fn observe_snapshot(&mut self, snapshot: SettingsSnapshot) -> bool {
         let revision = snapshot.revision.value();
         if self
             .observed_revision
@@ -104,12 +103,7 @@ impl Coordinator {
             return false;
         }
         // The file state changes without the values when the file stops or starts parsing.
-        self.editor.observe_file(FileState::of(&snapshot));
-        if self.editor.observe(&Basis::of(&snapshot)) == Observation::Conflict
-            && self.notice(now) != Some(Notice::Unknown)
-        {
-            self.note(Notice::SourceChanged, now);
-        }
+        self.editor.observe(&snapshot);
         self.observed_revision = Some(revision);
         self.snapshot = Some(snapshot);
         true
@@ -180,15 +174,15 @@ impl WorkbenchClientUi {
             || self.copy_mode_active()
             || self.popup.captured();
         if busy {
-            self.settings.note(Notice::Busy, self.clock.now());
+            self.settings.note(Notice::Busy);
             return ClientActionDisposition::KeepNavigator;
         }
         if !self.ensure_settings_lane() {
-            self.settings.note(Notice::Failed, self.clock.now());
+            self.settings.note(Notice::Failed);
             return ClientActionDisposition::KeepNavigator;
         }
         let Some(token) = self.settings.editor.open() else {
-            self.settings.note(Notice::Busy, self.clock.now());
+            self.settings.note(Notice::Busy);
             return ClientActionDisposition::KeepNavigator;
         };
         self.submit_settings(Submission {
@@ -211,7 +205,7 @@ impl WorkbenchClientUi {
             .as_ref()
             .is_some_and(|old| old != &session)
         {
-            let saving = self.settings.editor.saving();
+            let saving = self.settings.editor.in_flight();
             self.settings.close();
             self.settings.editor.retire();
             self.settings.editor.reset_integrations();
@@ -220,7 +214,7 @@ impl WorkbenchClientUi {
             self.settings.observed_revision = None;
             self.settings.snapshot = None;
             if saving {
-                self.settings.note(Notice::Unknown, self.clock.now());
+                self.settings.note(Notice::Unknown);
             }
         }
         if self.settings.lane.is_none() {
@@ -233,9 +227,8 @@ impl WorkbenchClientUi {
         self.settings.lane.is_some()
     }
     fn submit_settings(&mut self, submission: Submission) {
-        if matches!(submission.operation, SettingsOperation::Read {}) {
-            self.settings.clear_notice();
-        }
+        // A new read or change replaces the outcome of the last one.
+        self.settings.clear_notice();
         let token = submission.token;
         let Some(serial) = self.settings.serial.checked_add(1) else {
             self.fail_settings(token, Notice::Failed);
@@ -270,30 +263,22 @@ impl WorkbenchClientUi {
         }
     }
     fn fail_settings(&mut self, token: Token, notice: Notice) {
-        let reconciliation = match notice {
-            Notice::SourceChanged => Some(Reconciliation::SourceChanged),
-            Notice::Unknown => Some(Reconciliation::OutcomeUnknown),
-            _ => None,
-        };
-        if self.settings.editor.failed(token, reconciliation) {
+        if self.settings.editor.failed(token) {
             self.settings.started = None;
             self.settings.pending = false;
-            self.settings.note(notice, self.clock.now());
+            self.settings.note(notice);
         }
     }
     pub(super) fn drive_settings(&mut self) -> bool {
         self.ensure_settings_lane();
-        let expired = self.settings.notice.expire(self.clock.now());
-        let pending = matches!(
-            self.settings.editor.view(),
-            Some(View::Loading { .. } | View::Saving { .. })
-        ) && self.settings.started.is_some_and(|started| {
-            self.clock.now().saturating_duration_since(started) >= Duration::from_millis(200)
-        });
-        let mut changed = expired || pending != self.settings.pending;
+        let pending = matches!(self.settings.editor.view(), Some(View::Loading { .. }))
+            && self.settings.started.is_some_and(|started| {
+                self.clock.now().saturating_duration_since(started) >= Duration::from_millis(200)
+            });
+        let mut changed = pending != self.settings.pending;
         self.settings.pending = pending;
         if let Some(snapshot) = self.settings.lane.as_ref().and_then(Lane::take_observation) {
-            changed |= self.settings.observe_snapshot(snapshot, self.clock.now());
+            changed |= self.settings.observe_snapshot(snapshot);
         }
         changed |= self.drive_integrations();
         let Some(reply) = self.settings.lane.as_ref().and_then(Lane::take) else {
@@ -366,18 +351,14 @@ impl WorkbenchClientUi {
     fn finish_settings(&mut self, token: Token, outcome: SettingsOutcome) {
         match outcome {
             SettingsOutcome::Current { snapshot } => {
-                self.settings.editor.loaded(token, Basis::of(&snapshot));
+                if self.settings.editor.loaded(token, &snapshot) {
+                    self.settings.observe_snapshot(*snapshot);
+                }
             }
-            SettingsOutcome::Edited { changed, .. } => {
-                if self.settings.editor.complete(token) {
-                    self.settings.note(
-                        if changed {
-                            Notice::Saved
-                        } else {
-                            Notice::NoChange
-                        },
-                        self.clock.now(),
-                    );
+            // The confirmed snapshot shows at once, before the observation stream repeats it.
+            SettingsOutcome::Edited { snapshot, .. } => {
+                if self.settings.editor.edited(token) {
+                    self.settings.observe_snapshot(*snapshot);
                 }
             }
             SettingsOutcome::Refused { reason, detail, .. } => {
@@ -443,20 +424,10 @@ impl WorkbenchClientUi {
             .editor
             .view()
             .and_then(|view| key_edit_for_view(event, view));
-        if let Some(edit) = edit {
-            let saving = matches!(self.settings.editor.view(), Some(View::Saving { .. }));
-            if !matches!(
-                self.settings.notice(self.clock.now()),
-                Some(Notice::SourceChanged | Notice::Unknown | Notice::Failed)
-            ) {
-                self.settings.clear_notice();
-            }
-            if let Some(submission) = self.settings.editor.edit(edit) {
-                self.submit_settings(submission);
-            }
-            if saving && matches!(edit, Edit::Cancel) {
-                self.settings.note(Notice::Background, self.clock.now());
-            }
+        if let Some(edit) = edit
+            && let Some(submission) = self.settings.editor.edit(edit)
+        {
+            self.submit_settings(submission);
         }
     }
     pub(in crate::workbench_client) fn capture_settings_paste(&mut self, text: Option<&str>) {
@@ -471,12 +442,8 @@ impl WorkbenchClientUi {
         token: Token,
         control: crate::native_settings::Control,
     ) {
-        let saving = matches!(self.settings.editor.view(), Some(View::Saving { token: current }) if current == token);
         if let Some(submission) = self.settings.editor.control(token, control) {
             self.submit_settings(submission);
-        }
-        if saving && !self.settings.editor.visible() {
-            self.settings.note(Notice::Background, self.clock.now());
         }
     }
     pub(in crate::workbench_client) fn click_settings(&mut self, token: Token, row: Row) {
@@ -488,18 +455,16 @@ impl WorkbenchClientUi {
         match draw {
             Some(ModalPresentation::Presented(draw)) => {
                 self.settings.editor.presented(draw);
-                if self.settings.notice(self.clock.now()) == Some(Notice::TooSmall) {
+                if self.settings.notice() == Some(Notice::TooSmall) {
                     self.settings.clear_notice();
                 }
             }
             Some(ModalPresentation::NotPresented) => {
                 match self.settings.editor.geometry_blocked() {
-                    Some(GeometrySettlement::Refused) => self
-                        .settings
-                        .note(Notice::PresentationUnavailable, self.clock.now()),
-                    Some(GeometrySettlement::Suspended) => {
-                        self.settings.note(Notice::TooSmall, self.clock.now())
+                    Some(GeometrySettlement::Refused) => {
+                        self.settings.note(Notice::PresentationUnavailable)
                     }
+                    Some(GeometrySettlement::Suspended) => self.settings.note(Notice::TooSmall),
                     None => {}
                 }
             }

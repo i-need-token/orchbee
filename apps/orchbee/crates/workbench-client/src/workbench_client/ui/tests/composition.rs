@@ -6,7 +6,6 @@ use crate::client_view::{
     Binding, ClientView, KeyCode, KeyEvent, LabelStyle, Modifiers, PrefixDesc, format_binding,
 };
 use crate::localization::{Locale, RecoveryVerb};
-use crate::native_settings::Basis;
 use crate::tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, ListScrollTarget};
 use crate::tui_presentation::PresentationPhase;
 use crate::tui_theme::Role;
@@ -116,101 +115,15 @@ fn open_loaded_settings(ui: &mut WorkbenchClientUi) {
     let token = ui.settings.editor.open().expect("Settings opens");
     assert!(ui.settings.editor.loaded(
         token,
-        Basis {
-            revision: 1,
-            values: UserSettingsValues::default(),
-        },
+        &crate::workbench_client::ui::settings::test_support::settings_snapshot(
+            1,
+            &UserSettingsValues::default(),
+        ),
     ));
     assert_eq!(
         ui.view().settings_presentation(),
         Some(PresentationPhase::Pending)
     );
-}
-
-#[test]
-fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() {
-    use crate::{client_view::ClientAction, tui_layout::SidebarWidth};
-
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height) in [(120, 40), (120, 30), (100, 24), (80, 24)] {
-            for sidebar_columns in [24, 30, 60] {
-                for visible in [false, true] {
-                    let (mut ui, _, _, _) = super::move_membership::ready_ui();
-                    let mut shell = ClientView::new(width);
-                    shell.machines.available = true;
-                    shell.machines.observe_agent_sidebar(true);
-                    let preferred = SidebarWidth::new(sidebar_columns).unwrap();
-                    if preferred != shell.machines.sidebar_width() {
-                        assert!(
-                            shell
-                                .machines
-                                .set_sidebar_width(SidebarWidth::DEFAULT, preferred)
-                        );
-                    }
-                    let initially_visible = !matches!(
-                        shell.sidebar_surface(),
-                        crate::client_view::SidebarSurface::Hidden
-                    );
-                    if initially_visible != visible {
-                        let transition = shell.decide_action(ClientAction::ToggleBusinessSidebar);
-                        shell.commit(
-                            transition,
-                            crate::client_view::ClientActionDisposition::KeepNavigator,
-                        );
-                    }
-                    assert_eq!(
-                        !matches!(
-                            shell.sidebar_surface(),
-                            crate::client_view::SidebarSurface::Hidden
-                        ),
-                        visible
-                    );
-                    open_loaded_settings(&mut ui);
-                    let theme = Theme::orchbee_light();
-                    let frame = render(&ui, &shell, width, height, locale, &theme);
-                    assert!(
-                        frame.has_hit(|target| matches!(target, HitTarget::SettingsRow { .. }))
-                    );
-                    let buffer = frame.terminal.backend().buffer();
-                    // The modal backdrop also blocks the whole host. Measure the painted
-                    // neutral overlay frame, not that intentionally larger input-capture surface.
-                    let surface = (0..height)
-                        .flat_map(|y| (0..width).map(move |x| (x, y)))
-                        .filter(|&(x, y)| {
-                            buffer[(x, y)].fg == theme.color(Role::FrameUnfocused)
-                                && buffer[(x, y)].bg == theme.color(Role::SurfaceOverlay)
-                                && buffer[(x, y)].symbol() != " "
-                        })
-                        .collect::<Vec<_>>();
-                    let expected_width = width.min(92);
-                    // The owning Settings contract prefers 92×30, clamped to the whole host; the
-                    // status reserves no row.
-                    let expected_height = height.min(30);
-                    let left = (width - expected_width) / 2;
-                    let top = (height - expected_height) / 2;
-                    assert_eq!(surface.iter().map(|cell| cell.0).min(), Some(left));
-                    assert_eq!(
-                        surface.iter().map(|cell| cell.0).max(),
-                        Some(left + expected_width - 1)
-                    );
-                    assert_eq!(surface.iter().map(|cell| cell.1).min(), Some(top));
-                    assert_eq!(
-                        surface.iter().map(|cell| cell.1).max(),
-                        Some(top + expected_height - 1)
-                    );
-                    for x in left + expected_width - 6..left + expected_width - 3 {
-                        assert!(matches!(
-                            frame.hits.hit_target_at(x, top),
-                            Some(HitTarget::SettingsControl {
-                                control: crate::native_settings::Control::Close,
-                                ..
-                            })
-                        ));
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[test]

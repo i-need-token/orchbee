@@ -35,7 +35,7 @@ pub(crate) fn render_settings_for_test(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<crate::native_settings::SettingsDraw> {
-    settings::render(frame, content, view, pending, locale, theme, hits)
+    settings::render(frame, content, view, pending, false, locale, theme, hits)
 }
 
 use crate::agent_board::AgentBoardDraw;
@@ -1116,11 +1116,14 @@ pub fn render_terminal_shell_with_resize<'a>(
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
+            // The page owns the whole viewport; its last row is the Settings status line, where a
+            // notice replaces the key hints.
             settings::render(
                 frame,
                 area,
                 settings,
                 native.settings_pending(),
+                native.settings_notice().is_some(),
                 locale,
                 theme,
                 hits,
@@ -1145,7 +1148,6 @@ pub fn render_terminal_shell_with_resize<'a>(
         // surface. The status chip carries only a distinct notice or recovery.
         let line = notice.map(|notice| {
             let role = match notice {
-                crate::localization::SettingsNotice::Saved => Role::StatusSuccess,
                 crate::localization::SettingsNotice::Failed
                 | crate::localization::SettingsNotice::InvalidValue
                 | crate::localization::SettingsNotice::Unsupported
@@ -1160,9 +1162,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 | crate::localization::SettingsNotice::Unknown
                 | crate::localization::SettingsNotice::PresentationUnavailable
                 | crate::localization::SettingsNotice::TooSmall => Role::StatusWarning,
-                crate::localization::SettingsNotice::Busy
-                | crate::localization::SettingsNotice::Background => Role::StatusPending,
-                crate::localization::SettingsNotice::NoChange => Role::StatusInfo,
+                crate::localization::SettingsNotice::Busy => Role::StatusPending,
             };
             let shorter = Vec::from_iter(locale.settings_notice_shorter(notice).map(str::to_owned));
             (locale.settings_notice(notice), shorter, role)
@@ -1176,9 +1176,23 @@ pub fn render_terminal_shell_with_resize<'a>(
                 theme,
             )
         } else {
+            // The page's own status line is its last row.
+            let page_status = Rect::new(
+                area.x + 1,
+                area.bottom().saturating_sub(1),
+                area.width.saturating_sub(2),
+                area.height.min(1),
+            );
             line.and_then(|(text, shorter, role)| {
                 status_line::render_notice_chip(
-                    frame, chip_area, text, &shorter, role, None, false, theme,
+                    frame,
+                    page_status,
+                    text,
+                    &shorter,
+                    role,
+                    None,
+                    false,
+                    theme,
                 )
             })
         };

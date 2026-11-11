@@ -131,13 +131,6 @@ impl Locale {
         self.integration("Agent integrations", "智能体集成")
     }
 
-    pub(crate) fn integrations_description(self) -> &'static str {
-        self.integration(
-            "Manage the optional local adapters that let Orchbee show rich Agent status.",
-            "管理可选的本地适配器，让 Orchbee 能显示更丰富的智能体状态。",
-        )
-    }
-
     pub(crate) fn integrations_disclosure(self) -> &'static str {
         self.integration(
             "Orchbee changes an integration only when you change its switch. It never installs adapters automatically.",
@@ -272,23 +265,11 @@ impl Locale {
         }
     }
 
-    /// Diagnosis heading inside the page, as in `Codex diagnosis`.
-    pub(crate) fn integration_diagnosis_title(self, agent: &str) -> String {
-        match self {
-            Self::EnUs => format!("{agent} diagnosis"),
-            Self::ZhCn => format!("{agent} 诊断"),
-        }
-    }
-
     pub(crate) fn integration_diagnosis_pending(self) -> &'static str {
         self.integration(
             "Checking this integration on this device…",
             "正在检查本设备上的此集成…",
         )
-    }
-
-    pub(crate) fn integration_diagnosis_back(self) -> &'static str {
-        self.integration("Return to Agent integrations.", "返回智能体集成。")
     }
 
     pub(crate) fn integration_diagnosis_read_only(self) -> &'static str {

@@ -1,17 +1,19 @@
-//! Scrollable common settings; only controls from the last successful frame authorize input.
+//! The full Settings page: a category column and the framed groups of the chosen category, one
+//! column at a time on a narrow viewport. Only controls from the last successful frame authorize
+//! input.
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    localization::{IntegrationFactLabel, IntegrationFinding, Locale, SettingsAcceptLabel},
+    localization::{IntegrationFactLabel, IntegrationFinding, Locale},
     native_settings::{
-        Adjustment, Choice, Control, Diagnosis, DraftView, Entry, Page, Row, SettingControl,
-        SettingsDraw, SettingsHintLabel, View, footer_bindings, setting_for_row,
+        Category, Choice, Control, Diagnosis, Entry, Group, Page, PageView, Pane, Row,
+        SettingsDraw, View, footer_bindings,
     },
     terminal_text::{
         display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
     },
     tui_hit_map::{
-        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
-        ProjectedPointer,
+        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
+        PrimaryContract, ProjectedPointer,
     },
     tui_presentation::ModalPresentation,
     tui_theme::{GlyphMode, Role, Theme},
@@ -19,1316 +21,1255 @@ use crate::{
 use orchbee_agent_integration::{InspectionDetail, IntegrationId};
 use ratatui::{
     Frame,
-    layout::{Alignment, Rect},
-    text::{Line, Span, Text},
-    widgets::{Padding, Paragraph},
+    layout::Rect,
+    style::{Color, Style},
+    text::{Line, Text},
+    widgets::{Clear, Paragraph},
 };
 
-use super::controls::{
-    ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
-    IconActionGlyph, IconActionSpec, InteractionState, KeyHint, NavigationState, OperationState,
-    PointerPresentation, QueryField, RowContentBand, RowFocusCue, RowTracks, measure_overlay_hints,
-    render_divider, render_query_field,
-};
+use super::controls::{KeyHint, QueryField, render_overlay_hints, render_query_field};
 
 #[cfg(test)]
 mod tests;
 
-/// One blank row separates the heading edge from the search slot; one column pads each side.
-const FRAME_PADDING: Padding = Padding::new(1, 1, 1, 0);
-/// Short frames give up the top blank row before any setting, detail, or footer row.
-const COMPACT_FRAME_PADDING: Padding = Padding::horizontal(1);
-/// The shortest frame that keeps its top blank row together with the detail row.
-const PADDED_FRAME_HEIGHT: u16 = 15;
-/// An Agent row keeps at least this width beside its Explain action; narrower rows drop the
-/// action and keep its key.
-const EXPLAIN_ROW_MINIMUM: u16 = 40;
+/// Below this width the page shows one column at a time.
+pub(crate) const NARROW_WIDTH: u16 = 56;
+/// The smallest viewport the page draws in; a smaller one shows the recovery notice instead.
+const MINIMUM_WIDTH: u16 = 24;
+const MINIMUM_HEIGHT: u16 = 8;
+/// The right column's widest reading measure.
+const CONTENT_WIDTH: u16 = 76;
+/// Viewports at least this tall keep a blank row above both columns.
+const PADDED_HEIGHT: u16 = 16;
 
+#[expect(clippy::too_many_arguments, reason = "the page's drawing inputs")]
 pub(super) fn render(
     frame: &mut Frame<'_>,
-    content: Rect,
+    area: Rect,
     view: View<'_>,
     pending: bool,
+    notice: bool,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<SettingsDraw> {
     let theme = &theme.paired_pointer_surfaces();
-    let Some(layout) = SettingsLayout::resolve(frame.area(), content, view, locale, theme) else {
+    if area.width < MINIMUM_WIDTH
+        || area.height < MINIMUM_HEIGHT
+        || frame.area().intersection(area) != area
+    {
         return ModalPresentation::NotPresented;
-    };
-    hits.start_settings();
-    let title = match view {
-        View::Draft(draft) if draft.page.is_integrations() => {
-            format!(
-                "{} > {}",
-                locale.settings_title(),
-                locale.integrations_title()
-            )
-        }
-        View::Draft(draft)
-            if draft.text.is_some() || draft.picker.is_some() || draft.page == Page::Profiles =>
-        {
-            format!(
-                "{} > {}",
-                locale.settings_title(),
-                if draft.page == Page::Profiles && draft.text.is_none() {
-                    locale.settings_category_name(draft.selected)
-                } else {
-                    locale.settings_row(draft.selected)
-                }
-            )
-        }
-        _ => locale.settings_title().into(),
-    };
-    let block = super::titled_overlay(theme, layout.padding, &title, layout.area.width);
-    frame.render_widget(block, layout.area);
-    let painted_close = render_close(frame, layout.close, view, theme, hits);
-    debug_assert_eq!(painted_close, Some(layout.close));
-    let draw = if let View::Draft(draft) = view {
-        render_draft(
-            frame,
-            layout.inner,
-            draft,
-            layout
-                .draft
-                .expect("draft layout carries its admitted draw"),
-            locale,
-            theme,
-            hits,
-        )
-    } else {
-        if matches!(view, View::Saving { .. }) {
-            frame.render_widget(
-                Paragraph::new(super::modal::status_line(
-                    locale.settings_saving_fact(),
-                    Role::StatusInfo,
-                    theme,
-                )),
-                Rect::new(layout.inner.x, layout.inner.y, layout.inner.width, 1),
-            );
-        }
-        if pending {
-            let y = layout.inner.y
-                + if matches!(view, View::Saving { .. }) {
-                    1
-                } else {
-                    0
-                };
-            frame.render_widget(
-                Paragraph::new(super::modal::status_line(
-                    locale.settings_pending(matches!(view, View::Saving { .. })),
-                    Role::StatusPending,
-                    theme,
-                )),
-                Rect::new(layout.inner.x, y, layout.inner.width, 1),
-            );
-        }
-        SettingsDraw::surface(view.token())
-    };
-    if !is_confirmation(view) {
-        let painted_hints = render_footer_hints(frame, layout.hints, view, locale, theme);
-        debug_assert!(painted_hints.is_some());
     }
-    render_footer_actions(
-        frame,
-        layout.actions,
-        layout.footer_actions,
-        view,
-        locale,
-        theme,
-        hits,
+    hits.start_settings();
+    frame.render_widget(Clear, area);
+    frame
+        .buffer_mut()
+        .set_style(area, theme.style(Role::SurfaceCanvas));
+    let body = Rect::new(area.x, area.y, area.width, area.height - 1);
+    let status = Rect::new(
+        area.x + 1,
+        area.bottom() - 1,
+        area.width.saturating_sub(2),
+        1,
     );
-    hits.record(
-        HitLayer::OverlaySurface,
-        layout.area,
-        HitTarget::OverlaySurface,
-    );
+    let draw = match view {
+        View::Loading { token } => {
+            let top = body.y + u16::from(body.height >= PADDED_HEIGHT);
+            put(
+                frame,
+                body.x + 2,
+                top,
+                body.width.saturating_sub(4),
+                locale.settings_title(),
+                theme.style(Role::TextPrimary),
+            );
+            if pending {
+                frame.render_widget(
+                    Paragraph::new(super::modal::status_line(
+                        locale.settings_pending(),
+                        Role::StatusPending,
+                        theme,
+                    )),
+                    Rect::new(body.x + 2, top + 2, body.width.saturating_sub(4), 1),
+                );
+            }
+            SettingsDraw::surface(token)
+        }
+        View::Page(page) => render_page(frame, body, page, locale, theme, hits),
+    };
+    if !notice {
+        render_hints(frame, status, view, locale, theme);
+    }
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     ModalPresentation::Presented(draw)
 }
 
-#[derive(Clone, Copy)]
-struct SettingsLayout {
-    area: Rect,
-    padding: Padding,
-    inner: Rect,
-    close: Rect,
-    hints: Rect,
-    actions: Rect,
-    footer_actions: FooterActionGeometry,
-    draft: Option<DraftLayout>,
-}
-
-#[derive(Clone, Copy)]
-struct DraftLayout {
-    regions: DraftRegions,
-    draw: SettingsDraw,
-}
-
-impl SettingsLayout {
-    fn resolve(
-        bounds: Rect,
-        content: Rect,
-        view: View<'_>,
-        locale: Locale,
-        theme: &Theme,
-    ) -> Option<Self> {
-        let theme = &theme.paired_pointer_surfaces();
-        if content.width < 36 || content.height < 10 || bounds.intersection(content) != content {
-            return None;
-        }
-        let width = content.width.min(92);
-        let height = content.height.min(30);
-        let area = Rect::new(
-            content.x + (content.width - width) / 2,
-            content.y + (content.height - height) / 2,
-            width,
-            height,
-        );
-        if bounds.intersection(area) != area {
-            return None;
-        }
-        let padding = if area.height >= PADDED_FRAME_HEIGHT {
-            FRAME_PADDING
-        } else {
-            COMPACT_FRAME_PADDING
-        };
-        let inner = super::overlay_surface(theme, padding).inner(area);
-        if inner.width == 0 || inner.height < 6 || bounds.intersection(inner) != inner {
-            return None;
-        }
-        let close = super::controls::frame_close_rect(bounds, area)?;
-        let mut action_height = if matches!(view, View::Draft(draft)
-            if !is_child(draft) && !matches!(draft.page, Page::Diagnosis(_)))
-            && inner.width < 70
-        {
-            2
-        } else {
-            1
-        };
-        if matches!(view, View::Draft(draft) if is_child(draft))
-            && FooterActionGeometry::resolve(
-                bounds,
-                Rect::new(inner.x, inner.bottom().checked_sub(1)?, inner.width, 1),
-                view,
-                locale,
-                theme,
-            )
-            .is_none()
-        {
-            action_height = 2;
-        }
-        let hints = Rect::new(
-            inner.x,
-            inner.bottom().checked_sub(action_height + 1)?,
-            inner.width,
-            1,
-        );
-        if !is_confirmation(view) {
-            footer_hints_admitted(bounds, hints, view, locale, theme)?;
-        }
-        let actions = Rect::new(
-            inner.x,
-            inner.bottom().checked_sub(action_height)?,
-            inner.width,
-            action_height,
-        );
-        let footer_actions = FooterActionGeometry::resolve(bounds, actions, view, locale, theme)?;
-        let draft = match view {
-            View::Draft(draft) => {
-                let regions = DraftRegions::resolve(inner, action_height)?;
-                let visible = usize::from(regions.list.height);
-                let draw = if let Some(picker) = draft.picker {
-                    let visible = usize::from(regions.facts.y.saturating_sub(inner.y + 3))
-                        .min(Choice::options(picker.row()).len());
-                    SettingsDraw::picker(draft.token, picker.first_visible(visible), visible)
-                } else if draft.text.is_some() || draft.confirmation.is_some() {
-                    SettingsDraw::surface(draft.token)
-                } else {
-                    draft.presentation(visible)
-                };
-                if !draft_geometry_admitted(bounds, inner, regions, draft, draw, locale, theme) {
-                    return None;
-                }
-                Some(DraftLayout { regions, draw })
-            }
-            View::Loading { .. } | View::Saving { .. } => None,
-        };
-        Some(Self {
-            area,
-            padding,
-            inner,
-            close,
-            hints,
-            actions,
-            footer_actions,
-            draft,
-        })
-    }
-}
-
-struct ResolvedFooterHint {
-    key: String,
-    label: &'static str,
-}
-
-fn format_settings_bindings(bindings: impl Iterator<Item = Binding>, theme: &Theme) -> String {
-    let key_glyphs = match theme.glyphs.mode() {
-        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
-        #[cfg(any(test, feature = "test-support"))]
-        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
-    };
-    bindings
-        .map(|binding| format_binding_with_glyphs(&binding, LabelStyle::for_host(), key_glyphs))
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-/// The outcome the child step's primary names: applying an edit, or the confirmed action.
-fn accept_label(view: View<'_>) -> SettingsAcceptLabel {
-    use crate::native_settings::Confirmation;
-    match view {
-        View::Draft(draft) => match draft.confirmation {
-            Some(Confirmation::ResetAll | Confirmation::ResetProfiles) => {
-                SettingsAcceptLabel::Reset
-            }
-            Some(Confirmation::Reload) => SettingsAcceptLabel::Reload,
-            Some(Confirmation::DeleteProfile) => SettingsAcceptLabel::Delete,
-            None => SettingsAcceptLabel::Apply,
-        },
-        _ => SettingsAcceptLabel::Apply,
-    }
-}
-
-fn is_confirmation(view: View<'_>) -> bool {
-    matches!(view, View::Draft(draft) if draft.confirmation.is_some())
-}
-
-fn is_child(draft: DraftView<'_>) -> bool {
-    draft.text.is_some()
-        || draft.confirmation.is_some()
-        || draft.searching
-        || draft.picker.is_some()
-}
-
-fn child_shortcuts(view: View<'_>, theme: &Theme) -> Option<[String; 2]> {
-    matches!(view, View::Draft(draft) if is_child(draft)).then(|| {
-        [
-            SettingsHintLabel::Cancel,
-            if is_confirmation(view) {
-                SettingsHintLabel::Confirm
-            } else {
-                SettingsHintLabel::Accept
-            },
-        ]
-        .map(|label| {
-            let hint = footer_bindings(view)
-                .iter()
-                .find(|hint| hint.label() == label)
-                .expect("child owner exposes cancel and accept bindings");
-            format_settings_bindings(hint.bindings(), theme)
-        })
-    })
-}
-
-fn exit_shortcut(view: View<'_>, theme: &Theme) -> String {
-    let hint = footer_bindings(view)
-        .first()
-        .expect("settings owner exposes exit first");
-    format_settings_bindings(hint.bindings(), theme)
-}
-
-fn resolved_footer_hints(view: View<'_>, locale: Locale, theme: &Theme) -> Vec<ResolvedFooterHint> {
-    footer_bindings(view)
-        .iter()
-        .filter(|hint| {
-            !matches!(
-                hint.label(),
-                SettingsHintLabel::Close
-                    | SettingsHintLabel::Back
-                    | SettingsHintLabel::Cancel
-                    | SettingsHintLabel::Confirm
-                    | SettingsHintLabel::Accept
-                    | SettingsHintLabel::Save
-            )
-        })
-        .map(|hint| ResolvedFooterHint {
-            key: format_settings_bindings(hint.bindings(), theme),
-            label: locale.settings_hint_label(hint.label()),
-        })
-        .collect()
-}
-
-fn key_hints(resolved: &[ResolvedFooterHint]) -> Vec<KeyHint<'_>> {
-    resolved
-        .iter()
-        .map(|hint| KeyHint::new(&hint.key, hint.label))
-        .collect()
-}
-
-fn footer_hints_admitted(
-    bounds: Rect,
-    area: Rect,
-    view: View<'_>,
-    locale: Locale,
-    theme: &Theme,
-) -> Option<()> {
-    if area.is_empty() || bounds.intersection(area) != area {
-        return None;
-    }
-    let resolved = resolved_footer_hints(view, locale, theme);
-    let hints = key_hints(&resolved);
-    if hints.is_empty() {
-        return Some(());
-    }
-    let _ = measure_overlay_hints(&hints, theme)?;
-    let first = measure_overlay_hints(hints.get(..1)?, theme)?;
-    (first <= usize::from(area.width)).then_some(())
-}
-
-fn render_footer_hints(
+fn render_page(
     frame: &mut Frame<'_>,
-    area: Rect,
-    view: View<'_>,
-    locale: Locale,
-    theme: &Theme,
-) -> Option<Rect> {
-    let resolved = resolved_footer_hints(view, locale, theme);
-    let hints = key_hints(&resolved);
-    if hints.is_empty() {
-        return Some(Rect::new(area.x, area.y, 0, 1));
-    }
-    super::controls::render_overlay_hints(frame, area, &hints, theme)
-}
-
-fn rest_state(enabled: bool) -> InteractionState {
-    InteractionState::new(
-        FocusState::Unfocused,
-        PointerPresentation::Rest,
-        NavigationState::None,
-        CurrentState::NotCurrent,
-        CheckedState::Unchecked,
-        if enabled {
-            Availability::Enabled
-        } else {
-            Availability::Disabled
-        },
-        OperationState::Idle,
-    )
-}
-
-fn interaction_spec(enabled: bool) -> InteractionSpec {
-    if enabled {
-        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
-    } else {
-        InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
-    }
-}
-
-fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
-    match pointer {
-        ProjectedPointer::Rest => PointerPresentation::Rest,
-        ProjectedPointer::Hovered => PointerPresentation::Hovered,
-        ProjectedPointer::Pressed => PointerPresentation::Pressed,
-    }
-}
-
-fn action_spec(
-    label: &str,
-    kind: ActionKind,
-    enabled: bool,
-    pointer: PointerPresentation,
-) -> ActionSpec<'_> {
-    ActionSpec::new(
-        label,
-        kind,
-        ControlSurface::Overlay,
-        rest_state(enabled).with_pointer(pointer),
-    )
-}
-
-fn render_close(
-    frame: &mut Frame<'_>,
-    rect: Rect,
-    view: View<'_>,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) -> Option<Rect> {
-    let target = InteractionTarget::SettingsControl {
-        token: view.token(),
-        control: Control::Close,
-    };
-    let spec = interaction_spec(true);
-    let pointer =
-        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
-    let painted = super::controls::render_frame_icon_action(
-        frame,
-        rect,
-        IconActionSpec::new(
-            IconActionGlyph::Close,
-            ControlSurface::Overlay,
-            Availability::Enabled,
-            pointer,
-        ),
-        theme,
-    )?;
-    if painted != rect {
-        return None;
-    }
-    if view.allows_backdrop_close() {
-        hits.record_overlay_dismissal(&target);
-    }
-    hits.record_interaction(HitLayer::Overlay, painted, painted, target, spec);
-    Some(painted)
-}
-
-struct ActionPaint<'a> {
-    area: Rect,
-    rect: Rect,
-    label: &'a str,
-    shortcut: Option<&'a str>,
-    kind: ActionKind,
-    enabled: bool,
-    target: InteractionTarget,
-    focused: bool,
-}
-
-#[derive(Clone, Copy)]
-enum FooterActionGeometry {
-    Root {
-        reset: Rect,
-        reload: Rect,
-        close: Rect,
-        save: Rect,
-    },
-    /// A child page: its own action, if any, then Back.
-    Page {
-        action: Option<(Row, Rect)>,
-        back: Rect,
-    },
-    Pair {
-        first: Rect,
-        second_area: Rect,
-        second: Rect,
-    },
-    Single {
-        rect: Rect,
-    },
-}
-
-impl FooterActionGeometry {
-    fn resolve(
-        bounds: Rect,
-        row: Rect,
-        view: View<'_>,
-        locale: Locale,
-        theme: &Theme,
-    ) -> Option<Self> {
-        if row.is_empty() || bounds.intersection(row) != row {
-            return None;
-        }
-        let child = matches!(view, View::Draft(draft) if is_child(draft));
-        if let View::Draft(draft) = view
-            && !child
-        {
-            let rect_for = |x, y, label, kind, shortcut: Option<&str>| {
-                let area = Rect::new(x, y, row.right().checked_sub(x)?, 1);
-                let mut spec = action_spec(label, kind, true, PointerPresentation::Rest);
-                if let Some(shortcut) = shortcut {
-                    spec = spec.with_shortcut(shortcut);
-                }
-                super::controls::action_rect(bounds, area, spec, theme)
-            };
-            let exit = exit_shortcut(view, theme);
-            if draft.page.is_child() {
-                let action = match page_action(draft.page) {
-                    Some(setting) => Some((
-                        setting,
-                        rect_for(
-                            row.x,
-                            row.y,
-                            locale.settings_row(setting),
-                            ActionKind::Secondary,
-                            None,
-                        )?,
-                    )),
-                    None => None,
-                };
-                let (x, y) = match action {
-                    Some(_) if row.height > 1 => (row.x, row.y + 1),
-                    Some((_, rect)) => (rect.right() + 2, row.y),
-                    None => (row.x, row.y),
-                };
-                let back = rect_for(
-                    x,
-                    y,
-                    locale.settings_back_button(),
-                    ActionKind::Secondary,
-                    Some(&exit),
-                )?;
-                return Some(Self::Page { action, back });
-            }
-            let reset = rect_for(
-                row.x,
-                row.y,
-                locale.settings_row_action(Row::ResetAll)?,
-                ActionKind::Secondary,
-                None,
-            )?;
-            let reload = rect_for(
-                reset.right() + 2,
-                row.y,
-                locale.settings_row_action(Row::Reload)?,
-                ActionKind::Secondary,
-                None,
-            )?;
-            let (x, y) = if row.height > 1 {
-                (row.x, row.y + 1)
-            } else {
-                (reload.right() + 2, row.y)
-            };
-            let close_label = if draft.query.is_empty() {
-                locale.settings_close_button()
-            } else {
-                locale.settings_back_button()
-            };
-            let close = rect_for(x, y, close_label, ActionKind::Secondary, Some(&exit))?;
-            let shortcut = save_shortcut(view, row.width, theme);
-            let save = rect_for(
-                close.right() + 2,
-                y,
-                locale.settings_row_action(Row::Save)?,
-                ActionKind::Primary,
-                shortcut.as_deref(),
-            )?;
-            return Some(Self::Root {
-                reset,
-                reload,
-                close,
-                save,
-            });
-        }
-        if child {
-            let accept_enabled =
-                !matches!(view, View::Draft(draft) if draft.text.is_some() && draft.invalid);
-            let mut first_spec = action_spec(
-                locale.settings_cancel(),
-                ActionKind::Secondary,
-                true,
-                PointerPresentation::Rest,
-            );
-            let mut second_spec = action_spec(
-                locale.settings_accept_button(accept_label(view)),
-                ActionKind::Primary,
-                accept_enabled,
-                PointerPresentation::Rest,
-            );
-            let shortcuts = child_shortcuts(view, theme);
-            if let Some(shortcuts) = shortcuts.as_ref() {
-                first_spec = first_spec.with_shortcut(&shortcuts[0]);
-                second_spec = second_spec.with_shortcut(&shortcuts[1]);
-            }
-            let first = super::controls::action_rect(bounds, row, first_spec, theme)?;
-            let (second_x, second_y) = if row.height > 1 {
-                (row.x, row.y.checked_add(1)?)
-            } else {
-                (first.right().checked_add(2)?, row.y)
-            };
-            let second_area = Rect::new(second_x, second_y, row.right().checked_sub(second_x)?, 1);
-            let second = super::controls::action_rect(bounds, second_area, second_spec, theme)?;
-            Some(Self::Pair {
-                first,
-                second_area,
-                second,
-            })
-        } else {
-            let label = if matches!(view, View::Draft(draft) if draft.page == Page::Profiles) {
-                locale.settings_back_button()
-            } else {
-                locale.settings_close_button()
-            };
-            let shortcut = exit_shortcut(view, theme);
-            let spec = action_spec(
-                label,
-                ActionKind::Secondary,
-                true,
-                PointerPresentation::Rest,
-            )
-            .with_shortcut(&shortcut);
-            let rect = super::controls::action_rect(bounds, row, spec, theme)?;
-            Some(Self::Single { rect })
-        }
-    }
-}
-
-fn render_interactive_action(
-    frame: &mut Frame<'_>,
-    action: ActionPaint<'_>,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) -> Option<Rect> {
-    let spec = interaction_spec(action.enabled);
-    let pointer = pointer_presentation(hits.projected_pointer(
-        HitLayer::Overlay,
-        action.rect,
-        action.rect,
-        &action.target,
-        spec,
-    ));
-    let mut state = rest_state(action.enabled).with_pointer(pointer);
-    if action.focused {
-        state = InteractionState::new(
-            FocusState::Focused,
-            pointer,
-            NavigationState::None,
-            CurrentState::NotCurrent,
-            CheckedState::Unchecked,
-            if action.enabled {
-                Availability::Enabled
-            } else {
-                Availability::Disabled
-            },
-            OperationState::Idle,
-        );
-    }
-    let mut action_spec =
-        ActionSpec::new(action.label, action.kind, ControlSurface::Overlay, state);
-    if let Some(shortcut) = action.shortcut {
-        action_spec = action_spec.with_shortcut(shortcut);
-    }
-    let painted = super::controls::render_action(frame, action.area, action_spec, theme)?;
-    if painted != action.rect {
-        return None;
-    }
-    hits.record_interaction(HitLayer::Overlay, painted, painted, action.target, spec);
-    Some(painted)
-}
-
-fn render_footer_actions(
-    frame: &mut Frame<'_>,
-    row: Rect,
-    geometry: FooterActionGeometry,
-    view: View<'_>,
-    locale: Locale,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) {
-    if let View::Draft(draft) = view {
-        let exit = exit_shortcut(view, theme);
-        let save_key = save_shortcut(view, row.width, theme);
-        let buttons = match geometry {
-            FooterActionGeometry::Root {
-                reset,
-                reload,
-                close,
-                save,
-            } => vec![
-                (
-                    reset,
-                    Some(Row::ResetAll),
-                    locale.settings_row_action(Row::ResetAll).unwrap(),
-                    None,
-                    Control::Close,
-                ),
-                (
-                    reload,
-                    Some(Row::Reload),
-                    locale.settings_row_action(Row::Reload).unwrap(),
-                    None,
-                    Control::Close,
-                ),
-                (
-                    close,
-                    None,
-                    if draft.query.is_empty() {
-                        locale.settings_close_button()
-                    } else {
-                        locale.settings_back_button()
-                    },
-                    Some(exit.as_str()),
-                    if draft.query.is_empty() {
-                        Control::Close
-                    } else {
-                        Control::Back
-                    },
-                ),
-                (
-                    save,
-                    Some(Row::Save),
-                    locale.settings_row_action(Row::Save).unwrap(),
-                    save_key.as_deref(),
-                    Control::Close,
-                ),
-            ],
-            FooterActionGeometry::Page { action, back } => action
-                .map(|(setting, rect)| {
-                    (
-                        rect,
-                        Some(setting),
-                        locale.settings_row(setting),
-                        None,
-                        Control::Back,
-                    )
-                })
-                .into_iter()
-                .chain([(
-                    back,
-                    Some(Row::Back),
-                    locale.settings_back_button(),
-                    Some(exit.as_str()),
-                    Control::Back,
-                )])
-                .collect(),
-            _ => Vec::new(),
-        };
-        if !buttons.is_empty() {
-            for (rect, setting, label, shortcut, control) in buttons {
-                let target = setting.map_or(
-                    InteractionTarget::SettingsControl {
-                        token: draft.token,
-                        control,
-                    },
-                    |row| InteractionTarget::SettingsRow {
-                        token: draft.token,
-                        row,
-                    },
-                );
-                let painted = render_interactive_action(
-                    frame,
-                    ActionPaint {
-                        area: rect,
-                        rect,
-                        label,
-                        shortcut,
-                        kind: if setting == Some(Row::Save) {
-                            ActionKind::Primary
-                        } else {
-                            ActionKind::Secondary
-                        },
-                        enabled: setting.is_none_or(|row| draft.enabled(row)),
-                        target,
-                        focused: setting == Some(draft.selected),
-                    },
-                    theme,
-                    hits,
-                );
-                debug_assert_eq!(painted, Some(rect));
-            }
-            return;
-        }
-    }
-    let child = matches!(view, View::Draft(draft) if is_child(draft));
-    if child {
-        let FooterActionGeometry::Pair {
-            first,
-            second_area,
-            second,
-        } = geometry
-        else {
-            unreachable!("preflighted child actions use pair geometry");
-        };
-        let labels = [
-            locale.settings_cancel(),
-            locale.settings_accept_button(accept_label(view)),
-        ];
-        let shortcuts = child_shortcuts(view, theme);
-        let accept_enabled =
-            !matches!(view, View::Draft(draft) if draft.text.is_some() && draft.invalid);
-        let token = view.token();
-        let Some(first) = render_interactive_action(
-            frame,
-            ActionPaint {
-                area: row,
-                rect: first,
-                label: labels[0],
-                shortcut: shortcuts.as_ref().map(|keys| keys[0].as_str()),
-                kind: ActionKind::Secondary,
-                enabled: true,
-                target: InteractionTarget::SettingsControl {
-                    token,
-                    control: Control::Back,
-                },
-                focused: false,
-            },
-            theme,
-            hits,
-        ) else {
-            return;
-        };
-        let Some(painted_second) = render_interactive_action(
-            frame,
-            ActionPaint {
-                area: second_area,
-                rect: second,
-                label: labels[1],
-                shortcut: shortcuts.as_ref().map(|keys| keys[1].as_str()),
-                kind: ActionKind::Primary,
-                enabled: accept_enabled,
-                target: InteractionTarget::SettingsControl {
-                    token,
-                    control: Control::Accept,
-                },
-                focused: false,
-            },
-            theme,
-            hits,
-        ) else {
-            return;
-        };
-        debug_assert_ne!(first, painted_second);
-        return;
-    }
-
-    let back = matches!(view, View::Draft(draft) if draft.page == Page::Profiles);
-    let FooterActionGeometry::Single { rect } = geometry else {
-        unreachable!("preflighted root actions use single geometry");
-    };
-    let (label, control) = if back {
-        (locale.settings_back_button(), Control::Back)
-    } else {
-        (locale.settings_close_button(), Control::Close)
-    };
-    let shortcut = exit_shortcut(view, theme);
-    let painted = render_interactive_action(
-        frame,
-        ActionPaint {
-            area: row,
-            rect,
-            label,
-            shortcut: Some(&shortcut),
-            kind: ActionKind::Secondary,
-            enabled: true,
-            target: InteractionTarget::SettingsControl {
-                token: view.token(),
-                control,
-            },
-            focused: false,
-        },
-        theme,
-        hits,
-    );
-    debug_assert_eq!(painted, Some(rect));
-}
-
-/// The footer action a child page offers beside Back.
-const fn page_action(page: Page) -> Option<Row> {
-    match page {
-        Page::Profiles => Some(Row::ResetProfiles),
-        Page::Integrations => Some(Row::RefreshIntegrations),
-        Page::General | Page::Diagnosis(_) => None,
-    }
-}
-
-fn page_title(page: Page, locale: Locale) -> String {
-    match page {
-        Page::Integrations => locale.integrations_title().into(),
-        Page::Diagnosis(id) => {
-            locale.integration_diagnosis_title(locale.agent_integration_name(id))
-        }
-        Page::General | Page::Profiles => locale.settings_category_name(Row::LaunchProfiles).into(),
-    }
-}
-
-fn save_shortcut(view: View<'_>, width: u16, theme: &Theme) -> Option<String> {
-    (width >= 40)
-        .then(|| {
-            footer_bindings(view)
-                .iter()
-                .find(|hint| hint.label() == SettingsHintLabel::Save)
-                .map(|hint| format_settings_bindings(hint.bindings(), theme))
-        })
-        .flatten()
-}
-
-fn render_draft(
-    frame: &mut Frame<'_>,
-    inner: Rect,
-    draft: DraftView<'_>,
-    layout: DraftLayout,
+    body: Rect,
+    page: PageView<'_>,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> SettingsDraw {
-    let DraftLayout { regions, draw } = layout;
-    if draft.text.is_some() || draft.confirmation.is_some() || draft.picker.is_some() {
-        render_child(frame, inner, regions.facts.y, draft, locale, theme, hits);
-        render_state_facts(frame, regions.facts, draft, locale, theme);
-        return draw;
-    }
-    let entries = draft.entries();
-    let start = draw.first_visible().unwrap_or(0);
-    let visible = draw.visible_rows().unwrap_or(0);
-    let context = RowContext {
-        draft,
-        list_active: true,
-        locale,
-        theme,
-    };
-    if !draft.searching {
-        hits.record(
-            HitLayer::OverlaySurface,
-            regions.list,
-            HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Settings(draft.token)),
-        );
-    }
-    if draft.page == Page::General {
-        render_search(
-            frame,
-            Rect::new(inner.x, inner.y, inner.width, 1),
-            draft,
-            locale,
-            theme,
-            hits,
-        );
+    let narrow = body.width < NARROW_WIDTH;
+    let top = u16::from(body.height >= PADDED_HEIGHT);
+    let (nav, content) = if narrow {
+        if page.pane() == Pane::Categories && page.page() == Page::General {
+            (Some(body), None)
+        } else {
+            (None, Some(body))
+        }
     } else {
-        frame.render_widget(
-            Paragraph::new(super::modal::title_line(
-                page_title(draft.page, locale),
-                theme,
-            )),
-            Rect::new(inner.x, inner.y, inner.width, 1),
-        );
-    }
-    render_divider(
-        frame,
-        Rect::new(inner.x, inner.y + 1, inner.width, 1),
-        theme,
-    );
-    for (offset, entry) in entries
-        .iter()
-        .skip(start)
-        .take(visible)
-        .copied()
-        .enumerate()
-    {
-        let row_area = Rect::new(
-            regions.list.x,
-            regions.list.y + u16::try_from(offset).expect("bounded visible rows"),
-            regions.list.width.saturating_sub(1),
-            1,
-        );
-        match entry {
-            Entry::Setting(row) => {
-                let explain = match row {
-                    Row::Agent(id) => explain_rect(frame.area(), row_area, locale, theme)
-                        .map(|rect| Explain { rect, id }),
-                    _ => None,
-                };
-                render_setting_row(frame, row_area, explain, context, row, hits);
-            }
-            Entry::Heading(category) => render_section(
+        let width = ((u32::from(body.width) + 2) / 5).clamp(20, 26) as u16;
+        let nav = Rect::new(body.x, body.y, width, body.height);
+        let divider = Rect::new(body.x + width, body.y, 1, body.height);
+        let glyph = theme.glyphs.vertical_rule;
+        for y in divider.y..divider.bottom() {
+            put(
                 frame,
-                row_area,
-                locale.settings_category_name(category),
-                theme,
-            ),
-        }
-    }
-    if let Page::Diagnosis(id) = draft.page {
-        render_diagnosis(frame, regions.list, draft, id, locale, theme);
-    } else if entries.is_empty() {
-        frame.render_widget(
-            Paragraph::new(crate::terminal_text::wrap_text(
-                &Text::from(locale.settings_no_results()),
-                regions.list.width,
-            ))
-            .style(theme.style(Role::TextSecondary)),
-            regions.list,
-        );
-    }
-    if entries.len() > usize::from(regions.list.height) {
-        let height = usize::from(regions.list.height);
-        let thumb = start.saturating_mul(height.saturating_sub(1))
-            / entries.len().saturating_sub(height).max(1);
-        frame.render_widget(
-            Paragraph::new(theme.glyphs.scrollbar_thumb).style(theme.style(Role::TextSecondary)),
-            Rect::new(
-                regions.list.right() - 1,
-                regions.list.y + u16::try_from(thumb).expect("bounded thumb"),
+                divider.x,
+                y,
                 1,
-                1,
-            ),
-        );
-    }
-    render_divider(frame, regions.separator, theme);
-    if let Some(detail) = regions.detail {
-        let text = draft_description(draft, locale, theme);
-        frame.render_widget(
-            Paragraph::new(truncate_display(
-                &text,
-                usize::from(detail.width),
-                theme.glyphs.ellipsis,
-            ))
-            .style(theme.style(Role::TextSecondary)),
-            detail,
-        );
-    }
-    render_state_facts(frame, regions.facts, draft, locale, theme);
-    draw
-}
-
-#[derive(Clone, Copy)]
-struct DraftRegions {
-    list: Rect,
-    separator: Rect,
-    detail: Option<Rect>,
-    facts: Rect,
-}
-
-impl DraftRegions {
-    fn resolve(inner: Rect, actions: u16) -> Option<Self> {
-        let facts_y = inner.bottom().checked_sub(actions + 2)?;
-        let with_detail = inner.height >= 12;
-        let separator_y = facts_y.checked_sub(if with_detail { 2 } else { 1 })?;
-        let list_y = inner.y.checked_add(2)?;
-        let height = separator_y.checked_sub(list_y)?;
-        if height == 0 {
-            return None;
+                glyph,
+                theme.style(Role::FrameDivider),
+            );
         }
-        Some(Self {
-            list: Rect::new(inner.x, list_y, inner.width, height),
-            separator: Rect::new(inner.x, separator_y, inner.width, 1),
-            detail: with_detail.then(|| Rect::new(inner.x, separator_y + 1, inner.width, 1)),
-            facts: Rect::new(inner.x, facts_y, inner.width, 1),
-        })
+        let content = Rect::new(
+            divider.right(),
+            body.y,
+            body.right().saturating_sub(divider.right()),
+            body.height,
+        );
+        (Some(nav), Some(content))
+    };
+    if let Some(nav) = nav {
+        render_nav(frame, nav, top, narrow, page, locale, theme, hits);
     }
+    let visible = match content {
+        Some(content) => render_content(frame, content, top, narrow, page, locale, theme, hits),
+        None => 1,
+    };
+    page.presentation(visible, narrow)
 }
 
-fn render_section(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
-    render_divider(frame, area, theme);
-    let label = format!(
-        " {} ",
-        truncate_display(
-            label,
-            usize::from(area.width).saturating_sub(2),
-            theme.glyphs.ellipsis
-        )
-    );
-    let label_width = u16::try_from(display_width(&label))
-        .unwrap_or(area.width)
-        .min(area.width);
-    frame.render_widget(
-        Paragraph::new(label).style(theme.style(Role::TextSecondary)),
-        Rect::new(area.x, area.y, label_width, 1),
-    );
-}
-
-fn render_search(
+/// The left column: the way back to the app, search, and the seven categories.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one page column's drawing inputs"
+)]
+fn render_nav(
     frame: &mut Frame<'_>,
-    area: Rect,
-    draft: DraftView<'_>,
+    nav: Rect,
+    top: u16,
+    narrow: bool,
+    page: PageView<'_>,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let field = if !draft.query.is_empty() {
-        let count = locale.settings_search_count(draft.content_rows().len());
-        let count_width = u16::try_from(display_width(&count))
-            .unwrap_or(area.width)
-            .min(area.width);
-        let count_area = Rect::new(area.right() - count_width, area.y, count_width, 1);
-        frame.render_widget(
-            Paragraph::new(count).style(theme.style(Role::TextSecondary)),
-            count_area,
-        );
-        Rect::new(
-            area.x,
-            area.y,
-            area.width.saturating_sub(count_width + 2),
-            1,
-        )
+    let base = if narrow {
+        Role::SurfaceCanvas
     } else {
-        area
+        Role::SurfaceChrome
     };
-    if draft.searching {
-        let _ = render_query_field(
-            frame,
-            field,
-            QueryField::Editing {
-                label: locale.settings_search_label(),
-                query: draft.query,
-                cursor: draft.search_cursor,
-            },
-            theme,
-        );
-        return;
-    }
-    let key = footer_bindings(View::Draft(draft))
-        .iter()
-        .find(|hint| hint.label() == SettingsHintLabel::Search)
-        .map(|hint| format_settings_bindings(hint.bindings(), theme));
-    let query = match (draft.query.is_empty(), key.as_deref()) {
-        (true, Some(key)) => QueryField::Rest {
-            key,
-            prompt: locale.settings_search_prompt(),
-        },
-        _ => QueryField::Retained {
-            label: locale.settings_search_label(),
-            query: draft.query,
-        },
-    };
-    let _ = render_query_field(frame, field, query, theme);
-    let target = InteractionTarget::SettingsControl {
-        token: draft.token,
-        control: Control::Search,
-    };
-    let spec = interaction_spec(true);
-    let pointer =
-        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, area, area, &target, spec));
-    super::controls::paint_pointer_target(
+    frame.buffer_mut().set_style(nav, theme.style(base));
+    let token = page.token();
+    let x = nav.x + 1;
+    let width = nav.width.saturating_sub(2);
+    let mut y = nav.y + top;
+    put(
         frame,
-        area,
-        ControlSurface::Overlay,
-        pointer,
+        x,
+        y,
+        width,
+        locale.settings_title(),
+        on(theme, base, None, Role::TextPrimary).add_modifier(ratatui::style::Modifier::BOLD),
+    );
+    y += 1;
+    // Back to the app.
+    let back = Rect::new(x, y, width, 1);
+    let label = format!("{} {}", arrow(theme), locale.settings_back_button());
+    paint_line_target(
+        frame,
+        back,
+        &label,
         Role::TextSecondary,
-        Availability::Enabled,
-        theme,
-    );
-    hits.record_interaction(HitLayer::Overlay, area, area, target, spec);
-}
-
-fn draft_description(draft: DraftView<'_>, locale: Locale, theme: &Theme) -> String {
-    if draft.page.is_integrations() {
-        return integration_description(draft, locale);
-    }
-    let explained = draft.confirmation.is_some()
-        || draft.invalid
-        || draft.page == Page::Profiles
-        || draft.reconciliation == Some(crate::native_settings::Reconciliation::OutcomeUnknown);
-    // NO_COLOR, not the color depth it implies, is why a named theme cannot show.
-    if !explained
-        && theme.no_color()
-        && matches!(
-            draft.selected,
-            Row::LightTheme | Row::DarkTheme | Row::ColorSource
-        )
-    {
-        return locale.settings_no_color().into();
-    }
-    if explained || !draft.enabled(draft.selected) {
-        return locale.settings_detail(draft);
-    }
-    if theme.no_color()
-        && matches!(
-            draft.selected,
-            Row::Theme | Row::TerminalTheme | Row::Foreground | Row::Background
-        )
-    {
-        return locale.settings_no_color().into();
-    }
-    let description = locale.settings_description(draft.selected);
-    match locale.settings_system_notice(draft.selected) {
-        Some(notice)
-            if draft.values.application_theme
-                == orchbee_workbench_protocol::ApplicationAppearance::System =>
-        {
-            locale.settings_sentences(description, notice)
-        }
-        _ => description.into(),
-    }
-}
-
-fn integration_description(draft: DraftView<'_>, locale: Locale) -> String {
-    match draft.selected {
-        Row::Agent(id) => match draft.integrations.block(id) {
-            Some(block) => locale.integration_block(block).into(),
-            None => locale.integration_provider_description(locale.agent_integration_name(id)),
+        base,
+        false,
+        InteractionTarget::SettingsControl {
+            token,
+            control: Control::Close,
         },
-        Row::RemoteHosts => locale.integrations_remote_description().into(),
-        Row::RefreshIntegrations if draft.integrations.pending() => locale
-            .integration_block(crate::localization::IntegrationBlock::Pending)
-            .into(),
-        Row::RefreshIntegrations => locale.integrations_refresh_description().into(),
-        _ => match draft.page {
-            Page::Diagnosis(_) => locale.integration_diagnosis_back().into(),
-            _ => locale.integrations_back_description().into(),
-        },
-    }
-}
-
-/// The Explain action's extent at the row's trailing edge, when the row keeps its own minimum.
-fn explain_rect(bounds: Rect, row: Rect, locale: Locale, theme: &Theme) -> Option<Rect> {
-    let spec = action_spec(
-        locale.integrations_explain(),
-        ActionKind::Auxiliary,
         true,
-        PointerPresentation::Rest,
+        theme,
+        hits,
     );
-    let mut rect = super::controls::action_rect(bounds, row, spec, theme)?;
-    if row.width < rect.width + 1 + EXPLAIN_ROW_MINIMUM {
-        return None;
+    y += 2;
+    // Search.
+    if y < nav.bottom() {
+        let field = Rect::new(x, y, width, 1);
+        let key = "/";
+        let query = page.query();
+        let field_state = if page.searching() {
+            QueryField::Editing {
+                label: key,
+                query,
+                cursor: page.search_cursor(),
+            }
+        } else if query.is_empty() {
+            QueryField::Rest {
+                key,
+                prompt: locale.settings_search_prompt(),
+            }
+        } else {
+            QueryField::Retained { label: key, query }
+        };
+        let target = InteractionTarget::SettingsControl {
+            token,
+            control: Control::Search,
+        };
+        let enabled = page.page() == Page::General && page.text().is_none();
+        let spec = interaction_spec(enabled);
+        let pointer = hits.projected_pointer(HitLayer::Overlay, field, field, &target, spec);
+        if let Some(interaction) = pointer_surface(pointer) {
+            fill(frame, field, base, Some(interaction), theme);
+        }
+        if render_query_field(frame, field, field_state, theme).is_some() {
+            hits.record_interaction(HitLayer::Overlay, field, field, target, spec);
+        }
     }
-    rect.x = row.right().checked_sub(rect.width)?;
-    (row.intersection(rect) == rect).then_some(rect)
+    y += 2;
+    for category in Category::ALL {
+        if y >= nav.bottom() {
+            break;
+        }
+        let current = page.query().is_empty() && page.category() == category;
+        let focused = current && page.pane() == Pane::Categories && !page.searching();
+        let row = Rect::new(nav.x, y, nav.width, 1);
+        let target = InteractionTarget::SettingsControl {
+            token,
+            control: Control::Category(category),
+        };
+        let spec = interaction_spec(true);
+        let pointer = hits.projected_pointer(HitLayer::Overlay, row, row, &target, spec);
+        let interaction = pointer_surface(pointer).or(if focused {
+            Some(Role::SurfaceSelection)
+        } else if current {
+            Some(Role::SurfaceCurrent)
+        } else {
+            None
+        });
+        fill(frame, row, base, interaction, theme);
+        if focused {
+            put(
+                frame,
+                nav.x,
+                y,
+                1,
+                theme.glyphs.navigation_marker,
+                on(theme, base, interaction, Role::AccentFocus),
+            );
+        }
+        put(
+            frame,
+            x + 1,
+            y,
+            width.saturating_sub(1),
+            locale.settings_category_name(category),
+            on(
+                theme,
+                base,
+                interaction,
+                if current {
+                    Role::TextPrimary
+                } else {
+                    Role::TextSecondary
+                },
+            ),
+        );
+        hits.record_interaction(HitLayer::Overlay, row, row, target, spec);
+        y += 1;
+    }
 }
 
-/// One Agent row's auxiliary action at its reserved trailing extent.
-#[derive(Clone, Copy)]
-struct Explain {
-    rect: Rect,
-    id: IntegrationId,
-}
-
-/// Paints one Agent row's Explain action over the row's surface and records it before the row, so
-/// it wins hit testing inside its extent. It strengthens with the row's focus or hover and waits
-/// while any job runs.
-fn render_explain(
+/// The right column; returns how many list lines it drew.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one page column's drawing inputs"
+)]
+fn render_content(
     frame: &mut Frame<'_>,
-    Explain { rect, id }: Explain,
-    context: RowContext<'_>,
-    row_pointer: PointerPresentation,
+    region: Rect,
+    top: u16,
+    narrow: bool,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> usize {
+    let token = page.token();
+    let width = if narrow {
+        region.width.saturating_sub(2)
+    } else {
+        CONTENT_WIDTH.min(region.width.saturating_sub(4))
+    };
+    let x = region.x + (region.width - width) / 2;
+    let mut y = region.y + top;
+    // The title: the category, search results, or a child page with its way back.
+    let child = page.page().is_child();
+    let title = match page.page() {
+        Page::Profiles => locale
+            .settings_group_name(Group::LaunchProfiles)
+            .unwrap_or_default()
+            .to_owned(),
+        Page::Integrations => locale.integrations_title().to_owned(),
+        Page::Diagnosis(id) => locale.agent_integration_name(id).to_owned(),
+        Page::General if !page.query().is_empty() || page.searching() => {
+            locale.settings_search_results().to_owned()
+        }
+        Page::General => locale.settings_category_name(page.category()).to_owned(),
+    };
+    let title_rect = Rect::new(x, y, width, 1);
+    if child || narrow {
+        paint_line_target(
+            frame,
+            title_rect,
+            &format!("{} {title}", arrow(theme)),
+            Role::TextPrimary,
+            Role::SurfaceCanvas,
+            false,
+            InteractionTarget::SettingsControl {
+                token,
+                control: Control::Back,
+            },
+            true,
+            theme,
+            hits,
+        );
+    } else {
+        put(frame, x, y, width, &title, theme.style(Role::TextPrimary));
+    }
+    y += 1;
+    // The file line names a settings file the page cannot use; otherwise the line says what
+    // keeps a page's controls from working, or the integration lane's state.
+    if let Some(fact) = page.file_fact() {
+        let full = locale.settings_file_fact(fact);
+        let text = if display_width(&full) <= usize::from(width) {
+            full
+        } else {
+            locale.settings_file_fact_compact(fact)
+        };
+        frame.render_widget(
+            Paragraph::new(super::modal::status_line(&text, Role::StatusWarning, theme)),
+            Rect::new(x, y, width, 1),
+        );
+    } else if page.page().is_integrations() {
+        let (text, role) = integration_fact(page, locale);
+        frame.render_widget(
+            Paragraph::new(super::modal::status_line(text, role, theme)),
+            Rect::new(x, y, width, 1),
+        );
+    } else if page.page() == Page::General
+        && page.query().is_empty()
+        && page.category() == Category::Themes
+        && (theme.no_color() || page.reduced_color())
+    {
+        let text = if theme.no_color() {
+            locale.settings_no_color().to_owned()
+        } else {
+            locale.settings_detail(crate::localization::SettingsDetail::Message(
+                crate::localization::SettingsDetailKind::TruecolorRequired,
+            ))
+        };
+        put(frame, x, y, width, &text, theme.style(Role::TextMuted));
+    }
+    y += 1;
+    let detail = matches!(page.page(), Page::Profiles | Page::Integrations);
+    let bottom = region.bottom().saturating_sub(u16::from(detail));
+    let list = Rect::new(x, y, width, bottom.saturating_sub(y));
+    if list.height == 0 || list.width < 8 {
+        return 1;
+    }
+    let visible = usize::from(list.height);
+    let first = page.first_visible(visible);
+    let column = Column {
+        area: list,
+        first,
+        visible,
+    };
+    if let Page::Diagnosis(id) = page.page() {
+        render_entries(frame, column, page, locale, theme, hits);
+        let below = Rect::new(x, list.y + 2, width, list.height.saturating_sub(2));
+        if !below.is_empty() {
+            render_diagnosis(frame, below, page, id, locale, theme);
+        }
+    } else {
+        render_entries(frame, column, page, locale, theme, hits);
+    }
+    let total = total_lines(page);
+    if total > visible {
+        render_scrollbar(frame, list, region, first, visible, total, theme);
+    }
+    if detail && bottom < region.bottom() {
+        let line = Rect::new(x, bottom, width, 1);
+        let (text, role) = child_detail(page, locale);
+        put(frame, x, bottom, width, &text, theme.style(role));
+        let _ = line;
+    }
+    hits.record(
+        HitLayer::OverlaySurface,
+        list,
+        HitTarget::ListScroll(ListScrollTarget::Settings(token)),
+    );
+    visible
+}
+
+fn total_lines(page: PageView<'_>) -> usize {
+    page.entries()
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| page.height(*entry, index == 0))
+        .sum()
+}
+
+/// The part of the right column that scrolls.
+#[derive(Clone, Copy)]
+struct Column {
+    area: Rect,
+    first: usize,
+    visible: usize,
+}
+
+impl Column {
+    fn y(self, line: usize) -> Option<u16> {
+        (line >= self.first && line < self.first + self.visible)
+            .then(|| self.area.y + u16::try_from(line - self.first).unwrap_or(0))
+    }
+
+    /// The drawn part of an entry's lines.
+    fn rect(self, line: usize, height: usize) -> Option<Rect> {
+        let start = line.max(self.first);
+        let end = (line + height).min(self.first + self.visible);
+        (start < end).then(|| {
+            Rect::new(
+                self.area.x,
+                self.y(start).unwrap_or(self.area.y),
+                self.area.width,
+                u16::try_from(end - start).unwrap_or(1),
+            )
+        })
+    }
+}
+
+struct Frames {
+    top_left: &'static str,
+    top_right: &'static str,
+    bottom_left: &'static str,
+    bottom_right: &'static str,
+    horizontal: &'static str,
+    vertical: &'static str,
+}
+
+const fn frames(theme: &Theme) -> Frames {
+    match theme.glyphs.mode() {
+        GlyphMode::Unicode => Frames {
+            top_left: "┌",
+            top_right: "┐",
+            bottom_left: "└",
+            bottom_right: "┘",
+            horizontal: "─",
+            vertical: "│",
+        },
+        #[cfg(any(test, feature = "test-support"))]
+        GlyphMode::Simplified => Frames {
+            top_left: "+",
+            top_right: "+",
+            bottom_left: "+",
+            bottom_right: "+",
+            horizontal: "-",
+            vertical: "|",
+        },
+    }
+}
+
+const fn arrow(theme: &Theme) -> &'static str {
+    match theme.glyphs.mode() {
+        GlyphMode::Unicode => "←",
+        #[cfg(any(test, feature = "test-support"))]
+        GlyphMode::Simplified => "<",
+    }
+}
+
+fn render_entries(
+    frame: &mut Frame<'_>,
+    column: Column,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let RowContext {
-        draft,
-        locale,
-        theme,
-        ..
-    } = context;
-    let enabled = !draft.integrations.pending();
-    let selected = !draft.searching && draft.selected == Row::Agent(id);
-    let row_surface = match row_pointer {
-        PointerPresentation::Pressed => Some(Role::SurfacePressed),
-        PointerPresentation::Hovered => Some(Role::SurfaceHover),
-        PointerPresentation::Rest => selected.then_some(Role::SurfaceCurrent),
-    };
-    let target = InteractionTarget::SettingsControl {
-        token: draft.token,
-        control: Control::Explain(id),
-    };
+    let entries = page.entries();
+    let child = page.page().is_child();
+    let mut line = 0;
+    for (index, entry) in entries.iter().copied().enumerate() {
+        let height = page.height(entry, index == 0);
+        let gap = usize::from(index != 0);
+        match entry {
+            Entry::Heading(group) if child => {
+                if let Some(y) = column.y(line + gap)
+                    && let Some(name) = locale.settings_group_name(group)
+                {
+                    put(
+                        frame,
+                        column.area.x,
+                        y,
+                        column.area.width,
+                        name,
+                        theme.style(Role::TextSecondary),
+                    );
+                }
+            }
+            Entry::Heading(group) => {
+                render_heading(frame, column, line + gap, group, page, locale, theme);
+            }
+            Entry::Setting(row) if child => {
+                if let Some(rect) = column.rect(line, 1) {
+                    render_child_row(frame, rect, row, page, locale, theme, hits);
+                }
+            }
+            Entry::Setting(row) => {
+                if let Some(rect) = column.rect(line, height) {
+                    let first_drawn = column.y(line).is_some();
+                    render_row(frame, rect, first_drawn, row, page, locale, theme, hits);
+                }
+            }
+            Entry::Option(choice) => {
+                if let Some(y) = column.y(line) {
+                    render_option(frame, column.area, y, choice, page, locale, theme, hits);
+                }
+            }
+            Entry::End => {
+                if let Some(y) = column.y(line) {
+                    let frames = frames(theme);
+                    let width = usize::from(column.area.width.saturating_sub(2));
+                    let text = format!(
+                        "{}{}{}",
+                        frames.bottom_left,
+                        frames.horizontal.repeat(width),
+                        frames.bottom_right
+                    );
+                    put(
+                        frame,
+                        column.area.x,
+                        y,
+                        column.area.width,
+                        &text,
+                        theme.style(Role::FrameUnfocused),
+                    );
+                }
+            }
+            Entry::ConfigFile => {
+                if let Some(y) = column.y(line + 1) {
+                    let text = match page.file_path() {
+                        Some(path) => format!(
+                            "{} {} {}",
+                            locale.settings_config_file(),
+                            theme.glyphs.middle_dot,
+                            sanitize_terminal_text(path)
+                        ),
+                        None => locale.settings_config_file().to_owned(),
+                    };
+                    put(
+                        frame,
+                        column.area.x + 1,
+                        y,
+                        column.area.width.saturating_sub(1),
+                        &text,
+                        theme.style(Role::TextMuted),
+                    );
+                }
+            }
+            Entry::NoResults => {
+                if let Some(y) = column.y(line) {
+                    put(
+                        frame,
+                        column.area.x + 1,
+                        y,
+                        column.area.width.saturating_sub(1),
+                        locale.settings_no_results(),
+                        theme.style(Role::TextMuted),
+                    );
+                }
+            }
+        }
+        line += height;
+    }
+}
+
+/// A group's top edge with its name, the in-use tag of a theme list, and its description line.
+fn render_heading(
+    frame: &mut Frame<'_>,
+    column: Column,
+    line: usize,
+    group: Group,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let frames = frames(theme);
+    let area = column.area;
+    let width = usize::from(area.width);
+    if let Some(y) = column.y(line) {
+        let frame_style = theme.style(Role::FrameUnfocused);
+        let name = locale
+            .settings_group_name(group)
+            .map(|name| truncate_display(name, width.saturating_sub(6), theme.glyphs.ellipsis));
+        let tag = (group.is_theme_list() && page.in_use(group, system_dark(theme)))
+            .then(|| locale.settings_in_use());
+        let mut used = 1;
+        put(frame, area.x, y, 1, frames.top_left, frame_style);
+        if let Some(name) = &name {
+            let text = format!(" {name} ");
+            put(
+                frame,
+                area.x + 1,
+                y,
+                area.width.saturating_sub(2),
+                &text,
+                theme.style(Role::TextPrimary),
+            );
+            used += display_width(&text);
+        }
+        let tag_width = tag.map_or(0, |tag| display_width(tag) + 2);
+        let rule = width.saturating_sub(used + tag_width + 1);
+        put(
+            frame,
+            area.x + u16::try_from(used).unwrap_or(0),
+            y,
+            u16::try_from(rule).unwrap_or(0),
+            &frames.horizontal.repeat(rule),
+            frame_style,
+        );
+        if let Some(tag) = tag
+            && used + rule + tag_width < width
+        {
+            put(
+                frame,
+                area.x + u16::try_from(used + rule).unwrap_or(0),
+                y,
+                u16::try_from(tag_width).unwrap_or(0),
+                &format!(" {tag} "),
+                theme.style(Role::AccentAction),
+            );
+        }
+        put(frame, area.right() - 1, y, 1, frames.top_right, frame_style);
+    }
+    if page.described(group)
+        && let Some(y) = column.y(line + 1)
+    {
+        paint_sides(frame, area, y, theme);
+        if let Some(description) = locale.settings_group_description(group) {
+            put(
+                frame,
+                area.x + 2,
+                y,
+                area.width.saturating_sub(4),
+                description,
+                theme.style(Role::TextMuted),
+            );
+        }
+    }
+}
+
+fn paint_sides(frame: &mut Frame<'_>, area: Rect, y: u16, theme: &Theme) {
+    let frames = frames(theme);
+    let style = theme.style(Role::FrameUnfocused);
+    put(frame, area.x, y, 1, frames.vertical, style);
+    put(frame, area.right() - 1, y, 1, frames.vertical, style);
+}
+
+/// Whether the host shows the dark slot, which a System appearance follows.
+fn system_dark(theme: &Theme) -> bool {
+    match theme.style(Role::SurfaceCanvas).bg {
+        Some(Color::Rgb(red, green, blue)) => {
+            u32::from(red) * 299 + u32::from(green) * 587 + u32::from(blue) * 114 < 128_000
+        }
+        _ => true,
+    }
+}
+
+fn focused(page: PageView<'_>, row: Row) -> bool {
+    page.pane() == Pane::Rows
+        && !page.searching()
+        && page.picker().is_none()
+        && page.selected() == row
+}
+
+/// One setting inside its group's frame: name, effect and control on the first line, the
+/// always-visible description, or the open text field, on the second.
+#[expect(clippy::too_many_arguments, reason = "one row's drawing inputs")]
+fn render_row(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    first_drawn: bool,
+    row: Row,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let token = page.token();
+    let enabled = page.enabled(row);
+    let is_focused = focused(page, row);
+    let target = InteractionTarget::SettingsRow { token, row };
     let spec = interaction_spec(enabled);
-    let pointer =
-        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
-    let kind = if row_surface.is_some() {
-        ActionKind::Secondary
+    let inner = Rect::new(
+        rect.x + 1,
+        rect.y,
+        rect.width.saturating_sub(2),
+        rect.height,
+    );
+    let pointer = hits.projected_pointer(HitLayer::Overlay, inner, inner, &target, spec);
+    let interaction = pointer_surface(pointer).or(is_focused.then_some(Role::SurfaceSelection));
+    let base = Role::SurfaceCanvas;
+    for y in rect.y..rect.bottom() {
+        paint_sides(frame, rect, y, theme);
+    }
+    fill(frame, inner, base, interaction, theme);
+    let name_x = rect.x + 4;
+    let end = rect.right().saturating_sub(2);
+    let pending = page.pending_row() == Some(row);
+    let editing = is_focused && page.text().is_some();
+    let content_role = if enabled {
+        Role::TextPrimary
     } else {
-        ActionKind::Auxiliary
+        Role::TextDisabled
     };
-    let Some(painted) = super::controls::render_action(
-        frame,
-        rect,
-        action_spec(locale.integrations_explain(), kind, enabled, pointer),
-        theme,
-    ) else {
+    let style = |role| on(theme, base, interaction, role);
+    if let Row::ThemeOption(theme_option) = row {
+        if is_focused {
+            put(
+                frame,
+                rect.x + 1,
+                rect.y,
+                1,
+                theme.glyphs.navigation_marker,
+                style(Role::AccentFocus),
+            );
+        }
+        if theme_option.current(page.values()) {
+            put(
+                frame,
+                rect.x + 2,
+                rect.y,
+                1,
+                theme.glyphs.checked_marker,
+                style(Role::AccentAction),
+            );
+        }
+        put(
+            frame,
+            name_x,
+            rect.y,
+            end.saturating_sub(name_x),
+            locale.settings_choice(Choice::ColorTheme(theme_option)),
+            style(if pending {
+                Role::StatusPending
+            } else {
+                content_role
+            }),
+        );
+        // Painted after the row's fill so hover and focus never tint the theme's own colors.
+        if let Some(swatch) = theme.swatch(theme_option.theme())
+            && end >= name_x + SWATCH_WIDTH + 12
+        {
+            render_swatch(frame, end - SWATCH_WIDTH, rect.y, swatch);
+        }
+        hits.record_interaction(HitLayer::Overlay, inner, inner, target, spec);
         return;
-    };
-    if pointer == PointerPresentation::Rest && row_surface.is_some() {
-        let role = if enabled {
-            kind.content_role()
+    }
+    let mut recorded_controls = Vec::new();
+    if first_drawn {
+        let y = rect.y;
+        if is_focused {
+            put(
+                frame,
+                rect.x + 1,
+                y,
+                1,
+                theme.glyphs.navigation_marker,
+                style(Role::AccentFocus),
+            );
+        }
+        if page.changed(row) {
+            put(
+                frame,
+                rect.x + 2,
+                y,
+                1,
+                theme.glyphs.status_bullet,
+                style(Role::AccentAction),
+            );
+        }
+        let available = usize::from(end.saturating_sub(name_x));
+        let control = control_text(row, page, locale, theme);
+        let control_width = control
+            .as_ref()
+            .map_or(0, |control| display_width(&control.text).min(available / 2));
+        let control_role = if pending {
+            Role::StatusPending
+        } else if enabled {
+            Role::TextSecondary
         } else {
             Role::TextDisabled
         };
-        for x in painted.x..painted.right() {
-            let cell = &mut frame.buffer_mut()[(x, painted.y)];
-            cell.set_style(theme.content_on_surface(
-                Role::SurfaceOverlay,
-                row_surface,
-                Some(role),
-                cell.style(),
-            ));
+        let mut name = locale.settings_row(row).to_owned();
+        if let Some(effect) = locale.settings_effect(row) {
+            name = format!("{name} {} {effect}", theme.glyphs.middle_dot);
+        }
+        put(
+            frame,
+            name_x,
+            y,
+            u16::try_from(available.saturating_sub(control_width + 1)).unwrap_or(0),
+            &name,
+            style(content_role),
+        );
+        if let Some(control) = control {
+            let control_x = end.saturating_sub(u16::try_from(control_width).unwrap_or(0));
+            let text = truncate_display(&control.text, control_width, theme.glyphs.ellipsis);
+            put(
+                frame,
+                control_x,
+                y,
+                u16::try_from(control_width).unwrap_or(0),
+                &text,
+                style(control_role),
+            );
+            if control.adjust && display_width(&text) == display_width(&control.text) {
+                let adjustment = page.adjustment(row);
+                let stepper = |forward: bool| {
+                    let width = 3;
+                    let x = if forward {
+                        end.saturating_sub(width)
+                    } else {
+                        control_x
+                    };
+                    (Rect::new(x, y, width, 1), forward)
+                };
+                for (step, forward) in [stepper(false), stepper(true)] {
+                    let enabled = enabled
+                        && !pending
+                        && adjustment.is_some_and(|adjustment| {
+                            if forward {
+                                adjustment.forward
+                            } else {
+                                adjustment.backward
+                            }
+                        });
+                    recorded_controls.push((
+                        step,
+                        InteractionTarget::SettingsControl {
+                            token,
+                            control: Control::Adjust { row, forward },
+                        },
+                        interaction_spec(enabled),
+                    ));
+                }
+            }
         }
     }
-    hits.record_interaction(HitLayer::Overlay, painted, painted, target, spec);
+    let second = if first_drawn { rect.y + 1 } else { rect.y };
+    if second < rect.bottom() {
+        let available = end.saturating_sub(name_x);
+        if editing && let Some((text, cursor)) = page.text() {
+            render_field(
+                frame,
+                Rect::new(name_x, second, available, 1),
+                text,
+                cursor,
+                theme,
+            );
+        } else {
+            let restore = (is_focused && page.changed(row) && page.pending_row().is_none())
+                .then(|| format!("[{}]", locale.settings_restore()));
+            let restore_width = restore
+                .as_ref()
+                .map_or(0, |label| u16::try_from(display_width(label)).unwrap_or(0));
+            let description_width = if restore_width + 1 < available {
+                available - restore_width.saturating_add(u16::from(restore_width > 0))
+            } else {
+                available
+            };
+            // NO_COLOR, not the color depth it implies, is why a color setting cannot show; a
+            // focused unavailable row says why it is unavailable.
+            let description = if theme.no_color()
+                && matches!(
+                    row,
+                    Row::Theme
+                        | Row::ColorSource
+                        | Row::TerminalTheme
+                        | Row::Foreground
+                        | Row::Background
+                ) {
+                locale.settings_no_color().to_owned()
+            } else if is_focused && !enabled {
+                locale.settings_detail(page)
+            } else {
+                locale.settings_description(row).to_owned()
+            };
+            put(
+                frame,
+                name_x,
+                second,
+                description_width,
+                &description,
+                style(Role::TextMuted),
+            );
+            if let Some(label) = restore
+                && restore_width + 1 < available
+            {
+                let button = Rect::new(end - restore_width, second, restore_width, 1);
+                let target = InteractionTarget::SettingsControl {
+                    token,
+                    control: Control::Restore(row),
+                };
+                let spec = interaction_spec(true);
+                let pointer =
+                    hits.projected_pointer(HitLayer::Overlay, button, button, &target, spec);
+                let button_surface = pointer_surface(pointer).or(interaction);
+                put(
+                    frame,
+                    button.x,
+                    second,
+                    restore_width,
+                    &label,
+                    on(theme, base, button_surface, Role::AccentAction),
+                );
+                recorded_controls.push((button, target, spec));
+            }
+        }
+    }
+    for (rect, target, spec) in recorded_controls {
+        hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+    }
+    hits.record_interaction(HitLayer::Overlay, inner, inner, target, spec);
+}
+
+/// Cells of a theme swatch: a foreground sample on the theme canvas, then five ANSI fills.
+const SWATCH_WIDTH: u16 = 14;
+
+fn render_swatch(frame: &mut Frame<'_>, x: u16, y: u16, swatch: [Style; 6]) {
+    let [sample, fills @ ..] = swatch;
+    put(frame, x, y, 4, " Aa ", sample);
+    for (offset, fill) in (0_u16..).zip(fills) {
+        put(frame, x + 4 + offset * 2, y, 2, "  ", fill);
+    }
+}
+
+struct ControlText {
+    text: String,
+    /// The text starts and ends with a one-step stepper.
+    adjust: bool,
+}
+
+/// The control a row shows at its right edge.
+fn control_text(
+    row: Row,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
+) -> Option<ControlText> {
+    let value = locale.settings_value((page, row));
+    let plain = |text: String| {
+        Some(ControlText {
+            text,
+            adjust: false,
+        })
+    };
+    match row {
+        Row::LaunchProfiles | Row::AgentIntegrations => plain(
+            format!("{value} {}", theme.glyphs.navigation_marker)
+                .trim_start()
+                .to_owned(),
+        ),
+        _ if page.checked(row).is_some() => plain(
+            if page.checked(row) == Some(true) {
+                "[x]"
+            } else {
+                "[ ]"
+            }
+            .to_owned(),
+        ),
+        _ if page.adjustment(row).is_some() => Some(ControlText {
+            text: format!("[-] {value} [+]"),
+            adjust: true,
+        }),
+        _ if !Choice::options(row).is_empty() => {
+            plain(format!("{value} {}", theme.glyphs.disclosure_open))
+        }
+        _ if row.text_limit().is_some() => plain(if value.is_empty() {
+            locale.settings_value(crate::localization::SettingsValue::Default)
+        } else {
+            sanitize_terminal_text(&value).into_owned()
+        }),
+        _ => (!value.is_empty()).then_some(ControlText {
+            text: value,
+            adjust: false,
+        }),
+    }
+}
+
+/// One option of the open list under its row; the candidate carries focus, the value in effect
+/// carries the checked marker.
+#[expect(clippy::too_many_arguments, reason = "one option's drawing inputs")]
+fn render_option(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    y: u16,
+    choice: Choice,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let Some(picker) = page.picker() else {
+        return;
+    };
+    let base = Role::SurfaceCanvas;
+    let inner = Rect::new(area.x + 1, y, area.width.saturating_sub(2), 1);
+    let target = InteractionTarget::SettingsControl {
+        token: page.token(),
+        control: Control::Choose(choice),
+    };
+    let spec = interaction_spec(true);
+    let pointer = hits.projected_pointer(HitLayer::Overlay, inner, inner, &target, spec);
+    let candidate = picker.candidate() == choice;
+    let interaction = pointer_surface(pointer).or(candidate.then_some(Role::SurfaceSelection));
+    paint_sides(frame, area, y, theme);
+    fill(frame, inner, base, interaction, theme);
+    let x = area.x + 6;
+    if candidate {
+        put(
+            frame,
+            area.x + 4,
+            y,
+            1,
+            theme.glyphs.navigation_marker,
+            on(theme, base, interaction, Role::AccentFocus),
+        );
+    }
+    if picker.original() == choice {
+        put(
+            frame,
+            x,
+            y,
+            1,
+            theme.glyphs.checked_marker,
+            on(theme, base, interaction, Role::AccentAction),
+        );
+    }
+    put(
+        frame,
+        x + 2,
+        y,
+        area.right().saturating_sub(x + 4),
+        locale.settings_choice(choice),
+        on(theme, base, interaction, Role::TextPrimary),
+    );
+    hits.record_interaction(HitLayer::Overlay, inner, inner, target, spec);
+}
+
+/// One line of a child page: name at the left, value or field at the right.
+fn render_child_row(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    row: Row,
+    page: PageView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let token = page.token();
+    let enabled = page.enabled(row);
+    let is_focused = focused(page, row);
+    let target = InteractionTarget::SettingsRow { token, row };
+    let spec = interaction_spec(enabled);
+    let pointer = hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec);
+    let base = Role::SurfaceCanvas;
+    let interaction = pointer_surface(pointer).or(is_focused.then_some(Role::SurfaceSelection));
+    fill(frame, rect, base, interaction, theme);
+    let style = |role| on(theme, base, interaction, role);
+    if is_focused {
+        put(
+            frame,
+            rect.x,
+            rect.y,
+            1,
+            theme.glyphs.navigation_marker,
+            style(Role::AccentFocus),
+        );
+    }
+    let half = rect.width / 2;
+    let name_role = if enabled {
+        Role::TextPrimary
+    } else {
+        Role::TextDisabled
+    };
+    let mut controls = Vec::new();
+    let mut end = rect.right();
+    if let Row::Agent(id) = row {
+        let label = locale.integrations_explain();
+        let width = u16::try_from(display_width(label)).unwrap_or(0);
+        if width + 4 < half {
+            let button = Rect::new(end - width, rect.y, width, 1);
+            let explain_target = InteractionTarget::SettingsControl {
+                token,
+                control: Control::Explain(id),
+            };
+            let explain_spec = interaction_spec(!page.integrations().pending());
+            let pointer = hits.projected_pointer(
+                HitLayer::Overlay,
+                button,
+                button,
+                &explain_target,
+                explain_spec,
+            );
+            put(
+                frame,
+                button.x,
+                rect.y,
+                width,
+                label,
+                on(
+                    theme,
+                    base,
+                    pointer_surface(pointer).or(interaction),
+                    Role::AccentAction,
+                ),
+            );
+            controls.push((button, explain_target, explain_spec));
+            end = button.x.saturating_sub(2);
+        }
+    }
+    put(
+        frame,
+        rect.x + 2,
+        rect.y,
+        half.saturating_sub(3),
+        locale.settings_row(row),
+        style(name_role),
+    );
+    let value_x = rect.x + half;
+    let value_width = end.saturating_sub(value_x);
+    if is_focused && let Some((text, cursor)) = page.text() {
+        render_field(
+            frame,
+            Rect::new(value_x, rect.y, value_width, 1),
+            text,
+            cursor,
+            theme,
+        );
+    } else {
+        let value = sanitize_terminal_text(&locale.settings_value((page, row))).into_owned();
+        let value = match page.adjustment(row) {
+            Some(_) => format!("< {value} >"),
+            None => value,
+        };
+        let text = truncate_display(&value, usize::from(value_width), theme.glyphs.ellipsis);
+        let width = u16::try_from(display_width(&text)).unwrap_or(0);
+        let x = end.saturating_sub(width);
+        put(
+            frame,
+            x,
+            rect.y,
+            value_width,
+            &text,
+            style(if enabled {
+                Role::TextSecondary
+            } else {
+                Role::TextDisabled
+            }),
+        );
+        if let Some(adjustment) = page.adjustment(row)
+            && text == value
+            && width >= 5
+        {
+            for (forward, step_x) in [(false, x), (true, end - 1)] {
+                let step_enabled = enabled
+                    && if forward {
+                        adjustment.forward
+                    } else {
+                        adjustment.backward
+                    };
+                controls.push((
+                    Rect::new(step_x, rect.y, 1, 1),
+                    InteractionTarget::SettingsControl {
+                        token,
+                        control: Control::Adjust { row, forward },
+                    },
+                    interaction_spec(step_enabled),
+                ));
+            }
+        }
+    }
+    for (rect, target, spec) in controls {
+        hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+    }
+    hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+}
+
+/// The integration lane's state: a running job, the last failure, or what Orchbee changes.
+fn integration_fact(page: PageView<'_>, locale: Locale) -> (&'static str, Role) {
+    let integrations = page.integrations();
+    let working = locale.integration_status(crate::localization::IntegrationStatus::Working);
+    match (page.page(), integrations.failure()) {
+        (Page::Diagnosis(id), _) => match integrations.diagnosis(id) {
+            Some(Diagnosis::Pending) => (working, Role::StatusPending),
+            Some(Diagnosis::Failed(failure)) => {
+                (locale.integration_failure(*failure), Role::StatusError)
+            }
+            _ => (locale.integration_diagnosis_read_only(), Role::TextMuted),
+        },
+        (_, Some(failure)) => (locale.integration_failure(failure), Role::StatusError),
+        _ if integrations.pending() => (working, Role::StatusPending),
+        _ if !integrations.reported() => (locale.integrations_unchecked(), Role::TextMuted),
+        _ => (locale.integrations_disclosure(), Role::TextMuted),
+    }
+}
+
+/// The line under a child page's rows: a field rule, a confirmation, or why a row is unavailable.
+fn child_detail(page: PageView<'_>, locale: Locale) -> (String, Role) {
+    match page.page() {
+        Page::Integrations => {
+            let text = match page.selected() {
+                Row::Agent(id) => match page.integrations().block(id) {
+                    Some(block) => locale.integration_block(block).to_owned(),
+                    None => {
+                        locale.integration_provider_description(locale.agent_integration_name(id))
+                    }
+                },
+                Row::RemoteHosts => locale.integrations_remote_description().to_owned(),
+                Row::RefreshIntegrations if page.integrations().pending() => locale
+                    .integration_block(crate::localization::IntegrationBlock::Pending)
+                    .to_owned(),
+                Row::RefreshIntegrations => locale.integrations_refresh_description().to_owned(),
+                _ => locale.integrations_back_description().to_owned(),
+            };
+            (text, Role::TextMuted)
+        }
+        _ => {
+            let role = if page.confirm_delete() {
+                Role::StatusWarning
+            } else if page.invalid() {
+                Role::StatusError
+            } else {
+                Role::TextMuted
+            };
+            (locale.settings_detail(page), role)
+        }
+    }
 }
 
 /// One Agent's explain result: a definite finding is named as such, an unknown result says it
@@ -1336,11 +1277,12 @@ fn render_explain(
 fn render_diagnosis(
     frame: &mut Frame<'_>,
     area: Rect,
-    draft: DraftView<'_>,
+    page: PageView<'_>,
     id: IntegrationId,
     locale: Locale,
     theme: &Theme,
 ) {
+    let integrations = page.integrations();
     let mut lines: Vec<Line<'static>> = Vec::new();
     let wrap = |text: &str, lines: &mut Vec<Line<'static>>| {
         lines.extend(
@@ -1358,7 +1300,7 @@ fn render_diagnosis(
         ))
         .style(theme.style(Role::TextPrimary))
     };
-    match draft.integrations.diagnosis(id) {
+    match integrations.diagnosis(id) {
         Some(Diagnosis::Pending) => lines.push(super::modal::status_line(
             locale.integration_diagnosis_pending(),
             Role::StatusPending,
@@ -1399,7 +1341,7 @@ fn render_diagnosis(
             ));
             lines.push(fact(
                 IntegrationFactLabel::Integration,
-                locale.integration_status(draft.integrations.status(id)),
+                locale.integration_status(integrations.status(id)),
             ));
             if let Some(issue) = item.issue {
                 lines.push(fact(
@@ -1461,833 +1403,67 @@ fn render_diagnosis(
         }
         None => lines.push(fact(
             IntegrationFactLabel::Integration,
-            locale.integration_status(draft.integrations.status(id)),
+            locale.integration_status(integrations.status(id)),
         )),
     }
     frame.render_widget(Paragraph::new(Text::from(lines)), area);
 }
 
-fn render_child(
+fn render_scrollbar(
     frame: &mut Frame<'_>,
-    inner: Rect,
-    bottom: u16,
-    draft: DraftView<'_>,
-    locale: Locale,
+    list: Rect,
+    region: Rect,
+    first: usize,
+    visible: usize,
+    total: usize,
     theme: &Theme,
-    hits: &mut HitMapBuilder,
 ) {
-    frame.render_widget(
-        Paragraph::new(super::modal::title_line(
-            locale.settings_row(draft.selected),
-            theme,
-        )),
-        Rect::new(inner.x, inner.y, inner.width, 1),
-    );
-    let description = draft_description(draft, locale, theme);
-    let description_area = Rect::new(
-        inner.x,
-        inner.y + 1,
-        inner.width,
-        2.min(bottom.saturating_sub(inner.y + 1)),
-    );
-    frame.render_widget(
-        Paragraph::new(crate::terminal_text::wrap_text(
-            &Text::from(description),
-            description_area.width,
-        ))
-        .style(theme.style(Role::TextSecondary)),
-        description_area,
-    );
-    if let Some((text, cursor)) = draft.text {
-        render_editor(
+    let x = list.right();
+    if x >= region.right() {
+        return;
+    }
+    let height = usize::from(list.height);
+    let thumb = (height * visible / total).clamp(1, height);
+    let start = (height - thumb) * first / total.saturating_sub(visible).max(1);
+    for offset in 0..height {
+        let (glyph, role) = if offset >= start && offset < start + thumb {
+            (theme.glyphs.scrollbar_thumb, Role::TextSecondary)
+        } else {
+            (theme.glyphs.scrollbar_track, Role::FrameDivider)
+        };
+        put(
             frame,
-            Rect::new(inner.x, inner.y + 3, inner.width, 1),
-            draft.selected,
-            text,
-            cursor,
-            locale,
-            theme,
-        );
-    }
-    if let Some(picker) = draft.picker {
-        let choices = Choice::options(picker.row());
-        let height = usize::from(bottom.saturating_sub(inner.y + 3));
-        let first = picker.first_visible(height);
-        hits.record(
-            HitLayer::OverlaySurface,
-            Rect::new(
-                inner.x,
-                inner.y + 3,
-                inner.width,
-                u16::try_from(height).expect("bounded choice viewport"),
-            ),
-            HitTarget::ListScroll(crate::tui_hit_map::ListScrollTarget::Settings(draft.token)),
-        );
-        for (index, choice) in choices.iter().copied().enumerate().skip(first).take(height) {
-            let area = Rect::new(
-                inner.x,
-                inner.y + 3 + u16::try_from(index - first).expect("bounded choices"),
-                inner.width,
-                1,
-            );
-            render_choice(
-                frame,
-                area,
-                RowContext {
-                    draft,
-                    list_active: true,
-                    locale,
-                    theme,
-                },
-                choice,
-                index == picker.cursor(),
-                choice == picker.original(),
-                hits,
-            );
-        }
-    }
-}
-
-fn render_choice(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    context: RowContext<'_>,
-    choice: Choice,
-    selected: bool,
-    checked: bool,
-    hits: &mut HitMapBuilder,
-) {
-    let RowContext {
-        draft,
-        locale,
-        theme,
-        ..
-    } = context;
-    let navigation = Rect::new(area.x, area.y, 1, 1);
-    let marker = Rect::new(area.x + 2, area.y, 3, 1);
-    let checked_marker = Rect::new(area.x + 3, area.y, 1, 1);
-    let primary = Rect::new(area.x + 6, area.y, area.width.saturating_sub(6), 1);
-    let label = locale.settings_choice(choice);
-    let swatch = match choice {
-        Choice::ColorTheme(choice) => theme.swatch(choice.theme()).filter(|_| {
-            usize::from(primary.width) >= display_width(label) + usize::from(SWATCH_WIDTH) + 2
-        }),
-        _ => None,
-    };
-    frame.render_widget(
-        Paragraph::new(if checked { "(*)" } else { "( )" })
-            .style(theme.style(Role::AccentSelection)),
-        marker,
-    );
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            label,
-            usize::from(primary.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextPrimary)),
-        primary,
-    );
-    let target = InteractionTarget::SettingsControl {
-        token: draft.token,
-        control: Control::Choose(choice),
-    };
-    let spec = interaction_spec(true);
-    let pointer =
-        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, area, area, &target, spec));
-    let state = InteractionState::new(
-        if selected {
-            FocusState::Focused
-        } else {
-            FocusState::Unfocused
-        },
-        pointer,
-        if selected {
-            NavigationState::Provisional
-        } else {
-            NavigationState::None
-        },
-        CurrentState::NotCurrent,
-        if checked {
-            CheckedState::Checked
-        } else {
-            CheckedState::Unchecked
-        },
-        Availability::Enabled,
-        OperationState::Idle,
-    );
-    let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
-        .with_provisional(navigation)
-        .with_checked(checked_marker, "*");
-    let painted = super::controls::paint_row_interaction(
-        frame,
-        area,
-        tracks,
-        &[
-            RowContentBand::semantic(Rect::new(marker.x, marker.y, 1, 1), Role::TextSecondary),
-            RowContentBand::semantic(
-                Rect::new(marker.right() - 1, marker.y, 1, 1),
-                Role::TextSecondary,
-            ),
-        ],
-        ControlSurface::Overlay,
-        state,
-        theme,
-    );
-    if let Some(swatch) = swatch {
-        render_swatch(frame, primary, swatch);
-    }
-    if painted == Some(area) {
-        hits.record_interaction(HitLayer::Overlay, area, area, target, spec);
-    }
-}
-
-/// Cells of a theme swatch: a foreground sample on the theme canvas, then five ANSI fills.
-const SWATCH_WIDTH: u16 = 14;
-
-/// Paints after the row state so hover and focus fills never tint a theme's own colors; one cell
-/// stays between the swatch and the row's right edge.
-fn render_swatch(frame: &mut Frame<'_>, primary: Rect, swatch: [ratatui::style::Style; 6]) {
-    let [sample, fills @ ..] = swatch;
-    let x = primary.right().saturating_sub(SWATCH_WIDTH + 1);
-    frame.render_widget(
-        Paragraph::new(" Aa ").style(sample),
-        Rect::new(x, primary.y, 4, 1),
-    );
-    for (offset, fill) in (0_u16..).zip(fills) {
-        frame.render_widget(
-            Paragraph::new("  ").style(fill),
-            Rect::new(x + 4 + offset * 2, primary.y, 2, 1),
+            x,
+            list.y + u16::try_from(offset).unwrap_or(0),
+            1,
+            glyph,
+            theme.style(role),
         );
     }
 }
 
-#[derive(Clone, Copy)]
-struct RowContext<'a> {
-    draft: DraftView<'a>,
-    list_active: bool,
-    locale: Locale,
-    theme: &'a Theme,
-}
-
-#[derive(Clone, Copy)]
-struct RowGeometry {
-    navigation: Rect,
-    dirty: Rect,
-    checked_open: Rect,
-    checked: Rect,
-    checked_close: Rect,
-    primary: Rect,
-    trailing: Rect,
-    status: Rect,
-}
-
-impl RowGeometry {
-    fn new(row: Rect) -> Option<Self> {
-        if row.height == 0 || row.width < 16 {
-            return None;
-        }
-        let navigation = Rect::new(row.x, row.y, 1, 1);
-        let dirty = Rect::new(row.x + 1, row.y, 1, 1);
-        let label_x = row.x + 3;
-        let status = Rect::new(row.right() - 1, row.y, 1, 1);
-        let available = status.x.saturating_sub(label_x);
-        let trailing_width = (available / 2)
-            .clamp(9, 30)
-            .min(available.saturating_sub(2));
-        let primary_width = available.saturating_sub(trailing_width).saturating_sub(1);
-        if primary_width == 0 || trailing_width < 5 {
-            return None;
-        }
-        let primary = Rect::new(label_x, row.y, primary_width, 1);
-        let trailing = Rect::new(primary.right() + 1, row.y, trailing_width, 1);
-        let checked_open = Rect::new(trailing.x, row.y, 1, 1);
-        let checked = Rect::new(trailing.x + 1, row.y, 1, 1);
-        let checked_close = Rect::new(trailing.x + 2, row.y, 1, 1);
-        Some(Self {
-            navigation,
-            dirty,
-            checked_open,
-            checked,
-            checked_close,
-            primary,
-            trailing,
-            status,
-        })
-    }
-}
-
-fn draft_geometry_admitted(
-    bounds: Rect,
-    inner: Rect,
-    regions: DraftRegions,
-    draft: DraftView<'_>,
-    draw: SettingsDraw,
-    locale: Locale,
-    theme: &Theme,
-) -> bool {
-    if draft.text.is_some() || draft.confirmation.is_some() || draft.picker.is_some() {
-        if draft.confirmation.is_some() {
-            let rows = crate::terminal_text::wrap_text(
-                &Text::from(locale.settings_detail(draft)),
-                inner.width,
-            )
-            .lines
-            .len();
-            return rows <= 2;
-        }
-        let child_height = regions.facts.y.saturating_sub(inner.y + 3);
-        return child_height > 0
-            && (draft.text.is_none()
-                || editor_geometry_admitted(
-                    Rect::new(inner.x, inner.y + 3, inner.width, 1),
-                    draft.selected,
-                    locale,
-                    theme,
-                ));
-    }
-    let Some(start) = draw.first_visible() else {
-        return false;
-    };
-    let Some(visible) = draw.visible_rows() else {
-        return false;
-    };
-    let entries = draft.entries();
-    let Some(end) = start.checked_add(visible) else {
-        return false;
-    };
-    if end > entries.len() {
-        return false;
-    }
-    let Some(visible_height) = u16::try_from(visible).ok() else {
-        return false;
-    };
-    let list = Rect::new(
-        regions.list.x,
-        regions.list.y,
-        regions.list.width,
-        visible_height,
-    );
-    if bounds.intersection(list) != list || inner.intersection(list) != list {
-        return false;
-    }
-    for (offset, entry) in entries[start..end].iter().copied().enumerate() {
-        let Some(offset) = u16::try_from(offset).ok() else {
-            return false;
-        };
-        let row_area = Rect::new(list.x, list.y + offset, list.width.saturating_sub(1), 1);
-        let Entry::Setting(_) = entry else { continue };
-        let Some(_) = RowGeometry::new(row_area) else {
-            return false;
-        };
-        if bounds.intersection(row_area) != row_area || inner.intersection(row_area) != row_area {
-            return false;
-        }
-    }
-    bounds.intersection(regions.facts) == regions.facts
-}
-
-fn editor_geometry_admitted(area: Rect, row: Row, locale: Locale, theme: &Theme) -> bool {
-    let label_width = usize::from(area.width / 3).max(1);
-    let label = truncate_display(
-        &sanitize_terminal_text(locale.settings_row(row)),
-        label_width,
-        theme.glyphs.ellipsis,
-    );
-    let prefix_width = display_width(&format!("{label}: ")).saturating_add(1);
-    let Some(value_width) = usize::from(area.width).checked_sub(prefix_width.saturating_add(1))
-    else {
-        return false;
-    };
-    let Ok(prefix_width) = u16::try_from(prefix_width) else {
-        return false;
-    };
-    let Ok(value_width) = u16::try_from(value_width) else {
-        return false;
-    };
-    if value_width == 0 {
-        return false;
-    }
-    let value_area = Rect::new(area.x + prefix_width, area.y, value_width, 1);
-    area.intersection(value_area) == value_area
-}
-
-/// Paints one setting row; an auxiliary action keeps its trailing extent on the row's surface.
-fn render_setting_row(
-    frame: &mut Frame<'_>,
-    row_area: Rect,
-    explain: Option<Explain>,
-    context: RowContext<'_>,
-    row: Row,
-    hits: &mut HitMapBuilder,
-) {
-    let RowContext {
-        draft,
-        list_active,
-        locale,
-        theme,
-    } = context;
-    let reserve = explain.map_or(0, |explain| explain.rect.width + 1);
-    let Some(geometry) = row_area
-        .width
-        .checked_sub(reserve)
-        .and_then(|width| RowGeometry::new(Rect { width, ..row_area }))
-    else {
-        return;
-    };
-    let enabled = draft.enabled(row);
-    let selected = list_active && !draft.searching && row == draft.selected;
-    let checked = draft.checked(row);
-    let base_state = InteractionState::new(
-        if selected {
-            FocusState::Focused
-        } else {
-            FocusState::Unfocused
-        },
-        PointerPresentation::Rest,
-        NavigationState::None,
-        if selected {
-            CurrentState::Current
-        } else {
-            CurrentState::NotCurrent
-        },
-        if checked == Some(true) {
-            CheckedState::Checked
-        } else {
-            CheckedState::Unchecked
-        },
-        if enabled {
-            Availability::Enabled
-        } else {
-            Availability::Disabled
-        },
-        if matches!(row, Row::Agent(id) if draft.integrations.pending_for(id)) {
-            OperationState::Pending
-        } else {
-            OperationState::Idle
-        },
-    );
-
-    frame.render_widget(
-        Paragraph::new(" ".repeat(usize::from(row_area.width)))
-            .style(theme.style(Role::SurfaceOverlay)),
-        row_area,
-    );
-    let label = truncate_display(
-        &sanitize_terminal_text(locale.settings_row(row)),
-        usize::from(geometry.primary.width),
-        theme.glyphs.ellipsis,
-    );
-    frame.render_widget(
-        Paragraph::new(label).style(theme.style(Role::TextPrimary)),
-        geometry.primary,
-    );
-    let mut bands = Vec::new();
-    if checked.is_some() {
-        frame.render_widget(
-            Paragraph::new("[").style(theme.style(Role::TextSecondary)),
-            geometry.checked_open,
-        );
-        frame.render_widget(
-            Paragraph::new("]").style(theme.style(Role::TextSecondary)),
-            geometry.checked_close,
-        );
-        bands.extend([
-            RowContentBand::semantic(geometry.checked_open, Role::TextSecondary),
-            RowContentBand::semantic(geometry.checked_close, Role::TextSecondary),
-        ]);
-    }
-    if draft.changed(row) {
-        frame.render_widget(
-            Paragraph::new("~").style(theme.style(Role::TextPrimary)),
-            geometry.dirty,
-        );
-        bands.push(RowContentBand::semantic(geometry.dirty, Role::TextPrimary));
-    }
-
-    let adjustment = draft.adjustment(row);
-    let value = render_row_value(frame, geometry.trailing, context, row, adjustment, enabled);
-    bands.extend(value.bands);
-    let mut tracks = RowTracks::new(RowFocusCue::EnclosingFrame, geometry.primary)
-        .with_provisional(geometry.navigation)
-        .with_status(geometry.status);
-    if checked.is_some() {
-        tracks = tracks.with_checked(geometry.checked, "x");
-    }
-    let Some(painted_row) = super::controls::paint_row_interaction(
-        frame,
-        row_area,
-        tracks,
-        &bands,
-        ControlSurface::Overlay,
-        base_state,
-        theme,
-    ) else {
-        return;
-    };
-    if painted_row != row_area {
+/// A one-line text field with its cursor; the text scrolls to keep the cursor visible.
+fn render_field(frame: &mut Frame<'_>, area: Rect, text: &str, cursor: usize, theme: &Theme) {
+    if area.width < 4 {
         return;
     }
-    if list_active {
-        let projected_adjustments = value.adjustment_targets.map(|targets| {
-            targets.map(|target| {
-                paint_and_record_adjustment(frame, hits, draft.token, row, target, theme)
-                    .expect("validated adjustment geometry remains paintable")
-            })
-        });
-        let target = InteractionTarget::SettingsRow {
-            token: draft.token,
-            row,
-        };
-        let spec = interaction_spec(enabled);
-        let pointer = pointer_presentation(hits.projected_pointer(
-            HitLayer::Overlay,
-            row_area,
-            row_area,
-            &target,
-            spec,
-        ));
-        let painted_row = super::controls::paint_row_interaction(
-            frame,
-            row_area,
-            tracks,
-            &bands,
-            ControlSurface::Overlay,
-            base_state.with_pointer(pointer),
-            theme,
-        )
-        .expect("validated row geometry remains paintable");
-        debug_assert_eq!(painted_row, row_area);
-        if let Some(projected_adjustments) = projected_adjustments {
-            for projected in projected_adjustments {
-                let painted = paint_adjustment_pointer(frame, projected, theme)
-                    .expect("validated adjustment geometry remains paintable");
-                debug_assert_eq!(painted, projected.target.rect);
-            }
-        }
-        if let Some(explain) = explain {
-            render_explain(frame, explain, context, pointer, hits);
-        }
-        hits.record_interaction(HitLayer::Overlay, row_area, painted_row, target, spec);
-    }
-}
-
-#[derive(Clone, Copy)]
-struct AdjustmentTarget {
-    rect: Rect,
-    forward: bool,
-    enabled: bool,
-}
-
-#[derive(Clone, Copy)]
-struct ProjectedAdjustment {
-    target: AdjustmentTarget,
-    pointer: PointerPresentation,
-}
-
-fn paint_and_record_adjustment(
-    frame: &mut Frame<'_>,
-    hits: &mut HitMapBuilder,
-    token: crate::native_settings::Token,
-    row: Row,
-    target: AdjustmentTarget,
-    theme: &Theme,
-) -> Option<ProjectedAdjustment> {
-    let interaction_target = InteractionTarget::SettingsControl {
-        token,
-        control: Control::Adjust {
-            row,
-            forward: target.forward,
-        },
-    };
-    let spec = interaction_spec(target.enabled);
-    let pointer = pointer_presentation(hits.projected_pointer(
-        HitLayer::Overlay,
-        target.rect,
-        target.rect,
-        &interaction_target,
-        spec,
-    ));
-    let projected = ProjectedAdjustment { target, pointer };
-    let painted = paint_adjustment_pointer(frame, projected, theme)?;
-    if painted != target.rect {
-        return None;
-    }
-    hits.record_interaction(
-        HitLayer::Overlay,
-        target.rect,
-        painted,
-        interaction_target,
-        spec,
-    );
-    Some(projected)
-}
-
-fn paint_adjustment_pointer(
-    frame: &mut Frame<'_>,
-    projected: ProjectedAdjustment,
-    theme: &Theme,
-) -> Option<Rect> {
-    super::controls::paint_pointer_target(
-        frame,
-        projected.target.rect,
-        ControlSurface::Overlay,
-        projected.pointer,
-        if projected.target.enabled {
-            Role::TextPrimary
-        } else {
-            Role::TextDisabled
-        },
-        if projected.target.enabled {
-            Availability::Enabled
-        } else {
-            Availability::Disabled
-        },
-        theme,
-    )
-}
-
-struct RowValuePaint {
-    adjustment_targets: Option<[AdjustmentTarget; 2]>,
-    bands: Vec<RowContentBand>,
-}
-
-impl RowValuePaint {
-    fn static_band(rect: Rect, role: Role) -> Self {
-        Self {
-            adjustment_targets: None,
-            bands: vec![RowContentBand::semantic(rect, role)],
-        }
-    }
-}
-
-fn settings_value(locale: Locale, draft: DraftView<'_>, row: Row, theme: &Theme) -> String {
-    if matches!(row, Row::Foreground | Row::Background)
-        && draft.values.terminal_display_theme
-            != orchbee_workbench_protocol::TerminalDisplayAppearance::Custom
-    {
-        return theme
-            .terminal_rgb_defaults()
-            .map(|(foreground, background)| {
-                let rgb = if row == Row::Foreground {
-                    foreground
-                } else {
-                    background
-                };
-                format!("#{rgb:06x}")
-            })
-            .unwrap_or_else(|| {
-                locale
-                    .settings_choice(Choice::TerminalTheme(draft.values.terminal_display_theme))
-                    .to_owned()
-            });
-    }
-    let value = locale.settings_value((draft, row));
-    if row == Row::Scrollback {
-        return value;
-    }
-    let Some(metadata) = setting_for_row(row) else {
-        return value;
-    };
-    if let SettingControl::BoundedInteger { unit, .. } = metadata.control {
-        locale.settings_value_with_unit(&value, unit)
-    } else {
-        value
-    }
-}
-
-fn row_uses_choice_trigger(row: Row) -> bool {
-    setting_for_row(row).is_some_and(|metadata| {
-        matches!(
-            metadata.control,
-            SettingControl::FiniteChoice | SettingControl::Catalog
-        )
-    }) || matches!(row, Row::CommandType | Row::AgentIntegrations)
-}
-
-fn row_uses_editor(row: Row) -> bool {
-    setting_for_row(row).is_some_and(|metadata| matches!(metadata.control, SettingControl::Color))
-        || matches!(row, Row::ProfileName | Row::Executable | Row::ArgumentValue)
-}
-
-fn pad_display(value: &str, width: usize, ellipsis: &str) -> String {
-    let mut value = truncate_display(value, width, ellipsis);
-    value.push_str(&" ".repeat(width.saturating_sub(display_width(&value))));
-    value
-}
-
-fn render_row_value(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    context: RowContext<'_>,
-    row: Row,
-    adjustment: Option<Adjustment>,
-    enabled: bool,
-) -> RowValuePaint {
-    let RowContext {
-        draft,
-        locale,
-        theme,
-        ..
-    } = context;
-    let raw_value = settings_value(locale, draft, row, theme);
-    let value = sanitize_terminal_text(&raw_value);
-    if let Some(adjustment) = adjustment
-        && usize::from(area.width) >= display_width(&value).saturating_add(8)
-    {
-        let value_area = Rect::new(area.x + 4, area.y, area.width - 8, 1);
-        frame.render_widget(
-            Paragraph::new("[-]").style(theme.style(if enabled && adjustment.backward {
-                Role::TextPrimary
-            } else {
-                Role::TextDisabled
-            })),
-            Rect::new(area.x, area.y, 3, 1),
-        );
-        frame.render_widget(
-            Paragraph::new(pad_display(
-                &value,
-                usize::from(value_area.width),
-                theme.glyphs.ellipsis,
-            ))
-            .style(theme.style(Role::TextSecondary)),
-            value_area,
-        );
-        frame.render_widget(
-            Paragraph::new("[+]").style(theme.style(if enabled && adjustment.forward {
-                Role::TextPrimary
-            } else {
-                Role::TextDisabled
-            })),
-            Rect::new(area.right() - 3, area.y, 3, 1),
-        );
-        let backward = Rect::new(area.x, area.y, 3, 1);
-        let forward = Rect::new(area.right() - 3, area.y, 3, 1);
-        return RowValuePaint {
-            adjustment_targets: Some([
-                AdjustmentTarget {
-                    rect: backward,
-                    forward: false,
-                    enabled: enabled && adjustment.backward,
-                },
-                AdjustmentTarget {
-                    rect: forward,
-                    forward: true,
-                    enabled: enabled && adjustment.forward,
-                },
-            ]),
-            bands: vec![
-                RowContentBand::semantic(
-                    backward,
-                    if enabled && adjustment.backward {
-                        Role::TextPrimary
-                    } else {
-                        Role::TextDisabled
-                    },
-                ),
-                RowContentBand::semantic(value_area, Role::TextSecondary),
-                RowContentBand::semantic(
-                    forward,
-                    if enabled && adjustment.forward {
-                        Role::TextPrimary
-                    } else {
-                        Role::TextDisabled
-                    },
-                ),
-            ],
-        };
-    }
-    if draft.checked(row).is_some() {
-        let value_area = Rect::new(area.x + 4, area.y, area.width.saturating_sub(4), 1);
-        frame.render_widget(
-            Paragraph::new(value).style(theme.style(Role::TextPrimary)),
-            value_area,
-        );
-        return RowValuePaint::static_band(value_area, Role::TextPrimary);
-    }
-    let width = usize::from(area.width);
-    let text = if row_uses_choice_trigger(row) && width >= 6 {
-        let value = truncate_display(&value, width - 2, theme.glyphs.ellipsis);
-        format!("{value} >")
-    } else if row_uses_editor(row) && width >= 4 {
-        format!(
-            "[ {} ]",
-            pad_display(&value, width - 4, theme.glyphs.ellipsis)
-        )
-    } else {
-        pad_display(&value, width, theme.glyphs.ellipsis)
-    };
-    frame.render_widget(
-        Paragraph::new(text)
-            .alignment(Alignment::Right)
-            .style(theme.style(Role::TextPrimary)),
-        area,
-    );
-    RowValuePaint::static_band(area, Role::TextPrimary)
-}
-
-fn render_editor(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    row: Row,
-    text: &str,
-    cursor: usize,
-    locale: Locale,
-    theme: &Theme,
-) {
-    render_text_field(frame, area, locale.settings_row(row), text, cursor, theme);
-}
-
-fn render_text_field(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    label: &str,
-    text: &str,
-    cursor: usize,
-    theme: &Theme,
-) {
-    let label_width = usize::from(area.width / 3).max(1);
-    let label = truncate_display(
-        &sanitize_terminal_text(label),
-        label_width,
-        theme.glyphs.ellipsis,
-    );
-    let label = format!("{label}: ");
-    let prefix_width = display_width(&label).saturating_add(1);
-    let Some(value_width) = usize::from(area.width).checked_sub(prefix_width.saturating_add(1))
-    else {
-        return;
-    };
-    if value_width == 0 {
-        return;
-    }
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(label, theme.style(Role::TextSecondary)),
-            Span::styled("[", theme.style(Role::AccentFocus)),
-        ])),
-        area,
-    );
-    frame.buffer_mut().set_string(
-        area.right() - 1,
-        area.y,
-        "]",
-        theme.style(Role::AccentFocus),
-    );
+    let style = theme.style(Role::AccentFocus);
+    put(frame, area.x, area.y, 1, "[", style);
+    put(frame, area.right() - 1, area.y, 1, "]", style);
+    let value_width = usize::from(area.width - 2);
     let projection = project_terminal_text(text);
     let displayed = projection.display();
     let cursor_column = display_width(&displayed[..projection.cursor_boundary(cursor)]);
     let left = cursor_column.saturating_sub(value_width.saturating_sub(1));
-    let value_area = Rect::new(
-        area.x + u16::try_from(prefix_width).unwrap_or(area.width),
-        area.y,
-        u16::try_from(value_width).unwrap_or(u16::MAX),
-        1,
-    );
+    let value_area = Rect::new(area.x + 1, area.y, area.width - 2, 1);
     frame.render_widget(
         Paragraph::new(displayed.as_ref())
-            .scroll((0, left.min(usize::from(u16::MAX)) as u16))
-            .style(theme.style(Role::TextPrimary)),
+            .scroll((0, u16::try_from(left).unwrap_or(u16::MAX)))
+            .style(
+                theme
+                    .style(Role::SurfaceField)
+                    .patch(theme.style(Role::TextPrimary)),
+            ),
         value_area,
     );
     frame.set_cursor_position((
@@ -2296,113 +1472,114 @@ fn render_text_field(
     ));
 }
 
-fn render_state_facts(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    draft: DraftView<'_>,
-    locale: Locale,
-    theme: &Theme,
-) {
-    if draft.page.is_integrations() {
-        render_integration_facts(frame, area, draft, locale, theme);
+/// The keys the focused row answers, local return first, on the page's status line.
+fn render_hints(frame: &mut Frame<'_>, area: Rect, view: View<'_>, locale: Locale, theme: &Theme) {
+    if area.is_empty() {
         return;
     }
-    let fits = |text: &str| display_width(text).saturating_add(2) <= usize::from(area.width);
-    let mut facts = locale.settings_state_facts(draft);
-    if !fits(&facts) {
-        facts = locale.settings_compact_state(draft).into();
-    }
-    // A file the Server cannot use outranks the draft's own state: nothing saves until it is fixed.
-    let file = draft.file_fact().map(|fact| {
-        let full = locale.settings_file_fact(fact);
-        if fits(&full) {
-            full
-        } else {
-            locale.settings_file_fact_compact(fact)
-        }
-    });
-    let (glyph, glyph_role, text) = if draft.invalid {
-        (
-            "!",
-            Role::StatusError,
-            if draft.text.is_some() || draft.searching {
-                let message = format!("{} · {facts}", locale.settings_invalid_short());
-                if display_width(&message).saturating_add(2) <= usize::from(area.width) {
-                    message
-                } else {
-                    locale.settings_invalid_short().into()
-                }
-            } else {
-                facts
-            },
-        )
-    } else if let Some(file) = file {
-        ("!", Role::StatusWarning, file)
-    } else if draft.conflict || draft.reconciliation.is_some() {
-        ("!", Role::StatusWarning, facts)
-    } else if draft.dirty {
-        ("~", Role::TextPrimary, facts)
-    } else {
-        (" ", Role::TextSecondary, facts)
-    };
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(glyph, theme.style(glyph_role)),
-            Span::raw(" "),
-            Span::styled(text, theme.style(Role::TextSecondary)),
-        ])),
-        area,
-    );
+    let resolved: Vec<(String, &str)> = footer_bindings(view)
+        .iter()
+        .map(|hint| {
+            (
+                format_settings_bindings(hint.bindings(), theme),
+                locale.settings_hint_label(hint.label()),
+            )
+        })
+        .collect();
+    let hints: Vec<KeyHint<'_>> = resolved
+        .iter()
+        .map(|(key, label)| KeyHint::new(key, label))
+        .collect();
+    let _ = render_overlay_hints(frame, area, &hints, theme);
 }
 
-/// The integration pages' state line: the last failure, a running job, or what the page does.
-fn render_integration_facts(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    draft: DraftView<'_>,
-    locale: Locale,
-    theme: &Theme,
-) {
-    let integrations = draft.integrations;
-    let pending = theme.glyphs.status_bullet;
-    let (glyph, glyph_role, text) = match (draft.page, integrations.failure()) {
-        (Page::Diagnosis(id), _) => match integrations.diagnosis(id) {
-            Some(Diagnosis::Pending) => (
-                pending,
-                Role::StatusPending,
-                locale.integration_status(crate::localization::IntegrationStatus::Working),
-            ),
-            Some(Diagnosis::Failed(failure)) => {
-                ("!", Role::StatusError, locale.integration_failure(*failure))
-            }
-            _ => (
-                " ",
-                Role::TextSecondary,
-                locale.integration_diagnosis_read_only(),
-            ),
-        },
-        (_, Some(failure)) => ("!", Role::StatusError, locale.integration_failure(failure)),
-        _ if integrations.pending() => (
-            pending,
-            Role::StatusPending,
-            locale.integration_status(crate::localization::IntegrationStatus::Working),
-        ),
-        _ if !integrations.reported() => {
-            (" ", Role::TextSecondary, locale.integrations_unchecked())
-        }
-        _ => (" ", Role::TextSecondary, locale.integrations_disclosure()),
+fn format_settings_bindings(bindings: impl Iterator<Item = Binding>, theme: &Theme) -> String {
+    let key_glyphs = match theme.glyphs.mode() {
+        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
+        #[cfg(any(test, feature = "test-support"))]
+        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
-    let text = truncate_display(
-        text,
-        usize::from(area.width).saturating_sub(2),
-        theme.glyphs.ellipsis,
+    bindings
+        .map(|binding| format_binding_with_glyphs(&binding, LabelStyle::for_host(), key_glyphs))
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// A whole-line control such as Back: painted, hovered and recorded at its exact extent.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one line control's drawing inputs"
+)]
+fn paint_line_target(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    label: &str,
+    role: Role,
+    base: Role,
+    selected: bool,
+    target: InteractionTarget,
+    enabled: bool,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let width = u16::try_from(display_width(label)).unwrap_or(rect.width);
+    let hit = Rect::new(rect.x, rect.y, width.min(rect.width), 1);
+    let spec = interaction_spec(enabled);
+    let pointer = hits.projected_pointer(HitLayer::Overlay, hit, hit, &target, spec);
+    let interaction = pointer_surface(pointer).or(selected.then_some(Role::SurfaceSelection));
+    put(
+        frame,
+        rect.x,
+        rect.y,
+        rect.width,
+        label,
+        on(theme, base, interaction, role),
     );
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(glyph, theme.style(glyph_role)),
-            Span::raw(" "),
-            Span::styled(text, theme.style(Role::TextSecondary)),
-        ])),
-        area,
-    );
+    hits.record_interaction(HitLayer::Overlay, hit, hit, target, spec);
+}
+
+fn interaction_spec(enabled: bool) -> InteractionSpec {
+    if enabled {
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+    } else {
+        InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+    }
+}
+
+const fn pointer_surface(pointer: ProjectedPointer) -> Option<Role> {
+    match pointer {
+        ProjectedPointer::Rest => None,
+        ProjectedPointer::Hovered => Some(Role::SurfaceHover),
+        ProjectedPointer::Pressed => Some(Role::SurfacePressed),
+    }
+}
+
+fn on(theme: &Theme, base: Role, interaction: Option<Role>, content: Role) -> Style {
+    theme.content_on_surface(base, interaction, Some(content), theme.style(content))
+}
+
+fn fill(frame: &mut Frame<'_>, rect: Rect, base: Role, interaction: Option<Role>, theme: &Theme) {
+    let style = on(theme, base, interaction, Role::TextPrimary);
+    for y in rect.y..rect.bottom() {
+        put(
+            frame,
+            rect.x,
+            y,
+            rect.width,
+            &" ".repeat(usize::from(rect.width)),
+            style,
+        );
+    }
+}
+
+/// Writes text clipped to `width` cells.
+fn put(frame: &mut Frame<'_>, x: u16, y: u16, width: u16, text: &str, style: Style) {
+    let area = frame.area();
+    if width == 0 || y >= area.bottom() || x >= area.right() {
+        return;
+    }
+    let width = width.min(area.right() - x);
+    frame
+        .buffer_mut()
+        .set_stringn(x, y, text, usize::from(width), style);
 }

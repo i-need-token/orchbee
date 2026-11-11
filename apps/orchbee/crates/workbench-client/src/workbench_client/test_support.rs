@@ -5,11 +5,10 @@ mod close;
 mod rename;
 
 pub use super::ui::test_support::{
-    SettingsFrameSource,
+    SettingsFrameSource, a_candidate_previews_on_the_whole_page_without_runtime_effects,
+    a_change_made_elsewhere_shows_on_the_open_page_at_once,
     actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under_a_board,
     covering_client_owner_uses_confirmed_appearance_until_settings_returns,
-    draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects,
-    external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot,
 };
 pub use close::{dispatch_close_input, interactive_close_server};
 #[cfg(test)]

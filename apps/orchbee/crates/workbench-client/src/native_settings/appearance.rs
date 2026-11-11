@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::{
     UserSettingsValues,
 };
 
-/// Validated presentation-only leaves, borrowed from the draft or latest confirmed snapshot.
+/// Validated presentation-only leaves, borrowed from the values the Settings page shows.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AppearancePreview<'a> {
     pub locale: SettingsLocale,
@@ -18,75 +18,24 @@ pub struct AppearancePreview<'a> {
 }
 
 impl<'a> AppearancePreview<'a> {
-    pub(super) fn project(
-        basis: &'a UserSettingsValues,
-        draft: &'a UserSettingsValues,
-        effective: &'a UserSettingsValues,
-        reset: bool,
-    ) -> Self {
-        fn leaf<'a, T: PartialEq + ?Sized>(
-            basis: &T,
-            draft: &'a T,
-            effective: &'a T,
-            reset: bool,
-        ) -> &'a T {
-            if reset || basis != draft {
-                draft
-            } else {
-                effective
-            }
-        }
+    /// The appearance a complete set of values gives.
+    pub(crate) fn of(values: &'a UserSettingsValues) -> Self {
         Self {
-            locale: *leaf(&basis.locale, &draft.locale, &effective.locale, reset),
-            application_theme: *leaf(
-                &basis.application_theme,
-                &draft.application_theme,
-                &effective.application_theme,
-                reset,
-            ),
-            light_theme: leaf(
-                &basis.light_theme,
-                &draft.light_theme,
-                &effective.light_theme,
-                reset,
-            ),
-            dark_theme: leaf(
-                &basis.dark_theme,
-                &draft.dark_theme,
-                &effective.dark_theme,
-                reset,
-            ),
-            tui_color_source: *leaf(
-                &basis.tui_color_source,
-                &draft.tui_color_source,
-                &effective.tui_color_source,
-                reset,
-            ),
-            terminal_display_theme: *leaf(
-                &basis.terminal_display_theme,
-                &draft.terminal_display_theme,
-                &effective.terminal_display_theme,
-                reset,
-            ),
-            custom_foreground: leaf(
-                &basis.custom_foreground,
-                &draft.custom_foreground,
-                &effective.custom_foreground,
-                reset,
-            ),
-            custom_background: leaf(
-                &basis.custom_background,
-                &draft.custom_background,
-                &effective.custom_background,
-                reset,
-            ),
+            locale: values.locale,
+            application_theme: values.application_theme,
+            light_theme: &values.light_theme,
+            dark_theme: &values.dark_theme,
+            tui_color_source: values.tui_color_source,
+            terminal_display_theme: values.terminal_display_theme,
+            custom_foreground: &values.custom_foreground,
+            custom_background: &values.custom_background,
         }
     }
 
     #[cfg(test)]
     /// Projects a complete validated appearance for independent expected-value assertions.
     pub(crate) fn from_values(values: &'a UserSettingsValues) -> Self {
-        Self::project(values, values, values, false)
+        Self::of(values)
     }
 }
 

@@ -32,9 +32,9 @@ mod settings;
 pub(crate) use settings::{
     IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,
     IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown, SettingUnit,
-    SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
-    SettingsDraftState, SettingsFieldRequirement, SettingsFileFact, SettingsHintLabel,
-    SettingsNotice, SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
+    SettingsFileFact, SettingsGroup, SettingsHintLabel, SettingsNotice, SettingsProfileLabel,
+    SettingsRow, SettingsValue,
 };
 mod status;
 mod terminal_feedback;

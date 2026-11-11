@@ -1744,10 +1744,7 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn view(&self) -> WorkbenchClientView<'_> {
-        let command_notice = self
-            .settings
-            .notice(self.clock.now())
-            .map(WorkbenchClientNotice::Settings);
+        let command_notice = self.settings.notice().map(WorkbenchClientNotice::Settings);
         let command_notice = command_notice
             .or_else(|| self.links.notice().map(link_notice))
             .or_else(|| self.command_notice.current(self.clock.now()));

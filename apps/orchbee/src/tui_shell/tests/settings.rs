@@ -49,17 +49,13 @@ fn settings_frame(
 }
 
 #[test]
-fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects() {
-    test_support::draft_appearance_reaches_background_chrome_and_program_defaults_without_runtime_effects(
-        &settings_frame,
-    );
+fn a_candidate_previews_on_the_whole_page_without_runtime_effects() {
+    test_support::a_candidate_previews_on_the_whole_page_without_runtime_effects(&settings_frame);
 }
 
 #[test]
-fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot() {
-    test_support::external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot(
-        &settings_frame,
-    );
+fn a_change_made_elsewhere_shows_on_the_open_page_at_once() {
+    test_support::a_change_made_elsewhere_shows_on_the_open_page_at_once(&settings_frame);
 }
 
 #[test]

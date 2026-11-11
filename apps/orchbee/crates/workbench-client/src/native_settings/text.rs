@@ -1,14 +1,10 @@
-//! Selects text descriptions from admitted Settings drafts and metadata.
-//! The draft/token/enablement and saved profile owners remain here; text gets only selected facts.
-
-use super::{
-    Choice, Confirmation, DraftView, FileState, Page, Reconciliation, Row, SettingCategory,
-    setting_for_row,
-};
+//! Selects the facts the localized text needs from the page; the text sees no page state.
+use super::{Category, Choice, FileState, Group, Page, PageView, Row};
 use crate::localization::{
-    SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsDraftState,
-    SettingsFieldRequirement, SettingsFileFact, SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsFieldRequirement,
+    SettingsFileFact, SettingsGroup, SettingsProfileLabel, SettingsRow, SettingsValue,
 };
+use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchField};
 
 impl From<Row> for SettingsRow {
@@ -18,6 +14,10 @@ impl From<Row> for SettingsRow {
             Row::Theme => Self::Theme,
             Row::LightTheme => Self::LightTheme,
             Row::DarkTheme => Self::DarkTheme,
+            Row::ThemeOption(theme) => match theme.theme().polarity() {
+                Polarity::Light => Self::LightTheme,
+                Polarity::Dark => Self::DarkTheme,
+            },
             Row::ColorSource => Self::ColorSource,
             Row::TerminalTheme => Self::TerminalTheme,
             Row::Foreground => Self::Foreground,
@@ -32,9 +32,8 @@ impl From<Row> for SettingsRow {
             Row::Sound => Self::Sound,
             Row::Scrollback => Self::Scrollback,
             Row::LaunchProfiles => Self::LaunchProfiles,
-            Row::ResetAll => Self::ResetAll,
-            Row::Reload => Self::Reload,
-            Row::Save => Self::Save,
+            Row::NewTerminalFolder => Self::NewTerminalFolder,
+            Row::PrefixKey => Self::PrefixKey,
             Row::Profile => Self::Profile,
             Row::ProfileName => Self::ProfileName,
             Row::CommandType => Self::CommandType,
@@ -47,7 +46,6 @@ impl From<Row> for SettingsRow {
             Row::SetDefault => Self::SetDefault,
             Row::AddProfile => Self::AddProfile,
             Row::DeleteProfile => Self::DeleteProfile,
-            Row::ResetProfiles => Self::ResetProfiles,
             Row::Back => Self::Back,
             Row::AgentIntegrations => Self::AgentIntegrations,
             Row::Agent(id) => Self::Agent(id),
@@ -57,16 +55,38 @@ impl From<Row> for SettingsRow {
     }
 }
 
-impl From<SettingCategory> for SettingsCategory {
-    fn from(category: SettingCategory) -> Self {
+impl From<Category> for SettingsCategory {
+    fn from(category: Category) -> Self {
         match category {
-            SettingCategory::Appearance => Self::Appearance,
-            SettingCategory::Terminal => Self::Terminal,
-            SettingCategory::Notifications => Self::Notifications,
-            SettingCategory::LaunchProfiles => Self::LaunchProfiles,
-            SettingCategory::AgentIntegrations => Self::AgentIntegrations,
-            SettingCategory::LocalAgentAdapters => Self::LocalAgentAdapters,
-            SettingCategory::RemoteAgentHosts => Self::RemoteAgentHosts,
+            Category::General => Self::General,
+            Category::Appearance => Self::Appearance,
+            Category::Themes => Self::Themes,
+            Category::Terminal => Self::Terminal,
+            Category::Notifications => Self::Notifications,
+            Category::Keyboard => Self::Keyboard,
+            Category::Agents => Self::Agents,
+        }
+    }
+}
+
+impl From<Group> for SettingsGroup {
+    fn from(group: Group) -> Self {
+        match group {
+            Group::Language => Self::Language,
+            Group::AfterRestart | Group::AgentRestore => Self::AfterRestart,
+            Group::AppAppearance => Self::AppAppearance,
+            Group::TerminalColors => Self::TerminalColors,
+            Group::LightThemes => Self::LightThemes,
+            Group::DarkThemes => Self::DarkThemes,
+            Group::SelectionKeys => Self::SelectionKeys,
+            Group::Output => Self::Output,
+            Group::LaunchProfiles => Self::LaunchProfiles,
+            Group::WhenToNotify => Self::WhenToNotify,
+            Group::SoundDelivery => Self::SoundDelivery,
+            Group::Prefix => Self::Prefix,
+            Group::AgentIntegrations => Self::AgentIntegrations,
+            Group::LocalAgents => Self::LocalAgents,
+            Group::RemoteHosts => Self::RemoteHosts,
         }
     }
 }
@@ -85,40 +105,10 @@ impl From<Choice> for SettingsChoice {
     }
 }
 
-impl From<Row> for SettingsCategory {
-    fn from(row: Row) -> Self {
-        if let Some(metadata) = setting_for_row(row) {
-            return metadata.category.into();
-        }
-        match row {
-            Row::ResetAll | Row::Reload | Row::Save => Self::General,
-            Row::Profile
-            | Row::ProfileName
-            | Row::CommandType
-            | Row::Executable
-            | Row::Login
-            | Row::Argument
-            | Row::ArgumentValue
-            | Row::AddArgument
-            | Row::DeleteArgument
-            | Row::SetDefault
-            | Row::AddProfile
-            | Row::DeleteProfile
-            | Row::ResetProfiles
-            | Row::Back => Self::LaunchProfiles,
-            Row::AgentIntegrations
-            | Row::Agent(_)
-            | Row::RemoteHosts
-            | Row::RefreshIntegrations => Self::AgentIntegrations,
-            _ => unreachable!("metadata-backed setting row resolved above"),
-        }
-    }
-}
-
-impl<'a> DraftView<'a> {
-    /// The settings file the page cannot use, which its state line names; `None` while it can.
+impl<'a> PageView<'a> {
+    /// The settings file the page cannot use, which its file line names; `None` while it can.
     pub(crate) fn file_fact(self) -> Option<SettingsFileFact<'a>> {
-        match self.file {
+        match self.file() {
             FileState::Usable => None,
             FileState::SyntaxError { path, line, column } => Some(SettingsFileFact::SyntaxError {
                 path: path.as_deref(),
@@ -132,43 +122,19 @@ impl<'a> DraftView<'a> {
     }
 }
 
-impl From<DraftView<'_>> for SettingsDraftState {
-    fn from(draft: DraftView<'_>) -> Self {
-        match draft.reconciliation {
-            Some(Reconciliation::OutcomeUnknown) => Self::Unknown,
-            Some(Reconciliation::SourceChanged) => Self::SourceChanged,
-            None if draft.conflict => Self::SourceChanged,
-            None if draft.dirty => Self::Dirty,
-            None => Self::Clean,
-        }
+fn detail_kind(page: PageView<'_>) -> SettingsDetailKind {
+    if page.confirm_delete() {
+        return SettingsDetailKind::ConfirmDeleteProfile;
     }
-}
-
-fn detail_kind(draft: DraftView<'_>) -> SettingsDetailKind {
-    if let Some(confirmation) = draft.confirmation {
-        return match confirmation {
-            Confirmation::ResetAll => SettingsDetailKind::ConfirmResetAll,
-            Confirmation::ResetProfiles => SettingsDetailKind::ConfirmResetProfiles,
-            Confirmation::Reload => SettingsDetailKind::ConfirmReload,
-            Confirmation::DeleteProfile => SettingsDetailKind::ConfirmDeleteProfile,
-        };
-    }
-    if draft.invalid {
+    if page.invalid() {
         return SettingsDetailKind::InvalidValue;
     }
-    if !draft.enabled(draft.selected) {
-        return match draft.selected {
-            Row::Save => match draft.reconciliation {
-                Some(Reconciliation::SourceChanged) => SettingsDetailKind::SourceChangedBeforeSave,
-                Some(Reconciliation::OutcomeUnknown) => SettingsDetailKind::UnknownSave,
-                None if draft.conflict => SettingsDetailKind::ConflictBeforeSave,
-                None => SettingsDetailKind::NoChanges,
-            },
+    let selected = page.selected();
+    if !page.enabled(selected) {
+        return match selected {
             Row::Foreground | Row::Background => SettingsDetailKind::CustomColorsRequired,
-            Row::LightTheme | Row::DarkTheme | Row::ColorSource => {
-                SettingsDetailKind::TruecolorRequired
-            }
-            Row::Login if !draft.login_shell_supported => SettingsDetailKind::LoginUnsupported,
+            Row::ColorSource | Row::ThemeOption(_) => SettingsDetailKind::TruecolorRequired,
+            Row::Login if !page.login_shell_supported() => SettingsDetailKind::LoginUnsupported,
             Row::Executable
             | Row::Argument
             | Row::ArgumentValue
@@ -180,53 +146,29 @@ fn detail_kind(draft: DraftView<'_>) -> SettingsDetailKind {
             _ => SettingsDetailKind::Unavailable,
         };
     }
-    if draft.page == Page::Profiles {
-        return SettingsDetailKind::LiteralArguments;
-    }
-    if draft.reconciliation == Some(Reconciliation::OutcomeUnknown) {
-        return SettingsDetailKind::UnknownPreview;
-    }
-    match draft.selected {
-        Row::Language
-        | Row::Theme
-        | Row::LightTheme
-        | Row::DarkTheme
-        | Row::ColorSource
-        | Row::TerminalTheme
-        | Row::Foreground
-        | Row::Background => SettingsDetailKind::LocalPreview,
-        Row::CopyOnSelect => SettingsDetailKind::CopyAfterSave,
-        Row::TrimAgents => SettingsDetailKind::TrimAgentsAfterSave,
-        Row::ResumeAgents => SettingsDetailKind::ResumeAgentsAfterSave,
-        Row::RestoreOutput => SettingsDetailKind::RestoreOutputAfterSave,
-        Row::Reminders => SettingsDetailKind::AgentNotificationsAfterSave,
-        Row::CompletionReminders | Row::CompletionThreshold => {
-            SettingsDetailKind::CompletionAfterSave
-        }
-        Row::Sound => SettingsDetailKind::SoundAfterSave,
-        Row::Scrollback => SettingsDetailKind::ScrollbackAfterSave,
-        Row::LaunchProfiles => SettingsDetailKind::LaunchProfilesAfterSave,
-        _ => SettingsDetailKind::DeviceSettings,
-    }
+    SettingsDetailKind::LiteralArguments
 }
 
-impl<'a> From<DraftView<'a>> for SettingsDetail<'a> {
-    fn from(draft: DraftView<'a>) -> Self {
-        if draft.confirmation.is_none() {
-            let field = draft.invalid_field.or_else(|| {
-                if draft.page != Page::Profiles || !draft.enabled(draft.selected) {
+/// The launch-profile editor's line for its focused row: a field's rule, a confirmation, or why
+/// the row is unavailable.
+impl<'a> From<PageView<'a>> for SettingsDetail<'a> {
+    fn from(page: PageView<'a>) -> Self {
+        if !page.confirm_delete() {
+            let field = page.invalid_field().or_else(|| {
+                if page.page() != Page::Profiles || !page.enabled(page.selected()) {
                     return None;
                 }
-                let field = match draft.selected {
+                let field = match page.selected() {
                     Row::ProfileName => UserLaunchField::Name,
                     Row::Executable => UserLaunchField::Executable,
-                    Row::ArgumentValue => UserLaunchField::Argument(draft.argument),
+                    Row::ArgumentValue => UserLaunchField::Argument(page.argument()),
                     _ => return None,
                 };
-                Some((draft.profile, field))
+                Some((page.profile(), field))
             });
-            if let Some((index, field)) = field {
-                let profile = &draft.values.launch_profiles.profiles[index];
+            if let Some((index, field)) = field
+                && let Some(profile) = page.values().launch_profiles.profiles.get(index)
+            {
                 let name = match profile.name.as_deref() {
                     Some(name) => SettingsProfileLabel::Text(name),
                     None if profile.id == "system-default" => SettingsProfileLabel::SystemDefault,
@@ -243,14 +185,15 @@ impl<'a> From<DraftView<'a>> for SettingsDetail<'a> {
                 return Self::Field { name, requirement };
             }
         }
-        Self::Message(detail_kind(draft))
+        Self::Message(detail_kind(page))
     }
 }
 
-impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
-    fn from((draft, row): (DraftView<'a>, Row)) -> Self {
-        let values = draft.values;
-        let profile = &values.launch_profiles.profiles[draft.profile];
+impl<'a> From<(PageView<'a>, Row)> for SettingsValue<'a> {
+    fn from((page, row): (PageView<'a>, Row)) -> Self {
+        let values = page.values();
+        let profiles = &values.launch_profiles.profiles;
+        let profile = &profiles[page.profile().min(profiles.len() - 1)];
         match row {
             Row::Language => Self::Choice(SettingsChoice::Locale(values.locale)),
             Row::Theme => Self::Choice(SettingsChoice::ApplicationTheme(values.application_theme)),
@@ -260,6 +203,7 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
                     None => Self::Empty,
                 }
             }
+            Row::ThemeOption(theme) => Self::Choice(Choice::ColorTheme(theme).into()),
             Row::TerminalTheme => {
                 Self::Choice(SettingsChoice::TerminalTheme(values.terminal_display_theme))
             }
@@ -276,15 +220,17 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
                 values.completion_reminder_mode,
             )),
             Row::CompletionThreshold => {
-                Self::Integer(u64::from(values.completion_reminder_minimum_seconds))
+                Self::Seconds(u64::from(values.completion_reminder_minimum_seconds))
             }
             Row::Sound => Self::Toggle(values.sound_enabled),
             Row::Scrollback => {
                 Self::ScrollbackMegabytes(super::scrollback_megabytes(values.scrollback_bytes))
             }
-            Row::LaunchProfiles => match values
-                .launch_profiles
-                .profiles
+            Row::NewTerminalFolder | Row::PrefixKey => match page.text_value(row) {
+                Some(text) => Self::Text(text),
+                None => Self::Default,
+            },
+            Row::LaunchProfiles => match profiles
                 .iter()
                 .find(|p| p.id == values.launch_profiles.default_profile_id)
             {
@@ -304,7 +250,7 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
                 UserLaunchCommand::SystemShell { .. } => Self::Dash,
             },
             Row::Login => match &profile.command {
-                UserLaunchCommand::SystemShell { login } if draft.login_shell_supported => {
+                UserLaunchCommand::SystemShell { login } if page.login_shell_supported() => {
                     Self::Toggle(*login)
                 }
                 UserLaunchCommand::SystemShell { .. }
@@ -313,7 +259,7 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
             Row::Argument => match &profile.command {
                 UserLaunchCommand::CustomExecutable { arguments, .. } if !arguments.is_empty() => {
                     Self::ArgumentPosition {
-                        position: draft.argument + 1,
+                        position: page.argument() + 1,
                         total: arguments.len(),
                     }
                 }
@@ -322,14 +268,14 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
             },
             Row::ArgumentValue => match &profile.command {
                 UserLaunchCommand::CustomExecutable { arguments, .. } => arguments
-                    .get(draft.argument)
+                    .get(page.argument())
                     .map_or(Self::Dash, |value| Self::Text(value)),
                 UserLaunchCommand::SystemShell { .. } => Self::Dash,
             },
             Row::SetDefault if profile.id == values.launch_profiles.default_profile_id => {
                 Self::Default
             }
-            Row::Agent(id) => Self::Integration(draft.integrations.status(id)),
+            Row::Agent(id) => Self::Integration(page.integrations().status(id)),
             Row::RemoteHosts => {
                 Self::Integration(crate::localization::IntegrationStatus::ManualOnly)
             }

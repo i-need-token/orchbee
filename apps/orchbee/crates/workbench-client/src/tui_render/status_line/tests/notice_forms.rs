@@ -102,15 +102,12 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
     }
     all.extend(
         [
-            Settings::Saved,
-            Settings::NoChange,
             Settings::SourceChanged,
             Settings::Failed,
             Settings::Unknown,
             Settings::Busy,
             Settings::PresentationUnavailable,
             Settings::TooSmall,
-            Settings::Background,
             Settings::FileBusy,
             Settings::InvalidValue,
             Settings::Unsupported,
@@ -187,15 +184,12 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             N::Unsupported(_)
             | N::RecordUnusable(_, Problem::NotUpdated | Problem::Newer)
             | N::Settings(
-                Settings::Saved
-                | Settings::NoChange
-                | Settings::SourceChanged
+                Settings::SourceChanged
                 | Settings::Failed
                 | Settings::Unknown
                 | Settings::Busy
                 | Settings::PresentationUnavailable
                 | Settings::TooSmall
-                | Settings::Background
                 | Settings::FileBusy
                 | Settings::InvalidValue
                 | Settings::Unsupported
