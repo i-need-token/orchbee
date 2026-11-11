@@ -12,8 +12,9 @@ import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
 	type TabStripCloseResume,
+	TabStripNewTabMenuItems,
 	type TabStripMessages,
-	type TabStripNewTabChoice,
+	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
 	type TabStripSelectCallback,
 	type TabStripTabCreationIntent,
@@ -22,8 +23,6 @@ import {
 	Button,
 	ContextMenu,
 	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuShortcut,
 	ContextMenuTrigger,
 	Kbd,
 	ProductIcon,
@@ -41,7 +40,7 @@ interface WorkbenchTabListProps {
 	readonly focusRequest: number;
 	readonly getTabCreationAvailability: (intent: TabStripTabCreationIntent) => ActionAvailability;
 	readonly identityIcons?: ReadonlyMap<string, ReactNode> | undefined;
-	readonly newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
+	readonly newTabSections?: readonly TabStripNewTabSection[] | undefined;
 	/** Absent while a configured command holds the chord. */
 	readonly newTabShortcutLabel: string | undefined;
 	readonly onClose: () => void;
@@ -74,7 +73,7 @@ export function WorkbenchTabList({
 	focusRequest,
 	getTabCreationAvailability,
 	identityIcons,
-	newTabChoices,
+	newTabSections,
 	newTabShortcutLabel,
 	onClose,
 	onCloseTabs,
@@ -102,7 +101,8 @@ export function WorkbenchTabList({
 	const newTabAvailable =
 		onNewTab !== undefined &&
 		getTabCreationAvailability({ groupId: null, kind: 'new-tab' }).kind === 'enabled';
-	const newTabMenuAvailable = newTabAvailable && (newTabChoices?.length ?? 0) > 0;
+	const newTabMenuAvailable =
+		newTabAvailable && (newTabSections ?? []).some((section) => section.choices.length > 0);
 	const title = intl.formatMessage(workbenchMessages.mobileTabs);
 	const onListKeyDown = (event: KeyboardEvent<HTMLElement>) => {
 		onKeyDown(event);
@@ -178,21 +178,13 @@ export function WorkbenchTabList({
 					</Button>
 				</ContextMenuTrigger>
 				<ContextMenuContent aria-label={tabStripMessages.newTabMenu}>
-					{newTabChoices?.map((newTabChoice) => (
-						<ContextMenuItem
-							key={newTabChoice.id}
-							onClick={() => {
-								newTabChoice.select();
-								onClose();
-							}}
-						>
-							<ProductIcon name={newTabChoice.icon} size='menu-leading' />
-							{newTabChoice.label}
-							{newTabChoice.note === undefined ? null : (
-								<ContextMenuShortcut>{newTabChoice.note}</ContextMenuShortcut>
-							)}
-						</ContextMenuItem>
-					))}
+					<TabStripNewTabMenuItems
+						sections={newTabSections}
+						onChoose={(newTabChoice) => {
+							newTabChoice.select();
+							onClose();
+						}}
+					/>
 				</ContextMenuContent>
 			</ContextMenu>
 			<div
@@ -212,7 +204,7 @@ export function WorkbenchTabList({
 					fill
 					focusRequest={focusRequest}
 					getTabCreationAvailability={getTabCreationAvailability}
-					newTabChoices={newTabChoices}
+					newTabSections={newTabSections}
 					onCloseTabs={onCloseTabs}
 					onDraggingChange={choice.onDraggingChange}
 					onNewTerminal={onNewTab}

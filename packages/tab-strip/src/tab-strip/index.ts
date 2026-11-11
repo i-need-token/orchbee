@@ -15,6 +15,7 @@ export type {
 	TabStripTabCreationIntent,
 	TabStripSelectCallback,
 	TabStripNewTabChoice,
+	TabStripNewTabSection,
 	TabStatusAdornment,
 	TabStatusAdornmentKind,
 } from './TabStrip';
@@ -24,3 +25,5 @@ export { getTabCloseTargets } from './model/tab-close-targets';
 // A host that draws one Tab outside the strip draws its icon and title as the strip does.
 export { TabIcon } from './components/tab-strip-view/components/tab-button/components/tab-icon/TabIcon';
 export { getVisibleTabTitle } from './components/tab-strip-view/components/tab-button/utils/getVisibleTabTitle';
+// A host that offers the New Tab menu outside the strip draws its sections as the strip does.
+export { TabStripNewTabMenuItems } from './components/tab-strip-view/components/tab-strip-context-menu/components/tab-strip-new-tab-menu-items/TabStripNewTabMenuItems';

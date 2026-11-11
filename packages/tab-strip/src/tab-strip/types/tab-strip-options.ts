@@ -120,6 +120,14 @@ export interface TabStripNewTabChoice {
 	readonly select: () => void;
 }
 
+/** One group of the New Tab button's menu, drawn after a separator when another group precedes it. */
+export interface TabStripNewTabSection {
+	readonly choices: readonly TabStripNewTabChoice[];
+	readonly id: string;
+	/** A heading above the choices, which is neither selectable nor focusable. */
+	readonly label?: string | undefined;
+}
+
 /**
  * New group… and a group's Rename ask the composing application for a name, prefilled with `title`.
  * `commit` runs the Tab Strip Action with the name as typed, blank included; a cancelled request
@@ -231,8 +239,9 @@ export interface TabStripOptions {
 	onNameGroup?: ((request: TabStripGroupNameRequest) => void) | undefined;
 	onNewTabButtonPressed?: () => void;
 	/**
-	 * The New Tab button's menu, in order. The button's own click already starts a Tab, so fewer than
-	 * two choices open no menu.
+	 * The New Tab button's menu, section by section. The button's own click already starts a Tab, so
+	 * the menu opens only when its sections hold two choices or more together. A section without
+	 * choices is not drawn. The menu keeps the choices it opened with until it closes.
 	 */
-	newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
+	newTabSections?: readonly TabStripNewTabSection[] | undefined;
 }

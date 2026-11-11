@@ -1,5 +1,5 @@
 import { useOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
-import type { TabStripNewTabChoice } from '@orchbee/tab-strip';
+import type { TabStripNewTabChoice, TabStripNewTabSection } from '@orchbee/tab-strip';
 import type { UserLaunchProfile } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
@@ -15,7 +15,7 @@ export function useWorkbenchNewTabChoices(
 	launchProfiles: WorkbenchLaunchProfiles | undefined,
 	inWorkspace: boolean,
 	createTab: (profile: UserLaunchProfile) => void,
-): readonly TabStripNewTabChoice[] | undefined {
+): readonly TabStripNewTabSection[] | undefined {
 	const intl = useOrchbeeIntl();
 	const readCatalog = () => launchProfiles?.getSnapshot();
 	const catalog = React.useSyncExternalStore(
@@ -26,7 +26,7 @@ export function useWorkbenchNewTabChoices(
 	return React.useMemo(() => {
 		if (catalog === undefined || !inWorkspace) return undefined;
 		const { defaultProfileId, profiles } = catalog;
-		return [
+		const choices = [
 			...profiles.filter((profile) => profile.id === defaultProfileId),
 			...profiles.filter((profile) => profile.id !== defaultProfileId),
 		].map(
@@ -47,5 +47,6 @@ export function useWorkbenchNewTabChoices(
 				select: () => createTab(profile),
 			}),
 		);
+		return [{ choices, id: 'profiles' }];
 	}, [catalog, createTab, inWorkspace, intl]);
 }

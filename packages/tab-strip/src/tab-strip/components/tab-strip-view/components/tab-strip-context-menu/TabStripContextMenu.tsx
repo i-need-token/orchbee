@@ -6,7 +6,6 @@ import {
 	ContextMenuRadioGroup,
 	ContextMenuRadioItem,
 	ContextMenuSeparator,
-	ContextMenuShortcut,
 	ContextMenuSub,
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
@@ -25,6 +24,7 @@ import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripActions } from '../../../../types/tab-strip-actions';
 import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
 import type { TabStripOptions } from '../../../../types/tab-strip-options';
+import { TabStripNewTabMenuItems } from './components/tab-strip-new-tab-menu-items/TabStripNewTabMenuItems';
 
 interface TabStripContextMenuProps {
 	actions: TabStripActions;
@@ -39,7 +39,7 @@ interface TabStripContextMenuProps {
 	closeResume: TabStripOptions['closeResume'];
 	onNameGroup: TabStripOptions['onNameGroup'];
 	onSetTabTitle: ((tabId: string) => void) | undefined;
-	newTabChoices: TabStripOptions['newTabChoices'];
+	newTabSections: TabStripOptions['newTabSections'];
 	onClose: () => void;
 }
 
@@ -76,7 +76,7 @@ export function TabStripContextMenu({
 	closeResume,
 	onNameGroup,
 	onSetTabTitle,
-	newTabChoices,
+	newTabSections,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
 	const messages = useTabStripMessages();
@@ -146,15 +146,10 @@ export function TabStripContextMenu({
 		// Grouped and other new-Tab variants are Search Actions; this menu only picks how the Tab starts.
 		return (
 			<ContextMenuContent aria-label={messages.newTabMenu}>
-				{newTabChoices?.map((choice) => (
-					<ContextMenuItem key={choice.id} onClick={run(choice.select)}>
-						<ProductIcon name={choice.icon} size='menu-leading' />
-						{choice.label}
-						{choice.note === undefined ? null : (
-							<ContextMenuShortcut>{choice.note}</ContextMenuShortcut>
-						)}
-					</ContextMenuItem>
-				))}
+				<TabStripNewTabMenuItems
+					sections={newTabSections}
+					onChoose={(choice) => run(choice.select)()}
+				/>
 			</ContextMenuContent>
 		);
 	}

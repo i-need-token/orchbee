@@ -11,7 +11,7 @@ import {
 	type TabStripCloseCallback,
 	type TabStripCloseResume,
 	type TabStripMessages,
-	type TabStripNewTabChoice,
+	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
 	type TabStripSelectCallback,
@@ -28,7 +28,7 @@ interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly parentActionScope: ActionScope;
 	readonly closeResume?: TabStripCloseResume | undefined;
-	readonly newTabChoices?: readonly TabStripNewTabChoice[] | undefined;
+	readonly newTabSections?: readonly TabStripNewTabSection[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly focusRequest: number;
@@ -62,7 +62,7 @@ export function WorkbenchTabBar({
 	actionRuntime,
 	closeResume,
 	fill = false,
-	newTabChoices,
+	newTabSections,
 	onNewTerminal,
 	onCloseTabs,
 	onDraggingChange,
@@ -129,7 +129,7 @@ export function WorkbenchTabBar({
 					showGroupHoverCards={false}
 					showHoverCardMemoryUsage={false}
 					showHoverCardPreviews={false}
-					newTabChoices={newTabChoices}
+					newTabSections={newTabSections}
 					showNewTabButton={!fill}
 					showVerticalTopControls={!fill}
 					touchUi={touchUi}

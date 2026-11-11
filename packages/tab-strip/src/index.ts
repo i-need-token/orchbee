@@ -5,6 +5,7 @@ export {
 	TabModel,
 	TabStrip,
 	TAB_STRIP_ACTION_IDS,
+	TabStripNewTabMenuItems,
 	TabStripOrientation,
 	type TabData,
 	type TabStripArrangementChange,
@@ -19,6 +20,7 @@ export {
 	type TabStripTabCreationIntent,
 	type TabStripSelectCallback,
 	type TabStripNewTabChoice,
+	type TabStripNewTabSection,
 	type TabStatusAdornment,
 	type TabStatusAdornmentKind,
 } from './tab-strip';

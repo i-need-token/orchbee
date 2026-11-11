@@ -61,7 +61,7 @@ export interface TabStripViewModel {
 	readonly closeResume: TabStripOptions['closeResume'];
 	readonly onSetTabTitle: TabStripOptions['onSetTabTitle'];
 	readonly onNameGroup: TabStripOptions['onNameGroup'];
-	readonly newTabChoices: TabStripOptions['newTabChoices'];
+	readonly newTabSections: TabStripOptions['newTabSections'];
 	readonly newTabMenuAvailable: boolean;
 	readonly ariaLabel: string;
 	readonly snapshot: TabModelSnapshot;

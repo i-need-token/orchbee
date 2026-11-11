@@ -362,7 +362,7 @@ export function Workbench({
 			<WorkbenchTabBar
 				actionRuntime={actionRuntime}
 				closeResume={view.closeResume}
-				newTabChoices={view.newTabChoices}
+				newTabSections={view.newTabSections}
 				onNewTerminal={view.newTab}
 				onOrientationChange={view.onTabStripOrientationChange}
 				onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
@@ -459,7 +459,7 @@ export function Workbench({
 					focusRequest={view.tabStripFocusRequest}
 					getTabCreationAvailability={view.getTabCreationAvailability}
 					identityIcons={agentPresentation.tabIdentityIcons}
-					newTabChoices={view.newTabChoices}
+					newTabSections={view.newTabSections}
 					newTabShortcutLabel={shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal)}
 					onClose={view.dismissTabList}
 					onCloseTabs={view.onCloseTabs}

@@ -50,7 +50,7 @@ export function TabStripView({
 		closeResume,
 		onSetTabTitle,
 		onNameGroup,
-		newTabChoices,
+		newTabSections,
 		newTabMenuAvailable,
 		ariaLabel,
 		snapshot,
@@ -360,7 +360,7 @@ export function TabStripView({
 					closeResume={closeResume}
 					onSetTabTitle={onSetTabTitle}
 					onNameGroup={onNameGroup}
-					newTabChoices={newTabChoices}
+					newTabSections={newTabSections}
 					onClose={closeMenu}
 				/>
 			) : null}

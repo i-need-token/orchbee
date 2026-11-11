@@ -2039,7 +2039,9 @@ describe('TabStrip', () => {
 		const { rerender } = render(
 			<TabStrip
 				model={model}
-				newTabChoices={[choice('zsh', 'Zsh', 'Default'), choice('fish', 'Fish')]}
+				newTabSections={[
+					{ choices: [choice('zsh', 'Zsh', 'Default'), choice('fish', 'Fish')], id: 'profiles' },
+				]}
 			/>,
 		);
 		const newTabButton = screen.getByRole('button', { name: 'New tab' });
@@ -2055,9 +2057,53 @@ describe('TabStrip', () => {
 		expect(selected).toEqual(['fish']);
 		expect(screen.queryByRole('menu')).toBeNull();
 
-		rerender(<TabStrip model={model} newTabChoices={[choice('zsh', 'Zsh', 'Default')]} />);
+		rerender(
+			<TabStrip
+				model={model}
+				newTabSections={[{ choices: [choice('zsh', 'Zsh', 'Default')], id: 'profiles' }]}
+			/>,
+		);
 		fireEvent.contextMenu(newTabButton, { clientX: 1000, clientY: 30 });
 		expect(screen.queryByRole('menu')).toBeNull();
+	});
+
+	it('opens for a labelled section beside a single choice, whose rows run their own pick', () => {
+		const model = createModel();
+		const selected: string[] = [];
+		const choice = (id: string, label: string): TabStripNewTabChoice => ({
+			icon: 'agent',
+			id,
+			label,
+			select: () => selected.push(id),
+		});
+		render(
+			<TabStrip
+				model={model}
+				newTabSections={[
+					{ choices: [{ ...choice('zsh', 'Zsh'), icon: 'terminal' }], id: 'profiles' },
+					{
+						choices: [choice('codex', 'Codex'), choice('more', 'More Agents…')],
+						id: 'agents',
+						label: 'Agents',
+					},
+				]}
+			/>,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('button', { name: 'New tab' }), {
+			clientX: 1000,
+			clientY: 30,
+		});
+		const menu = screen.getByRole('menu', { name: 'New tab menu' });
+		// The heading names the section; it is no row of its own.
+		expect(within(menu).getByText('Agents')).toBeTruthy();
+		expect(
+			within(menu)
+				.getAllByRole('menuitem')
+				.map((item) => item.textContent),
+		).toEqual(['Zsh', 'Codex', 'More Agents…']);
+		fireEvent.click(within(menu).getByRole('menuitem', { name: 'Codex' }));
+		expect(selected).toEqual(['codex']);
 	});
 
 	it("expands a collapsed vertical strip after Chromium's inside-edge velocity delay", () => {

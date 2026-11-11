@@ -13,7 +13,7 @@ import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
 	type TabStripCloseResume,
-	type TabStripNewTabChoice,
+	type TabStripNewTabSection,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
 	type TabStripTabCreationIntent,
@@ -226,7 +226,7 @@ interface WorkbenchView {
 	readonly leftPanelReference: React.RefObject<ResizablePanelHandle | null>;
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
-	readonly newTabChoices: readonly TabStripNewTabChoice[] | undefined;
+	readonly newTabSections: readonly TabStripNewTabSection[] | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
 	/** Present when an authority decides the Tabs, which then show only as it answers. */
 	readonly onTabsChange: TabStripChangeCallback;
@@ -821,7 +821,7 @@ export function useWorkbench({
 	const createTabWithProfile = useMemoizedFn((profile: UserLaunchProfile) => {
 		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
 	});
-	const newTabChoices = useWorkbenchNewTabChoices(
+	const newTabSections = useWorkbenchNewTabChoices(
 		authorityNotice.authority.launchProfiles,
 		projectWorkspaceState.activeLocation.kind === 'workspace',
 		createTabWithProfile,
@@ -1043,7 +1043,7 @@ export function useWorkbench({
 				},
 				request.source,
 			),
-		newTabChoices,
+		newTabSections,
 		onCloseTabs: closeTabs,
 		createPanelTerminal,
 		onTabsChange: changeSharedTabs,
