@@ -616,8 +616,12 @@ impl RunningHost {
                 ),
             ));
         }
+        // The Host and the terminals it starts never see the person's own profile.
+        let home = fixture._directory.path().join("home");
+        fs::create_dir_all(&home)?;
         let mut command = Command::new(binary);
         command
+            .env("HOME", home)
             .arg("serve")
             .arg("--runtime-directory")
             .arg(fixture._directory.path())

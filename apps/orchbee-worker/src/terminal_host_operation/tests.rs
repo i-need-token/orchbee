@@ -592,6 +592,12 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
     // The Host and the terminal it starts never see the person's own profile.
     #[cfg(windows)]
     command.env("USERPROFILE", staged.0.join("profile"));
+    #[cfg(unix)]
+    {
+        let home = directory.0.join("home");
+        fs::create_dir(&home)?;
+        command.env("HOME", home);
+    }
     let mut child = HostChild(
         command
             .args(["serve", "--runtime-directory"])

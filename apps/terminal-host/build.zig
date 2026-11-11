@@ -87,6 +87,25 @@ fn lowercaseHex(text: []const u8, digits: usize) bool {
     return true;
 }
 
+/// Gives test runs a home inside the build cache on POSIX hosts. The terminals a test starts
+/// inherit its environment, so without one their shells read the person's profile and write the
+/// person's shell history.
+fn testHome(builder: *std.Build) ?[]const u8 {
+    if (builtin.os.tag == .windows) return null;
+    const sub_path = "tmp" ++ std.fs.path.sep_str ++ "terminal-host-test-home";
+    builder.cache_root.handle.createDirPath(builder.graph.io, sub_path) catch |err|
+        std.debug.panic("could not create the test home: {s}", .{@errorName(err)});
+    return builder.cache_root.handle.realPathFileAlloc(builder.graph.io, sub_path, builder.allocator) catch |err|
+        std.debug.panic("could not resolve the test home: {s}", .{@errorName(err)});
+}
+
+/// Runs a test artifact with the test home, when the host has one.
+fn addTestRun(builder: *std.Build, artifact: *std.Build.Step.Compile, home: ?[]const u8) *std.Build.Step.Run {
+    const run = builder.addRunArtifact(artifact);
+    if (home) |path| run.setEnvironmentVariable("HOME", path);
+    return run;
+}
+
 fn readFixture(
     builder: *std.Build,
     option_name: []const u8,
@@ -125,6 +144,7 @@ pub fn build(builder: *std.Build) void {
         target = builder.resolveTargetQuery(query);
     }
     const optimize = builder.standardOptimizeOption(.{});
+    const test_home = testHome(builder);
     const strip = builder.option(
         bool,
         "strip",
@@ -605,8 +625,8 @@ pub fn build(builder: *std.Build) void {
         .name = "terminal-host-black-box-oracle-tests",
         .root_module = black_box_test_module,
     });
-    const run_black_box_oracle_tests = builder.addRunArtifact(black_box_oracle_tests);
-    const run_black_box_test = builder.addRunArtifact(black_box_test);
+    const run_black_box_oracle_tests = addTestRun(builder, black_box_oracle_tests, test_home);
+    const run_black_box_test = addTestRun(builder, black_box_test, test_home);
     run_black_box_test.step.dependOn(&run_black_box_oracle_tests.step);
     run_black_box_test.addArtifactArg(executable);
     const black_box_test_step = builder.step(
@@ -666,7 +686,7 @@ pub fn build(builder: *std.Build) void {
         .filters = &.{ "cursor query read during attachment resize", "Windows prompt resize", "application reset returns alternate" },
     });
     resize_gate_tests.root_module.link_libc = true;
-    conpty_resize_step.dependOn(&builder.addRunArtifact(resize_gate_tests).step);
+    conpty_resize_step.dependOn(&addTestRun(builder, resize_gate_tests, test_home).step);
     if (target.result.os.tag == .windows and target.result.cpu.arch == .x86_64) {
         const run_conpty_resize_tests = builder.addSystemCommand(&.{
             "node",
@@ -703,7 +723,7 @@ pub fn build(builder: *std.Build) void {
         .root_module = cli_test_module,
     });
     focused_cli_tests.root_module.link_libc = true;
-    const run_focused_cli_tests = builder.addRunArtifact(focused_cli_tests);
+    const run_focused_cli_tests = addTestRun(builder, focused_cli_tests, test_home);
     const focused_cli_test_step = builder.step(
         "test-cli",
         "Run Terminal Host launcher argument tests",
@@ -714,7 +734,7 @@ pub fn build(builder: *std.Build) void {
         .root_module = transport_test_module,
     });
     focused_transport_tests.root_module.link_libc = true;
-    const run_focused_transport_tests = builder.addRunArtifact(focused_transport_tests);
+    const run_focused_transport_tests = addTestRun(builder, focused_transport_tests, test_home);
     const focused_transport_test_step = builder.step(
         "test-transport",
         "Run terminal Host local-transport tests",
@@ -729,7 +749,7 @@ pub fn build(builder: *std.Build) void {
     for ([_]*std.Build.Module{ engine_test_module, service_test_module }) |module| {
         const graphics_tests = builder.addTest(.{ .root_module = module, .filters = &.{ "graphics PNG decode", "Host-installed decoder" } });
         graphics_tests.root_module.link_libc = true;
-        graphics_step.dependOn(&builder.addRunArtifact(graphics_tests).step);
+        graphics_step.dependOn(&addTestRun(builder, graphics_tests, test_home).step);
     }
     const screen_control_step = builder.step("test-screen-control", "Run screen mutation, authorization and wire regressions");
     for ([_]*std.Build.Module{ engine_test_module, service_test_module, control_test_module }) |module| {
@@ -738,7 +758,7 @@ pub fn build(builder: *std.Build) void {
             .filters = &.{ "prompt-preserving", "application clear", "terminal control" },
         });
         clear_tests.root_module.link_libc = true;
-        screen_control_step.dependOn(&builder.addRunArtifact(clear_tests).step);
+        screen_control_step.dependOn(&addTestRun(builder, clear_tests, test_home).step);
     }
     const scrollback_capture_step = builder.step("test-scrollback-capture", "Run immutable editor scrollback capture checks");
     const scrollback_capture_tests = builder.addTest(.{
@@ -746,37 +766,37 @@ pub fn build(builder: *std.Build) void {
         .filters = &.{"scrollback text capture"},
     });
     scrollback_capture_tests.root_module.link_libc = true;
-    scrollback_capture_step.dependOn(&builder.addRunArtifact(scrollback_capture_tests).step);
+    scrollback_capture_step.dependOn(&addTestRun(builder, scrollback_capture_tests, test_home).step);
     const powershell_history_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"managed PowerShell keeps Orchbee-submitted lines"},
     });
     powershell_history_tests.root_module.link_libc = true;
     builder.step("test-powershell-history", "Run real PowerShell history checks for Orchbee-submitted lines")
-        .dependOn(&builder.addRunArtifact(powershell_history_tests).step);
+        .dependOn(&addTestRun(builder, powershell_history_tests, test_home).step);
     const editor_document_tests = builder.addTest(.{
         .root_module = platform_test_module,
         .filters = &.{"Windows editor document"},
     });
     editor_document_tests.root_module.link_libc = true;
     builder.step("test-editor-document", "Run Windows editor document ownership checks")
-        .dependOn(&builder.addRunArtifact(editor_document_tests).step);
+        .dependOn(&addTestRun(builder, editor_document_tests, test_home).step);
     const editor_lifecycle_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"editor document lifecycle"},
     });
     editor_lifecycle_tests.root_module.link_libc = true;
     builder.step("test-editor-lifecycle", "Run editor document startup and shutdown checks")
-        .dependOn(&builder.addRunArtifact(editor_lifecycle_tests).step);
+        .dependOn(&addTestRun(builder, editor_lifecycle_tests, test_home).step);
     const editor_deferred_tests = builder.addTest(.{
         .root_module = service_test_module,
         .filters = &.{"editor deferred lifecycle"},
     });
     editor_deferred_tests.root_module.link_libc = true;
     builder.step("test-editor-deferred", "Run deferred editor creation and cleanup checks")
-        .dependOn(&builder.addRunArtifact(editor_deferred_tests).step);
+        .dependOn(&addTestRun(builder, editor_deferred_tests, test_home).step);
     const editor_workflow_step = builder.step("test-editor-workflow", "Run editor workflow and affected lifecycle regressions");
-    editor_workflow_step.dependOn(&builder.addRunArtifact(editor_document_tests).step);
+    editor_workflow_step.dependOn(&addTestRun(builder, editor_document_tests, test_home).step);
     for ([_]struct { module: *std.Build.Module, filters: []const []const u8 }{
         .{ .module = engine_test_module, .filters = &.{ "editor document lifecycle", "thread startup failure", "process spawn failure", "output cleanup failure retry", "Host cleanup waits", "scrollback text capture", "validated launch prepares" } },
         .{ .module = service_test_module, .filters = &.{ "editor deferred lifecycle", "retained cleanup", "retained-cleanup", "cleanup retry", "cleanup phase", "cleanup failures", "blocked containment", "deferred creation", "StartTerminal", "deferred terminal", "CreateTerminal", "failed runtime creation", "runtime destruction starts only" } },
@@ -784,14 +804,14 @@ pub fn build(builder: *std.Build) void {
     }) |cohort| {
         const editor_checks = builder.addTest(.{ .root_module = cohort.module, .filters = cohort.filters });
         editor_checks.root_module.link_libc = true;
-        editor_workflow_step.dependOn(&builder.addRunArtifact(editor_checks).step);
+        editor_workflow_step.dependOn(&addTestRun(builder, editor_checks, test_home).step);
     }
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},
     });
     input_tests.root_module.link_libc = true;
-    const run_input_tests = builder.addRunArtifact(input_tests);
+    const run_input_tests = addTestRun(builder, input_tests, test_home);
     builder.step("test-input-encoding", "Run programmatic key encoding regressions")
         .dependOn(&run_input_tests.step);
     const platform_filter = builder.option([]const u8, "platform-test-filter", "Run platform tests whose names contain this text");
@@ -802,7 +822,7 @@ pub fn build(builder: *std.Build) void {
     });
     focused_platform_tests.root_module.link_libc = true;
     builder.step("test-platform", "Run Terminal Host native platform tests")
-        .dependOn(&builder.addRunArtifact(focused_platform_tests).step);
+        .dependOn(&addTestRun(builder, focused_platform_tests, test_home).step);
     const handshake_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/handshake/__tests__/handshake_test.zig"),
         .target = target,
@@ -815,7 +835,7 @@ pub fn build(builder: *std.Build) void {
         .root_module = handshake_test_module,
     });
     builder.step("test-handshake", "Run the OBHS binding against the connection fixtures")
-        .dependOn(&builder.addRunArtifact(focused_handshake_tests).step);
+        .dependOn(&addTestRun(builder, focused_handshake_tests, test_home).step);
     for ([_]*std.Build.Module{
         cli_test_module,
         handshake_test_module,
@@ -831,7 +851,7 @@ pub fn build(builder: *std.Build) void {
     }) |test_module| {
         const tests = builder.addTest(.{ .root_module = test_module });
         tests.root_module.link_libc = true;
-        const run_tests = builder.addRunArtifact(tests);
+        const run_tests = addTestRun(builder, tests, test_home);
         test_step.dependOn(&run_tests.step);
         test_compile_step.dependOn(&tests.step);
     }
@@ -930,7 +950,7 @@ pub fn build(builder: *std.Build) void {
     conformance_module.addOptions("conformance-options", conformance_options);
     const conformance_tests = builder.addTest(.{ .root_module = conformance_module });
     conformance_tests.root_module.link_libc = true;
-    const run_conformance_tests = builder.addRunArtifact(conformance_tests);
+    const run_conformance_tests = addTestRun(builder, conformance_tests, test_home);
     const conformance_step = builder.step(
         "test-protocol",
         "Run terminal protocol cross-language conformance tests",
