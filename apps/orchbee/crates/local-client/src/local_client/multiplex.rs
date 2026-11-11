@@ -279,11 +279,11 @@ impl Delivery {
             {
                 return Err(io::ErrorKind::ConnectionAborted.into());
             }
-            if wake.is_some()
+            if let Some(source) = wake
                 && let Some(wake) = fds.get(1)
             {
                 let flags = wake.revents().unwrap_or(PollFlags::empty());
-                if flags.contains(PollFlags::POLLIN) {
+                if super::cancellation::wake_has_data(source, flags) {
                     return Err(io::Error::other(super::ExchangeWakeReady));
                 }
                 if flags.intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL) {

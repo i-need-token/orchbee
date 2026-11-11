@@ -41,7 +41,7 @@ impl<'a> Cancellation<'a> {
         let mut sources = [PollFd::new(wake, PollFlags::POLLIN)];
         poll(&mut sources, PollTimeout::ZERO)?;
         let ready = sources[0].revents().ok_or(io::ErrorKind::InvalidData)?;
-        if ready.contains(PollFlags::POLLIN) {
+        if wake_has_data(wake, ready) {
             Ok(true)
         } else if ready.intersects(PollFlags::POLLHUP | PollFlags::POLLERR | PollFlags::POLLNVAL) {
             Err(io::Error::other("cancellation wake unavailable"))
@@ -49,6 +49,22 @@ impl<'a> Cancellation<'a> {
             Ok(false)
         }
     }
+}
+
+/// Whether a polled wake source holds data, which wins over a simultaneous hangup. Linux reports a
+/// drained, closed pipe or socket as hangup alone; macOS also reports it readable, so there the
+/// kernel's unread byte count tells a closed source from a pending wake byte.
+#[cfg(target_os = "macos")]
+pub(crate) fn wake_has_data(wake: LocalIo<'_>, observed: PollFlags) -> bool {
+    observed.contains(PollFlags::POLLIN)
+        && (!observed.contains(PollFlags::POLLHUP)
+            || nix::sys::stat::fstat(wake).is_ok_and(|status| status.st_size > 0))
+}
+
+/// Whether a polled wake source holds data, which wins over a simultaneous hangup.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn wake_has_data(_wake: LocalIo<'_>, observed: PollFlags) -> bool {
+    observed.contains(PollFlags::POLLIN)
 }
 
 /// Created before a worker is spawned, retained through cancellation and join.

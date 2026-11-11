@@ -1085,7 +1085,7 @@ impl DeadlineIo<'_> {
                     let observed = descriptors[1].revents().unwrap_or(PollFlags::empty());
                     // Readable data still wins over simultaneous fault flags:
                     // the owner's arbitration read can still consume it.
-                    if observed.contains(PollFlags::POLLIN) {
+                    if cancellation::wake_has_data(wake, observed) {
                         return Err(io::Error::other(ExchangeWakeReady));
                     }
                     if observed
