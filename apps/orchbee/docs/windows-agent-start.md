@@ -254,8 +254,9 @@ authentication of a provider or a newly launched session.
 A named start's Reserve also returns a Server-minted run token: a nonzero, never-reused 32-digit
 lowercase hexadecimal value. When the Host's launch kind is managed PowerShell, Agent
 start prefixes its one submitted line with `<#orchbee-run:<token>#> `. A start without a name has
-no reservation, so its line carries no prefix and its early check reads the shell's prompt instead
-of a receipt. The verified reader
+no reservation: its line carries a prefix with a token the Client mints from OS entropy, only so
+that the line stays out of the person's history, and its early check reads the shell's prompt
+instead of a receipt. The verified reader
 wrapper strips that prefix, exports the token as `ORCHBEE_RUN_TOKEN` to that command only, and
 echoes it in the start and finish markers; the prompt removes the variable when the command
 returns. The prefixed line enters neither PSReadLine history (memory, saved file or Up-arrow

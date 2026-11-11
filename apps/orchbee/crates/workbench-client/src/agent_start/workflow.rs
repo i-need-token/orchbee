@@ -221,8 +221,19 @@ impl Workflow<'_> {
             // Without a name nothing is reserved: the line goes once to the confirmed prompt and
             // the early check reads only the shell's own answer.
             interrupted(wake)?;
-            let submitted =
-                self.submit(client, snapshot, terminal, text, powershell, None, wake)?;
+            // The line still carries a run prefix on managed PowerShell: only a prefixed line
+            // stays out of the person's PSReadLine history. Nothing reserved this token, so no
+            // receipt is read for it.
+            let run_token = powershell.then(mint_run_token).flatten();
+            let submitted = self.submit(
+                client,
+                snapshot,
+                terminal,
+                text,
+                powershell,
+                run_token.as_ref(),
+                wake,
+            )?;
             return self.check_early(client, terminal, submitted, SETTLE, wake);
         };
         let before = shell.clone();
@@ -749,6 +760,14 @@ fn observed_ready(
         .and_then(AgentReportProvider::lookup)
         .map(AgentReportProvider::native_provider_id)
         == Some(provider.as_str())
+}
+
+/// A fresh run token from OS entropy for a line no reservation covers; without entropy the line
+/// goes unprefixed rather than with a predictable token.
+fn mint_run_token() -> Option<AgentRunToken> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    AgentRunToken::parse(&format!("{:032x}", u128::from_be_bytes(bytes))).ok()
 }
 
 /// The evidence that settled a start.
