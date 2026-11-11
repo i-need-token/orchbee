@@ -191,3 +191,144 @@ fn actual_interactive_powershell_session_history_holds_only_user_commands() {
         assert_eq!(history, ["'typed'"], "{}: {stdout}", shell.display());
     }
 }
+
+#[test]
+fn agent_start_reaches_only_shells_that_run_the_managed_startup() {
+    const ID: &str = "0f8b1e8e-7c3a-4d55-9a26-5f0c2b9e4a11";
+    let start = |program: &str, arguments: &[&str]| {
+        AgentStartCommand::new(
+            program.to_owned(),
+            arguments
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        )
+        .unwrap()
+    };
+    let claude = start("claude", &["--session-id", ID]);
+    let openclaw = start("openclaw", &["chat"]);
+    let codex = start("codex", &[]);
+    let resolve = |program: &str| {
+        format!(
+            "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1)"
+        )
+    };
+    let claude_line = format!("{} '--session-id' '{ID}'", resolve("claude"));
+    let openclaw_line = format!("{} 'chat'", resolve("openclaw"));
+    let codex_line = resolve("codex");
+    // Executable, launch arguments, requested start, expected first-command line.
+    type Row<'a> = (
+        &'a str,
+        &'a [&'a str],
+        Option<&'a AgentStartCommand>,
+        Option<&'a str>,
+    );
+    let rows: [Row; 11] = [
+        // Managed PowerShell: Windows PowerShell and PowerShell 7, bare or with plain flags.
+        (
+            r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            &[],
+            Some(&claude),
+            Some(&claude_line),
+        ),
+        (
+            "pwsh.exe",
+            &["-NoLogo", "-NoProfile"],
+            Some(&openclaw),
+            Some(&openclaw_line),
+        ),
+        ("PWSH", &["-NoExit"], Some(&codex), Some(&codex_line)),
+        // No start command asked.
+        ("powershell.exe", &[], None, None),
+        // cmd and custom launch profiles that do not run the managed startup.
+        (r"C:\Windows\System32\cmd.exe", &[], Some(&codex), None),
+        ("cmd.exe", &["/k", "echo"], Some(&codex), None),
+        ("pwsh.exe", &["-File", "start.ps1"], Some(&codex), None),
+        ("pwsh.exe", &["-Command", "literal"], Some(&codex), None),
+        ("pwsh.exe", &["-NonInteractive"], Some(&codex), None),
+        (
+            r"C:\Program Files\Git\bin\bash.exe",
+            &["--login"],
+            Some(&codex),
+            None,
+        ),
+        ("nu.exe", &[], Some(&codex), None),
+    ];
+    for (executable, arguments, command, expected) in rows {
+        let prepared = interactive_arguments(
+            executable,
+            arguments
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        );
+        assert_eq!(
+            agent_start(&prepared, command).as_deref(),
+            expected,
+            "{executable} {arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn actual_powershell_startup_runs_the_agent_once_and_keeps_the_shell() {
+    let initialization = windows_interactive_powershell_initialization();
+    let check = "if ($env:ORCHBEE_AGENT_START) { throw 'start variable kept' }; if (-not $env:ORCHBEE_RUN_TOKEN -or $env:ORCHBEE_RUN_TOKEN -ne $global:__OrchbeeRunId) { throw 'run not marked' }";
+    for shell in [
+        PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe"),
+        PathBuf::from(std::env::var_os("ProgramFiles").unwrap()).join("PowerShell/7/pwsh.exe"),
+    ] {
+        if !shell.is_file() {
+            continue;
+        }
+        for (program, arguments, expected) in [
+            ("where.exe", vec!["powershell".to_owned()], "powershell.exe"),
+            (
+                "orchbee-agent-start-absent",
+                vec![],
+                "start-missing-kept-shell",
+            ),
+        ] {
+            // The missing command's error ends the startup script, as it ends the
+            // interactive startup before the first prompt; `catch` stands in for that prompt.
+            let script = format!(
+                "try {{ {initialization} }} catch {{ 'start-missing-kept-shell' }}; {check}; 'start-checked'"
+            );
+            let output = Command::new(&shell)
+                .args([
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    &script,
+                ])
+                .env(
+                    orchbee_local_runtime::WINDOWS_AGENT_START_VARIABLE,
+                    windows_agent_start_command(program, &arguments).unwrap(),
+                )
+                .env_remove("ORCHBEE_RUN_TOKEN")
+                .creation_flags(0x0800_0000)
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let context = format!(
+                "{} {program}: {stdout} {}",
+                shell.display(),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(output.status.success(), "{context}");
+            let marked = stdout
+                .split_once("\u{1b}_orchbee.command.v1;start;")
+                .map(|(_, rest)| rest);
+            assert!(
+                marked.is_some_and(|rest| rest.len() > 34
+                    && rest[..32].bytes().all(|byte| byte.is_ascii_hexdigit())
+                    && rest[32..].starts_with("\u{1b}\\")),
+                "{context}"
+            );
+            assert!(stdout.to_ascii_lowercase().contains(expected), "{context}");
+            assert!(stdout.contains("start-checked"), "{context}");
+        }
+    }
+}

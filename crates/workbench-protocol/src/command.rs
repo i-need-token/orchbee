@@ -1737,14 +1737,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
             (launch.is_some() && profile.is_some())
                 || (options.plugin_context.is_some() && options.plugin_pane.is_none())
                 || (options.plugin_pane.is_some() && (launch.is_some() || profile.is_some()))
+                || (options.plugin_pane.is_some() && options.agent_start.is_some())
         }
         WorkbenchAction::WorkspaceLaunch {
-            launch,
-            profile,
-            options,
-            ..
-        }
-        | WorkbenchAction::PanelCreateTerminal {
             launch,
             profile,
             options,
@@ -1752,6 +1747,18 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         } => {
             options.plugin_pane.is_some()
                 || options.plugin_context.is_some()
+                || (launch.is_some() && profile.is_some())
+        }
+        // An empty Panel's terminal never runs an Agent start.
+        WorkbenchAction::PanelCreateTerminal {
+            launch,
+            profile,
+            options,
+            ..
+        } => {
+            options.plugin_pane.is_some()
+                || options.plugin_context.is_some()
+                || options.agent_start.is_some()
                 || (launch.is_some() && profile.is_some())
         }
         // Only launch-bearing actions expose mutually exclusive program/profile/plugin selectors.

@@ -8,6 +8,12 @@
 // submitted with the run prefix stays out of PSReadLine history while the reader holds
 // it, and the next prompt removes its session-history entry.
 //
+// The start asset runs an Agent as the shell's first command when the launch sets
+// `ORCHBEE_AGENT_START` to the line [`windows_agent_start_command`] composes. It clears the
+// variable before anything runs, marks the run like a typed line, and runs the line as if it
+// were typed. Without the variable it does nothing. The command travels in the environment,
+// so the startup argument stays the same fixed bytes.
+//
 // The assets carry no comments and indent with tabs: the interactive startup is one
 // `-Command` argument, and the Host samples a command line longer than 4096 UTF-16 units
 // as unreadable, which hides the idle managed shell from Agent start.
@@ -17,9 +23,46 @@
 pub fn windows_interactive_powershell_initialization() -> String {
     concat!(
         include_str!("windows/initialization.ps1"),
-        include_str!("windows/reader.ps1")
+        include_str!("windows/reader.ps1"),
+        include_str!("windows/start.ps1")
     )
     .to_owned()
+}
+
+/// The environment variable through which a launch asks managed PowerShell to run an Agent as
+/// its first command.
+pub const WINDOWS_AGENT_START_VARIABLE: &str = "ORCHBEE_AGENT_START";
+
+/// How PowerShell resolves an Agent's command name: an application or script on the search path,
+/// never an alias, function or cmdlet of the same name, and the first match only.
+#[must_use]
+pub fn windows_powershell_application(program: &str) -> String {
+    format!(
+        "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1)"
+    )
+}
+
+/// The line managed PowerShell runs as its first command: the resolved program and each argument
+/// single-quoted, so none is read as a parameter or a number. `None` unless every token is
+/// visible ASCII without a single quote, since PowerShell also closes a quote at typographic
+/// quote marks.
+#[must_use]
+pub fn windows_agent_start_command(program: &str, arguments: &[String]) -> Option<String> {
+    let plain = |token: &str| {
+        !token.is_empty()
+            && token
+                .chars()
+                .all(|character| character.is_ascii_graphic() && character != '\'')
+    };
+    if !plain(program) || !arguments.iter().all(|argument| plain(argument)) {
+        return None;
+    }
+    Some(
+        std::iter::once(windows_powershell_application(program))
+            .chain(arguments.iter().map(|argument| format!("'{argument}'")))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
 }
 
 /// Decodes reported paths as observations; callers separately admit launchable path syntax.

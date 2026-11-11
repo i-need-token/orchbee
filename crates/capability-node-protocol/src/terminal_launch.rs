@@ -321,6 +321,52 @@ pub(crate) fn program_within_bounds(executable: &str, arguments: &[String]) -> b
     bytes <= MAXIMUM_LAUNCH_SELECTION_BYTES && encoded <= MAXIMUM_LAUNCH_SELECTION_BYTES
 }
 
+/// The command an interactive shell runs first, resolved by the Server from the startable Agent
+/// catalog: a bare command name the shell resolves on its own search path, then literal
+/// arguments. Every token is plain ASCII without spaces, quotes or shell syntax, so a shell that
+/// takes it never reads it as code.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentStartCommand {
+    program: String,
+    arguments: Vec<String>,
+}
+
+/// The most arguments one Agent start command carries.
+pub const MAXIMUM_AGENT_START_ARGUMENTS: usize = 8;
+
+impl AgentStartCommand {
+    /// # Errors
+    /// Refuses an empty, oversized or option-like program, too many arguments, and any token
+    /// outside `[A-Za-z0-9._:=-]`.
+    pub fn new(program: String, arguments: Vec<String>) -> Result<Self, ProtocolError> {
+        let token = |value: &str, maximum: usize| {
+            !value.is_empty()
+                && value.len() <= maximum
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"._:=-".contains(&byte))
+        };
+        if !token(&program, 64)
+            || program.starts_with(['-', '.'])
+            || arguments.len() > MAXIMUM_AGENT_START_ARGUMENTS
+            || !arguments.iter().all(|argument| token(argument, 128))
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self { program, arguments })
+    }
+
+    #[must_use]
+    pub fn program(&self) -> &str {
+        &self.program
+    }
+
+    #[must_use]
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthorizedTerminalLaunch {
     authorization: TerminalOperationAuthorization,
@@ -333,6 +379,7 @@ pub struct AuthorizedTerminalLaunch {
     preferences: crate::LaunchPreferences,
     // Boxed so a launch without earlier output stays as small as before.
     output_seed: Option<Box<OutputSeed>>,
+    agent_start: Option<Box<AgentStartCommand>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -359,6 +406,7 @@ impl AuthorizedTerminalLaunch {
             editor_source: None,
             preferences: crate::LaunchPreferences::Absent,
             output_seed: None,
+            agent_start: None,
         }
     }
 
@@ -392,7 +440,9 @@ impl AuthorizedTerminalLaunch {
         mut self,
         environment: Option<crate::PluginTerminalEnvironment>,
     ) -> Result<Self, ProtocolError> {
-        if environment.is_some() && (self.launch.is_none() || self.editor_source.is_some()) {
+        if environment.is_some()
+            && (self.launch.is_none() || self.editor_source.is_some() || self.agent_start.is_some())
+        {
             return Err(ProtocolError::InvalidPayload);
         }
         self.plugin_environment = environment;
@@ -418,12 +468,34 @@ impl AuthorizedTerminalLaunch {
             && (self.mode != TerminalLaunchMode::Deferred
                 || self.launch.is_none()
                 || self.plugin_environment.is_some()
-                || self.output_seed.is_some())
+                || self.output_seed.is_some()
+                || self.agent_start.is_some())
         {
             return Err(ProtocolError::InvalidPayload);
         }
         self.editor_source = source;
         Ok(self)
+    }
+
+    /// Attaches the Agent the launched shell runs as its first command. The Worker passes it on
+    /// only to a shell that can take one; any other program starts without it.
+    ///
+    /// # Errors
+    /// Refuses a plugin or editor launch.
+    pub fn with_agent_start(
+        mut self,
+        start: Option<AgentStartCommand>,
+    ) -> Result<Self, ProtocolError> {
+        if start.is_some() && (self.plugin_environment.is_some() || self.editor_source.is_some()) {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        self.agent_start = start.map(Box::new);
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn agent_start(&self) -> Option<&AgentStartCommand> {
+        self.agent_start.as_deref()
     }
 
     /// The exact existing read source; omission keeps ordinary launch semantics.

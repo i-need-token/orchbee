@@ -68,9 +68,7 @@ pub(super) fn interactive(
 ) -> Option<String> {
     let program = executable(provider)?;
     let command = if powershell {
-        format!(
-            "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1)"
-        )
+        orchbee_local_runtime::windows_powershell_application(program)
     } else {
         program.to_owned()
     };

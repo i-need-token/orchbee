@@ -58,6 +58,7 @@ pub(super) fn launch_options_with_directory(
     Ok(LaunchOptions {
         plugin_pane: None,
         plugin_context: None,
+        agent_start: None,
         cwd,
         environment,
     })

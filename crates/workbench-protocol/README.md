@@ -309,6 +309,8 @@ Closed plugin invocation/log/get/cancel requests and replies use matched-cohort 
 
 Plugin Pane launch options may carry `pluginPane: { pluginId, entrypointId }` on `tab.create` and `panel.split`. Both identities are bounded ASCII catalog names (120 bytes; entrypoint excludes dots). The selector is exclusive with executable/profile and rejected on Workspace or child-terminal creation. Empty and null optional selectors normalize away; legacy request serialization remains unchanged. Server resolution and protected execution environment belong to terminal admission, not this display-free selector.
 
+`AgentStartSelector` (`agentStart`) names one startable Agent by its exact canonical provider id from `StartableAgent`'s closed catalog on `tab.create`, `panel.split` and `workspace.launch`. It is exclusive with `pluginPane` and rejected on `panel.create-terminal`; it combines with an explicit launch or profile, since a custom default profile travels as an explicit launch. The Server resolves the catalog command and any launch-time conversation id; the selector never carries command text.
+
 Plugin PaneGet is read-only and returns PaneFound with a nonzero canonical revision, closed selector, exact context/Tab/Panel/Presentation and binding. Response correlation requires the requested Panel; the result is not an action Job receipt or caller display context.
 
 ## Agent integration jobs

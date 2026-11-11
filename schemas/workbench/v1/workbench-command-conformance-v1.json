@@ -5496,6 +5496,59 @@
 			}
 		},
 		{
+			"name": "agent-start-tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"agentStart": "codex"
+					}
+				}
+			}
+		},
+		{
+			"name": "agent-start-split",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.split",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"direction": "below",
+					"label": "split",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"agentStart": "github-copilot"
+					}
+				}
+			}
+		},
+		{
 			"name": "plugin-pane-tab-selector",
 			"direction": "request",
 			"document": {
@@ -19841,6 +19894,115 @@
 					},
 					"options": {
 						"cwd": "relative"
+					}
+				}
+			}
+		},
+		{
+			"name": "agent-start-alias",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"agentStart": "claude"
+					}
+				}
+			}
+		},
+		{
+			"name": "agent-start-free-command",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"agentStart": "codex --yolo"
+					}
+				}
+			}
+		},
+		{
+			"name": "agent-start-beside-plugin-pane",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"agentStart": "codex",
+						"pluginPane": {
+							"pluginId": "tools",
+							"entrypointId": "dashboard"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "agent-start-empty-panel-terminal",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"sessionId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"agentStart": "codex"
 					}
 				}
 			}

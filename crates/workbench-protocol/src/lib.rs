@@ -239,7 +239,7 @@ pub use command::{
 };
 
 mod launch_options;
-pub use launch_options::{LaunchOptions, PluginPaneSelector};
+pub use launch_options::{AgentStartSelector, LaunchOptions, PluginPaneSelector};
 mod launch_environment;
 pub use launch_environment::{
     LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,

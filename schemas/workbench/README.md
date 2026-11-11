@@ -752,6 +752,8 @@ The matched private notification message requires nullable `position`: null dele
 
 The command launch-options schema admits a bounded `pluginPane` selector only on `tab.create` and `panel.split`, excluding explicit launch/profile fields. Rust and TypeScript share selector and conflict cases in the command conformance corpus. This is a matched-cohort extension; it does not add a new wire kind or admit child/Workspace plugin launches.
 
+The same launch options admit `agentStart`, one canonical provider id from the closed startable Agent catalog (`#/$defs/agentStartProvider`), on `tab.create`, `panel.split` and `workspace.launch`; it is refused beside `pluginPane` and on `panel.create-terminal`. The Server resolves it to the command the new shell runs first; no request carries command text, and aliases or report labels select nothing. The command corpus covers both creations, an alias, a free command string, the plugin conflict and the empty-Panel refusal.
+
 Plugin PaneGet/PaneFound reuse OBWP kinds 45/46 with closed membership facts and no new mutation permission. Rust additionally correlates the response Panel with its request; Pane selectors share the launch-option identifier rules.
 
 Agent sidebar publication adds required nonempty `agentSidebarProfile`, capped at 32 KiB of UTF-8. It is a closed canonical JSON profile admitted by the Windows settings owner; transport bindings enforce the string and frame budget, while Client installation validates its token/layout/rule semantics. Keys, notifications and sidebar install atomically; malformed sidebar profiles retain all previous Client settings. Matched cohorts update together. Public configuration check, failure, Session configuration and catalog documents use version 1.

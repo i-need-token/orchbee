@@ -174,6 +174,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
     let options = crate::LaunchOptions {
         plugin_pane: None,
         plugin_context: None,
+        agent_start: None,
         cwd: Some(WorkbenchDirectoryPath::parse(&format!("/{}", "\u{1}".repeat(4095))).unwrap()),
         environment: crate::LaunchEnvironment::new({
             let mut entries: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();

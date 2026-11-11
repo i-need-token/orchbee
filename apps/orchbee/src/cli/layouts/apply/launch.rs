@@ -89,6 +89,7 @@ pub(super) fn prepare(
                 options: LaunchOptions {
                     plugin_pane: None,
                     plugin_context: None,
+                    agent_start: None,
                     cwd,
                     environment: leaf.environment.clone(),
                 },

@@ -86,9 +86,9 @@ pub use terminal_cwd_validation::{
     TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
 };
 pub use terminal_launch::{
-    AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostLaunchAccepted,
-    HostLaunchState, HostStartAccepted, HostTerminalIdentity, LaunchSelection,
-    LeaseExpiresAtUnixMilliseconds, MAXIMUM_AUTHORIZED_CWD_BYTES,
+    AbsoluteCwd, AgentStartCommand, AuthorizedTerminalLaunch, AuthorizedTerminalStart,
+    HostLaunchAccepted, HostLaunchState, HostStartAccepted, HostTerminalIdentity, LaunchSelection,
+    LeaseExpiresAtUnixMilliseconds, MAXIMUM_AGENT_START_ARGUMENTS, MAXIMUM_AUTHORIZED_CWD_BYTES,
     MAXIMUM_LAUNCH_SELECTION_ARGUMENTS, MAXIMUM_LAUNCH_SELECTION_BYTES, MAXIMUM_OUTPUT_SEED_BYTES,
     StartTransition, TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence,
     TerminalLaunchCapabilityVersion, TerminalLaunchFailure, TerminalLaunchMode,

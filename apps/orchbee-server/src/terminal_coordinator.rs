@@ -175,6 +175,21 @@ impl PlannedCreate<'_> {
         Ok(())
     }
 
+    /// Attaches the Agent the new shell runs as its first command.
+    pub(crate) fn set_agent_start(
+        &mut self,
+        start: orchbee_capability_node_protocol::AgentStartCommand,
+    ) -> Result<(), orchbee_capability_node_protocol::ProtocolError> {
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = &self.pending.command else {
+            unreachable!("planned creation contains a launch")
+        };
+        let launch = launch.clone().with_agent_start(Some(start))?;
+        let command = CapabilityNodeMessage::AuthorizedTerminalLaunch(launch);
+        orchbee_capability_node_protocol::encode_message(&command)?;
+        self.pending.command = command;
+        Ok(())
+    }
+
     pub(crate) fn mark_popup(&mut self) -> TerminalOperationAuthorization {
         self.binding.popup_owned = true;
         self.binding.authorization

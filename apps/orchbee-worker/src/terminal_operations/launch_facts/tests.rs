@@ -181,7 +181,7 @@ fn plugin_launch_environment_removes_inherited_display_keys_and_keeps_routing_ow
     )
     .unwrap();
     for selected in [None, Some(&plugin)] {
-        let result = launch_environment(&ordinary, selected);
+        let result = launch_environment(&ordinary, selected, None);
         for name in [
             "ORCHBEE_PLUGIN_ACTION_ID",
             "ORCHBEE_PLUGIN_CLICKED_URL",

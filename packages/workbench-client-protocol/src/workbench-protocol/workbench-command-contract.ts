@@ -231,6 +231,10 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			(value) => !value.options?.pluginPane && !value.options?.pluginContext,
 			'Plugin Pane creation requires tab.create or panel.split',
 		)
+		.refine(
+			(value) => !value.options?.agentStart,
+			'An Agent start requires tab.create, panel.split or workspace.launch',
+		)
 		.transform(normalizeWorkbenchTerminalLaunch)
 		.readonly(),
 	z

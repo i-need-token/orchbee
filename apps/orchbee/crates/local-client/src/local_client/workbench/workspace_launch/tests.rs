@@ -12,6 +12,7 @@ fn action() -> WorkbenchAction {
         options: Box::new(orchbee_workbench_protocol::LaunchOptions {
             plugin_pane: None,
             plugin_context: None,
+            agent_start: None,
             cwd: Some(
                 orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(r"C:\repo").unwrap(),
             ),

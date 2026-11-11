@@ -17,6 +17,7 @@ use orchbee_workbench_protocol::{
     PresentationBinding, TerminalId, WorkbenchDirectoryId, WorkbenchResponse, WorkerId,
 };
 
+mod agent_start;
 #[cfg(any(windows, test))]
 mod checkpoint_restore;
 mod configured_command;

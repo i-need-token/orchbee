@@ -484,12 +484,17 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
         encode_launch_environment(&mut payload, value.environment());
         encode_environment_entries(&mut payload, plugin.entries());
     } else if let Some(launch) = value.launch() {
-        payload.push(1);
+        // Tag 6 is tag 1 followed by the Agent start command.
+        payload.push(if value.agent_start().is_some() { 6 } else { 1 });
         encode_launch_selection(&mut payload, launch);
         encode_launch_environment(&mut payload, value.environment());
     } else {
-        payload.push(0);
+        // Tag 5 is tag 0 followed by the Agent start command.
+        payload.push(if value.agent_start().is_some() { 5 } else { 0 });
         encode_launch_environment(&mut payload, value.environment());
+    }
+    if let Some(start) = value.agent_start() {
+        encode_program(&mut payload, start.program(), start.arguments());
     }
     payload
 }
@@ -504,7 +509,8 @@ fn decode_authorized_terminal_launch(
     let mode = decode_launch_mode(&mut reader)?;
     let mut plugin_environment = None;
     let mut editor_source = None;
-    let (launch, environment) = match reader.read_u8()? {
+    let tag = reader.read_u8()?;
+    let (launch, environment) = match tag {
         4 => {
             let launch = decode_launch_selection(&mut reader)?;
             let environment = decode_launch_environment(&mut reader)?;
@@ -531,18 +537,25 @@ fn decode_authorized_terminal_launch(
             (Some(launch), environment)
         }
         // Tag 2 carried the retired default-shell override.
-        1 => {
+        1 | 6 => {
             let launch = decode_launch_selection(&mut reader)?;
             (Some(launch), decode_launch_environment(&mut reader)?)
         }
-        0 => (None, decode_launch_environment(&mut reader)?),
+        0 | 5 => (None, decode_launch_environment(&mut reader)?),
         _ => return Err(ProtocolError::InvalidPayload),
+    };
+    let agent_start = if matches!(tag, 5 | 6) {
+        let (program, arguments) = decode_program(&mut reader)?;
+        Some(crate::AgentStartCommand::new(program, arguments)?)
+    } else {
+        None
     };
     reader.finish()?;
     AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
         .with_environment(environment)
         .with_plugin_environment(plugin_environment)?
         .with_editor_source(editor_source)?
+        .with_agent_start(agent_start)?
         .with_preferences(preferences)
 }
 

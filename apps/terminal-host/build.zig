@@ -33,7 +33,7 @@ const packed_projection_conformance_fixture_max_bytes = 256 * 1024;
 // text must never become an interactive-shell exception through a second copy.
 fn powershellStartupModule(builder: *std.Build) *std.Build.Module {
     const files = builder.addWriteFiles();
-    for ([_][]const u8{ "initialization", "reader" }) |name| {
+    for ([_][]const u8{ "initialization", "reader", "start" }) |name| {
         _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
             "../../crates/local-runtime/src/directory/windows/{s}.ps1",
             .{name},
@@ -41,7 +41,7 @@ fn powershellStartupModule(builder: *std.Build) *std.Build.Module {
     }
     // Copy steps register watch inputs; script-only edits must rebuild the Host.
     return builder.createModule(.{ .root_source_file = files.add("startup.zig",
-        \\pub const script: []const u8 = @embedFile("initialization.ps1") ++ @embedFile("reader.ps1");
+        \\pub const script: []const u8 = @embedFile("initialization.ps1") ++ @embedFile("reader.ps1") ++ @embedFile("start.ps1");
         \\
     ) });
 }

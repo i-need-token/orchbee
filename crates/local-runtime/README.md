@@ -771,12 +771,18 @@ The shared pure `windows_reported_directory` decoder preserves valid terminal-re
 read-phase markers. While it waits for a line, it swaps in a PSReadLine `AddToHistoryHandler`
 that rejects a run-prefixed line and passes every other line to the handler it replaced, then
 restores that handler. Orchbee-submitted lines therefore never reach PSReadLine history, its
-saved file or Up-arrow recall. The Worker prepares this exact startup for admitted plain
-PowerShell argv; the Host build reads the same two assets, in the same order, for injection and
-exact recognition. The noninteractive `windows_encoded_command` helper sets only UTF-8 console and
-pipeline encoding; it carries no prompt or reader asset, so its typed text stays short.
-Neither asset writes a profile or changes an external PowerShell process. Actual 5.1/7 pipeline,
-prompt and PTY startup witnesses cover the managed path; arbitrary startup scripts remain outside it.
+saved file or Up-arrow recall. `directory/windows/start.ps1` comes last: when the launch sets
+`WINDOWS_AGENT_START_VARIABLE`, it clears the variable, mints a run token, writes the run's start
+marker and runs the line `windows_agent_start_command` composed, so an Agent starts as the shell's
+first command with the same resolution a typed start uses (`windows_powershell_application`).
+A command that is not found ends only the startup script; the interactive shell and its first
+prompt follow. Without the variable it does nothing. The Worker prepares this exact startup for
+admitted plain PowerShell argv; the Host build reads the same three assets, in the same order, for
+injection and exact recognition. The noninteractive `windows_encoded_command` helper sets only
+UTF-8 console and pipeline encoding; it carries no prompt or reader asset, so its typed text stays
+short. No asset writes a profile or changes an external PowerShell process. Actual 5.1/7 pipeline,
+prompt, first-command and PTY startup witnesses cover the managed path; arbitrary startup scripts
+remain outside it.
 The assets stay compact, without comments and with tab indentation, so the complete interactive
 command line with a `MAX_PATH` executable fits the Host's 4096 UTF-16 process-text limit. A longer
 command line is sampled as unreadable, and Agent start can no longer recognize the idle managed shell.

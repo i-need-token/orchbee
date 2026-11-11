@@ -336,6 +336,14 @@
 									},
 									"profile": {
 										"type": "null"
+									},
+									"options": {
+										"properties": {
+											"agentStart": {
+												"type": "null"
+											}
+										},
+										"type": "object"
 									}
 								}
 							}
@@ -448,6 +456,14 @@
 									},
 									"profile": {
 										"type": "null"
+									},
+									"options": {
+										"properties": {
+											"agentStart": {
+												"type": "null"
+											}
+										},
+										"type": "object"
 									}
 								}
 							}
@@ -974,6 +990,22 @@
 										"properties": {
 											"pluginContext": {
 												"type": "object"
+											}
+										},
+										"type": "object"
+									}
+								}
+							}
+						},
+						{
+							"not": {
+								"required": ["options"],
+								"properties": {
+									"options": {
+										"required": ["agentStart"],
+										"properties": {
+											"agentStart": {
+												"type": "string"
 											}
 										},
 										"type": "object"
@@ -3550,6 +3582,17 @@
 							"type": "null"
 						}
 					]
+				},
+				"agentStart": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/agentStartProvider"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"$comment": "Accepted by tab.create, panel.split and workspace.launch, never beside pluginPane; the Server resolves the provider id to the new shell's first command."
 				}
 			},
 			"required": [],
@@ -3687,6 +3730,47 @@
 			},
 			"required": ["pluginId", "entrypointId"],
 			"additionalProperties": false
+		},
+		"agentStartProvider": {
+			"enum": [
+				"pi",
+				"claude-code",
+				"codex",
+				"gemini",
+				"cursor",
+				"devin",
+				"antigravity",
+				"cline",
+				"omp",
+				"mastracode",
+				"opencode",
+				"github-copilot",
+				"kimi",
+				"kiro",
+				"droid",
+				"amp",
+				"grok",
+				"hermes",
+				"kilo",
+				"qodercli",
+				"qwen-code",
+				"letta",
+				"maki",
+				"muse",
+				"atomcode",
+				"codebuddy",
+				"command-code",
+				"deveco",
+				"mimo",
+				"reasonix",
+				"snow",
+				"minimax-code",
+				"mothx",
+				"jcode",
+				"openclaw",
+				"prime-agent"
+			],
+			"$comment": "The startable Agent catalog of orchbee-agent-observation-protocol, in its order."
 		},
 		"pluginInvocationContext": {
 			"type": "object",

@@ -41,6 +41,33 @@ impl PluginPaneSelector {
     }
 }
 
+/// A startable Agent's canonical provider id from the closed catalog. The Server resolves it to
+/// the command the new shell runs first; the caller never supplies command text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct AgentStartSelector(orchbee_agent_observation_protocol::StartableAgent);
+impl AgentStartSelector {
+    #[must_use]
+    pub fn parse(provider_id: &str) -> Option<Self> {
+        orchbee_agent_observation_protocol::StartableAgent::parse(provider_id).map(Self)
+    }
+    #[must_use]
+    pub const fn agent(self) -> orchbee_agent_observation_protocol::StartableAgent {
+        self.0
+    }
+}
+impl TryFrom<String> for AgentStartSelector {
+    type Error = &'static str;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value).ok_or("unknown startable Agent provider")
+    }
+}
+impl From<AgentStartSelector> for String {
+    fn from(value: AgentStartSelector) -> Self {
+        value.0.id().to_owned()
+    }
+}
+
 /// Validated per-launch overrides; empty options preserve the request's selected defaults.
 #[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -57,6 +84,11 @@ pub struct LaunchOptions {
     /// Observed source display data; never executable, directory or Worker authority.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_context: Option<Box<crate::PluginInvocationContext>>,
+    /// The Agent the new shell runs as its first command, once, leaving the shell behind when
+    /// it exits. Exclusive with a plugin Pane; a shell that cannot take a first command starts
+    /// without it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_start: Option<AgentStartSelector>,
 }
 impl LaunchOptions {
     /// Whether no per-launch override is requested.
@@ -66,6 +98,7 @@ impl LaunchOptions {
             && self.environment.is_empty()
             && self.plugin_pane.is_none()
             && self.plugin_context.is_none()
+            && self.agent_start.is_none()
     }
 }
 
@@ -76,6 +109,7 @@ impl std::fmt::Debug for LaunchOptions {
             .field("environment", &self.environment)
             .field("plugin_pane", &self.plugin_pane)
             .field("plugin_context_present", &self.plugin_context.is_some())
+            .field("agent_start", &self.agent_start)
             .finish()
     }
 }

@@ -66,16 +66,61 @@ export const WorkbenchLaunchEnvironmentSchema = z
 	}, 'Launch environment has duplicate names or exceeds its byte budget')
 	.readonly();
 
+/** The startable Agent catalog; the Server resolves an id to the new shell's first command. */
+const WorkbenchAgentStartProviderSchema = z.enum([
+	'pi',
+	'claude-code',
+	'codex',
+	'gemini',
+	'cursor',
+	'devin',
+	'antigravity',
+	'cline',
+	'omp',
+	'mastracode',
+	'opencode',
+	'github-copilot',
+	'kimi',
+	'kiro',
+	'droid',
+	'amp',
+	'grok',
+	'hermes',
+	'kilo',
+	'qodercli',
+	'qwen-code',
+	'letta',
+	'maki',
+	'muse',
+	'atomcode',
+	'codebuddy',
+	'command-code',
+	'deveco',
+	'mimo',
+	'reasonix',
+	'snow',
+	'minimax-code',
+	'mothx',
+	'jcode',
+	'openclaw',
+	'prime-agent',
+]);
+
 const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
 		pluginPane: WorkbenchPluginPaneSelectorSchema.nullable().optional(),
 		pluginContext: PluginInvocationContextSchema.nullable().optional(),
 		environment: WorkbenchLaunchEnvironmentSchema.optional(),
+		agentStart: WorkbenchAgentStartProviderSchema.nullable().optional(),
 	})
 	.refine(
 		(value) => !value.pluginContext || Boolean(value.pluginPane),
 		'Plugin source context requires a Plugin Pane selector',
+	)
+	.refine(
+		(value) => !value.pluginPane || !value.agentStart,
+		'A Plugin Pane launch cannot start an Agent',
 	)
 	.readonly();
 
@@ -115,6 +160,7 @@ type CanonicalTerminalLaunchFields = Readonly<{
 		pluginPane?: z.output<typeof WorkbenchPluginPaneSelectorSchema>;
 		pluginContext?: z.output<typeof PluginInvocationContextSchema>;
 		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
+		agentStart?: z.output<typeof WorkbenchAgentStartProviderSchema>;
 	}>;
 }>;
 
@@ -128,7 +174,11 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 		...(launch ? { launch } : {}),
 		...(profile ? { profile } : {}),
 		...(options &&
-		(options.cwd || options.environment?.length || options.pluginPane || options.pluginContext)
+		(options.cwd ||
+			options.environment?.length ||
+			options.pluginPane ||
+			options.pluginContext ||
+			options.agentStart)
 			? {
 					options: {
 						...(options.cwd ? { cwd: options.cwd } : {}),
@@ -137,6 +187,7 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 							? { pluginContext: normalizePluginInvocationContext(options.pluginContext) }
 							: {}),
 						...(options.environment?.length ? { environment: options.environment } : {}),
+						...(options.agentStart ? { agentStart: options.agentStart } : {}),
 					},
 				}
 			: {}),

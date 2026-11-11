@@ -1077,6 +1077,19 @@ session history, PSReadLine memory and the file. Real ConPTY creation
 checks the root process cwd after Set-Location. Arbitrary custom startup commands remain outside
 this integration; no current-directory accuracy claim is made for their private shell state.
 
+## Agent start command
+
+A launch's `AgentStartCommand` reaches the shell only when its prepared argument list ends in the
+managed startup above, which is the only startup that reads it: the Worker sets
+`ORCHBEE_AGENT_START` to the line `windows_agent_start_command` composes from the catalog program
+and arguments, each single-quoted after `Get-Command` resolution. Every other Windows launch,
+including cmd, custom launch profiles and PowerShell with unadmitted flags, removes the variable,
+so a value inherited from the Worker's environment never starts anything. The startup clears the
+variable before the Agent runs, so nested shells never repeat it. Other platforms have no managed
+startup that takes a first command and launch without it. A table test covers the
+line per shell kind, and an actual 5.1/7 test covers the marker, the cleared variable and a shell
+that keeps working after a command that is not found.
+
 ## Explicit controller takeover
 
 Takeover validates the expected committed incumbent and target before any Host effect. The single

@@ -255,6 +255,14 @@ impl SessionCoordinator {
             }
         };
         terminal.set_profile_provenance(profile_provenance);
+        if let Some(selector) = &options.agent_start
+            && super::agent_start::agent_start_command(selector)
+                .and_then(|start| terminal.set_agent_start(start))
+                .is_err()
+        {
+            drop(terminal);
+            return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
+        }
         let authorization = terminal.authorization();
         let Some(binding) = presentation_binding(authorization) else {
             drop(terminal);

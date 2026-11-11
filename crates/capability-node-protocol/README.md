@@ -101,6 +101,17 @@ Pre-Host lazy launch refuses before startup. Existing unknown-receipt rules and
 Host document lifecycle remain authoritative; current-Client/focus admission,
 independent overlay and public CLI remain upstream obligations.
 
+## Agent start command
+
+A default or explicit launch may carry an `AgentStartCommand`: the command the launched shell runs
+first, resolved by the Server from the startable Agent catalog. It is a bare command name of at most
+64 bytes, not beginning with `-` or `.`, and at most eight arguments of at most 128 bytes; every token
+uses only `[A-Za-z0-9._:=-]`, so no shell reads it as syntax. Launch kinds 5 and 6 are kinds 0 and 1
+followed by the command in the selection's program encoding. It excludes plugin metadata and an
+editor source, and is part of the authorized launch's replay identity. The Worker passes it only to a
+shell whose startup takes a first command and launches any other program without it; see
+[Agent start command](../../apps/orchbee-worker/README.md#agent-start-command).
+
 ## Earlier output for a restored launch
 
 A launch may carry earlier output the new terminal shows before its program starts: at most 1 MiB,
