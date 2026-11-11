@@ -23,7 +23,7 @@
 Current terminal progress and command completion are bounded presentation facts,
 not Agent lifecycle authority. They remain useful only as low-fidelity fallback evidence. The
 current all-tab monitoring limitation is documented by the
-[shell-integration contract](../../apps/web/docs/terminal-settings.md#shell-integration-and-completion-reminders).
+[shell-integration contract](../../apps/web/docs/terminal-settings.md#notifications-and-completion-reminders).
 
 ## Accepted architecture
 
