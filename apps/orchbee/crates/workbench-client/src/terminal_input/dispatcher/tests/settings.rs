@@ -55,9 +55,8 @@ impl Port {
         assert!(editor.loaded(
             token,
             Basis {
-                source: "missing".into(),
+                revision: 1,
                 values,
-                claimed: Default::default(),
             }
         ));
         // Activation is authorized only after this incarnation has actually
@@ -1221,7 +1220,7 @@ fn settings_backdrop_retains_drafts_children_confirmations_and_inflight_operatio
         let snapshot = |view: View<'_>| match view {
             View::Draft(draft) => Some((
                 draft.values.clone(),
-                draft.basis_source.to_owned(),
+                draft.basis_revision,
                 draft.selected,
                 draft.page,
                 draft.profile,
@@ -1271,9 +1270,8 @@ fn settings_backdrop_retains_drafts_children_confirmations_and_inflight_operatio
             assert!(port.editor.loaded(
                 accepted.unwrap(),
                 Basis {
-                    source: "missing".into(),
+                    revision: 1,
                     values: Default::default(),
-                    claimed: Default::default(),
                 }
             ));
             assert!(matches!(port.editor.view(), Some(View::Draft(draft)) if !draft.dirty));

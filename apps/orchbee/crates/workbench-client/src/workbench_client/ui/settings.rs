@@ -3,8 +3,8 @@ use super::{ClientActionDisposition, ModalPresentation, WorkbenchClientUi, Workb
 use crate::{
     client_view::KeyEvent,
     native_settings::{
-        Edit, Editor, JobEnd, Observation, Reconciliation, Row, SettingsDraw, SettingsInputContext,
-        Submission, Token, View, key_edit, key_edit_for_view,
+        Basis, Edit, Editor, JobEnd, Observation, Reconciliation, Row, SettingsDraw,
+        SettingsInputContext, Submission, Token, View, key_edit, key_edit_for_view,
     },
     tui_presentation::{GeometrySettlement, PresentationPhase},
     workbench_client::{
@@ -13,8 +13,8 @@ use crate::{
     },
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SessionId, SettingsFailure, SettingsOperation, SettingsOutcome,
-    SettingsRequest, UserPreferencesSnapshot, WorkbenchRequestId,
+    ProtocolVersion, SessionId, SettingsOperation, SettingsOutcome, SettingsRefusal,
+    SettingsRequest, SettingsSnapshot, WorkbenchRequestId,
 };
 use std::time::{Duration, Instant};
 #[cfg(any(test, feature = "test-support"))]
@@ -23,6 +23,26 @@ pub(super) mod test_support;
 mod tests;
 
 pub(crate) use crate::localization::SettingsNotice as Notice;
+
+/// The notice that names why the Server refused a read or edit. A refused edit wrote nothing.
+const fn refusal_notice(reason: SettingsRefusal) -> Notice {
+    match reason {
+        SettingsRefusal::Changed => Notice::SourceChanged,
+        SettingsRefusal::Busy | SettingsRefusal::Locked | SettingsRefusal::FileInUse => {
+            Notice::FileBusy
+        }
+        SettingsRefusal::InvalidValue => Notice::InvalidValue,
+        SettingsRefusal::UnknownKey => Notice::Unsupported,
+        SettingsRefusal::SyntaxError => Notice::SyntaxError,
+        SettingsRefusal::ReadOnly => Notice::ReadOnly,
+        SettingsRefusal::TooLarge => Notice::TooLarge,
+        SettingsRefusal::UnusableFile => Notice::UnusableFile,
+        SettingsRefusal::WriteFailed => Notice::WriteFailed,
+        SettingsRefusal::Denied
+        | SettingsRefusal::Unavailable
+        | SettingsRefusal::SessionMismatch => Notice::Failed,
+    }
+}
 #[derive(Default)]
 pub(super) struct Coordinator {
     pub(super) editor: Editor,
@@ -33,8 +53,8 @@ pub(super) struct Coordinator {
     session: Option<SessionId>,
     serial: u64,
     saving: bool,
-    snapshot: Option<UserPreferencesSnapshot>,
-    observed_source: Option<String>,
+    snapshot: Option<SettingsSnapshot>,
+    observed_revision: Option<u64>,
     started: Option<Instant>,
     pub(super) pending: bool,
     notice: crate::workbench_client::settings_notice::SettingsNotice,
@@ -69,16 +89,20 @@ impl Coordinator {
     fn note(&mut self, notice: Notice, now: Instant) {
         self.notice.note(notice, now);
     }
-    fn observe_snapshot(&mut self, snapshot: UserPreferencesSnapshot, now: Instant) -> bool {
-        if self.observed_source.as_deref() == Some(&snapshot.source) {
+    fn observe_snapshot(&mut self, snapshot: SettingsSnapshot, now: Instant) -> bool {
+        let revision = snapshot.revision.value();
+        if self
+            .observed_revision
+            .is_some_and(|observed| observed >= revision)
+        {
             return false;
         }
-        if self.editor.observe(&snapshot) == Observation::Conflict
+        if self.editor.observe(&Basis::of(&snapshot)) == Observation::Conflict
             && self.notice(now) != Some(Notice::Unknown)
         {
             self.note(Notice::SourceChanged, now);
         }
-        self.observed_source = Some(snapshot.source.clone());
+        self.observed_revision = Some(revision);
         self.snapshot = Some(snapshot);
         true
     }
@@ -161,7 +185,7 @@ impl WorkbenchClientUi {
         };
         self.submit_settings(Submission {
             token,
-            operation: SettingsOperation::Open {},
+            operation: SettingsOperation::Read {},
         });
         ClientActionDisposition::DismissNavigator
     }
@@ -185,7 +209,7 @@ impl WorkbenchClientUi {
             self.settings.editor.reset_integrations();
             self.settings.started = None;
             self.settings.pending = false;
-            self.settings.observed_source = None;
+            self.settings.observed_revision = None;
             self.settings.snapshot = None;
             if saving {
                 self.settings.note(Notice::Unknown, self.clock.now());
@@ -201,7 +225,7 @@ impl WorkbenchClientUi {
         self.settings.lane.is_some()
     }
     fn submit_settings(&mut self, submission: Submission) {
-        if matches!(submission.operation, SettingsOperation::Open {}) {
+        if matches!(submission.operation, SettingsOperation::Read {}) {
             self.settings.clear_notice();
         }
         let token = submission.token;
@@ -218,7 +242,7 @@ impl WorkbenchClientUi {
             return;
         };
         self.settings.serial = serial;
-        self.settings.saving = matches!(submission.operation, SettingsOperation::Save { .. });
+        self.settings.saving = matches!(submission.operation, SettingsOperation::Edit { .. });
         self.settings.started = Some(self.clock.now());
         self.settings.pending = false;
         let request = SettingsRequest {
@@ -333,10 +357,10 @@ impl WorkbenchClientUi {
     }
     fn finish_settings(&mut self, token: Token, outcome: SettingsOutcome) {
         match outcome {
-            SettingsOutcome::Opened { snapshot } => {
-                self.settings.editor.loaded(token, snapshot);
+            SettingsOutcome::Current { snapshot } => {
+                self.settings.editor.loaded(token, Basis::of(&snapshot));
             }
-            SettingsOutcome::Saved { changed, .. } => {
+            SettingsOutcome::Edited { changed, .. } => {
                 if self.settings.editor.complete(token) {
                     self.settings.note(
                         if changed {
@@ -348,40 +372,14 @@ impl WorkbenchClientUi {
                     );
                 }
             }
-            SettingsOutcome::OutcomeUnknown {} => self.fail_settings(token, Notice::Unknown),
-            SettingsOutcome::Refused {
-                reason: SettingsFailure::InvalidSource,
-            } => {
-                let defaults = UserPreferencesSnapshot {
-                    source: "unreadable".into(),
-                    values: Default::default(),
-                    claimed: Default::default(),
-                };
-                if self.settings.editor.loaded(token, defaults) {
-                    self.settings.note(Notice::Unreadable, self.clock.now());
-                } else {
-                    self.fail_settings(token, Notice::Unreadable);
-                }
+            SettingsOutcome::Refused { reason, .. } => {
+                self.fail_settings(token, refusal_notice(reason))
             }
-            SettingsOutcome::Refused { reason } => self.fail_settings(
-                token,
-                match reason {
-                    SettingsFailure::InvalidSource => Notice::Unreadable,
-                    SettingsFailure::SourceChanged => Notice::SourceChanged,
-                    SettingsFailure::Busy => Notice::Busy,
-                    SettingsFailure::Denied
-                    | SettingsFailure::Unavailable
-                    | SettingsFailure::SessionMismatch
-                    | SettingsFailure::InvalidChanges
-                    | SettingsFailure::WriteFailed
-                    | SettingsFailure::ResponseTooLarge => Notice::Failed,
-                },
-            ),
         }
     }
     pub(in crate::workbench_client) fn take_settings_snapshot(
         &mut self,
-    ) -> Option<UserPreferencesSnapshot> {
+    ) -> Option<SettingsSnapshot> {
         self.settings.snapshot.take()
     }
     pub(in crate::workbench_client) fn clear_settings_notice(&mut self) {

@@ -106,12 +106,19 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             Settings::NoChange,
             Settings::SourceChanged,
             Settings::Failed,
-            Settings::Unreadable,
             Settings::Unknown,
             Settings::Busy,
             Settings::PresentationUnavailable,
             Settings::TooSmall,
             Settings::Background,
+            Settings::FileBusy,
+            Settings::InvalidValue,
+            Settings::Unsupported,
+            Settings::SyntaxError,
+            Settings::ReadOnly,
+            Settings::TooLarge,
+            Settings::UnusableFile,
+            Settings::WriteFailed,
         ]
         .map(N::Settings),
     );
@@ -181,12 +188,19 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                 | Settings::NoChange
                 | Settings::SourceChanged
                 | Settings::Failed
-                | Settings::Unreadable
                 | Settings::Unknown
                 | Settings::Busy
                 | Settings::PresentationUnavailable
                 | Settings::TooSmall
-                | Settings::Background,
+                | Settings::Background
+                | Settings::FileBusy
+                | Settings::InvalidValue
+                | Settings::Unsupported
+                | Settings::SyntaxError
+                | Settings::ReadOnly
+                | Settings::TooLarge
+                | Settings::UnusableFile
+                | Settings::WriteFailed,
             )
             | N::AgentStart(
                 Start::Starting
@@ -320,7 +334,7 @@ fn every_client_notice() -> Vec<Notice> {
         Notice::CheckpointEmpty,
         Notice::ConfigurationPublished,
         Notice::ConfigurationWarning,
-        Notice::PreferencesUnreadable,
+        Notice::SettingsFileUnusable,
         Notice::ConfigurationFailed,
         Notice::ConfigurationUnknown,
         Notice::WindowTitleUnavailable,
@@ -417,7 +431,7 @@ fn every_client_notice() -> Vec<Notice> {
             | Notice::CheckpointEmpty
             | Notice::ConfigurationPublished
             | Notice::ConfigurationWarning
-            | Notice::PreferencesUnreadable
+            | Notice::SettingsFileUnusable
             | Notice::ConfigurationFailed
             | Notice::ConfigurationUnknown
             | Notice::WindowTitleUnavailable

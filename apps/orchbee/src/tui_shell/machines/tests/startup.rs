@@ -519,7 +519,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 // Settings and Panel metadata are read-only observations of the destination.
                 WorkbenchRequest::Settings(SettingsRequest {
                     session_id,
-                    operation: SettingsOperation::Open {},
+                    operation: SettingsOperation::Read {},
                     ..
                 }) => assert_eq!(session_id, snapshot.session_id),
                 WorkbenchRequest::PanelMetadata(PanelMetadataRequest {

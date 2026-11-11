@@ -180,13 +180,9 @@ impl Watcher {
                         });
                         view.configure_keys(&keys);
                         names_wanted = !keys.commands.is_empty();
-                        view.preferences_unreadable(snapshot.diagnostics.items.iter().any(
-                            |item| item.field == "sharedPreferences" && item.reason == "unreadable",
-                        ));
                         view.configuration_warning(
-                            snapshot.diagnostics.items.iter().any(|item| {
-                                item.field != "sharedPreferences" || item.reason != "unreadable"
-                            }) || snapshot.diagnostics.omitted_count > 0,
+                            !snapshot.diagnostics.items.is_empty()
+                                || snapshot.diagnostics.omitted_count > 0,
                         );
                         self.revision = Some(snapshot.revision.value());
                         applied_revision = self.revision;

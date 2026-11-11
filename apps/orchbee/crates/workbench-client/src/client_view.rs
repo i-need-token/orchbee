@@ -195,9 +195,8 @@ pub struct ClientView {
     notice: Option<Notice>,
     notice_timer: crate::transient_notice::NoticeTimer<Notice>,
     configuration_warning: bool,
-    preferences_unreadable: bool,
-    // The confirmed snapshot's own source, once one arrives; it supersedes the diagnostic.
-    preferences_source_unreadable: Option<bool>,
+    // The newest settings snapshot found the file unparsable or unreadable.
+    settings_file_unusable: bool,
     overlay: Option<Overlay>,
     // Some(false) still tracks a launch opened without a compact sidebar;
     // None means a newer intent has retired that launch's return permission.
@@ -250,8 +249,7 @@ impl ClientView {
             notice: None,
             notice_timer: Default::default(),
             configuration_warning: false,
-            preferences_unreadable: false,
-            preferences_source_unreadable: None,
+            settings_file_unusable: false,
             overlay: None,
             project_quick_entry_eligible: None,
             navigator: navigator::Navigator::default(),
@@ -289,14 +287,10 @@ impl ClientView {
         if self.notice.is_some() {
             return self.notice;
         }
-        // The configuration diagnostic is historical. A confirmed Settings snapshot's source
-        // supersedes it, so the notice stays until Reset all replaces the unreadable record.
-        let unreadable = match self.preferences_source_unreadable {
-            Some(unreadable) => unreadable,
-            None => self.preferences_unreadable,
-        };
-        if unreadable {
-            return Some(Notice::PreferencesUnreadable);
+        // The settings snapshot keeps the last valid values while the file cannot be used, so
+        // the notice stays until a snapshot finds the file usable again.
+        if self.settings_file_unusable {
+            return Some(Notice::SettingsFileUnusable);
         }
         if self.configuration_warning {
             return Some(Notice::ConfigurationWarning);
@@ -995,12 +989,13 @@ impl ClientView {
         self.notice = Some(notice);
     }
 
-    pub(crate) fn preferences_unreadable(&mut self, present: bool) {
-        self.preferences_unreadable = present;
-    }
-
-    pub(crate) fn preferences_source(&mut self, source: &str) {
-        self.preferences_source_unreadable = Some(source == "unreadable");
+    /// Follows the newest settings snapshot's file status.
+    pub(crate) fn settings_file(&mut self, file: &orchbee_workbench_protocol::SettingsFile) {
+        use orchbee_workbench_protocol::SettingsFile;
+        self.settings_file_unusable = matches!(
+            file,
+            SettingsFile::SyntaxError { .. } | SettingsFile::Unreadable { .. }
+        );
     }
 
     pub(crate) fn configuration_warning(&mut self, present: bool) {

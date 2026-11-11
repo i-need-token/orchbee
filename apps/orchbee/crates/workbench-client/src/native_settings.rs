@@ -3,8 +3,8 @@ use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
-    PreferenceKey, SettingsOperation, SettingsSource, UserLaunchField, UserPreferencesPatch,
-    UserPreferencesSnapshot, UserPreferencesValues,
+    PreferenceKey, SettingChange, SettingsOperation, SettingsSnapshot, UserLaunchField,
+    UserPreferencesValues,
 };
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
@@ -127,7 +127,21 @@ pub enum Control {
     /// One Agent row's auxiliary action: open its read-only diagnosis.
     Explain(IntegrationId),
 }
-pub(crate) type Basis = UserPreferencesSnapshot;
+/// The confirmed settings a draft starts from: the snapshot's revision orders observations, and
+/// its values are the common preference values the file gives.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Basis {
+    pub(crate) revision: u64,
+    pub(crate) values: UserPreferencesValues,
+}
+impl Basis {
+    pub(crate) fn of(snapshot: &SettingsSnapshot) -> Self {
+        Self {
+            revision: snapshot.revision.value(),
+            values: orchbee_local_runtime::snapshot_preferences(snapshot),
+        }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Edit {
     Next,
@@ -181,11 +195,12 @@ pub(crate) struct DraftView<'a> {
     pub(crate) token: Token,
     pub(crate) values: &'a UserPreferencesValues,
     pub(crate) basis_values: &'a UserPreferencesValues,
-    pub(crate) basis_source: &'a str,
+    #[cfg(test)]
+    pub(crate) basis_revision: u64,
     #[cfg(test)]
     pub(crate) effective_values: &'a UserPreferencesValues,
     #[cfg(test)]
-    pub(crate) effective_source: &'a str,
+    pub(crate) effective_revision: u64,
     pub(crate) selected: Row,
     pub(crate) dirty: bool,
     /// Projected from the draft owner's external-update and dismissal guard.
@@ -462,13 +477,6 @@ impl DraftView<'_> {
             Row::AgentIntegrations | Row::Back => return true,
             _ => {}
         }
-        if self.basis_source == "unreadable" {
-            return match row {
-                Row::ResetAll | Row::Reload => true,
-                Row::Save => self.reset_all && !self.conflict && self.reconciliation.is_none(),
-                _ => false,
-            };
-        }
         let catalog = &self.values.launch_profiles;
         let profile = &catalog.profiles[self.profile];
         let arguments = match &profile.command {
@@ -641,19 +649,19 @@ impl Draft {
         self.activation_ready = false;
     }
 
-    fn patch(&self) -> UserPreferencesPatch {
-        if self.reset_all {
-            UserPreferencesPatch::reset(PreferenceKey::ALL).with_overrides(
-                UserPreferencesPatch::between(&UserPreferencesValues::default(), &self.values),
-            )
+    /// The one batch edit Save sends: each changed key, and each key a reset claims restored to
+    /// its default unless the draft then changed it again.
+    fn changes(&self) -> Vec<SettingChange> {
+        let (baseline, restored) = if self.reset_all {
+            (UserPreferencesValues::default(), &PreferenceKey::ALL[..])
         } else if self.reset_profiles {
             let mut baseline = self.basis.values.clone();
             baseline.launch_profiles = Default::default();
-            UserPreferencesPatch::reset([PreferenceKey::LaunchProfiles])
-                .with_overrides(UserPreferencesPatch::between(&baseline, &self.values))
+            (baseline, &[PreferenceKey::LaunchProfiles][..])
         } else {
-            UserPreferencesPatch::between(&self.basis.values, &self.values)
-        }
+            (self.basis.values.clone(), &[][..])
+        };
+        orchbee_local_runtime::preference_changes(&baseline, &self.values, restored)
     }
     fn project<'a>(&'a self, integrations: &'a Integrations) -> DraftView<'a> {
         DraftView {
@@ -662,16 +670,16 @@ impl Draft {
             token: self.token,
             values: &self.values,
             basis_values: &self.basis.values,
-            basis_source: &self.basis.source,
+            #[cfg(test)]
+            basis_revision: self.basis.revision,
             #[cfg(test)]
             effective_values: &self.effective.values,
             #[cfg(test)]
-            effective_source: &self.effective.source,
+            effective_revision: self.effective.revision,
             selected: self.row,
             dirty: self.dirty(),
             active_task: self.has_active_task() || self.page.is_child(),
-            conflict: self.basis.source != self.effective.source
-                || self.basis.values != self.effective.values,
+            conflict: self.basis.values != self.effective.values,
             reconciliation: self.reconciliation,
             page: self.page,
             viewport: self.viewport,
@@ -816,23 +824,28 @@ impl Editor {
         }));
         true
     }
-    /// Clean views follow confirmed storage; active tasks retain their original CAS basis while
-    /// projecting the newest confirmed values independently.
+    /// Clean views follow confirmed settings; active tasks retain their original basis while
+    /// projecting the newest confirmed values independently. A revision no newer than the last
+    /// one observed, or one that changed no value the page shows, is not news.
     pub(crate) fn observe(&mut self, effective: &Basis) -> Observation {
         let draft = match &mut self.state {
             State::Draft(draft) => draft,
             State::Saving { draft, .. } => {
-                if draft.effective.source != effective.source {
+                if draft.effective.revision < effective.revision {
                     draft.effective = effective.clone();
                 }
                 return Observation::Unchanged;
             }
             _ => return Observation::Unchanged,
         };
-        if draft.effective.source == effective.source {
+        if draft.effective.revision >= effective.revision {
             return Observation::Unchanged;
         }
+        let unchanged = draft.effective.values == effective.values;
         draft.effective = effective.clone();
+        if unchanged {
+            return Observation::Unchanged;
+        }
         if draft.has_active_task() {
             self.redraw();
             return Observation::Conflict;
@@ -865,7 +878,7 @@ impl Editor {
         }
         matches
     }
-    /// Failed or unconfirmed saves retain the exact draft and original CAS basis. An explicit
+    /// Failed or unconfirmed saves retain the exact draft and original basis. An explicit
     /// reconciliation reason blocks another Save until a matched explicit Open completes.
     pub(crate) fn failed(&mut self, token: Token, reconciliation: Option<Reconciliation>) -> bool {
         if matches!(&self.state, State::Saving { draft, .. } if draft.token == token)
@@ -1241,7 +1254,7 @@ impl Editor {
                     self.surface_presented = false;
                     return Some(Submission {
                         token,
-                        operation: SettingsOperation::Open {},
+                        operation: SettingsOperation::Read {},
                     });
                 }
                 Confirmation::ResetAll => {
@@ -1290,7 +1303,7 @@ impl Editor {
             return None;
         }
         if matches!(edit, Edit::Activate) && draft.row == Row::Save {
-            let changes = draft.patch();
+            let changes = draft.changes();
             if !draft.drawn || changes.is_empty() {
                 return None;
             }
@@ -1315,7 +1328,6 @@ impl Editor {
                 self.redraw();
                 return None;
             }
-            let source = SettingsSource::parse(&draft.basis.source).ok()?;
             let token = draft.token;
             if let State::Draft(draft) = std::mem::take(&mut self.state) {
                 self.state = State::Saving {
@@ -1326,7 +1338,7 @@ impl Editor {
             self.surface_presented = false;
             return Some(Submission {
                 token,
-                operation: SettingsOperation::Save { source, changes },
+                operation: SettingsOperation::Edit { changes },
             });
         }
         let rows = draft.project(&self.integrations).navigation_rows();

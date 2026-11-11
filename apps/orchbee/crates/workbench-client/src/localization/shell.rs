@@ -296,11 +296,11 @@ impl Locale {
                 "Configuration published; keys updated"
             }
             (Self::ZhCn, Some(Notice::ConfigurationPublished)) => "配置已发布；键位已更新",
-            (Self::EnUs, Some(Notice::PreferencesUnreadable)) => {
-                "Settings file can't be read · using defaults · Reset all in Settings"
+            (Self::EnUs, Some(Notice::SettingsFileUnusable)) => {
+                "Settings file can't be used · keeping last valid settings · run orchbee config check"
             }
-            (Self::ZhCn, Some(Notice::PreferencesUnreadable)) => {
-                "无法读取设置文件 · 正在使用默认值 · 请在设置中全部重置"
+            (Self::ZhCn, Some(Notice::SettingsFileUnusable)) => {
+                "无法使用设置文件 · 继续使用上次有效的设置 · 请运行 orchbee config check"
             }
             (Self::EnUs, Some(Notice::ConfigurationWarning)) => {
                 "Configuration loaded with warnings; run orchbee config check"
@@ -529,9 +529,9 @@ impl Locale {
             Notice::ConfigurationWarning => {
                 ("Configuration loaded with warnings", "配置已加载，但有警告")
             }
-            Notice::PreferencesUnreadable => (
-                "Settings file can't be read · using defaults",
-                "无法读取设置文件 · 正在使用默认值",
+            Notice::SettingsFileUnusable => (
+                "Settings file can't be used · using last values",
+                "无法使用设置文件 · 继续使用上次有效的设置",
             ),
             Notice::WindowTitleUnsupported => (
                 "Setting the host window title not supported",

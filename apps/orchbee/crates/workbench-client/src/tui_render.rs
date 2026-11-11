@@ -1146,9 +1146,16 @@ pub fn render_terminal_shell_with_resize<'a>(
         let line = notice.map(|notice| {
             let role = match notice {
                 crate::localization::SettingsNotice::Saved => Role::StatusSuccess,
-                crate::localization::SettingsNotice::Failed => Role::StatusError,
-                crate::localization::SettingsNotice::Unreadable => Role::StatusWarning,
+                crate::localization::SettingsNotice::Failed
+                | crate::localization::SettingsNotice::InvalidValue
+                | crate::localization::SettingsNotice::Unsupported
+                | crate::localization::SettingsNotice::SyntaxError
+                | crate::localization::SettingsNotice::ReadOnly
+                | crate::localization::SettingsNotice::TooLarge
+                | crate::localization::SettingsNotice::UnusableFile
+                | crate::localization::SettingsNotice::WriteFailed => Role::StatusError,
                 crate::localization::SettingsNotice::SourceChanged
+                | crate::localization::SettingsNotice::FileBusy
                 | crate::localization::SettingsNotice::Unknown
                 | crate::localization::SettingsNotice::PresentationUnavailable
                 | crate::localization::SettingsNotice::TooSmall => Role::StatusWarning,

@@ -1,5 +1,5 @@
 //! The shell keeps draft effects local and preserves committed/unknown receipts.
-use super::test_support::{draft_basis, ready};
+use super::test_support::{draft_basis, ready, settings_snapshot};
 use super::*;
 use crate::{
     client_view::{ClientView, KeyCode, Modifiers},
@@ -364,9 +364,9 @@ fn observation_publishes_live_values_without_erasing_dirty_drafts_or_unknown_rec
         if let Some(notice) = notice {
             ui.settings.note(notice, ui.clock.now());
         }
-        let mut latest = draft_basis();
-        latest.source = "c".repeat(64);
-        latest.values.locale = orchbee_workbench_protocol::PreferencesLocale::ZhCn;
+        let mut values = draft_basis().values;
+        values.locale = orchbee_workbench_protocol::PreferencesLocale::ZhCn;
+        let latest = settings_snapshot(2, &values);
         assert!(ui.settings.observe_snapshot(latest.clone(), ui.clock.now()));
         assert_eq!(
             ui.settings.notice(ui.clock.now()),
@@ -401,9 +401,13 @@ fn coordinator_maps_unknown_save_to_a_fresh_read_requirement() {
                 && !draft.enabled(Row::Save)
     ));
 
-    let mut passive = draft_basis();
-    passive.source = "e".repeat(64);
-    assert!(ui.settings.observe_snapshot(passive, ui.clock.now()));
+    // The unknown Save may have landed: a later snapshot carries its value.
+    let mut passive = draft_basis().values;
+    passive.sound_enabled = !passive.sound_enabled;
+    assert!(
+        ui.settings
+            .observe_snapshot(settings_snapshot(2, &passive), ui.clock.now())
+    );
     assert!(matches!(
         ui.settings.editor.view(),
         Some(View::Draft(draft))
@@ -616,53 +620,4 @@ fn settings_pending_threshold_and_hidden_completion_do_not_reopen_a_surface() {
     );
     ui.clear_settings_notice();
     assert!(ui.settings.notice(ui.clock.now()).is_none());
-}
-
-#[test]
-fn opening_an_unreadable_record_keeps_settings_open_with_defaults_and_a_recovery_notice() {
-    let (mut ui, _, _, _) = super::super::test_support::ready(true);
-    let token = ui.settings.editor.open().unwrap();
-    ui.finish_settings(
-        token,
-        SettingsOutcome::Refused {
-            reason: SettingsFailure::InvalidSource,
-        },
-    );
-    let Some(View::Draft(draft)) = ui.settings.editor.view() else {
-        panic!("defaults must remain visible");
-    };
-    assert_eq!(
-        draft.values,
-        &orchbee_workbench_protocol::UserPreferencesValues::default()
-    );
-    assert_eq!(draft.basis_source, "unreadable");
-    assert!(!draft.enabled(Row::Theme));
-    assert!(!draft.enabled(Row::Save));
-    assert!(draft.enabled(Row::ResetAll));
-    assert_eq!(ui.settings.notice(ui.clock.now()), Some(Notice::Unreadable));
-    for locale in [
-        crate::localization::Locale::EnUs,
-        crate::localization::Locale::ZhCn,
-    ] {
-        assert!(!locale.settings_notice(Notice::Unreadable).is_empty());
-    }
-    ui.settings.editor.edit(Edit::Select(Row::ResetAll));
-    let token = ui.settings.editor.view().unwrap().token();
-    ui.settings.editor.draw(token);
-    ui.settings.editor.edit(Edit::Activate);
-    let token = ui.settings.editor.view().unwrap().token();
-    ui.settings.editor.draw(token);
-    ui.settings.editor.edit(Edit::Activate);
-    let token = ui.settings.editor.view().unwrap().token();
-    ui.settings.editor.draw(token);
-    let submission = ui
-        .settings
-        .editor
-        .edit(Edit::Save)
-        .expect("confirmed full reset may save");
-    let SettingsOperation::Save { source, changes } = submission.operation else {
-        panic!("reset save");
-    };
-    assert_eq!(source.as_str(), "unreadable");
-    assert!(changes.is_reset_all());
 }

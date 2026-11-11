@@ -19,15 +19,11 @@ mod browse;
 mod pointer;
 mod themes;
 
-const MISSING_SOURCE: &str = "missing";
-const OTHER_SOURCE: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+const MISSING_SOURCE: u64 = 1;
+const OTHER_SOURCE: u64 = 2;
 
-fn basis(source: &str, values: UserPreferencesValues) -> Basis {
-    Basis {
-        source: source.into(),
-        values,
-        claimed: Default::default(),
-    }
+fn basis(revision: u64, values: UserPreferencesValues) -> Basis {
+    Basis { revision, values }
 }
 
 fn editor_with(values: UserPreferencesValues) -> Editor {
@@ -1148,7 +1144,6 @@ fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes
     let (terminal, _, _) = present_once(&mut editor, 120, 40, Locale::EnUs, &theme);
     let text = screen_text(&terminal);
     assert!(text.contains("Saved settings changed elsewhere · Reload required"));
-    assert!(!text.contains(OTHER_SOURCE));
     let (terminal, _, _) = present_once(&mut editor, 120, 40, Locale::ZhCn, &theme);
     assert!(
         without_cell_padding(&screen_text(&terminal))

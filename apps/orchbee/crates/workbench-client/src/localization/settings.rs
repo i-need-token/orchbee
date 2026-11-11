@@ -8,12 +8,24 @@ pub(crate) enum SettingsNotice {
     NoChange,
     SourceChanged,
     Failed,
-    Unreadable,
     Unknown,
     Busy,
     PresentationUnavailable,
     TooSmall,
     Background,
+    /// Another writer or program held the settings file; nothing was written.
+    FileBusy,
+    /// The settings file refused a value; nothing was written.
+    InvalidValue,
+    /// The Server does not know a key the draft changed; nothing was written.
+    Unsupported,
+    /// The settings file does not parse; nothing was written.
+    SyntaxError,
+    ReadOnly,
+    TooLarge,
+    /// The settings file's location cannot be used; nothing was written.
+    UnusableFile,
+    WriteFailed,
 }
 
 use crate::terminal_text::{sanitize_terminal_text, truncate_display};
@@ -592,9 +604,37 @@ impl Locale {
                 "Settings changed elsewhere; draft kept · reload to resolve",
                 "另一端已修改设置；草稿已保留 · 请重新读取",
             ),
-            Unreadable => self.setting(
-                "Settings file can't be read · using defaults · Reset all in Settings",
-                "无法读取设置文件 · 正在使用默认值 · 请在设置中全部重置",
+            FileBusy => self.setting(
+                "Settings file busy; draft kept · save again shortly",
+                "设置文件正忙；草稿已保留 · 请稍后再保存",
+            ),
+            InvalidValue => self.setting(
+                "A value was refused; draft kept · change it and save again",
+                "有设置值被拒绝；草稿已保留 · 修改后再保存",
+            ),
+            Unsupported => self.setting(
+                "A setting isn't supported here; nothing saved",
+                "此处不支持某项设置；未保存",
+            ),
+            SyntaxError => self.setting(
+                "Settings file has a syntax error; nothing saved · run orchbee config check",
+                "设置文件有语法错误；未保存 · 请运行 orchbee config check",
+            ),
+            ReadOnly => self.setting(
+                "Settings file is read-only; nothing saved",
+                "设置文件为只读；未保存",
+            ),
+            TooLarge => self.setting(
+                "Settings file would be too large; nothing saved",
+                "设置文件将超出大小上限；未保存",
+            ),
+            UnusableFile => self.setting(
+                "Settings file location can't be used; nothing saved",
+                "无法使用设置文件位置；未保存",
+            ),
+            WriteFailed => self.setting(
+                "Settings file couldn't be written; nothing saved",
+                "无法写入设置文件；未保存",
             ),
             Failed => self.setting(
                 "Settings operation failed; no save confirmed",
@@ -632,15 +672,23 @@ impl Locale {
                 "Settings changed elsewhere; draft kept",
                 "另一端已修改设置；草稿已保留",
             )),
-            Unreadable => Some(self.setting(
-                "Settings file can't be read · using defaults",
-                "无法读取设置文件 · 正在使用默认值",
+            FileBusy => {
+                Some(self.setting("Settings file busy; draft kept", "设置文件正忙；草稿已保留"))
+            }
+            InvalidValue => Some(self.setting(
+                "A value was refused; draft kept",
+                "有设置值被拒绝；草稿已保留",
+            )),
+            SyntaxError => Some(self.setting(
+                "Settings file has a syntax error; nothing saved",
+                "设置文件有语法错误；未保存",
             )),
             Unknown => Some(self.setting("Save result unknown", "保存结果未知")),
             PresentationUnavailable => {
                 Some(self.setting("Cannot open Settings here", "当前窗口无法打开设置"))
             }
-            Saved | NoChange | Failed | Busy | TooSmall | Background => None,
+            Saved | NoChange | Failed | Busy | TooSmall | Background | Unsupported | ReadOnly
+            | TooLarge | UnusableFile | WriteFailed => None,
         }
     }
 }

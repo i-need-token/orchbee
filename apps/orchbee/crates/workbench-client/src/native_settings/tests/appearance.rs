@@ -72,12 +72,15 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         let edited = draft.values.clone();
         edited.validate().unwrap();
         let submission = submit(&mut editor);
-        let SettingsOperation::Save { source, changes } = submission.operation else {
+        assert_eq!(edited_keys(&submission), [key], "{key:?}");
+        let SettingsOperation::Edit { changes } = &submission.operation else {
             panic!("{key:?}: Save");
         };
-        assert_eq!(source.as_str(), basis.source, "{key:?}");
-        assert_eq!(changes.keys().collect::<Vec<_>>(), [key], "{key:?}");
-        assert_eq!(changes.apply(&basis.values).unwrap(), edited, "{key:?}");
+        assert_eq!(
+            changes,
+            &orchbee_local_runtime::preference_changes(&basis.values, &edited, &[]),
+            "{key:?}"
+        );
         assert!(editor.edit(Edit::Activate).is_none(), "{key:?}: no replay");
         assert_eq!(
             editor.appearance_preview(),
@@ -151,16 +154,17 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         let mut preview = basis_with_application_theme(ApplicationAppearance::Light).values;
         preview.application_theme = ApplicationAppearance::Dark;
         let submission = submit(&mut editor);
-        let SettingsOperation::Save { source, changes } = &submission.operation else {
-            panic!("appearance conflict saves the local patch");
-        };
-        assert_eq!(source.as_str(), basis().source);
         assert_eq!(
-            changes.keys().collect::<Vec<_>>(),
-            [PreferenceKey::ApplicationTheme],
+            edit(&submission),
+            (
+                vec![(
+                    "appearance.mode".to_owned(),
+                    SettingValue::Text("dark".into())
+                )],
+                vec![]
+            ),
             "a conflict retains the exact locally edited leaf"
         );
-        assert_eq!(changes.apply(&basis().values).unwrap(), preview);
         assert!(editor.failed(submission.token, reconciliation));
         if reconciliation == Some(Reconciliation::OutcomeUnknown) {
             assert!(editor.appearance_preview().is_none());
@@ -171,7 +175,7 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
             );
         }
         let mut external = basis();
-        external.source = "a".repeat(64);
+        external.revision = 2;
         external.values.locale = PreferencesLocale::ZhCn;
         assert_eq!(editor.observe(&external), Observation::Conflict);
         draw(&mut editor);
@@ -195,7 +199,7 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         );
         draw(&mut editor);
         let reload = editor.edit(Edit::Activate).expect("explicit fresh read");
-        assert!(matches!(&reload.operation, SettingsOperation::Open {}));
+        assert!(matches!(&reload.operation, SettingsOperation::Read {}));
         assert!(editor.appearance_preview().is_none());
         assert!(editor.loaded(reload.token, external.clone()));
         assert_eq!(
@@ -250,7 +254,7 @@ fn passive_unrelated_updates_keep_preview_and_reset_claims_all_appearance_leaves
     editor.edit(Edit::Select(Row::Theme));
     editor.edit(Edit::Adjust(true));
     let mut external = basis();
-    external.source = "b".repeat(64);
+    external.revision = 2;
     external.values.copy_on_select = true;
     external.values.locale = PreferencesLocale::ZhCn;
     external.values.custom_foreground = "#abcdef".into();

@@ -3,9 +3,8 @@ use super::*;
 use crate::local_client::tests::server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
-    PreferenceKey, ProtocolVersion, SessionId, SettingsChanges, SettingsFailure, SettingsOperation,
-    SettingsOutcome, SettingsSource, WorkbenchRequestId, read_workbench_request,
-    write_workbench_response,
+    ProtocolVersion, SessionId, SettingChange, SettingPath, SettingsOperation, SettingsOutcome,
+    SettingsRefusal, WorkbenchRequestId, read_workbench_request, write_workbench_response,
 };
 use std::{io, num::NonZeroU64, time::Duration};
 fn request() -> SettingsRequest {
@@ -13,9 +12,10 @@ fn request() -> SettingsRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
         session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
-        operation: SettingsOperation::Save {
-            source: SettingsSource::parse("missing").unwrap(),
-            changes: SettingsChanges::reset([PreferenceKey::ApplicationTheme]),
+        operation: SettingsOperation::Edit {
+            changes: vec![SettingChange::Restore {
+                key: SettingPath::parse("appearance.mode").unwrap(),
+            }],
         },
     }
 }
@@ -40,7 +40,7 @@ fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
             else {
                 panic!("one Settings request");
             };
-            assert!(matches!(received.operation, SettingsOperation::Save { .. }));
+            assert!(matches!(received.operation, SettingsOperation::Edit { .. }));
             if wrong_receipt {
                 write_workbench_response(
                     &mut stream,
@@ -48,9 +48,7 @@ fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
                         protocol_version: ProtocolVersion,
                         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
                         session_id: received.session_id,
-                        outcome: SettingsOutcome::Refused {
-                            reason: SettingsFailure::Denied,
-                        },
+                        outcome: SettingsOutcome::refused(SettingsRefusal::Denied),
                     }),
                 )
                 .map_err(io::Error::other)?;

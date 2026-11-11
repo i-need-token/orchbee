@@ -1,27 +1,71 @@
 //! Independent episode traces and concrete conflict/reset/text boundaries.
 use super::*;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-use orchbee_workbench_protocol::{AgentReminderMode, ApplicationAppearance, PreferencesLocale};
+use orchbee_workbench_protocol::{
+    AgentReminderMode, ApplicationAppearance, PreferencesLocale, SettingValue,
+};
 mod appearance;
 mod browse;
 mod themes;
 
 fn basis() -> Basis {
     Basis {
-        source: "missing".into(),
+        revision: 1,
         values: UserPreferencesValues::default(),
-        claimed: Default::default(),
     }
 }
 fn basis_with_application_theme(application_theme: ApplicationAppearance) -> Basis {
     Basis {
-        source: "missing".into(),
+        revision: 1,
         values: UserPreferencesValues {
             application_theme,
             ..UserPreferencesValues::default()
         },
-        claimed: Default::default(),
     }
+}
+/// The preference keys one Save edit changes, read back through the settings registry.
+fn edited_keys(submission: &Submission) -> Vec<PreferenceKey> {
+    let SettingsOperation::Edit { changes } = &submission.operation else {
+        panic!("Save sends one edit");
+    };
+    let platform = platform();
+    let mut keys: Vec<_> = changes
+        .iter()
+        .filter_map(|change| {
+            orchbee_local_runtime::SETTING_KEYS
+                .iter()
+                .find(|setting| {
+                    setting.path.replace("<platform>", platform) == change.key().as_str()
+                })?
+                .preference
+        })
+        .collect();
+    keys.dedup();
+    keys
+}
+fn platform() -> &'static str {
+    if cfg!(windows) {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+/// The keys and values one Save edit sets, and the keys it restores, in the file's spelling.
+fn edit(submission: &Submission) -> (Vec<(String, SettingValue)>, Vec<String>) {
+    let SettingsOperation::Edit { changes } = &submission.operation else {
+        panic!("Save sends one edit");
+    };
+    let mut set = Vec::new();
+    let mut restored = Vec::new();
+    for change in changes {
+        match change {
+            SettingChange::Set { key, value } => set.push((key.to_string(), value.clone())),
+            SettingChange::Restore { key } => restored.push(key.to_string()),
+        }
+    }
+    (set, restored)
 }
 fn ready_with_basis(initial: Basis) -> Editor {
     let mut editor = Editor::default();
@@ -394,14 +438,16 @@ fn only_a_dirty_successfully_drawn_draft_can_submit_once() {
     assert!(editor.edit(Edit::Activate).is_none());
     draw(&mut editor);
     let submission = editor.edit(Edit::Activate).unwrap();
-    let SettingsOperation::Save { changes, .. } = &submission.operation else {
-        panic!("save");
-    };
     assert_eq!(
-        changes.keys().collect::<Vec<_>>(),
-        [PreferenceKey::SoundEnabled]
+        edit(&submission),
+        (
+            vec![(
+                "notifications.sound".to_owned(),
+                SettingValue::Boolean(true)
+            )],
+            vec![]
+        )
     );
-    assert!(changes.apply(&basis().values).unwrap().sound_enabled);
     assert!(editor.edit(Edit::Activate).is_none());
     editor.edit(Edit::Cancel);
     assert!(!editor.visible());
@@ -629,7 +675,7 @@ fn admitted_draft_suspends_and_resumes_with_its_local_navigation() {
     ));
 }
 #[test]
-fn definite_failures_preserve_the_original_cas_basis_and_allow_an_explicit_retry() {
+fn definite_failures_preserve_the_original_basis_and_allow_an_explicit_retry() {
     let mut editor = ready();
     editor.edit(Edit::Adjust(true));
     let submission = submit(&mut editor);
@@ -649,12 +695,9 @@ fn definite_failures_preserve_the_original_cas_basis_and_allow_an_explicit_retry
         "a prior frame cannot authorize the restored draft"
     );
     let retry = submit(&mut editor);
-    let SettingsOperation::Save { source, .. } = retry.operation else {
-        panic!("save");
-    };
     assert_eq!(
-        source.as_str(),
-        "missing",
+        edit(&retry),
+        edit(&submission),
         "no silent rebase over the other client"
     );
 }
@@ -666,15 +709,15 @@ fn a_confirmed_observation_during_save_is_retained_if_the_draft_returns() {
     editor.edit(Edit::Activate);
     let submission = submit(&mut editor);
     let mut latest = basis();
-    latest.source = "b".repeat(64);
+    latest.revision = 2;
     latest.values.locale = PreferencesLocale::ZhCn;
     assert_eq!(editor.observe(&latest), Observation::Unchanged);
     assert!(editor.failed(submission.token, Some(Reconciliation::SourceChanged)));
     let View::Draft(draft) = editor.view().unwrap() else {
         panic!("draft");
     };
-    assert_eq!(draft.basis_source, "missing");
-    assert_eq!(draft.effective_source, latest.source.as_str());
+    assert_eq!(draft.basis_revision, 1);
+    assert_eq!(draft.effective_revision, latest.revision);
     assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
     assert!(draft.conflict);
     assert_eq!(draft.reconciliation, Some(Reconciliation::SourceChanged));
@@ -707,14 +750,14 @@ fn unknown_save_requires_a_matched_explicit_read_before_another_save() {
     );
 
     let mut passive = basis();
-    passive.source = "c".repeat(64);
+    passive.revision = 2;
     passive.values.locale = PreferencesLocale::ZhCn;
     assert_eq!(editor.observe(&passive), Observation::Conflict);
     let View::Draft(conflicted) = editor.view().unwrap() else {
         panic!("draft");
     };
-    assert_eq!(conflicted.basis_source, "missing");
-    assert_eq!(conflicted.effective_source, passive.source.as_str());
+    assert_eq!(conflicted.basis_revision, 1);
+    assert_eq!(conflicted.effective_revision, passive.revision);
     assert_eq!(
         conflicted.reconciliation,
         Some(Reconciliation::OutcomeUnknown),
@@ -727,7 +770,7 @@ fn unknown_save_requires_a_matched_explicit_read_before_another_save() {
     editor.edit(Edit::Activate);
     draw(&mut editor);
     let reload = editor.edit(Edit::Activate).expect("explicit fresh read");
-    assert!(matches!(reload.operation, SettingsOperation::Open {}));
+    assert!(matches!(reload.operation, SettingsOperation::Read {}));
     assert!(!editor.loaded(submission.token, passive.clone()));
     assert!(editor.loaded(reload.token, passive));
     assert!(matches!(
@@ -736,7 +779,7 @@ fn unknown_save_requires_a_matched_explicit_read_before_another_save() {
             if !draft.dirty
                 && !draft.conflict
                 && draft.reconciliation.is_none()
-                && draft.basis_source == draft.effective_source
+                && draft.basis_revision == draft.effective_revision
     ));
 }
 #[test]
@@ -746,7 +789,7 @@ fn external_observation_refreshes_clean_views_and_disarms_old_pointer_frames() {
     draw(&mut editor);
     let old = editor.view().unwrap().token();
     let mut latest = basis();
-    latest.source = "a".repeat(64);
+    latest.revision = 2;
     latest.values.locale = PreferencesLocale::ZhCn;
     assert_eq!(editor.observe(&latest), Observation::Refreshed);
     let View::Draft(draft) = editor.view().unwrap() else {
@@ -761,14 +804,13 @@ fn external_observation_refreshes_clean_views_and_disarms_old_pointer_frames() {
     assert_ne!(draft.token, old);
     assert!(editor.click(old, Row::Sound).is_none());
     editor.edit(Edit::Adjust(true));
-    let SettingsOperation::Save { source, changes } = submit(&mut editor).operation else {
-        panic!("save")
-    };
-    assert_eq!(source.as_str(), latest.source);
+    // The edit is against the refreshed basis: the observed language is not written back.
+    let (set, restored) = edit(&submit(&mut editor));
     assert_eq!(
-        changes.keys().collect::<Vec<_>>(),
-        [PreferenceKey::ApplicationTheme]
+        set.iter().map(|(key, _)| key.as_str()).collect::<Vec<_>>(),
+        ["appearance.mode"]
     );
+    assert!(restored.is_empty());
 }
 #[test]
 fn external_observation_never_rebases_edits_text_or_confirmations() {
@@ -778,7 +820,7 @@ fn external_observation_never_rebases_edits_text_or_confirmations() {
         editor.edit(Edit::Activate);
         let old = editor.view().unwrap().token();
         let mut latest = basis();
-        latest.source = "b".repeat(64);
+        latest.revision = 2;
         latest.values.locale = PreferencesLocale::ZhCn;
         assert_eq!(editor.observe(&latest), Observation::Conflict);
         let View::Draft(draft) = editor.view().unwrap() else {
@@ -792,7 +834,7 @@ fn external_observation_never_rebases_edits_text_or_confirmations() {
         let State::Draft(draft) = &editor.state else {
             panic!("draft")
         };
-        assert_eq!(draft.basis.source, "missing");
+        assert_eq!(draft.basis.revision, 1);
         if row == Row::CompletionThreshold {
             assert!(draft.text.is_some());
         }
@@ -821,7 +863,7 @@ fn profiles_child_freezes_the_basis_and_restores_parent_navigation() {
     ));
 
     let mut latest = basis();
-    latest.source = "d".repeat(64);
+    latest.revision = 2;
     latest.values.locale = PreferencesLocale::ZhCn;
     assert_eq!(editor.observe(&latest), Observation::Conflict);
     let View::Draft(child) = editor.view().unwrap() else {
@@ -863,15 +905,20 @@ fn profile_reset_claims_only_catalog_and_preserves_other_edits_and_valid_selecti
     assert!(draft.values.sound_enabled);
     assert!(draft.dirty, "reset claims an already-default catalog");
     editor.edit(Edit::Cancel);
-    let SettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
-        panic!("save")
-    };
-    assert_eq!(changes.keys().count(), 2);
+    let platform = platform();
     assert_eq!(
-        serde_json::to_value(&changes).unwrap()["launchProfiles"],
-        serde_json::Value::Null
+        edit(&submit(&mut editor)),
+        (
+            vec![(
+                "notifications.sound".to_owned(),
+                SettingValue::Boolean(true)
+            )],
+            vec![
+                format!("terminal.profiles.{platform}"),
+                format!("terminal.default_profile.{platform}"),
+            ]
+        )
     );
-    assert!(changes.apply(&basis().values).unwrap().sound_enabled);
 }
 #[test]
 fn reset_all_rewinds_selection_after_visiting_an_added_profile() {
@@ -903,11 +950,17 @@ fn explicit_reset_claims_even_default_leaves_and_later_edits_override_only_their
     editor.edit(Edit::Activate);
     editor.edit(Edit::Select(Row::Sound));
     editor.edit(Edit::Activate);
-    let SettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
-        panic!("save");
-    };
-    assert_eq!(changes.keys().count(), PreferenceKey::ALL.len());
-    assert!(changes.apply(&basis().values).unwrap().sound_enabled);
+    // Every other key and both catalog keys are restored; the later edit sets its own value.
+    let (set, restored) = edit(&submit(&mut editor));
+    assert_eq!(
+        set,
+        [(
+            "notifications.sound".to_owned(),
+            SettingValue::Boolean(true)
+        )]
+    );
+    assert_eq!(restored.len(), PreferenceKey::ALL.len() - 2 + 2);
+    assert!(!restored.iter().any(|key| key == "notifications.sound"));
 }
 #[test]
 fn text_is_grapheme_atomic_and_invalid_values_keep_the_editor_open() {
@@ -1035,7 +1088,7 @@ fn save_locates_the_nondefault_executable_and_correction_preserves_the_complete_
         panic!("draft")
     };
     assert_eq!(error.values, &values);
-    assert_eq!(error.basis_source, "missing");
+    assert_eq!(error.basis_revision, 1);
     assert_eq!(error.page, Page::Profiles);
     assert_eq!(error.profile, 1);
     assert_eq!(error.selected, Row::Executable);
@@ -1072,20 +1125,27 @@ fn save_locates_the_nondefault_executable_and_correction_preserves_the_complete_
         Row::Save,
         "validation return restores its parent"
     );
+    let saved = parent.values.clone();
     draw(&mut editor);
     let submission = editor
         .edit(Edit::Activate)
         .expect("corrected draft saves directly");
-    let SettingsOperation::Save { changes, .. } = submission.operation else {
-        panic!("save")
-    };
-    let saved = changes.apply(&basis().values).unwrap();
     assert!(saved.sound_enabled);
     assert_eq!(saved.launch_profiles.profiles.len(), 2);
     assert_eq!(
         saved.launch_profiles.profiles[1].name.as_deref(),
         Some("Broken profile")
     );
+    let (set, _) = edit(&submission);
+    assert!(set.contains(&(
+        "notifications.sound".to_owned(),
+        SettingValue::Boolean(true)
+    )));
+    let profiles = format!("terminal.profiles.{}", platform());
+    let named = orchbee_workbench_protocol::SettingEntryValue::Text("Broken profile".into());
+    assert!(set.iter().any(|(key, value)| key == &profiles
+        && matches!(value, SettingValue::Entries(entries)
+            if entries.len() == 1 && entries[0].get("name") == Some(&named))));
     assert!(editor.complete(submission.token));
     let reopened = editor.open().unwrap();
     assert!(editor.loaded(
@@ -1140,7 +1200,7 @@ fn removing_resetting_or_reloading_an_invalid_profile_retires_its_diagnostic() {
             }
             assert!(matches!(
                 submit(&mut editor).operation,
-                SettingsOperation::Save { .. }
+                SettingsOperation::Edit { .. }
             ));
         }
     }
@@ -1261,7 +1321,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     saves.push(submission.token);
                     pending = Some(submission.token);
                     phase = 3;
-                    let SettingsOperation::Save { changes, .. } = submission.operation else {
+                    let SettingsOperation::Edit { changes } = submission.operation else {
                         return Err("wrong operation".into());
                     };
                     let expected = UserPreferencesValues {
@@ -1274,7 +1334,9 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                         sound_enabled: values.2,
                         ..UserPreferencesValues::default()
                     };
-                    if changes != UserPreferencesPatch::between(&saved_values, &expected) {
+                    if changes
+                        != orchbee_local_runtime::preference_changes(&saved_values, &expected, &[])
+                    {
                         return Err("dirty leaves".into());
                     }
                 } else if phase == 2 && presented && row != Row::Save {

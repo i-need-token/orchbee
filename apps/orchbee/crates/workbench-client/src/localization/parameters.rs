@@ -58,7 +58,8 @@ pub enum Notice {
     CheckpointEmpty,
     ConfigurationPublished,
     ConfigurationWarning,
-    PreferencesUnreadable,
+    /// The settings file does not parse or cannot be read; the last valid settings stay.
+    SettingsFileUnusable,
     ConfigurationFailed,
     ConfigurationUnknown,
     WindowTitleUnavailable,

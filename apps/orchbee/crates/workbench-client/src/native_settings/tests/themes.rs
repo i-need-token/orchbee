@@ -67,11 +67,8 @@ fn committing_a_theme_sets_its_slot_and_shows_it_through_appearance_and_source()
         editor.appearance_preview(),
         Some(AppearancePreview::from_values(draft.values))
     );
-    let SettingsOperation::Save { changes, .. } = submit(&mut editor).operation else {
-        panic!("save")
-    };
     assert_eq!(
-        changes.keys().collect::<Vec<_>>(),
+        edited_keys(&submit(&mut editor)),
         [
             PreferenceKey::ApplicationTheme,
             PreferenceKey::DarkTheme,

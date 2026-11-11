@@ -11,7 +11,9 @@ use crate::{
     workbench_client::DrawReceipt,
 };
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, PreferencesLocale, TerminalDisplayAppearance, UserPreferencesValues,
+    ApplicationAppearance, PreferencesLocale, SettingChange, SettingScalar, SettingValue,
+    SettingsFile, SettingsPlatform, SettingsSnapshot, TerminalDisplayAppearance,
+    UserPreferencesValues, WorkbenchRevision,
 };
 use ratatui::buffer::Buffer;
 
@@ -40,9 +42,44 @@ pub(super) fn ready() -> WorkbenchClientUi {
 
 pub(super) fn draft_basis() -> Basis {
     Basis {
-        source: "missing".into(),
+        revision: 1,
         values: orchbee_workbench_protocol::UserPreferencesValues::default(),
-        claimed: Default::default(),
+    }
+}
+
+/// The snapshot the Server publishes at `revision` for a file that gives `values`.
+pub(super) fn settings_snapshot(revision: u64, values: &UserPreferencesValues) -> SettingsSnapshot {
+    let changes =
+        orchbee_local_runtime::preference_changes(&UserPreferencesValues::default(), values, &[]);
+    SettingsSnapshot {
+        revision: WorkbenchRevision::new(revision),
+        file_path: None,
+        file: SettingsFile::Ok {},
+        platform: if cfg!(windows) {
+            SettingsPlatform::Windows
+        } else if cfg!(target_os = "macos") {
+            SettingsPlatform::Macos
+        } else {
+            SettingsPlatform::Linux
+        },
+        values: changes
+            .into_iter()
+            .filter_map(|change| match change {
+                SettingChange::Set { key, value } => Some((
+                    key,
+                    Some(match value {
+                        SettingValue::Boolean(value) => SettingScalar::Boolean(value),
+                        SettingValue::Integer(value) => SettingScalar::Integer(value),
+                        SettingValue::Text(value) => SettingScalar::Text(value),
+                        SettingValue::Entries(_) => return None,
+                    }),
+                )),
+                SettingChange::Restore { .. } => None,
+            })
+            .collect(),
+        set: Vec::new(),
+        launch_profiles: values.launch_profiles.clone(),
+        diagnostics: Default::default(),
     }
 }
 
@@ -67,12 +104,11 @@ pub(super) fn draft_basis_with_application_theme(
     application_theme: orchbee_workbench_protocol::ApplicationAppearance,
 ) -> Basis {
     Basis {
-        source: "missing".into(),
+        revision: 1,
         values: orchbee_workbench_protocol::UserPreferencesValues {
             application_theme,
             ..orchbee_workbench_protocol::UserPreferencesValues::default()
         },
-        claimed: Default::default(),
     }
 }
 
@@ -255,14 +291,17 @@ pub fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals
     shell.apply_user_preferences(initial.clone());
     ui.settings.editor.edit(Edit::Select(Row::Theme));
     ui.settings.editor.edit(Edit::Adjust(true));
-    let mut latest = draft_basis();
-    latest.source = "f".repeat(64);
-    latest.values.application_theme = ApplicationAppearance::System;
-    latest.values.locale = PreferencesLocale::ZhCn;
-    assert!(ui.settings.observe_snapshot(latest.clone(), ui.clock.now()));
-    let confirmed = ui.take_settings_snapshot().unwrap();
-    ui.apply_user_preferences(&confirmed.values);
-    shell.apply_user_preferences(confirmed.values);
+    let mut latest = draft_basis().values;
+    latest.application_theme = ApplicationAppearance::System;
+    latest.locale = PreferencesLocale::ZhCn;
+    assert!(
+        ui.settings
+            .observe_snapshot(settings_snapshot(2, &latest), ui.clock.now())
+    );
+    let confirmed =
+        orchbee_local_runtime::snapshot_preferences(&ui.take_settings_snapshot().unwrap());
+    ui.apply_user_preferences(&confirmed);
+    shell.apply_user_preferences(confirmed);
     let preview = ui.view().settings_appearance_preview().unwrap();
     assert_eq!(preview.locale, PreferencesLocale::ZhCn);
     assert_eq!(preview.application_theme, ApplicationAppearance::Dark);
@@ -282,7 +321,7 @@ pub fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals
         if draft.conflict && draft.values.application_theme == ApplicationAppearance::Dark
             && draft.basis_values == &initial));
     ui.settings.editor.edit(Edit::Cancel);
-    assert_eq!(shell.user_preferences(), Some(&latest.values));
+    assert_eq!(shell.user_preferences(), Some(&latest));
     let restored = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
     assert_eq!(
         restored[(0, 0)].bg,

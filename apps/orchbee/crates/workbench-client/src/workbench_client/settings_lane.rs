@@ -1,4 +1,5 @@
-//! Settings observes pushed snapshots and submits each explicit write exactly once.
+//! Settings observes pushed snapshots in revision order and submits each explicit edit exactly
+//! once.
 use crate::{
     local_client::{
         LocalClientOrigin, LocalOperationClock,
@@ -9,7 +10,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, SessionId, SettingsOperation, SettingsOutcome, SettingsRequest,
-    SettingsResult, StreamMode, UserPreferencesSnapshot, WorkbenchRequest, WorkbenchRequestId,
+    SettingsResult, SettingsSnapshot, StreamMode, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, read_workbench_response,
 };
 use std::{io, sync::Mutex, time::Duration};
@@ -34,7 +35,9 @@ struct State {
     subscription: Subscription,
     pending: Option<Pending>,
     reply: Option<Reply>,
-    observation: Option<UserPreferencesSnapshot>,
+    observation: Option<SettingsSnapshot>,
+    /// The newest revision observed; a snapshot no newer is dropped.
+    observed: Option<u64>,
 }
 pub(super) struct Lane {
     state: Mutex<Option<State>>,
@@ -55,6 +58,7 @@ impl Lane {
                 pending: None,
                 reply: None,
                 observation: None,
+                observed: None,
             })),
         })
     }
@@ -97,7 +101,7 @@ impl Lane {
         state.poll();
         state.reply.take()
     }
-    pub(super) fn take_observation(&self) -> Option<UserPreferencesSnapshot> {
+    pub(super) fn take_observation(&self) -> Option<SettingsSnapshot> {
         let mut state = self.state.lock().ok()?;
         let state = state.as_mut()?;
         state.poll();
@@ -121,7 +125,7 @@ fn observe(origin: &LocalClientOrigin, session: &SessionId) -> io::Result<Subscr
             protocol_version: ProtocolVersion,
             request_id: observation_id(),
             session_id: session.clone(),
-            operation: SettingsOperation::Open {},
+            operation: SettingsOperation::Read {},
         }),
         StreamMode::State,
     )
@@ -169,19 +173,17 @@ impl State {
             token: pending.token,
             result,
         });
-        // Preference source tokens are opaque, not ordered revisions. A fresh capture after the
-        // write prevents an older queued observation from replacing its acknowledged snapshot.
-        self.subscription.cancel();
-        if let Ok(subscription) = observe(&self.origin, &self.session) {
-            self.subscription = subscription;
-        }
     }
     fn observe(&mut self, reply: &SettingsResult) {
-        match &reply.outcome {
-            SettingsOutcome::Opened { snapshot } | SettingsOutcome::Saved { snapshot, .. } => {
-                self.observation = Some(snapshot.clone());
-            }
-            SettingsOutcome::OutcomeUnknown { .. } | SettingsOutcome::Refused { .. } => {}
+        let (SettingsOutcome::Current { snapshot } | SettingsOutcome::Edited { snapshot, .. }) =
+            &reply.outcome
+        else {
+            return;
+        };
+        let revision = snapshot.revision.value();
+        if self.observed.is_none_or(|observed| observed < revision) {
+            self.observed = Some(revision);
+            self.observation = Some(snapshot.as_ref().clone());
         }
     }
 }

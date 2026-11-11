@@ -117,9 +117,8 @@ fn open_loaded_settings(ui: &mut WorkbenchClientUi) {
     assert!(ui.settings.editor.loaded(
         token,
         Basis {
-            source: "composition-test".into(),
+            revision: 1,
             values: UserPreferencesValues::default(),
-            claimed: Default::default(),
         },
     ));
     assert_eq!(

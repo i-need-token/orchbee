@@ -89,14 +89,11 @@ fn picker_preview_cancel_and_accept_keep_the_parent_draft_and_frozen_source() {
     draw(&mut editor);
     editor.edit(Edit::Activate);
     assert!(
-        matches!(editor.view(), Some(View::Draft(view)) if view.picker.is_none() && view.dirty && view.basis_source == "missing")
+        matches!(editor.view(), Some(View::Draft(view)) if view.picker.is_none() && view.dirty && view.basis_revision == 1)
     );
     let submission = submit(&mut editor);
-    let SettingsOperation::Save { changes, .. } = submission.operation else {
-        panic!("save")
-    };
     assert_eq!(
-        changes.keys().collect::<Vec<_>>(),
+        edited_keys(&submission),
         vec![PreferenceKey::ApplicationTheme]
     );
 }
@@ -155,11 +152,8 @@ fn every_picker_accepts_one_typed_leaf_and_refuses_a_stale_pointer_choice() {
         let token = editor.view().unwrap().token();
         editor.control(token, Control::Choose(choice));
         let submission = submit(&mut editor);
-        let SettingsOperation::Save { changes, .. } = submission.operation else {
-            panic!("save")
-        };
         assert_eq!(
-            changes.keys().collect::<Vec<_>>(),
+            edited_keys(&submission),
             vec![setting_for_row(row).unwrap().key]
         );
     }
@@ -194,13 +188,13 @@ fn picker_external_update_keeps_the_frozen_basis_and_cancel_reveals_newest_confi
     draw(&mut editor);
     editor.edit(Edit::Activate);
     let mut external = basis();
-    external.source = "0".repeat(64);
+    external.revision = 2;
     external.values.application_theme = ApplicationAppearance::Dark;
     assert_eq!(editor.observe(&external), Observation::Conflict);
     let View::Draft(retained) = editor.view().unwrap() else {
         panic!("draft")
     };
-    assert_eq!(retained.basis_source, "missing");
+    assert_eq!(retained.basis_revision, 1);
     assert!(retained.picker.is_some() && retained.conflict);
     editor.edit(Edit::Cancel);
     assert_eq!(
