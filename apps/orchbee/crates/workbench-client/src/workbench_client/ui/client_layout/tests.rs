@@ -247,6 +247,69 @@ fn minimal_split_scrollbar_width_agrees_across_layout_resize_and_drawing() {
     }
 }
 
+/// A split Tab that shows one Panel alone keeps its other Panels discoverable in the status, and
+/// only where the split collapses; maximization keeps its own context.
+#[test]
+fn a_collapsed_split_names_the_shown_panel_position_only_where_it_collapses() {
+    use crate::workbench_client::ui::tests::publication_hint::ready_split_ui_with_mode;
+    let controlling = crate::workbench_state::ControllerMode::Controlling(
+        orchbee_client_server_protocol::ControllerId::parse(&format!("{:032x}", 8)).unwrap(),
+    );
+    let last_row = |native: &WorkbenchClientUi, width: u16, height: u16, locale| {
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+        let mut hits = crate::tui_hit_map::HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &crate::client_view::ClientView::new(width),
+                    locale,
+                    Some(native.view()),
+                    &crate::tui_theme::Theme::rgb_test_dark(),
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        // Wide glyphs leave padding cells, so rows compare without spaces.
+        (0..width)
+            .map(|x| buffer[(x, height - 1)].symbol())
+            .collect::<String>()
+            .replace(' ', "")
+    };
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let position = locale.panel_position(1, 2).replace(' ', "");
+        let switch = locale.status().switch_panel.replace(' ', "");
+        for (width, height, collapsed) in [
+            (50, 16, true),
+            (80, 10, true),
+            (80, 24, false),
+            (120, 36, false),
+        ] {
+            let (native, _, _, _) = ready_split_ui_with_mode(controlling.clone());
+            let row = last_row(&native, width, height, locale);
+            assert_eq!(
+                row.contains(&position),
+                collapsed,
+                "{width}x{height}: {row}"
+            );
+            assert_eq!(row.contains(&switch), collapsed, "{width}x{height}: {row}");
+        }
+        let (mut native, _, _, _) = ready_split_ui_with_mode(controlling.clone());
+        native.toggle_zoom();
+        let row = last_row(&native, 80, 10, locale);
+        assert!(
+            row.contains(&locale.status().zoomed.replace(' ', "")),
+            "{row}"
+        );
+        assert!(!row.contains(&position), "{row}");
+    }
+}
+
 #[test]
 fn an_unvisited_workspace_is_projected_without_entering_it() {
     use orchbee_workbench_protocol::{

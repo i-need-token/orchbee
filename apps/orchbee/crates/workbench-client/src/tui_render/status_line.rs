@@ -40,6 +40,29 @@ enum InputIndicator {
 enum ContextIndicator {
     PointerReleased,
     Zoomed,
+    Panels(HiddenPanels),
+}
+
+impl ContextIndicator {
+    fn label(self, locale: Locale) -> String {
+        let copy = locale.status();
+        match self {
+            Self::PointerReleased => copy.pointer_released.to_owned(),
+            Self::Zoomed => copy.zoomed.to_owned(),
+            Self::Panels(panels) => locale.panel_position(panels.position, panels.total),
+        }
+    }
+}
+
+/// A split Tab showing only its focused Panel without being maximized: the tier draws no split,
+/// or the split cannot keep its minimum pane size.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct HiddenPanels {
+    /// The shown Panel's one-based position in the Tab's canonical Panel order.
+    pub(super) position: usize,
+    pub(super) total: usize,
+    /// A direction whose focus move reaches another Panel.
+    pub(super) toward: Option<PanelDirection>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -111,6 +134,7 @@ pub(super) struct StatusFacts<'a> {
     /// The documented shorter forms of `secondary_notice`, longest first.
     pub(super) secondary_shorter: &'a [String],
     pub(super) zoomed: bool,
+    pub(super) panels: Option<HiddenPanels>,
     pub(super) read_only: bool,
     pub(super) recovery_status: bool,
 }
@@ -162,7 +186,7 @@ pub(super) fn render(
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
     let glyphs = theme.glyphs.key_labels();
     let indicator_kind = input_indicator(view, capture_owner);
-    let contexts = contexts(view, facts.zoomed);
+    let contexts = contexts(view, &facts);
     let copy = locale.status();
     let available = usize::from(area.width).saturating_sub(2);
     // An ended terminal that cannot name itself in two words still names its exit compactly.
@@ -263,10 +287,7 @@ pub(super) fn render(
         };
         let contexts = contexts
             .iter()
-            .map(|context| match context {
-                ContextIndicator::PointerReleased => copy.pointer_released,
-                ContextIndicator::Zoomed => copy.zoomed,
-            })
+            .map(|context| context.label(locale))
             .collect();
         (
             Lead::Context {
@@ -317,13 +338,15 @@ fn secondary_notice<'a>(
     })
 }
 
-fn contexts(view: &ClientView, zoomed: bool) -> Vec<ContextIndicator> {
+fn contexts(view: &ClientView, facts: &StatusFacts<'_>) -> Vec<ContextIndicator> {
     let mut contexts = Vec::with_capacity(2);
     if view.pointer_released() {
         contexts.push(ContextIndicator::PointerReleased);
     }
-    if zoomed {
+    if facts.zoomed {
         contexts.push(ContextIndicator::Zoomed);
+    } else if let Some(panels) = facts.panels {
+        contexts.push(ContextIndicator::Panels(panels));
     }
     contexts
 }
@@ -339,7 +362,7 @@ enum Lead<'a> {
         primary: Vec<String>,
         /// The primary states a notice, which is never dropped while it leads.
         primary_notice: bool,
-        contexts: Vec<&'static str>,
+        contexts: Vec<String>,
     },
 }
 
@@ -518,7 +541,7 @@ fn layout_chip(
                 if chip
                     .width
                     .saturating_add(joint)
-                    .saturating_add(display_width(context))
+                    .saturating_add(display_width(&context))
                     > available
                 {
                     break;
@@ -526,7 +549,7 @@ fn layout_chip(
                 if joint > 0 {
                     chip.push(separator.text.clone(), theme.style(Role::HintLabel));
                 }
-                chip.push(context.to_owned(), theme.style(Role::TextPrimary));
+                chip.push(context, theme.style(Role::TextPrimary));
             }
             if chip.spans.is_empty() {
                 chip.keep_hints(fit_hints(hints, available, theme));
@@ -681,7 +704,7 @@ pub(super) fn render_context_chip(
                 notice: None,
                 primary: Vec::new(),
                 primary_notice: false,
-                contexts,
+                contexts: contexts.into_iter().map(str::to_owned).collect(),
             },
             &hints,
             false,
@@ -724,7 +747,7 @@ fn render_row(
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
     let glyphs = theme.glyphs.key_labels();
     let indicator_kind = input_indicator(view, capture_owner);
-    let contexts = contexts(view, facts.zoomed);
+    let contexts = contexts(view, &facts);
 
     let notice = (indicator_kind.is_none())
         .then_some(secondary_notice)
@@ -966,7 +989,6 @@ fn render_primary(
     locale: Locale,
     theme: &Theme,
 ) {
-    let copy = locale.status();
     let mut spans = vec![Span::styled(
         primary.to_owned(),
         theme.style(Role::TextPrimary),
@@ -974,13 +996,10 @@ fn render_primary(
     let mut used = display_width(primary);
     let separator = separator(theme);
     for context in contexts {
-        let label = match context {
-            ContextIndicator::PointerReleased => copy.pointer_released,
-            ContextIndicator::Zoomed => copy.zoomed,
-        };
+        let label = context.label(locale);
         let next = used
             .saturating_add(separator.width)
-            .saturating_add(display_width(label));
+            .saturating_add(display_width(&label));
         if next > usize::from(area.width) {
             break;
         }
@@ -1308,13 +1327,24 @@ fn status_hints(
         .filter_map(|action| action_hint(view, action, locale, glyphs))
         .collect::<Vec<_>>();
     for context in contexts {
-        let action = match context {
-            ContextIndicator::PointerReleased => {
-                PrefixAction::Client(ClientAction::TogglePointerCapture)
+        let (action, label) = match context {
+            ContextIndicator::PointerReleased => (
+                PrefixAction::Client(ClientAction::TogglePointerCapture),
+                copy.restore,
+            ),
+            ContextIndicator::Zoomed => {
+                (PrefixAction::Client(ClientAction::ToggleZoom), copy.restore)
             }
-            ContextIndicator::Zoomed => PrefixAction::Client(ClientAction::ToggleZoom),
+            ContextIndicator::Panels(HiddenPanels {
+                toward: Some(direction),
+                ..
+            }) => (
+                PrefixAction::Client(ClientAction::MovePanelFocus(*direction)),
+                copy.switch_panel,
+            ),
+            ContextIndicator::Panels(_) => continue,
         };
-        if let Some(hint) = effective_hint(view, action, copy.restore, glyphs) {
+        if let Some(hint) = effective_hint(view, action, label, glyphs) {
             hints.push(hint);
         }
     }

@@ -24,6 +24,7 @@ fn facts(primary: &str) -> StatusFacts<'_> {
         secondary_notice: None,
         secondary_shorter: &[],
         zoomed: false,
+        panels: None,
         read_only: false,
         recovery_status: false,
     }

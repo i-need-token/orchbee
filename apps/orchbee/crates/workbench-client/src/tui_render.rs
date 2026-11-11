@@ -845,6 +845,9 @@ pub fn render_terminal_shell_with_resize<'a>(
         workbench_client.as_ref(),
         Some(native) if native.zoom_active()
     );
+    let hidden_panels = workbench_client
+        .as_ref()
+        .and_then(|native| hidden_panels(&areas, native));
     let read_only = matches!(
         workbench_client.as_ref(),
         Some(native)
@@ -855,6 +858,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     let status_visible = status_overlay_visible(view, workbench_client.as_ref(), capture_owner)
         || notice.is_some()
         || zoomed
+        || hidden_panels.is_some()
         || tier == ViewportTier::TooSmall;
     let chip_area = status_chip_area(&areas);
     let copy_status = capture_owner == Some(CaptureOwner::Copy)
@@ -894,6 +898,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 secondary_notice: notice,
                 secondary_shorter: notice_forms.get(1..).unwrap_or_default(),
                 zoomed,
+                panels: hidden_panels,
                 read_only,
                 recovery_status: matches!(workbench_client.as_ref(), Some(native)
                     if native.workspace_close_status().is_none()
@@ -2444,6 +2449,64 @@ fn native_tab<'a>(
             tab.pinned().then_some(pinned_label),
             tab.group_label(),
         ),
+    })
+}
+
+/// The shown Panel's position while the active split Tab shows it alone without being maximized:
+/// Minimal and Mobile draw no split, and a framed split that cannot keep its minimum pane size
+/// falls back to the focused leaf. The renderer's own projection decides what is drawn.
+fn hidden_panels(
+    areas: &ShellAreas,
+    native: &WorkbenchClientView<'_>,
+) -> Option<status_line::HiddenPanels> {
+    if areas.tier == ViewportTier::TooSmall
+        || native.zoom_active()
+        || (native.last_tab_leaving() && native.retirement().is_none())
+    {
+        return None;
+    }
+    let tab = native
+        .active_position()
+        .and_then(|position| position.checked_sub(1))
+        .and_then(|index| native.tab(index))?;
+    let total = tab.drawn_panel_count();
+    if total < 2 {
+        return None;
+    }
+    let tree = tab.panel_tree();
+    let leaves = tree.leaf_panel_indices();
+    let shown = tab
+        .active_panel()
+        .filter(|index| leaves.contains(index))
+        .or_else(|| leaves.first().copied())?;
+    let drawn = if areas.tier.shows_panel_frame() {
+        crate::tui_layout::project_panel_tree(
+            native_terminal_area(areas.panel, PaneFrame::Split),
+            tree,
+            Some(shown),
+            &|split, first, second| tab.split_ratio(split, first, second),
+        )
+        .leaves
+        .len()
+    } else {
+        1
+    };
+    if drawn >= total {
+        return None;
+    }
+    use crate::localization::PanelDirection;
+    let toward = [
+        PanelDirection::Right,
+        PanelDirection::Down,
+        PanelDirection::Left,
+        PanelDirection::Up,
+    ]
+    .into_iter()
+    .find(|direction| tree.neighbor(shown, *direction).is_some());
+    Some(status_line::HiddenPanels {
+        position: leaves.iter().position(|index| *index == shown)? + 1,
+        total,
+        toward,
     })
 }
 

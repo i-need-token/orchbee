@@ -881,6 +881,11 @@ fact. An exit that does not fit in two words uses the localized compact exit cop
 result remains with `Locale::native_status` and the pane title. A transient notice leads the exact primary fact and carries no hints; a persistent
 state yields to it. Ready and maximized context is available with prefix hints; ordinary controlling status
 is omitted, while read-only input remains explicit.
+A split Tab that shows only its focused Panel without being maximized, because Minimal and Mobile
+draw no Panel chrome or because a split cannot keep its minimum pane size, names that Panel's
+position among the Tab's Panels as context, such as `Panel 1/2` (`面板 1/2`), followed by the
+effective focus binding toward a neighbor (`switch Panel`, `切换面板`). It leaves when the split
+is drawn again; maximization keeps its own context instead.
 Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel, help and
 `Tab` sidebar; trailing hints drop as whole records. The prefix badge shortens its cancellation hint
 to `Esc`, then to the badge alone. Sidebar navigation keeps Back and Help; its Row menu hint yields

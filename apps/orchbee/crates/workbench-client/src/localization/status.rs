@@ -36,6 +36,7 @@ pub(crate) struct StatusText {
     pub(crate) retry_rename: &'static str,
     pub(crate) resize_coarse: &'static str,
     pub(crate) resize_fine: &'static str,
+    pub(crate) switch_panel: &'static str,
 }
 
 const EN_US: StatusText = StatusText {
@@ -71,6 +72,7 @@ const EN_US: StatusText = StatusText {
     retry_rename: "rename again",
     resize_coarse: "move 5%",
     resize_fine: "move 1%",
+    switch_panel: "switch Panel",
 };
 
 const ZH_CN: StatusText = StatusText {
@@ -106,6 +108,7 @@ const ZH_CN: StatusText = StatusText {
     retry_rename: "再次重命名",
     resize_coarse: "移动 5%",
     resize_fine: "移动 1%",
+    switch_panel: "切换面板",
 };
 
 impl Locale {
@@ -113,6 +116,14 @@ impl Locale {
         match self {
             Self::EnUs => EN_US,
             Self::ZhCn => ZH_CN,
+        }
+    }
+
+    /// Names the shown Panel's position while a split Tab shows it alone.
+    pub(crate) fn panel_position(self, position: usize, total: usize) -> String {
+        match self {
+            Self::EnUs => format!("Panel {position}/{total}"),
+            Self::ZhCn => format!("面板 {position}/{total}"),
         }
     }
 }
