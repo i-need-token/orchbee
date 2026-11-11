@@ -57,6 +57,41 @@ fn string(value: &str) -> toml::Value {
     toml::Value::String(value.into())
 }
 
+fn key(path: &str) -> Vec<String> {
+    path.split('.').map(str::to_owned).collect()
+}
+
+fn set(path: &str, value: toml::Value) -> SettingChange {
+    SettingChange::Set {
+        key: key(path),
+        value,
+    }
+}
+
+fn changes(changes: Vec<SettingChange>) -> SettingChanges {
+    SettingChanges::new(changes).unwrap()
+}
+
+/// This platform's launch-profile keys and a profile array whose program path is absolute here.
+fn profiles(id: &str) -> (String, String, toml::Value) {
+    let platform = super::super::registry::current_platform();
+    let executable = if cfg!(windows) {
+        r"C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+    } else {
+        "/usr/bin/pwsh"
+    };
+    let value = toml::from_str::<toml::Table>(&format!(
+        "p = [{{ id = '{id}', kind = 'custom-executable', executable = \"{executable}\", arguments = ['-NoLogo'] }}]"
+    ))
+    .unwrap()["p"]
+        .clone();
+    (
+        format!("terminal.profiles.{platform}"),
+        format!("terminal.default_profile.{platform}"),
+        value,
+    )
+}
+
 #[test]
 fn set_changes_only_its_key_and_keeps_comments_order_and_unknown_keys() {
     let fixture = Fixture::new();
@@ -85,6 +120,49 @@ fn set_changes_only_its_key_and_keeps_comments_order_and_unknown_keys() {
             .any(|diagnostic| diagnostic.field == "mystery")
     );
     assert!(!fixture.root().join(PENDING_NAME).exists());
+
+    // Several changes, a whole launch-profile array among them, land in one write and leave the
+    // keys they do not name as they were.
+    let (table, default, value) = profiles("pwsh");
+    let edit = changes(vec![
+        set("terminal.copy_on_select", toml::Value::Boolean(true)),
+        SettingChange::Restore {
+            key: key("appearance.mode"),
+        },
+        set(&table, value),
+        set(&default, string("pwsh")),
+    ]);
+    assert_eq!(edit_settings(&edit, fixture.env()), Ok(true));
+    let text = fixture.text();
+    assert!(
+        text.starts_with(
+            "# my settings\n[terminal]\n# keep this\nfocus_new_panel = false # inline note\nnew_cwd = 'home'\n"
+        ),
+        "{text}"
+    );
+    assert!(text.contains("\n[mystery]\nanswer = 42\n"), "{text}");
+    assert!(!text.contains("[appearance]"), "{text}");
+    let load = crate::read_user_settings(fixture.env()).unwrap();
+    assert!(load.preferences.copy_on_select);
+    assert_eq!(load.preferences.launch_profiles.default_profile_id, "pwsh");
+    assert_eq!(
+        load.diagnostics
+            .items()
+            .iter()
+            .map(|diagnostic| diagnostic.field.as_str())
+            .collect::<Vec<_>>(),
+        ["mystery"]
+    );
+    assert_eq!(edit_settings(&edit, fixture.env()), Ok(false));
+    assert_eq!(fixture.text(), text);
+    assert_eq!(
+        SettingChanges::new(vec![
+            set("terminal.padding", toml::Value::Integer(1)),
+            set("terminal.padding", toml::Value::Integer(2)),
+        ]),
+        None
+    );
+    assert_eq!(SettingChanges::new(Vec::new()), None);
 }
 
 #[test]
@@ -165,16 +243,67 @@ fn refusals_leave_the_file_untouched() {
     }
     assert_eq!(
         set_setting(&["ui", "window_title"], &string("x"), fixture.env()),
-        Err(SettingsEditError::UnknownKey)
+        Err(SettingsEditError::UnknownKey {
+            key: "ui.window_title".into()
+        })
     );
     assert_eq!(
         set_setting(&["keys", "command"], &string("x"), fixture.env()).map(drop),
         Err(SettingsEditError::InvalidValue {
+            key: "keys.command".into(),
             field: "keys.command".into(),
             reason: "wrong-type",
         })
     );
+    // One refused change refuses the whole edit, and names the change it is charged to.
+    let valid = || set("appearance.mode", string("dark"));
+    for (refused, error) in [
+        (
+            set("terminal.font_size", toml::Value::Integer(4)),
+            SettingsEditError::InvalidValue {
+                key: "terminal.font_size".into(),
+                field: "terminal.font_size".into(),
+                reason: "invalid-value",
+            },
+        ),
+        (
+            set("ui.window_title", string("x")),
+            SettingsEditError::UnknownKey {
+                key: "ui.window_title".into(),
+            },
+        ),
+    ] {
+        assert_eq!(
+            edit_settings(&changes(vec![valid(), refused]), fixture.env()),
+            Err(error)
+        );
+    }
+    let (table, default, value) = profiles("pwsh");
+    let entries = toml::Value::Array(vec![value.as_array().unwrap()[0].clone(); 65]);
+    assert_eq!(
+        edit_settings(&changes(vec![set(&table, entries)]), fixture.env())
+            .map_err(|error| error.reason()),
+        Err("value-too-long")
+    );
     assert_eq!(fixture.text(), "[appearance]\nmode = 'light'\n");
+    // A change may not leave another key the reader then refuses, such as a default profile that
+    // names a removed profile.
+    edit_settings(
+        &changes(vec![set(&table, value), set(&default, string("pwsh"))]),
+        fixture.env(),
+    )
+    .unwrap();
+    let with_profiles = fixture.text();
+    assert_eq!(
+        restore_setting_default(&table.split('.').collect::<Vec<_>>(), fixture.env()),
+        Err(SettingsEditError::InvalidValue {
+            key: table.clone(),
+            field: default.clone(),
+            reason: "unknown-profile",
+        })
+    );
+    assert_eq!(fixture.text(), with_profiles);
+    fixture.write("[appearance]\nmode = 'light'\n");
     let mut permissions = fs::metadata(fixture.file()).unwrap().permissions();
     permissions.set_readonly(true);
     fs::set_permissions(fixture.file(), permissions).unwrap();
@@ -202,15 +331,16 @@ fn an_external_edit_during_the_write_is_kept_and_the_edit_redone() {
         }
         read_target(target)
     };
-    edit_locked(
-        &["appearance", "mode"],
-        &Change::Set(&string("dark")),
-        &file,
-        &file,
-        &fixture.env(),
-        &mut read,
-    )
-    .unwrap();
+    assert_eq!(
+        edit_locked(
+            &[set("appearance.mode", string("dark"))],
+            &file,
+            &file,
+            &fixture.env(),
+            &mut read,
+        ),
+        Ok(true)
+    );
     assert_eq!(
         fixture.text(),
         "[terminal]\nfocus_new_panel = true\ncopy_on_select = true\n\n[appearance]\nmode = \"dark\"\n"
@@ -223,8 +353,7 @@ fn an_external_edit_during_the_write_is_kept_and_the_edit_redone() {
     };
     assert_eq!(
         edit_locked(
-            &["appearance", "mode"],
-            &Change::Set(&string("light")),
+            &[set("appearance.mode", string("light"))],
             &file,
             &file,
             &fixture.env(),

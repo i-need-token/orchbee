@@ -1,18 +1,21 @@
-//! Single-key edits of `config.toml` that keep every other byte the person wrote.
+//! Edits of `config.toml` that change only the keys they name and keep every other byte the person
+//! wrote.
 //!
 //! An edit takes `internal/config.lock` in the data root, reads the file and records its digest,
-//! changes only the one key with `toml_edit`, validates the candidate with the reader, writes
-//! `config.pending` beside the file, flushes it, confirms the file still has the recorded digest
-//! (re-reading and redoing the edit once when it does not), and atomically replaces the file. A
-//! symbolic link keeps pointing at its target, which is the file replaced. A file that does not
-//! parse is never written.
+//! applies every change to one candidate with `toml_edit`, validates that candidate once with the
+//! reader, writes `config.pending` beside the file, flushes it, confirms the file still has the
+//! recorded digest (re-reading and redoing the edit once when it does not), and atomically replaces
+//! the file. Every change lands or none does. A symbolic link keeps pointing at its target, which is
+//! the file replaced. A file that does not parse is never written.
 use super::{
-    LIMIT, SettingsError, SettingsSyntaxError, parse, parse_bytes, registry::find_setting,
+    LIMIT, SettingsError, SettingsSyntaxError, parse, parse_bytes,
+    registry::{SETTING_KEYS, SettingValue, find_setting, recognized_path},
     unknown_field, user_settings_path,
 };
 use crate::DataRoot;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     fs::{self, File, OpenOptions, TryLockError},
     io::{self, Read, Write},
@@ -37,13 +40,68 @@ const RETRY_PAUSE: Duration = Duration::from_millis(25);
 const LOCK_NAME: &str = "config.lock";
 const PENDING_NAME: &str = "config.pending";
 
+/// Most changes one edit carries.
+pub const MAXIMUM_SETTING_CHANGES: usize = 64;
+/// Most entries in the array or table a structured key is set to.
+pub const MAXIMUM_STRUCTURED_ENTRIES: usize = 64;
+/// Largest JSON encoding of the value a structured key is set to.
+pub const MAXIMUM_STRUCTURED_VALUE_BYTES: usize = 64 * 1024;
+
+/// One change to `config.toml`. A key names one segment per table level.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SettingChange {
+    /// Set the key to `value`. A structured key such as `terminal.profiles.<platform>` takes its
+    /// whole value in the file's form, an array of tables included.
+    Set {
+        key: Vec<String>,
+        value: toml::Value,
+    },
+    /// Restore the key's default by removing it from the file.
+    Restore { key: Vec<String> },
+}
+
+impl SettingChange {
+    /// The key the change names.
+    pub fn key(&self) -> &[String] {
+        match self {
+            Self::Set { key, .. } | Self::Restore { key } => key,
+        }
+    }
+}
+
+/// From one to [`MAXIMUM_SETTING_CHANGES`] changes, no two naming the same key.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SettingChanges(Vec<SettingChange>);
+
+impl SettingChanges {
+    /// The changes, or `None` when there are none, more than [`MAXIMUM_SETTING_CHANGES`], or two
+    /// that name the same key.
+    pub fn new(changes: Vec<SettingChange>) -> Option<Self> {
+        let keys: BTreeSet<&[String]> = changes.iter().map(SettingChange::key).collect();
+        ((1..=MAXIMUM_SETTING_CHANGES).contains(&changes.len()) && keys.len() == changes.len())
+            .then_some(Self(changes))
+    }
+
+    /// The changes in the order they were given.
+    pub fn as_slice(&self) -> &[SettingChange] {
+        &self.0
+    }
+}
+
 /// Why an edit wrote nothing.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SettingsEditError {
-    /// The key is not a registered setting, or names a part of one that is edited as a whole.
-    UnknownKey,
-    /// The reader refuses the value; `field` and `reason` are the diagnostic it reports.
-    InvalidValue { field: String, reason: &'static str },
+    /// `key` is not a registered setting, or names a part of one that is edited as a whole.
+    UnknownKey { key: String },
+    /// The reader would not take the file this edit makes. `key` is the change it is charged to:
+    /// the one the diagnostic concerns, else the edit's first change. `field` and `reason` are the
+    /// reader's diagnostic, which can name another key the change affects, such as a default
+    /// profile that no longer exists.
+    InvalidValue {
+        key: String,
+        field: String,
+        reason: &'static str,
+    },
     /// The file is not valid UTF-8 or TOML, so it is never written.
     Syntax(SettingsSyntaxError),
     /// The settings location or the existing file cannot be used.
@@ -66,7 +124,7 @@ impl SettingsEditError {
     /// Stable lowercase kebab token for diagnostics.
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::UnknownKey => "unknown-key",
+            Self::UnknownKey { .. } => "unknown-key",
             Self::InvalidValue { reason, .. } => reason,
             Self::Syntax(syntax) => syntax.reason,
             Self::Source(error) => error.reason,
@@ -83,7 +141,8 @@ impl SettingsEditError {
 impl std::fmt::Display for SettingsEditError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidValue { field, reason } => {
+            Self::UnknownKey { key } => write!(f, "cannot write config.toml: {key} (unknown-key)"),
+            Self::InvalidValue { field, reason, .. } => {
                 write!(f, "cannot write config.toml: {field} ({reason})")
             }
             Self::Syntax(syntax) => write!(
@@ -112,39 +171,89 @@ impl From<SettingsEditError> for SettingsError {
     }
 }
 
-enum Change<'a> {
-    Set(&'a toml::Value),
-    Restore,
+/// Apply every change in one write, or none, and return whether the file changed. Each value must
+/// be one the reader admits for its key, and the file the edit makes must give the reader no new
+/// diagnostic on a registered setting. Restoring a key removes it, and a table left empty and
+/// without a comment goes with it. A file that already says what the changes ask for is not
+/// written.
+///
+/// # Errors
+/// Returns the first refusal; nothing is written then.
+pub fn edit_settings(
+    changes: &SettingChanges,
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<bool, SettingsEditError> {
+    edit(changes.as_slice(), &env).map(|(_, changed)| changed)
 }
 
 /// Set the key that `key` names, one segment per table level, to `value`, and return the file's
-/// path. The value must be one the reader admits for that key.
+/// path: [`edit_settings`] with that one change.
 pub fn set_setting(
     key: &[&str],
     value: &toml::Value,
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<PathBuf, SettingsEditError> {
-    edit(key, &Change::Set(value), &env)
+    let change = SettingChange::Set {
+        key: owned(key),
+        value: value.clone(),
+    };
+    edit(&[change], &env).map(|(path, _)| path)
 }
 
-/// Restore the default of the key that `key` names by removing it; a table left empty and
-/// without a comment goes with it. A key already absent writes nothing.
+/// Restore the default of the key that `key` names and return the file's path: [`edit_settings`]
+/// with that one change. A key already absent writes nothing.
 pub fn restore_setting_default(
     key: &[&str],
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<PathBuf, SettingsEditError> {
-    edit(key, &Change::Restore, &env)
+    let change = SettingChange::Restore { key: owned(key) };
+    edit(&[change], &env).map(|(path, _)| path)
+}
+
+fn owned(key: &[&str]) -> Vec<String> {
+    key.iter().map(|segment| (*segment).to_owned()).collect()
+}
+
+/// The key as diagnostics name fields: escaped segments joined with dots.
+fn dotted(key: &[String]) -> String {
+    key.iter()
+        .map(|segment| unknown_field("", segment))
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+/// Refuse a change whose key the editor cannot write, or whose structured value is over its
+/// bounds, before the file is opened.
+fn admit(change: &SettingChange) -> Result<(), SettingsEditError> {
+    let key = change.key();
+    let segments: Vec<&str> = key.iter().map(String::as_str).collect();
+    let setting = find_setting(&segments)
+        .filter(|setting| !setting.path.contains("[]"))
+        .ok_or_else(|| SettingsEditError::UnknownKey { key: dotted(key) })?;
+    if let (SettingChange::Set { value, .. }, SettingValue::Structured(_)) = (change, setting.value)
+    {
+        let entries = match value {
+            toml::Value::Array(entries) => entries.len(),
+            toml::Value::Table(entries) => entries.len(),
+            _ => 0,
+        };
+        let bytes = serde_json::to_vec(value).map_or(usize::MAX, |bytes| bytes.len());
+        if entries > MAXIMUM_STRUCTURED_ENTRIES || bytes > MAXIMUM_STRUCTURED_VALUE_BYTES {
+            return Err(SettingsEditError::InvalidValue {
+                key: dotted(key),
+                field: dotted(key),
+                reason: "value-too-long",
+            });
+        }
+    }
+    Ok(())
 }
 
 fn edit(
-    key: &[&str],
-    change: &Change<'_>,
+    changes: &[SettingChange],
     env: &impl Fn(&str) -> Option<OsString>,
-) -> Result<PathBuf, SettingsEditError> {
-    let setting = find_setting(key).ok_or(SettingsEditError::UnknownKey)?;
-    if setting.path.contains("[]") {
-        return Err(SettingsEditError::UnknownKey);
-    }
+) -> Result<(PathBuf, bool), SettingsEditError> {
+    changes.iter().try_for_each(admit)?;
     let path = user_settings_path(env)
         .map_err(SettingsEditError::Source)?
         .ok_or(SettingsEditError::Source(SettingsError::new(
@@ -159,46 +268,45 @@ fn edit(
     let _lock = acquire_lock(&lock_directory)?;
     let target = resolve_link(&path).map_err(io_failure)?;
     let pending = target.with_file_name(PENDING_NAME);
-    let outcome = edit_locked(key, change, &path, &target, env, &mut read_target);
+    let outcome = edit_locked(changes, &path, &target, env, &mut read_target);
     if outcome.is_err() {
         let _ = fs::remove_file(&pending);
     }
-    outcome.map(|()| path)
+    outcome.map(|changed| (path, changed))
 }
 
 /// The file's bytes, `None` when it does not exist.
 type TargetRead = Result<Option<Vec<u8>>, SettingsEditError>;
 
-/// One edit under the held lock. `read` reads the target; every read goes through it so the
-/// comparison before replacement sees exactly what another writer left.
+/// One edit under the held lock; returns whether the file was replaced. `read` reads the target;
+/// every read goes through it so the comparison before replacement sees exactly what another
+/// writer left.
 fn edit_locked(
-    key: &[&str],
-    change: &Change<'_>,
+    changes: &[SettingChange],
     path: &Path,
     target: &Path,
     env: &impl Fn(&str) -> Option<OsString>,
     read: &mut dyn FnMut(&Path) -> TargetRead,
-) -> Result<(), SettingsEditError> {
+) -> Result<bool, SettingsEditError> {
     let pending = target.with_file_name(PENDING_NAME);
     for _ in 0..2 {
         let before = read(target)?;
-        let Some(after) = candidate(before.as_deref(), key, change, path, env)? else {
-            return Ok(());
+        let Some(after) = candidate(before.as_deref(), changes, path, env)? else {
+            return Ok(false);
         };
         write_pending(target, &pending, after.as_bytes())?;
         if digest(read(target)?.as_deref()) != digest(before.as_deref()) {
             continue;
         }
-        return platform::replace(&pending, target);
+        return platform::replace(&pending, target).map(|()| true);
     }
     Err(SettingsEditError::Changed)
 }
 
-/// The edited text, or `None` when the file already says what the change asks for.
+/// The edited text, or `None` when the file already says what the changes ask for.
 fn candidate(
     before: Option<&[u8]>,
-    key: &[&str],
-    change: &Change<'_>,
+    changes: &[SettingChange],
     path: &Path,
     env: &impl Fn(&str) -> Option<OsString>,
 ) -> Result<Option<String>, SettingsEditError> {
@@ -214,36 +322,36 @@ fn candidate(
     let mut document = text
         .parse::<DocumentMut>()
         .map_err(|_| SettingsEditError::Io(io::ErrorKind::InvalidData))?;
-    let field = key
-        .iter()
-        .map(|segment| unknown_field("", segment))
-        .collect::<Vec<_>>()
-        .join(".");
-    match change {
-        Change::Set(value) => {
-            let item = item(value).ok_or(SettingsEditError::InvalidValue {
-                field: field.clone(),
-                reason: "wrong-type",
-            })?;
-            // Comments that end the file stay above a table the edit adds there, so a file that
-            // began as the printed reference gains its settings below the reference.
-            let trailing = document.trailing().as_str().unwrap_or_default().to_owned();
-            let mut leading = trailing
-                .contains('#')
-                .then(|| format!("{}\n\n", trailing.trim_end()));
-            if leading.is_some() {
-                document.set_trailing("");
+    // Comments that end the file stay above a table the edit adds there, so a file that began as
+    // the printed reference gains its settings below the reference.
+    let trailing = document.trailing().as_str().unwrap_or_default().to_owned();
+    let mut leading = trailing
+        .contains('#')
+        .then(|| format!("{}\n\n", trailing.trim_end()));
+    if leading.is_some() {
+        document.set_trailing("");
+    }
+    for change in changes {
+        let segments: Vec<&str> = change.key().iter().map(String::as_str).collect();
+        match change {
+            SettingChange::Set { value, .. } => {
+                let refused = |field: String| SettingsEditError::InvalidValue {
+                    key: dotted(change.key()),
+                    field,
+                    reason: "wrong-type",
+                };
+                let pattern = find_setting(&segments).map_or("", |setting| setting.path);
+                let item = item(value, pattern).ok_or_else(|| refused(dotted(change.key())))?;
+                set_in(document.as_table_mut(), &segments, item, "", &mut leading)
+                    .map_err(refused)?;
             }
-            set_in(document.as_table_mut(), key, item, "", &mut leading)?;
-            if leading.is_some() {
-                document.set_trailing(trailing);
-            }
-        }
-        Change::Restore => {
-            if !restore_in(document.as_table_mut(), key) {
-                return Ok(None);
+            SettingChange::Restore { .. } => {
+                restore_in(document.as_table_mut(), &segments);
             }
         }
+    }
+    if leading.is_some() {
+        document.set_trailing(trailing);
     }
     let after = document.to_string();
     if after == text {
@@ -256,15 +364,21 @@ fn candidate(
     if let Some(syntax) = after_load.syntax {
         return Err(SettingsEditError::Syntax(syntax));
     }
-    let related = |candidate: &str| {
-        candidate == field
-            || candidate.starts_with(&format!("{field}."))
-            || field.starts_with(&format!("{candidate}."))
-    };
+    // A diagnostic the file did not have refuses the edit when it concerns a changed key or any
+    // registered setting, such as a default profile left naming a removed profile. Fields outside
+    // the registry are the person's own and can only shift in the bounded list.
+    let keys: Vec<String> = changes.iter().map(|change| dotted(change.key())).collect();
     if let Some(refused) = after_load.diagnostics.items().iter().find(|diagnostic| {
-        related(&diagnostic.field) && !before_load.diagnostics.items().contains(diagnostic)
+        !before_load.diagnostics.items().contains(diagnostic)
+            && (recognized_path(&diagnostic.field)
+                || keys.iter().any(|key| related(key, &diagnostic.field)))
     }) {
+        let owner = keys
+            .iter()
+            .find(|key| related(key, &refused.field))
+            .or(keys.first());
         return Err(SettingsEditError::InvalidValue {
+            key: owner.cloned().unwrap_or_default(),
             field: refused.field.clone(),
             reason: refused.reason,
         });
@@ -272,17 +386,36 @@ fn candidate(
     Ok(Some(after))
 }
 
-/// The TOML item a value is written as: an array of tables keeps the `[[...]]` form, any other
-/// value is written inline on its key's line.
-fn item(value: &toml::Value) -> Option<Item> {
+/// Whether a diagnostic on `field` concerns `key`: the key itself, a table that holds it, or a
+/// value or array entry inside it.
+fn related(key: &str, field: &str) -> bool {
+    field == key
+        || field.starts_with(&format!("{key}."))
+        || field.starts_with(&format!("{key}[]"))
+        || key.starts_with(&format!("{field}."))
+}
+
+/// The TOML item a value is written as: an array of tables keeps the `[[...]]` form, with each
+/// entry's keys in the order the registry declares them under `pattern`; any other value is
+/// written inline on its key's line.
+fn item(value: &toml::Value, pattern: &str) -> Option<Item> {
     if let toml::Value::Array(entries) = value
         && !entries.is_empty()
         && entries.iter().all(toml::Value::is_table)
     {
+        let rank = |key: &str| {
+            let path = format!("{pattern}[].{key}");
+            SETTING_KEYS
+                .iter()
+                .position(|setting| setting.path == path)
+                .unwrap_or(SETTING_KEYS.len())
+        };
         let mut array = toml_edit::ArrayOfTables::new();
         for entry in entries {
+            let mut fields: Vec<_> = entry.as_table()?.iter().collect();
+            fields.sort_by_key(|(key, _)| rank(key));
             let mut table = toml_edit::Table::new();
-            for (key, value) in entry.as_table()? {
+            for (key, value) in fields {
                 table.insert(key, Item::Value(inline(value)?));
             }
             array.push(table);
@@ -319,16 +452,17 @@ fn inline(value: &toml::Value) -> Option<toml_edit::Value> {
 }
 
 /// Place `item` at `segments` below `table`. A key already present keeps its own comments and
-/// inline comment; `leading` becomes the prefix of a table header the edit adds.
+/// inline comment; `leading` becomes the prefix of the first table header the edit adds. Fails with
+/// the field of a value on the way that is not a table.
 fn set_in(
     table: &mut dyn TableLike,
     segments: &[&str],
     mut item: Item,
     parent: &str,
     leading: &mut Option<String>,
-) -> Result<(), SettingsEditError> {
+) -> Result<(), String> {
     let Some((first, rest)) = segments.split_first() else {
-        return Err(SettingsEditError::UnknownKey);
+        return Ok(());
     };
     if rest.is_empty() {
         match table.get_mut(first) {
@@ -344,29 +478,31 @@ fn set_in(
         }
         return Ok(());
     }
-    let path = if parent.is_empty() {
-        unknown_field("", first)
-    } else {
-        unknown_field(parent, first)
-    };
+    let path = unknown_field(parent, first);
     if table.get(first).is_none() {
         let mut child = toml_edit::Table::new();
-        // Only the table that receives the key gets a header; tables above it stay implicit.
-        child.set_implicit(rest.len() > 1);
+        // Only the table that receives a value gets a header; tables above it, and the table that
+        // holds an array of tables, stay implicit.
+        let header = rest.len() == 1 && !item.is_array_of_tables();
+        child.set_implicit(!header);
         if rest.len() == 1
             && let Some(prefix) = leading.take()
         {
-            child.decor_mut().set_prefix(prefix);
+            match &mut item {
+                Item::ArrayOfTables(array) => {
+                    if let Some(entry) = array.get_mut(0) {
+                        entry.decor_mut().set_prefix(prefix);
+                    }
+                }
+                _ => child.decor_mut().set_prefix(prefix),
+            }
         }
         table.insert(first, Item::Table(child));
     }
     let child = table
         .get_mut(first)
         .and_then(Item::as_table_like_mut)
-        .ok_or(SettingsEditError::InvalidValue {
-            field: path.clone(),
-            reason: "wrong-type",
-        })?;
+        .ok_or_else(|| path.clone())?;
     set_in(child, rest, item, &path, leading)
 }
 

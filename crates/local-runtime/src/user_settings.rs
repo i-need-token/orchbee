@@ -38,7 +38,11 @@ use crate::{
     user_path::{USER_PATH_LIMIT, normalize_user_path},
 };
 pub use desktop::{DesktopTerminalSettings, MacosOptionAsAlt};
-pub use editor::{SettingsEditError, restore_setting_default, set_setting};
+pub use editor::{
+    MAXIMUM_SETTING_CHANGES, MAXIMUM_STRUCTURED_ENTRIES, MAXIMUM_STRUCTURED_VALUE_BYTES,
+    SettingChange, SettingChanges, SettingsEditError, edit_settings, restore_setting_default,
+    set_setting,
+};
 pub use keys::{
     CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry, KeyChord, KeyOverride,
     KeySettings, KeyTrigger, trigger_label,
