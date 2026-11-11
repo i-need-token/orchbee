@@ -104,6 +104,13 @@ pub(crate) enum TooltipContent {
     /// Agents one per line, each its state glyph and word, then its identity, in the order its
     /// target lists them.
     Roster { items: Vec<RosterItem> },
+    /// A Tab group's name, then its first members one per line, then the localized count of the
+    /// members left out.
+    Members {
+        title: String,
+        names: Vec<String>,
+        more: Option<String>,
+    },
 }
 
 /// A complete name and where it may be cut when it outgrows the box.

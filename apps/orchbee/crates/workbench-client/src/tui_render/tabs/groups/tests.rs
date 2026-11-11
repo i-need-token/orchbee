@@ -618,7 +618,7 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
 }
 
 #[test]
-fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() {
+fn group_header_name_stays_legible_and_leaving_the_pointer_restores_the_header() {
     let mut group = group("Runtime", TabGroupColor::Blue);
     for base in [
         Theme::orchbee_light(),
@@ -666,28 +666,17 @@ fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() 
                             .copied()
                             .find(|(_, part, _)| *part == StripPart::Header)
                             .expect("the group header remains visible");
-                        let surface = match pointer {
-                            ProjectedPointer::Rest => {
-                                (collapsed && active).then_some(Role::SurfaceCurrent)
-                            }
-                            ProjectedPointer::Hovered => Some(Role::SurfaceHover),
-                            ProjectedPointer::Pressed => Some(Role::SurfacePressed),
-                        };
-                        let expected = theme.tab_group_header_style(
-                            color,
-                            surface,
-                            None,
-                            Style::new()
-                                .fg(theme.tab_groups.accent(color))
-                                .add_modifier(Modifier::BOLD),
-                        );
-                        let mut cell = ratatui::buffer::Cell::default();
-                        cell.set_style(expected);
-                        // The name follows the header's leading pad.
+                        // The name follows the header's leading pad and stays legible on
+                        // whatever fill the header shows.
                         let name = &buffer[(header.x + 1, header.y)];
                         assert_eq!(name.symbol(), "R");
-                        assert_eq!((name.fg, name.bg), (cell.fg, cell.bg));
-                        assert_eq!(name.modifier, cell.modifier);
+                        assert!(
+                            name.modifier.contains(Modifier::REVERSED)
+                                || name.fg != name.bg
+                                || name.bg == Color::Reset,
+                            "{} {level:?} {color:?} {pointer:?}",
+                            theme.name
+                        );
                         if pointer == ProjectedPointer::Rest {
                             if let Some(resting) = &resting {
                                 assert_eq!(
@@ -705,40 +694,80 @@ fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() 
     }
 }
 
+/// Paging makes the band's extent non-trivial: it must still run from the header's end through the
+/// last expanded member it paints, or to the trailing marker when the window cuts the group.
 #[test]
-fn group_arrow_shows_in_both_states_and_expanded_members_carry_the_group_rule() {
-    let theme = Theme::terminal_native();
-    let group = group("Work", TabGroupColor::Blue);
-    let accent = theme.tab_groups.accent(TabGroupColor::Blue);
-    for collapsed in [false, true] {
-        let mut member = tab("build", false, Some(&group));
-        member.collapsed = collapsed;
-        let (buffer, hits) = draw(std::slice::from_ref(&member), &theme, 40, rest);
-        let (_, _, header) = hits
+fn an_expanded_group_band_runs_from_its_header_through_its_last_member_only() {
+    let theme = Theme::orchbee_dark();
+    let tint = theme
+        .tab_groups
+        .tint(TabGroupColor::Blue)
+        .expect("a named theme tints its groups");
+    let group = group("build", TabGroupColor::Blue);
+    let members = 3..9;
+    for (active, width, collapsed) in [
+        (0, 200, false),
+        (5, 200, false),
+        (5, 200, true),
+        (7, 60, false),
+        (4, 60, false),
+        (2, 48, false),
+    ] {
+        let tabs: Vec<_> = (0..12)
+            .map(|index| {
+                let mut tab = tab(
+                    &format!("task-{index}"),
+                    index == active,
+                    members.contains(&index).then_some(&group),
+                );
+                tab.collapsed = collapsed;
+                tab
+            })
+            .collect();
+        let (buffer, hits) = draw(&tabs, &theme, width, rest);
+        let tinted: Vec<bool> = (0..width).map(|x| buffer[(x, 0)].bg == tint).collect();
+        let case = format!("active={active} width={width} collapsed={collapsed}");
+        if collapsed {
+            assert!(tinted.iter().all(|cell| !cell), "{case}");
+            continue;
+        }
+        let painted: Vec<_> = hits
             .iter()
-            .copied()
+            .filter(|(index, part, _)| {
+                members.contains(index) && matches!(part, StripPart::Tab | StripPart::Close)
+            })
+            .collect();
+        let last = painted.iter().map(|(index, ..)| *index).max();
+        let Some(start) = hits
+            .iter()
             .find(|(_, part, _)| *part == StripPart::Header)
-            .expect("the group header remains visible");
-        let arrow = if collapsed {
-            theme.glyphs.disclosure_closed
-        } else {
-            theme.glyphs.disclosure_open
+            .map(|(_, _, rect)| rect.right())
+            .or_else(|| painted.iter().map(|(_, _, rect)| rect.x).min())
+        else {
+            assert!(tinted.iter().all(|cell| !cell), "{case}");
+            continue;
         };
-        assert_eq!(
-            buffer[(header.right() - 2, header.y)].symbol(),
-            arrow,
-            "collapsed={collapsed}"
-        );
-        let member_rect = hits
+        let marker = hits
             .iter()
-            .copied()
-            .find(|(_, part, _)| *part == StripPart::Tab)
-            .map(|(_, _, rect)| rect);
-        assert_eq!(member_rect.is_none(), collapsed, "collapsed={collapsed}");
-        // An expanded member's leading cell carries the group's rule in the group's color.
-        if let Some(rect) = member_rect {
-            let rule = &buffer[(rect.x, rect.y)];
-            assert_eq!((rule.symbol(), rule.fg), (theme.glyphs.tree_guide, accent));
+            .find(|(_, part, rect)| is_page(*part) && rect.x >= start)
+            .map(|(_, _, rect)| rect.x);
+        // A group the window cuts keeps its band up to the trailing marker's gap.
+        let continues = last.is_none_or(|last| last + 1 < members.end);
+        let end = match marker {
+            Some(marker) if continues => marker - 1,
+            _ => painted
+                .iter()
+                .map(|(_, _, rect)| rect.right())
+                .max()
+                .unwrap_or(start),
+        };
+        let current = |x: u16| {
+            hits.iter()
+                .any(|(index, _, rect)| *index == active && rect.x <= x && x < rect.right())
+        };
+        for x in 0..width {
+            let expected = (start..end).contains(&x) && !current(x);
+            assert_eq!(tinted[usize::from(x)], expected, "{case} x={x}");
         }
     }
 }

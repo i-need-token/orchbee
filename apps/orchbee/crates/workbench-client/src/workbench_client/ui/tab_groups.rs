@@ -424,6 +424,22 @@ impl WorkbenchClientUi {
             }
             return ClientActionDisposition::KeepNavigator;
         }
+        if action == MenuAction::CollapseGroup {
+            // Folds the addressed Tab's group through the same toggle as a header press; a group
+            // already folded stays folded.
+            let group = self.state.as_ref().and_then(|state| {
+                let tab = match target {
+                    Some(id) => state.cache().tabs().get(state.cache().tab_index(id)?)?,
+                    None => current_tab(state)?,
+                };
+                let group = tab.group()?.group_id.clone();
+                (!state.group_collapsed(&group)).then_some(group)
+            });
+            return match group {
+                Some(group) => self.toggle_tab_group(&group),
+                None => ClientActionDisposition::KeepNavigator,
+            };
+        }
         if matches!(action, MenuAction::NewGroupWithTab) {
             return self.create_tab_placed(Some(TabCreationPlacement::NewGroup {}));
         }

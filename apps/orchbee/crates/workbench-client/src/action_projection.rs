@@ -430,6 +430,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             built_in("tabs.tab.move-to-group", C::Tab, MOVE_TAB)
         }
         A::Ungroup => built_in("tabs.group.ungroup", C::Tab, TAB),
+        A::CollapseGroup => built_in("orchbee.native.tab-group.collapse", C::Tab, TAB),
         A::RenameTab => built_in("workbench.tab.title.set", C::Tab, RENAME_TAB),
         A::RenamePanel => built_in(
             "workbench.panel.rename",

@@ -182,6 +182,16 @@ fn action_availability(
             _ => ActionAvailability::Hidden,
         };
     }
+    // Collapse group joins only while the current Tab sits in an expanded group.
+    if action == MenuAction::CollapseGroup
+        && !state.is_some_and(|state| {
+            super::tab_groups::current_tab(state)
+                .and_then(crate::workbench_projection::ClientTab::group)
+                .is_some_and(|group| !state.group_collapsed(&group.group_id))
+        })
+    {
+        return ActionAvailability::Hidden;
+    }
     if matches!(target, Target::Global)
         && matches!(
             action,

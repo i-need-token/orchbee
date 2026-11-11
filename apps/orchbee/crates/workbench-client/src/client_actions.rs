@@ -218,6 +218,8 @@ pub enum MenuAction {
     JoinGroup(u16),
     RemoveFromGroup,
     Ungroup,
+    /// The global menu's keyboard path to folding the current Tab's expanded group.
+    CollapseGroup,
     RenameTab,
     RenamePanel,
     ClearTerminal,
@@ -306,6 +308,7 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::JoinGroup(_) => Self::JoinGroup,
             MenuAction::RemoveFromGroup => Self::RemoveFromGroup,
             MenuAction::Ungroup => Self::Ungroup,
+            MenuAction::CollapseGroup => Self::CollapseGroup,
             MenuAction::RenameTab => Self::RenameTab,
             MenuAction::RenamePanel => Self::RenamePanel,
             MenuAction::ClearTerminal => Self::ClearTerminal,
@@ -406,7 +409,8 @@ impl MenuAction {
             | Self::GroupColor(_)
             | Self::JoinGroup(_)
             | Self::RemoveFromGroup
-            | Self::Ungroup => ClientAction::TabMenu {
+            | Self::Ungroup
+            | Self::CollapseGroup => ClientAction::TabMenu {
                 action: self.clone(),
                 tab_id: None,
             },

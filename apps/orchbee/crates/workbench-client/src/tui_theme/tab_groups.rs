@@ -88,4 +88,28 @@ impl TabGroupPalette {
     pub(crate) const fn tint(&self, color: TabGroupColor) -> Option<Color> {
         self.tints[slot(color)]
     }
+
+    /// Whether the color level still shows the group's accent; Monochrome and NO_COLOR resolve
+    /// every accent to the host default.
+    pub(crate) fn colored(&self, color: TabGroupColor) -> bool {
+        self.accent(color) != Color::Reset
+    }
+
+    /// Black or white text, whichever contrasts more with the accent as a fill, in the accent's
+    /// own color space; none where the accent is the host default.
+    pub(crate) fn foreground(&self, color: TabGroupColor) -> Option<Color> {
+        let accent = self.accent(color);
+        let rgb = super::sampled_color(accent)?;
+        let dark =
+            super::color_contrast(rgb, (0, 0, 0)) >= super::color_contrast(rgb, (255, 255, 255));
+        Some(match accent {
+            Color::Rgb(..) => {
+                let channel = if dark { 0 } else { 255 };
+                Color::Rgb(channel, channel, channel)
+            }
+            Color::Indexed(_) => Color::Indexed(if dark { 16 } else { 231 }),
+            _ if dark => Color::Black,
+            _ => Color::White,
+        })
+    }
 }

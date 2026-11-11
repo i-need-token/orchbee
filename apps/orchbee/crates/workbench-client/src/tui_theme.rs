@@ -197,8 +197,9 @@ pub struct GlyphSet {
     /// Project disclosure, with one-cell ASCII fallbacks.
     pub(crate) disclosure_open: &'static str,
     pub(crate) disclosure_closed: &'static str,
-    /// One-cell vertical guide connecting sibling Agents to their Workspace, and an expanded Tab
-    /// Group's members to its header.
+    /// One-cell vertical guide connecting sibling Agents to their Workspace and running down an
+    /// expanded Tab Group's members in the Tab list, and the strip's member mark where no group
+    /// color shows.
     pub(crate) tree_guide: &'static str,
     /// The sidebar toggle's glyph while it hides the visible sidebar and while it shows the hidden
     /// one. The ASCII forms appear only inside that bracketed toggle, never in a marker track.
@@ -584,9 +585,10 @@ impl Theme {
         }
     }
 
-    /// Group header content rests on a faint fill of the group's accent over the Tab strip. A
-    /// current, selected or pointer surface replaces only that fill.
-    pub(crate) fn tab_group_header_style(
+    /// An expanded group's members and the gaps between them rest on a faint fill of the group's
+    /// accent over the Tab strip. A current, selected or pointer surface replaces only that fill;
+    /// a color level without the tint keeps the strip.
+    pub(crate) fn tab_group_band_style(
         &self,
         color: orchbee_workbench_protocol::TabGroupColor,
         surface: Option<Role>,
@@ -598,6 +600,32 @@ impl Theme {
             (None, Some(tint)) => style.bg(tint),
             _ => style,
         }
+    }
+
+    /// A resting group header is a solid block of the group's accent, or a reverse-video block
+    /// where no accent shows. Its text takes [`Self::tab_group_chip_text`].
+    pub(crate) fn tab_group_chip_style(
+        &self,
+        color: orchbee_workbench_protocol::TabGroupColor,
+        content_role: Option<Role>,
+        content: Style,
+    ) -> Style {
+        let style = self.content_on_surface(Role::SurfaceStrip, None, content_role, content);
+        if self.tab_groups.colored(color) {
+            style.bg(self.tab_groups.accent(color))
+        } else {
+            style.add_modifier(Modifier::REVERSED)
+        }
+    }
+
+    /// The black or white text that contrasts most with a resting group header's accent.
+    pub(crate) fn tab_group_chip_text(
+        &self,
+        color: orchbee_workbench_protocol::TabGroupColor,
+    ) -> Style {
+        self.tab_groups
+            .foreground(color)
+            .map_or_else(Style::new, |foreground| Style::new().fg(foreground))
     }
 
     /// The default theme for an unknown host appearance or color level.

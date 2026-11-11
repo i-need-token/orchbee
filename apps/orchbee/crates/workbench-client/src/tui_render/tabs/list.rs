@@ -1,9 +1,9 @@
 //! The Mobile tier's Tab list: today's Tab strip turned vertical over the whole window, with the
 //! strip's own tokens as its rows in the strip's order. Pinned Tabs lead with the strip's rule
-//! under them, a Tab Group shows as its name in its color with `▾` while expanded or `▸` while
-//! collapsed, its members sit indented beneath a rule of its color, and every row keeps the strip's
-//! targets, so a press selects, a drag reorders and the secondary button opens the Tab menu as on
-//! the strip.
+//! under them, a Tab Group's header is a row filled with its color with its name at the start and
+//! `▾` while expanded or `▸` while collapsed at the end, its members sit indented beside a
+//! continuous bar of its color, and every row keeps the strip's targets, so a press selects, a
+//! drag reorders and the secondary button opens the Tab menu as on the strip.
 //!
 //! From the touch-spacing height it is spaced like the sidebar list: blank, `[ New Tab ]` and
 //! `[ « ]`, blank, blank, the Workspace's name, blank, then a row and its blank line per Tab. A
@@ -319,6 +319,28 @@ pub(in crate::tui_render) fn render(
             &mut halos,
             hits,
         );
+        // A spaced group's bar continues through the blank line to its next member, ahead of the
+        // halves, which leave a painted cell alone.
+        if lines.touch
+            && let Some(color) = entry.token.band
+            && rows
+                .get(index + 1)
+                .is_some_and(|(_, next)| next.token.header == entry.token.header)
+            && y + 1 < list_bottom
+        {
+            frame.buffer_mut().set_stringn(
+                inner.x + 1,
+                y + 1,
+                theme.glyphs.tree_guide,
+                1,
+                theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    None,
+                    None,
+                    Style::new().fg(theme.tab_groups.accent(color)),
+                ),
+            );
+        }
         visible += 1;
         y += lines.spacing;
     }
@@ -456,13 +478,23 @@ fn paint_row(
         ProjectedPointer::Rest => None,
     };
     let band = Rect::new(area.x, y, area.width, 1);
-    let on = |role: Option<Role>, content: Style| {
-        theme.content_on_surface(Role::SurfaceChrome, fill, role, content)
+    // A resting group header is a solid block of its accent across the row, without halves.
+    let chip = match token.kind {
+        Kind::Header { color, .. } if fill.is_none() => Some(color),
+        _ => None,
+    };
+    let on = |role: Option<Role>, content: Style| match chip {
+        Some(color) => theme.tab_group_chip_style(color, role, content),
+        None => theme.content_on_surface(Role::SurfaceChrome, fill, role, content),
     };
     frame
         .buffer_mut()
         .set_style(band, on(None, theme.style(Role::SurfaceChrome)));
-    halos.fill(theme, band, fill);
+    if chip.is_some() {
+        halos.text(band);
+    } else {
+        halos.fill(theme, band, fill);
+    }
 
     let working_frame = view.machines.working_frame();
     let unread = token.agent.is_some_and(|agent| agent.unread);
@@ -475,6 +507,8 @@ fn paint_row(
         ..PartCue::default()
     };
     let mut cut = None;
+    // A header's whole name and member names, which its tooltip lists.
+    let mut group: Option<(&str, &[String])> = None;
     let write = |frame: &mut Frame<'_>, x: u16, text: &str, style: Style, end: u16| -> Rect {
         let (next, _) =
             frame
@@ -482,63 +516,58 @@ fn paint_row(
                 .set_stringn(x, y, text, usize::from(end.saturating_sub(x)), style);
         Rect::new(x, y, next.saturating_sub(x), 1)
     };
-    let list_width = inner.width;
     match &token.kind {
         Kind::Header {
             color,
             collapsed,
-            name,
+            full,
+            members,
             ..
         } => {
-            let accent = Style::new().fg(theme.tab_groups.accent(*color));
-            let label = truncate_display(
-                name,
-                usize::from(list_width.saturating_sub(3)),
-                theme.glyphs.ellipsis,
-            );
-            if label != *name {
-                cut = Some(name.clone());
+            // The text takes the block's black or white at rest, and the accent on any other fill.
+            let text = if chip.is_some() {
+                theme.tab_group_chip_text(*color)
+            } else {
+                Style::new().fg(theme.tab_groups.accent(*color))
+            };
+            // The arrow sits in the current Tab's close-glyph column, as the GUI's chevron sits at
+            // the header's end.
+            let arrow_x = trailing_x(line, None, touch)
+                .map_or(inner.right().saturating_sub(1), |x| {
+                    x + if touch { 2 } else { 1 }
+                });
+            // A collapsed group carries its hidden members' cue after its name, as on the strip.
+            let cue_width = if *collapsed {
+                u16::from(glyph.is_some()) * 2 + u16::from(unread) * 2
+            } else {
+                0
+            };
+            let room = arrow_x
+                .saturating_sub(inner.x + 2)
+                .saturating_sub(cue_width);
+            let label = truncate_display(full, usize::from(room).max(1), theme.glyphs.ellipsis);
+            if label != *full {
+                cut = Some(full.clone());
             }
-            let painted = write(
+            let mut x = write(
                 frame,
                 inner.x + 1,
                 &label,
-                on(None, accent.add_modifier(Modifier::BOLD)),
-                inner.right(),
-            );
-            // The arrow names the state in both states, and rises to primary text under the
-            // pointer as on the strip.
-            let arrow = if *collapsed {
-                theme.glyphs.disclosure_closed
-            } else {
-                theme.glyphs.disclosure_open
-            };
-            let arrow_style = if pointer == ProjectedPointer::Rest {
-                accent
-            } else {
-                theme.style(Role::TextPrimary)
-            };
-            let mut x = write(
-                frame,
-                painted.right(),
-                &format!(" {arrow}"),
-                on(None, arrow_style),
-                inner.right(),
+                on(None, text.add_modifier(Modifier::BOLD)),
+                arrow_x,
             )
             .right();
             if *collapsed {
-                // A collapsed group carries its hidden members' cue, as on the strip.
                 if let Some((glyph, agent)) = glyph {
-                    let glyph_x = x + 1;
                     let rect = write(
                         frame,
-                        glyph_x,
+                        x + 1,
                         glyph,
                         on(
                             Some(Theme::agent_role(agent.state)),
                             theme.agent_style(agent.state, working_frame),
                         ),
-                        inner.right(),
+                        arrow_x,
                     );
                     cue.glyph = (!rect.is_empty()).then_some(rect);
                     x = rect.right();
@@ -549,17 +578,34 @@ fn paint_row(
                         x + 1,
                         theme.glyphs.status_bullet,
                         on(Some(Role::StatusUnread), theme.style(Role::StatusUnread)),
-                        inner.right(),
+                        arrow_x,
                     );
                     cue.dot = (!rect.is_empty()).then_some(rect);
                 }
             }
+            // The arrow names the state in both states, and rises to primary text under the
+            // pointer as on the strip.
+            let arrow = if *collapsed {
+                theme.glyphs.disclosure_closed
+            } else {
+                theme.glyphs.disclosure_open
+            };
+            let arrow_style = if matches!(
+                pointer,
+                ProjectedPointer::Hovered | ProjectedPointer::Pressed
+            ) {
+                theme.style(Role::TextPrimary)
+            } else {
+                text
+            };
+            write(frame, arrow_x, arrow, on(None, arrow_style), inner.right());
+            group = Some((full.as_str(), members.as_slice()));
         }
         Kind::Tab { full, .. } => {
             let member = token.header.is_some();
             let gx = inner.x + 1 + if member { 2 } else { 0 };
-            if let Some(color) = token.rule {
-                // The group's rule runs down its members, under the header's first cell.
+            if let Some(color) = token.band {
+                // The group's bar runs down its members, under the header's first cell.
                 write(
                     frame,
                     inner.x + 1,
@@ -644,7 +690,14 @@ fn paint_row(
     for (glyph, content) in super::strip_glyph_tooltips(view, cue, locale, theme) {
         hits.record_target_part_tooltip(LAYER, glyph, target_rect, hit.clone(), content);
     }
-    if let Some(text) = cut
+    if let Some((title, names)) = group {
+        hits.record_tooltip(
+            LAYER,
+            target_rect,
+            hit.clone(),
+            crate::tui_render::tooltip::members(title, names.iter().cloned(), locale),
+        );
+    } else if let Some(text) = cut
         && let Some(content) = crate::tui_render::tooltip::describe(
             Some(TooltipText {
                 text,

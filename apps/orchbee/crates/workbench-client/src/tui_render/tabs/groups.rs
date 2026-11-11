@@ -59,6 +59,10 @@ pub(in crate::tui_render) struct PartCue<'a> {
     pub(in crate::tui_render) name: Option<&'a str>,
     /// The edge marker pages toward later Tabs rather than earlier ones.
     pub(in crate::tui_render) later: bool,
+    /// A group header's whole name, which its tooltip leads with.
+    pub(in crate::tui_render) group: Option<&'a str>,
+    /// A group header's member names in strip order, which its tooltip lists.
+    pub(in crate::tui_render) members: &'a [String],
 }
 
 /// The first token of a paged strip window, by display index: the Tab, or its group's header.
@@ -91,6 +95,10 @@ pub(super) enum Kind {
         current: bool,
         checked: bool,
         name: String,
+        /// The whole name before the strip's 24-cell limit.
+        full: String,
+        /// Every member's whole label, in strip order.
+        members: Vec<String>,
     },
     Divider,
 }
@@ -100,8 +108,8 @@ pub(super) struct Token {
     pub(super) index: usize,
     /// The header of the group this token belongs to.
     pub(super) header: Option<usize>,
-    /// The expanded group this Tab belongs to, whose rule paints the Tab's leading cell.
-    pub(super) rule: Option<TabGroupColor>,
+    /// The expanded group this Tab belongs to, whose band rests under it and the gap before it.
+    pub(super) band: Option<TabGroupColor>,
     pub(super) agent: Option<TabAgent>,
     /// Each distinct state behind `agent`, most urgent first.
     pub(super) states: Vec<MetadataState>,
@@ -111,7 +119,7 @@ pub(super) struct Token {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Piece {
     Pad,
-    /// An expanded group's rule, painted in its member's leading cell.
+    /// An expanded group member's mark in its leading cell where no group color shows.
     Rule,
     Glyph,
     Label,
@@ -144,8 +152,8 @@ impl Token {
     /// The whole name, which painted `pieces` may cut.
     fn full_text(&self) -> &str {
         match &self.kind {
-            Kind::Tab { full, .. } => full,
-            _ => self.text(),
+            Kind::Tab { full, .. } | Kind::Header { full, .. } => full,
+            Kind::Divider => self.text(),
         }
     }
 
@@ -203,10 +211,13 @@ impl Token {
             let Some(room) = budget.checked_sub(fixed).filter(|room| *room >= least) else {
                 continue;
             };
-            // A member's leading cell carries its group's rule, the same single cell as a pad.
-            let mut pieces = vec![match self.rule {
-                Some(_) => (theme.glyphs.tree_guide.to_owned(), Piece::Rule),
-                None => (" ".to_owned(), Piece::Pad),
+            // Without a group color, a member's leading cell carries the group's mark in place of
+            // its band, the same single cell as a pad.
+            let mut pieces = vec![match self.band {
+                Some(color) if !theme.tab_groups.colored(color) => {
+                    (theme.glyphs.tree_guide.to_owned(), Piece::Rule)
+                }
+                _ => (" ".to_owned(), Piece::Pad),
             }];
             if let Some(glyph) = &glyph {
                 pieces.push((glyph.clone(), Piece::Glyph));
@@ -263,10 +274,17 @@ pub(super) fn tokens(
                 let mut states: Vec<_> = hidden.iter().map(|agent| agent.state).collect();
                 states.sort_by_key(|state| urgency(*state));
                 states.dedup();
+                let full =
+                    crate::terminal_text::sanitize_terminal_text(if group.label.is_empty() {
+                        unnamed_group
+                    } else {
+                        &group.label
+                    })
+                    .into_owned();
                 tokens.push(Token {
                     index: index + active.unwrap_or(0),
                     header: None,
-                    rule: None,
+                    band: None,
                     agent: summarize(hidden.into_iter()),
                     states,
                     kind: Kind::Header {
@@ -274,14 +292,15 @@ pub(super) fn tokens(
                         collapsed: item.collapsed,
                         current: item.collapsed && active.is_some(),
                         checked: item.collapsed && members.iter().any(|item| item.selected),
-                        name: crate::terminal_text::sanitize_terminal_text(
-                            if group.label.is_empty() {
-                                unnamed_group
-                            } else {
-                                &group.label
-                            },
-                        )
-                        .into_owned(),
+                        name: truncate_display(&full, LABEL_LIMIT, theme.glyphs.ellipsis),
+                        full,
+                        members: members
+                            .iter()
+                            .map(|item| {
+                                crate::terminal_text::sanitize_terminal_text(&item.tab.label)
+                                    .into_owned()
+                            })
+                            .collect(),
                     },
                 });
             }
@@ -296,7 +315,7 @@ pub(super) fn tokens(
             index,
             header: current_header,
             // Only members of an expanded group reach this point; a collapsed group skips them.
-            rule: item.group.map(|group| group.color),
+            band: item.group.map(|group| group.color),
             agent: item.agent,
             states: item.agent.map(|agent| agent.state).into_iter().collect(),
             kind: Kind::Tab {
@@ -311,7 +330,7 @@ pub(super) fn tokens(
             tokens.push(Token {
                 index,
                 header: None,
-                rule: None,
+                band: None,
                 agent: None,
                 states: Vec::new(),
                 kind: Kind::Divider,
@@ -427,9 +446,17 @@ where
     let mut painted = 0;
     // The first token this window leaves out or shortens: the next page starts there.
     let mut next_page = None;
+    // The last painted token and its place in `indices`, which a group's band continues from.
+    let mut previous: Option<(usize, usize)> = None;
     for (position, token_index) in indices.iter().copied().enumerate() {
         let token = &tokens[token_index];
         if painted > 0 && used < content_end {
+            // The gap between two tokens of one expanded group carries its band.
+            if let Some(color) =
+                band_between(&tokens, previous.map(|(index, _)| index), Some(token_index))
+            {
+                paint_band(frame, area, used, 1, color, theme);
+            }
             used += 1;
         }
         let budget = if Some(token_index) == prefix {
@@ -473,6 +500,7 @@ where
         }
         painted += 1;
         used += cells;
+        previous = Some((token_index, position));
         if used >= content_end {
             if let Some(next) = indices.get(position + 1) {
                 next_page.get_or_insert(*next);
@@ -490,6 +518,20 @@ where
             false,
             theme,
             &mut interactions,
+        );
+    }
+    if trailing
+        && let Some((last, position)) = previous
+        && let Some(color) = band_between(&tokens, Some(last), indices.get(position + 1).copied())
+    {
+        // A group the window cuts keeps its band up to the trailing marker.
+        paint_band(
+            frame,
+            area,
+            used,
+            content_end.saturating_sub(used),
+            color,
+            theme,
         );
     }
     if trailing {
@@ -524,6 +566,44 @@ where
         return area.width.saturating_add(1);
     }
     u16::try_from(painted_end + usize::from(painted_end > 0)).unwrap_or(u16::MAX)
+}
+
+/// The expanded group whose band joins `previous` to `next`: `next` is one of its members and
+/// `previous` its header or another of its members.
+fn band_between(
+    tokens: &[Token],
+    previous: Option<usize>,
+    next: Option<usize>,
+) -> Option<TabGroupColor> {
+    let next = tokens.get(next?)?;
+    let header = next.header?;
+    let previous = previous?;
+    (previous == header || tokens.get(previous)?.header == Some(header))
+        .then_some(next.band)
+        .flatten()
+}
+
+/// Paints `width` cells of a group's band from `offset`, keeping what they show.
+fn paint_band(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    offset: usize,
+    width: usize,
+    color: TabGroupColor,
+    theme: &Theme,
+) {
+    let (Ok(offset), Ok(width)) = (u16::try_from(offset), u16::try_from(width)) else {
+        return;
+    };
+    let rect = Rect::new(area.x.saturating_add(offset), area.y, width, 1)
+        .intersection(area)
+        .intersection(frame.area());
+    if !rect.is_empty() {
+        frame.buffer_mut().set_style(
+            rect,
+            theme.tab_group_band_style(color, None, None, Style::new()),
+        );
+    }
 }
 
 /// The token a paged start names while it is in the strip: the Tab, or its group's header when
@@ -747,6 +827,11 @@ fn paint_token<C, P, R>(
         dot: dot.filter(|dot| body.intersection(*dot) == *dot),
         name: cut.then(|| token.full_text()),
         later: false,
+        group: matches!(token.kind, Kind::Header { .. }).then(|| token.full_text()),
+        members: match &token.kind {
+            Kind::Header { members, .. } => members,
+            _ => &[],
+        },
     };
     interactions.record(token.index, part, body, cue);
     if let Some(close) = close {
@@ -791,7 +876,18 @@ fn piece_style(
             let surface = pointer_surface
                 .or_else(|| checked.then_some(Role::SurfaceSelection))
                 .or_else(|| active.then_some(Role::SurfaceCurrent));
+            // Where the group color shows without a tint, a resting member's label takes the
+            // accent instead of the band.
+            let accent_label = token
+                .band
+                .filter(|color| {
+                    surface.is_none()
+                        && theme.tab_groups.colored(*color)
+                        && theme.tab_groups.tint(*color).is_none()
+                })
+                .map(|color| Style::new().fg(theme.tab_groups.accent(color)));
             let (role, content) = match piece {
+                Piece::Label if accent_label.is_some() => (None, accent_label.unwrap_or_default()),
                 Piece::Label => {
                     // Hover raises an inactive label to primary text; bold stays with current and press.
                     let role = if *active || pointer != ProjectedPointer::Rest {
@@ -838,15 +934,13 @@ fn piece_style(
                             ),
                     };
                 }
-                Piece::Rule => (
-                    None,
-                    token.rule.map_or_else(Style::new, |color| {
-                        Style::new().fg(theme.tab_groups.accent(color))
-                    }),
-                ),
+                Piece::Rule => (None, Style::new()),
                 Piece::Pad | Piece::Arrow | Piece::Close => (None, Style::new()),
             };
-            theme.content_on_surface(Role::SurfaceStrip, surface, role, content)
+            match token.band {
+                Some(color) => theme.tab_group_band_style(color, surface, role, content),
+                None => theme.content_on_surface(Role::SurfaceStrip, surface, role, content),
+            }
         }
         Kind::Header {
             color,
@@ -857,21 +951,36 @@ fn piece_style(
             let surface = pointer_surface
                 .or_else(|| checked.then_some(Role::SurfaceSelection))
                 .or_else(|| current.then_some(Role::SurfaceCurrent));
-            let accent = Style::new().fg(theme.tab_groups.accent(*color));
-            let (role, content) = match piece {
-                Piece::Label => (None, accent.add_modifier(Modifier::BOLD)),
-                Piece::Arrow if pointer_surface.is_some() => (None, theme.style(Role::TextPrimary)),
-                Piece::Arrow => (None, accent),
-                Piece::Glyph => token.agent.map_or((None, Style::new()), |agent| {
+            let state = |piece: Piece| match piece {
+                Piece::Glyph => token.agent.map(|agent| {
                     (
                         Some(Theme::agent_role(agent.state)),
                         theme.agent_style(agent.state, working_frame),
                     )
                 }),
-                Piece::Unread => (Some(Role::StatusUnread), theme.style(Role::StatusUnread)),
-                Piece::Pad | Piece::Rule | Piece::Close => (None, Style::new()),
+                Piece::Unread => Some((Some(Role::StatusUnread), theme.style(Role::StatusUnread))),
+                _ => None,
             };
-            theme.tab_group_header_style(*color, surface, role, content)
+            // At rest the header is a solid block of the accent with black or white text; a
+            // pointer, marked or current surface replaces the block and paints the name in the
+            // accent.
+            let Some(surface) = surface else {
+                let text = theme.tab_group_chip_text(*color);
+                let (role, content) = match piece {
+                    Piece::Label => (None, text.add_modifier(Modifier::BOLD)),
+                    Piece::Arrow => (None, text),
+                    _ => state(piece).unwrap_or((None, Style::new())),
+                };
+                return theme.tab_group_chip_style(*color, role, content);
+            };
+            let accent = Style::new().fg(theme.tab_groups.accent(*color));
+            let (role, content) = match piece {
+                Piece::Label => (None, accent.add_modifier(Modifier::BOLD)),
+                Piece::Arrow if pointer_surface.is_some() => (None, theme.style(Role::TextPrimary)),
+                Piece::Arrow => (None, accent),
+                _ => state(piece).unwrap_or((None, Style::new())),
+            };
+            theme.content_on_surface(Role::SurfaceStrip, Some(surface), role, content)
         }
     }
 }

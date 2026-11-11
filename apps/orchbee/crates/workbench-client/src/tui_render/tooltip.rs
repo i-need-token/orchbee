@@ -33,6 +33,8 @@ const FRAME_ROWS: usize = 2;
 const LEGEND_GAP: &str = "  ";
 /// A roster takes at most this many lines; when it cuts, the last line counts the Agents left out.
 const ROSTER_LINES: usize = 8;
+/// A Tab group's tooltip names at most this many members, as the GUI's group card does.
+const GROUP_MEMBER_LINES: usize = 5;
 
 /// The first key the binding table shows now for a Client action, in the theme's key glyphs.
 pub(super) fn action_key(view: &ClientView, action: ClientAction, theme: &Theme) -> Option<String> {
@@ -255,6 +257,42 @@ fn lines(content: &TooltipContent, room: usize, theme: &Theme) -> Vec<Line<'stat
             lines
         }
         TooltipContent::Roster { items } => roster_lines(items, room, theme),
+        TooltipContent::Members { title, names, more } => {
+            let ellipsis = theme.glyphs.ellipsis;
+            let mut lines = vec![Line::from(Span::styled(
+                truncate_display(title, room, ellipsis),
+                on_box(Role::TextPrimary, theme.style(Role::TextPrimary)),
+            ))];
+            lines.extend(names.iter().map(|name| {
+                Line::from(Span::styled(
+                    truncate_display(name, room, ellipsis),
+                    on_box(Role::TextSecondary, theme.style(Role::TextSecondary)),
+                ))
+            }));
+            lines.extend(more.iter().map(|more| {
+                Line::from(Span::styled(
+                    truncate_display(more, room, ellipsis),
+                    on_box(Role::TextSecondary, theme.style(Role::TextSecondary)),
+                ))
+            }));
+            lines
+        }
+    }
+}
+
+/// A Tab group's tooltip: its name, then up to [`GROUP_MEMBER_LINES`] member names, then how many
+/// more it leaves out.
+pub(super) fn members(
+    title: &str,
+    names: impl IntoIterator<Item = String>,
+    locale: Locale,
+) -> TooltipContent {
+    let names: Vec<String> = names.into_iter().collect();
+    let more = names.len().saturating_sub(GROUP_MEMBER_LINES);
+    TooltipContent::Members {
+        title: title.to_owned(),
+        names: names.into_iter().take(GROUP_MEMBER_LINES).collect(),
+        more: (more > 0).then(|| locale.tooltip_more_members(more)),
     }
 }
 

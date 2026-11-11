@@ -131,10 +131,10 @@ pub(super) struct TabDisplay<'a> {
     pub(super) label: std::borrow::Cow<'a, str>,
 }
 
-/// What a pointer resting on one strip part reads: a Tab or group header gives only the name it
-/// cuts, in full, close names its key only on the current Tab, the one the key closes, and an edge
-/// marker names the direction it pages. Its glyphs name themselves from their own cells, through
-/// [`strip_glyph_tooltips`].
+/// What a pointer resting on one strip part reads: a Tab gives only the name it cuts, in full, a
+/// group header its name and members, close names its key only on the current Tab, the one the
+/// key closes, and an edge marker names the direction it pages. Its glyphs name themselves from
+/// their own cells, through [`strip_glyph_tooltips`].
 pub(super) fn strip_tooltip(
     view: &ClientView,
     active: bool,
@@ -143,6 +143,15 @@ pub(super) fn strip_tooltip(
     locale: Locale,
     theme: &Theme,
 ) -> Option<TooltipContent> {
+    if part == groups::StripPart::Header
+        && let Some(title) = cue.group
+    {
+        return Some(super::tooltip::members(
+            title,
+            cue.members.iter().cloned(),
+            locale,
+        ));
+    }
     match part {
         groups::StripPart::Tab | groups::StripPart::Header => super::tooltip::describe(
             cue.name.map(|name| crate::tui_hit_map::TooltipText {

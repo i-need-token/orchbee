@@ -143,6 +143,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTabToRight,
     MenuAction::DuplicateTab,
     MenuAction::RenameTab,
+    MenuAction::CollapseGroup,
     MenuAction::MoveTabPrevious,
     MenuAction::MoveTabNext,
     MenuAction::MoveTabFirst,
@@ -434,6 +435,7 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::NewTabToRight
         | MenuAction::DuplicateTab
         | MenuAction::RenameTab
+        | MenuAction::CollapseGroup
         | MenuAction::MoveTabPrevious
         | MenuAction::MoveTabNext
         | MenuAction::MoveTabFirst

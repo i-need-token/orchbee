@@ -40,4 +40,12 @@ impl Locale {
             (Self::ZhCn, TooltipLabel::HideTabs) => "隐藏标签页",
         }
     }
+
+    /// The last line of a Tab group's member list: how many members it leaves out.
+    pub(crate) fn tooltip_more_members(self, count: usize) -> String {
+        match self {
+            Self::EnUs => format!("+ {count} more"),
+            Self::ZhCn => format!("另 {count} 个"),
+        }
+    }
 }
