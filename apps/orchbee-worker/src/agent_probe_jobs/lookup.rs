@@ -1,6 +1,8 @@
 //! Platform adapter for the Agent probe lookup. Windows resolves each command with the fixed
-//! system `where.exe` on the search path a newly started shell gets; other platforms have no
-//! lookup, so their Workers answer every probe `Unsupported`.
+//! system `where.exe` on the registry projection of `PATH`, the search path a shell starts with
+//! before its profile runs: a directory stored in the registry `Path`, such as a version manager's
+//! shim directory, is searched, and a directory a shell profile adds is not. Other platforms have
+//! no lookup, so their Workers answer every probe `Unsupported`.
 
 #[cfg(windows)]
 mod shell_path;

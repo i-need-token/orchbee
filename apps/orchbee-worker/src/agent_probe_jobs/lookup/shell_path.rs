@@ -1,9 +1,11 @@
-//! The search path a newly started shell gets on Windows. The Terminal Host builds every shell's
-//! environment from the registry when it launches it
+//! The search path a shell launched now on Windows starts with, before its profile runs. The
+//! Terminal Host builds every shell's environment from the registry when it launches it
 //! (`apps/terminal-host/src/platform/windows_environment.zig`), so this Worker's own `PATH`,
 //! inherited when the Session started, can lack a directory an installer added since. This module
 //! repeats the Host's projection for `PATH` alone: the Machine `Path`, then the User `Path`, each
-//! expanded when stored as `REG_EXPAND_SZ`, joined by `;`.
+//! expanded when stored as `REG_EXPAND_SZ`, joined by `;`. A directory stored there, such as a
+//! version manager's shim directory, is part of it; a directory the shell's profile adds once it
+//! runs, such as a version manager's activation, is not.
 //!
 //! A `%NAME%` reference expands, in order: `%PATH%` in the User value to the projected Machine
 //! value; a reference to a value already being expanded, or nested 128 deep, stays literal; an
@@ -76,7 +78,8 @@ struct Value {
     expandable: bool,
 }
 
-/// The `PATH` a shell launched now would get, or `None` when the Host would refuse the launch.
+/// The `PATH` a shell launched now would start with, or `None` when the Host would refuse the
+/// launch.
 pub(super) fn current() -> Option<OsString> {
     let machine = read_scope(&w::HKEY::LOCAL_MACHINE, MACHINE_KEY)?;
     let user = read_scope(&w::HKEY::CURRENT_USER, USER_KEY)?;

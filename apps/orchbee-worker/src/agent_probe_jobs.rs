@@ -1,7 +1,7 @@
 //! Owns the node's one Agent probe job: Worker-generation fencing, one running lookup thread at a
 //! time, cooperative cancellation, and bounded retention of results. The lookup answers whether
-//! each requested command is found on the search path a newly started shell would use; this
-//! module neither chooses the commands nor interprets the answers.
+//! each requested command is found on the search path a newly started shell has before its
+//! profile runs; this module neither chooses the commands nor interprets the answers.
 use orchbee_capability_node_protocol::{
     AgentProbeJobAction as Action, AgentProbeJobCancelOutcome as Cancel,
     AgentProbeJobOutcome as Outcome, AgentProbeJobPollOutcome as Poll, AgentProbeJobRequest,

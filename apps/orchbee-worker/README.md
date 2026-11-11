@@ -235,7 +235,11 @@ started: the Terminal Host builds every shell's environment from the registry at
 probe reads the Machine and User registry environment once and repeats the Host's projection of
 `PATH` (Machine `Path`, then User `Path`, each expanded from registry values and the runtime values
 the Host keeps, joined by `;`). A registry scope it cannot read, or a projection past the Host's
-bounds, leaves every name `Unavailable`, because such a launch fails too.
+bounds, leaves every name `Unavailable`, because such a launch fails too. This is the search path a
+shell has before its profile runs: a directory stored in the registry `Path`, such as a version
+manager's shim directory, is searched, but a directory a shell profile adds, such as one that
+`mise activate`, nvm or fnm puts on `PATH`, is not, so an Agent that only a profile enables reads
+`Missing` although it starts in a Panel.
 
 ## Background job owners and exit
 
