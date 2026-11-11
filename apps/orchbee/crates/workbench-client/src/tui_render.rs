@@ -1153,6 +1153,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 | crate::localization::SettingsNotice::ReadOnly
                 | crate::localization::SettingsNotice::TooLarge
                 | crate::localization::SettingsNotice::UnusableFile
+                | crate::localization::SettingsNotice::Unreadable
                 | crate::localization::SettingsNotice::WriteFailed => Role::StatusError,
                 crate::localization::SettingsNotice::SourceChanged
                 | crate::localization::SettingsNotice::FileBusy

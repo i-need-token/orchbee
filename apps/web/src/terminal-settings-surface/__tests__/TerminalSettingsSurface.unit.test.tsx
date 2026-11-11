@@ -381,6 +381,25 @@ describe('TerminalSettingsSurface', () => {
 		expect(settings.getSnapshot().snapshot?.values['terminal.font_size']).toBe(13);
 	});
 
+	it('says a file that cannot be read cannot be read, not that it is read-only', async () => {
+		const settings = memoryUserSettings();
+		settings.refuseEdits({ detail: 'not-file', outcome: 'refused', reason: 'unusable-file' });
+		const { container, openCategory } = await renderSurface({ settings });
+		await openCategory('appearance');
+		const fontSize = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Font size']"),
+		);
+		await commitInput(fontSize, '15');
+		const row = requiredElement(
+			container.querySelector('[data-setting-id="appearance.font-size"]'),
+		);
+		await vi.waitFor(() =>
+			expect(row.querySelector('[role="alert"]')?.textContent).toBe(
+				"The settings file can't be read · check that it is a file you can open",
+			),
+		);
+	});
+
 	it('shows the last valid values read-only while the file has a syntax error', async () => {
 		const settings = memoryUserSettings({
 			file: { column: 3, line: 7, reason: 'invalid-toml', status: 'syntax-error' },

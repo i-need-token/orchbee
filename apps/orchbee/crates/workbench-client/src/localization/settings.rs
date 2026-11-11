@@ -25,6 +25,8 @@ pub(crate) enum SettingsNotice {
     TooLarge,
     /// The settings file's location cannot be used; nothing was written.
     UnusableFile,
+    /// The settings file cannot be read, or is not a regular file; nothing was written.
+    Unreadable,
     WriteFailed,
 }
 
@@ -632,6 +634,10 @@ impl Locale {
                 "Settings file location can't be used; nothing saved",
                 "无法使用设置文件位置；未保存",
             ),
+            Unreadable => self.setting(
+                "Settings file can't be read; nothing saved",
+                "无法读取设置文件；未保存",
+            ),
             WriteFailed => self.setting(
                 "Settings file couldn't be written; nothing saved",
                 "无法写入设置文件；未保存",
@@ -688,7 +694,7 @@ impl Locale {
                 Some(self.setting("Cannot open Settings here", "当前窗口无法打开设置"))
             }
             Saved | NoChange | Failed | Busy | TooSmall | Background | Unsupported | ReadOnly
-            | TooLarge | UnusableFile | WriteFailed => None,
+            | TooLarge | UnusableFile | Unreadable | WriteFailed => None,
         }
     }
 }

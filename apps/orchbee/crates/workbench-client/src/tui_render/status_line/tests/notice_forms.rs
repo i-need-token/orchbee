@@ -118,6 +118,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             Settings::ReadOnly,
             Settings::TooLarge,
             Settings::UnusableFile,
+            Settings::Unreadable,
             Settings::WriteFailed,
         ]
         .map(N::Settings),
@@ -200,6 +201,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                 | Settings::ReadOnly
                 | Settings::TooLarge
                 | Settings::UnusableFile
+                | Settings::Unreadable
                 | Settings::WriteFailed,
             )
             | N::AgentStart(

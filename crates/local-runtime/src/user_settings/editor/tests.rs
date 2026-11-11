@@ -328,6 +328,19 @@ fn refusals_leave_the_file_untouched() {
 }
 
 #[test]
+fn a_settings_path_that_names_a_folder_is_refused_as_unreadable_not_read_only() {
+    let fixture = Fixture::new();
+    fs::create_dir_all(fixture.file()).unwrap();
+    assert_eq!(
+        set_setting(&["appearance", "mode"], &string("dark"), fixture.env()),
+        Err(SettingsEditError::Source(SettingsError::new(
+            "file", "not-file"
+        )))
+    );
+    assert!(fixture.file().is_dir());
+}
+
+#[test]
 fn an_external_edit_during_the_write_is_kept_and_the_edit_redone() {
     let fixture = Fixture::new();
     fixture.write("[terminal]\nfocus_new_panel = true\n");

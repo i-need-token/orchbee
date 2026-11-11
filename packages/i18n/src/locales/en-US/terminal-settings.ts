@@ -229,6 +229,8 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.refused.syntaxError': 'The settings file has a syntax error · fix it first',
 	'terminal.settings.refused.unusableFile':
 		"The settings file's location can't be used · check where it points",
+	'terminal.settings.refused.unreadable':
+		"The settings file can't be read · check that it is a file you can open",
 	'terminal.settings.file.syntaxError':
 		"{path} has a syntax error at line {line}, column {column} · showing the last valid settings, read-only, until it's fixed",
 	'terminal.settings.file.unreadable':

@@ -309,7 +309,7 @@ export function useTerminalLaunchProfileSettings(
 			operationWarning =
 				snapshot.refusal === null
 					? messages.failureWrite
-					: intl.formatMessage(settingsRefusalMessage(snapshot.refusal.reason));
+					: intl.formatMessage(settingsRefusalMessage(snapshot.refusal));
 			break;
 	}
 	const disabled = snapshot.pending || snapshot.readOnly;

@@ -252,7 +252,7 @@ fn edit(
         })?
         .config_lock_directory();
     let _lock = acquire_lock(&lock_directory)?;
-    let target = resolve_link(&path).map_err(io_failure)?;
+    let target = resolve_link(&path).map_err(|_| unreadable("io-error"))?;
     let pending = target.with_file_name(PENDING_NAME);
     let outcome = edit_locked(changes, &path, &target, env, &mut read_target);
     if outcome.is_err() {
@@ -567,19 +567,22 @@ fn resolve_link(path: &Path) -> io::Result<PathBuf> {
     Err(io::ErrorKind::InvalidInput.into())
 }
 
-/// The file's bytes, or `None` when it does not exist. A read-only file is refused here, before
-/// anything is written.
+/// The file's bytes, or `None` when it does not exist. A file that cannot be read, or is not a
+/// regular file, answers with the reader's reason for it; only a readable file marked read-only is
+/// refused as read-only, here, before anything is written.
 fn read_target(target: &Path) -> TargetRead {
     let file = match File::open(target) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(io_failure(error)),
+        // Opening a folder is denied on Windows, so the reason comes from what the path names.
+        Err(_) if fs::metadata(target).is_ok_and(|metadata| !metadata.is_file()) => {
+            return Err(unreadable("not-file"));
+        }
+        Err(_) => return Err(unreadable("io-error")),
     };
-    let metadata = file.metadata().map_err(io_failure)?;
+    let metadata = file.metadata().map_err(|_| unreadable("io-error"))?;
     if !metadata.is_file() {
-        return Err(SettingsEditError::Source(SettingsError::new(
-            "file", "not-file",
-        )));
+        return Err(unreadable("not-file"));
     }
     if metadata.permissions().readonly() {
         return Err(SettingsEditError::ReadOnly);
@@ -587,14 +590,16 @@ fn read_target(target: &Path) -> TargetRead {
     let mut bytes = Vec::new();
     file.take(LIMIT + 1)
         .read_to_end(&mut bytes)
-        .map_err(io_failure)?;
+        .map_err(|_| unreadable("io-error"))?;
     if bytes.len() as u64 > LIMIT {
-        return Err(SettingsEditError::Source(SettingsError::new(
-            "file",
-            "too-large",
-        )));
+        return Err(unreadable("too-large"));
     }
     Ok(Some(bytes))
+}
+
+/// The existing file cannot be read, for the same reason the reader gives.
+const fn unreadable(reason: &'static str) -> SettingsEditError {
+    SettingsEditError::Source(SettingsError::new("file", reason))
 }
 
 fn write_pending(target: &Path, pending: &Path, bytes: &[u8]) -> Result<(), SettingsEditError> {

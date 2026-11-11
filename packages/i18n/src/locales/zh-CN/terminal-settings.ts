@@ -210,6 +210,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.refused.invalidValue': '不允许此值 · 请换一个',
 	'terminal.settings.refused.syntaxError': '设置文件有语法错误 · 请先修正',
 	'terminal.settings.refused.unusableFile': '无法使用设置文件所在位置 · 请检查其指向',
+	'terminal.settings.refused.unreadable': '无法读取设置文件 · 请确认它是可以打开的文件',
 	'terminal.settings.file.syntaxError':
 		'{path} 第 {line} 行第 {column} 列有语法错误 · 修正前以只读方式显示上次有效的设置',
 	'terminal.settings.file.unreadable': '无法读取 {path} · 恢复前以只读方式显示上次有效的设置',

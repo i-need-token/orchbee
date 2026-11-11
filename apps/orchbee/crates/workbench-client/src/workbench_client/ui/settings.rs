@@ -24,9 +24,15 @@ mod tests;
 
 pub(crate) use crate::localization::SettingsNotice as Notice;
 
-/// The notice that names why the Server refused a read or edit. A refused edit wrote nothing.
-const fn refusal_notice(reason: SettingsRefusal) -> Notice {
+/// The notice that names why the Server refused a read or edit. A refused edit wrote nothing. An
+/// unusable file whose `detail` is a read failure is one that cannot be read, not its location.
+fn refusal_notice(reason: SettingsRefusal, detail: Option<&str>) -> Notice {
     match reason {
+        SettingsRefusal::UnusableFile
+            if matches!(detail, Some("not-file" | "io-error" | "too-large")) =>
+        {
+            Notice::Unreadable
+        }
         SettingsRefusal::Changed => Notice::SourceChanged,
         SettingsRefusal::Busy | SettingsRefusal::Locked | SettingsRefusal::FileInUse => {
             Notice::FileBusy
@@ -372,8 +378,8 @@ impl WorkbenchClientUi {
                     );
                 }
             }
-            SettingsOutcome::Refused { reason, .. } => {
-                self.fail_settings(token, refusal_notice(reason))
+            SettingsOutcome::Refused { reason, detail, .. } => {
+                self.fail_settings(token, refusal_notice(reason, detail.as_deref()))
             }
         }
     }

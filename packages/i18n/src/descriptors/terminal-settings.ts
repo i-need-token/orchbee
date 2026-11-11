@@ -224,6 +224,7 @@ export const terminalSettingsMessages = defineMessages({
 	refusedInvalidValue: message('terminal.settings.refused.invalidValue'),
 	refusedSyntaxError: message('terminal.settings.refused.syntaxError'),
 	refusedUnusableFile: message('terminal.settings.refused.unusableFile'),
+	refusedUnreadable: message('terminal.settings.refused.unreadable'),
 	fileSyntaxError: message('terminal.settings.file.syntaxError'),
 	fileUnreadable: message('terminal.settings.file.unreadable'),
 	pageNewTerminalFolderLabel: message('terminal.settings.page.newTerminalFolder.label'),
