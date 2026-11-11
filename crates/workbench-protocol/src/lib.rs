@@ -199,12 +199,12 @@ pub use identity::{
     WorkerId,
 };
 pub use model::{
-    AgentNotResumedReason, Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation,
-    PanelNode, PanelOrientation, PanelRightClickTarget, PanelSlot, Presentation,
-    PresentationAgentNotResumed, PresentationBinding, PresentationLaunchFailure,
-    PresentationLaunchFailureReason, Project, Snapshot, SnapshotReadIntent, Tab, TabGroup,
-    TabGroupColor, TerminalContext, WorkbenchProtocolDocument, WorkbenchPublicationDocument,
-    Workspace, tab_display_label,
+    AgentNotResumedReason, AgentStartFailureReason, Delta, DeltaChange, DeltaRejectionReason,
+    Directory, Navigation, PanelNode, PanelOrientation, PanelRightClickTarget, PanelSlot,
+    Presentation, PresentationAgentNotResumed, PresentationAgentStartFailure, PresentationBinding,
+    PresentationLaunchFailure, PresentationLaunchFailureReason, Project, Snapshot,
+    SnapshotReadIntent, Tab, TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument,
+    WorkbenchPublicationDocument, Workspace, tab_display_label,
 };
 pub use validation::{
     ContractError, MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL, MAXIMUM_DELTA_CHANGES,

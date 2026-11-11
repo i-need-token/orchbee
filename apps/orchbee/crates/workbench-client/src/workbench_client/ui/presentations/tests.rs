@@ -167,6 +167,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         }),
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
     });
     let (mut ui, mailbox, _, _) =
@@ -238,6 +239,7 @@ fn child_source(split: bool) -> orchbee_workbench_protocol::Snapshot {
                         }),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     });
                     *id += 10;

@@ -85,7 +85,7 @@ Each Workspace carries required nullable `projectId` and primary Directory refer
 membership is optional organization; the primary Directory resolves in the global Directory pool.
 The projection contains labels but no directory discovery or mutation policy, terminal content,
 terminal lifecycle policy, Environment, Checkout, Worktree, Agent (except the one-shot
-`agentNotResumed` below), Launch Profile, Archive, SSH, lease, fence, Host epoch, attachment, or
+`agentNotResumed` and `agentStartFailure` below), Launch Profile, Archive, SSH, lease, fence, Host epoch, attachment, or
 persistence facts. It also contains no Client-local active location, active
 Tab, focus, disclosure, selection, maximization, split weight, viewport, geometry, search, window,
 DOM, React, or pixel state. A missing Presentation binding means only that this projection exposes
@@ -112,11 +112,19 @@ the binding and never captured into a checkpoint. Its absence names no program.
 An optional `agentNotResumed` is the Server's one-shot fact that it gave up resuming a retained
 Agent conversation in the current binding's terminal after a restart and typed nothing: `at`, the
 give-up's Unix milliseconds from 1 through 2^53 − 1, the provider-registry `providerId`, and the
-closed `reason`, `prompt-unconfirmed` or `terminal-too-old`. It is the one Agent fact the projection
-carries, and it names no session. It requires a binding, is runtime-only like `launchProgram`, and
-leaves only with its binding; no timer clears it, so each fact costs one revision. Clients show
-each fact once while it is fresh, as the
+closed `reason`, `prompt-unconfirmed` or `terminal-too-old`. It names no session. It requires a
+binding, is runtime-only like `launchProgram`, and leaves only with its binding; no timer clears
+it, so each fact costs one revision. Clients show each fact once while it is fresh, as the
 [resume owner](../../apps/orchbee-server/docs/agent-session-resume.md#what-clients-show) defines.
+
+An optional `agentStartFailure` is the Server's one-shot fact that the Agent start a Tab, split or
+Workspace creation carried did not happen in the current binding's terminal: `at`, the Unix
+milliseconds the Server found it, from 1 through 2^53 − 1, the startable `providerId` the creation
+named, and the closed `reason`, `not-found`, `exited`, `unsupported-shell`, `prompt-unconfirmed` or
+`terminal-too-old`. Its `providerId` uses the same closed startable catalog as the creation's
+`agentStart`, so this schema keeps its own copy of that enum. It requires a binding and follows
+`agentNotResumed` in everything else: runtime-only, gone with its binding, no timer, one revision per
+fact, shown once while fresh.
 
 Project, Directory, Workspace, and Terminal Context arrays use ascending identity order. Directory
 identities are unique across the Session projection, and a non-null Workspace reference resolves in

@@ -41,7 +41,8 @@ defines effect admission. The binding cannot prove idle or authorize automatic r
 `directory` `saved` or `home`. A snapshot `launchFailure` with reason `directory-unavailable` must
 sit on an unbound Presentation with a `null` executable and a `directory`, plus an optional
 `agentResume`; `terminal-create-failed` stays bound and carries neither. A snapshot
-`agentNotResumed` must sit on a bound Presentation.
+`agentNotResumed` or `agentStartFailure` must sit on a bound Presentation; the startable Agent enum
+both `agentStartFailure` and the creation commands' `agentStart` name lives in the semantic contract.
 
 ## Semantic event binding
 

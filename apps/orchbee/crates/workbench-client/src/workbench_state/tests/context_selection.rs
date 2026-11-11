@@ -127,6 +127,7 @@ fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_or
             }),
             launch_failure: None,
             agent_not_resumed: None,
+            agent_start_failure: None,
             launch_program: None,
         });
         let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());

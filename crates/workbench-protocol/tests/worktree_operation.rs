@@ -43,6 +43,10 @@ fn shared_worktree_corpus_keeps_rust_and_typescript_semantics_aligned() {
 fn schema_agent_start_enums_match_the_startable_catalog() {
     for (name, schema) in [
         (
+            "workbench",
+            include_str!("../../../schemas/workbench/v1/workbench.schema.json"),
+        ),
+        (
             "workbench-command",
             include_str!("../../../schemas/workbench/v1/workbench-command.schema.json"),
         ),

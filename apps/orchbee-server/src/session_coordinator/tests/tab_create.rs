@@ -924,12 +924,14 @@ fn completion_maps_every_terminal_reason_and_worker_generation_fence() {
             panic!("created Panel expected")
         };
         assert_eq!(
-            primary_presentation.launch_failure,
-            failed.then(
-                || orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(Some(
-                    executable.to_owned()
-                ))
-            ),
+            primary_presentation.launch_failure.as_deref(),
+            failed
+                .then(
+                    || orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(
+                        Some(executable.to_owned())
+                    )
+                )
+                .as_ref(),
             "case {case:?}"
         );
     }

@@ -568,6 +568,7 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
         ),
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
     });
     let (mut ui, _mailbox, _, _) =

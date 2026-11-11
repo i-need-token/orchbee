@@ -264,7 +264,9 @@ fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launche
                             custom.map(|label| PanelCustomLabel::parse(label).unwrap());
                     } else {
                         presentation.launch_failure = launched.map(|executable| {
-                            PresentationLaunchFailure::terminal_create(executable.map(Into::into))
+                            Box::new(PresentationLaunchFailure::terminal_create(
+                                executable.map(Into::into),
+                            ))
                         });
                     }
                 }

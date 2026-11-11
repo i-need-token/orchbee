@@ -4,6 +4,7 @@ import {
 	normalizePluginInvocationContext,
 } from './workbench-plugin-context-contract';
 import {
+	WorkbenchAgentStartProviderSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLaunchExecutableSchema,
 	WorkbenchLaunchTextSchema as literalLaunchStringSchema,
@@ -65,46 +66,6 @@ export const WorkbenchLaunchEnvironmentSchema = z
 		return bytes <= 1024;
 	}, 'Launch environment has duplicate names or exceeds its byte budget')
 	.readonly();
-
-/** The startable Agent catalog; the Server resolves an id to the new shell's first command. */
-export const WorkbenchAgentStartProviderSchema = z.enum([
-	'pi',
-	'claude-code',
-	'codex',
-	'gemini',
-	'cursor',
-	'devin',
-	'antigravity',
-	'cline',
-	'omp',
-	'mastracode',
-	'opencode',
-	'github-copilot',
-	'kimi',
-	'kiro',
-	'droid',
-	'amp',
-	'grok',
-	'hermes',
-	'kilo',
-	'qodercli',
-	'qwen-code',
-	'letta',
-	'maki',
-	'muse',
-	'atomcode',
-	'codebuddy',
-	'command-code',
-	'deveco',
-	'mimo',
-	'reasonix',
-	'snow',
-	'minimax-code',
-	'mothx',
-	'jcode',
-	'openclaw',
-	'prime-agent',
-]);
 
 const WorkbenchLaunchOptionsSchema = z
 	.strictObject({

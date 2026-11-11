@@ -2227,6 +2227,7 @@ fn commit_edit(
                     presentation_id: presentation_id.clone(),
                     launch_failure: None,
                     agent_not_resumed: None,
+                    agent_start_failure: None,
                     launch_program: None,
                 },
             };

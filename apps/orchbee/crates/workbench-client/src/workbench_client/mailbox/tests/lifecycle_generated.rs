@@ -5029,6 +5029,7 @@ impl Authority {
                 presentation_id: presentation_id.clone(),
                 launch_failure: None,
                 agent_not_resumed: None,
+                agent_start_failure: None,
                 launch_program: None,
             },
         };
@@ -5129,6 +5130,7 @@ fn leaf_node(
             presentation_id: presentation_id(presentation),
             launch_failure: None,
             agent_not_resumed: None,
+            agent_start_failure: None,
             launch_program: None,
         },
     }

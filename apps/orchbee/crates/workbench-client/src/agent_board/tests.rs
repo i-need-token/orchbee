@@ -860,6 +860,7 @@ fn presentation_snapshot() -> Snapshot {
                         }),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },
@@ -911,6 +912,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
         }),
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
     });
     let index = PresentationIndex::rebuild(&with_child);

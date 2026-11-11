@@ -188,6 +188,7 @@ pub(super) fn append_simple_tab(
                 binding: Some(binding),
                 launch_failure: None,
                 agent_not_resumed: None,
+                agent_start_failure: None,
                 launch_program: None,
             },
             child_presentations: Vec::new(),

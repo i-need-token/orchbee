@@ -468,6 +468,7 @@ fn remove_local_bindings(
                 presentation.launch_failure = None;
                 presentation.launch_program = None;
                 presentation.agent_not_resumed = None;
+                presentation.agent_start_failure = None;
             }
         }
     }

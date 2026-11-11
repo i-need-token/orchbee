@@ -1215,11 +1215,11 @@ fn observed_launch_failure_selects_without_attachment_and_names_the_executable()
     else {
         unreachable!()
     };
-    primary_presentation.launch_failure = Some(
+    primary_presentation.launch_failure = Some(Box::new(
         orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(Some(
             "/missing/program".into(),
         )),
-    );
+    ));
     let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
@@ -1268,6 +1268,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
                         presentation_id: TerminalPresentationId::parse(&id(3_013)).unwrap(),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },
@@ -1321,6 +1322,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
                                         .unwrap(),
                                     launch_failure: None,
                                     agent_not_resumed: None,
+                                    agent_start_failure: None,
                                     launch_program: None,
                                 },
                             },
@@ -1389,6 +1391,7 @@ fn split_panel_baseline() -> Snapshot {
                         presentation_id: TerminalPresentationId::parse(&id(3_013)).unwrap(),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },
@@ -1427,6 +1430,7 @@ fn split_root(root: &mut PanelNode, seed: u128) {
                         presentation_id: presentation_id(seed + 13),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },
@@ -2444,6 +2448,7 @@ fn tab(index: usize) -> Tab {
                 presentation_id: presentation_id(seed + 2),
                 launch_failure: None,
                 agent_not_resumed: None,
+                agent_start_failure: None,
                 launch_program: None,
             },
         },

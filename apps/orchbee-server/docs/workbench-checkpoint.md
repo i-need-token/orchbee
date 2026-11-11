@@ -63,7 +63,7 @@ Canonical split ratios remain retained; see [shared ratios](shared-split-ratios.
 Every Presentation binding is `null`; `customLabel` is required-nullable.
 `checkpoint/contexts.rs` owns the retained graph shape: Tab `automaticLabel` and `groupId`,
 Panel `rightClick`, Split `ratio` and Presentation `binding` are explicit even at their default or
-null values. The runtime-only `launchProgram`, `launchFailure` and `agentNotResumed` fields are not admitted into retained configuration.
+null values. The runtime-only `launchProgram`, `launchFailure`, `agentNotResumed` and `agentStartFailure` fields are not admitted into retained configuration.
 Retained navigation stores the protocol Workspace shape, so Workspace `automaticLabel` keeps its
 protocol omission rule: it appears only when true, and its absence restores a fixed name.
 Optional `terminalDirectory` is retained the same way. The directory Server last sampled for each

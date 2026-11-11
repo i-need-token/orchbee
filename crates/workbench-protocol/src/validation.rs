@@ -549,6 +549,12 @@ fn validate_presentation_structure(presentation: &Presentation) -> Result<(), Va
     {
         return Err(ValidationError);
     }
+    // A start that did not happen describes the current binding's terminal, at a safe-integer time.
+    if let Some(fact) = &presentation.agent_start_failure
+        && (presentation.binding.is_none() || fact.at == 0 || fact.at > MAXIMUM_SAFE_INTEGER)
+    {
+        return Err(ValidationError);
+    }
     let Some(failure) = &presentation.launch_failure else {
         return Ok(());
     };

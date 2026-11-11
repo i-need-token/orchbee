@@ -20,10 +20,11 @@ fn held_peer_snapshot() -> Snapshot {
         unreachable!("the split fixture's second leaf");
     };
     primary_presentation.binding = None;
-    primary_presentation.launch_failure = Some(PresentationLaunchFailure::directory_unavailable(
-        WorkbenchDirectoryPath::parse("C:/saved/a").unwrap(),
-        false,
-    ));
+    primary_presentation.launch_failure =
+        Some(Box::new(PresentationLaunchFailure::directory_unavailable(
+            WorkbenchDirectoryPath::parse("C:/saved/a").unwrap(),
+            false,
+        )));
     snapshot
 }
 

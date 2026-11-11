@@ -29,6 +29,7 @@ fn add_children(node: &mut PanelNode, next: &mut u128) {
                         .unwrap(),
                     launch_failure: None,
                     agent_not_resumed: None,
+                    agent_start_failure: None,
                     launch_program: None,
                 });
             }

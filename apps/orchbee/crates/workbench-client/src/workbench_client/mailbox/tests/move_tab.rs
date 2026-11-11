@@ -266,6 +266,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                         }),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },

@@ -194,6 +194,7 @@ impl WorkbenchAuthority {
             presentation.launch_program = launch_program;
             presentation.launch_failure = None;
             presentation.agent_not_resumed = None;
+            presentation.agent_start_failure = None;
         })?;
         Ok(PreparedWorkbenchRestoreBinding {
             authority: self,
@@ -212,9 +213,8 @@ impl WorkbenchAuthority {
         agent_resume: bool,
     ) -> Result<WorkbenchRevision, WorkbenchRestoreError> {
         let (advance, revision) = self.prepare_target_change(target, |presentation| {
-            presentation.launch_failure = Some(PresentationLaunchFailure::directory_unavailable(
-                directory,
-                agent_resume,
+            presentation.launch_failure = Some(Box::new(
+                PresentationLaunchFailure::directory_unavailable(directory, agent_resume),
             ));
         })?;
         self.projection.commit_prepared(advance);

@@ -959,6 +959,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
                     presentation_id: replacement.presentation_id.clone(),
                     launch_failure: None,
                     agent_not_resumed: None,
+                    agent_start_failure: None,
                     launch_program: replacement.launch_program.clone(),
                 },
             };

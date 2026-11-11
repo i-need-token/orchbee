@@ -26,6 +26,7 @@ fn add_leaf(root: &mut PanelNode, seed: u128) {
                         presentation_id: presentation_id(seed + 13),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },
@@ -227,6 +228,7 @@ fn overlay_return_preserves_a_bound_child_presentation_through_membership_cleanu
         }),
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
     });
     let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());

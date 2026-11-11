@@ -216,6 +216,7 @@ impl From<StoredPresentation> for Presentation {
             presentation_id: presentation.presentation_id,
             launch_failure: None,
             agent_not_resumed: None,
+            agent_start_failure: None,
             launch_program: None,
         }
     }

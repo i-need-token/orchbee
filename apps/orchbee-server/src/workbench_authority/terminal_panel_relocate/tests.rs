@@ -608,6 +608,7 @@ fn relocate_preserves_the_complete_panel_with_child_presentations() {
                         binding: Some(binding(4242)),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     });
                     let _ = primary_presentation;
@@ -1024,6 +1025,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
                 binding: Some(binding(seed)),
                 launch_failure: None,
                 agent_not_resumed: None,
+                agent_start_failure: None,
                 launch_program: None,
             },
             child_presentations: Vec::new(),
@@ -1049,6 +1051,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
                         binding: Some(binding(seed + 2)),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                     child_presentations: Vec::new(),

@@ -25,6 +25,7 @@ fn presentation(presentation: u128, terminal: Option<u128>) -> Presentation {
         label: "pwsh".to_owned(),
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
         presentation_id: TerminalPresentationId::parse(&id(presentation)).unwrap(),
     }

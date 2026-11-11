@@ -99,6 +99,7 @@ pub(crate) fn presentation(n: u64) -> Presentation {
         }),
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
     }
 }

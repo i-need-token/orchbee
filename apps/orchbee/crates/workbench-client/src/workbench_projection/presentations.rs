@@ -23,7 +23,7 @@ impl ClientPresentation {
                 .map_err(|_| ClientProjectionError)?,
             custom_label: value.custom_label.clone(),
             binding: value.binding.as_ref().map(ClientTerminalBinding::from),
-            launch_failure: value.launch_failure.clone(),
+            launch_failure: value.launch_failure.as_deref().cloned(),
             launch_program: value.launch_program.clone(),
         })
     }

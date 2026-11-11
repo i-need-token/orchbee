@@ -697,6 +697,7 @@ pub(in crate::workbench_client) fn split_snapshot(revision: u64) -> Snapshot {
                             .unwrap(),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },

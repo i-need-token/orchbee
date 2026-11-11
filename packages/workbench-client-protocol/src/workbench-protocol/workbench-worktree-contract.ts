@@ -7,9 +7,9 @@ import {
 	WorkbenchWorkspaceIdSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
+	WorkbenchAgentStartProviderSchema,
 } from './workbench-semantic-contract';
 import {
-	WorkbenchAgentStartProviderSchema,
 	WorkbenchTerminalGeometrySchema,
 	WorkbenchTerminalOutcomeSchema,
 } from './workbench-terminal-launch-contract';

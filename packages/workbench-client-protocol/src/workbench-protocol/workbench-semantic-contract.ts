@@ -212,9 +212,71 @@ const WorkbenchPresentationAgentNotResumedSchema = z
 	})
 	.readonly();
 
+/**
+ * The startable Agent catalog; the Server resolves an id to the new shell's first command and names
+ * it again when that start did not happen.
+ */
+export const WorkbenchAgentStartProviderSchema = z.enum([
+	'pi',
+	'claude-code',
+	'codex',
+	'gemini',
+	'cursor',
+	'devin',
+	'antigravity',
+	'cline',
+	'omp',
+	'mastracode',
+	'opencode',
+	'github-copilot',
+	'kimi',
+	'kiro',
+	'droid',
+	'amp',
+	'grok',
+	'hermes',
+	'kilo',
+	'qodercli',
+	'qwen-code',
+	'letta',
+	'maki',
+	'muse',
+	'atomcode',
+	'codebuddy',
+	'command-code',
+	'deveco',
+	'mimo',
+	'reasonix',
+	'snow',
+	'minimax-code',
+	'mothx',
+	'jcode',
+	'openclaw',
+	'prime-agent',
+]);
+
+/**
+ * The Server found that the Agent start the Presentation's creation carried did not happen in the
+ * current binding's terminal, at `at` Unix milliseconds. Clients show it once.
+ */
+const WorkbenchPresentationAgentStartFailureSchema = z
+	.strictObject({
+		at: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+		providerId: WorkbenchAgentStartProviderSchema,
+		reason: z.enum([
+			'not-found',
+			'exited',
+			'unsupported-shell',
+			'prompt-unconfirmed',
+			'terminal-too-old',
+		]),
+	})
+	.readonly();
+
 export const WorkbenchPresentationSchema = z
 	.strictObject({
 		agentNotResumed: WorkbenchPresentationAgentNotResumedSchema.optional(),
+		agentStartFailure: WorkbenchPresentationAgentStartFailureSchema.optional(),
 		binding: WorkbenchPresentationBindingSchema.nullable(),
 		customLabel: WorkbenchPanelCustomLabelSchema.nullable(),
 		label: WorkbenchLabelSchema,
@@ -744,6 +806,12 @@ function validatePresentation(
 			context.addIssue({
 				code: 'custom',
 				message: 'A resume that typed nothing names only a bound Terminal Presentation',
+			});
+		}
+		if (presentation.agentStartFailure !== undefined) {
+			context.addIssue({
+				code: 'custom',
+				message: 'A start that did not happen names only a bound Terminal Presentation',
 			});
 		}
 	}

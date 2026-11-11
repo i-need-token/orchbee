@@ -154,6 +154,7 @@ fn semantic_event_projection_records_intermediate_commits_and_noop_revision() {
                 label: "shell".into(),
                 launch_failure: None,
                 agent_not_resumed: None,
+                agent_start_failure: None,
                 launch_program: None,
             },
         },

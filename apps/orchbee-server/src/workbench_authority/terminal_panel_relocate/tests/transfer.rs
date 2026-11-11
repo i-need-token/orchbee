@@ -17,6 +17,7 @@ fn leaf(n: u128) -> PanelNode {
             presentation_id: TerminalPresentationId::parse(&identity(n + 1)).unwrap(),
             launch_failure: None,
             agent_not_resumed: None,
+            agent_start_failure: None,
             launch_program: None,
         },
     }

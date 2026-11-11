@@ -34,13 +34,19 @@ pub struct Presentation {
     /// Boxed so a Panel's inline primary Presentation stays small.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_not_resumed: Option<Box<PresentationAgentNotResumed>>,
+    /// The Server's one-shot fact that the Agent start its creation carried did not happen in the
+    /// current binding's terminal. Never persisted or carried across a rebinding. Boxed so a
+    /// Panel's inline primary Presentation stays small.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_start_failure: Option<Box<PresentationAgentStartFailure>>,
     pub binding: Option<PresentationBinding>,
     #[serde(deserialize_with = "Option::deserialize")]
     pub custom_label: Option<crate::PanelCustomLabel>,
     pub label: String,
     /// Runtime fact about the current binding, never persisted or carried across a rebinding.
+    /// Boxed so a Panel's inline primary Presentation stays small.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub launch_failure: Option<PresentationLaunchFailure>,
+    pub launch_failure: Option<Box<PresentationLaunchFailure>>,
     /// The file name of the program the current binding launches, committed with that binding and
     /// never persisted or carried across a rebinding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -129,6 +135,35 @@ pub enum AgentNotResumedReason {
     /// an interactive shell Orchbee marks, or never at a fresh empty prompt.
     PromptUnconfirmed,
     /// The terminal's Host predates the prompt gate.
+    TerminalTooOld,
+}
+
+/// The Server found that the Agent start a Tab, split or Workspace creation carried did not happen
+/// in the new terminal. It names the provider and why. Clients show it once, near `at`.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresentationAgentStartFailure {
+    /// When the Server found it, in Unix milliseconds: at least 1 and at most 2^53 - 1.
+    pub at: u64,
+    /// The startable provider the creation named.
+    pub provider_id: crate::AgentStartSelector,
+    pub reason: AgentStartFailureReason,
+}
+
+/// Why an Agent start did not happen.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentStartFailureReason {
+    /// The shell came back to its prompt and no process of the provider was seen: its command was
+    /// not found or failed before the Agent appeared.
+    NotFound,
+    /// A process of the provider was seen, then the shell came back to its prompt.
+    Exited,
+    /// The shell takes no start command: neither managed PowerShell nor a cmd Orchbee marks.
+    UnsupportedShell,
+    /// The cmd shell's prompt could not be confirmed in time, so nothing was typed.
+    PromptUnconfirmed,
+    /// The terminal's Host predates the prompt gate, so nothing was typed.
     TerminalTooOld,
 }
 

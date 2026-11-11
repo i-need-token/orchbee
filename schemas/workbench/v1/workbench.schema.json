@@ -136,6 +136,9 @@
 				"agentNotResumed": {
 					"$ref": "#/$defs/presentationAgentNotResumed"
 				},
+				"agentStartFailure": {
+					"$ref": "#/$defs/presentationAgentStartFailure"
+				},
 				"customLabel": {
 					"oneOf": [
 						{
@@ -190,6 +193,66 @@
 					"enum": ["prompt-unconfirmed", "terminal-too-old"]
 				}
 			}
+		},
+		"presentationAgentStartFailure": {
+			"$comment": "The Server found that the Agent start the Presentation's creation carried did not happen in the current binding's terminal. Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that. It names the provider and why.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["at", "providerId", "reason"],
+			"properties": {
+				"at": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				},
+				"providerId": {
+					"$ref": "#/$defs/agentStartProvider"
+				},
+				"reason": {
+					"enum": ["not-found", "exited", "unsupported-shell", "prompt-unconfirmed", "terminal-too-old"]
+				}
+			}
+		},
+		"agentStartProvider": {
+			"enum": [
+				"pi",
+				"claude-code",
+				"codex",
+				"gemini",
+				"cursor",
+				"devin",
+				"antigravity",
+				"cline",
+				"omp",
+				"mastracode",
+				"opencode",
+				"github-copilot",
+				"kimi",
+				"kiro",
+				"droid",
+				"amp",
+				"grok",
+				"hermes",
+				"kilo",
+				"qodercli",
+				"qwen-code",
+				"letta",
+				"maki",
+				"muse",
+				"atomcode",
+				"codebuddy",
+				"command-code",
+				"deveco",
+				"mimo",
+				"reasonix",
+				"snow",
+				"minimax-code",
+				"mothx",
+				"jcode",
+				"openclaw",
+				"prime-agent"
+			],
+			"$comment": "The startable Agent catalog of orchbee-agent-observation-protocol, in its order; the same set as workbench-command's agentStartProvider."
 		},
 		"presentationLaunchProgram": {
 			"$comment": "The file name of the program the current binding launches. Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that and the 128-byte UTF-8 limit.",

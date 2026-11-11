@@ -21,8 +21,8 @@ impl WorkbenchAuthority {
             if presentation.launch_failure.is_some() {
                 return false;
             }
-            presentation.launch_failure = Some(PresentationLaunchFailure::terminal_create(
-                executable.map(str::to_owned),
+            presentation.launch_failure = Some(Box::new(
+                PresentationLaunchFailure::terminal_create(executable.map(str::to_owned)),
             ));
             true
         })

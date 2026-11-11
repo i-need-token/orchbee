@@ -33,6 +33,7 @@ fn snapshot(empty: bool) -> Snapshot {
                 binding: None,
                 launch_failure: None,
                 agent_not_resumed: None,
+                agent_start_failure: None,
                 launch_program: None,
             },
         },
@@ -102,6 +103,7 @@ fn snapshot(empty: bool) -> Snapshot {
                             binding: None,
                             launch_failure: None,
                             agent_not_resumed: None,
+                            agent_start_failure: None,
                             launch_program: None,
                         },
                     };

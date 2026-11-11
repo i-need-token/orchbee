@@ -80,6 +80,7 @@ fn member(
             .map_err(|_| PlanFailure::Internal)?,
         launch_failure: None,
         agent_not_resumed: None,
+        agent_start_failure: None,
         launch_program: None,
     })
 }

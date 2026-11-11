@@ -113,6 +113,7 @@ impl TerminalPlacement {
                     binding: Some(binding),
                     launch_failure: None,
                     agent_not_resumed: None,
+                    agent_start_failure: None,
                     launch_program,
                 });
                 true
@@ -146,6 +147,7 @@ impl TerminalPlacement {
                 member.launch_failure = None;
                 member.launch_program = launch_program;
                 member.agent_not_resumed = None;
+                member.agent_start_failure = None;
                 true
             }
             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.

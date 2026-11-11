@@ -228,6 +228,7 @@ fn replace_presentation(
     presentation.launch_failure = None;
     presentation.launch_program = launch_program.cloned();
     presentation.agent_not_resumed = None;
+    presentation.agent_start_failure = None;
     presentation.presentation_id = presentation_id.clone();
     true
 }

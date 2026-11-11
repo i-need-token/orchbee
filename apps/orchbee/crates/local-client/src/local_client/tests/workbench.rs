@@ -1381,6 +1381,7 @@ fn snapshot() -> Snapshot {
                         presentation_id: TerminalPresentationId::parse(&id(6)).unwrap(),
                         launch_failure: None,
                         agent_not_resumed: None,
+                        agent_start_failure: None,
                         launch_program: None,
                     },
                 },

@@ -907,6 +907,58 @@
 				}
 			]
 		},
+		"snapshot-agent-start-failure-r2": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [],
+				"directories": [],
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
+			},
+			"protocolVersion": 1,
+			"revision": "2",
+			"sessionId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [
+						{
+							"groupId": null,
+							"label": "Shell",
+							"pinned": true,
+							"root": {
+								"childPresentations": [],
+								"kind": "panel",
+								"panelId": "99999999999999999999999999999999",
+								"primaryPresentation": {
+									"binding": {
+										"terminalId": "cccccccccccccccccccccccccccccccc",
+										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+									},
+									"label": "Shell",
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"customLabel": null,
+									"agentStartFailure": {
+										"at": 9007199254740991,
+										"providerId": "codex",
+										"reason": "not-found"
+									}
+								}
+							},
+							"tabId": "88888888888888888888888888888888"
+						}
+					],
+					"terminalContextId": "33333333333333333333333333333333"
+				}
+			]
+		},
 		"snapshot-first-terminal-directory-r2": {
 			"kind": "workbench.snapshot",
 			"navigation": {
@@ -1750,6 +1802,7 @@
 		"snapshot-held-restore-r2",
 		"snapshot-launch-program-boundary-r2",
 		"snapshot-agent-not-resumed-r2",
+		"snapshot-agent-start-failure-r2",
 		"snapshot-first-terminal-directory-r2",
 		"snapshot-workspace-order-legacy",
 		"snapshot-workspace-order-explicit-empty",
@@ -4674,6 +4727,340 @@
 											"at": 9007199254740991,
 											"providerId": "claude-code",
 											"reason": "prompt-unconfirmed"
+										}
+									}
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "agent-start-failure-zero-time",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"directories": [],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null,
+										"agentStartFailure": {
+											"at": 0,
+											"providerId": "codex",
+											"reason": "not-found"
+										}
+									}
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "agent-start-failure-unsafe-time",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"directories": [],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null,
+										"agentStartFailure": {
+											"at": 9007199254740992,
+											"providerId": "codex",
+											"reason": "not-found"
+										}
+									}
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "agent-start-failure-unknown-reason",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"directories": [],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null,
+										"agentStartFailure": {
+											"at": 9007199254740991,
+											"providerId": "codex",
+											"reason": "not-installed"
+										}
+									}
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "agent-start-failure-unstartable-provider",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"directories": [],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null,
+										"agentStartFailure": {
+											"at": 9007199254740991,
+											"providerId": "aider",
+											"reason": "not-found"
+										}
+									}
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "agent-start-failure-extra-field",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"directories": [],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null,
+										"agentStartFailure": {
+											"at": 9007199254740991,
+											"providerId": "codex",
+											"reason": "not-found",
+											"command": "codex"
+										}
+									}
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "agent-start-failure-without-binding",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"directories": [],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": null,
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null,
+										"agentStartFailure": {
+											"at": 9007199254740991,
+											"providerId": "codex",
+											"reason": "not-found"
 										}
 									}
 								},
