@@ -291,5 +291,6 @@ impl Subscription {
     }
 }
 
-#[cfg(test)]
+// Linux and macOS withhold semantic events at admission (`withheld_off_windows`).
+#[cfg(all(test, windows))]
 mod tests;

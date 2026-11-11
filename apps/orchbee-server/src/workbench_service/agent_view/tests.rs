@@ -109,6 +109,8 @@ fn invalid_spec_and_revision_exhaustion_never_commit() {
     assert_eq!(registry.snapshot, prior);
 }
 
+// The plugin store answers Unsupported off Windows.
+#[cfg(windows)]
 #[test]
 fn plugin_view_lifecycle_reads_real_private_registry_without_creating_on_read() {
     use orchbee_local_runtime::{PluginRegistry, PluginRegistryMutation};
@@ -208,6 +210,8 @@ fn plugin_view_lifecycle_reads_real_private_registry_without_creating_on_read() 
     );
 }
 
+// Linux and macOS withhold Agent view requests at admission (`withheld_off_windows`).
+#[cfg(windows)]
 #[test]
 fn agent_view_permissions_precede_source_inspection_and_session_mismatch_preserves() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};

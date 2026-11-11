@@ -525,6 +525,7 @@ mod workspace_metadata;
 #[cfg(windows)]
 mod panel_metadata;
 
+#[cfg(windows)]
 mod panel_agent;
 
 #[cfg(windows)]
