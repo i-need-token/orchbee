@@ -1027,7 +1027,6 @@ path, size, entries and section states.
 | `sessions.json`           | The `session list` document with states                                                                                          |
 | `integrations.json`       | `never-enabled` without a Capsule folder, else `agent integration list` from a running default Session or `session-not-running`  |
 | `config.toml`             | The settings file, redacted                                                                                                      |
-| `preferences.json`        | `internal/state/preferences.json`, redacted                                                                                      |
 | `logs/<YYYY-MM-DD>.jsonl` | Well-formed records of today's daily log and the six before it                                                                   |
 
 Every carried document passes the

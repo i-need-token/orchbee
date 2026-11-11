@@ -46,10 +46,10 @@ fn search_query_and_local_return_packets_never_edit_preferences_or_reach_a_pane(
 }
 impl Port {
     fn ready() -> Self {
-        Self::ready_with(orchbee_workbench_protocol::UserPreferencesValues::default())
+        Self::ready_with(orchbee_workbench_protocol::UserSettingsValues::default())
     }
 
-    fn ready_with(values: orchbee_workbench_protocol::UserPreferencesValues) -> Self {
+    fn ready_with(values: orchbee_workbench_protocol::UserSettingsValues) -> Self {
         let mut editor = Editor::default();
         let token = editor.open().unwrap();
         assert!(editor.loaded(
@@ -921,7 +921,7 @@ fn settings_real_frame_routes_row_and_adjustment_release_to_the_exact_owner() {
 fn settings_real_frame_disabled_adjustment_consumes_without_parent_retarget() {
     const WIDTH: u16 = 120;
     const HEIGHT: u16 = 40;
-    let values = orchbee_workbench_protocol::UserPreferencesValues {
+    let values = orchbee_workbench_protocol::UserSettingsValues {
         completion_reminder_minimum_seconds: 1,
         ..Default::default()
     };

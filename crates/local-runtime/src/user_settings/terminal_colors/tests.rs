@@ -81,7 +81,7 @@ fn invalid_custom_rgb_is_refused_only_when_custom_is_effective() {
                     foreground,
                     background,
                 ),
-                Err(PreferencesFailure::InvalidSource)
+                Err(UnusableTerminalDefaults)
             );
             assert!(
                 UserTerminalColors::resolve(

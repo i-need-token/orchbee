@@ -2,7 +2,7 @@
 use super::IntegrationStatus;
 use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance, TuiColorSource,
 };
 
@@ -66,7 +66,7 @@ pub(crate) enum SettingsCategory {
 /// One already-selected canonical finite value, without its mutable choice picker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsChoice {
-    Locale(PreferencesLocale),
+    Locale(SettingsLocale),
     ApplicationTheme(ApplicationAppearance),
     /// A shipped theme id; names stay untranslated except the Orchbee pair.
     ColorTheme(&'static str),

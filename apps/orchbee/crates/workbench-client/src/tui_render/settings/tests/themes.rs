@@ -5,7 +5,7 @@ use crate::native_settings::View;
 use orchbee_workbench_protocol::ApplicationAppearance;
 
 fn open_dark_picker(width: u16, height: u16, theme: &Theme) -> (Editor, Terminal<TestBackend>) {
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     select_and_present(&mut editor, Row::DarkTheme, Locale::EnUs, theme);
     editor.edit(Edit::Activate);
     let (terminal, _, _) = present_once(&mut editor, width, height, Locale::EnUs, theme);
@@ -80,9 +80,9 @@ fn slot_rows_say_when_they_apply_only_while_appearance_follows_the_system() {
         (ApplicationAppearance::System, true),
         (ApplicationAppearance::Dark, false),
     ] {
-        let mut editor = editor_with(UserPreferencesValues {
+        let mut editor = editor_with(UserSettingsValues {
             application_theme: application,
-            ..UserPreferencesValues::default()
+            ..UserSettingsValues::default()
         });
         for (row, locale, expected) in [
             (

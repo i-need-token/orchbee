@@ -11,9 +11,9 @@ use crate::{
     workbench_client::DrawReceipt,
 };
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, PreferencesLocale, SettingChange, SettingScalar, SettingValue,
-    SettingsFile, SettingsPlatform, SettingsSnapshot, TerminalDisplayAppearance,
-    UserPreferencesValues, WorkbenchRevision,
+    ApplicationAppearance, SettingChange, SettingScalar, SettingValue, SettingsFile,
+    SettingsLocale, SettingsPlatform, SettingsSnapshot, TerminalDisplayAppearance,
+    UserSettingsValues, WorkbenchRevision,
 };
 use ratatui::buffer::Buffer;
 
@@ -43,14 +43,13 @@ pub(super) fn ready() -> WorkbenchClientUi {
 pub(super) fn draft_basis() -> Basis {
     Basis {
         revision: 1,
-        values: orchbee_workbench_protocol::UserPreferencesValues::default(),
+        values: orchbee_workbench_protocol::UserSettingsValues::default(),
     }
 }
 
 /// The snapshot the Server publishes at `revision` for a file that gives `values`.
-pub(super) fn settings_snapshot(revision: u64, values: &UserPreferencesValues) -> SettingsSnapshot {
-    let changes =
-        orchbee_local_runtime::preference_changes(&UserPreferencesValues::default(), values, &[]);
+pub(super) fn settings_snapshot(revision: u64, values: &UserSettingsValues) -> SettingsSnapshot {
+    let changes = orchbee_local_runtime::value_changes(&UserSettingsValues::default(), values, &[]);
     SettingsSnapshot {
         revision: WorkbenchRevision::new(revision),
         file_path: None,
@@ -105,9 +104,9 @@ pub(super) fn draft_basis_with_application_theme(
 ) -> Basis {
     Basis {
         revision: 1,
-        values: orchbee_workbench_protocol::UserPreferencesValues {
+        values: orchbee_workbench_protocol::UserSettingsValues {
             application_theme,
-            ..orchbee_workbench_protocol::UserPreferencesValues::default()
+            ..orchbee_workbench_protocol::UserSettingsValues::default()
         },
     }
 }
@@ -136,9 +135,9 @@ pub fn draft_appearance_reaches_background_chrome_and_program_defaults_without_r
                 ColorLevel::Ansi16,
                 ColorLevel::Monochrome,
             ] {
-                let values = UserPreferencesValues {
+                let values = UserSettingsValues {
                     application_theme: ApplicationAppearance::Light,
-                    ..UserPreferencesValues::default()
+                    ..UserSettingsValues::default()
                 };
                 let mut ui = ready_with_application_theme(ApplicationAppearance::Light);
                 let mut shell = ClientView::new(size.0);
@@ -284,26 +283,25 @@ pub fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals
 ) {
     let mut ui = ready_with_application_theme(ApplicationAppearance::Light);
     let mut shell = ClientView::new(120);
-    let initial = UserPreferencesValues {
+    let initial = UserSettingsValues {
         application_theme: ApplicationAppearance::Light,
-        ..UserPreferencesValues::default()
+        ..UserSettingsValues::default()
     };
     shell.apply_user_preferences(initial.clone());
     ui.settings.editor.edit(Edit::Select(Row::Theme));
     ui.settings.editor.edit(Edit::Adjust(true));
     let mut latest = draft_basis().values;
     latest.application_theme = ApplicationAppearance::System;
-    latest.locale = PreferencesLocale::ZhCn;
+    latest.locale = SettingsLocale::ZhCn;
     assert!(
         ui.settings
             .observe_snapshot(settings_snapshot(2, &latest), ui.clock.now())
     );
-    let confirmed =
-        orchbee_local_runtime::snapshot_preferences(&ui.take_settings_snapshot().unwrap());
+    let confirmed = orchbee_local_runtime::snapshot_values(&ui.take_settings_snapshot().unwrap());
     ui.apply_user_preferences(&confirmed);
     shell.apply_user_preferences(confirmed);
     let preview = ui.view().settings_appearance_preview().unwrap();
-    assert_eq!(preview.locale, PreferencesLocale::ZhCn);
+    assert_eq!(preview.locale, SettingsLocale::ZhCn);
     assert_eq!(preview.application_theme, ApplicationAppearance::Dark);
     let expected = shell.preview_theme(preview);
     let buffer = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);
@@ -337,7 +335,7 @@ pub fn covering_client_owner_uses_confirmed_appearance_until_settings_returns(
     let mut shell = ClientView::new(120);
     // A named theme, which the previewed Light appearance paints, needs truecolor.
     shell.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
-    shell.apply_user_preferences(UserPreferencesValues::default());
+    shell.apply_user_preferences(UserSettingsValues::default());
     ui.settings.editor.edit(Edit::Select(Row::Theme));
     ui.settings.editor.edit(Edit::Adjust(true));
     let preview = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs, paint_frame);

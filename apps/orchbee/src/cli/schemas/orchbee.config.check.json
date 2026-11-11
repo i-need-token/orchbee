@@ -147,7 +147,6 @@
 								"properties": {
 									"record": {
 										"enum": [
-											"preferences",
 											"onboarding",
 											"machines",
 											"plugin-registry",

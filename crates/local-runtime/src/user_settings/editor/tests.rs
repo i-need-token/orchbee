@@ -142,8 +142,8 @@ fn set_changes_only_its_key_and_keeps_comments_order_and_unknown_keys() {
     assert!(text.contains("\n[mystery]\nanswer = 42\n"), "{text}");
     assert!(!text.contains("[appearance]"), "{text}");
     let load = crate::read_user_settings(fixture.env()).unwrap();
-    assert!(load.preferences.copy_on_select);
-    assert_eq!(load.preferences.launch_profiles.default_profile_id, "pwsh");
+    assert!(load.values.copy_on_select);
+    assert_eq!(load.values.launch_profiles.default_profile_id, "pwsh");
     assert_eq!(
         load.diagnostics
             .items()

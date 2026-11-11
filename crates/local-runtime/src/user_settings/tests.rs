@@ -680,35 +680,32 @@ fn syntax_errors_leave_defaults_and_name_the_line_and_column() {
     assert!(fine.require_valid_syntax().is_ok());
 }
 
-// The common preferences and desktop keys parse into the model under their new names, with the
+// The common values and desktop keys parse into the model under their new names, with the
 // file's spellings, while every old `ui.*` name is just an unknown key.
 #[test]
-fn preference_and_desktop_keys_parse_with_registry_types() {
+fn common_and_desktop_keys_parse_with_registry_types() {
     use orchbee_workbench_protocol::{AgentReminderMode, CompletionReminderMode};
     let load = parse(
         "[general]\nlanguage = 'zh-CN'\n[appearance]\nmode = 'dark'\ndark_theme = 'dracula'\ncustom_foreground = '#ABCDEF'\n[terminal]\ncopy_on_select = true\nscrollback_bytes = 2000000000\nfont_size = 20\nfont_weight = 450\nmacos_option_as_alt = 'left'\n[notifications]\nagent_reminder = 'when-hidden'\ncompletion_reminder = 'hidden'\ncompletion_minimum_seconds = 30\n[agents]\nresume_on_restore = false\n[ui.toast]\ndelivery = 'system'\n",
         Path::new(r"C:\config.toml"),
         &|_| None,
     );
-    let preferences = &load.preferences;
+    let values = &load.values;
     assert_eq!(
-        serde_json::to_value(preferences.locale).unwrap(),
+        serde_json::to_value(values.locale).unwrap(),
         serde_json::json!("zh-CN")
     );
-    assert_eq!(preferences.dark_theme, "dracula");
-    assert!(preferences.copy_on_select);
-    assert!(!preferences.resume_agents_on_restore);
+    assert_eq!(values.dark_theme, "dracula");
+    assert!(values.copy_on_select);
+    assert!(!values.resume_agents_on_restore);
+    assert_eq!(values.agent_notification_mode, AgentReminderMode::Hidden);
     assert_eq!(
-        preferences.agent_notification_mode,
-        AgentReminderMode::Hidden
-    );
-    assert_eq!(
-        preferences.completion_reminder_mode,
+        values.completion_reminder_mode,
         CompletionReminderMode::Never
     );
-    assert_eq!(preferences.completion_reminder_minimum_seconds, 30);
-    assert_eq!(preferences.custom_foreground, "#141414");
-    assert_eq!(preferences.scrollback_bytes, 10_000_000);
+    assert_eq!(values.completion_reminder_minimum_seconds, 30);
+    assert_eq!(values.custom_foreground, "#141414");
+    assert_eq!(values.scrollback_bytes, 10_000_000);
     assert_eq!(load.desktop.font_size, 20);
     assert_eq!(load.desktop.font_weight, 400);
     assert_eq!(load.desktop.macos_option_as_alt, MacosOptionAsAlt::Left);
@@ -752,7 +749,7 @@ fn launch_profiles_read_the_current_platform_and_check_every_table() {
         Path::new(r"C:\config.toml"),
         &|_| None,
     );
-    let catalog = &load.preferences.launch_profiles;
+    let catalog = &load.values.launch_profiles;
     assert_eq!(catalog.default_profile_id, "pwsh");
     assert_eq!(
         catalog
@@ -785,7 +782,7 @@ fn launch_profiles_read_the_current_platform_and_check_every_table() {
         &|_| None,
     );
     assert_eq!(
-        broken.preferences.launch_profiles,
+        broken.values.launch_profiles,
         orchbee_workbench_protocol::UserLaunchProfiles::default()
     );
     assert!(broken.diagnostics.items().iter().any(|diagnostic| {

@@ -6,6 +6,4 @@ mod windows;
 #[cfg(not(windows))]
 pub use unsupported::PrivateCache;
 #[cfg(windows)]
-pub(crate) use windows::ConfigurationWriteFailure;
-#[cfg(windows)]
 pub use windows::PrivateCache;

@@ -2,7 +2,7 @@
 use super::*;
 use orchbee_workbench_protocol::TuiColorSource;
 
-fn basis_with(edit: impl FnOnce(&mut UserPreferencesValues)) -> Basis {
+fn basis_with(edit: impl FnOnce(&mut UserSettingsValues)) -> Basis {
     let mut basis = basis();
     edit(&mut basis.values);
     basis
@@ -70,9 +70,9 @@ fn committing_a_theme_sets_its_slot_and_shows_it_through_appearance_and_source()
     assert_eq!(
         edited_keys(&submit(&mut editor)),
         [
-            PreferenceKey::ApplicationTheme,
-            PreferenceKey::DarkTheme,
-            PreferenceKey::TuiColorSource
+            UserSettingsField::ApplicationTheme,
+            UserSettingsField::DarkTheme,
+            UserSettingsField::TuiColorSource
         ]
     );
 }
@@ -107,7 +107,7 @@ fn reset_all_restores_both_slots_and_the_color_source() {
     editor.edit(Edit::Activate);
     draw(&mut editor);
     editor.edit(Edit::Activate);
-    let defaults = UserPreferencesValues::default();
+    let defaults = UserSettingsValues::default();
     assert!(matches!(editor.view(), Some(View::Draft(view)) if view.values == &defaults));
     assert_eq!(
         editor.appearance_preview(),

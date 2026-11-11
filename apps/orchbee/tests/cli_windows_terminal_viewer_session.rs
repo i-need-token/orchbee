@@ -23,7 +23,6 @@ mod session;
 #[path = "cli_windows_terminal_viewer_session/focus_control.rs"]
 mod focus_control;
 
-use orchbee_workbench_protocol::PreferenceKey;
 use session::{Control, Fixture, OBSERVATION};
 use std::{
     thread,
@@ -283,5 +282,5 @@ fn release(column: u16, row: u16) -> Vec<u8> {
 /// Copy-on-select is off by default; this test needs its exports, so it saves the preference in
 /// the fixture's own configuration before the TUI starts.
 fn enable_copy_on_select(fixture: &Fixture) {
-    fixture.set_preference(PreferenceKey::CopyOnSelect, true.into());
+    fixture.set_values(|values| values.copy_on_select = true);
 }

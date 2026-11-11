@@ -181,7 +181,7 @@ pub struct ClientView {
     pub onboarding: crate::onboarding::State,
     /// Confirmed shared preferences. `apply_user_preferences` is the single writer;
     /// `WorkbenchClientUi` receives its copy from here in the same settlement.
-    user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
+    user_preferences: Option<orchbee_workbench_protocol::UserSettingsValues>,
     pub machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
     theme_name: Option<crate::tui_theme::ThemeName>,
@@ -435,7 +435,7 @@ impl ClientView {
 
     pub(crate) fn apply_user_preferences(
         &mut self,
-        values: orchbee_workbench_protocol::UserPreferencesValues,
+        values: orchbee_workbench_protocol::UserSettingsValues,
     ) {
         self.theme = Some(self.resolve_theme(crate::tui_theme::ColorPreferences::from(&values)));
         self.user_preferences = Some(values);
@@ -444,7 +444,7 @@ impl ClientView {
     /// The confirmed preferences that `WorkbenchClientUi` receives after each settlement.
     pub(crate) const fn user_preferences(
         &self,
-    ) -> Option<&orchbee_workbench_protocol::UserPreferencesValues> {
+    ) -> Option<&orchbee_workbench_protocol::UserSettingsValues> {
         self.user_preferences.as_ref()
     }
 
@@ -463,13 +463,13 @@ impl ClientView {
     pub fn presentation_locale(
         &self,
         fallback: crate::localization::Locale,
-        preview: Option<orchbee_workbench_protocol::PreferencesLocale>,
+        preview: Option<orchbee_workbench_protocol::SettingsLocale>,
     ) -> crate::localization::Locale {
-        use orchbee_workbench_protocol::PreferencesLocale;
+        use orchbee_workbench_protocol::SettingsLocale;
         match preview.or_else(|| self.user_preferences.as_ref().map(|values| values.locale)) {
-            Some(PreferencesLocale::EnUs) => crate::localization::Locale::EnUs,
-            Some(PreferencesLocale::ZhCn) => crate::localization::Locale::ZhCn,
-            Some(PreferencesLocale::System) | None => fallback,
+            Some(SettingsLocale::EnUs) => crate::localization::Locale::EnUs,
+            Some(SettingsLocale::ZhCn) => crate::localization::Locale::ZhCn,
+            Some(SettingsLocale::System) | None => fallback,
         }
     }
 

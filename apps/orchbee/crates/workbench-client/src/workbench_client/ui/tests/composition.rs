@@ -12,7 +12,7 @@ use crate::tui_presentation::PresentationPhase;
 use crate::tui_theme::Role;
 use crate::tui_theme::Theme;
 use crate::workbench_client::DrawReceipt;
-use orchbee_workbench_protocol::UserPreferencesValues;
+use orchbee_workbench_protocol::UserSettingsValues;
 use ratatui::layout::Rect;
 use ratatui::{Terminal, backend::TestBackend};
 
@@ -118,7 +118,7 @@ fn open_loaded_settings(ui: &mut WorkbenchClientUi) {
         token,
         Basis {
             revision: 1,
-            values: UserPreferencesValues::default(),
+            values: UserSettingsValues::default(),
         },
     ));
     assert_eq!(

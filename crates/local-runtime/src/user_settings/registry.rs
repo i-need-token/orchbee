@@ -3,9 +3,8 @@
 //! The reader, the offline reference, unknown-key detection, diagnostic bundles and the editor all
 //! derive their key knowledge from [`SETTING_KEYS`]; no second list of keys exists.
 use super::{keys::ACTIONS, notifications::MAXIMUM_NOTIFICATION_DELAY_SECONDS};
-use orchbee_workbench_protocol::PreferenceKey;
 
-/// Longest color-theme id, the bound the preference values admit.
+/// Longest color-theme id, the bound the typed values admit.
 const THEME_ID_BYTES: usize = 64;
 
 /// Settings-page category, in page order. Display names belong to each client's localization.
@@ -204,8 +203,6 @@ pub struct SettingKey {
     pub page: bool,
     /// Whether `--default-config` lists the key.
     pub reference: bool,
-    /// The common preference this key carries; `preferences.json` stays its runtime source for now.
-    pub preference: Option<PreferenceKey>,
     /// Fixed English purpose for the offline reference.
     pub description: &'static str,
 }
@@ -247,7 +244,6 @@ const fn key(
         effect: SettingEffect::Immediate,
         page: false,
         reference: true,
-        preference: None,
         description,
     }
 }
@@ -263,10 +259,6 @@ impl SettingKey {
     }
     const fn effect(mut self, effect: SettingEffect) -> Self {
         self.effect = effect;
-        self
-    }
-    const fn preference(mut self, preference: PreferenceKey) -> Self {
-        self.preference = Some(preference);
         self
     }
     const fn unreferenced(mut self) -> Self {
@@ -304,8 +296,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Display language; system follows the operating system.",
     )
-    .page()
-    .preference(PreferenceKey::Locale),
+    .page(),
     key(
         "appearance.mode",
         V::Choice(&["system", "light", "dark"]),
@@ -314,8 +305,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Light or dark appearance; system follows the operating system.",
     )
-    .page()
-    .preference(PreferenceKey::ApplicationTheme),
+    .page(),
     key(
         "appearance.light_theme",
         V::Theme,
@@ -324,8 +314,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Color theme in light appearance; an id this build does not ship reads as Orchbee Light.",
     )
-    .page()
-    .preference(PreferenceKey::LightTheme),
+    .page(),
     key(
         "appearance.dark_theme",
         V::Theme,
@@ -334,8 +323,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Color theme in dark appearance; an id this build does not ship reads as Orchbee Dark.",
     )
-    .page()
-    .preference(PreferenceKey::DarkTheme),
+    .page(),
     key(
         "appearance.tui_colors",
         V::Choice(&["theme", "terminal"]),
@@ -344,8 +332,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Where the terminal interface takes its colors: the theme or the host terminal's palette.",
     )
-    .clients(TUI)
-    .preference(PreferenceKey::TuiColorSource),
+    .clients(TUI),
     key(
         "appearance.terminal_colors",
         V::Choice(&["theme", "host", "custom"]),
@@ -354,8 +341,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Colors of terminal output: the theme, the host terminal, or the two custom colors.",
     )
-    .page()
-    .preference(PreferenceKey::TerminalDisplayTheme),
+    .page(),
     key(
         "appearance.custom_foreground",
         V::Color,
@@ -364,8 +350,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Text color when terminal_colors is custom.",
     )
-    .page()
-    .preference(PreferenceKey::CustomForeground),
+    .page(),
     key(
         "appearance.custom_background",
         V::Color,
@@ -374,8 +359,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Background color when terminal_colors is custom.",
     )
-    .page()
-    .preference(PreferenceKey::CustomBackground),
+    .page(),
     key(
         "appearance.window_title",
         V::Text {
@@ -457,8 +441,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Copy selected terminal text without a separate copy step.",
     )
-    .page()
-    .preference(PreferenceKey::CopyOnSelect),
+    .page(),
     key(
         "terminal.macos_option_as_alt",
         V::Choice(&["off", "left", "right", "both"]),
@@ -478,8 +461,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Terminal history kept per terminal, in bytes.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::ScrollbackBytes),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.trim_trailing_blank_rows_for_agents",
         V::Boolean,
@@ -487,8 +469,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         (C::Terminal, G::Output),
         CLIENT,
         "Keep an Agent's latest output at the bottom of its panel.",
-    )
-    .preference(PreferenceKey::TrimTrailingBlankRowsForAgents),
+    ),
     key(
         "terminal.restore_output",
         V::Boolean,
@@ -498,8 +479,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Show each terminal's recent output again after a restart.",
     )
     .page()
-    .effect(SettingEffect::Restart)
-    .preference(PreferenceKey::RestoreTerminalOutput),
+    .effect(SettingEffect::Restart),
     key(
         "terminal.font_family",
         V::Text {
@@ -588,8 +568,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Launch profile a new terminal uses on this platform.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>",
         V::Structured("up to 63 profile tables; a profile with id system-default replaces the built-in one"),
@@ -599,8 +578,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Launch profiles for this platform; each platform reads only its own table.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>[].id",
         V::Text {
@@ -613,8 +591,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Profile id that default_profile names.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>[].name",
         V::Text {
@@ -627,8 +604,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Name shown for the profile.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>[].kind",
         V::Choice(&["system-shell", "custom-executable"]),
@@ -638,8 +614,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "What the profile starts: the system shell or a program.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>[].login",
         V::Boolean,
@@ -649,8 +624,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Start the system shell as a login shell; system-shell profiles only.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>[].executable",
         V::Text {
@@ -663,8 +637,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Program a custom-executable profile starts.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "terminal.profiles.<platform>[].arguments",
         V::Structured("an array of up to 128 strings, each passed as one literal argument"),
@@ -674,8 +647,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Arguments for a custom-executable profile.",
     )
     .page()
-    .effect(SettingEffect::NewTerminals)
-    .preference(PreferenceKey::LaunchProfiles),
+    .effect(SettingEffect::NewTerminals),
     key(
         "worktrees.directory",
         V::Path,
@@ -692,8 +664,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Notify when an Agent needs attention while its panel is hidden.",
     )
-    .page()
-    .preference(PreferenceKey::AgentNotificationMode),
+    .page(),
     key(
         "notifications.completion_reminder",
         V::Choice(&["never", "when-unfocused", "always"]),
@@ -702,8 +673,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Notify when a long command finishes.",
     )
-    .page()
-    .preference(PreferenceKey::CompletionReminderMode),
+    .page(),
     key(
         "notifications.completion_minimum_seconds",
         integer(1, 3600),
@@ -711,8 +681,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         (C::Notifications, G::When),
         CLIENT,
         "Shortest command, in seconds, whose completion is notified.",
-    )
-    .preference(PreferenceKey::CompletionReminderMinimumSeconds),
+    ),
     key(
         "notifications.sound",
         V::Boolean,
@@ -721,8 +690,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Play a sound with notifications.",
     )
-    .page()
-    .preference(PreferenceKey::SoundEnabled),
+    .page(),
     key(
         "notifications.cli_delivery",
         V::Choice(&["off", "orchbee", "terminal", "system"]),
@@ -849,8 +817,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Resume supported Agent conversations in their panels after a restart.",
     )
     .page()
-    .effect(SettingEffect::Restart)
-    .preference(PreferenceKey::ResumeAgentsOnRestore),
+    .effect(SettingEffect::Restart),
     key(
         "agent_detection.auto_update",
         V::Boolean,

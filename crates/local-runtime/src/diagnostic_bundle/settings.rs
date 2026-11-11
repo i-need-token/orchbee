@@ -1,4 +1,4 @@
-//! Settings and preferences as a bundle carries them: the same keys, with commands, arguments,
+//! Settings as a bundle carries them: the same keys, with commands, arguments,
 //! environment values, credentials and unrecognized settings values replaced, then every string
 //! scrubbed.
 use super::{
@@ -31,37 +31,19 @@ pub fn redact_settings(text: &str, redactor: &DiagnosticRedactor) -> Option<Stri
         return None;
     };
     for (key, value) in &mut values {
-        redact(value, key, key, Some(&recognized), redactor);
+        redact(value, key, key, redactor);
     }
     let mut document = toml_edit::DocumentMut::new();
     *document.as_table_mut() = to_table(&values);
     Some(document.to_string())
 }
 
-/// `preferences.json` with the same rules, or `None` when it is not JSON.
-pub fn redact_preferences(bytes: &[u8], redactor: &DiagnosticRedactor) -> Option<Value> {
-    let mut value: Value = serde_json::from_slice(bytes).ok()?;
-    redact(&mut value, "", "", None, redactor);
-    Some(value)
-}
-
-/// A settings path is recognized when it or an ancestor is a registered key, with `[]` marking an
-/// array element.
-fn recognized(path: &str) -> bool {
-    crate::user_settings::recognized_path(path)
-}
-
-fn redact(
-    value: &mut Value,
-    key: &str,
-    path: &str,
-    recognized: Option<&dyn Fn(&str) -> bool>,
-    redactor: &DiagnosticRedactor,
-) {
+/// Redacts `value` at `path`. A settings path is recognized when it or an ancestor is a
+/// registered key, with `[]` marking an array element.
+fn redact(value: &mut Value, key: &str, path: &str, redactor: &DiagnosticRedactor) {
     let scalar = |value: &Value| !matches!(value, Value::Object(_) | Value::Array(_));
     let lowered = key.to_ascii_lowercase();
-    if recognized.is_some_and(|recognized| !recognized(path)) && !matches!(value, Value::Object(_))
-    {
+    if !crate::user_settings::recognized_path(path) && !matches!(value, Value::Object(_)) {
         *value = UNRECOGNIZED_PLACEHOLDER.into();
     } else if CREDENTIAL_FRAGMENTS
         .iter()
@@ -78,18 +60,12 @@ fn redact(
         match value {
             Value::Object(map) => {
                 for (child, value) in map.iter_mut() {
-                    redact(
-                        value,
-                        child,
-                        &format!("{path}.{child}"),
-                        recognized,
-                        redactor,
-                    );
+                    redact(value, child, &format!("{path}.{child}"), redactor);
                 }
             }
             Value::Array(items) => {
                 for item in items {
-                    redact(item, key, &format!("{path}[]"), recognized, redactor);
+                    redact(item, key, &format!("{path}[]"), redactor);
                 }
             }
             Value::String(text) => *text = redactor.scrub(text),

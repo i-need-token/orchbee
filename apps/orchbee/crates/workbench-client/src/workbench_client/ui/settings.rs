@@ -154,7 +154,7 @@ impl WorkbenchClientUi {
     }
     pub(in crate::workbench_client) fn apply_user_preferences(
         &mut self,
-        values: &orchbee_workbench_protocol::UserPreferencesValues,
+        values: &orchbee_workbench_protocol::UserSettingsValues,
     ) {
         for projection in &mut self.projections {
             if let Some(selection) = &mut projection.selection {

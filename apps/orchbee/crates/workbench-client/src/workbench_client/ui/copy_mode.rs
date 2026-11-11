@@ -198,11 +198,11 @@ impl WorkbenchClientUi {
             && !self.modal_owns_input()
             && let Some(failure) = self.focused_launch_failure()
         {
-            use orchbee_workbench_protocol::PreferencesLocale;
+            use orchbee_workbench_protocol::SettingsLocale;
             let locale = match self.preferences.locale {
-                PreferencesLocale::EnUs => crate::localization::Locale::EnUs,
-                PreferencesLocale::ZhCn => crate::localization::Locale::ZhCn,
-                PreferencesLocale::System => {
+                SettingsLocale::EnUs => crate::localization::Locale::EnUs,
+                SettingsLocale::ZhCn => crate::localization::Locale::ZhCn,
+                SettingsLocale::System => {
                     crate::localization::select_locale(|name| std::env::var_os(name))
                 }
             };

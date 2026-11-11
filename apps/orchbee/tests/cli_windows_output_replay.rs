@@ -11,7 +11,7 @@
 #[path = "support/windows_tui_session.rs"]
 mod session;
 
-use orchbee_workbench_protocol::PreferenceKey;
+use orchbee_workbench_protocol::UserSettingsValues;
 use serde_json::{Value, json};
 use session::{Fixture, system_program};
 use sha2::{Digest, Sha256};
@@ -116,7 +116,7 @@ fn kept_output_replays_only_into_its_own_terminal_and_never_outlives_its_reason(
     witness.until("restored terminals keep output again", SAVED, || {
         witness.kept().len() == 2
     });
-    witness.set_preference(PreferenceKey::RestoreTerminalOutput, json!(false));
+    witness.set_values(|values| values.restore_terminal_output = false);
     witness.until("every kept file is gone", SAVED, || {
         witness.kept().is_empty() && !witness.newest_checkpoint().contains("\"output\"")
     });
@@ -159,9 +159,8 @@ impl Witness {
         let witness = Self {
             fixture: Fixture::new("orchbee-output-replay-", &[]),
         };
-        witness.set_preference(
-            PreferenceKey::LaunchProfiles,
-            json!({
+        witness.set_values(|values| {
+            values.launch_profiles = serde_json::from_value(json!({
                 "version": 1,
                 "defaultProfileId": CMD_PROFILE,
                 "profiles": [
@@ -172,9 +171,10 @@ impl Witness {
                         "arguments": ["/D"],
                     }},
                 ],
-            }),
-        );
-        witness.set_preference(PreferenceKey::RestoreTerminalOutput, json!(true));
+            }))
+            .unwrap();
+        });
+        witness.set_values(|values| values.restore_terminal_output = true);
         witness
     }
 
@@ -365,8 +365,8 @@ impl Witness {
         }
     }
 
-    fn set_preference(&self, key: PreferenceKey, value: Value) {
-        self.fixture.set_preference(key, value);
+    fn set_values(&self, change: impl FnOnce(&mut UserSettingsValues)) {
+        self.fixture.set_values(change);
     }
 }
 

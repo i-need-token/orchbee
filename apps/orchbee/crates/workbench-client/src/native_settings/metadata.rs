@@ -1,10 +1,11 @@
-//! The native feature projection for the complete shared preference inventory.
+//! The native feature projection for the common settings both Clients present.
 //!
-//! Workbench Protocol remains the value, default, validation, and persistence owner. This table
-//! owns only the TUI composition facts that every native Settings consumer must share.
+//! The settings registry in Local Runtime remains the key, default, validation, and persistence
+//! owner. This table owns only the TUI composition facts that every native Settings consumer must
+//! share.
 
 use super::rows::Row;
-use orchbee_workbench_protocol::PreferenceKey;
+use orchbee_local_runtime::UserSettingsField;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingCategory {
@@ -71,7 +72,7 @@ pub(crate) enum SettingEffect {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SettingMetadata {
     /// Stable machine identity and localization descriptor identity.
-    pub(crate) key: PreferenceKey,
+    pub(crate) key: UserSettingsField,
     pub(crate) row: Row,
     pub(crate) category: SettingCategory,
     pub(crate) control: SettingControl,
@@ -81,7 +82,7 @@ pub(crate) struct SettingMetadata {
 
 pub(crate) static SETTINGS: [SettingMetadata; 18] = [
     SettingMetadata {
-        key: PreferenceKey::Locale,
+        key: UserSettingsField::Locale,
         row: Row::Language,
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
@@ -89,7 +90,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentApplication,
     },
     SettingMetadata {
-        key: PreferenceKey::ApplicationTheme,
+        key: UserSettingsField::ApplicationTheme,
         row: Row::Theme,
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
@@ -97,7 +98,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentApplication,
     },
     SettingMetadata {
-        key: PreferenceKey::LightTheme,
+        key: UserSettingsField::LightTheme,
         row: Row::LightTheme,
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
@@ -105,7 +106,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentApplication,
     },
     SettingMetadata {
-        key: PreferenceKey::DarkTheme,
+        key: UserSettingsField::DarkTheme,
         row: Row::DarkTheme,
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
@@ -113,7 +114,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentApplication,
     },
     SettingMetadata {
-        key: PreferenceKey::TuiColorSource,
+        key: UserSettingsField::TuiColorSource,
         row: Row::ColorSource,
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
@@ -121,7 +122,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentApplication,
     },
     SettingMetadata {
-        key: PreferenceKey::TerminalDisplayTheme,
+        key: UserSettingsField::TerminalDisplayTheme,
         row: Row::TerminalTheme,
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
@@ -129,7 +130,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentTerminalPresentation,
     },
     SettingMetadata {
-        key: PreferenceKey::CustomForeground,
+        key: UserSettingsField::CustomForeground,
         row: Row::Foreground,
         category: SettingCategory::Appearance,
         control: SettingControl::Color,
@@ -137,7 +138,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentTerminalPresentation,
     },
     SettingMetadata {
-        key: PreferenceKey::CustomBackground,
+        key: UserSettingsField::CustomBackground,
         row: Row::Background,
         category: SettingCategory::Appearance,
         control: SettingControl::Color,
@@ -145,7 +146,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::CurrentTerminalPresentation,
     },
     SettingMetadata {
-        key: PreferenceKey::CopyOnSelect,
+        key: UserSettingsField::CopyOnSelect,
         row: Row::CopyOnSelect,
         category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
@@ -153,7 +154,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::SubsequentSelection,
     },
     SettingMetadata {
-        key: PreferenceKey::TrimTrailingBlankRowsForAgents,
+        key: UserSettingsField::TrimTrailingBlankRowsForAgents,
         row: Row::TrimAgents,
         category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
@@ -161,7 +162,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::ExistingAgentPresentation,
     },
     SettingMetadata {
-        key: PreferenceKey::ResumeAgentsOnRestore,
+        key: UserSettingsField::ResumeAgentsOnRestore,
         row: Row::ResumeAgents,
         category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
@@ -169,7 +170,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::NextRestart,
     },
     SettingMetadata {
-        key: PreferenceKey::RestoreTerminalOutput,
+        key: UserSettingsField::RestoreTerminalOutput,
         row: Row::RestoreOutput,
         category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
@@ -177,7 +178,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::NextRestart,
     },
     SettingMetadata {
-        key: PreferenceKey::AgentNotificationMode,
+        key: UserSettingsField::AgentNotificationMode,
         row: Row::Reminders,
         category: SettingCategory::Notifications,
         control: SettingControl::FiniteChoice,
@@ -185,7 +186,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::FutureNotification,
     },
     SettingMetadata {
-        key: PreferenceKey::CompletionReminderMode,
+        key: UserSettingsField::CompletionReminderMode,
         row: Row::CompletionReminders,
         category: SettingCategory::Notifications,
         control: SettingControl::FiniteChoice,
@@ -193,7 +194,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::FutureNotification,
     },
     SettingMetadata {
-        key: PreferenceKey::CompletionReminderMinimumSeconds,
+        key: UserSettingsField::CompletionReminderMinimumSeconds,
         row: Row::CompletionThreshold,
         category: SettingCategory::Notifications,
         control: SettingControl::BoundedInteger {
@@ -207,7 +208,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::FutureNotification,
     },
     SettingMetadata {
-        key: PreferenceKey::SoundEnabled,
+        key: UserSettingsField::SoundEnabled,
         row: Row::Sound,
         category: SettingCategory::Notifications,
         control: SettingControl::Boolean,
@@ -215,7 +216,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::FutureNotification,
     },
     SettingMetadata {
-        key: PreferenceKey::ScrollbackBytes,
+        key: UserSettingsField::ScrollbackBytes,
         row: Row::Scrollback,
         category: SettingCategory::Terminal,
         control: SettingControl::BoundedInteger {
@@ -229,7 +230,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
         effect: SettingEffect::NewTerminal,
     },
     SettingMetadata {
-        key: PreferenceKey::LaunchProfiles,
+        key: UserSettingsField::LaunchProfiles,
         row: Row::LaunchProfiles,
         category: SettingCategory::LaunchProfiles,
         control: SettingControl::Catalog,
@@ -238,11 +239,11 @@ pub(crate) static SETTINGS: [SettingMetadata; 18] = [
     },
 ];
 
-pub(crate) fn setting(key: PreferenceKey) -> &'static SettingMetadata {
+pub(crate) fn setting(key: UserSettingsField) -> &'static SettingMetadata {
     SETTINGS
         .iter()
         .find(|metadata| metadata.key == key)
-        .expect("complete PreferenceKey metadata")
+        .expect("complete UserSettingsField metadata")
 }
 
 pub(crate) fn setting_for_row(row: Row) -> Option<&'static SettingMetadata> {

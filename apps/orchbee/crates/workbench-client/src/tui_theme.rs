@@ -1710,12 +1710,12 @@ pub trait ThemeTestAccess {
     fn color(&self, role: Role) -> Color;
     fn with_terminal_preferences(
         self,
-        values: &orchbee_workbench_protocol::UserPreferencesValues,
+        values: &orchbee_workbench_protocol::UserSettingsValues,
     ) -> Self;
     /// The resolution of confirmed preferences on a host whose settled appearance is this one,
     /// before the Client applies its captured outer-host colors.
     fn for_preferences(
-        values: &orchbee_workbench_protocol::UserPreferencesValues,
+        values: &orchbee_workbench_protocol::UserSettingsValues,
         host: crate::host_appearance::HostAppearance,
         level: ColorLevel,
     ) -> Self;
@@ -1733,12 +1733,12 @@ impl ThemeTestAccess for Theme {
     }
     fn with_terminal_preferences(
         self,
-        values: &orchbee_workbench_protocol::UserPreferencesValues,
+        values: &orchbee_workbench_protocol::UserSettingsValues,
     ) -> Self {
         self.with_terminal_appearance(ColorPreferences::from(values))
     }
     fn for_preferences(
-        values: &orchbee_workbench_protocol::UserPreferencesValues,
+        values: &orchbee_workbench_protocol::UserSettingsValues,
         host: crate::host_appearance::HostAppearance,
         level: ColorLevel,
     ) -> Self {

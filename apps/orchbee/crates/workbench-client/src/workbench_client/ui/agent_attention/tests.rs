@@ -13,10 +13,10 @@ fn enable_shared_notifications(
     ui: &mut WorkbenchClientUi,
     settings: &orchbee_local_runtime::NotificationSettings,
 ) {
-    ui.apply_user_preferences(&orchbee_workbench_protocol::UserPreferencesValues {
+    ui.apply_user_preferences(&orchbee_workbench_protocol::UserSettingsValues {
         agent_notification_mode: orchbee_workbench_protocol::AgentReminderMode::Hidden,
         sound_enabled: settings.sound_enabled,
-        ..orchbee_workbench_protocol::UserPreferencesValues::default()
+        ..orchbee_workbench_protocol::UserSettingsValues::default()
     });
     ui.configure_agent_notifications(1, settings);
 }
@@ -48,7 +48,7 @@ fn focused_completion_first_paint_has_no_unread_flash_and_seen_still_waits_for_t
 #[test]
 fn shared_never_remains_disabled_after_legacy_notification_reload() {
     use orchbee_workbench_protocol::{
-        AgentReminderMode, PanelAgentState, UserPreferencesValues, WorkbenchRevision,
+        AgentReminderMode, PanelAgentState, UserSettingsValues, WorkbenchRevision,
     };
     let settings = orchbee_local_runtime::NotificationSettings::from_profile(
         "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0\n[ui.sound]\nenabled=true",
@@ -56,14 +56,14 @@ fn shared_never_remains_disabled_after_legacy_notification_reload() {
     .unwrap();
     for enabled in [false, true] {
         let (mut ui, _, mut state) = physical_fixture();
-        ui.apply_user_preferences(&UserPreferencesValues {
+        ui.apply_user_preferences(&UserSettingsValues {
             agent_notification_mode: if enabled {
                 AgentReminderMode::Hidden
             } else {
                 AgentReminderMode::Never
             },
             sound_enabled: true,
-            ..UserPreferencesValues::default()
+            ..UserSettingsValues::default()
         });
         ui.configure_agent_notifications(2, &settings);
         ui.observe_focus(false);

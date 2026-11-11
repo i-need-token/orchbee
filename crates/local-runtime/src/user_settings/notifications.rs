@@ -111,7 +111,7 @@ impl NotificationSettings {
     }
 
     /// Admit the `[notifications]` keys this policy owns. Unknown keys are reported by the
-    /// reader's registry walk; the common preference keys in the same table belong elsewhere.
+    /// reader's registry walk; the common keys in the same table feed the typed values instead.
     pub(super) fn parse_lenient(
         table: &toml::Table,
         diagnostics: &mut DiagnosticsCollector,

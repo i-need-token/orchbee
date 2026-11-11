@@ -45,7 +45,7 @@
 #[path = "support/windows_tui_session.rs"]
 mod session;
 
-use orchbee_workbench_protocol::PreferenceKey;
+use orchbee_workbench_protocol::UserSettingsValues;
 use serde_json::{Value, json};
 use session::{Control, Fixture, system_program};
 use std::{
@@ -735,7 +735,7 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
 
     // With the preference off at startup, the retained references are discarded unresumed, and
     // the next capture records none.
-    witness.set_preference(PreferenceKey::ResumeAgentsOnRestore, json!(false));
+    witness.set_values(|values| values.resume_agents_on_restore = false);
     witness.start_session();
     let runs = witness.calls().len();
     let viewing = witness.control(&rows[0].panel);
@@ -831,9 +831,8 @@ impl Witness {
             fixture: Fixture::new(prefix, &directories),
             node,
         };
-        witness.set_preference(
-            PreferenceKey::LaunchProfiles,
-            json!({
+        witness.set_values(|values| {
+            values.launch_profiles = serde_json::from_value(json!({
                 "version": 1,
                 "defaultProfileId": CMD_PROFILE,
                 "profiles": [
@@ -844,8 +843,9 @@ impl Witness {
                         "arguments": ["/D"],
                     }},
                 ],
-            }),
-        );
+            }))
+            .unwrap();
+        });
         witness.place_stubs(labels);
         witness
     }
@@ -1274,7 +1274,7 @@ impl Witness {
     /// Starts the default Session again once its settings file still selects cmd: an unreadable
     /// file would restore PowerShell, which resolves only through `PATH`.
     fn start_session(&self) {
-        let values = serde_json::to_value(self.fixture.preferences()).unwrap();
+        let values = serde_json::to_value(self.fixture.settings_values()).unwrap();
         assert_eq!(
             values["launchProfiles"]["defaultProfileId"], CMD_PROFILE,
             "{values}"
@@ -1392,8 +1392,8 @@ impl Witness {
         }
     }
 
-    fn set_preference(&self, key: PreferenceKey, value: Value) {
-        self.fixture.set_preference(key, value);
+    fn set_values(&self, change: impl FnOnce(&mut UserSettingsValues)) {
+        self.fixture.set_values(change);
     }
 }
 

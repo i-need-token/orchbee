@@ -22,10 +22,10 @@ fn completion_preferences_match_duration_focus_freshness_and_consumed_sequence_r
             for duration in [4999, 5000] {
                 for wall in [1, 39_999, 40_000, 100_000, 105_000, 105_001] {
                     let mut observer = Observer::default();
-                    let preferences = UserPreferencesValues {
+                    let preferences = UserSettingsValues {
                         completion_reminder_mode: mode,
                         sound_enabled: true,
-                        ..UserPreferencesValues::default()
+                        ..UserSettingsValues::default()
                     };
                     let completion = fact(1, duration, wall);
                     let actual = observer.observe(
@@ -41,10 +41,10 @@ fn completion_preferences_match_duration_focus_freshness_and_consumed_sequence_r
                         && duration >= 5000
                         && (40_000..=105_000).contains(&wall);
                     assert_eq!(actual, eligible.then_some(true));
-                    let enabled = UserPreferencesValues {
+                    let enabled = UserSettingsValues {
                         completion_reminder_mode: CompletionReminderMode::Always,
                         sound_enabled: true,
-                        ..UserPreferencesValues::default()
+                        ..UserSettingsValues::default()
                     };
                     assert_eq!(
                         observer.observe(
@@ -68,10 +68,10 @@ fn completion_preferences_match_duration_focus_freshness_and_consumed_sequence_r
 fn audio_is_rate_limited_per_physical_terminal_while_each_new_completion_can_remind() {
     let mut observer = Observer::default();
     let now = Instant::now();
-    let preferences = UserPreferencesValues {
+    let preferences = UserSettingsValues {
         completion_reminder_mode: CompletionReminderMode::Always,
         sound_enabled: true,
-        ..UserPreferencesValues::default()
+        ..UserSettingsValues::default()
     };
     assert_eq!(
         observer.observe(

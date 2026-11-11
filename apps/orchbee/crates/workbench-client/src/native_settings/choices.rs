@@ -2,15 +2,15 @@
 use super::{AppearancePreview, Row};
 use orchbee_color_themes::Polarity;
 use orchbee_workbench_protocol::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
-    TerminalDisplayAppearance, TuiColorSource, UserPreferencesValues,
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
+    TerminalDisplayAppearance, TuiColorSource, UserSettingsValues,
 };
 use std::sync::LazyLock;
 
 /// One canonical preference value; a choice cannot carry an unrelated setting's payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Choice {
-    Locale(PreferencesLocale),
+    Locale(SettingsLocale),
     ApplicationTheme(ApplicationAppearance),
     /// A shipped theme for the slot of its polarity.
     ColorTheme(ColorTheme),
@@ -65,9 +65,9 @@ impl Choice {
                 Self::ColorSource(TuiColorSource::Terminal),
             ],
             Row::Language => &[
-                Self::Locale(PreferencesLocale::System),
-                Self::Locale(PreferencesLocale::EnUs),
-                Self::Locale(PreferencesLocale::ZhCn),
+                Self::Locale(SettingsLocale::System),
+                Self::Locale(SettingsLocale::EnUs),
+                Self::Locale(SettingsLocale::ZhCn),
             ],
             Row::Theme => &[
                 Self::ApplicationTheme(ApplicationAppearance::System),
@@ -92,7 +92,7 @@ impl Choice {
         }
     }
 
-    pub(super) fn from_values(row: Row, values: &UserPreferencesValues) -> Option<Self> {
+    pub(super) fn from_values(row: Row, values: &UserSettingsValues) -> Option<Self> {
         match row {
             Row::Language => Some(Self::Locale(values.locale)),
             Row::Theme => Some(Self::ApplicationTheme(values.application_theme)),
@@ -118,7 +118,7 @@ impl Choice {
     /// Picking a theme sets its slot and shows it: Appearance fixed to the other polarity
     /// switches, and Terminal colors give way to Theme. Under System it shows when the host
     /// matches. Re-picking the slot's effective theme leaves an unshipped stored id untouched.
-    pub(super) fn apply(self, values: &mut UserPreferencesValues) {
+    pub(super) fn apply(self, values: &mut UserSettingsValues) {
         match self {
             Self::Locale(value) => values.locale = value,
             Self::ApplicationTheme(value) => values.application_theme = value,
@@ -213,7 +213,7 @@ impl ChoicePicker {
             first
         }
     }
-    pub(super) fn open(row: Row, values: &UserPreferencesValues) -> Option<Self> {
+    pub(super) fn open(row: Row, values: &UserSettingsValues) -> Option<Self> {
         let original = Choice::from_values(row, values)?;
         let cursor = Choice::options(row)
             .iter()

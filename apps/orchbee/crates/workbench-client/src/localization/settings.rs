@@ -36,7 +36,7 @@ pub(crate) use integrations::{
 };
 mod parameters;
 use orchbee_workbench_protocol::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance, TuiColorSource,
 };
 pub(crate) use parameters::{
@@ -274,12 +274,12 @@ impl Locale {
     }
     pub(crate) fn settings_choice(self, choice: impl Into<SettingsChoice>) -> &'static str {
         match choice.into() {
-            Choice::Locale(PreferencesLocale::System)
+            Choice::Locale(SettingsLocale::System)
             | Choice::ApplicationTheme(ApplicationAppearance::System) => {
                 self.setting("Follow system", "跟随系统")
             }
-            Choice::Locale(PreferencesLocale::EnUs) => "English",
-            Choice::Locale(PreferencesLocale::ZhCn) => "简体中文",
+            Choice::Locale(SettingsLocale::EnUs) => "English",
+            Choice::Locale(SettingsLocale::ZhCn) => "简体中文",
             Choice::ApplicationTheme(ApplicationAppearance::Light) => self.setting("Light", "浅色"),
             Choice::ApplicationTheme(ApplicationAppearance::Dark) => self.setting("Dark", "深色"),
             Choice::ColorTheme("orchbee-light") => self.setting("Orchbee Light", "Orchbee 浅色"),

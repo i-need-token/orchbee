@@ -1518,7 +1518,7 @@ pub(super) struct WorkbenchClientUi {
     /// The earlier-layout listing, picker rows and reopen in flight.
     earlier_layouts: earlier_layouts::EarlierLayouts,
     launch_profiles: launch_profiles::Coordinator,
-    preferences: orchbee_workbench_protocol::UserPreferencesValues,
+    preferences: orchbee_workbench_protocol::UserSettingsValues,
     completion_reminders: super::completion_reminders::State,
     notification_base: (u64, orchbee_local_runtime::NotificationSettings),
     /// Whether the `ClientView` card announces an Agent now; composition writes it from that
@@ -1693,7 +1693,7 @@ impl WorkbenchClientUi {
             worktree_opened_timer: Default::default(),
             focus_new_panel: true,
             launch_profiles: launch_profiles::Coordinator::default(),
-            preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
+            preferences: orchbee_workbench_protocol::UserSettingsValues::default(),
             completion_reminders: super::completion_reminders::State::default(),
             notification_base: (0, orchbee_local_runtime::NotificationSettings::default()),
             attention: super::agent_attention::AgentAttention::new(clock.clone()),

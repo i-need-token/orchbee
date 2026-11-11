@@ -2,7 +2,7 @@
 //! slot on a truecolor host whose appearance is known, otherwise the host terminal's own colors.
 use super::{ColorLevel, Polarity, Theme};
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, TerminalDisplayAppearance, TuiColorSource, UserPreferencesValues,
+    ApplicationAppearance, TerminalDisplayAppearance, TuiColorSource, UserSettingsValues,
 };
 
 /// The appearance leaves of one confirmed record or reversible Settings draft.
@@ -17,8 +17,8 @@ pub(crate) struct ColorPreferences<'a> {
     pub(crate) custom_background: &'a str,
 }
 
-impl<'a> From<&'a UserPreferencesValues> for ColorPreferences<'a> {
-    fn from(values: &'a UserPreferencesValues) -> Self {
+impl<'a> From<&'a UserSettingsValues> for ColorPreferences<'a> {
+    fn from(values: &'a UserSettingsValues) -> Self {
         Self {
             application_theme: values.application_theme,
             light_theme: &values.light_theme,

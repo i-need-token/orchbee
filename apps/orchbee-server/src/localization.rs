@@ -1,7 +1,7 @@
 //! Every human-facing string the Server writes into terminal content. The Server renders it in
 //! the person's configured language, so every Client shows the same text.
 
-use orchbee_workbench_protocol::PreferencesLocale;
+use orchbee_workbench_protocol::SettingsLocale;
 use std::ffi::OsString;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,13 +14,13 @@ impl Locale {
     /// The configured language; System reads `LC_ALL`, `LC_MESSAGES` and `LANG` in that order,
     /// ignoring empty values, and falls back to `en-US`.
     pub(crate) fn configured(
-        preference: PreferencesLocale,
+        preference: SettingsLocale,
         mut read_environment: impl FnMut(&str) -> Option<OsString>,
     ) -> Self {
         match preference {
-            PreferencesLocale::EnUs => Self::EnUs,
-            PreferencesLocale::ZhCn => Self::ZhCn,
-            PreferencesLocale::System => ["LC_ALL", "LC_MESSAGES", "LANG"]
+            SettingsLocale::EnUs => Self::EnUs,
+            SettingsLocale::ZhCn => Self::ZhCn,
+            SettingsLocale::System => ["LC_ALL", "LC_MESSAGES", "LANG"]
                 .into_iter()
                 .filter_map(&mut read_environment)
                 .find(|value| !value.is_empty())

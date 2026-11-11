@@ -7,7 +7,7 @@
 mod inherited_environment;
 
 use orchbee_local_runtime::CohortArtifact;
-use orchbee_workbench_protocol::{PreferenceKey, UserPreferencesPatch, UserPreferencesValues};
+use orchbee_workbench_protocol::UserSettingsValues;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -183,21 +183,21 @@ impl Fixture {
         }
     }
 
-    /// The common preference values this fixture's `config.toml` gives the runtime.
-    pub fn preferences(&self) -> UserPreferencesValues {
+    /// The common setting values this fixture's `config.toml` gives the runtime.
+    pub fn settings_values(&self) -> UserSettingsValues {
         orchbee_local_runtime::read_user_settings(self.state_environment())
             .unwrap()
             .settings
-            .preferences
+            .values
     }
 
-    /// Sets one preference in this fixture's `config.toml` the way the settings page saves it.
-    pub fn set_preference(&self, key: PreferenceKey, value: Value) {
-        let baseline = self.preferences();
-        let values = UserPreferencesPatch::set(key, value)
-            .and_then(|patch| patch.apply(&baseline))
-            .unwrap();
-        let changes = orchbee_local_runtime::preference_changes(&baseline, &values, &[]);
+    /// Applies `change` to the common values in this fixture's `config.toml` the way the settings
+    /// page saves them.
+    pub fn set_values(&self, change: impl FnOnce(&mut UserSettingsValues)) {
+        let baseline = self.settings_values();
+        let mut values = baseline.clone();
+        change(&mut values);
+        let changes = orchbee_local_runtime::value_changes(&baseline, &values, &[]);
         let changes = orchbee_local_runtime::setting_changes(&changes).unwrap();
         assert!(orchbee_local_runtime::edit_settings(&changes, self.state_environment()).unwrap());
     }

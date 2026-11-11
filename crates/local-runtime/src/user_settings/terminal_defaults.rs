@@ -1,8 +1,8 @@
-//! Capture the next terminal's launch intent from one confirmed set of preference values. The
+//! Capture the next terminal's launch intent from one confirmed set of setting values. The
 //! device that executes the launch resolves the System shell; this capture never discovers a
 //! program.
-use super::{UserColorThemes, UserTerminalColors};
-use orchbee_workbench_protocol::{PreferencesFailure, UserLaunchCommand, UserPreferencesValues};
+use super::{UnusableTerminalDefaults, UserColorThemes, UserTerminalColors};
+use orchbee_workbench_protocol::{UserLaunchCommand, UserSettingsValues};
 
 pub struct UserTerminalLaunchIntent {
     /// The default profile's command; absent when the invocation already owns an explicit
@@ -20,16 +20,16 @@ impl UserTerminalLaunchIntent {
     /// The intent `values` give. `select_default` takes the default profile's command; a catalog
     /// without that profile refuses the creation, and no default candidate is substituted.
     pub fn capture(
-        values: &UserPreferencesValues,
+        values: &UserSettingsValues,
         select_default: bool,
-    ) -> Result<Self, PreferencesFailure> {
+    ) -> Result<Self, UnusableTerminalDefaults> {
         let program = if select_default {
             let catalog = &values.launch_profiles;
             let profile = catalog
                 .profiles
                 .iter()
                 .find(|profile| profile.id == catalog.default_profile_id)
-                .ok_or(PreferencesFailure::InvalidSource)?;
+                .ok_or(UnusableTerminalDefaults)?;
             Some(profile.command.clone())
         } else {
             None

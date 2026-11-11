@@ -26,12 +26,6 @@ pub(crate) struct PrivateRead {
     _pins: Vec<File>,
 }
 
-/// One guarded configuration publication, with a definite observed-source conflict.
-pub(crate) enum ConfigurationWriteFailure {
-    SourceChanged,
-    Io,
-}
-
 impl PrivateRead {
     pub(crate) fn bytes(&self) -> Option<&[u8]> {
         self.bytes.as_deref()
@@ -44,8 +38,8 @@ impl PrivateRead {
 
 impl PrivateCache {
     /// Guards `record` in `directory`, creating missing private directories and rejecting unsafe
-    /// existing objects without repair. `record` names the lock and staging file: `preferences`
-    /// guards `preferences.json` with `preferences.lock` and `preferences.pending`.
+    /// existing objects without repair. `record` names the lock and staging file: `machines`
+    /// guards `machines.json` with `machines.lock` and `machines.pending`.
     pub fn acquire(directory: &Path, record: &str) -> io::Result<Self> {
         Self::acquire_with_lock_in(directory, record, directory)
     }
@@ -119,72 +113,6 @@ impl PrivateCache {
         let bytes = read_leaf(&leaf, maximum)?;
         Ok(PrivateRead { bytes, _pins: pins })
     }
-    /// Read one admitted configuration snapshot under the already held writer lock.
-    pub(crate) fn read_configuration(
-        &self,
-        name: &str,
-        maximum: usize,
-    ) -> io::Result<Option<Vec<u8>>> {
-        read_snapshot_leaf(&self.configuration_leaf(name)?, maximum).map(|(bytes, _)| bytes)
-    }
-    /// Compare after flushing the candidate. An absent observed target uses a no-replace move.
-    /// The preferences owner admits a larger, separately bounded launch-profile catalog.
-    pub(crate) fn publish_configuration_bounded(
-        &mut self,
-        name: &str,
-        before: Option<&[u8]>,
-        after: &[u8],
-        maximum: usize,
-    ) -> Result<bool, ConfigurationWriteFailure> {
-        if after.len() > maximum {
-            return Err(ConfigurationWriteFailure::Io);
-        }
-        let target = self
-            .configuration_leaf(name)
-            .map_err(|_| ConfigurationWriteFailure::Io)?;
-        let observed = self
-            .read_configuration(name, maximum)
-            .map_err(|_| ConfigurationWriteFailure::Io)?;
-        if observed.as_deref() != before {
-            return Err(ConfigurationWriteFailure::SourceChanged);
-        }
-        if before == Some(after) {
-            return Ok(false);
-        }
-        self.recover_pending()
-            .map_err(|_| ConfigurationWriteFailure::Io)?;
-        let pending = self.pending.clone();
-        let result = (|| {
-            let mut file = permissions::open_file(&pending, true, true)
-                .map_err(|_| ConfigurationWriteFailure::Io)?;
-            file.write_all(after)
-                .and_then(|()| file.sync_all())
-                .map_err(|_| ConfigurationWriteFailure::Io)?;
-            drop(file);
-            let observed = self
-                .read_configuration(name, maximum)
-                .map_err(|_| ConfigurationWriteFailure::Io)?;
-            if observed.as_deref() != before {
-                return Err(ConfigurationWriteFailure::SourceChanged);
-            }
-            winsafe::MoveFileEx(
-                pending.to_str().ok_or(ConfigurationWriteFailure::Io)?,
-                Some(target.to_str().ok_or(ConfigurationWriteFailure::Io)?),
-                if before.is_some() {
-                    winsafe::co::MOVEFILE::REPLACE_EXISTING
-                } else {
-                    winsafe::co::MOVEFILE::WRITE_THROUGH
-                },
-            )
-            .map_err(|_| ConfigurationWriteFailure::Io)?;
-            Ok(true)
-        })();
-        if result.is_err() {
-            self.recover_pending()
-                .map_err(|_| ConfigurationWriteFailure::Io)?;
-        }
-        result
-    }
     /// Flushes a complete new value before replacing the admitted leaf. No partial target is visible.
     pub fn replace(&mut self, name: &str, bytes: &[u8]) -> io::Result<()> {
         let target = self.leaf(name)?;
@@ -225,10 +153,6 @@ impl PrivateCache {
         self.require_unreserved(name)?;
         cache_leaf(&self.path, name)
     }
-    fn configuration_leaf(&self, name: &str) -> io::Result<PathBuf> {
-        self.require_unreserved(name)?;
-        configuration_leaf(&self.path, name)
-    }
     /// The lock and staging file are this owner's, never a record a caller reads or replaces.
     fn require_unreserved(&self, name: &str) -> io::Result<()> {
         let reserved = [LOCK_EXTENSION, PENDING_EXTENSION]
@@ -262,56 +186,6 @@ fn cache_leaf(path: &Path, name: &str) -> io::Result<PathBuf> {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     Ok(path.join(name))
-}
-fn configuration_leaf(path: &Path, name: &str) -> io::Result<PathBuf> {
-    let stem = name
-        .split('.')
-        .next()
-        .unwrap_or_default()
-        .to_ascii_uppercase();
-    let reserved = matches!(
-        stem.as_str(),
-        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
-    ) || stem
-        .strip_prefix("COM")
-        .or_else(|| stem.strip_prefix("LPT"))
-        .is_some_and(|suffix| {
-            matches!(
-                suffix,
-                "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
-            )
-        });
-    if name.is_empty()
-        || name.encode_utf16().count() > 255
-        || matches!(name, "." | "..")
-        || name.ends_with(['.', ' '])
-        || name.chars().any(|ch| {
-            ch.is_control() || matches!(ch, '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*')
-        })
-        || reserved
-    {
-        return Err(io::ErrorKind::InvalidInput.into());
-    }
-    Ok(path.join(name))
-}
-fn read_snapshot_leaf(path: &Path, maximum: usize) -> io::Result<(Option<Vec<u8>>, Option<File>)> {
-    let file = match permissions::open_snapshot_file(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok((None, None)),
-        Err(error) => return Err(error),
-    };
-    let bound = u64::try_from(maximum).map_err(|_| io::ErrorKind::InvalidInput)?;
-    if file.metadata()?.len() > bound {
-        return Err(io::ErrorKind::FileTooLarge.into());
-    }
-    let mut bytes = Vec::new();
-    (&file)
-        .take(bound.saturating_add(1))
-        .read_to_end(&mut bytes)?;
-    if bytes.len() > maximum {
-        return Err(io::ErrorKind::FileTooLarge.into());
-    }
-    Ok((Some(bytes), Some(file)))
 }
 fn read_leaf(path: &Path, maximum: usize) -> io::Result<Option<Vec<u8>>> {
     let file = match permissions::open_file(path, false, false) {

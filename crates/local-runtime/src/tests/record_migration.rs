@@ -240,17 +240,14 @@ fn a_migration_backs_up_the_original_before_replacing_it() {
 }
 
 // Only the three newest upgrade folders stay, a version reuses its folder whatever the day, and a
-// reset folder is never deleted automatically.
+// backup folder of another kind is never deleted automatically.
 #[test]
-fn upgrade_folders_keep_the_newest_three_and_reset_folders_stay() {
+fn upgrade_folders_keep_the_newest_three_and_other_backups_stay() {
     let fixture = Fixture::new();
     let root = fixture.root();
     let backups = root.backups();
-    let record = root.state().join("synthetic.json");
-    let reset = crate::back_up_for_reset(&root, "reset-synthetic", &record, b"first").unwrap();
-    let second = crate::back_up_for_reset(&root, "reset-synthetic", &record, b"second").unwrap();
-    assert_ne!(reset.parent(), second.parent());
-    assert!(crate::back_up_for_reset(&root, "upgrade-0.1.0", &record, b"x").is_err());
+    let reset = backups.join("2026-01-01-reset-keys").join("config.toml");
+    write_private(&reset, b"first");
 
     for (date, version) in [
         ("2026-01-01", "0.9.0"),
@@ -276,5 +273,4 @@ fn upgrade_folders_keep_the_newest_three_and_reset_folders_stay() {
         ]
     );
     assert_eq!(fs::read(&reset).unwrap(), b"first");
-    assert_eq!(fs::read(&second).unwrap(), b"second");
 }

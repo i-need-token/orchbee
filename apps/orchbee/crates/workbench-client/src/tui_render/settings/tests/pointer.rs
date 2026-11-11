@@ -156,9 +156,9 @@ fn mixed_setting_rows_and_footer_actions_keep_one_complete_hover_and_pressed_ban
             Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
-            let values = UserPreferencesValues {
+            let values = UserSettingsValues {
                 completion_reminder_minimum_seconds: 1,
-                ..UserPreferencesValues::default()
+                ..UserSettingsValues::default()
             };
             let mut editor = editor_with(values);
             // Enable Save while retaining a checkbox accent, secondary brackets/numeric value,
@@ -204,7 +204,7 @@ fn picker_labels_checked_markers_and_navigation_share_the_winning_pointer_band()
             Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
-            let mut editor = editor_with(UserPreferencesValues::default());
+            let mut editor = editor_with(UserSettingsValues::default());
             select_and_present(&mut editor, Row::Theme, locale, &theme);
             editor.edit(Edit::Activate);
             for choice in Choice::options(Row::Theme) {

@@ -1,4 +1,4 @@
-//! Windows effects of migration: upgrade and reset backups below the data root's
+//! Windows effects of migration: upgrade backups below the data root's
 //! `internal/backups/`, each a private folder holding copies at the records' paths relative to the
 //! root.
 //!
@@ -48,11 +48,6 @@ pub(crate) fn persist_migration(
 /// use. `config check` lists them, and a Client shows what the Server's records hold.
 pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNotice> {
     let mut found = vec![
-        (
-            VersionedRecord::Preferences,
-            root.state(),
-            "preferences.json",
-        ),
         (VersionedRecord::Onboarding, root.state(), "onboarding.json"),
         (VersionedRecord::Machines, root.state(), "machines.json"),
         (
@@ -103,42 +98,6 @@ pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNoti
 
 /// Larger than every versioned record's own bound, so inspection reads each one whole.
 const INSPECTED_LIMIT: usize = 1024 * 1024;
-
-/// Copies a record the person asked to reset into `internal/backups/<YYYY-MM-DD>-<reset>/`, or the
-/// next free `-2`, `-3` and so on, at its path relative to the root, before the reset replaces it.
-/// `reset` is lowercase words joined by hyphens. These folders stay until the person deletes them.
-pub fn back_up_for_reset(
-    root: &DataRoot,
-    reset: &str,
-    path: &Path,
-    original: &[u8],
-) -> io::Result<PathBuf> {
-    let words = reset.split('-').all(|word| {
-        !word.is_empty()
-            && word
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
-    });
-    if !words || reset.starts_with("upgrade") {
-        return Err(io::ErrorKind::InvalidInput.into());
-    }
-    let backups = root.backups();
-    let _pins = crate::data_root::create_state_directory(&backups)?;
-    let stem = format!("{}-{reset}", crate::diagnostic_log::local_date());
-    for number in 1..=NAME_LIMIT {
-        let folder = backups.join(numbered(&stem, number));
-        match fs::create_dir(&folder) {
-            Ok(()) => {
-                let mut directory = permissions::open_directory(&folder, true)?;
-                permissions::protect_new(&mut directory)?;
-                return copy_into(root, &folder, path, original);
-            }
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Err(io::ErrorKind::AlreadyExists.into())
-}
 
 /// The upgrade folder of `version`: an existing `<date>-upgrade-<version>` folder, or a new one
 /// named by `date`, after which only the [`KEPT_UPGRADE_FOLDERS`] newest upgrade folders stay.

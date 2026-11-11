@@ -22,11 +22,11 @@ use std::{
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
+pub use windows::inspect_records;
+#[cfg(windows)]
 pub(crate) use windows::persist_migration;
 #[cfg(all(test, windows))]
 pub(crate) use windows::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
-#[cfg(windows)]
-pub use windows::{back_up_for_reset, inspect_records};
 
 /// Migration backups are Windows effects until ORC-328, so POSIX refuses before any effect and the
 /// record stays as it is.
@@ -50,8 +50,6 @@ pub fn inspect_records(_root: &DataRoot, _session: Option<&str>) -> Vec<RecordNo
 /// notice, earlier layouts and kept terminal output carry theirs in their frame header instead.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum VersionedRecord {
-    /// `internal/state/preferences.json`.
-    Preferences,
     /// `internal/state/onboarding.json`.
     Onboarding,
     /// `internal/state/machines.json`.
@@ -66,8 +64,7 @@ pub enum VersionedRecord {
 
 impl VersionedRecord {
     /// Every native record, in the order `config check` lists them.
-    pub const ALL: [Self; 6] = [
-        Self::Preferences,
+    pub const ALL: [Self; 5] = [
         Self::Onboarding,
         Self::Machines,
         Self::PluginRegistry,
@@ -78,7 +75,6 @@ impl VersionedRecord {
     /// The record's stable machine name, as logs and machine-readable output spell it.
     pub const fn token(self) -> &'static str {
         match self {
-            Self::Preferences => "preferences",
             Self::Onboarding => "onboarding",
             Self::Machines => "machines",
             Self::PluginRegistry => "plugin-registry",
@@ -101,7 +97,6 @@ impl VersionedRecord {
     /// staging file `<name>.pending`.
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Preferences => "preferences",
             Self::Onboarding => "onboarding",
             Self::Machines => "machines",
             Self::PluginRegistry => "registry",
@@ -113,7 +108,6 @@ impl VersionedRecord {
     /// The record's file name.
     pub const fn file_name(self) -> &'static str {
         match self {
-            Self::Preferences => "preferences.json",
             Self::Onboarding => "onboarding.json",
             Self::Machines => "machines.json",
             Self::PluginRegistry => "registry.json",

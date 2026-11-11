@@ -31,9 +31,7 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
 #[test]
 fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     use crate::{client_view::ClientAction, localization::Locale};
-    use orchbee_workbench_protocol::{
-        ApplicationAppearance, PreferencesLocale, UserPreferencesValues,
-    };
+    use orchbee_workbench_protocol::{ApplicationAppearance, SettingsLocale, UserSettingsValues};
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
         connection: Mutex::new(None),
@@ -43,9 +41,9 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
         creation_update: None,
     };
     let mut view = ClientView::new(120);
-    let preferences = UserPreferencesValues {
+    let preferences = UserSettingsValues {
         application_theme: ApplicationAppearance::Dark,
-        locale: PreferencesLocale::ZhCn,
+        locale: SettingsLocale::ZhCn,
         ..Default::default()
     };
     view.apply_user_preferences(preferences.clone());

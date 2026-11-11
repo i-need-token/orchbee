@@ -2,9 +2,8 @@
 //! and the archive it writes. The person creates a bundle and sends it themselves; nothing is
 //! uploaded.
 //!
-//! `config.toml` and `internal/state/preferences.json` keep their shape, with every command,
-//! argument, environment value and credential replaced by a placeholder, and an unrecognized
-//! settings key's value replaced as well. In every carried string the home folder and the value of
+//! `config.toml` keeps its shape, with every command, argument, environment value and credential
+//! replaced by a placeholder, and an unrecognized settings key's value replaced as well. In every carried string the home folder and the value of
 //! each folder variable Orchbee reads become placeholders, and a URL loses its user information and
 //! query. Comments never reach the bundle, since settings are written again from their values.
 mod archive;
@@ -12,7 +11,7 @@ pub use archive::diagnostic_archive;
 mod redaction;
 pub use redaction::DiagnosticRedactor;
 mod settings;
-pub use settings::{redact_preferences, redact_settings};
+pub use settings::redact_settings;
 #[cfg(test)]
 mod tests;
 

@@ -94,7 +94,7 @@ fn picker_preview_cancel_and_accept_keep_the_parent_draft_and_frozen_source() {
     let submission = submit(&mut editor);
     assert_eq!(
         edited_keys(&submission),
-        vec![PreferenceKey::ApplicationTheme]
+        vec![UserSettingsField::ApplicationTheme]
     );
 }
 

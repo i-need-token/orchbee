@@ -1734,7 +1734,7 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     use crate::tui_hit_map::HitMapBuilder;
     use crate::tui_theme::{ColorLevel, Theme};
     use orchbee_workbench_protocol::{
-        PluginPopupSize, TerminalDisplayAppearance, UserPreferencesValues, WorkbenchRequestId,
+        PluginPopupSize, TerminalDisplayAppearance, UserSettingsValues, WorkbenchRequestId,
     };
     use ratatui::style::{Color, Modifier};
 
@@ -1769,9 +1769,9 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
             ColorLevel::Monochrome,
         ] {
             let theme = base
-                .with_terminal_preferences(&UserPreferencesValues {
+                .with_terminal_preferences(&UserSettingsValues {
                     terminal_display_theme: TerminalDisplayAppearance::Host,
-                    ..UserPreferencesValues::default()
+                    ..UserSettingsValues::default()
                 })
                 .quantize(level);
             for (locale, title) in [(Locale::EnUs, "Popup"), (Locale::ZhCn, "独立终端")] {

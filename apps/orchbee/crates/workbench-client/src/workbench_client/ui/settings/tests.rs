@@ -175,7 +175,7 @@ fn captures_whole_shell_settings_alignment_frames() {
             40,
             crate::localization::Locale::EnUs,
             crate::tui_theme::Theme::resolve(
-                (&orchbee_workbench_protocol::UserPreferencesValues::default()).into(),
+                (&orchbee_workbench_protocol::UserSettingsValues::default()).into(),
                 None,
                 crate::tui_theme::ColorLevel::Truecolor,
             ),
@@ -226,23 +226,23 @@ fn captures_whole_shell_settings_alignment_frames() {
 
 #[test]
 fn settings_enter_tab_and_release_follow_canonical_host_keys() {
-    use orchbee_workbench_protocol::PreferencesLocale;
+    use orchbee_workbench_protocol::SettingsLocale;
 
     let mut ui = ready();
     present_settings(&mut ui);
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL));
     assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
-            if draft.values.locale == PreferencesLocale::System
+            if draft.values.locale == SettingsLocale::System
                 && !draft.dirty
                 && draft.picker.is_some_and(|picker| picker.row() == Row::Language && picker.cursor() == 0)));
     present_settings(&mut ui);
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
     assert_eq!(
         ui.settings.editor.appearance_preview().unwrap().locale,
-        PreferencesLocale::EnUs
+        SettingsLocale::EnUs
     );
     assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
-            if draft.selected == Row::Language && draft.values.locale == PreferencesLocale::System && !draft.dirty));
+            if draft.selected == Row::Language && draft.values.locale == SettingsLocale::System && !draft.dirty));
     let mut enter_release = KeyEvent::press(KeyCode::Enter, Modifiers::NONE);
     enter_release.kind = crate::client_view::KeyKind::Release;
     ui.capture_settings_key(enter_release);
@@ -255,13 +255,13 @@ fn settings_enter_tab_and_release_follow_canonical_host_keys() {
     ));
     assert_eq!(
         ui.settings.editor.appearance_preview().unwrap().locale,
-        PreferencesLocale::System
+        SettingsLocale::System
     );
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
     present_settings(&mut ui);
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL));
     assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
-        if draft.picker.is_none() && draft.dirty && draft.values.locale == PreferencesLocale::EnUs));
+        if draft.picker.is_none() && draft.dirty && draft.values.locale == SettingsLocale::EnUs));
     present_settings(&mut ui);
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
     assert!(
@@ -365,7 +365,7 @@ fn observation_publishes_live_values_without_erasing_dirty_drafts_or_unknown_rec
             ui.settings.note(notice, ui.clock.now());
         }
         let mut values = draft_basis().values;
-        values.locale = orchbee_workbench_protocol::PreferencesLocale::ZhCn;
+        values.locale = orchbee_workbench_protocol::SettingsLocale::ZhCn;
         let latest = settings_snapshot(2, &values);
         assert!(ui.settings.observe_snapshot(latest.clone(), ui.clock.now()));
         assert_eq!(
@@ -373,9 +373,9 @@ fn observation_publishes_live_values_without_erasing_dirty_drafts_or_unknown_rec
             Some(notice.unwrap_or(Notice::SourceChanged))
         );
         assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
-                if draft.values.locale == orchbee_workbench_protocol::PreferencesLocale::EnUs
-                    && draft.basis_values.locale == orchbee_workbench_protocol::PreferencesLocale::System
-                    && draft.effective_values.locale == orchbee_workbench_protocol::PreferencesLocale::ZhCn
+                if draft.values.locale == orchbee_workbench_protocol::SettingsLocale::EnUs
+                    && draft.basis_values.locale == orchbee_workbench_protocol::SettingsLocale::System
+                    && draft.effective_values.locale == orchbee_workbench_protocol::SettingsLocale::ZhCn
                     && draft.conflict));
         assert_eq!(ui.take_settings_snapshot(), Some(latest.clone()));
         assert!(!ui.settings.observe_snapshot(latest, ui.clock.now()));

@@ -1,5 +1,5 @@
-//! Session-captured user launch intent for one authorized creation. The Server reads its frozen
-//! preference store; the Worker resolves only device facts such as System shell discovery.
+//! Session-captured user launch intent for one authorized creation. The Server reads its current
+//! settings; the Worker resolves only device facts such as System shell discovery.
 use crate::ProtocolError;
 
 /// The preference domain admitted for new terminal scrollback.
@@ -122,7 +122,7 @@ impl TerminalLaunchThemes {
 }
 
 /// The selected default launch profile as user intent. A custom program stays literal because the
-/// preference store owns its path admission; it shares the explicit selection budget because a
+/// settings reader owns its path admission; it shares the explicit selection budget because a
 /// launch carries only one of them.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DefaultLaunchProgram {

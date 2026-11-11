@@ -2,7 +2,8 @@
 use super::{
     AdjustmentStep, ChoicePicker, Confirmation, Draft, Edit, Page, Row, SettingControl, setting,
 };
-use orchbee_workbench_protocol::{PreferenceKey, UserLaunchCommand, UserLaunchProfile};
+use orchbee_local_runtime::UserSettingsField;
+use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
 
 /// Decimal MB preserves every persisted byte without floating-point rounding.
 pub(crate) fn scrollback_megabytes(bytes: u32) -> String {
@@ -37,7 +38,7 @@ fn parse_scrollback_megabytes(value: &str) -> Option<u32> {
     whole.checked_add(fraction)
 }
 
-fn integer_bounds(key: PreferenceKey) -> (u64, u64) {
+fn integer_bounds(key: UserSettingsField) -> (u64, u64) {
     let SettingControl::BoundedInteger {
         minimum, maximum, ..
     } = setting(key).control
@@ -47,7 +48,7 @@ fn integer_bounds(key: PreferenceKey) -> (u64, u64) {
     (minimum, maximum)
 }
 
-fn integer_step(key: PreferenceKey, step: AdjustmentStep) -> (u64, u64, u64) {
+fn integer_step(key: UserSettingsField, step: AdjustmentStep) -> (u64, u64, u64) {
     let SettingControl::BoundedInteger {
         minimum,
         maximum,
@@ -68,7 +69,7 @@ fn integer_step(key: PreferenceKey, step: AdjustmentStep) -> (u64, u64, u64) {
     )
 }
 
-fn step_integer(current: u64, key: PreferenceKey, forward: bool, step: AdjustmentStep) -> u64 {
+fn step_integer(current: u64, key: UserSettingsField, forward: bool, step: AdjustmentStep) -> u64 {
     let (minimum, maximum, amount) = integer_step(key, step);
     if forward {
         current.saturating_add(amount).min(maximum)
@@ -90,7 +91,7 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         Row::CompletionThreshold => {
             values.completion_reminder_minimum_seconds = u16::try_from(step_integer(
                 u64::from(values.completion_reminder_minimum_seconds),
-                PreferenceKey::CompletionReminderMinimumSeconds,
+                UserSettingsField::CompletionReminderMinimumSeconds,
                 forward,
                 step,
             ))
@@ -99,7 +100,7 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         Row::Scrollback => {
             values.scrollback_bytes = u32::try_from(step_integer(
                 u64::from(values.scrollback_bytes),
-                PreferenceKey::ScrollbackBytes,
+                UserSettingsField::ScrollbackBytes,
                 forward,
                 step,
             ))
@@ -307,7 +308,7 @@ fn accept_text(draft: &mut Draft, value: String) -> bool {
                 return false;
             };
             let (minimum, maximum) =
-                integer_bounds(PreferenceKey::CompletionReminderMinimumSeconds);
+                integer_bounds(UserSettingsField::CompletionReminderMinimumSeconds);
             if !(minimum..=maximum).contains(&u64::from(number)) {
                 return false;
             }
@@ -317,7 +318,7 @@ fn accept_text(draft: &mut Draft, value: String) -> bool {
             let Some(number) = parse_scrollback_megabytes(&value) else {
                 return false;
             };
-            let (minimum, maximum) = integer_bounds(PreferenceKey::ScrollbackBytes);
+            let (minimum, maximum) = integer_bounds(UserSettingsField::ScrollbackBytes);
             if !(minimum..=maximum).contains(&u64::from(number)) {
                 return false;
             }

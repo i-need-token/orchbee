@@ -85,7 +85,7 @@ fn classifies_the_wide_boundary_and_projects_the_sidebar_per_client() {
 fn controlling_client_reports_its_named_theme_before_any_outer_terminal_reply() {
     let mut view = ClientView::new(120);
     view.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
-    view.apply_user_preferences(orchbee_workbench_protocol::UserPreferencesValues {
+    view.apply_user_preferences(orchbee_workbench_protocol::UserSettingsValues {
         application_theme: orchbee_workbench_protocol::ApplicationAppearance::Dark,
         dark_theme: "gruvbox-dark".into(),
         ..Default::default()
@@ -105,7 +105,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         ApplicationAppearance as Application, TerminalDisplayAppearance as Terminal,
     };
 
-    let values = orchbee_workbench_protocol::UserPreferencesValues {
+    let values = orchbee_workbench_protocol::UserSettingsValues {
         application_theme: Application::System,
         terminal_display_theme: Terminal::Custom,
         custom_foreground: "#123456".into(),
@@ -142,7 +142,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     ));
     assert_eq!(system.configured_theme().unwrap().name, "orchbee-light");
 
-    let host_values = orchbee_workbench_protocol::UserPreferencesValues {
+    let host_values = orchbee_workbench_protocol::UserSettingsValues {
         application_theme: Application::System,
         terminal_display_theme: Terminal::Host,
         ..Default::default()
@@ -184,7 +184,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         (Application::Light, "orchbee-light"),
         (Application::Dark, "orchbee-dark"),
     ] {
-        let values = orchbee_workbench_protocol::UserPreferencesValues {
+        let values = orchbee_workbench_protocol::UserSettingsValues {
             application_theme: application,
             ..Default::default()
         };
@@ -221,7 +221,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
 fn system_paints_the_slot_of_the_settled_host_appearance_only_on_a_truecolor_host() {
     use crate::host_appearance::{HostAppearance, HostColors};
     use crate::tui_theme::ColorLevel;
-    let values = orchbee_workbench_protocol::UserPreferencesValues {
+    let values = orchbee_workbench_protocol::UserSettingsValues {
         dark_theme: "gruvbox-dark".into(),
         ..Default::default()
     };

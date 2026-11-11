@@ -9,7 +9,7 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_runtime::UserTerminalLaunchIntent;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SettingsOutcome as Outcome, SettingsRefusal, SettingsRequest, SettingsResult,
-    UserLaunchCommand, UserPreferencesValues,
+    UserLaunchCommand, UserSettingsValues,
 };
 
 impl LocalTerminalService {
@@ -50,11 +50,11 @@ impl LocalTerminalService {
 /// The launch facts `values` give: the default profile's program for a creation that names none,
 /// and the scrollback, colors and themes every creation takes. Values whose default profile or
 /// colors cannot be captured launch the system shell with built-in defaults.
-pub(super) fn launch_capture(values: &UserPreferencesValues) -> LaunchCapture {
+pub(super) fn launch_capture(values: &UserSettingsValues) -> LaunchCapture {
     let intent = UserTerminalLaunchIntent::capture(values, true).unwrap_or_else(|_| {
         UserTerminalLaunchIntent {
             program: Some(UserLaunchCommand::SystemShell { login: false }),
-            scrollback_bytes: UserPreferencesValues::default().scrollback_bytes,
+            scrollback_bytes: UserSettingsValues::default().scrollback_bytes,
             colors: None,
             themes: Default::default(),
         }

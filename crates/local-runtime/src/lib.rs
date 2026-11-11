@@ -7,8 +7,6 @@ mod admission_refusal;
 pub use admission_refusal::{AdmissionRefusal, RefusalReason};
 mod notification_policy;
 pub use notification_policy::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
-mod user_preferences;
-pub use user_preferences::{UserPreferencesScope, UserPreferencesStore};
 mod plugins;
 pub use plugins::{
     PluginActionDefinition, PluginGithubSource, PluginManagedSource, PluginManifest,
@@ -45,13 +43,13 @@ pub use user_settings::{
     SettingChanges, SettingClients, SettingDefault, SettingEffect, SettingGroup, SettingKey,
     SettingScope, SettingValue, SettingsDiagnostic, SettingsDiagnosticDisposition,
     SettingsDiagnostics, SettingsEditError, SettingsError, SettingsSyntaxError, SidebarTokenStyle,
-    SpaceSidebarSettings, SpaceSidebarToken, SpaceSidebarTokenKind, UpdateChannel, UserColorThemes,
-    UserSettings, UserSettingsLoad, UserTerminalColors, UserTerminalLaunchIntent,
-    WindowTitleTemplate, configuration_diagnostics, default_user_settings_toml,
-    default_user_settings_toml_with_actions, edit_settings, find_setting, preference_changes,
-    preference_values, read_user_settings, read_user_settings_at, restore_setting_default,
-    set_setting, setting_changes, settings_refusal, settings_snapshot, snapshot_preferences,
-    trigger_label, user_settings_path,
+    SpaceSidebarSettings, SpaceSidebarToken, SpaceSidebarTokenKind, UnusableTerminalDefaults,
+    UpdateChannel, UserColorThemes, UserSettings, UserSettingsField, UserSettingsLoad,
+    UserTerminalColors, UserTerminalLaunchIntent, WindowTitleTemplate, configuration_diagnostics,
+    default_user_settings_toml, default_user_settings_toml_with_actions, edit_settings,
+    find_setting, read_user_settings, read_user_settings_at, restore_setting_default, set_setting,
+    setting_changes, settings_refusal, settings_snapshot, settings_values, snapshot_values,
+    trigger_label, user_settings_path, value_changes,
 };
 pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};
 mod directory;
@@ -69,8 +67,6 @@ pub use data_root::{
     legacy_agent_observation_capsules,
 };
 mod record_migration;
-#[cfg(windows)]
-pub use record_migration::back_up_for_reset;
 pub use record_migration::{
     OpenedRecord, RecordNotice, RecordProblem, VersionedFile, VersionedRecord, VersionedWriter,
     inspect_records, open_to_read, open_to_write, report_record_notice, reported_record_notices,
@@ -85,7 +81,7 @@ mod diagnostic_bundle;
 pub use diagnostic_bundle::{
     ARGUMENT_PLACEHOLDER, COMMAND_PLACEHOLDER, CREDENTIAL_PLACEHOLDER, DiagnosticRedactor,
     ENVIRONMENT_PLACEHOLDER, HOME_PLACEHOLDER, QUERY_PLACEHOLDER, UNRECOGNIZED_PLACEHOLDER,
-    diagnostic_archive, redact_preferences, redact_settings,
+    diagnostic_archive, redact_settings,
 };
 mod diagnostic_log;
 pub use diagnostic_log::{

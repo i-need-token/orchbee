@@ -10,7 +10,7 @@ use std::{
 use orchbee_terminal_protocol::TerminalTextRow;
 use orchbee_workbench_protocol::{
     ApplicationAppearance as Application, TerminalDisplayAppearance as Appearance,
-    UserPreferencesValues,
+    UserSettingsValues,
 };
 use ratatui::{Terminal, layout::Rect};
 
@@ -72,12 +72,12 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
         (Application::Light, Appearance::Custom),
         (Application::System, Appearance::Host),
     ] {
-        let values = UserPreferencesValues {
+        let values = UserSettingsValues {
             application_theme: application,
             terminal_display_theme: appearance,
             custom_foreground: "#cccccc".into(),
             custom_background: "#cccccc".into(),
-            ..UserPreferencesValues::default()
+            ..UserSettingsValues::default()
         };
         let theme = Theme::for_preferences(
             &values,

@@ -11,9 +11,7 @@ use crate::{
     tui_pointer::HelpControl,
     tui_theme::{ColorLevel, GlyphSet},
 };
-use orchbee_workbench_protocol::{
-    PreferencesLocale, TerminalDisplayAppearance, UserPreferencesValues,
-};
+use orchbee_workbench_protocol::{SettingsLocale, TerminalDisplayAppearance, UserSettingsValues};
 use ratatui::{Terminal, backend::TestBackend};
 mod browse;
 mod pointer;
@@ -22,11 +20,11 @@ mod themes;
 const MISSING_SOURCE: u64 = 1;
 const OTHER_SOURCE: u64 = 2;
 
-fn basis(revision: u64, values: UserPreferencesValues) -> Basis {
+fn basis(revision: u64, values: UserSettingsValues) -> Basis {
     Basis { revision, values }
 }
 
-fn editor_with(values: UserPreferencesValues) -> Editor {
+fn editor_with(values: UserSettingsValues) -> Editor {
     let mut editor = Editor::default();
     let request = editor.open().expect("settings request");
     assert!(editor.loaded(request, basis(MISSING_SOURCE, values)));
@@ -169,7 +167,7 @@ fn search_and_section_landmarks_stay_secondary_without_index_or_preview_clutter(
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             for selected in [Row::Language, Row::Theme, Row::Save] {
-                let mut editor = editor_with(UserPreferencesValues::default());
+                let mut editor = editor_with(UserSettingsValues::default());
                 editor.edit(Edit::Select(selected));
                 let view = editor.view().unwrap();
                 let View::Draft(_) = view else {
@@ -232,7 +230,7 @@ fn stepper_and_footer_actions_paint_their_complete_fixed_targets() {
                 Theme::orchbee_dark(),
                 Theme::terminal_native().quantize(ColorLevel::Monochrome),
             ] {
-                let mut editor = editor_with(UserPreferencesValues::default());
+                let mut editor = editor_with(UserSettingsValues::default());
                 editor.edit(Edit::Select(Row::CompletionThreshold));
                 let token = editor.view().unwrap().token();
                 let (terminal, map, receipt) = render_once(&editor, width, height, locale, &theme);
@@ -330,7 +328,7 @@ fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
                 ],
             ),
         ] {
-            let mut editor = editor_with(UserPreferencesValues::default());
+            let mut editor = editor_with(UserSettingsValues::default());
             for (row, expected) in actions {
                 editor.edit(Edit::Select(row));
                 let (terminal, map, receipt) = render_once(&editor, width, 10, locale, &theme);
@@ -366,7 +364,7 @@ fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
         }
     }
 
-    let mut clean = editor_with(UserPreferencesValues::default());
+    let mut clean = editor_with(UserSettingsValues::default());
     let (terminal, map, draw) = select_and_present(&mut clean, Row::Save, Locale::EnUs, &theme);
     let target = HitTarget::SettingsRow {
         token: draw.token(),
@@ -384,7 +382,7 @@ fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
     );
     assert_eq!(terminal.backend().buffer()[save].style(), disabled);
 
-    let mut dirty = editor_with(UserPreferencesValues::default());
+    let mut dirty = editor_with(UserSettingsValues::default());
     select_and_present(&mut dirty, Row::Sound, Locale::EnUs, &theme);
     dirty.edit(Edit::Adjust(true));
     let (terminal, map, draw) = select_and_present(&mut dirty, Row::Save, Locale::EnUs, &theme);
@@ -413,7 +411,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
         (40, Locale::EnUs, "Enter activate/edit  │  / search"),
         (36, Locale::ZhCn, "Enter 操作／编辑  │  / 搜索"),
     ] {
-        let editor = editor_with(UserPreferencesValues::default());
+        let editor = editor_with(UserSettingsValues::default());
         let (terminal, _, receipt) = render_once(&editor, width, 10, locale, &theme);
         assert!(matches!(receipt, ModalPresentation::Presented(_)));
         let (y, line) = (0..10)
@@ -450,7 +448,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
     }
 
     let ascii_theme = Theme::orchbee_dark().with_glyphs(GlyphSet::ASCII);
-    let editor = editor_with(UserPreferencesValues::default());
+    let editor = editor_with(UserSettingsValues::default());
     let (terminal, _, _) = render_once(&editor, 120, 10, Locale::EnUs, &ascii_theme);
     let footer = (0..10)
         .map(|y| line_text(&terminal, y))
@@ -469,7 +467,7 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
                 Theme::orchbee_light(),
                 Theme::terminal_native(),
             ] {
-                let mut editor = editor_with(UserPreferencesValues::default());
+                let mut editor = editor_with(UserSettingsValues::default());
                 select_and_present(&mut editor, Row::ResetAll, locale, &theme);
                 editor.edit(Edit::Activate);
                 let (terminal, map, receipt) = render_once(&editor, width, height, locale, &theme);
@@ -512,7 +510,7 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
     }
 
     let theme = Theme::orchbee_dark();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     select_and_present(&mut editor, Row::ResetAll, Locale::EnUs, &theme);
     editor.edit(Edit::Activate);
     let (_, map, receipt) = render_once(&editor, 35, 10, Locale::EnUs, &theme);
@@ -532,7 +530,7 @@ fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions
         (48, Locale::ZhCn, true),
         (60, Locale::EnUs, true),
     ] {
-        let mut editor = editor_with(UserPreferencesValues::default());
+        let mut editor = editor_with(UserSettingsValues::default());
         select_and_present(&mut editor, Row::ResetAll, locale, &theme);
         editor.edit(Edit::Activate);
         let (terminal, map, receipt) = render_once(&editor, width, 10, locale, &theme);
@@ -626,7 +624,7 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     );
     assert_live(loading_view, false);
 
-    let general = editor_with(UserPreferencesValues::default());
+    let general = editor_with(UserSettingsValues::default());
     let general_view = general.view().expect("general draft");
     assert_eq!(footer_position(general_view, SettingsHintLabel::Close), 0);
     assert_eq!(
@@ -642,7 +640,7 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     );
     assert_live(general_view, false);
 
-    let mut profiles = editor_with(UserPreferencesValues::default());
+    let mut profiles = editor_with(UserSettingsValues::default());
     select_and_present(&mut profiles, Row::LaunchProfiles, Locale::EnUs, &theme);
     profiles.edit(Edit::Activate);
     let profiles_view = profiles.view().expect("profiles draft");
@@ -653,7 +651,7 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     );
     assert_live(profiles_view, false);
 
-    let mut confirmation = editor_with(UserPreferencesValues::default());
+    let mut confirmation = editor_with(UserSettingsValues::default());
     select_and_present(&mut confirmation, Row::ResetAll, Locale::EnUs, &theme);
     confirmation.edit(Edit::Activate);
     let confirmation_view = confirmation.view().expect("confirmation draft");
@@ -667,7 +665,7 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     );
     assert_live(confirmation_view, false);
 
-    let mut text = editor_with(UserPreferencesValues::default());
+    let mut text = editor_with(UserSettingsValues::default());
     open_profile_name_editor(&mut text, Locale::EnUs, &theme);
     let text_view = text.view().expect("text draft");
     assert_eq!(footer_position(text_view, SettingsHintLabel::Cancel), 0);
@@ -678,7 +676,7 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     let (terminal, _, _) = render_once(&text, 120, 40, Locale::EnUs, &theme);
     assert!(!screen_text(&terminal).contains("clear"));
 
-    let mut saving = editor_with(UserPreferencesValues::default());
+    let mut saving = editor_with(UserSettingsValues::default());
     select_and_present(&mut saving, Row::Sound, Locale::EnUs, &theme);
     saving.edit(Edit::Adjust(true));
     select_and_present(&mut saving, Row::Save, Locale::EnUs, &theme);
@@ -702,9 +700,9 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
 
 #[test]
 fn unavailable_stepper_endpoint_stays_visible_and_consumes_its_cells() {
-    let values = UserPreferencesValues {
+    let values = UserSettingsValues {
         completion_reminder_minimum_seconds: 1,
-        ..UserPreferencesValues::default()
+        ..UserSettingsValues::default()
     };
     let mut editor = editor_with(values);
     editor.edit(Edit::Select(Row::CompletionThreshold));
@@ -743,9 +741,9 @@ fn unavailable_stepper_endpoint_stays_visible_and_consumes_its_cells() {
 #[test]
 fn current_setting_uses_a_neutral_band_and_preserves_its_disabled_identity() {
     let theme = Theme::orchbee_dark();
-    let values = UserPreferencesValues {
+    let values = UserSettingsValues {
         terminal_display_theme: TerminalDisplayAppearance::Host,
-        ..UserPreferencesValues::default()
+        ..UserSettingsValues::default()
     };
     let mut editor = editor_with(values);
     let (terminal, map, draw) =
@@ -779,9 +777,9 @@ fn current_setting_uses_a_neutral_band_and_preserves_its_disabled_identity() {
 
 #[test]
 fn boolean_focus_checked_and_changed_cues_remain_independent() {
-    let values = UserPreferencesValues {
+    let values = UserSettingsValues {
         copy_on_select: false,
-        ..UserPreferencesValues::default()
+        ..UserSettingsValues::default()
     };
     let mut editor = editor_with(values);
     let theme = Theme::terminal_native().quantize(ColorLevel::Monochrome);
@@ -834,7 +832,7 @@ fn boolean_focus_checked_and_changed_cues_remain_independent() {
 #[test]
 fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
     let theme = Theme::orchbee_light();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     let (choice_terminal, choice_map, draw) =
         select_and_present(&mut editor, Row::Language, Locale::EnUs, &theme);
     let target = HitTarget::SettingsRow {
@@ -873,7 +871,7 @@ fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
 #[test]
 fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     let theme = Theme::orchbee_light();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
     editor.edit(Edit::Line(
         crate::terminal_text::line_editor::LineKey::KillToStart,
@@ -956,7 +954,7 @@ fn setting_category_copy_projects_the_closed_metadata_inventory() {
 fn disabled_save_detail_identifies_clean_conflict_and_reconciliation_reasons() {
     let theme = Theme::orchbee_dark();
 
-    let mut clean = editor_with(UserPreferencesValues::default());
+    let mut clean = editor_with(UserSettingsValues::default());
     select_and_present(&mut clean, Row::Save, Locale::EnUs, &theme);
     let View::Draft(clean) = clean.view().expect("clean draft") else {
         panic!("clean draft view");
@@ -969,10 +967,10 @@ fn disabled_save_detail_identifies_clean_conflict_and_reconciliation_reasons() {
     );
     assert_eq!(Locale::ZhCn.settings_state_facts(clean), "没有未保存的更改");
 
-    let mut conflict = editor_with(UserPreferencesValues::default());
+    let mut conflict = editor_with(UserSettingsValues::default());
     select_and_present(&mut conflict, Row::Sound, Locale::EnUs, &theme);
     conflict.edit(Edit::Adjust(true));
-    let mut effective = UserPreferencesValues::default();
+    let mut effective = UserSettingsValues::default();
     effective.sound_enabled = !effective.sound_enabled;
     assert_eq!(
         conflict.observe(&basis(OTHER_SOURCE, effective)),
@@ -1003,7 +1001,7 @@ fn disabled_save_detail_identifies_clean_conflict_and_reconciliation_reasons() {
             "保存结果未知；请重新读取后再保存。",
         ),
     ] {
-        let mut editor = editor_with(UserPreferencesValues::default());
+        let mut editor = editor_with(UserSettingsValues::default());
         select_and_present(&mut editor, Row::Sound, Locale::EnUs, &theme);
         editor.edit(Edit::Adjust(true));
         select_and_present(&mut editor, Row::Save, Locale::EnUs, &theme);
@@ -1020,7 +1018,7 @@ fn disabled_save_detail_identifies_clean_conflict_and_reconciliation_reasons() {
 #[test]
 fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing_enter() {
     let theme = Theme::orchbee_dark();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     let (_, _, first) = present_once(&mut editor, 36, 10, Locale::EnUs, &theme);
     let View::Draft(draft) = editor.view().unwrap() else {
         panic!("draft");
@@ -1097,7 +1095,7 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
         panic!("draft remains open");
     };
     assert_eq!(draft.token, before);
-    assert_eq!(draft.values.locale, PreferencesLocale::System);
+    assert_eq!(draft.values.locale, SettingsLocale::System);
     assert_eq!(draft.values, &values);
     assert_eq!(draft.selected, Row::Language);
     assert!(
@@ -1121,10 +1119,10 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
 #[test]
 fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes() {
     let theme = Theme::orchbee_dark();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     select_and_present(&mut editor, Row::Sound, Locale::EnUs, &theme);
     editor.edit(Edit::Adjust(true));
-    let mut effective = UserPreferencesValues::default();
+    let mut effective = UserSettingsValues::default();
     effective.sound_enabled = !effective.sound_enabled;
     assert_eq!(
         editor.observe(&basis(OTHER_SOURCE, effective)),
@@ -1162,7 +1160,7 @@ fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes
             "保存结果未知 · 需要重新读取",
         ),
     ] {
-        let mut editor = editor_with(UserPreferencesValues::default());
+        let mut editor = editor_with(UserSettingsValues::default());
         select_and_present(&mut editor, Row::Sound, Locale::EnUs, &theme);
         editor.edit(Edit::Adjust(true));
         select_and_present(&mut editor, Row::Save, Locale::EnUs, &theme);
@@ -1184,7 +1182,7 @@ fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes
 #[test]
 fn text_cursor_stays_inside_the_overlay_and_editor_text_is_sanitized() {
     let theme = Theme::orchbee_light();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     open_profile_name_editor(&mut editor, Locale::ZhCn, &theme);
     editor.paste(&format!("{}\x1b[31m", "长名".repeat(50)));
     let (terminal, _, _) = present_once(&mut editor, 40, 12, Locale::ZhCn, &theme);
@@ -1194,7 +1192,7 @@ fn text_cursor_stays_inside_the_overlay_and_editor_text_is_sanitized() {
 
 fn assert_projected_text_cursor(raw: &str, glyph: &str, right_column: u16, end_column: u16) {
     let theme = Theme::orchbee_light();
-    let mut editor = editor_with(UserPreferencesValues::default());
+    let mut editor = editor_with(UserSettingsValues::default());
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
     editor.edit(Edit::Line(
         crate::terminal_text::line_editor::LineKey::KillToStart,
@@ -1245,7 +1243,7 @@ fn settings_text_cursor_preserves_normal_wide_grapheme_and_end_positions() {
 
 #[test]
 fn settings_refuses_incomplete_geometry_and_delays_pending_copy() {
-    let editor = editor_with(UserPreferencesValues::default());
+    let editor = editor_with(UserSettingsValues::default());
     for (width, height) in [(35, 10), (36, 9), (1, 1)] {
         let (terminal, map, result) = render_once(
             &editor,
@@ -1322,7 +1320,7 @@ fn invalid_nondefault_executable_renders_its_profile_required_field_and_correcti
 {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
-            let mut editor = editor_with(UserPreferencesValues::default());
+            let mut editor = editor_with(UserSettingsValues::default());
             editor.edit(Edit::Select(Row::LaunchProfiles));
             editor.edit(Edit::Activate);
             editor.edit(Edit::Select(Row::AddProfile));

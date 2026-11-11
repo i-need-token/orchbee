@@ -14,7 +14,7 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         let row = setting(key).row;
         editor.edit(Edit::Select(row));
         match key {
-            PreferenceKey::CustomForeground | PreferenceKey::CustomBackground => {
+            UserSettingsField::CustomForeground | UserSettingsField::CustomBackground => {
                 editor.edit(Edit::Activate);
                 editor.edit(Edit::Line(
                     crate::terminal_text::line_editor::LineKey::KillToStart,
@@ -22,7 +22,7 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
                 editor.paste("#123abc");
                 editor.edit(Edit::Activate);
             }
-            PreferenceKey::LaunchProfiles => {
+            UserSettingsField::LaunchProfiles => {
                 editor.edit(Edit::Activate);
                 editor.edit(Edit::Select(Row::AddProfile));
                 editor.edit(Edit::Activate);
@@ -40,14 +40,14 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         assert_eq!(draft.effective_values, &basis.values, "{key:?}");
         let previewed = matches!(
             key,
-            PreferenceKey::Locale
-                | PreferenceKey::ApplicationTheme
-                | PreferenceKey::LightTheme
-                | PreferenceKey::DarkTheme
-                | PreferenceKey::TuiColorSource
-                | PreferenceKey::TerminalDisplayTheme
-                | PreferenceKey::CustomForeground
-                | PreferenceKey::CustomBackground
+            UserSettingsField::Locale
+                | UserSettingsField::ApplicationTheme
+                | UserSettingsField::LightTheme
+                | UserSettingsField::DarkTheme
+                | UserSettingsField::TuiColorSource
+                | UserSettingsField::TerminalDisplayTheme
+                | UserSettingsField::CustomForeground
+                | UserSettingsField::CustomBackground
         );
         assert!(
             crate::localization::Locale::EnUs
@@ -70,7 +70,7 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
             "{key:?}"
         );
         let edited = draft.values.clone();
-        edited.validate().unwrap();
+        assert!(edited.is_valid(), "{key:?}");
         let submission = submit(&mut editor);
         assert_eq!(edited_keys(&submission), [key], "{key:?}");
         let SettingsOperation::Edit { changes } = &submission.operation else {
@@ -78,7 +78,7 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         };
         assert_eq!(
             changes,
-            &orchbee_local_runtime::preference_changes(&basis.values, &edited, &[]),
+            &orchbee_local_runtime::value_changes(&basis.values, &edited, &[]),
             "{key:?}"
         );
         assert!(editor.edit(Edit::Activate).is_none(), "{key:?}: no replay");
@@ -176,7 +176,7 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         }
         let mut external = basis();
         external.revision = 2;
-        external.values.locale = PreferencesLocale::ZhCn;
+        external.values.locale = SettingsLocale::ZhCn;
         assert_eq!(editor.observe(&external), Observation::Conflict);
         draw(&mut editor);
         let mut merged = preview.clone();
@@ -239,7 +239,7 @@ fn invalid_color_entry_and_reset_confirmation_keep_reversible_valid_presentation
     assert_eq!(
         editor.appearance_preview(),
         Some(AppearancePreview::from_values(
-            &UserPreferencesValues::default()
+            &UserSettingsValues::default()
         ))
     );
     assert!(matches!(editor.view(), Some(View::Draft(draft))
@@ -256,13 +256,13 @@ fn passive_unrelated_updates_keep_preview_and_reset_claims_all_appearance_leaves
     let mut external = basis();
     external.revision = 2;
     external.values.copy_on_select = true;
-    external.values.locale = PreferencesLocale::ZhCn;
+    external.values.locale = SettingsLocale::ZhCn;
     external.values.custom_foreground = "#abcdef".into();
     external.values.custom_background = "#123456".into();
     assert_eq!(editor.observe(&external), Observation::Conflict);
     let preview = editor.appearance_preview().unwrap();
     assert_eq!(preview.application_theme, ApplicationAppearance::Dark);
-    assert_eq!(preview.locale, PreferencesLocale::ZhCn);
+    assert_eq!(preview.locale, SettingsLocale::ZhCn);
     assert_eq!(preview.custom_foreground, "#abcdef");
     assert_eq!(preview.custom_background, "#123456");
     editor.edit(Edit::Select(Row::ResetAll));
@@ -272,7 +272,7 @@ fn passive_unrelated_updates_keep_preview_and_reset_claims_all_appearance_leaves
     assert_eq!(
         editor.appearance_preview(),
         Some(AppearancePreview::from_values(
-            &UserPreferencesValues::default()
+            &UserSettingsValues::default()
         ))
     );
     assert!(matches!(editor.view(), Some(View::Draft(draft))

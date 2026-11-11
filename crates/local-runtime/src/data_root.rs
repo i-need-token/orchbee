@@ -53,8 +53,6 @@ pub struct DataRootError {
 /// staging file sit beside it, named after it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StateRecord {
-    /// Settings preferences the Server commits.
-    Preferences,
     /// Whether the person dismissed the TUI onboarding notice.
     Onboarding,
     /// The saved machine catalog.
@@ -66,7 +64,6 @@ impl StateRecord {
     /// `<name>.lock` and `<name>.pending`.
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Preferences => "preferences",
             Self::Onboarding => "onboarding",
             Self::Machines => "machines",
         }
@@ -75,7 +72,6 @@ impl StateRecord {
     /// The record's file name.
     pub const fn file_name(self) -> &'static str {
         match self {
-            Self::Preferences => "preferences.json",
             Self::Onboarding => "onboarding.json",
             Self::Machines => "machines.json",
         }

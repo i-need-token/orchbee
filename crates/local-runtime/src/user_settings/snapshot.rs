@@ -203,7 +203,7 @@ pub fn settings_snapshot(load: &UserSettingsLoad, revision: u64) -> SettingsSnap
             .iter()
             .filter_map(|key| SettingPath::parse(key).ok())
             .collect(),
-        launch_profiles: settings.preferences.launch_profiles.clone(),
+        launch_profiles: settings.values.launch_profiles.clone(),
         diagnostics: configuration_diagnostics(&load.diagnostics),
     }
 }

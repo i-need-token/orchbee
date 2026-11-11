@@ -3,7 +3,7 @@
 //! deadlines and presentation of the admitted values.
 
 pub mod agent_view;
-mod user_preferences;
+mod user_settings;
 pub use agent_view::{
     AgentViewAction, AgentViewBuiltinField, AgentViewBuiltinSortField, AgentViewContextOperand,
     AgentViewContextValue, AgentViewFailure, AgentViewField, AgentViewFilter, AgentViewOutcome,
@@ -11,13 +11,10 @@ pub use agent_view::{
     AgentViewSortOrder, AgentViewSpec, AgentViewToken, AgentViewValue, MAXIMUM_AGENT_VIEW_BYTES,
     MAXIMUM_AGENT_VIEW_SPEC_BYTES, parse_agent_view_spec,
 };
-pub use user_preferences::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode,
-    MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, PreferencesLocale,
+pub use user_settings::{
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, SettingsLocale,
     TerminalDisplayAppearance, TuiColorSource, UserLaunchCommand, UserLaunchField,
-    UserLaunchProfile, UserLaunchProfiles, UserPreferencesPatch, UserPreferencesRequest,
-    UserPreferencesResponse, UserPreferencesSnapshot, UserPreferencesValues,
-    parse_user_preferences_request,
+    UserLaunchProfile, UserLaunchProfiles, UserSettingsValues,
 };
 mod carrier;
 mod multiplex;

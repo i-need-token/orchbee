@@ -10,7 +10,7 @@ fn footer_commit_and_exit_are_painted_at_all_admitted_tiers_and_stay_fixed_on_sc
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             for (width, height) in [(120, 40), (80, 24), (58, 12), (36, 10)] {
-                let mut editor = editor_with(UserPreferencesValues::default());
+                let mut editor = editor_with(UserSettingsValues::default());
                 let (_, before, draw) = present_once(&mut editor, width, height, locale, &theme);
                 let save = HitTarget::SettingsRow {
                     token: draw.token(),
@@ -43,7 +43,7 @@ fn footer_commit_and_exit_are_painted_at_all_admitted_tiers_and_stay_fixed_on_sc
 fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets() {
     let theme = Theme::orchbee_light();
     for (locale, query) in [(Locale::EnUs, "sound"), (Locale::ZhCn, "声音")] {
-        let mut editor = editor_with(UserPreferencesValues::default());
+        let mut editor = editor_with(UserSettingsValues::default());
         editor.edit(Edit::Search);
         editor.paste(query);
         let (terminal, map, draw) = present_once(&mut editor, 80, 24, locale, &theme);
@@ -94,7 +94,7 @@ fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets
         );
         assert!(matches!(editor.view(), Some(View::Draft(draft))
             if draft.searching && draft.query == query && !draft.dirty
-                && draft.values == &UserPreferencesValues::default()));
+                && draft.values == &UserSettingsValues::default()));
         for (control, label, key) in [
             (Control::Back, locale.settings_cancel(), "Esc"),
             (
@@ -129,7 +129,7 @@ fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets
 fn same_modal_picker_keeps_parent_value_checked_and_routes_typed_pointer_acceptance() {
     let theme = Theme::orchbee_light();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let mut editor = editor_with(UserPreferencesValues::default());
+        let mut editor = editor_with(UserSettingsValues::default());
         select_and_present(&mut editor, Row::Theme, locale, &theme);
         editor.edit(Edit::Activate);
         present_once(&mut editor, 80, 24, locale, &theme);
@@ -169,7 +169,7 @@ fn same_modal_picker_keeps_parent_value_checked_and_routes_typed_pointer_accepta
 fn compact_picker_wheel_keeps_a_visible_provisional_choice_without_editing_the_parent() {
     let theme = Theme::terminal_native();
     for (locale, action_rows, visible_choices) in [(Locale::EnUs, 2, 1), (Locale::ZhCn, 1, 2)] {
-        let mut editor = editor_with(UserPreferencesValues::default());
+        let mut editor = editor_with(UserSettingsValues::default());
         select_and_present(&mut editor, Row::TerminalTheme, locale, &theme);
         editor.edit(Edit::Activate);
         let (terminal, map, draw) = present_once(&mut editor, 36, 10, locale, &theme);
@@ -231,7 +231,7 @@ fn minimal_text_editor_keeps_exact_entry_and_complete_footer_controls() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
             for width in [36, 40] {
-                let mut editor = editor_with(UserPreferencesValues::default());
+                let mut editor = editor_with(UserSettingsValues::default());
                 select_and_present(&mut editor, Row::CompletionThreshold, locale, &theme);
                 editor.edit(Edit::Activate);
                 editor.edit(Edit::Line(

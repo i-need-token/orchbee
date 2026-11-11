@@ -1,5 +1,4 @@
 //! Launch-profile values retain the existing Desktop catalog grammar and bounds.
-use super::PreferencesFailure;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -64,9 +63,9 @@ impl<'de> Deserialize<'de> for UserLaunchProfiles {
             default_profile_id: wire.default_profile_id,
             profiles: wire.profiles,
         };
-        catalog
-            .validate()
-            .map_err(|_| serde::de::Error::custom("invalid launch-profile catalog"))?;
+        if !catalog.is_valid() {
+            return Err(serde::de::Error::custom("invalid launch-profile catalog"));
+        }
         Ok(catalog)
     }
 }
@@ -101,7 +100,7 @@ fn profile_id(value: &str) -> bool {
 }
 
 impl UserLaunchProfiles {
-    /// The first profile field that fails validation, in `validate`'s per-profile order.
+    /// The first profile field that fails validation, in `is_valid`'s per-profile order.
     ///
     /// Structural failures without a single owning field return `None`, and
     /// surfaces keep their generic invalid-value copy. This is an in-memory
@@ -142,9 +141,8 @@ impl UserLaunchProfiles {
         None
     }
 
-    pub(crate) fn validate(&self) -> Result<(), PreferencesFailure> {
-        self.validation()
-            .map_err(|_| PreferencesFailure::InvalidChanges)
+    pub(crate) fn is_valid(&self) -> bool {
+        self.validation().is_ok()
     }
 
     fn validation(&self) -> Result<(), ValidationFailure> {

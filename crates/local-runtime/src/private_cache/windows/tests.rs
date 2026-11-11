@@ -1,29 +1,5 @@
 use super::*;
 #[test]
-fn configuration_names_admit_unicode_and_reject_windows_aliases_without_opening_them() {
-    let root = Path::new("C:/example/private");
-    for name in ["项目配置.toml", ".config.toml", "config.toml"] {
-        assert_eq!(configuration_leaf(root, name).unwrap(), root.join(name));
-    }
-    for name in [
-        "",
-        ".",
-        "..",
-        "a/other",
-        "a\\other",
-        "a:stream",
-        "config.",
-        "config ",
-        "NUL",
-        "con.toml",
-        "COM¹.toml",
-        "LPT9",
-    ] {
-        assert!(configuration_leaf(root, name).is_err(), "{name}");
-    }
-    assert!(cache_leaf(root, "项目配置.toml").is_err());
-}
-#[test]
 fn private_cache_serializes_writers_and_preserves_rejected_targets() {
     struct Root(PathBuf);
     impl Drop for Root {
@@ -65,7 +41,7 @@ fn private_cache_serializes_writers_and_preserves_rejected_targets() {
     drop(PrivateCache::acquire(&path, "status").unwrap());
     for reserved in ["codex.lock", "CODEX.PENDING"] {
         assert!(cache.replace(reserved, b"bad").is_err(), "{reserved}");
-        assert!(cache.read_configuration(reserved, 4).is_err(), "{reserved}");
+        assert!(cache.read(reserved, 4).is_err(), "{reserved}");
     }
     assert!(cache.read("codex.toml", 4).unwrap().is_none());
     cache.replace("codex.toml", b"old").unwrap();

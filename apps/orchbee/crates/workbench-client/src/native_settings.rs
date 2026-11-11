@@ -2,9 +2,9 @@
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_agent_integration::IntegrationId;
+use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{
-    PreferenceKey, SettingChange, SettingsOperation, SettingsSnapshot, UserLaunchField,
-    UserPreferencesValues,
+    SettingChange, SettingsOperation, SettingsSnapshot, UserLaunchField, UserSettingsValues,
 };
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
@@ -128,17 +128,17 @@ pub enum Control {
     Explain(IntegrationId),
 }
 /// The confirmed settings a draft starts from: the snapshot's revision orders observations, and
-/// its values are the common preference values the file gives.
+/// its values are the common setting values the file gives.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Basis {
     pub(crate) revision: u64,
-    pub(crate) values: UserPreferencesValues,
+    pub(crate) values: UserSettingsValues,
 }
 impl Basis {
     pub(crate) fn of(snapshot: &SettingsSnapshot) -> Self {
         Self {
             revision: snapshot.revision.value(),
-            values: orchbee_local_runtime::snapshot_preferences(snapshot),
+            values: orchbee_local_runtime::snapshot_values(snapshot),
         }
     }
 }
@@ -193,12 +193,12 @@ pub(crate) struct DraftView<'a> {
     /// The host shows fewer than 24-bit colors, so named themes are unavailable.
     pub(crate) reduced_color: bool,
     pub(crate) token: Token,
-    pub(crate) values: &'a UserPreferencesValues,
-    pub(crate) basis_values: &'a UserPreferencesValues,
+    pub(crate) values: &'a UserSettingsValues,
+    pub(crate) basis_values: &'a UserSettingsValues,
     #[cfg(test)]
     pub(crate) basis_revision: u64,
     #[cfg(test)]
-    pub(crate) effective_values: &'a UserPreferencesValues,
+    pub(crate) effective_values: &'a UserSettingsValues,
     #[cfg(test)]
     pub(crate) effective_revision: u64,
     pub(crate) selected: Row,
@@ -320,7 +320,7 @@ impl DraftView<'_> {
             Row::CompletionThreshold => {
                 let SettingControl::BoundedInteger {
                     minimum, maximum, ..
-                } = setting(PreferenceKey::CompletionReminderMinimumSeconds).control
+                } = setting(UserSettingsField::CompletionReminderMinimumSeconds).control
                 else {
                     unreachable!("integer preference metadata")
                 };
@@ -333,7 +333,7 @@ impl DraftView<'_> {
             Row::Scrollback => {
                 let SettingControl::BoundedInteger {
                     minimum, maximum, ..
-                } = setting(PreferenceKey::ScrollbackBytes).control
+                } = setting(UserSettingsField::ScrollbackBytes).control
                 else {
                     unreachable!("integer preference metadata")
                 };
@@ -405,63 +405,65 @@ impl DraftView<'_> {
                         | Row::AddProfile
                         | Row::DeleteProfile
                 )
-                .then_some(PreferenceKey::LaunchProfiles)
+                .then_some(UserSettingsField::LaunchProfiles)
             });
         let Some(key) = key else {
             return false;
         };
-        if self.reset_all || self.reset_profiles && key == PreferenceKey::LaunchProfiles {
+        if self.reset_all || self.reset_profiles && key == UserSettingsField::LaunchProfiles {
             return true;
         }
         match key {
-            PreferenceKey::Locale => self.values.locale != self.basis_values.locale,
-            PreferenceKey::LightTheme => self.values.light_theme != self.basis_values.light_theme,
-            PreferenceKey::DarkTheme => self.values.dark_theme != self.basis_values.dark_theme,
-            PreferenceKey::TuiColorSource => {
+            UserSettingsField::Locale => self.values.locale != self.basis_values.locale,
+            UserSettingsField::LightTheme => {
+                self.values.light_theme != self.basis_values.light_theme
+            }
+            UserSettingsField::DarkTheme => self.values.dark_theme != self.basis_values.dark_theme,
+            UserSettingsField::TuiColorSource => {
                 self.values.tui_color_source != self.basis_values.tui_color_source
             }
-            PreferenceKey::ApplicationTheme => {
+            UserSettingsField::ApplicationTheme => {
                 self.values.application_theme != self.basis_values.application_theme
             }
-            PreferenceKey::TerminalDisplayTheme => {
+            UserSettingsField::TerminalDisplayTheme => {
                 self.values.terminal_display_theme != self.basis_values.terminal_display_theme
             }
-            PreferenceKey::CustomForeground => {
+            UserSettingsField::CustomForeground => {
                 self.values.custom_foreground != self.basis_values.custom_foreground
             }
-            PreferenceKey::CustomBackground => {
+            UserSettingsField::CustomBackground => {
                 self.values.custom_background != self.basis_values.custom_background
             }
-            PreferenceKey::CopyOnSelect => {
+            UserSettingsField::CopyOnSelect => {
                 self.values.copy_on_select != self.basis_values.copy_on_select
             }
-            PreferenceKey::TrimTrailingBlankRowsForAgents => {
+            UserSettingsField::TrimTrailingBlankRowsForAgents => {
                 self.values.trim_trailing_blank_rows_for_agents
                     != self.basis_values.trim_trailing_blank_rows_for_agents
             }
-            PreferenceKey::ResumeAgentsOnRestore => {
+            UserSettingsField::ResumeAgentsOnRestore => {
                 self.values.resume_agents_on_restore != self.basis_values.resume_agents_on_restore
             }
-            PreferenceKey::RestoreTerminalOutput => {
+            UserSettingsField::RestoreTerminalOutput => {
                 self.values.restore_terminal_output != self.basis_values.restore_terminal_output
             }
-            PreferenceKey::AgentNotificationMode => {
+            UserSettingsField::AgentNotificationMode => {
                 self.values.agent_notification_mode != self.basis_values.agent_notification_mode
             }
-            PreferenceKey::CompletionReminderMode => {
+            UserSettingsField::CompletionReminderMode => {
                 self.values.completion_reminder_mode != self.basis_values.completion_reminder_mode
             }
-            PreferenceKey::CompletionReminderMinimumSeconds => {
+            UserSettingsField::CompletionReminderMinimumSeconds => {
                 self.values.completion_reminder_minimum_seconds
                     != self.basis_values.completion_reminder_minimum_seconds
             }
-            PreferenceKey::SoundEnabled => {
+            UserSettingsField::SoundEnabled => {
                 self.values.sound_enabled != self.basis_values.sound_enabled
             }
-            PreferenceKey::ScrollbackBytes => {
+            UserSettingsField::ScrollbackBytes => {
                 self.values.scrollback_bytes != self.basis_values.scrollback_bytes
             }
-            PreferenceKey::LaunchProfiles => {
+            UserSettingsField::LaunchProfiles => {
                 self.values.launch_profiles != self.basis_values.launch_profiles
             }
         }
@@ -469,7 +471,7 @@ impl DraftView<'_> {
 
     pub(crate) fn enabled(self, row: Row) -> bool {
         use orchbee_workbench_protocol::UserLaunchCommand;
-        // Integration rows act through the Worker, independently of the preference file.
+        // Integration rows act through the Worker, independently of the settings file.
         match row {
             Row::Agent(id) => return self.integrations.block(id).is_none(),
             Row::RefreshIntegrations => return !self.integrations.pending(),
@@ -540,7 +542,7 @@ struct Draft {
     token: Token,
     basis: Basis,
     effective: Basis,
-    values: UserPreferencesValues,
+    values: UserSettingsValues,
     row: Row,
     page: Page,
     viewport: usize,
@@ -653,15 +655,15 @@ impl Draft {
     /// its default unless the draft then changed it again.
     fn changes(&self) -> Vec<SettingChange> {
         let (baseline, restored) = if self.reset_all {
-            (UserPreferencesValues::default(), &PreferenceKey::ALL[..])
+            (UserSettingsValues::default(), &UserSettingsField::ALL[..])
         } else if self.reset_profiles {
             let mut baseline = self.basis.values.clone();
             baseline.launch_profiles = Default::default();
-            (baseline, &[PreferenceKey::LaunchProfiles][..])
+            (baseline, &[UserSettingsField::LaunchProfiles][..])
         } else {
             (self.basis.values.clone(), &[][..])
         };
-        orchbee_local_runtime::preference_changes(&baseline, &self.values, restored)
+        orchbee_local_runtime::value_changes(&baseline, &self.values, restored)
     }
     fn project<'a>(&'a self, integrations: &'a Integrations) -> DraftView<'a> {
         DraftView {
@@ -1258,7 +1260,7 @@ impl Editor {
                     });
                 }
                 Confirmation::ResetAll => {
-                    draft.values = UserPreferencesValues::default();
+                    draft.values = UserSettingsValues::default();
                     draft.reset_all = true;
                     draft.profile = 0;
                     draft.argument = 0;
@@ -1307,7 +1309,7 @@ impl Editor {
             if !draft.drawn || changes.is_empty() {
                 return None;
             }
-            if draft.values.validate().is_err() {
+            if !draft.values.is_valid() {
                 draft.invalid = true;
                 draft.invalid_field = draft.values.launch_profiles.invalid_field();
                 if let Some((index, field)) = draft.invalid_field {

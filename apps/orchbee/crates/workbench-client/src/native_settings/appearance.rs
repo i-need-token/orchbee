@@ -1,13 +1,13 @@
 //! A reversible appearance projection cannot carry clipboard, notification or launch policy.
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, PreferencesLocale, TerminalDisplayAppearance, TuiColorSource,
-    UserPreferencesValues,
+    ApplicationAppearance, SettingsLocale, TerminalDisplayAppearance, TuiColorSource,
+    UserSettingsValues,
 };
 
 /// Validated presentation-only leaves, borrowed from the draft or latest confirmed snapshot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AppearancePreview<'a> {
-    pub locale: PreferencesLocale,
+    pub locale: SettingsLocale,
     pub(crate) application_theme: ApplicationAppearance,
     pub(crate) light_theme: &'a str,
     pub(crate) dark_theme: &'a str,
@@ -19,9 +19,9 @@ pub struct AppearancePreview<'a> {
 
 impl<'a> AppearancePreview<'a> {
     pub(super) fn project(
-        basis: &'a UserPreferencesValues,
-        draft: &'a UserPreferencesValues,
-        effective: &'a UserPreferencesValues,
+        basis: &'a UserSettingsValues,
+        draft: &'a UserSettingsValues,
+        effective: &'a UserSettingsValues,
         reset: bool,
     ) -> Self {
         fn leaf<'a, T: PartialEq + ?Sized>(
@@ -85,7 +85,7 @@ impl<'a> AppearancePreview<'a> {
 
     #[cfg(test)]
     /// Projects a complete validated appearance for independent expected-value assertions.
-    pub(crate) fn from_values(values: &'a UserPreferencesValues) -> Self {
+    pub(crate) fn from_values(values: &'a UserSettingsValues) -> Self {
         Self::project(values, values, values, false)
     }
 }

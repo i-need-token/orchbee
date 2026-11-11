@@ -4,13 +4,10 @@
 use super::{super::Fixture, inject};
 use crate::{
     DataRoot, OpenedRecord, PRODUCT_VERSION, PluginRegistry, RecordProblem, SessionName,
-    UserPreferencesScope, UserPreferencesStore, VersionedFile, VersionedRecord,
+    VersionedFile, VersionedRecord,
     durable_sessions::{Directory, Lifecycle, Record},
     record_migration::{MigrationStep, RecordOpening, open_record},
     reported_record_notices,
-};
-use orchbee_workbench_protocol::{
-    PreferenceKey, UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse,
 };
 use serde_json::{Value, json};
 use std::{
@@ -169,7 +166,6 @@ fn scenario(record: VersionedRecord, open: impl Fn(&DataRoot) -> Box<dyn Store>)
 #[test]
 fn every_store_persists_a_migration_only_in_its_writer() {
     let covered = [
-        VersionedRecord::Preferences,
         VersionedRecord::Onboarding,
         VersionedRecord::Machines,
         VersionedRecord::PluginRegistry,
@@ -177,9 +173,6 @@ fn every_store_persists_a_migration_only_in_its_writer() {
         VersionedRecord::TuiPosition,
     ];
     assert_eq!(covered, VersionedRecord::ALL);
-    scenario(VersionedRecord::Preferences, |root| {
-        Box::new(Preferences::open(root))
-    });
     for record in [VersionedRecord::Onboarding, VersionedRecord::Machines] {
         scenario(record, |root| {
             File::open(VersionedFile::device(root.clone(), record))
@@ -198,56 +191,6 @@ fn every_store_persists_a_migration_only_in_its_writer() {
             &SessionName::parse("work").unwrap(),
         ))
     });
-}
-
-/// The preferences store: a client's read keeps the migration in memory; an update persists it.
-struct Preferences {
-    store: UserPreferencesStore,
-    saved: Cell<u32>,
-}
-impl Preferences {
-    fn open(root: &DataRoot) -> Self {
-        let preferences = Self {
-            store: UserPreferencesStore::new(UserPreferencesScope::for_data_root(root)),
-            saved: Cell::new(0),
-        };
-        assert!(preferences.write());
-        preferences
-    }
-    /// Whether `store` reads the value the last update saved.
-    fn holds_saved(&self, store: &UserPreferencesStore) -> bool {
-        store
-            .read()
-            .is_ok_and(|snapshot| snapshot.values.scrollback_bytes == self.saved.get())
-    }
-}
-impl Store for Preferences {
-    fn path(&self) -> PathBuf {
-        self.store.scope().directory().join("preferences.json")
-    }
-    fn read(&self) -> bool {
-        // A reader is a client that has not changed anything in this process.
-        self.holds_saved(&UserPreferencesStore::new(self.store.scope().clone()))
-    }
-    fn write(&self) -> bool {
-        let Ok(before) = self.store.read() else {
-            return false;
-        };
-        self.saved.set(self.saved.get() + 1);
-        let response = self.store.execute(&UserPreferencesRequest::Update {
-            source: before.source,
-            changes: UserPreferencesPatch::set(
-                PreferenceKey::ScrollbackBytes,
-                json!(self.saved.get()),
-            )
-            .unwrap(),
-        });
-        // Saved means another process reads it, not only this store's memory.
-        matches!(
-            response,
-            UserPreferencesResponse::Snapshot { changed: true, .. }
-        ) && self.holds_saved(&UserPreferencesStore::new(self.store.scope().clone()))
-    }
 }
 
 /// A private file record: the onboarding and machine records and a Session's TUI position.

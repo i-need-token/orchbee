@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::{
     ConfigurationOutcome as Outcome, ConfigurationRequest, ConfigurationResult,
     ConfigurationSnapshot, ContractError, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
     ProtocolVersion, SessionId, SettingChange, SettingsFile, SettingsOutcome, SettingsRefusal,
-    SettingsResult, SettingsSnapshot, UserPreferencesValues, WorkbenchRequestId, WorkbenchResponse,
+    SettingsResult, SettingsSnapshot, UserSettingsValues, WorkbenchRequestId, WorkbenchResponse,
     WorkbenchRevision,
 };
 use std::{
@@ -220,10 +220,10 @@ impl Registry {
     /// Reads the last valid preference values, or `None` before startup installs configuration.
     pub(super) fn with_preferences<T>(
         &self,
-        read: impl FnOnce(&UserPreferencesValues) -> T,
+        read: impl FnOnce(&UserSettingsValues) -> T,
     ) -> Option<T> {
         let slot = self.state.lock().ok()?;
-        slot.as_ref().map(|state| read(&state.current.preferences))
+        slot.as_ref().map(|state| read(&state.current.values))
     }
     #[cfg(all(test, windows))]
     fn execute(
@@ -471,8 +471,8 @@ impl Registry {
             return Err(Failure::Unavailable.into());
         }
         let output_off = valid.as_ref().is_some_and(|load| {
-            state.current.preferences.restore_terminal_output
-                && !load.settings.preferences.restore_terminal_output
+            state.current.values.restore_terminal_output
+                && !load.settings.values.restore_terminal_output
         });
         if configuration_changed && let Some(load) = valid {
             state.current = load.settings;

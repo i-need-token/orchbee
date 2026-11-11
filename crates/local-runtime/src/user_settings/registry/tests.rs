@@ -1,36 +1,36 @@
-// The registry and the preference values are separate authorities for the same defaults; these
-// checks keep them from drifting apart and keep each file key declared once.
+// The registry and the typed values are separate authorities for the same defaults; these checks
+// keep them from drifting apart and keep each file key declared once.
 use super::*;
-use orchbee_workbench_protocol::UserPreferencesValues;
+use crate::user_settings::UserSettingsField;
+use orchbee_workbench_protocol::UserSettingsValues;
 
 mod key_file;
 
 #[test]
-fn every_preference_has_one_file_key_with_the_same_default() {
-    let defaults = serde_json::to_value(UserPreferencesValues::default()).unwrap();
-    for preference in PreferenceKey::ALL {
+fn every_scalar_field_has_one_file_key_with_the_same_default() {
+    let defaults = serde_json::to_value(UserSettingsValues::default()).unwrap();
+    for field in UserSettingsField::ALL {
+        let Some(path) = field.key() else {
+            continue;
+        };
         let carriers: Vec<_> = SETTING_KEYS
             .iter()
-            .filter(|setting| setting.preference == Some(preference))
+            .filter(|setting| setting.path == path)
             .collect();
-        assert!(!carriers.is_empty(), "{preference:?} has no file key");
-        if preference == PreferenceKey::LaunchProfiles {
-            continue;
-        }
-        assert_eq!(carriers.len(), 1, "{preference:?}");
-        let expected = &defaults[preference.as_str()];
+        assert_eq!(carriers.len(), 1, "{field:?}");
+        let expected = &defaults[field.member()];
         let declared = match carriers[0].default {
             SettingDefault::Boolean(value) => serde_json::json!(value),
             SettingDefault::Integer(value) => serde_json::json!(value),
             SettingDefault::Text(value) => serde_json::json!(value),
-            other => panic!("{preference:?} has default {other:?}"),
+            other => panic!("{field:?} has default {other:?}"),
         };
         let wire_spelling = match declared.as_str() {
             Some("when-hidden") => serde_json::json!("hidden"),
             Some("when-unfocused") => serde_json::json!("unfocused"),
             _ => declared,
         };
-        assert_eq!(&wire_spelling, expected, "{}", carriers[0].path);
+        assert_eq!(&wire_spelling, expected, "{path}");
     }
 }
 

@@ -27,13 +27,13 @@ pub use notifications::{
 mod desktop;
 mod editor;
 mod launch_profiles;
-mod preferences;
 mod reference;
 mod registry;
 mod reset_keys;
 mod snapshot;
 mod terminal_colors;
 mod terminal_defaults;
+mod values;
 mod window_title;
 mod wire;
 #[cfg(windows)]
@@ -49,18 +49,16 @@ pub use keys::{
     CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry, KeyChord, KeyOverride,
     KeySettings, KeyTrigger, trigger_label,
 };
-pub(crate) use launch_profiles::launch_command_admitted;
-use orchbee_workbench_protocol::UserPreferencesValues;
-pub use preferences::{preference_changes, preference_values, snapshot_preferences};
+use orchbee_workbench_protocol::UserSettingsValues;
 pub use reference::{
     DefaultActionBindings, default_user_settings_toml, default_user_settings_toml_with_actions,
 };
+pub(crate) use registry::recognized_path;
 use registry::user_config_has_child;
 pub use registry::{
     SETTING_KEYS, SETTING_PLATFORMS, Scalar, SettingCategory, SettingClients, SettingDefault,
     SettingEffect, SettingGroup, SettingKey, SettingScope, SettingValue, find_setting,
 };
-pub(crate) use registry::{current_platform, recognized_path};
 pub use reset_keys::{KeysResetOutcome, KeysResetReport, reset_keybindings};
 pub use snapshot::{configuration_diagnostics, settings_snapshot};
 use std::{
@@ -68,8 +66,9 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
 };
-pub use terminal_colors::{UserColorThemes, UserTerminalColors};
+pub use terminal_colors::{UnusableTerminalDefaults, UserColorThemes, UserTerminalColors};
 pub use terminal_defaults::UserTerminalLaunchIntent;
+pub use values::{UserSettingsField, settings_values, snapshot_values, value_changes};
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowTitleTemplate};
 pub use wire::{setting_changes, settings_refusal};
 
@@ -95,8 +94,8 @@ pub struct UserSettings {
     pub manifest_check_source: &'static str,
     pub cwd: Option<(DirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
-    /// The common preferences the file carries.
-    pub preferences: UserPreferencesValues,
+    /// The common values both Clients present, as the file gives them.
+    pub values: UserSettingsValues,
     /// Settings only the desktop app applies.
     pub desktop: DesktopTerminalSettings,
     /// Each scalar key the file sets and the reader took as written, in the file's spelling.
@@ -209,7 +208,7 @@ impl Default for UserSettings {
             manifest_check_source: "default",
             cwd: None,
             worktree_root: None,
-            preferences: UserPreferencesValues::default(),
+            values: UserSettingsValues::default(),
             desktop: DesktopTerminalSettings::default(),
             file_values: std::collections::BTreeMap::new(),
             file_keys: std::collections::BTreeSet::new(),
@@ -450,8 +449,7 @@ fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Us
     }
     let launch_profiles = launch_profiles::parse(&mut fields);
     let lookup = std::cell::RefCell::new(&mut fields);
-    settings.preferences =
-        preference_values(|path| lookup.borrow_mut().scalar(path), launch_profiles);
+    settings.values = settings_values(|path| lookup.borrow_mut().scalar(path), launch_profiles);
     settings.desktop = DesktopTerminalSettings::parse(&mut fields);
     if let Some(notifications) = table.get("notifications").and_then(toml::Value::as_table) {
         settings.notifications =

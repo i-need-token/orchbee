@@ -132,7 +132,7 @@ impl LocalTerminalService {
             .restoration_targets(&owner)
             .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
-        let values = &configuration.settings.preferences;
+        let values = &configuration.settings.values;
         // The setting decides resuming once, from the startup read.
         let resume = values.resume_agents_on_restore;
         // Output replays only while the setting is on; otherwise the first save removes it.

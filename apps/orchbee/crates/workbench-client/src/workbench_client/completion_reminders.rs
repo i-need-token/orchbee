@@ -1,6 +1,6 @@
 //! The shared reminder policy consumes exact physical command facts once, even while disabled.
 use orchbee_terminal_protocol::TerminalCommandCompletion;
-use orchbee_workbench_protocol::{CompletionReminderMode, UserPreferencesValues};
+use orchbee_workbench_protocol::{CompletionReminderMode, UserSettingsValues};
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
@@ -22,7 +22,7 @@ impl Observer {
         identity: String,
         completion: TerminalCommandCompletion,
         focused: bool,
-        preferences: &UserPreferencesValues,
+        preferences: &UserSettingsValues,
         wall_millis: u64,
         now: Instant,
     ) -> Option<bool> {

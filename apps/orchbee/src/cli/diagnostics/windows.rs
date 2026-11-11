@@ -6,8 +6,8 @@ use super::Collected;
 use crate::invocation::{AgentIntegrationCommand, NamedSessionCommand, OutputFormat};
 use crate::localization::Locale;
 use orchbee_local_runtime::{
-    Cohort, CohortArtifact, DataRoot, DiagnosticRedactor, LogValue, StateRecord,
-    recent_diagnostic_logs, redact_preferences, redact_settings,
+    Cohort, CohortArtifact, DataRoot, DiagnosticRedactor, LogValue, recent_diagnostic_logs,
+    redact_settings,
 };
 use serde_json::{Value, json};
 use std::{
@@ -85,21 +85,6 @@ pub(super) fn collect(locale: Locale) -> Result<Collected, Failure> {
         Err(_) => Err(UNAVAILABLE),
     };
     collected.file("config.toml", settings.map(String::into_bytes));
-
-    let preferences = match &root {
-        Some(root) => match read_bounded(
-            &root.state().join(StateRecord::Preferences.file_name()),
-            orchbee_workbench_protocol::MAXIMUM_USER_PREFERENCES_BYTES as u64,
-        ) {
-            Ok(Some(bytes)) => redact_preferences(&bytes, &redactor)
-                .and_then(|document| serde_json::to_vec_pretty(&document).ok())
-                .ok_or(UNAVAILABLE),
-            Ok(None) => Err(ABSENT),
-            Err(_) => Err(UNAVAILABLE),
-        },
-        None => Err(UNAVAILABLE),
-    };
-    collected.file("preferences.json", preferences);
 
     match root.as_ref().map(recent_diagnostic_logs) {
         Some(Ok(recent)) => {

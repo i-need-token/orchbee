@@ -96,7 +96,7 @@ fn a_smaller_live_grid_keeps_terminal_background_across_the_entire_pane() {
     source.rows.truncate(1);
     source.rows[0].cells.truncate(2);
     let theme = Theme::orchbee_dark().with_terminal_preferences(
-        &orchbee_workbench_protocol::UserPreferencesValues {
+        &orchbee_workbench_protocol::UserSettingsValues {
             application_theme: orchbee_workbench_protocol::ApplicationAppearance::Dark,
             terminal_display_theme: orchbee_workbench_protocol::TerminalDisplayAppearance::Custom,
             custom_foreground: "#abcdef".into(),
@@ -414,7 +414,7 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
 fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_program_colors() {
     use orchbee_workbench_protocol::{
         ApplicationAppearance as Application, TerminalDisplayAppearance as Appearance,
-        UserPreferencesValues,
+        UserSettingsValues,
     };
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
         "../../../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
@@ -452,12 +452,12 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
             Color::Rgb(4, 5, 6),
         ),
     ] {
-        let values = UserPreferencesValues {
+        let values = UserSettingsValues {
             application_theme: application,
             terminal_display_theme: appearance,
             custom_foreground: "#010203".into(),
             custom_background: "#040506".into(),
-            ..UserPreferencesValues::default()
+            ..UserSettingsValues::default()
         };
         // The painted theme is the slot the same preferences select.
         let chrome = if application == Application::Light {

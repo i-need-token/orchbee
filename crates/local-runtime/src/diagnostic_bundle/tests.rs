@@ -1,7 +1,7 @@
-// A bundle leaves the machine, so each class of private text a settings file or preference record
-// can hold gets a refusal here; the archive test proves a standard reader can open the result.
+// A bundle leaves the machine, so each class of private text a settings file can hold gets a
+// refusal here; the archive test proves a standard reader can open the result.
 use super::archive::crc32;
-use super::{DiagnosticRedactor, diagnostic_archive, redact_preferences, redact_settings};
+use super::{DiagnosticRedactor, diagnostic_archive, redact_settings};
 
 fn redactor() -> DiagnosticRedactor {
     DiagnosticRedactor::new(
@@ -86,31 +86,20 @@ fn settings_keep_their_keys_without_any_private_value() {
 }
 
 #[test]
-fn preferences_replace_launch_commands_arguments_and_environment() {
-    let record = serde_json::json!({
-        "version": 1,
-        "values": {
-            "launchProfiles": {
-                "version": 1,
-                "defaultProfileId": "tool",
-                "profiles": [{
-                    "id": "tool",
-                    "name": "Tool in C:\\Users\\Person",
-                    "command": {
-                        "kind": "custom-executable",
-                        "executable": "C:\\Users\\Person\\bin\\tool.exe",
-                        "arguments": ["--api-token", "s3cret-value"],
-                        "environment": {"OPENAI_API_KEY": "sk-proj-value"}
-                    }
-                }]
-            },
-            "scrollbackBytes": 10_000_000
-        },
-        "claimed": ["launchProfiles"]
-    });
-    let bytes = serde_json::to_vec(&record).expect("encode");
-    let redacted = redact_preferences(&bytes, &redactor()).expect("valid JSON");
-    let text = redacted.to_string();
+fn launch_profiles_lose_their_commands_arguments_and_environment() {
+    let settings = r#"
+[[terminal.profiles.windows]]
+id = "tool"
+name = 'Tool in C:\Users\Person'
+kind = "custom-executable"
+executable = 'C:\Users\Person\bin\tool.exe'
+arguments = ["--api-token", "s3cret-value"]
+environment = { OPENAI_API_KEY = "sk-proj-value" }
+
+[terminal]
+scrollback_bytes = 10000000
+"#;
+    let redacted = redact_settings(settings, &redactor()).expect("valid TOML");
     for (class, private) in [
         ("command", "tool.exe"),
         ("argument", "--api-token"),
@@ -119,20 +108,22 @@ fn preferences_replace_launch_commands_arguments_and_environment() {
         ("home path", "Person"),
     ] {
         assert!(
-            !text.contains(private),
-            "{class} reached the bundle: {text}"
+            !redacted.contains(private),
+            "{class} reached the bundle:\n{redacted}"
         );
     }
-    let command = &redacted["values"]["launchProfiles"]["profiles"][0]["command"];
-    assert_eq!(command["kind"], "custom-executable");
-    assert_eq!(command["executable"], "<command>");
+    let parsed: toml::Table = redacted.parse().expect("the bundle's settings stay TOML");
+    let profile = &parsed["terminal"]["profiles"]["windows"][0];
+    assert_eq!(profile["kind"].as_str(), Some("custom-executable"));
+    assert_eq!(profile["executable"].as_str(), Some("<command>"));
     assert_eq!(
-        command["arguments"],
-        serde_json::json!(["<argument>", "<argument>"])
+        profile["arguments"],
+        toml::Value::Array(vec!["<argument>".into(), "<argument>".into()])
     );
-    assert_eq!(command["environment"]["OPENAI_API_KEY"], "<environment>");
-    assert_eq!(redacted["values"]["scrollbackBytes"], 10_000_000);
-    assert_eq!(redact_preferences(b"{", &redactor()), None);
+    assert_eq!(
+        parsed["terminal"]["scrollback_bytes"].as_integer(),
+        Some(10_000_000)
+    );
 }
 
 #[test]

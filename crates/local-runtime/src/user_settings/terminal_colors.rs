@@ -2,7 +2,7 @@
 
 use orchbee_color_themes::{Polarity, Theme, select};
 use orchbee_workbench_protocol::{
-    ApplicationAppearance, PreferencesFailure, TerminalDisplayAppearance, UserPreferencesValues,
+    ApplicationAppearance, TerminalDisplayAppearance, UserSettingsValues,
 };
 
 /// The device's selected color-theme ids, one per polarity slot, as stored.
@@ -16,9 +16,9 @@ pub struct UserColorThemes {
 }
 
 impl Default for UserColorThemes {
-    /// The Orchbee pair, the preference defaults.
+    /// The Orchbee pair, the settings defaults.
     fn default() -> Self {
-        Self::from_values(&UserPreferencesValues::default())
+        Self::from_values(&UserSettingsValues::default())
     }
 }
 
@@ -29,7 +29,7 @@ impl UserColorThemes {
     }
 
     #[must_use]
-    pub fn from_values(values: &UserPreferencesValues) -> Self {
+    pub fn from_values(values: &UserSettingsValues) -> Self {
         Self::new(values.light_theme.clone(), values.dark_theme.clone())
     }
 
@@ -56,6 +56,11 @@ impl UserColorThemes {
         select(polarity, id)
     }
 }
+
+/// Values that name a Custom color that is not RGB hex, or a default launch profile the catalog
+/// lacks; a new terminal cannot take its defaults from them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct UnusableTerminalDefaults;
 
 /// A validated default-color pair and the terminal color scheme it reports.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -84,14 +89,14 @@ impl UserTerminalColors {
     /// terminal. Custom takes the custom pair under every appearance.
     ///
     /// # Errors
-    /// Returns `InvalidSource` when an effective Custom color is not an RGB hex value.
+    /// Refuses when an effective Custom color is not an RGB hex value.
     pub fn resolve(
         application: ApplicationAppearance,
         terminal: TerminalDisplayAppearance,
         themes: &UserColorThemes,
         custom_foreground: &str,
         custom_background: &str,
-    ) -> Result<Option<Self>, PreferencesFailure> {
+    ) -> Result<Option<Self>, UnusableTerminalDefaults> {
         let polarity = match (terminal, application) {
             (TerminalDisplayAppearance::Custom, _) => {
                 return Ok(Some(Self::from_rgb(
@@ -156,12 +161,12 @@ impl UserTerminalColors {
     }
 }
 
-fn rgb(value: &str) -> Result<u32, PreferencesFailure> {
+fn rgb(value: &str) -> Result<u32, UnusableTerminalDefaults> {
     value
         .strip_prefix('#')
         .filter(|hex| hex.len() == 6 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
         .and_then(|hex| u32::from_str_radix(hex, 16).ok())
-        .ok_or(PreferencesFailure::InvalidSource)
+        .ok_or(UnusableTerminalDefaults)
 }
 
 #[cfg(test)]

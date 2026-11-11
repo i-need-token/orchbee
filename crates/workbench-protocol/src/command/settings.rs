@@ -365,7 +365,7 @@ impl SettingsSnapshot {
                     .all(|value| value.as_ref().is_none_or(SettingScalar::valid))
                 && self.set.len() <= MAXIMUM_SNAPSHOT_SETTING_KEYS
                 && self.set.windows(2).all(|pair| pair[0] < pair[1])
-                && self.launch_profiles.validate().is_ok();
+                && self.launch_profiles.is_valid();
         if valid {
             self.diagnostics.validate()
         } else {

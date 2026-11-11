@@ -2,7 +2,7 @@
 use super::*;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_workbench_protocol::{
-    AgentReminderMode, ApplicationAppearance, PreferencesLocale, SettingValue,
+    AgentReminderMode, ApplicationAppearance, SettingValue, SettingsLocale,
 };
 mod appearance;
 mod browse;
@@ -11,33 +11,37 @@ mod themes;
 fn basis() -> Basis {
     Basis {
         revision: 1,
-        values: UserPreferencesValues::default(),
+        values: UserSettingsValues::default(),
     }
 }
 fn basis_with_application_theme(application_theme: ApplicationAppearance) -> Basis {
     Basis {
         revision: 1,
-        values: UserPreferencesValues {
+        values: UserSettingsValues {
             application_theme,
-            ..UserPreferencesValues::default()
+            ..UserSettingsValues::default()
         },
     }
 }
-/// The preference keys one Save edit changes, read back through the settings registry.
-fn edited_keys(submission: &Submission) -> Vec<PreferenceKey> {
+/// The fields one Save edit changes, read back through the keys that carry them.
+fn edited_keys(submission: &Submission) -> Vec<UserSettingsField> {
     let SettingsOperation::Edit { changes } = &submission.operation else {
         panic!("Save sends one edit");
     };
     let platform = platform();
+    let catalog = [
+        format!("terminal.profiles.{platform}"),
+        format!("terminal.default_profile.{platform}"),
+    ];
     let mut keys: Vec<_> = changes
         .iter()
         .filter_map(|change| {
-            orchbee_local_runtime::SETTING_KEYS
-                .iter()
-                .find(|setting| {
-                    setting.path.replace("<platform>", platform) == change.key().as_str()
-                })?
-                .preference
+            let path = change.key().as_str();
+            UserSettingsField::ALL.into_iter().find(|field| {
+                field
+                    .key()
+                    .map_or(catalog.contains(&path.to_owned()), |key| key == path)
+            })
         })
         .collect();
     keys.dedup();
@@ -91,7 +95,7 @@ fn submit(editor: &mut Editor) -> Submission {
 
 #[test]
 fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
-    let projected = PreferenceKey::ALL.into_iter().collect::<Vec<_>>();
+    let projected = UserSettingsField::ALL.into_iter().collect::<Vec<_>>();
     assert_eq!(
         SETTINGS
             .iter()
@@ -114,19 +118,19 @@ fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
         assert_eq!(setting_for_row(metadata.row), Some(metadata));
     }
     assert_eq!(
-        setting(PreferenceKey::CustomForeground).availability,
+        setting(UserSettingsField::CustomForeground).availability,
         SettingAvailability::TerminalDisplayThemeCustom
     );
     assert_eq!(
-        setting(PreferenceKey::CopyOnSelect).category,
+        setting(UserSettingsField::CopyOnSelect).category,
         SettingCategory::Terminal
     );
     assert_eq!(
-        setting(PreferenceKey::LaunchProfiles).effect,
+        setting(UserSettingsField::LaunchProfiles).effect,
         SettingEffect::NewDefaultLaunch
     );
     assert_eq!(
-        setting(PreferenceKey::CompletionReminderMinimumSeconds).control,
+        setting(UserSettingsField::CompletionReminderMinimumSeconds).control,
         SettingControl::BoundedInteger {
             minimum: 1,
             maximum: 3_600,
@@ -136,7 +140,7 @@ fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
         }
     );
     assert_eq!(
-        setting(PreferenceKey::ScrollbackBytes).control,
+        setting(UserSettingsField::ScrollbackBytes).control,
         SettingControl::BoundedInteger {
             minimum: 0,
             maximum: 1_000_000_000,
@@ -683,7 +687,7 @@ fn definite_failures_preserve_the_original_basis_and_allow_an_explicit_retry() {
     let View::Draft(draft) = editor.view().unwrap() else {
         panic!("draft");
     };
-    assert_eq!(draft.values.locale, PreferencesLocale::EnUs);
+    assert_eq!(draft.values.locale, SettingsLocale::EnUs);
     assert!(draft.dirty);
     assert!(
         editor.edit(Edit::Activate).is_none(),
@@ -710,7 +714,7 @@ fn a_confirmed_observation_during_save_is_retained_if_the_draft_returns() {
     let submission = submit(&mut editor);
     let mut latest = basis();
     latest.revision = 2;
-    latest.values.locale = PreferencesLocale::ZhCn;
+    latest.values.locale = SettingsLocale::ZhCn;
     assert_eq!(editor.observe(&latest), Observation::Unchanged);
     assert!(editor.failed(submission.token, Some(Reconciliation::SourceChanged)));
     let View::Draft(draft) = editor.view().unwrap() else {
@@ -718,7 +722,7 @@ fn a_confirmed_observation_during_save_is_retained_if_the_draft_returns() {
     };
     assert_eq!(draft.basis_revision, 1);
     assert_eq!(draft.effective_revision, latest.revision);
-    assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
+    assert_eq!(draft.effective_values.locale, SettingsLocale::ZhCn);
     assert!(draft.conflict);
     assert_eq!(draft.reconciliation, Some(Reconciliation::SourceChanged));
     assert!(!draft.enabled(Row::Save));
@@ -751,7 +755,7 @@ fn unknown_save_requires_a_matched_explicit_read_before_another_save() {
 
     let mut passive = basis();
     passive.revision = 2;
-    passive.values.locale = PreferencesLocale::ZhCn;
+    passive.values.locale = SettingsLocale::ZhCn;
     assert_eq!(editor.observe(&passive), Observation::Conflict);
     let View::Draft(conflicted) = editor.view().unwrap() else {
         panic!("draft");
@@ -790,14 +794,14 @@ fn external_observation_refreshes_clean_views_and_disarms_old_pointer_frames() {
     let old = editor.view().unwrap().token();
     let mut latest = basis();
     latest.revision = 2;
-    latest.values.locale = PreferencesLocale::ZhCn;
+    latest.values.locale = SettingsLocale::ZhCn;
     assert_eq!(editor.observe(&latest), Observation::Refreshed);
     let View::Draft(draft) = editor.view().unwrap() else {
         panic!("draft")
     };
-    assert_eq!(draft.values.locale, PreferencesLocale::ZhCn);
-    assert_eq!(draft.basis_values.locale, PreferencesLocale::ZhCn);
-    assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
+    assert_eq!(draft.values.locale, SettingsLocale::ZhCn);
+    assert_eq!(draft.basis_values.locale, SettingsLocale::ZhCn);
+    assert_eq!(draft.effective_values.locale, SettingsLocale::ZhCn);
     assert!(!draft.conflict);
     assert_eq!(draft.selected, Row::Theme);
     assert!(!draft.dirty);
@@ -821,14 +825,14 @@ fn external_observation_never_rebases_edits_text_or_confirmations() {
         let old = editor.view().unwrap().token();
         let mut latest = basis();
         latest.revision = 2;
-        latest.values.locale = PreferencesLocale::ZhCn;
+        latest.values.locale = SettingsLocale::ZhCn;
         assert_eq!(editor.observe(&latest), Observation::Conflict);
         let View::Draft(draft) = editor.view().unwrap() else {
             panic!("draft")
         };
-        assert_eq!(draft.values.locale, PreferencesLocale::System);
-        assert_eq!(draft.basis_values.locale, PreferencesLocale::System);
-        assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
+        assert_eq!(draft.values.locale, SettingsLocale::System);
+        assert_eq!(draft.basis_values.locale, SettingsLocale::System);
+        assert_eq!(draft.effective_values.locale, SettingsLocale::ZhCn);
         assert!(draft.conflict);
         assert_ne!(draft.token, old, "a new effective value revokes old hits");
         let State::Draft(draft) = &editor.state else {
@@ -864,14 +868,14 @@ fn profiles_child_freezes_the_basis_and_restores_parent_navigation() {
 
     let mut latest = basis();
     latest.revision = 2;
-    latest.values.locale = PreferencesLocale::ZhCn;
+    latest.values.locale = SettingsLocale::ZhCn;
     assert_eq!(editor.observe(&latest), Observation::Conflict);
     let View::Draft(child) = editor.view().unwrap() else {
         panic!("draft");
     };
-    assert_eq!(child.values.locale, PreferencesLocale::System);
-    assert_eq!(child.basis_values.locale, PreferencesLocale::System);
-    assert_eq!(child.effective_values.locale, PreferencesLocale::ZhCn);
+    assert_eq!(child.values.locale, SettingsLocale::System);
+    assert_eq!(child.basis_values.locale, SettingsLocale::System);
+    assert_eq!(child.effective_values.locale, SettingsLocale::ZhCn);
     assert!(child.conflict);
 
     editor.edit(Edit::Cancel);
@@ -959,7 +963,7 @@ fn explicit_reset_claims_even_default_leaves_and_later_edits_override_only_their
             SettingValue::Boolean(true)
         )]
     );
-    assert_eq!(restored.len(), PreferenceKey::ALL.len() - 2 + 2);
+    assert_eq!(restored.len(), UserSettingsField::ALL.len() - 2 + 2);
     assert!(!restored.iter().any(|key| key == "notifications.sound"));
 }
 #[test]
@@ -1189,7 +1193,7 @@ fn removing_resetting_or_reloading_an_invalid_profile_retires_its_diagnostic() {
         assert!(!draft.invalid);
         assert_eq!(draft.invalid_field, None);
         assert_eq!(draft.profile, 0);
-        assert!(draft.values.validate().is_ok());
+        assert!(draft.values.is_valid());
         assert_eq!(
             draft.values.sound_enabled,
             matches!(action, Row::DeleteProfile | Row::ResetProfiles)
@@ -1243,7 +1247,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
     let mut drawn = false;
     let mut saves = Vec::new();
     let mut provisional = None;
-    let saved_values = UserPreferencesValues::default();
+    let saved_values = UserSettingsValues::default();
     let names = [
         ApplicationAppearance::System,
         ApplicationAppearance::Light,
@@ -1324,7 +1328,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     let SettingsOperation::Edit { changes } = submission.operation else {
                         return Err("wrong operation".into());
                     };
-                    let expected = UserPreferencesValues {
+                    let expected = UserSettingsValues {
                         application_theme: names[values.0],
                         agent_notification_mode: if values.1 {
                             AgentReminderMode::Hidden
@@ -1332,10 +1336,10 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                             AgentReminderMode::Never
                         },
                         sound_enabled: values.2,
-                        ..UserPreferencesValues::default()
+                        ..UserSettingsValues::default()
                     };
                     if changes
-                        != orchbee_local_runtime::preference_changes(&saved_values, &expected, &[])
+                        != orchbee_local_runtime::value_changes(&saved_values, &expected, &[])
                     {
                         return Err("dirty leaves".into());
                     }
