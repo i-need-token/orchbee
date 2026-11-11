@@ -54,6 +54,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.selectTab': '选择第 {position} 个标签页',
 	'keyboard.shortcuts.actions.settings': '打开设置',
 	'keyboard.shortcuts.actions.shortcuts': '打开键盘快捷键',
+	'keyboard.shortcuts.actions.startAgent': '启动智能体',
 	'keyboard.shortcuts.actions.splitBelow': '向下拆分面板',
 	'keyboard.shortcuts.actions.splitRight': '向右拆分面板',
 	'keyboard.shortcuts.actions.swapPanelVisible': '可视交换面板',

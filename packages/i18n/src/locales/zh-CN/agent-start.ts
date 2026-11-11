@@ -1,0 +1,25 @@
+import type { AgentStartMessageId } from '../en-US';
+
+export const zhCNAgentStartMessages = {
+	'agentStart.cancel': '取消',
+	'agentStart.detail.cantCheck': '无法检查',
+	'agentStart.detail.notFound': '未找到',
+	'agentStart.fold': '另有 {count} 个未在此电脑上找到',
+	'agentStart.group.installed': '已安装',
+	'agentStart.group.notChecked': '未在此机器上检查',
+	'agentStart.group.notFound': '未找到',
+	'agentStart.group.recent': '最近使用',
+	'agentStart.list': '智能体',
+	'agentStart.opensIn': '打开位置',
+	'agentStart.place.newTab': '新标签页',
+	'agentStart.place.newWorktree': '新工作树',
+	'agentStart.place.splitDown': '向下拆分',
+	'agentStart.place.splitRight': '向右拆分',
+	'agentStart.search': '搜索',
+	'agentStart.start': '启动',
+	'agentStart.status.couldntCheck': '无法检查已安装的智能体',
+	'agentStart.status.looking': '正在查找已安装的智能体…',
+	'agentStart.status.noMatch': '没有匹配的智能体。',
+	'agentStart.status.unsupported': '此平台尚不支持启动智能体。',
+	'agentStart.title': '启动智能体',
+} as const satisfies Readonly<Record<AgentStartMessageId, string>>;

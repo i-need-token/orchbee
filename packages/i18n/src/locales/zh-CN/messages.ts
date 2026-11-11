@@ -2,6 +2,7 @@ import { zhCNWebsiteMessages } from './website';
 import type { OrchbeeMessageId } from '../en-US';
 import { zhCNAgentIntegrationMessages } from './agent-integrations';
 import { zhCNAgentObservationMessages } from './agent-observation';
+import { zhCNAgentStartMessages } from './agent-start';
 import { zhCNApplicationRoutingMessages } from './application-routing';
 
 import { zhCNDesktopDiagnosticsMessages } from './desktop-diagnostics';
@@ -20,6 +21,7 @@ export const zhCNMessages = {
 	...zhCNWebsiteMessages,
 	...zhCNAgentIntegrationMessages,
 	...zhCNAgentObservationMessages,
+	...zhCNAgentStartMessages,
 	...zhCNApplicationRoutingMessages,
 
 	...zhCNDesktopDiagnosticsMessages,

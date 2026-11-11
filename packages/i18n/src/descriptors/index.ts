@@ -1,6 +1,7 @@
 export { applicationRoutingMessages } from './application-routing';
 export { agentIntegrationMessages } from './agent-integrations';
 export { agentObservationMessages } from './agent-observation';
+export { agentStartMessages } from './agent-start';
 
 export { desktopDiagnosticsMessages } from './desktop-diagnostics';
 export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';

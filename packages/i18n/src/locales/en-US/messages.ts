@@ -2,6 +2,7 @@ import { enUSWebsiteMessages } from './website';
 import { enUSApplicationRoutingMessages } from './application-routing';
 import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
+import { enUSAgentStartMessages } from './agent-start';
 
 import { enUSDesktopDiagnosticsMessages } from './desktop-diagnostics';
 import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
@@ -20,6 +21,7 @@ export const enUSMessages = {
 	...enUSApplicationRoutingMessages,
 	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,
+	...enUSAgentStartMessages,
 
 	...enUSDesktopDiagnosticsMessages,
 	...enUSDesktopSecureKeyboardEntryMessages,

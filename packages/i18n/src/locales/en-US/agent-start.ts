@@ -1,0 +1,25 @@
+export const enUSAgentStartMessages = {
+	'agentStart.cancel': 'Cancel',
+	'agentStart.detail.cantCheck': 'can’t check',
+	'agentStart.detail.notFound': 'not found',
+	'agentStart.fold': '{count} more not found on this computer',
+	'agentStart.group.installed': 'Installed',
+	'agentStart.group.notChecked': 'Not checked on this machine',
+	'agentStart.group.notFound': 'Not found',
+	'agentStart.group.recent': 'Recent',
+	'agentStart.list': 'Agents',
+	'agentStart.opensIn': 'Opens in',
+	'agentStart.place.newTab': 'New Tab',
+	'agentStart.place.newWorktree': 'New Worktree',
+	'agentStart.place.splitDown': 'Split down',
+	'agentStart.place.splitRight': 'Split right',
+	'agentStart.search': 'Search',
+	'agentStart.start': 'Start',
+	'agentStart.status.couldntCheck': 'Couldn’t check installed Agents',
+	'agentStart.status.looking': 'Looking for installed Agents…',
+	'agentStart.status.noMatch': 'No Agent matches.',
+	'agentStart.status.unsupported': 'Starting an Agent is not supported on this platform.',
+	'agentStart.title': 'Start Agent',
+} as const;
+
+export type AgentStartMessageId = keyof typeof enUSAgentStartMessages;

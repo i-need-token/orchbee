@@ -68,6 +68,7 @@ export const keyboardShortcutMessages = defineMessages({
 	),
 	settings: message('keyboard.shortcuts.actions.settings'),
 	shortcuts: message('keyboard.shortcuts.actions.shortcuts'),
+	startAgent: message('keyboard.shortcuts.actions.startAgent'),
 	splitBelow: message('keyboard.shortcuts.actions.splitBelow'),
 	splitRight: message('keyboard.shortcuts.actions.splitRight'),
 	swapPanelVisible: message('keyboard.shortcuts.actions.swapPanelVisible'),

@@ -52,6 +52,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.selectTab': 'Select tab {position}',
 	'keyboard.shortcuts.actions.settings': 'Open settings',
 	'keyboard.shortcuts.actions.shortcuts': 'Open keyboard shortcuts',
+	'keyboard.shortcuts.actions.startAgent': 'Start Agent',
 	'keyboard.shortcuts.actions.splitBelow': 'Split panel below',
 	'keyboard.shortcuts.actions.splitRight': 'Split panel right',
 	'keyboard.shortcuts.actions.swapPanelVisible': 'Visually swap panel',

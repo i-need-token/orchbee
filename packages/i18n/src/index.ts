@@ -3,6 +3,7 @@ export type { IntlShape, MessageDescriptor } from 'react-intl';
 export {
 	agentIntegrationMessages,
 	agentObservationMessages,
+	agentStartMessages,
 	applicationRoutingMessages,
 	desktopDiagnosticsMessages,
 	desktopSecureKeyboardEntryMessages,

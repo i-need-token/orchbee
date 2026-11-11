@@ -4,6 +4,8 @@ export { enUSAgentIntegrationMessages } from './agent-integrations';
 export type { AgentIntegrationMessageId } from './agent-integrations';
 export { enUSAgentObservationMessages } from './agent-observation';
 export type { AgentObservationMessageId } from './agent-observation';
+export { enUSAgentStartMessages } from './agent-start';
+export type { AgentStartMessageId } from './agent-start';
 
 export { enUSDesktopDiagnosticsMessages } from './desktop-diagnostics';
 export type { DesktopDiagnosticsMessageId } from './desktop-diagnostics';
