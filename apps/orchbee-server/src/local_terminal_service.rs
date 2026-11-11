@@ -34,6 +34,7 @@ use crate::{
     worker_registry::WorkerRegistry,
 };
 
+mod agent_catalog;
 mod agent_drain_read;
 mod agent_integration;
 mod agent_names;
@@ -396,6 +397,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
             | WorkerOperationResult::WorktreeJob(_)
             | WorkerOperationResult::PluginJob(_)
             | WorkerOperationResult::AgentIntegrationJob(_)
+            | WorkerOperationResult::AgentProbeJob(_)
             | WorkerOperationResult::WorktreeMutation(_),
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start

@@ -14,7 +14,10 @@ defines the lifecycle, bounds and Windows evidence; Desktop receives no new cons
 The Server installs its role in the
 [daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log) at startup and,
 as a managed Session Server, records `started` with its version and `exited` with an outcome or
-closed I/O error kind. It records nothing about Clients, terminals or requests.
+closed I/O error kind. Each [Agent catalog](#agent-catalog) lookup that ends records
+`agent-catalog-lookup` with its outcome, `complete`, `failed` or `unsupported`, and how many
+commands were found, missing or unavailable. It records nothing about Clients, terminals or
+requests.
 
 ## Client handshake and process query
 
@@ -1007,6 +1010,31 @@ Worker `Busy` and carrier backpressure answer `busy`; a missing Worker, `SpawnTh
 `Dead` answers `worker-unavailable`. A delivered enable or disable start whose result is lost
 answers `abandoned`, because its effects are unknown. The Server decodes a completed report
 against the contract before answering; an undecodable report answers `malformed`.
+
+## Agent catalog
+
+`agent_catalog::AgentCatalog` holds the Session's Agent catalog: one row per startable provider in
+catalog order with its product name, start command line and state, the lookup status, when the
+last lookup completed, and a revision that starts at 1 and advances whenever any of them changes.
+Recent starts are not recorded, so the recent list is empty. Rows and the rule for which providers
+can be checked come from `StartableAgent` in
+[`orchbee-agent-observation-protocol`](../../crates/agent-observation-protocol/README.md#native-process-input-rules);
+a provider whose start command is a generic alias is `cant-check`, and its command is never sent.
+`startable` is true on Windows, the only platform that starts Agents.
+
+One pump thread, started by Session composition, keeps the catalog current through the registered
+Worker's [Agent probe job](../orchbee-worker/README.md#agent-probe-job), OBCN kinds 37 and 38. Each
+exchange takes a fresh random operation ID and waits in the carrier's low lane with discardable
+completion. Each Worker generation is looked up as soon as it registers: a Start naming the
+checkable commands, then a Poll every 100 milliseconds. A refresh starts another lookup unless one
+is running or the last ended under two seconds ago. A lookup fails on any other answer, a lost
+exchange, the loss of its Worker, or after ten seconds; a failed lookup the Worker had accepted is
+cancelled once. A failed later lookup keeps the last completed rows, and a failed first lookup
+leaves checkable rows `unknown`, as does a POSIX Worker's `Unsupported`. The module comment holds
+the schedule's states and transitions. A Windows Session stop joins the pump before Close
+maintenance stops, without waiting for a Worker job, which the Worker ends at its own deadline or
+exit. `LocalTerminalService::agent_catalog` reads the catalog and `refresh_agent_catalog` asks for a
+lookup; no Workbench request reaches them yet.
 
 ## Workspace Git observations
 

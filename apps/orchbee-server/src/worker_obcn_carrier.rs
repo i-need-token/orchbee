@@ -64,6 +64,7 @@ pub(crate) enum WorkerOperationRequest {
     WorktreeJob(WorktreeJobRequest),
     PluginJob(orchbee_capability_node_protocol::PluginJobRequest),
     AgentIntegrationJob(orchbee_capability_node_protocol::AgentIntegrationJobRequest),
+    AgentProbeJob(orchbee_capability_node_protocol::AgentProbeJobRequest),
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationRequest),
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
@@ -112,6 +113,7 @@ impl WorkerOperationRequest {
             Self::WorktreeJob(request) => (request.worker_id, request.worker_generation),
             Self::PluginJob(request) => (request.worker_id, request.worker_generation),
             Self::AgentIntegrationJob(request) => (request.worker_id, request.worker_generation),
+            Self::AgentProbeJob(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
@@ -128,7 +130,7 @@ impl WorkerOperationRequest {
             Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) | Self::HostQuery(_) => {
                 RequestLane::Low
             }
-            Self::Viewer(_) | Self::GraphicsDecode(_) => RequestLane::Low,
+            Self::Viewer(_) | Self::GraphicsDecode(_) | Self::AgentProbeJob(_) => RequestLane::Low,
             Self::TitleChanges(_) => RequestLane::Idle,
             #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
@@ -171,6 +173,9 @@ impl WorkerOperationRequest {
             Self::AgentIntegrationJob(request) => {
                 CapabilityNodeMessage::AgentIntegrationJobRequest(request.clone())
             }
+            Self::AgentProbeJob(request) => {
+                CapabilityNodeMessage::AgentProbeJobRequest(request.clone())
+            }
             Self::WorktreeMutation(request) => {
                 CapabilityNodeMessage::WorktreeMutationRequest(request.clone())
             }
@@ -206,6 +211,7 @@ pub(crate) enum WorkerOperationResult {
     WorktreeJob(WorktreeJobResult),
     PluginJob(orchbee_capability_node_protocol::PluginJobResult),
     AgentIntegrationJob(orchbee_capability_node_protocol::AgentIntegrationJobResult),
+    AgentProbeJob(orchbee_capability_node_protocol::AgentProbeJobResult),
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationResult),
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
@@ -430,6 +436,16 @@ impl WorkerRequestHandle {
         self.admit(WorkerOperationRequest::TitleChanges(request), false)
     }
 
+    /// An Agent probe exchange waits in the low lane behind input and terminal effects. The
+    /// catalog pump stops waiting when its lookup ends, its deadline passes or the Session stops;
+    /// the wire owner still validates and consumes a later result. Admission never waits.
+    pub(crate) fn admit_agent_probe(
+        &self,
+        request: orchbee_capability_node_protocol::AgentProbeJobRequest,
+    ) -> Result<PendingExchange, WorkerRequestError> {
+        self.admit(WorkerOperationRequest::AgentProbeJob(request), false)
+    }
+
     /// Admit one request through the existing worker/generation fence and lane
     /// rules, returning the exchange that receives its result. Completion
     /// ownership is fixed by the admitted request kind.
@@ -557,8 +573,8 @@ enum CompletionDelivery {
 
 impl CompletionDelivery {
     /// Completion ownership is derived from the admitted request kind, never
-    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob, HostQuery and title change
-    /// requests get discardable completion; effects still require a live receiver.
+    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob, HostQuery, Agent probe and
+    /// title change requests get discardable completion; effects still require a live receiver.
     fn for_request(
         request: &WorkerOperationRequest,
         completion: SyncSender<Result<WorkerOperationResult, WorkerRequestError>>,
@@ -567,6 +583,7 @@ impl CompletionDelivery {
             WorkerOperationRequest::AgentDrain(_)
             | WorkerOperationRequest::WorktreeJob(_)
             | WorkerOperationRequest::HostQuery(_)
+            | WorkerOperationRequest::AgentProbeJob(_)
             | WorkerOperationRequest::TitleChanges(_) => Self::DiscardableRead(completion),
             _ => Self::Required(completion),
         }
@@ -1907,6 +1924,29 @@ fn validate_response(
         (_, CapabilityNodeMessage::AgentProbeJobRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
+        (
+            WorkerOperationRequest::AgentProbeJob(expected),
+            CapabilityNodeMessage::AgentProbeJobResult(actual),
+        ) => {
+            use orchbee_capability_node_protocol::AgentProbeJobAction;
+            if actual.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            let expected_job = match &expected.action {
+                // A Start's job ID is its own operation identity.
+                AgentProbeJobAction::Start { .. } => expected.operation_id,
+                AgentProbeJobAction::Poll { job_id } | AgentProbeJobAction::Cancel { job_id } => {
+                    *job_id
+                }
+            };
+            if actual.job_id != expected_job {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if !expected.action.admits(&actual.outcome) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::AgentProbeJob(actual))
+        }
         (_, CapabilityNodeMessage::AgentProbeJobResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
@@ -1917,6 +1957,7 @@ fn validate_response(
         | (WorkerOperationRequest::WorktreeJob(_), _)
         | (WorkerOperationRequest::PluginJob(_), _)
         | (WorkerOperationRequest::AgentIntegrationJob(_), _)
+        | (WorkerOperationRequest::AgentProbeJob(_), _)
         | (WorkerOperationRequest::WorktreeMutation(_), _) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }

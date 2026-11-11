@@ -336,6 +336,7 @@ fn admits_the_last_nonzero_generation_before_exhaustion() {
         next_generation: Some(maximum_generation),
         viewer_ready: Arc::default(),
         titles: Arc::default(),
+        catalog: Arc::default(),
     };
 
     assert_eq!(

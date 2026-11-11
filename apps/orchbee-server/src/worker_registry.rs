@@ -23,7 +23,9 @@ use crate::agent_service::AgentService;
 use crate::worker_obcn_carrier::{
     WorkerCarrier, WorkerCarrierShutdown, WorkerRequestHandle, WorkerWireExit, WorkerWireOwner,
 };
-use crate::{terminal_titles::TerminalTitles, viewer_ready::ViewerReadyRoutes};
+use crate::{
+    agent_catalog::AgentCatalog, terminal_titles::TerminalTitles, viewer_ready::ViewerReadyRoutes,
+};
 
 #[derive(Debug)]
 struct ActiveCarrier {
@@ -125,6 +127,7 @@ impl Drop for WorkerGenerationRegistration {
             // The generation check makes delayed guard destruction harmless to a replacement.
             let _retired = registry.retire_carrier(self.generation);
             registry.titles.retire(self.generation);
+            registry.catalog.retire(self.generation);
         }
     }
 }
@@ -135,6 +138,7 @@ pub(crate) struct WorkerRegistry {
     next_generation: Option<NonZeroU64>,
     viewer_ready: Arc<ViewerReadyRoutes>,
     titles: Arc<TerminalTitles>,
+    catalog: Arc<AgentCatalog>,
 }
 
 impl WorkerRegistry {
@@ -144,6 +148,7 @@ impl WorkerRegistry {
             next_generation: Some(NonZeroU64::MIN),
             viewer_ready: Arc::default(),
             titles: Arc::default(),
+            catalog: Arc::default(),
         }
     }
 
@@ -154,6 +159,11 @@ impl WorkerRegistry {
     /// The Session's published terminal titles, which follow the registered generation.
     pub(crate) fn terminal_titles(&self) -> Arc<TerminalTitles> {
         Arc::clone(&self.titles)
+    }
+
+    /// The Session's Agent catalog, which looks up each registered generation.
+    pub(crate) fn agent_catalog(&self) -> Arc<AgentCatalog> {
+        Arc::clone(&self.catalog)
     }
 
     pub(crate) fn admit(
@@ -214,6 +224,7 @@ impl WorkerRegistry {
         let mut registry_guard = registry.lock().ok()?;
         let viewer_ready = registry_guard.viewer_ready_routes();
         let titles = registry_guard.terminal_titles();
+        let catalog = registry_guard.agent_catalog();
         let active = registry_guard.active.as_mut()?;
         if active.generation != generation
             || carrier.generation() != generation
@@ -269,6 +280,7 @@ impl WorkerRegistry {
         // Before the wire owner runs, so no note of this generation precedes it.
         if let Some(worker) = title_worker {
             titles.begin(worker, generation);
+            catalog.begin(worker, generation);
         }
         Some(RegisteredWorkerWireOwner {
             registration: Some(WorkerGenerationRegistration {

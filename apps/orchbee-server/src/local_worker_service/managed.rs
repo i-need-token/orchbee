@@ -175,6 +175,8 @@ pub(super) fn run(
     terminals.start_close_maintenance()?;
     #[cfg(not(windows))]
     terminals.start_title_reads()?;
+    #[cfg(not(windows))]
+    terminals.start_agent_catalog()?;
     // Hosts here cannot sample processes: the observer refuses after installing the startup read
     // as the Session's configuration. A file that cannot be read starts the Session with the
     // defaults, published as unreadable.

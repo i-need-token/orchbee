@@ -48,7 +48,8 @@ AgentDrain request
 through the same worker/generation fence and receives a `PendingExchange` whose bounded
 `recv_deadline` wait keeps the attempt alive when it elapses, so the pump
 waits with its own deadline instead of `submit`'s blocking receive. The Server's title read pump
-admits its one outstanding change read the same way, with discardable completion.
+admits its one outstanding change read the same way, with discardable completion, and so does the
+Agent catalog's probe pump with its one outstanding Agent probe exchange in the low lane.
 
 ## Admission
 
