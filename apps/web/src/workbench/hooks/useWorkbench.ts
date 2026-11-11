@@ -19,7 +19,10 @@ import {
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
-import type { UserLaunchProfile } from '@orchbee/workbench-client-protocol';
+import type {
+	UserLaunchProfile,
+	WorkbenchAgentStartProvider,
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	DEFAULT_LEFT_PANEL_WIDTH,
@@ -389,6 +392,11 @@ export function useWorkbench({
 	terminalSurfaceAvailable,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
+	const visibleShortcutLabel = (label: string): string | undefined =>
+		configuredCommandKeys.heldLabels.has(label) ? undefined : label;
+	const startAgentShortcutLabel = visibleShortcutLabel(
+		formatWorkbenchShortcut('startAgent', shortcutPlatform, shortcutBindings),
+	);
 	const authorityNotice = useWorkbenchAuthorityNotice(authority, projectWorkspaceRuntime);
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
@@ -802,11 +810,25 @@ export function useWorkbench({
 	const createTabWithProfile = useMemoizedFn((profile: UserLaunchProfile) => {
 		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
 	});
-	const newTabSections = useWorkbenchNewTabChoices(
-		authorityNotice.authority.launchProfiles,
-		projectWorkspaceState.activeLocation.kind === 'workspace',
-		createTabWithProfile,
-	);
+	const openAgentStartForNewTab = useMemoizedFn(() => {
+		actions.invoke(WORKBENCH_ACTION_IDS.openAgentStart, undefined, 'context-menu');
+	});
+	const startAgentInNewTab = useMemoizedFn((providerId: WorkbenchAgentStartProvider) => {
+		actions.invoke(
+			WORKBENCH_ACTION_IDS.startAgent,
+			{ place: 'new-tab', providerId },
+			'context-menu',
+		);
+	});
+	const newTabSections = useWorkbenchNewTabChoices({
+		agentCatalog: authorityNotice.authority.agentCatalog,
+		createTab: createTabWithProfile,
+		inWorkspace: projectWorkspaceState.activeLocation.kind === 'workspace',
+		launchProfiles: authorityNotice.authority.launchProfiles,
+		openAgentStart: openAgentStartForNewTab,
+		startAgentInNewTab,
+		startAgentShortcutLabel,
+	});
 	const invokeLocationActivation = useMemoizedFn(
 		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'keyboard' | 'pointer') => {
 			// No Workspace opens by itself once none is left, so nothing activates it.
@@ -929,8 +951,6 @@ export function useWorkbench({
 		actions.invokeShortcut,
 		invokeConfiguredCommandKey,
 	);
-	const visibleShortcutLabel = (label: string): string | undefined =>
-		configuredCommandKeys.heldLabels.has(label) ? undefined : label;
 
 	return {
 		agentBoard: agentDialogs.board,
