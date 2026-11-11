@@ -5,26 +5,16 @@
 #[cfg(unix)]
 use nix::sys::stat::SFlag;
 use std::{error::Error, fmt, path::PathBuf};
-#[cfg(not(windows))]
-const MAX_SESSION_SCOPE_BYTES: usize = 63;
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
 const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SessionScope(String);
 
 impl SessionScope {
-    /// On Windows a scope is the runtime folder of one Session, named by the Session, so it takes
-    /// the Session name grammar. Other platforms keep their lowercase hyphenated grammar until
-    /// ORC-328 moves their runtimes into the data root.
+    /// A scope is the runtime folder of one Session, named by the Session, so it takes the
+    /// Session name grammar.
     pub fn parse(value: &str) -> Result<Self, RendezvousError> {
-        #[cfg(windows)]
-        let valid = crate::session_name::valid(value);
-        #[cfg(not(windows))]
-        let valid = !value.is_empty()
-            && value.len() <= MAX_SESSION_SCOPE_BYTES
-            && value.is_ascii()
-            && valid_scope_segment(value);
-        if !valid {
+        if !crate::session_name::valid(value) {
             return Err(RendezvousError::InvalidSessionScope);
         }
         Ok(Self(value.to_owned()))
@@ -228,29 +218,3 @@ impl Error for RendezvousError {
         }
     }
 }
-
-#[cfg(not(windows))]
-fn valid_scope_segment(value: &str) -> bool {
-    let mut segments = value.split('-');
-    let Some(first) = segments.next() else {
-        return false;
-    };
-    if first.is_empty()
-        || !first.as_bytes()[0].is_ascii_lowercase()
-        || !first
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
-    {
-        return false;
-    }
-    segments.all(|segment| {
-        !segment.is_empty()
-            && segment
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
-    })
-}
-
-// Windows scopes take the Session name grammar, which the Session name tests cover.
-#[cfg(all(test, not(windows)))]
-mod tests;
