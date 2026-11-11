@@ -5,6 +5,9 @@
 use super::{keys::ACTIONS, notifications::MAXIMUM_NOTIFICATION_DELAY_SECONDS};
 use orchbee_workbench_protocol::PreferenceKey;
 
+/// Longest color-theme id, the bound the preference values admit.
+const THEME_ID_BYTES: usize = 64;
+
 /// Settings-page category, in page order. Display names belong to each client's localization.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum SettingCategory {
@@ -88,6 +91,26 @@ pub enum SettingClients {
     Desktop,
 }
 
+/// Whose file a key is read from and written to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SettingScope {
+    /// The file on the Client's own machine: how that Client looks and handles input.
+    Client,
+    /// The file on the attached Server's machine: what the Server does with terminals, Agents
+    /// and updates.
+    Server,
+}
+
+impl SettingScope {
+    /// Stable identifier shared by both clients.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Client => "client",
+            Self::Server => "server",
+        }
+    }
+}
+
 /// When a changed value takes effect.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingEffect {
@@ -152,6 +175,7 @@ pub struct SettingKey {
     pub default: SettingDefault,
     pub category: SettingCategory,
     pub group: SettingGroup,
+    pub scope: SettingScope,
     pub clients: SettingClients,
     pub effect: SettingEffect,
     /// Whether the settings page shows the key; other keys live only in the file.
@@ -179,12 +203,15 @@ pub const fn current_platform() -> &'static str {
 }
 
 const BOTH: SettingClients = SettingClients::Both;
+const CLIENT: SettingScope = SettingScope::Client;
+const SERVER: SettingScope = SettingScope::Server;
 
 const fn key(
     path: &'static str,
     value: SettingValue,
     default: SettingDefault,
     placement: (SettingCategory, SettingGroup),
+    scope: SettingScope,
     description: &'static str,
 ) -> SettingKey {
     SettingKey {
@@ -193,6 +220,7 @@ const fn key(
         default,
         category: placement.0,
         group: placement.1,
+        scope,
         clients: BOTH,
         effect: SettingEffect::Immediate,
         page: false,
@@ -251,6 +279,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["system", "en-US", "zh-CN"]),
         D::Text("system"),
         (C::General, G::Basics),
+        CLIENT,
         "Display language; system follows the operating system.",
     )
     .page()
@@ -260,6 +289,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["system", "light", "dark"]),
         D::Text("system"),
         (C::Appearance, G::Theme),
+        CLIENT,
         "Light or dark appearance; system follows the operating system.",
     )
     .page()
@@ -269,6 +299,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Theme,
         D::Text("orchbee-light"),
         (C::Themes, G::Light),
+        CLIENT,
         "Color theme in light appearance; an id this build does not ship reads as Orchbee Light.",
     )
     .page()
@@ -278,6 +309,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Theme,
         D::Text("orchbee-dark"),
         (C::Themes, G::Dark),
+        CLIENT,
         "Color theme in dark appearance; an id this build does not ship reads as Orchbee Dark.",
     )
     .page()
@@ -287,6 +319,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["theme", "terminal"]),
         D::Text("theme"),
         (C::Appearance, G::Theme),
+        CLIENT,
         "Where the terminal interface takes its colors: the theme or the host terminal's palette.",
     )
     .clients(TUI)
@@ -296,6 +329,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["theme", "host", "custom"]),
         D::Text("theme"),
         (C::Appearance, G::TerminalColors),
+        CLIENT,
         "Colors of terminal output: the theme, the host terminal, or the two custom colors.",
     )
     .page()
@@ -305,6 +339,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Color,
         D::Text("#141414"),
         (C::Appearance, G::TerminalColors),
+        CLIENT,
         "Text color when terminal_colors is custom.",
     )
     .page()
@@ -314,6 +349,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Color,
         D::Text("#fcfcfc"),
         (C::Appearance, G::TerminalColors),
+        CLIENT,
         "Background color when terminal_colors is custom.",
     )
     .page()
@@ -326,6 +362,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         D::Text("{hostname}: {workspace}"),
         (C::General, G::Basics),
+        CLIENT,
         "Template for the terminal window title.",
     ),
     key(
@@ -333,6 +370,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("up to 16 rows of up to 16 tokens: state_icon, state_text, machine, workspace, tab, pane, agent, terminal_title, terminal_title_stripped, or custom token keys"),
         unset("the built-in layout", "[[\"state_icon\", \"agent\"], [\"workspace\"]]"),
         (C::Appearance, G::Sidebar),
+        CLIENT,
         "Rows shown for each Agent in the sidebar.",
     ),
     key(
@@ -340,6 +378,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("a table from Agent ID to rows in the same form as rows"),
         unset("no overrides", "{ codex = [[\"agent\"]] }"),
         (C::Appearance, G::Sidebar),
+        CLIENT,
         "Rows for particular Agents, in place of rows.",
     ),
     key(
@@ -347,6 +386,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(0, u16::MAX as i64),
         D::Integer(0),
         (C::Appearance, G::Sidebar),
+        CLIENT,
         "Blank space between Agent rows.",
     ),
     key(
@@ -354,6 +394,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured(SIDEBAR_ROWS),
         D::Toml("[[\"workspace\", \"git_status\"], [\"location\"]]"),
         (C::Appearance, G::Sidebar),
+        CLIENT,
         "Rows shown for each Workspace in the sidebar; tokens: state_icon, state_text, workspace, branch, location, git_status, or custom token keys.",
     ),
     key(
@@ -361,6 +402,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(0, u16::MAX as i64),
         D::Integer(0),
         (C::Appearance, G::Sidebar),
+        CLIENT,
         "Blank space between Workspace rows.",
     ),
     key(
@@ -371,6 +413,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("no override", "\"home\""),
         (C::General, G::Basics),
+        SERVER,
         "Starting folder for a new terminal.",
     )
     .page()
@@ -380,6 +423,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(true),
         (C::Terminal, G::Panels),
+        SERVER,
         "Focus a newly split panel.",
     )
     .effect(SettingEffect::Restart),
@@ -388,6 +432,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(false),
         (C::Terminal, G::Input),
+        CLIENT,
         "Copy selected terminal text without a separate copy step.",
     )
     .page()
@@ -397,6 +442,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["off", "left", "right", "both"]),
         D::Text("off"),
         (C::Terminal, G::Input),
+        CLIENT,
         "Which Option keys act as Alt in the desktop app on macOS.",
     )
     .page()
@@ -406,6 +452,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(0, 1_000_000_000),
         D::Integer(10_000_000),
         (C::Terminal, G::Output),
+        SERVER,
         "Terminal history kept per terminal, in bytes.",
     )
     .page()
@@ -416,6 +463,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(true),
         (C::Terminal, G::Output),
+        CLIENT,
         "Keep an Agent's latest output at the bottom of its panel.",
     )
     .preference(PreferenceKey::TrimTrailingBlankRowsForAgents),
@@ -424,6 +472,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(false),
         (C::General, G::Restore),
+        SERVER,
         "Show each terminal's recent output again after a restart.",
     )
     .page()
@@ -437,6 +486,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("the built-in terminal font stack", "\"Cascadia Mono\""),
         (C::Appearance, G::TerminalText),
+        CLIENT,
         "Terminal font in the desktop app.",
     )
     .page()
@@ -446,6 +496,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(8, 48),
         D::Integer(13),
         (C::Appearance, G::TerminalText),
+        CLIENT,
         "Terminal font size in the desktop app, in pixels.",
     )
     .page()
@@ -459,6 +510,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         D::Integer(400),
         (C::Appearance, G::TerminalText),
+        CLIENT,
         "Weight of normal terminal text in the desktop app.",
     )
     .clients(DESKTOP),
@@ -471,6 +523,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         D::Integer(700),
         (C::Appearance, G::TerminalText),
+        CLIENT,
         "Weight of bold terminal text in the desktop app.",
     )
     .clients(DESKTOP),
@@ -479,6 +532,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(true),
         (C::Appearance, G::TerminalText),
+        CLIENT,
         "Join character pairs such as => when the font supports it, in the desktop app.",
     )
     .clients(DESKTOP),
@@ -487,6 +541,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(0, 32),
         D::Integer(0),
         (C::Appearance, G::TerminalText),
+        CLIENT,
         "Space around terminal text in the desktop app, in pixels.",
     )
     .clients(DESKTOP),
@@ -495,6 +550,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(10, 100),
         D::Integer(100),
         (C::Appearance, G::TerminalColors),
+        CLIENT,
         "Terminal background opacity in the desktop app, in percent.",
     )
     .clients(DESKTOP),
@@ -506,6 +562,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         D::Text("system-default"),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Launch profile a new terminal uses on this platform.",
     )
     .page()
@@ -516,6 +573,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("up to 63 profile tables; a profile with id system-default replaces the built-in one"),
         unset("only the built-in system-default profile", ""),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Launch profiles for this platform; each platform reads only its own table.",
     )
     .page()
@@ -529,6 +587,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("required", "\"pwsh\""),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Profile id that default_profile names.",
     )
     .page()
@@ -542,6 +601,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("the id", "\"PowerShell 7\""),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Name shown for the profile.",
     )
     .page()
@@ -552,6 +612,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["system-shell", "custom-executable"]),
         unset("required", "\"custom-executable\""),
         (C::Terminal, G::Profiles),
+        SERVER,
         "What the profile starts: the system shell or a program.",
     )
     .page()
@@ -562,6 +623,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(false),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Start the system shell as a login shell; system-shell profiles only.",
     )
     .page()
@@ -575,6 +637,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("required for custom-executable", "\"pwsh.exe\""),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Program a custom-executable profile starts.",
     )
     .page()
@@ -585,6 +648,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("an array of up to 128 strings, each passed as one literal argument"),
         D::Toml("[]"),
         (C::Terminal, G::Profiles),
+        SERVER,
         "Arguments for a custom-executable profile.",
     )
     .page()
@@ -595,6 +659,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Path,
         unset("worktrees go beside their repository", "\"~/worktrees\""),
         (C::Terminal, G::Panels),
+        SERVER,
         "Folder that holds created worktrees.",
     ),
     key(
@@ -602,6 +667,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["never", "when-hidden"]),
         D::Text("never"),
         (C::Notifications, G::When),
+        CLIENT,
         "Notify when an Agent needs attention while its panel is hidden.",
     )
     .page()
@@ -611,6 +677,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["never", "when-unfocused", "always"]),
         D::Text("never"),
         (C::Notifications, G::When),
+        CLIENT,
         "Notify when a long command finishes.",
     )
     .page()
@@ -620,6 +687,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(1, 3600),
         D::Integer(5),
         (C::Notifications, G::When),
+        CLIENT,
         "Shortest command, in seconds, whose completion is notified.",
     )
     .preference(PreferenceKey::CompletionReminderMinimumSeconds),
@@ -628,6 +696,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(false),
         (C::Notifications, G::How),
+        CLIENT,
         "Play a sound with notifications.",
     )
     .page()
@@ -637,6 +706,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["off", "orchbee", "terminal", "system"]),
         D::Text("off"),
         (C::Notifications, G::How),
+        CLIENT,
         "Where notifications sent with orchbee notify appear.",
     ),
     key(
@@ -644,6 +714,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         integer(0, MAXIMUM_NOTIFICATION_DELAY_SECONDS as i64),
         D::Integer(1),
         (C::Notifications, G::How),
+        CLIENT,
         "Quiet period, in seconds, before an automatic Agent notification.",
     ),
     key(
@@ -651,6 +722,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["top-left", "top-right", "bottom-left", "bottom-right"]),
         D::Text("bottom-right"),
         (C::Notifications, G::How),
+        CLIENT,
         "Corner where in-terminal notifications appear.",
     ),
     key(
@@ -658,6 +730,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["default", "on", "off"]),
         unset("no overrides", "codex = \"off\""),
         (C::Notifications, G::How),
+        CLIENT,
         "Sound for one Agent; default follows notifications.sound.",
     ),
     key(
@@ -668,6 +741,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         D::Text("ctrl+b"),
         (C::Keyboard, G::Prefix),
+        CLIENT,
         "Prefix chord before a Client action key.",
     )
     .page()
@@ -677,6 +751,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("one chord, an array of up to 16 chords, or [] for no key"),
         unset("the action's built-in keys", "[\"prefix+%\"]"),
         (C::Keyboard, G::Prefix),
+        CLIENT,
         "Keys for one registered Client action.",
     )
     .page()
@@ -686,6 +761,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("up to 64 command tables"),
         unset("no commands", ""),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "User-defined commands; a command runs only after its key is pressed.",
     ),
     key(
@@ -696,6 +772,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("required", "\"pwsh.exe -NoProfile\""),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "Command text, run only after its key is pressed.",
     ),
     key(
@@ -703,6 +780,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["shell", "pane", "popup", "plugin_action"]),
         D::Text("shell"),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "How the command runs; plugin_action takes up to 241 letters, digits or . _ : -.",
     ),
     key(
@@ -710,6 +788,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("one chord or an array of up to 16 chords"),
         unset("no key", "\"prefix+f12\""),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "Keys that run the command.",
     ),
     key(
@@ -720,6 +799,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         },
         unset("the command text", "\"Open a PowerShell popup\""),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "Label shown for the command.",
     ),
     key(
@@ -727,6 +807,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("cells from 1 through 4096, or a percentage string from 1% through 100%"),
         unset("the default popup width", "\"60%\""),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "Popup width; popup commands only.",
     ),
     key(
@@ -734,6 +815,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Structured("cells from 1 through 4096, or a percentage string from 1% through 100%"),
         unset("the default popup height", "20"),
         (C::Keyboard, G::Commands),
+        CLIENT,
         "Popup height; popup commands only.",
     ),
     key(
@@ -741,6 +823,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(true),
         (C::Agents, G::Restore),
+        SERVER,
         "Resume supported Agent conversations in their panels after a restart.",
     )
     .page()
@@ -751,6 +834,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Boolean,
         D::Boolean(true),
         (C::Agents, G::Updates),
+        SERVER,
         "Check the Agent detection-rule catalog that ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL names; nothing is checked without one.",
     ),
     key(
@@ -758,6 +842,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         V::Choice(&["stable", "preview"]),
         D::Text("stable"),
         (C::General, G::Updates),
+        SERVER,
         "Release channel for explicit update operations.",
     )
     .unreferenced(),
@@ -829,17 +914,29 @@ pub(crate) fn recognized_path(path: &str) -> bool {
     })
 }
 
-/// One admitted scalar value.
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum Scalar {
+/// One scalar setting value: what a key other than a structured one holds.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Scalar {
     Boolean(bool),
     Integer(i64),
     Text(String),
 }
 
+impl Scalar {
+    /// The value as the file writes it.
+    pub fn to_toml(&self) -> toml::Value {
+        match self {
+            Self::Boolean(value) => toml::Value::Boolean(*value),
+            Self::Integer(value) => toml::Value::Integer(*value),
+            Self::Text(value) => toml::Value::String(value.clone()),
+        }
+    }
+}
+
 impl SettingKey {
-    /// Admit `value` by this key's declared type, or return the diagnostic reason.
-    pub(super) fn admit(&self, value: &toml::Value) -> Result<Scalar, &'static str> {
+    /// Admit `value` by this key's declared type, or return the diagnostic reason: `wrong-type`,
+    /// `invalid-value`, `invalid-mode` for a string outside the choices, or `value-too-long`.
+    pub fn admit(&self, value: &toml::Value) -> Result<Scalar, &'static str> {
         match self.value {
             V::Boolean => value.as_bool().map(Scalar::Boolean).ok_or("wrong-type"),
             V::Integer {
@@ -870,7 +967,35 @@ impl SettingKey {
                     Err("value-too-long")
                 }
             }
-            V::Color | V::Theme | V::Path => value
+            V::Color => {
+                let value = value.as_str().ok_or("wrong-type")?;
+                let digits = value.strip_prefix('#').unwrap_or_default();
+                if digits.len() == 6
+                    && digits
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+                {
+                    Ok(Scalar::Text(value.to_owned()))
+                } else {
+                    Err("invalid-value")
+                }
+            }
+            V::Theme => {
+                let value = value.as_str().ok_or("wrong-type")?;
+                if value.len() <= THEME_ID_BYTES
+                    && value.split('-').all(|part| {
+                        !part.is_empty()
+                            && part
+                                .bytes()
+                                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+                    })
+                {
+                    Ok(Scalar::Text(value.to_owned()))
+                } else {
+                    Err("invalid-value")
+                }
+            }
+            V::Path => value
                 .as_str()
                 .map(|value| Scalar::Text(value.to_owned()))
                 .ok_or("wrong-type"),

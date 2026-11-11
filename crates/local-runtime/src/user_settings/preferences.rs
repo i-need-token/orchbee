@@ -1,11 +1,24 @@
-//! The common preferences `config.toml` carries, admitted by the preference values' own rules.
-use super::{Fields, Scalar, launch_profiles, registry::SETTING_KEYS};
-use orchbee_workbench_protocol::{PreferenceKey, UserPreferencesValues};
+//! The common preference values derived from `config.toml` keys: the one typed view the reader
+//! builds and a Client holding a copy of the file's values builds the same way.
+use super::{
+    Scalar,
+    registry::{SETTING_KEYS, find_setting},
+};
+use orchbee_workbench_protocol::{PreferenceKey, UserLaunchProfiles, UserPreferencesValues};
 use serde_json::Value;
 
-/// Read every registered preference key; a refused value keeps its default and a diagnostic.
-pub(super) fn parse(fields: &mut Fields<'_>) -> UserPreferencesValues {
-    let defaults = UserPreferencesValues::default();
+/// The preference values that a file's keys give. `lookup` returns the value of a registered key
+/// path such as `appearance.mode`, or `None` when the file leaves it unset; a value the key does
+/// not admit keeps its default. The launch catalog is a structured value and arrives whole as
+/// `launch_profiles`.
+pub fn preference_values(
+    lookup: impl Fn(&str) -> Option<Scalar>,
+    launch_profiles: UserLaunchProfiles,
+) -> UserPreferencesValues {
+    let defaults = UserPreferencesValues {
+        launch_profiles,
+        ..UserPreferencesValues::default()
+    };
     let Ok(mut values) = serde_json::to_value(&defaults) else {
         return defaults;
     };
@@ -16,22 +29,25 @@ pub(super) fn parse(fields: &mut Fields<'_>) -> UserPreferencesValues {
         if key == PreferenceKey::LaunchProfiles {
             continue;
         }
-        let Some(scalar) = fields.scalar(setting.path) else {
+        let Some(scalar) =
+            lookup(setting.path).filter(|scalar| admitted_by_key(setting.path, scalar))
+        else {
             continue;
         };
         let mut candidate = values.clone();
         candidate[key.as_str()] = wire_value(key, scalar);
         if admitted(&candidate).is_some() {
             values = candidate;
-        } else {
-            fields.push(setting.path, "invalid-value");
         }
     }
-    let Some(mut admitted) = admitted(&values) else {
-        return defaults;
-    };
-    admitted.launch_profiles = launch_profiles::parse(fields);
-    admitted
+    admitted(&values).unwrap_or(defaults)
+}
+
+/// A looked-up value passes its key's admission again, so values that did not come through the
+/// reader meet the same rule.
+fn admitted_by_key(path: &str, scalar: &Scalar) -> bool {
+    let segments: Vec<&str> = path.split('.').collect();
+    find_setting(&segments).is_some_and(|setting| setting.admit(&scalar.to_toml()).is_ok())
 }
 
 fn admitted(values: &Value) -> Option<UserPreferencesValues> {

@@ -285,6 +285,20 @@ fn refusals_leave_the_file_untouched() {
             .map_err(|error| error.reason()),
         Err("value-too-long")
     );
+    // A profile this platform cannot start is refused at edit as the reader refuses it at read.
+    let mut relative = value.clone();
+    relative.as_array_mut().unwrap()[0]
+        .as_table_mut()
+        .unwrap()
+        .insert("executable".into(), string("pwsh"));
+    assert_eq!(
+        edit_settings(&changes(vec![set(&table, relative)]), fixture.env()),
+        Err(SettingsEditError::InvalidValue {
+            key: table.clone(),
+            field: table.clone(),
+            reason: "invalid-value",
+        })
+    );
     assert_eq!(fixture.text(), "[appearance]\nmode = 'light'\n");
     // A change may not leave another key the reader then refuses, such as a default profile that
     // names a removed profile.

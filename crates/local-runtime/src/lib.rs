@@ -8,10 +8,7 @@ pub use admission_refusal::{AdmissionRefusal, RefusalReason};
 mod notification_policy;
 pub use notification_policy::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
 mod user_preferences;
-pub use user_preferences::{
-    UserColorThemes, UserPreferencesScope, UserPreferencesStore, UserTerminalColors,
-    UserTerminalLaunchIntent,
-};
+pub use user_preferences::{UserPreferencesScope, UserPreferencesStore};
 mod plugins;
 pub use plugins::{
     PluginActionDefinition, PluginGithubSource, PluginManagedSource, PluginManifest,
@@ -44,13 +41,14 @@ pub use user_settings::{
     MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
     MAXIMUM_SETTING_CHANGES, MAXIMUM_SETTINGS_DIAGNOSTICS, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES,
     MAXIMUM_STRUCTURED_ENTRIES, MAXIMUM_STRUCTURED_VALUE_BYTES, MAXIMUM_USER_SETTINGS_BYTES,
-    MacosOptionAsAlt, SETTING_KEYS, SETTING_PLATFORMS, SettingCategory, SettingChange,
+    MacosOptionAsAlt, SETTING_KEYS, SETTING_PLATFORMS, Scalar, SettingCategory, SettingChange,
     SettingChanges, SettingClients, SettingDefault, SettingEffect, SettingGroup, SettingKey,
-    SettingValue, SettingsDiagnostic, SettingsDiagnosticDisposition, SettingsDiagnostics,
-    SettingsEditError, SettingsError, SettingsSyntaxError, SidebarTokenStyle, SpaceSidebarSettings,
-    SpaceSidebarToken, SpaceSidebarTokenKind, UpdateChannel, UserSettings, UserSettingsLoad,
+    SettingScope, SettingValue, SettingsDiagnostic, SettingsDiagnosticDisposition,
+    SettingsDiagnostics, SettingsEditError, SettingsError, SettingsSyntaxError, SidebarTokenStyle,
+    SpaceSidebarSettings, SpaceSidebarToken, SpaceSidebarTokenKind, UpdateChannel, UserColorThemes,
+    UserSettings, UserSettingsLoad, UserTerminalColors, UserTerminalLaunchIntent,
     WindowTitleTemplate, default_user_settings_toml, default_user_settings_toml_with_actions,
-    edit_settings, find_setting, read_user_settings, read_user_settings_at,
+    edit_settings, find_setting, preference_values, read_user_settings, read_user_settings_at,
     restore_setting_default, set_setting, trigger_label, user_settings_path,
 };
 pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};

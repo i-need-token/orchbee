@@ -3,16 +3,41 @@
 //! Each platform reads only its own `[[terminal.profiles.<platform>]]` table and
 //! `terminal.default_profile.<platform>`, so one file synchronized between machines carries every
 //! platform's shells. The built-in `system-default` profile is always present; a table entry with
-//! that id replaces it. Every platform's table is checked so a mistake shows on any machine.
+//! that id replaces it. Every platform's table is checked, by that platform's launch rules, so a
+//! mistake shows on any machine.
 use super::{
     Fields, SettingsDiagnosticDisposition,
     registry::{SETTING_PLATFORMS, current_platform, user_config_has_child},
     unknown_field,
 };
-use orchbee_workbench_protocol::UserLaunchProfiles;
+use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfiles};
 use serde_json::{Map, Value, json};
 
 const SYSTEM_DEFAULT: &str = "system-default";
+
+/// Whether `platform` (`windows`, `macos` or `linux`) can start `command`: a custom executable
+/// names an absolute path in that platform's form, and Windows has no login shell. The rule is
+/// spelled out per platform rather than taken from this host's path rules, so every platform's
+/// table is judged the same way on every machine.
+pub(crate) fn launch_command_admitted(command: &UserLaunchCommand, platform: &str) -> bool {
+    let windows = platform == "windows";
+    match command {
+        UserLaunchCommand::SystemShell { login } => !(windows && *login),
+        UserLaunchCommand::CustomExecutable { executable, .. } => {
+            let separator = |byte: Option<&u8>| matches!(byte, Some(b'\\' | b'/'));
+            let bytes = executable.as_bytes();
+            if windows {
+                let drive = bytes.first().is_some_and(u8::is_ascii_alphabetic)
+                    && bytes.get(1) == Some(&b':')
+                    && separator(bytes.get(2));
+                let shared = separator(bytes.first()) && separator(bytes.get(1));
+                drive || shared
+            } else {
+                bytes.first() == Some(&b'/')
+            }
+        }
+    }
+}
 
 /// The current platform's effective catalog; every platform's table is admitted for diagnostics.
 pub(super) fn parse(fields: &mut Fields<'_>) -> UserLaunchProfiles {
@@ -31,7 +56,7 @@ fn platform_catalog(fields: &mut Fields<'_>, platform: &str) -> UserLaunchProfil
     let default_path = format!("terminal.default_profile.{platform}");
     let profiles = match fields.value(&table_path) {
         None => Some(Vec::new()),
-        Some(value) => match entries(fields, value, &table_path) {
+        Some(value) => match entries(fields, value, &table_path, platform) {
             Ok(entries) => Some(entries),
             Err(reason) => {
                 fields.push(table_path.clone(), reason);
@@ -82,12 +107,13 @@ fn built_in() -> Value {
     })
 }
 
-/// The table's entries in the catalog's wire form; any malformed entry refuses the whole table.
-/// Unknown keys inside an entry are reported and ignored.
+/// The table's entries in the catalog's wire form; any malformed entry, or one `platform` cannot
+/// start, refuses the whole table. Unknown keys inside an entry are reported and ignored.
 fn entries(
     fields: &mut Fields<'_>,
     value: &toml::Value,
     table_path: &str,
+    platform: &str,
 ) -> Result<Vec<Value>, &'static str> {
     let entries = value.as_array().ok_or("wrong-type")?;
     let element_path = format!("{table_path}[]");
@@ -104,12 +130,12 @@ fn entries(
                 SettingsDiagnosticDisposition::Ignored,
             );
         }
-        profiles.push(profile(entry)?);
+        profiles.push(profile(entry, platform)?);
     }
     Ok(profiles)
 }
 
-fn profile(entry: &toml::Table) -> Result<Value, &'static str> {
+fn profile(entry: &toml::Table, platform: &str) -> Result<Value, &'static str> {
     let text = |key: &str| -> Result<Option<String>, &'static str> {
         entry
             .get(key)
@@ -158,6 +184,12 @@ fn profile(entry: &toml::Table) -> Result<Value, &'static str> {
             command.insert("arguments".into(), arguments.unwrap_or_default().into());
         }
         _ => return Err("invalid-value"),
+    }
+    let command = Value::Object(command);
+    let typed: UserLaunchCommand =
+        serde_json::from_value(command.clone()).map_err(|_| "invalid-value")?;
+    if !launch_command_admitted(&typed, platform) {
+        return Err("invalid-value");
     }
     Ok(json!({ "id": id, "name": name, "command": command }))
 }

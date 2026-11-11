@@ -1,9 +1,5 @@
 //! One durable device/configuration preference authority for native and Desktop clients.
 mod launch_admission;
-mod terminal_colors;
-pub use terminal_colors::{UserColorThemes, UserTerminalColors};
-mod terminal_defaults;
-pub use terminal_defaults::UserTerminalLaunchIntent;
 mod scope;
 pub use scope::UserPreferencesScope;
 mod storage;
@@ -105,6 +101,15 @@ impl UserPreferencesStore {
         );
         let (record, source) = self.decode(opened, source)?;
         Ok(snapshot(&record, source))
+    }
+
+    /// The next terminal's launch intent from the current values. A read failure refuses this
+    /// creation; no default candidate is substituted.
+    pub fn terminal_launch_intent(
+        &self,
+        select_default: bool,
+    ) -> Result<crate::UserTerminalLaunchIntent, PreferencesFailure> {
+        crate::UserTerminalLaunchIntent::capture(&self.read()?.values, select_default)
     }
 
     fn record_path(&self) -> std::path::PathBuf {

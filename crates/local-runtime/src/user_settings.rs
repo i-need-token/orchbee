@@ -1,5 +1,5 @@
 //! Shared user settings in `config.toml`: fatal source boundaries, field-local admission, and
-//! single-key edits.
+//! edits that change only the keys they name.
 mod agent_sidebar;
 mod diagnostics;
 mod source;
@@ -32,6 +32,8 @@ mod preferences;
 mod reference;
 mod registry;
 mod reset_keys;
+mod terminal_colors;
+mod terminal_defaults;
 mod window_title;
 use crate::{
     DataRoot,
@@ -47,22 +49,26 @@ pub use keys::{
     CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry, KeyChord, KeyOverride,
     KeySettings, KeyTrigger, trigger_label,
 };
+pub(crate) use launch_profiles::launch_command_admitted;
 use orchbee_workbench_protocol::UserPreferencesValues;
+pub use preferences::preference_values;
 pub use reference::{
     DefaultActionBindings, default_user_settings_toml, default_user_settings_toml_with_actions,
 };
-pub(crate) use registry::recognized_path;
+use registry::user_config_has_child;
 pub use registry::{
-    SETTING_KEYS, SETTING_PLATFORMS, SettingCategory, SettingClients, SettingDefault,
-    SettingEffect, SettingGroup, SettingKey, SettingValue, find_setting,
+    SETTING_KEYS, SETTING_PLATFORMS, Scalar, SettingCategory, SettingClients, SettingDefault,
+    SettingEffect, SettingGroup, SettingKey, SettingScope, SettingValue, find_setting,
 };
-use registry::{Scalar, user_config_has_child};
+pub(crate) use registry::{current_platform, recognized_path};
 pub use reset_keys::{KeysResetOutcome, KeysResetReport, reset_keybindings};
 use std::{
     ffi::OsString,
     io::Read,
     path::{Path, PathBuf},
 };
+pub use terminal_colors::{UserColorThemes, UserTerminalColors};
+pub use terminal_defaults::UserTerminalLaunchIntent;
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowTitleTemplate};
 
 /// Largest `config.toml` the reader admits: room for every platform's launch profiles.
@@ -442,7 +448,10 @@ fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Us
         settings.manifest_check = value;
         settings.manifest_check_source = "file";
     }
-    settings.preferences = preferences::parse(&mut fields);
+    let launch_profiles = launch_profiles::parse(&mut fields);
+    let lookup = std::cell::RefCell::new(&mut fields);
+    settings.preferences =
+        preference_values(|path| lookup.borrow_mut().scalar(path), launch_profiles);
     settings.desktop = DesktopTerminalSettings::parse(&mut fields);
     if let Some(notifications) = table.get("notifications").and_then(toml::Value::as_table) {
         settings.notifications =

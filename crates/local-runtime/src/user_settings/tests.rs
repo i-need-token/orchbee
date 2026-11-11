@@ -744,9 +744,15 @@ fn launch_profiles_read_the_current_platform_and_check_every_table() {
         .into_iter()
         .find(|candidate| *candidate != platform)
         .unwrap();
+    let executable = if platform == "windows" {
+        r"C:\Program Files\PowerShell\7\pwsh.exe"
+    } else {
+        "/usr/local/bin/pwsh"
+    };
+    let login = other != "windows";
     let load = parse(
         &format!(
-            "[terminal.default_profile]\n{platform} = 'pwsh'\n{other} = 'missing'\n[[terminal.profiles.{platform}]]\nid = 'pwsh'\nkind = 'custom-executable'\nexecutable = 'pwsh.exe'\narguments = ['-NoLogo']\nicon = 'x'\n[[terminal.profiles.{other}]]\nid = 'zsh'\nkind = 'system-shell'\nlogin = true\n"
+            "[terminal.default_profile]\n{platform} = 'pwsh'\n{other} = 'missing'\n[[terminal.profiles.{platform}]]\nid = 'pwsh'\nkind = 'custom-executable'\nexecutable = '{executable}'\narguments = ['-NoLogo']\nicon = 'x'\n[[terminal.profiles.{other}]]\nid = 'zsh'\nkind = 'system-shell'\nlogin = {login}\n"
         ),
         Path::new(r"C:\config.toml"),
         &|_| None,
@@ -791,4 +797,39 @@ fn launch_profiles_read_the_current_platform_and_check_every_table() {
         diagnostic.field == format!("terminal.profiles.{platform}")
             && diagnostic.reason == "invalid-value"
     }));
+    // Each table is judged by its own platform's launch rules on every host: a custom executable
+    // must be absolute there, and Windows has no login shell.
+    for (platform, executable, admitted) in [
+        ("windows", r"C:\Tools\shell.exe", true),
+        ("windows", r"\\server\share\shell.exe", true),
+        ("windows", "/usr/bin/zsh", false),
+        ("windows", "shell.exe", false),
+        ("macos", "/bin/zsh", true),
+        ("macos", r"C:\Tools\shell.exe", false),
+        ("linux", "/usr/bin/bash", true),
+        ("linux", "bash", false),
+    ] {
+        let load = parse(
+            &format!(
+                "[[terminal.profiles.{platform}]]\nid = 'x'\nkind = 'custom-executable'\nexecutable = '{executable}'\n"
+            ),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        );
+        assert_eq!(
+            load.diagnostics.is_empty(),
+            admitted,
+            "{platform} {executable}"
+        );
+    }
+    for (platform, admitted) in [("windows", false), ("macos", true), ("linux", true)] {
+        let load = parse(
+            &format!(
+                "[[terminal.profiles.{platform}]]\nid = 'x'\nkind = 'system-shell'\nlogin = true\n"
+            ),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        );
+        assert_eq!(load.diagnostics.is_empty(), admitted, "{platform} login");
+    }
 }

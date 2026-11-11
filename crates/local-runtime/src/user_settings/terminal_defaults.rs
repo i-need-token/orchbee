@@ -1,7 +1,8 @@
-//! Capture the next terminal's launch intent from one confirmed snapshot. The device that executes
-//! the launch resolves the System shell; this capture never discovers a program.
-use super::{UserColorThemes, UserPreferencesStore, UserTerminalColors};
-use orchbee_workbench_protocol::{PreferencesFailure, UserLaunchCommand};
+//! Capture the next terminal's launch intent from one confirmed set of preference values. The
+//! device that executes the launch resolves the System shell; this capture never discovers a
+//! program.
+use super::{UserColorThemes, UserTerminalColors};
+use orchbee_workbench_protocol::{PreferencesFailure, UserLaunchCommand, UserPreferencesValues};
 
 pub struct UserTerminalLaunchIntent {
     /// The default profile's command; absent when the invocation already owns an explicit
@@ -15,13 +16,13 @@ pub struct UserTerminalLaunchIntent {
     pub themes: UserColorThemes,
 }
 
-impl UserPreferencesStore {
-    /// A read failure refuses this creation; no default candidate is substituted.
-    pub fn terminal_launch_intent(
-        &self,
+impl UserTerminalLaunchIntent {
+    /// The intent `values` give. `select_default` takes the default profile's command; a catalog
+    /// without that profile refuses the creation, and no default candidate is substituted.
+    pub fn capture(
+        values: &UserPreferencesValues,
         select_default: bool,
-    ) -> Result<UserTerminalLaunchIntent, PreferencesFailure> {
-        let values = self.read()?.values;
+    ) -> Result<Self, PreferencesFailure> {
         let program = if select_default {
             let catalog = &values.launch_profiles;
             let profile = catalog
@@ -33,8 +34,8 @@ impl UserPreferencesStore {
         } else {
             None
         };
-        let themes = UserColorThemes::from_values(&values);
-        Ok(UserTerminalLaunchIntent {
+        let themes = UserColorThemes::from_values(values);
+        Ok(Self {
             program,
             scrollback_bytes: values.scrollback_bytes,
             colors: UserTerminalColors::resolve(
