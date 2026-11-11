@@ -1,6 +1,7 @@
 //! Resolves a Workbench Agent start request into the first command of a new shell, names the start
-//! a settled creation leaves for the Server to deliver, and publishes that start's failure fact.
-//! Whether and when anything is typed belongs to the start delivery.
+//! a settled creation leaves for the Server to deliver, publishes that start's failure fact, and
+//! records the Session's Agent starts in its catalog's Recent list. Whether and when anything is
+//! typed belongs to the start delivery.
 use super::SessionCoordinator;
 use orchbee_capability_node_protocol::{AgentStartCommand, CapabilityNodeMessage, ProtocolError};
 use orchbee_workbench_protocol::{
@@ -82,6 +83,16 @@ pub(super) fn agent_start_command(
         agent.executable().to_owned(),
         agent.start_arguments(session.as_deref()),
     )
+}
+
+impl SessionCoordinator {
+    /// Moves `agent` to the front of Recent: a creation starting it was accepted, or a run of it
+    /// was first published, typed by hand or not. A Session without a catalog records nothing.
+    pub(super) fn record_agent_start(&self, agent: AgentStartSelector) {
+        if let Some(catalog) = &self.agent_catalog {
+            catalog.started(agent);
+        }
+    }
 }
 
 /// A random version-4 UUID in lowercase hyphenated form.

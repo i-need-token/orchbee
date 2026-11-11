@@ -1,5 +1,5 @@
-//! Private retained configuration, terminal directories and Agent session references, without
-//! physical runtime authority.
+//! Private retained configuration, terminal directories, Agent session references and the Recent
+//! list, without physical runtime authority.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -7,11 +7,11 @@ use std::{
 };
 
 use orchbee_workbench_protocol::{
-    ContractError, LaunchProfileEntry, LaunchProfileId, LaunchProfileName, LaunchSelection,
-    MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES, PanelNode, Presentation,
-    PresentationBinding, ProtocolVersion, SessionId, Snapshot, TerminalContext,
-    TerminalPresentationId, WorkbenchDirectoryPath, WorkbenchProtocolDocument, WorkbenchRevision,
-    WorkerId, serialize_document,
+    AgentStartSelector, ContractError, LaunchProfileEntry, LaunchProfileId, LaunchProfileName,
+    LaunchSelection, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES,
+    MAXIMUM_RECENT_AGENTS, PanelNode, Presentation, PresentationBinding, ProtocolVersion,
+    SessionId, Snapshot, TerminalContext, TerminalPresentationId, WorkbenchDirectoryPath,
+    WorkbenchProtocolDocument, WorkbenchRevision, WorkerId, serialize_document,
 };
 use serde::{Deserialize, Serialize};
 
@@ -149,6 +149,10 @@ struct Checkpoint {
     /// Always written; an omitted list reads as no lineage, while a present list is strict.
     #[serde(default)]
     layout_lineage: Vec<layout_history::StoredLineage>,
+    /// The Session's Recent list, newest first. Always written; an omitted list reads as empty,
+    /// while a present list is strict.
+    #[serde(default)]
+    recent_agents: Vec<AgentStartSelector>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -186,10 +190,24 @@ impl WorkbenchAuthority {
         agent_sessions: Option<&[(PresentationBinding, RetainedAgentSession)]>,
         outputs: Option<&[(PresentationBinding, u64)]>,
     ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
+        self.checkpoint_with_recent_agents(local_worker, directories, agent_sessions, outputs, &[])
+    }
+
+    /// As [`Self::checkpoint_with_terminal_output`], also saving the Session's Recent list, newest
+    /// first. The Agent catalog owns that list; this authority only carries it to disk.
+    pub fn checkpoint_with_recent_agents(
+        &self,
+        local_worker: &WorkerId,
+        directories: &[(PresentationBinding, WorkbenchDirectoryPath)],
+        agent_sessions: Option<&[(PresentationBinding, RetainedAgentSession)]>,
+        outputs: Option<&[(PresentationBinding, u64)]>,
+        recent_agents: &[AgentStartSelector],
+    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
         }
         validate_catalog(&self.catalog)?;
+        validate_recent_agents(recent_agents)?;
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
         let terminal_directories = directories::capture(self, local_worker, directories, outputs)?;
@@ -235,6 +253,7 @@ impl WorkbenchAuthority {
             terminal_directories,
             agent_sessions,
             layout_lineage: self.layout_lineage.capture(projection.snapshot()),
+            recent_agents: recent_agents.to_vec(),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -307,6 +326,12 @@ impl WorkbenchCheckpoint {
 }
 
 impl WorkbenchCheckpoint {
+    /// The Session's saved Recent list, newest first; empty when the checkpoint has none.
+    #[must_use]
+    pub fn recent_agents(&self) -> &[AgentStartSelector] {
+        &self.checkpoint.recent_agents
+    }
+
     /// Every kept terminal output token this checkpoint names; any other kept file is stale.
     #[must_use]
     pub fn terminal_output_tokens(&self) -> Vec<u64> {
@@ -360,6 +385,7 @@ fn checkpoint_parts(
     if checkpoint.profiles.len() > MAXIMUM_LAUNCH_PROFILE_ENTRIES {
         return Err(WorkbenchCheckpointError::InvalidCatalog);
     }
+    validate_recent_agents(&checkpoint.recent_agents)?;
     let catalog = checkpoint
         .profiles
         .iter()
@@ -429,6 +455,18 @@ fn validate_projection(
     let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot))
         .map_err(WorkbenchCheckpointError::InvalidProjection)?;
     WorkbenchProjectionStore::load(&encoded).map_err(WorkbenchCheckpointError::InvalidProjection)
+}
+
+/// At most [`MAXIMUM_RECENT_AGENTS`] providers, each once.
+fn validate_recent_agents(recent: &[AgentStartSelector]) -> Result<(), WorkbenchCheckpointError> {
+    let unique = recent
+        .iter()
+        .enumerate()
+        .all(|(index, agent)| !recent[..index].contains(agent));
+    if recent.len() > MAXIMUM_RECENT_AGENTS || !unique {
+        return Err(WorkbenchCheckpointError::InvalidDocument);
+    }
+    Ok(())
 }
 
 fn validate_catalog(catalog: &[LaunchProfileEntry]) -> Result<(), WorkbenchCheckpointError> {

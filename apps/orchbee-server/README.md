@@ -1015,8 +1015,14 @@ against the contract before answering; an undecodable report answers `malformed`
 
 `agent_catalog::AgentCatalog` holds the Session's Agent catalog: one row per startable provider in
 catalog order with its product name, start command line and state, the lookup status, when the
-last lookup completed, and a revision that starts at 1 and advances whenever any of them changes.
-Recent starts are not recorded, so the recent list is empty. Rows and the rule for which providers
+last lookup completed, the Recent list, and a revision that starts at 1 and advances whenever any
+of them changes. Recent holds at most 8 provider ids, newest first, each once. A provider moves to
+the front when the Session accepts a creation carrying `agentStart` (`tab.create`,
+`workspace.launch`, the Worktree driver's first shell, `panel.split`, `panel.create-terminal`), at
+the commit before the launch is dispatched, and when a run of a startable provider is first
+published, so an Agent typed by hand counts too. The checkpoint saves the list as `recentAgents`
+and a restored Session hands it back before any Client connects
+([Recent Agents](docs/workbench-checkpoint.md#recent-agents)). Rows and the rule for which providers
 can be checked come from `StartableAgent` in
 [`orchbee-agent-observation-protocol`](../../crates/agent-observation-protocol/README.md#native-process-input-rules);
 a provider whose start command is a generic alias is `cant-check`, and its command is never sent.

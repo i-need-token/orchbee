@@ -453,6 +453,65 @@ mod process_samples {
         assert!(session.process_observation_targets().unwrap().is_empty());
         assert!(session.cached_checkpoint_directories(&targets).is_empty());
     }
+    /// A run typed by hand counts once, when first published, and an accepted start counts at
+    /// the commit; each moves its provider to the front and the list keeps the newest eight.
+    #[test]
+    fn hand_typed_runs_and_accepted_starts_reorder_recent_and_cap_it_at_eight() {
+        use super::super::tab_create::tab_command;
+        use orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS;
+        use orchbee_workbench_protocol::{AgentStartSelector, WorkbenchAction};
+        let agent = |id: &str| AgentStartSelector::parse(id).unwrap();
+        let (session, target, sample) = fixture();
+        let catalog = std::sync::Arc::new(crate::agent_catalog::AgentCatalog::default());
+        let mut session = session.with_agent_catalog(std::sync::Arc::clone(&catalog));
+        // Eight earlier starts, oldest first, so the list is full.
+        let earlier: Vec<_> = STARTABLE_AGENT_PROVIDER_IDS
+            .iter()
+            .filter(|id| !["claude-code", "codex"].contains(id))
+            .take(8)
+            .map(|id| agent(id))
+            .collect();
+        for provider in &earlier {
+            catalog.started(*provider);
+        }
+        let newest_first = |kept: usize| earlier.iter().rev().take(kept).copied();
+        // A hand-typed Claude Code run moves it to the front once it is published.
+        let start = Instant::now();
+        let _ = session.observe_host_process(target, &sample, start, start);
+        assert_eq!(catalog.recent(), newest_first(8).collect::<Vec<_>>());
+        let settled = start + SETTLE;
+        let _ = session.observe_host_process(target, &sample, settled, settled);
+        let mut expected: Vec<_> = std::iter::once(agent("claude-code"))
+            .chain(newest_first(7))
+            .collect();
+        assert_eq!(catalog.recent(), expected);
+        // Later samples of the same run do not count it again.
+        catalog.started(earlier[7]);
+        let later = settled + Duration::from_millis(1);
+        let _ = session.observe_host_process(target, &sample, later, later);
+        expected = [earlier[7], agent("claude-code")]
+            .into_iter()
+            .chain(newest_first(7).skip(1))
+            .collect();
+        assert_eq!(catalog.recent(), expected);
+        // An accepted Tab start of Codex moves it to the front and drops the oldest.
+        let revision = session
+            .workbench
+            .as_ref()
+            .unwrap()
+            .snapshot()
+            .revision
+            .value();
+        let mut command = tab_command(&session, 950, revision, "codex");
+        let WorkbenchAction::TabCreate { options, .. } = &mut command.action else {
+            panic!("tab.create expected")
+        };
+        options.agent_start = Some(agent("codex"));
+        dispatch_tab(&mut session, command, 951);
+        expected.insert(0, agent("codex"));
+        expected.truncate(8);
+        assert_eq!(catalog.recent(), expected);
+    }
     #[test]
     fn identify_answers_the_current_generation_identity_and_fences_unknown_presentations() {
         use orchbee_agent_observation_protocol::{

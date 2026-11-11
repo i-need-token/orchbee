@@ -304,6 +304,9 @@ impl SessionCoordinator {
         // Every fallible association check precedes the two infallible owner moves.
         let terminal = terminal.commit();
         let pending_workbench = workbench_plan.commit_into_pending();
+        if let Some(agent) = options.agent_start {
+            self.record_agent_start(agent);
+        }
         PreparedTerminalPanelCreate::Dispatch(PendingTerminalPanelCreate {
             workbench: pending_workbench,
             terminal,

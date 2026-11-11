@@ -80,10 +80,15 @@ impl SessionCoordinator {
         >,
         outputs: Option<&[(orchbee_workbench_protocol::PresentationBinding, u64)]>,
     ) -> io::Result<Vec<u8>> {
+        let recent = self
+            .agent_catalog
+            .as_ref()
+            .map(|catalog| catalog.recent())
+            .unwrap_or_default();
         self.workbench
             .as_ref()
             .ok_or_else(|| io::Error::other("Workbench unavailable"))?
-            .checkpoint_with_terminal_output(worker, directories, agent_sessions, outputs)
+            .checkpoint_with_recent_agents(worker, directories, agent_sessions, outputs, &recent)
             .map_err(io::Error::other)
     }
 

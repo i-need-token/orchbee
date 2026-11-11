@@ -456,6 +456,56 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
 }
 
 #[test]
+fn recent_agents_round_trip_with_and_without_the_list() {
+    let source = fixture();
+    let recent = ["codex", "claude-code"].map(|id| AgentStartSelector::parse(id).unwrap());
+    let encoded = source
+        .checkpoint_with_recent_agents(&worker(200), &[], None, None, &recent)
+        .unwrap();
+    let admitted = WorkbenchCheckpoint::parse(&encoded).unwrap();
+    assert_eq!(admitted.recent_agents(), recent);
+    let restored = admitted.reconstruct(session(300), &worker(400)).unwrap();
+    assert_eq!(
+        restored
+            .checkpoint_with_recent_agents(&worker(400), &[], None, None, &recent)
+            .unwrap(),
+        encoded
+    );
+    // Without a list the writer still emits one, empty, and an omitted one reads as empty.
+    let empty: Value = serde_json::from_slice(&checkpoint()).unwrap();
+    assert_eq!(empty["recentAgents"], json!([]));
+    let omitted = changed(|value| {
+        value.as_object_mut().unwrap().remove("recentAgents");
+    });
+    let admitted = WorkbenchCheckpoint::parse(&omitted).unwrap();
+    assert!(admitted.recent_agents().is_empty());
+    assert_eq!(
+        admitted
+            .reconstruct(session(300), &worker(400))
+            .unwrap()
+            .snapshot(),
+        restore(&checkpoint()).unwrap().snapshot()
+    );
+    // A present list is strict.
+    let nine = &orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS[..9];
+    for list in [
+        json!(null),
+        json!(["codex", "codex"]),
+        json!(["not-an-agent"]),
+        json!(nine),
+    ] {
+        let encoded = changed(|value| value["recentAgents"] = list.clone());
+        assert!(WorkbenchCheckpoint::parse(&encoded).is_err(), "{list}");
+    }
+    assert_eq!(
+        source
+            .checkpoint_with_recent_agents(&worker(200), &[], None, None, &[recent[0], recent[0]])
+            .err(),
+        Some(WorkbenchCheckpointError::InvalidDocument)
+    );
+}
+
+#[test]
 fn refuses_injected_bindings_and_workers_in_retained_configuration() {
     let primary = "/terminalContexts/0/tabs/0/root/children/0/node/primaryPresentation/binding";
     let child = "/terminalContexts/0/tabs/0/root/children/0/node/childPresentations/0/binding";

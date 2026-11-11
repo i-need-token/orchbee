@@ -375,6 +375,9 @@ impl SessionCoordinator {
         // Both borrowed plans are complete. Publication below contains only infallible owner moves.
         let terminal = terminal.commit();
         let workbench = workbench_plan.commit().into_pending();
+        if let Some(agent) = options.agent_start {
+            self.record_agent_start(agent);
+        }
         PreparedTerminalTabCreate::Dispatch(PendingTerminalTabCreate {
             workbench,
             terminal,

@@ -78,6 +78,9 @@ pub(crate) struct SessionCoordinator {
     terminal_observations: semantic_events::Observations,
     /// The one Agent cell, shared by managed names and resume capture.
     agents: Option<std::sync::Weak<crate::agent_service::AgentService>>,
+    /// The Session's Agent catalog, whose Recent list accepted starts and first-published runs
+    /// feed. Its lock is a leaf, so feeding it under this coordinator's lock is safe.
+    agent_catalog: Option<std::sync::Arc<crate::agent_catalog::AgentCatalog>>,
     /// Delivered Agent session references carried forward to later captures.
     #[cfg(windows)]
     carried_agent_sessions: agent_resume::CarriedSessions,
@@ -95,9 +98,19 @@ impl SessionCoordinator {
             followed_directories: directory_label::FollowedDirectories::new(),
             terminal_observations: semantic_events::Observations::new(),
             agents: None,
+            agent_catalog: None,
             #[cfg(windows)]
             carried_agent_sessions: agent_resume::CarriedSessions::new(),
         }
+    }
+
+    /// Feeds `catalog`'s Recent list from this Session's Agent starts.
+    pub(crate) fn with_agent_catalog(
+        mut self,
+        catalog: std::sync::Arc<crate::agent_catalog::AgentCatalog>,
+    ) -> Self {
+        self.agent_catalog = Some(catalog);
+        self
     }
 
     /// The Session's started terminals, as a `query` reply counts them.

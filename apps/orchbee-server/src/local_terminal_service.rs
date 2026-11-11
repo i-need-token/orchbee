@@ -148,6 +148,10 @@ impl LocalTerminalService {
         workers: Arc<Mutex<WorkerRegistry>>,
         workbench: Option<orchbee_server::WorkbenchAuthority>,
     ) -> Self {
+        let catalog = workers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .agent_catalog();
         Self {
             controller_focus: Mutex::default(),
             configuration: configuration::Registry::default(),
@@ -186,7 +190,7 @@ impl LocalTerminalService {
             #[cfg(windows)]
             terminal_output: std::sync::OnceLock::new(),
             workers,
-            coordinator: Mutex::new(SessionCoordinator::new(workbench)),
+            coordinator: Mutex::new(SessionCoordinator::new(workbench).with_agent_catalog(catalog)),
             controllers: Mutex::new(std::collections::BTreeMap::new()),
         }
     }

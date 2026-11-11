@@ -122,6 +122,9 @@ impl LocalTerminalService {
         ))
         .map_err(io::Error::other)?;
         let session = random_session_id()?;
+        let recent = checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.recent_agents().to_vec());
         let authority = match checkpoint {
             Some(checkpoint) => checkpoint
                 .reconstruct(session, &owner)
@@ -132,6 +135,15 @@ impl LocalTerminalService {
             .restoration_targets(&owner)
             .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
+        // The Agent catalog owns Recent; the checkpoint only carried it.
+        if let Some(recent) = &recent {
+            service
+                .workers
+                .lock()
+                .map_err(|_| io::Error::other("Worker registry failed"))?
+                .agent_catalog()
+                .restore_recent(recent);
+        }
         let values = &configuration.settings.values;
         // The setting decides resuming once, from the startup read.
         let resume = values.resume_agents_on_restore;

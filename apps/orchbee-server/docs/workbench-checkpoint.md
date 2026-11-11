@@ -42,8 +42,8 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 The writer and reader use only `orchbee.workbench.checkpoint` with numeric `version: 1`.
 All retained fields are required, including `terminalDirectories`,
-`projectOrder` and `workspaceOrder`; the exceptions are `agentSessions` and `layoutLineage`,
-described below. `checkpoint/navigation.rs` has one DTO: identity-sorted global
+`projectOrder` and `workspaceOrder`; the exceptions are `agentSessions`, `layoutLineage` and
+`recentAgents`, described below. `checkpoint/navigation.rs` has one DTO: identity-sorted global
 `directories`, `projects` and `workspaces` arrays. Project rows contain `projectId` and `label`;
 Workspace `projectId` is required-nullable. Directory rows contain `directoryId` and `path`, with
 fresh Worker ownership supplied during reconstruction. Workspace order is a complete permutation;
@@ -115,6 +115,20 @@ same checkpoint has that Presentation's directory row. The first member keeps a 
 Worker and to current members, one per terminal. When recording is off the runtime supplies no
 observation set and capture writes no rows, pending ones included. Removed members disappear.
 [Agent session resume](agent-session-resume.md) owns which live reference the runtime supplies.
+
+### Recent Agents
+
+`recentAgents` is the Session's Recent list: at most 8 startable provider ids, newest first, each
+once. The Server's Agent catalog owns the list and its feeding (see the
+[Server README](../README.md#agent-catalog)); the checkpoint only carries it. An unknown or
+non-startable id, a repeated id or a longer list rejects the entire document, so an older build
+loses a layout whose list names a provider it does not know. Like `agentSessions`, the writer
+always emits the list and an omitted list reads as empty. Capture writes the catalog's list as it
+stands; startup hands the saved list back to the catalog before any Client connects.
+
+A Recent change advances no Workbench revision, so the running saver's debounce does not see it on
+its own. It reaches disk with the next save another change triggers, the 30-second refresh or the
+final capture at stop.
 
 The encoded checkpoint limit is 2 MiB. The reconstructed Snapshot must pass the existing complete
 graph validator and 1 MiB wire bound; the catalog keeps its 64-entry and 256 KiB bounds. All owned

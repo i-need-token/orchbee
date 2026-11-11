@@ -35,7 +35,15 @@
 //! Status `Running` covers `Due` and `Running`. A failed later lookup keeps the last completed
 //! answers. While no lookup has completed, checkable rows are `Checking` during a lookup and
 //! `Unknown` after a failed one; `Unsupported` leaves them `Unknown`. The revision starts at 1 and
-//! advances whenever what [`AgentCatalog::read`] shows changes.
+//! advances whenever what [`AgentCatalog::read`] shows changes, Recent included.
+//!
+//! # Recent
+//!
+//! The catalog also holds the Session's Recent list, which the Session coordinator feeds through
+//! [`AgentCatalog::started`] when it accepts a creation carrying an Agent start and when a run of a
+//! startable provider is first published. The checkpoint saves it and a restored Session hands it
+//! back through [`AgentCatalog::restore_recent`]; a Recent change alone advances no Workbench
+//! revision, so it reaches disk with the next periodic or final save.
 use orchbee_agent_observation_protocol::{
     AgentReportProvider, STARTABLE_AGENT_PROVIDER_IDS, StartableAgent,
 };
@@ -46,6 +54,8 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_runtime::{LogLevel, LogValue, log_event};
 use orchbee_server::{SessionChangeSignal, SessionChangeSource};
+use orchbee_workbench_protocol::AgentStartSelector;
+use recent::Recent;
 use std::{
     num::NonZeroU64,
     sync::{Arc, Condvar, Mutex, MutexGuard},
@@ -54,6 +64,7 @@ use std::{
 };
 
 mod probes;
+mod recent;
 #[cfg(test)]
 mod tests;
 
@@ -101,7 +112,7 @@ pub(crate) struct AgentCatalogSnapshot {
     pub(crate) status: LookupStatus,
     /// Unix milliseconds when the last lookup completed; `None` before one has.
     pub(crate) checked_at: Option<u64>,
-    /// Recently started provider ids, newest first; nothing records starts yet.
+    /// Recently started provider ids, newest first, one each.
     pub(crate) recent: Vec<&'static str>,
     /// Exactly one row per startable provider, in catalog order.
     pub(crate) agents: Vec<AgentCatalogRow>,
@@ -231,6 +242,24 @@ impl AgentCatalog {
         self.record();
     }
 
+    /// Moves `agent` to the front of Recent.
+    pub(crate) fn started(&self, agent: AgentStartSelector) {
+        self.change(|state| state.recent.start(agent));
+    }
+
+    /// Replaces Recent with the list a checkpoint saved, newest first. Only Windows Sessions keep a
+    /// checkpoint.
+    #[cfg(windows)]
+    pub(crate) fn restore_recent(&self, saved: &[AgentStartSelector]) {
+        self.change(|state| state.recent = Recent::restored(saved));
+    }
+
+    /// Recent as the checkpoint saves it, newest first.
+    #[cfg(windows)]
+    pub(crate) fn recent(&self) -> Vec<AgentStartSelector> {
+        self.lock().recent.agents().to_vec()
+    }
+
     /// Whether the pump should keep waiting for the answer to `ticket`'s exchange.
     pub(crate) fn awaits(&self, ticket: Ticket, now: Instant) -> bool {
         self.lock().awaits(ticket, now)
@@ -338,6 +367,7 @@ struct Shown {
     status: LookupStatus,
     checked_at: Option<u64>,
     states: Vec<AgentRowState>,
+    recent: Recent,
 }
 
 /// A lookup that ended, as its diagnostic record carries it.
@@ -386,6 +416,7 @@ struct State {
     answers: Option<Vec<AgentProbeResult>>,
     checked_at: Option<u64>,
     owed: Option<Owed>,
+    recent: Recent,
     revision: NonZeroU64,
     shown: Shown,
     /// A lookup that ended and the pump has not recorded yet.
@@ -432,11 +463,13 @@ impl State {
             answers: None,
             checked_at: None,
             owed: None,
+            recent: Recent::default(),
             revision: NonZeroU64::MIN,
             shown: Shown {
                 status: LookupStatus::Running,
                 checked_at: None,
                 states: Vec::new(),
+                recent: Recent::default(),
             },
             ended: None,
             stopped: false,
@@ -657,6 +690,7 @@ impl State {
             status: self.status,
             checked_at: self.checked_at,
             states: self.entries.iter().map(|entry| self.state(entry)).collect(),
+            recent: self.recent.clone(),
         }
     }
 
@@ -682,7 +716,13 @@ impl State {
             startable: STARTABLE,
             status: self.shown.status,
             checked_at: self.shown.checked_at,
-            recent: Vec::new(),
+            recent: self
+                .shown
+                .recent
+                .agents()
+                .iter()
+                .map(|agent| agent.agent().id())
+                .collect(),
             agents: self
                 .entries
                 .iter()
