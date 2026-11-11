@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { resolveBrowserPreferenceStorage } from '../resolveBrowserPreferenceStorage';
 
 describe('resolveBrowserPreferenceStorage', () => {
@@ -17,12 +17,8 @@ describe('resolveBrowserPreferenceStorage', () => {
 		const storage = resolveBrowserPreferenceStorage(() => {
 			throw new Error('Browser storage is unavailable.');
 		});
-		const controller = new MacosTerminalInputSettingsController(storage);
+		const controller = new KeyboardShortcutSettingsController({ platform: 'standard', storage });
 
 		expect(controller.getSnapshot().persistenceIssue).toBe('read-failed');
-		expect(controller.update({ optionAsAlt: 'left' })).toEqual({
-			kind: 'applied-session-only',
-		});
-		expect(controller.getSnapshot().persistenceIssue).toBe('write-failed');
 	});
 });

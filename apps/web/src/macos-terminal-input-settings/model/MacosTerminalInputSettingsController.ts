@@ -1,53 +1,46 @@
-import type { TerminalInputConfiguration } from '@orchbee/terminal';
+import { isTerminalOptionAsAltMode, type TerminalInputConfiguration } from '@orchbee/terminal';
 
 import type { TerminalInputConfigurationSource } from '../../terminal-input-configuration';
-import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+import { readSetting, settingChange, type UserSettingsControl } from '../../user-settings';
 
 import {
 	DEFAULT_MACOS_TERMINAL_INPUT_PREFERENCES,
 	terminalInputConfigurationFromMacosPreferences,
 	type MacosTerminalInputPreferences,
 } from './macos-terminal-input-preferences';
-import {
-	normalizeMacosTerminalInputPreferences,
-	readMacosTerminalInputPreferences,
-	writeMacosTerminalInputPreferences,
-	type MacosTerminalInputPersistenceIssue,
-	type MacosTerminalInputStorage,
-} from './macos-terminal-input-preferences-storage';
+
+const OPTION_AS_ALT_KEY = 'terminal.macos_option_as_alt';
 
 export interface MacosTerminalInputSettingsSnapshot {
-	readonly persistenceIssue: MacosTerminalInputPersistenceIssue | null;
 	readonly preferences: MacosTerminalInputPreferences;
 }
 
+/** An accepted change is `pending` until the settings file answers with it. */
 export type MacosTerminalInputSettingsUpdateResult =
-	| { readonly kind: 'applied-and-saved' }
-	| { readonly kind: 'applied-session-only' }
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'invalid' }
+	| { readonly kind: 'pending' }
 	| { readonly kind: 'unchanged' };
 
 type ConfigurationListener = (configuration: TerminalInputConfiguration) => void;
 type SnapshotListener = () => void;
 
+/** Option as Alt is `terminal.macos_option_as_alt` in the settings file of the Server's machine. */
 export class MacosTerminalInputSettingsController implements TerminalInputConfigurationSource {
 	readonly #configurationListeners = new Set<ConfigurationListener>();
-	readonly #persistence = new PreferenceWriteQueue();
+	readonly #settings: UserSettingsControl;
 	readonly #snapshotListeners = new Set<SnapshotListener>();
-	readonly #storage: MacosTerminalInputStorage;
+	readonly #stopObserving: () => void;
 	#configuration: TerminalInputConfiguration;
 	#disposed = false;
-	#pendingConfigurations: TerminalInputConfiguration[] = [];
-	#publishingConfiguration = false;
-	#revision = 0;
 	#snapshot: MacosTerminalInputSettingsSnapshot;
 
-	constructor(storage: MacosTerminalInputStorage) {
-		this.#storage = storage;
-		const restored = readMacosTerminalInputPreferences(storage);
-		this.#configuration = terminalInputConfigurationFromMacosPreferences(restored.preferences);
-		this.#snapshot = snapshot(restored.issue, restored.preferences);
+	constructor(settings: UserSettingsControl) {
+		this.#settings = settings;
+		const preferences = this.#read();
+		this.#configuration = terminalInputConfigurationFromMacosPreferences(preferences);
+		this.#snapshot = Object.freeze({ preferences });
+		this.#stopObserving = settings.subscribe(() => this.#sync());
 	}
 
 	current = (): TerminalInputConfiguration => this.#configuration;
@@ -68,78 +61,48 @@ export class MacosTerminalInputSettingsController implements TerminalInputConfig
 
 	update(patch: Partial<MacosTerminalInputPreferences>): MacosTerminalInputSettingsUpdateResult {
 		if (this.#disposed) return { kind: 'disposed' };
-		const candidate = normalizeMacosTerminalInputPreferences({
-			...this.#snapshot.preferences,
-			...patch,
-		});
-		if (candidate === null) return { kind: 'invalid' };
-		const configurationChanged = candidate.optionAsAlt !== this.#snapshot.preferences.optionAsAlt;
-		if (!configurationChanged && this.#snapshot.persistenceIssue === null) {
-			return { kind: 'unchanged' };
-		}
-
-		const revision = ++this.#revision;
-		this.#snapshot = snapshot(this.#snapshot.persistenceIssue, candidate);
-		if (configurationChanged) {
-			this.#configuration = terminalInputConfigurationFromMacosPreferences(candidate);
-			this.#emitConfiguration(this.#configuration);
-		}
-		if (this.#disposed) return { kind: 'disposed' };
-		if (this.#revision === revision) this.#persist(candidate, revision);
-		if (this.#disposed) return { kind: 'disposed' };
-		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
-			? { kind: 'applied-and-saved' }
-			: { kind: 'applied-session-only' };
+		const optionAsAlt = patch.optionAsAlt ?? this.#snapshot.preferences.optionAsAlt;
+		if (!isTerminalOptionAsAltMode(optionAsAlt)) return { kind: 'invalid' };
+		if (optionAsAlt === this.#snapshot.preferences.optionAsAlt) return { kind: 'unchanged' };
+		void this.#settings.edit([settingChange(OPTION_AS_ALT_KEY, optionAsAlt)]);
+		return { kind: 'pending' };
 	}
 
 	reset(): MacosTerminalInputSettingsUpdateResult {
-		return this.update(DEFAULT_MACOS_TERMINAL_INPUT_PREFERENCES);
+		if (this.#disposed) return { kind: 'disposed' };
+		void this.#settings.restore([OPTION_AS_ALT_KEY]);
+		return { kind: 'pending' };
 	}
 
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#revision += 1;
-		this.#pendingConfigurations = [];
-		this.#persistence.dispose();
+		this.#stopObserving();
 		this.#configurationListeners.clear();
 		this.#snapshotListeners.clear();
 	}
 
-	#emitConfiguration(configuration: TerminalInputConfiguration): void {
-		if (this.#publishingConfiguration) {
-			this.#pendingConfigurations.push(configuration);
-			return;
-		}
-		this.#publishingConfiguration = true;
-		let next: TerminalInputConfiguration | undefined = configuration;
-		try {
-			while (next !== undefined && !this.#disposed) {
-				for (const listener of new Set(this.#configurationListeners)) {
-					if (this.#disposed) break;
-					try {
-						listener(next);
-					} catch {
-						// One projected terminal cannot prevent the remaining stable consumers.
-					}
-				}
-				next = this.#pendingConfigurations.shift();
+	#read(): MacosTerminalInputPreferences {
+		const optionAsAlt = readSetting(this.#settings.getSnapshot().snapshot, OPTION_AS_ALT_KEY);
+		return isTerminalOptionAsAltMode(optionAsAlt)
+			? Object.freeze({ optionAsAlt })
+			: DEFAULT_MACOS_TERMINAL_INPUT_PREFERENCES;
+	}
+
+	#sync(): void {
+		if (this.#disposed) return;
+		const preferences = this.#read();
+		if (preferences.optionAsAlt === this.#snapshot.preferences.optionAsAlt) return;
+		this.#snapshot = Object.freeze({ preferences });
+		this.#configuration = terminalInputConfigurationFromMacosPreferences(preferences);
+		for (const listener of new Set(this.#configurationListeners)) {
+			if (this.#disposed) break;
+			try {
+				listener(this.#configuration);
+			} catch {
+				// One projected terminal cannot prevent the remaining stable consumers.
 			}
-		} finally {
-			this.#publishingConfiguration = false;
 		}
-	}
-
-	#persist(preferences: MacosTerminalInputPreferences, revision: number): void {
-		this.#persistence.write(() => {
-			const saved = writeMacosTerminalInputPreferences(this.#storage, preferences);
-			if (this.#disposed || this.#revision !== revision) return;
-			this.#snapshot = snapshot(saved ? null : 'write-failed', preferences);
-			this.#emitSnapshot();
-		});
-	}
-
-	#emitSnapshot(): void {
 		for (const listener of new Set(this.#snapshotListeners)) {
 			if (this.#disposed) break;
 			try {
@@ -149,11 +112,4 @@ export class MacosTerminalInputSettingsController implements TerminalInputConfig
 			}
 		}
 	}
-}
-
-function snapshot(
-	persistenceIssue: MacosTerminalInputPersistenceIssue | null,
-	preferences: MacosTerminalInputPreferences,
-): MacosTerminalInputSettingsSnapshot {
-	return Object.freeze({ persistenceIssue, preferences });
 }

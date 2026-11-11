@@ -11,45 +11,28 @@ import {
 	fixtureDarkTheme,
 	fixtureLightTheme,
 } from '../../../__tests__/color-theme-fixtures';
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 import { TerminalSettingsController } from '../TerminalSettingsController';
 import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../terminal-appearance-preferences';
-import type { TerminalAppearanceStorage } from '../terminal-appearance-preferences-storage';
 import type {
 	TerminalThemePresentationCommit,
 	TerminalThemePresentationParticipant,
 	TerminalThemePresentationPreparation,
 } from '../isTerminalThemePresentationSource';
 
-interface StorageFixture extends TerminalAppearanceStorage {
-	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
-	readonly setItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['setItem']>>;
-}
-
-const {
-	applicationTheme: _applicationTheme,
-	darkTheme: _darkTheme,
-	lightTheme: _lightTheme,
-	terminalDisplayTheme: _terminalDisplayTheme,
-	customForeground: _customForeground,
-	customBackground: _customBackground,
-	...HOST_DEFAULTS
-} = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES;
-
 describe('TerminalSettingsController', () => {
 	it('starts from the product default without writing a missing record', () => {
-		const storage = createStorage(null);
+		const settings = memoryUserSettings();
+		const edit = vi.spyOn(settings, 'edit');
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: settings,
 		});
 
 		expect(controller.getSnapshot()).toEqual({
 			landing: null,
 			open: false,
-			persistenceIssue: null,
 			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 		});
 		expect(controller.current()).toMatchObject({
@@ -60,27 +43,23 @@ describe('TerminalSettingsController', () => {
 			fontSize: 13,
 		});
 		expect(target.dataset['theme']).toBe('light');
-		expect(storage.setItem).not.toHaveBeenCalled();
+		expect(edit).not.toHaveBeenCalled();
 	});
 
-	it('restores one host record beneath the shared appearance', () => {
-		const storage = createStorage(
-			JSON.stringify({
-				...HOST_DEFAULTS,
-				backgroundOpacityPercent: 65,
-				fontFamily: '  Example Mono, monospace  ',
-				fontSize: 19,
-			}),
-		);
+	it('reads the appearance from the settings file', () => {
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: target,
-			userPreferences: memoryUserPreferences({
-				applicationTheme: 'dark',
-				customBackground: '#abcdef',
-				customForeground: '#0123ab',
-				terminalDisplayTheme: 'custom',
+			userSettings: memoryUserSettings({
+				values: {
+					'appearance.custom_background': '#abcdef',
+					'appearance.custom_foreground': '#0123ab',
+					'appearance.mode': 'dark',
+					'appearance.terminal_colors': 'custom',
+					'terminal.background_opacity': 65,
+					'terminal.font_family': '  Example Mono, monospace  ',
+					'terminal.font_size': 19,
+				},
 			}),
 		});
 
@@ -104,49 +83,11 @@ describe('TerminalSettingsController', () => {
 		expect(target.dataset['theme']).toBe('dark');
 	});
 
-	it.each([
-		['malformed JSON', '{'],
-		['unknown fields', JSON.stringify({ ...HOST_DEFAULTS, unknown: true })],
-		['shared leaves', JSON.stringify(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES)],
-		['an old partial shape', JSON.stringify({ fontFamily: 'monospace' })],
-		['an out-of-range value', JSON.stringify({ ...HOST_DEFAULTS, fontSize: 49 })],
-	])('falls back completely for %s', (_name, serialized) => {
-		const controller = new TerminalSettingsController({
-			storage: createStorage(serialized),
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-
-		expect(controller.getSnapshot()).toMatchObject({
-			persistenceIssue: 'invalid-record',
-			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-		});
-	});
-
-	it('falls back completely when storage cannot be read', () => {
-		const storage = createStorage(null);
-		storage.getItem.mockImplementation(() => {
-			throw new Error('injected read failure');
-		});
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-
-		expect(controller.getSnapshot()).toMatchObject({
-			persistenceIssue: 'read-failed',
-			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-		});
-	});
-
 	it('keeps application theme isolated from terminal presentation publication', async () => {
-		const storage = createStorage(null);
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const presentationListener =
 			vi.fn<(configuration: TerminalPresentationConfiguration) => void>();
@@ -156,18 +97,15 @@ describe('TerminalSettingsController', () => {
 		await Promise.resolve();
 		expect(target.dataset['theme']).toBe('dark');
 		expect(presentationListener).not.toHaveBeenCalled();
-		expect(storage.setItem).not.toHaveBeenCalled();
 	});
 
 	it('marks only a named theme of the active slot on the theme boundary', async () => {
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
 			colorThemes: colorThemesWithFixtures,
-			storage: createStorage(null),
 			themeTarget: target,
-			userPreferences: memoryUserPreferences({
-				applicationTheme: 'light',
-				darkTheme: fixtureDarkTheme.id,
+			userSettings: memoryUserSettings({
+				values: { 'appearance.dark_theme': fixtureDarkTheme.id, 'appearance.mode': 'light' },
 			}),
 		});
 		const participant = vi.fn<TerminalThemePresentationParticipant['prepareThemePresentation']>(
@@ -204,13 +142,12 @@ describe('TerminalSettingsController', () => {
 
 	it('previews a theme at its polarity without saving, and cancelling or closing restores', () => {
 		const target = document.createElement('div');
-		const preferences = memoryUserPreferences({ applicationTheme: 'light' });
-		const update = vi.spyOn(preferences, 'update');
+		const preferences = memoryUserSettings({ values: { 'appearance.mode': 'light' } });
+		const update = vi.spyOn(preferences, 'edit');
 		const controller = new TerminalSettingsController({
 			colorThemes: colorThemesWithFixtures,
-			storage: createStorage(null),
 			themeTarget: target,
-			userPreferences: preferences,
+			userSettings: preferences,
 		});
 		controller.open();
 
@@ -235,12 +172,11 @@ describe('TerminalSettingsController', () => {
 
 	it('commits a pick to its polarity slot, switching only a fixed Appearance of the other polarity', async () => {
 		const target = document.createElement('div');
-		const preferences = memoryUserPreferences({ applicationTheme: 'light' });
+		const preferences = memoryUserSettings({ values: { 'appearance.mode': 'light' } });
 		const controller = new TerminalSettingsController({
 			colorThemes: colorThemesWithFixtures,
-			storage: createStorage(null),
 			themeTarget: target,
-			userPreferences: preferences,
+			userSettings: preferences,
 		});
 
 		controller.selectColorTheme('dark', fixtureDarkTheme.id);
@@ -248,8 +184,8 @@ describe('TerminalSettingsController', () => {
 		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
 		await vi.waitFor(() =>
 			expect(preferences.getSnapshot().snapshot?.values).toMatchObject({
-				applicationTheme: 'dark',
-				darkTheme: fixtureDarkTheme.id,
+				'appearance.dark_theme': fixtureDarkTheme.id,
+				'appearance.mode': 'dark',
 			}),
 		);
 		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
@@ -260,8 +196,8 @@ describe('TerminalSettingsController', () => {
 		controller.selectColorTheme('dark', orchbeeTerminalColorTheme('dark').id);
 		await vi.waitFor(() =>
 			expect(preferences.getSnapshot().snapshot?.values).toMatchObject({
-				applicationTheme: 'system',
-				darkTheme: 'orchbee-dark',
+				'appearance.dark_theme': 'orchbee-dark',
+				'appearance.mode': 'system',
 			}),
 		);
 		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'light' }));
@@ -270,13 +206,15 @@ describe('TerminalSettingsController', () => {
 
 	it('restores the committed theme when the Session refuses a pick', async () => {
 		const target = document.createElement('div');
-		const preferences = memoryUserPreferences({ applicationTheme: 'dark' });
-		vi.spyOn(preferences, 'update').mockResolvedValue({ kind: 'refused', reason: 'unavailable' });
+		const preferences = memoryUserSettings({ values: { 'appearance.mode': 'dark' } });
+		vi.spyOn(preferences, 'edit').mockResolvedValue({
+			kind: 'refused',
+			refusal: { outcome: 'refused', reason: 'unavailable' },
+		});
 		const controller = new TerminalSettingsController({
 			colorThemes: colorThemesWithFixtures,
-			storage: createStorage(null),
 			themeTarget: target,
-			userPreferences: preferences,
+			userSettings: preferences,
 		});
 
 		controller.selectColorTheme('dark', fixtureDarkTheme.id);
@@ -286,13 +224,11 @@ describe('TerminalSettingsController', () => {
 		controller.dispose();
 	});
 
-	it('publishes one complete presentation for one terminal-derived change', () => {
-		const storage = createStorage(null);
+	it('publishes one complete presentation for one terminal-derived change', async () => {
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const throwingListener = vi.fn<(configuration: TerminalPresentationConfiguration) => void>(
 			() => {
@@ -310,6 +246,7 @@ describe('TerminalSettingsController', () => {
 				terminalDisplayTheme: 'host',
 			}),
 		).toEqual({ kind: 'pending' });
+		await Promise.resolve();
 		expect(presentationListener).toHaveBeenCalledOnce();
 		expect(presentationListener).toHaveBeenCalledWith(controller.current());
 		expect(controller.current()).toMatchObject({
@@ -323,9 +260,8 @@ describe('TerminalSettingsController', () => {
 	it('changes the app surface only after every terminal can commit in the same task', async () => {
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage: createStorage(null),
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const first = deferred<TerminalThemePresentationPreparation>();
 		const second = deferred<TerminalThemePresentationPreparation>();
@@ -359,9 +295,8 @@ describe('TerminalSettingsController', () => {
 	it('aborts prepared terminals and preserves the app surface when one renderer fails', async () => {
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage: createStorage(null),
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const prepared = themeCommit();
 		controller.registerThemeParticipant(
@@ -384,93 +319,24 @@ describe('TerminalSettingsController', () => {
 		expect(target.dataset['theme']).toBe('light');
 	});
 
-	it('queues a re-entrant presentation update after the current delivery and persists only the latest state', () => {
-		const storage = createStorage(null);
+	it('stops the current publication when a listener disposes the controller', async () => {
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-		let reentered = false;
-		const reentrantDeliveries: number[] = [];
-		const observingDeliveries: number[] = [];
-		const reentrantListener = vi.fn<(configuration: TerminalPresentationConfiguration) => void>(
-			() => {
-				reentrantDeliveries.push(controller.current().fontSize);
-				if (reentered) return;
-				reentered = true;
-				expect(controller.getSnapshot().preferences.fontSize).toBe(14);
-				expect(controller.update({ fontSize: 15 })).toEqual({ kind: 'applied-and-saved' });
-			},
-		);
-		const observingListener = vi.fn<(configuration: TerminalPresentationConfiguration) => void>(
-			(configuration) => {
-				observingDeliveries.push(configuration.fontSize);
-			},
-		);
-		controller.subscribe(reentrantListener);
-		controller.subscribe(observingListener);
-
-		expect(controller.update({ fontSize: 14 })).toEqual({ kind: 'applied-and-saved' });
-		expect(reentrantDeliveries).toEqual([14, 15]);
-		expect(observingDeliveries).toEqual([14, 15]);
-		expect(controller.getSnapshot().preferences.fontSize).toBe(15);
-		expect(controller.current().fontSize).toBe(15);
-		expect(storage.setItem).toHaveBeenCalledOnce();
-		const serialized = storage.setItem.mock.calls[0]?.[1];
-		if (serialized === undefined) throw new Error('The latest preferences were not written.');
-		expect(JSON.parse(serialized)).toMatchObject({ fontSize: 15 });
-	});
-
-	it('drains a storage-reentrant update after the older storage call returns', () => {
-		let controller: TerminalSettingsController | null = null;
-		let stored = '';
-		let reentered = false;
-		const storage: StorageFixture = {
-			getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => null),
-			setItem: vi.fn<TerminalAppearanceStorage['setItem']>((_key, value) => {
-				if (!reentered) {
-					reentered = true;
-					if (controller === null) throw new Error('Controller was not initialized.');
-					controller.update({ fontSize: 15 });
-				}
-				stored = value;
-			}),
-		};
-		controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-
-		expect(controller.update({ fontSize: 14 })).toEqual({ kind: 'applied-and-saved' });
-		expect(storage.setItem).toHaveBeenCalledTimes(2);
-		expect(controller.getSnapshot().preferences.fontSize).toBe(15);
-		expect(controller.current().fontSize).toBe(15);
-		expect(JSON.parse(stored)).toMatchObject({ fontSize: 15 });
-	});
-
-	it('stops the current publication and persistence when a listener disposes the controller', () => {
-		const storage = createStorage(null);
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const secondListener = vi.fn<(configuration: TerminalPresentationConfiguration) => void>();
 		controller.subscribe(() => controller.dispose());
 		controller.subscribe(secondListener);
 
-		expect(controller.update({ fontSize: 14 })).toEqual({ kind: 'disposed' });
+		controller.update({ fontSize: 14 });
+		await Promise.resolve();
 		expect(secondListener).not.toHaveBeenCalled();
-		expect(storage.setItem).not.toHaveBeenCalled();
 	});
 
 	it('retains custom colors outside Custom mode without a presentation publication', async () => {
 		const controller = new TerminalSettingsController({
-			storage: createStorage(null),
 			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const presentationListener =
 			vi.fn<(configuration: TerminalPresentationConfiguration) => void>();
@@ -484,12 +350,12 @@ describe('TerminalSettingsController', () => {
 	});
 
 	it('rejects an invalid candidate without changing any external state', () => {
-		const storage = createStorage(null);
+		const settings = memoryUserSettings();
+		const edit = vi.spyOn(settings, 'edit');
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: settings,
 		});
 		const initialSnapshot = controller.getSnapshot();
 		const initialPresentation = controller.current();
@@ -503,98 +369,49 @@ describe('TerminalSettingsController', () => {
 		expect(controller.getSnapshot()).toBe(initialSnapshot);
 		expect(controller.current()).toBe(initialPresentation);
 		expect(target.dataset['theme']).toBe('light');
-		expect(storage.setItem).not.toHaveBeenCalled();
+		expect(edit).not.toHaveBeenCalled();
 		expect(presentationListener).not.toHaveBeenCalled();
 		expect(snapshotListener).not.toHaveBeenCalled();
 	});
 
-	it('keeps a valid update for the session after a write failure and clears the issue on retry', () => {
-		const storage = createStorage(null);
-		storage.setItem.mockImplementationOnce(() => {
-			throw new Error('injected write failure');
-		});
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-		const presentationListener =
-			vi.fn<(configuration: TerminalPresentationConfiguration) => void>();
-		controller.subscribe(presentationListener);
-
-		expect(controller.update({ fontSize: 14 })).toEqual({ kind: 'applied-session-only' });
-		expect(controller.getSnapshot()).toMatchObject({
-			persistenceIssue: 'write-failed',
-			preferences: { fontSize: 14 },
-		});
-		expect(controller.current().fontSize).toBe(14);
-		expect(presentationListener).toHaveBeenCalledOnce();
-
-		expect(controller.update({ fontSize: 14 })).toEqual({ kind: 'applied-and-saved' });
-		expect(controller.getSnapshot().persistenceIssue).toBeNull();
-		expect(storage.setItem).toHaveBeenCalledTimes(2);
-		expect(presentationListener).toHaveBeenCalledOnce();
-	});
-
-	it('resets the host leaves and repairs an invalid host record', () => {
-		const changedStorage = createStorage(JSON.stringify({ ...HOST_DEFAULTS, fontSize: 18 }));
+	it('resets the terminal leaves in one edit', async () => {
+		const settings = memoryUserSettings({ values: { 'terminal.font_size': 18 } });
+		const restore = vi.spyOn(settings, 'restore');
 		const changed = new TerminalSettingsController({
-			storage: changedStorage,
 			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
+			userSettings: settings,
 		});
 		const changedPresentation = vi.fn<(configuration: TerminalPresentationConfiguration) => void>();
 		changed.subscribe(changedPresentation);
-		expect(changed.resetHostAppearance()).toEqual({ kind: 'applied-and-saved' });
+		changed.resetTerminalAppearance();
+		await Promise.resolve();
 		expect(changed.getSnapshot().preferences).toEqual(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
-		expect(changedStorage.setItem).toHaveBeenCalledOnce();
+		expect(restore).toHaveBeenCalledOnce();
 		expect(changedPresentation).toHaveBeenCalledOnce();
-
-		const repairStorage = createStorage('{');
-		const repair = new TerminalSettingsController({
-			storage: repairStorage,
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-		const repairPresentation = vi.fn<(configuration: TerminalPresentationConfiguration) => void>();
-		repair.subscribe(repairPresentation);
-		expect(repair.resetHostAppearance()).toEqual({ kind: 'applied-and-saved' });
-		expect(repairStorage.setItem).toHaveBeenCalledOnce();
-		expect(repair.getSnapshot().persistenceIssue).toBeNull();
-		expect(repairPresentation).not.toHaveBeenCalled();
-
-		const healthyStorage = createStorage(null);
-		const healthy = new TerminalSettingsController({
-			storage: healthyStorage,
-			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
-		});
-		expect(healthy.resetHostAppearance()).toEqual({ kind: 'unchanged' });
-		expect(healthyStorage.setItem).not.toHaveBeenCalled();
 	});
 
-	it('changes only the font size by the product step and clamps at both bounds', () => {
-		const storage = createStorage(JSON.stringify({ ...HOST_DEFAULTS, fontSize: 47 }));
+	it('changes only the font size by the product step and clamps at both bounds', async () => {
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings({ values: { 'terminal.font_size': 47 } }),
 		});
 
-		expect(controller.changeFontSize('increase')).toEqual({ kind: 'applied-and-saved' });
+		controller.changeFontSize('increase');
+		await Promise.resolve();
 		expect(controller.getSnapshot().preferences.fontSize).toBe(48);
 		expect(controller.changeFontSize('increase')).toEqual({ kind: 'unchanged' });
-		expect(controller.changeFontSize('decrease')).toEqual({ kind: 'applied-and-saved' });
+		controller.changeFontSize('decrease');
+		await Promise.resolve();
 		expect(controller.getSnapshot().preferences.fontSize).toBe(46);
-		expect(controller.changeFontSize('reset')).toEqual({ kind: 'applied-and-saved' });
+		controller.changeFontSize('reset');
+		await Promise.resolve();
 		expect(controller.getSnapshot().preferences).toEqual(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
 	});
 
 	it('opens and closes idempotently without publishing a terminal configuration', () => {
 		const controller = new TerminalSettingsController({
-			storage: createStorage(null),
 			themeTarget: document.createElement('div'),
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const snapshotListener = vi.fn<() => void>();
 		const presentationListener =
@@ -612,12 +429,12 @@ describe('TerminalSettingsController', () => {
 	});
 
 	it('rejects late updates and stops notifying after disposal', () => {
-		const storage = createStorage(null);
+		const settings = memoryUserSettings();
+		const edit = vi.spyOn(settings, 'edit');
 		const target = document.createElement('div');
 		const controller = new TerminalSettingsController({
-			storage,
 			themeTarget: target,
-			userPreferences: memoryUserPreferences(),
+			userSettings: settings,
 		});
 		const snapshotListener = vi.fn<() => void>();
 		const presentationListener =
@@ -630,19 +447,12 @@ describe('TerminalSettingsController', () => {
 		expect(controller.changeFontSize('increase')).toEqual({ kind: 'disposed' });
 		expect(controller.open()).toEqual({ kind: 'disposed' });
 		expect(controller.close()).toEqual({ kind: 'disposed' });
-		expect(storage.setItem).not.toHaveBeenCalled();
+		expect(edit).not.toHaveBeenCalled();
 		expect(target.dataset['theme']).toBe('light');
 		expect(snapshotListener).not.toHaveBeenCalled();
 		expect(presentationListener).not.toHaveBeenCalled();
 	});
 });
-
-function createStorage(serialized: string | null): StorageFixture {
-	return {
-		getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => serialized),
-		setItem: vi.fn<TerminalAppearanceStorage['setItem']>(() => undefined),
-	};
-}
 
 function deferred<T>(): {
 	readonly promise: Promise<T>;

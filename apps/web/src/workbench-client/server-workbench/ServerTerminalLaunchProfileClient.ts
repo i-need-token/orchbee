@@ -4,11 +4,11 @@ import {
 	UserLaunchProfileCatalogSchema,
 } from '@orchbee/workbench-client-protocol';
 import type {
+	SettingsRefusal,
+	SettingsSnapshot,
 	UserLaunchProfile,
 	UserLaunchProfileCatalog,
 	UserLaunchProfileId,
-	UserPreferencesResponse,
-	UserPreferencesSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
 import type {
@@ -18,7 +18,15 @@ import type {
 	TerminalLaunchProfileFailureCode,
 	TerminalLaunchProfileSnapshot,
 } from '../../terminal-launch-profile-control';
-import type { UserPreferencesControl } from '../../user-preferences';
+import {
+	isSettingSet,
+	isSettingsFileReadOnly,
+	launchProfileChanges,
+	launchProfileKeys,
+	launchProfileRestore,
+	type UserSettingsControl,
+	type UserSettingsResult,
+} from '../../user-settings';
 
 type CatalogChange =
 	| {
@@ -41,32 +49,34 @@ type CatalogRefusal = Extract<
 >;
 
 /**
- * The launch profiles are one of the Session's shared preferences, so each change saves the whole
- * catalog under the source this Client last observed: another Client's change in between is refused
- * as `source-changed` rather than overwritten. The Server decides what this machine can launch, and
- * the Worker launches the default profile for every terminal created after the save.
+ * The launch profiles are `terminal.profiles.<platform>` and `terminal.default_profile.<platform>`
+ * in the settings file of the Server's machine, so each change is one edit of both keys. A profile
+ * draft begun before another change to the catalog is refused as `source-changed` rather than
+ * overwriting it. The Server decides what its machine can launch, and the Worker launches the
+ * default profile for every terminal created after the edit.
  */
 export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileControl {
 	readonly #capabilities: TerminalLaunchProfileSnapshot['capabilities'];
 	readonly #listeners = new Set<() => void>();
-	readonly #preferences: UserPreferencesControl;
+	readonly #settings: UserSettingsControl;
 	readonly #stopObserving: () => void;
+	#catalogRevision: string | null = null;
 	#disposed = false;
 	#failureCode: TerminalLaunchProfileFailureCode | null = null;
-	#observed: UserPreferencesSnapshot | null;
+	#observed: SettingsSnapshot | null = null;
 	#pending = false;
+	#refusal: SettingsRefusal | null = null;
 	#snapshot: TerminalLaunchProfileClientSnapshot;
 
-	constructor(preferences: UserPreferencesControl, loginShellAvailable: boolean) {
+	constructor(settings: UserSettingsControl, loginShellAvailable: boolean) {
 		this.#capabilities = { loginShell: loginShellAvailable };
-		this.#preferences = preferences;
-		this.#observed = preferences.getSnapshot().snapshot;
+		this.#settings = settings;
+		this.#observe(settings.getSnapshot().snapshot);
 		this.#snapshot = this.#project();
-		this.#stopObserving = preferences.subscribe(() => {
-			const observed = preferences.getSnapshot().snapshot;
-			// A source names its record's content, so an unchanged one changes nothing shown here.
-			if (observed?.source === this.#observed?.source) return;
-			this.#observed = observed;
+		this.#stopObserving = settings.subscribe(() => {
+			const observed = settings.getSnapshot().snapshot;
+			if (observed === this.#observed) return;
+			this.#observe(observed);
 			this.#present();
 		});
 	}
@@ -88,9 +98,9 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 
 	updateProfile(
 		profile: UserLaunchProfile,
-		preferencesSource?: string,
+		catalogRevision?: string,
 	): Promise<TerminalLaunchProfileClientOperationResult> {
-		return this.#change({ kind: 'update', profile }, preferencesSource);
+		return this.#change({ kind: 'update', profile }, catalogRevision);
 	}
 
 	selectDefault(
@@ -116,9 +126,23 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 		this.#listeners.clear();
 	}
 
+	/** The revision of the first snapshot that showed the current catalog. */
+	#observe(observed: SettingsSnapshot | null): void {
+		const previous = this.#observed;
+		this.#observed = observed;
+		if (observed === null) return;
+		if (
+			previous === null ||
+			this.#catalogRevision === null ||
+			JSON.stringify(previous.launchProfiles) !== JSON.stringify(observed.launchProfiles)
+		) {
+			this.#catalogRevision = observed.revision;
+		}
+	}
+
 	async #change(
 		change: CatalogChange,
-		draftSource?: string,
+		draftRevision?: string,
 	): Promise<TerminalLaunchProfileClientOperationResult> {
 		const observed = this.#observed;
 		if (this.#disposed || observed === null) return { kind: 'unavailable' };
@@ -126,28 +150,33 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 			return { code: 'busy', kind: 'failed', snapshot: profileSnapshot(this.#snapshot) };
 		}
 		// A draft begun on an older catalog would overwrite the change it never saw.
-		if (draftSource !== undefined && draftSource !== observed.source) {
+		if (draftRevision !== undefined && draftRevision !== this.#catalogRevision) {
 			return this.#fail('source-changed');
 		}
-		let catalog: UserLaunchProfileCatalog | null = null;
+		let changes = launchProfileRestore(observed.platform);
 		if (change.kind !== 'reset') {
-			const transition = transitionCatalog(observed.values.launchProfiles, change);
+			const transition = transitionCatalog(observed.launchProfiles, change);
 			if (typeof transition === 'string') return this.#fail(transition);
-			catalog = transition;
+			changes = launchProfileChanges(observed.platform, transition);
 		}
 		this.#pending = true;
 		this.#failureCode = null;
+		this.#refusal = null;
 		this.#present();
-		const response = await this.#preferences.update({ launchProfiles: catalog }, observed.source);
+		const result = await this.#settings.edit(changes);
 		this.#pending = false;
-		if (response.kind !== 'snapshot') return this.#fail(failureCode(response));
-		this.#observed = response.snapshot;
+		if (result.kind !== 'edited' && result.kind !== 'current') {
+			if (result.kind === 'refused') this.#refusal = result.refusal;
+			return this.#fail(failureCode(result));
+		}
+		if (result.snapshot !== this.#observed) this.#observe(result.snapshot);
 		this.#present();
 		return { kind: 'completed', snapshot: profileSnapshot(this.#snapshot) };
 	}
 
 	#fail(code: TerminalLaunchProfileFailureCode): TerminalLaunchProfileClientOperationResult {
 		this.#failureCode = code;
+		if (code !== 'refused') this.#refusal = null;
 		this.#present();
 		return { code, kind: 'failed', snapshot: profileSnapshot(this.#snapshot) };
 	}
@@ -160,18 +189,20 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 				catalog: builtInCatalog(),
 				failureCode: this.#failureCode ?? 'control-unavailable',
 				pending: this.#pending,
-				persistenceIssue: null,
+				readOnly: false,
+				refusal: this.#refusal,
 				source: 'built-in',
 			};
 		}
 		return {
 			capabilities: this.#capabilities,
-			catalog: observed.values.launchProfiles,
+			catalog: observed.launchProfiles,
+			...(this.#catalogRevision === null ? {} : { catalogRevision: this.#catalogRevision }),
 			failureCode: this.#failureCode,
 			pending: this.#pending,
-			persistenceIssue: null,
-			preferencesSource: observed.source,
-			source: 'stored',
+			readOnly: isSettingsFileReadOnly(observed),
+			refusal: this.#refusal,
+			source: launchProfilesStored(observed) ? 'stored' : 'built-in',
 		};
 	}
 
@@ -265,21 +296,25 @@ function builtInCatalog(): UserLaunchProfileCatalog {
 }
 
 function failureCode(
-	response: Exclude<UserPreferencesResponse, { readonly kind: 'snapshot' }>,
+	result: Exclude<UserSettingsResult, { readonly kind: 'current' | 'edited' }>,
 ): TerminalLaunchProfileFailureCode {
-	if (response.kind === 'outcome-unknown') return 'outcome-unknown';
-	switch (response.reason) {
+	if (result.kind === 'outcome-unknown') return 'outcome-unknown';
+	if (result.kind === 'unavailable') return 'control-unavailable';
+	switch (result.refusal.reason) {
 		case 'busy':
-		case 'source-changed':
-		case 'write-failed':
-			return response.reason;
+			return 'busy';
+		case 'changed':
+			return 'source-changed';
+		case 'denied':
+		case 'session-mismatch':
 		case 'unavailable':
 			return 'control-unavailable';
-		// The Server refuses a profile this machine cannot launch, such as a relative executable.
-		case 'invalid-changes':
-		case 'invalid-request':
-		case 'invalid-source':
+		// The Server refuses a profile its machine cannot launch, such as a relative executable.
+		case 'invalid-value':
+		case 'unknown-key':
 			return 'invalid-profile';
+		default:
+			return 'refused';
 	}
 }
 
@@ -289,10 +324,15 @@ function profileSnapshot(
 	return {
 		capabilities: snapshot.capabilities,
 		catalog: snapshot.catalog,
-		persistenceIssue: snapshot.persistenceIssue,
-		...(snapshot.preferencesSource === undefined
+		...(snapshot.catalogRevision === undefined
 			? {}
-			: { preferencesSource: snapshot.preferencesSource }),
+			: { catalogRevision: snapshot.catalogRevision }),
 		source: snapshot.source,
 	};
+}
+
+/** Whether the settings file sets this platform's catalog or default, so Restore has work to do. */
+function launchProfilesStored(snapshot: SettingsSnapshot): boolean {
+	const keys = launchProfileKeys(snapshot.platform);
+	return isSettingSet(snapshot, keys.defaultProfile) || isSettingSet(snapshot, keys.profiles);
 }

@@ -1,4 +1,4 @@
-import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
+import { settingDefault } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -15,15 +15,15 @@ import {
 
 describe('terminal appearance preferences', () => {
 	it('defaults the common appearance leaves to the shared preference defaults', () => {
-		for (const key of [
-			'applicationTheme',
-			'lightTheme',
-			'darkTheme',
-			'terminalDisplayTheme',
-			'customForeground',
-			'customBackground',
+		for (const [field, key] of [
+			['applicationTheme', 'appearance.mode'],
+			['lightTheme', 'appearance.light_theme'],
+			['darkTheme', 'appearance.dark_theme'],
+			['terminalDisplayTheme', 'appearance.terminal_colors'],
+			['customForeground', 'appearance.custom_foreground'],
+			['customBackground', 'appearance.custom_background'],
 		] as const) {
-			expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES[key]).toBe(DEFAULT_USER_PREFERENCES[key]);
+			expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES[field]).toBe(settingDefault(key));
 		}
 	});
 

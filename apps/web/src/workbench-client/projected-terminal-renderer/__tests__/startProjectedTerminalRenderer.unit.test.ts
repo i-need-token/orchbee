@@ -36,7 +36,7 @@ import {
 } from '../startProjectedTerminalRenderer';
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 import type { TerminalTrailingBlankRowsPresentationSource } from '../terminal-trailing-blank-rows-presentation-source';
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
@@ -124,7 +124,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const applicationLocaleSource = new ApplicationLocaleController({
 			documentElement,
 			preferredLocales: ['zh-CN'],
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
 		const applyInputCapability = vi

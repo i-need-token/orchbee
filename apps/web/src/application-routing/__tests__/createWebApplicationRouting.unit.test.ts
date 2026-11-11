@@ -25,7 +25,7 @@ import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { ApplicationLocaleController } from '../../application-locale';
 import { createWebApplicationRouting } from '../createWebApplicationRouting';
 import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
-import { memoryUserPreferences } from '../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../__tests__/memoryUserSettings';
 
 const originalScrollTo = window.scrollTo;
 
@@ -78,15 +78,15 @@ function createRouting(path: string, runtime = createRuntime()) {
 		platform: 'standard',
 		storage,
 	});
+	const userSettings = memoryUserSettings();
 	const terminalSettingsController = new TerminalSettingsController({
-		storage,
 		themeTarget: document.documentElement,
-		userPreferences: memoryUserPreferences(),
+		userSettings,
 	});
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement: document.documentElement,
 		preferredLocales: ['en-US'],
-		userPreferences: memoryUserPreferences(),
+		userSettings,
 	});
 	const routing = createWebApplicationRouting(
 		{

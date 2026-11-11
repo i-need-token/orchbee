@@ -4,7 +4,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 import { TerminalInteractionSettingsController } from '../../model';
 import { useTerminalInteractionSettings } from '../useTerminalInteractionSettings';
 
@@ -29,7 +29,7 @@ describe('useTerminalInteractionSettings', () => {
 		const root = createRoot(container);
 
 		const controller = new TerminalInteractionSettingsController(
-			memoryUserPreferences({ copyOnSelect: true }),
+			memoryUserSettings({ values: { 'terminal.copy_on_select': true } }),
 		);
 		await act(async () => root.render(createElement(SnapshotProbe, { controller })));
 		expect(container.textContent).toBe('enabled');

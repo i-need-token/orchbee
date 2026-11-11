@@ -199,7 +199,6 @@ test('terminal-parity/SU-09-theme', async () => {
 		await page.locator('#prepare-runtime-theme').dispatchEvent('click');
 		await expect(root).toHaveAttribute('data-witness-theme-host-pending', 'true');
 		await expect(root).toHaveAttribute('data-projected-terminal-theme-state', 'preparing');
-		await expect(root).toHaveAttribute('data-witness-theme-update-result', 'applied-and-saved');
 		await page.evaluate(
 			() =>
 				new Promise<void>((resolve) => {

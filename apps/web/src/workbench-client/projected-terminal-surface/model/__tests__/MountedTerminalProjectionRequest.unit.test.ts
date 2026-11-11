@@ -15,7 +15,7 @@ import {
 } from '../../../../terminal-settings';
 import type { TerminalProjection, TerminalProjectionClient } from '../../../terminal-projection';
 import { MountedTerminalProjectionRequest } from '../MountedTerminalProjectionRequest';
-import { memoryUserPreferences } from '../../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../../__tests__/memoryUserSettings';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
 
@@ -26,9 +26,8 @@ afterEach(() => {
 describe('MountedTerminalProjectionRequest', () => {
 	it('keeps mounted terminals in live theme transactions while pinning geometry', async () => {
 		const settings = new TerminalSettingsController({
-			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const request = new MountedTerminalProjectionRequest(
 			document.createElement('div'),

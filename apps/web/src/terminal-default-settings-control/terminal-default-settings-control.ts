@@ -1,8 +1,8 @@
 import type { TerminalConfiguration } from '@orchbee/terminal-protocol';
 
 /**
- * The terminal defaults Settings shows. Scrollback saves through the Session's shared preferences,
- * so this control only reads; it is unavailable until the first preference snapshot arrives.
+ * The terminal defaults Settings shows. Scrollback is saved in the settings file, so this control
+ * only reads; it is unavailable until the first settings snapshot arrives.
  */
 export interface TerminalDefaultSettingsClientSnapshot {
 	readonly configuration: TerminalConfiguration;

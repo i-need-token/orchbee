@@ -43,7 +43,7 @@ import {
 	ServerConnection,
 	ServerTerminalDefaultSettingsClient,
 	ServerTerminalLaunchProfileClient,
-	ServerUserPreferencesClient,
+	ServerUserSettingsClient,
 	ServerWorkbenchSession,
 	stopServerSession,
 	workspaceLaunchAction,
@@ -201,18 +201,18 @@ async function run(
 		bootstrap.distribution === 'release'
 			? undefined
 			: { checkoutName: bootstrap.checkoutName, environment: bootstrap.distribution };
-	const userPreferences = new ServerUserPreferencesClient(connection, session.snapshot.sessionId);
-	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userPreferences);
+	const userSettings = new ServerUserSettingsClient(connection, session.snapshot.sessionId);
+	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userSettings);
 	const terminalLaunchProfileClient = new ServerTerminalLaunchProfileClient(
-		userPreferences,
+		userSettings,
 		bootstrap.loginShellAvailable,
 	);
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement,
 		preferredLocales,
-		userPreferences,
+		userSettings,
 	});
-	// Shortcut overrides and Option-as-Alt are this device's own, so browser storage keeps them.
+	// Shortcut overrides are this device's own, so browser storage keeps them.
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
 		searchOffered,
@@ -220,18 +220,16 @@ async function run(
 	});
 	const macosTerminalInputSettingsController =
 		shortcutPlatform === 'apple'
-			? new MacosTerminalInputSettingsController(storage.preferences)
+			? new MacosTerminalInputSettingsController(userSettings)
 			: undefined;
 	const systemTheme = targetWindow.matchMedia('(prefers-color-scheme: dark)');
-	// Browser storage holds only the seven host appearance leaves; the Session holds the rest.
 	const terminalSettingsController = new TerminalSettingsController({
-		storage: storage.preferences,
 		systemTheme,
 		themeTarget: documentElement,
-		userPreferences,
+		userSettings,
 	});
 	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(
-		userPreferences,
+		userSettings,
 	);
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
 		// A page cannot show a window Main hid, so a notification click asks Main to show it first.
@@ -241,7 +239,7 @@ async function run(
 				targetWindow.focus();
 			},
 		}),
-		userPreferences,
+		userSettings,
 	});
 	const agentIntegrationManagementClient = new ServerAgentIntegrationClient(
 		connection,
@@ -281,7 +279,7 @@ async function run(
 					() => agentIntegrationManagementClient.dispose(),
 					() => terminalLaunchProfileClient.dispose(),
 					() => terminalDefaultSettingsClient.dispose(),
-					() => userPreferences.dispose(),
+					() => userSettings.dispose(),
 					() => session.dispose(),
 				],
 				'Desktop Server Workbench cleanup failed.',
@@ -290,7 +288,7 @@ async function run(
 		{ once: true },
 	);
 
-	await userPreferences.refresh();
+	await userSettings.refresh();
 	runtime = createServerWorkbenchRuntime({
 		applicationLocaleSource: applicationLocaleController,
 		connection,

@@ -4,9 +4,7 @@ import {
 	resolveOrchbeeLocale,
 	type OrchbeeLocale,
 } from '@orchbee/i18n';
-import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
-
-import type { UserPreferencesControl } from '../../user-preferences';
+import { readSetting, type UserSettingsControl } from '../../user-settings';
 
 export interface ApplicationLocaleDocumentElement {
 	dir: string;
@@ -27,7 +25,7 @@ export interface ApplicationLocaleSource {
 export interface ApplicationLocaleControllerOptions {
 	readonly documentElement: ApplicationLocaleDocumentElement;
 	readonly preferredLocales: readonly string[];
-	readonly userPreferences: UserPreferencesControl;
+	readonly userSettings: UserSettingsControl;
 }
 
 export type ApplicationLocaleSelectionResult =
@@ -35,13 +33,13 @@ export type ApplicationLocaleSelectionResult =
 	| { readonly kind: 'invalid' }
 	| { readonly kind: 'pending' };
 
-/** The Session's shared preferences own the language; this applies their confirmed value. */
+/** `general.language` in the settings file owns the language; this applies the file's value. */
 export class ApplicationLocaleController implements ApplicationLocaleSource {
 	readonly #documentElement: ApplicationLocaleDocumentElement;
 	readonly #listeners = new Set<() => void>();
-	readonly #userPreferences: UserPreferencesControl;
+	readonly #userSettings: UserSettingsControl;
 	readonly #preferredLocales: readonly string[];
-	readonly #removeUserPreferences: () => void;
+	readonly #removeUserSettings: () => void;
 	#disposed = false;
 	#emitting = false;
 	#pendingEmission = false;
@@ -50,16 +48,16 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 	constructor({
 		documentElement,
 		preferredLocales,
-		userPreferences,
+		userSettings,
 	}: ApplicationLocaleControllerOptions) {
 		this.#documentElement = documentElement;
-		this.#userPreferences = userPreferences;
+		this.#userSettings = userSettings;
 		this.#preferredLocales = preferredLocales;
 		const effectiveLocale = resolveOrchbeeLocale(preferredLocales);
 		this.#snapshot = createSnapshot(effectiveLocale, null);
 		this.#applyDocumentMetadata(effectiveLocale);
-		this.#syncUserPreferences();
-		this.#removeUserPreferences = userPreferences.subscribe(() => this.#syncUserPreferences());
+		this.#syncUserSettings();
+		this.#removeUserSettings = userSettings.subscribe(() => this.#syncUserSettings());
 	}
 
 	current = (): OrchbeeLocale => this.#snapshot.effectiveLocale;
@@ -75,14 +73,14 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 	select(locale: unknown): ApplicationLocaleSelectionResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (locale !== 'system' && !isOrchbeeLocale(locale)) return { kind: 'invalid' };
-		void this.#userPreferences.update({ locale });
+		void this.#userSettings.set('general.language', locale);
 		return { kind: 'pending' };
 	}
 
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#removeUserPreferences();
+		this.#removeUserSettings();
 		this.#pendingEmission = false;
 		this.#listeners.clear();
 	}
@@ -92,10 +90,8 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 		this.#documentElement.dir = getOrchbeeTextDirection(locale);
 	}
 
-	#syncUserPreferences(): void {
-		const locale =
-			this.#userPreferences.getSnapshot().snapshot?.values.locale ??
-			DEFAULT_USER_PREFERENCES.locale;
+	#syncUserSettings(): void {
+		const locale = readSetting(this.#userSettings.getSnapshot().snapshot, 'general.language');
 		const preference = locale === 'system' ? null : locale;
 		const effectiveLocale = preference ?? resolveOrchbeeLocale(this.#preferredLocales);
 		if (

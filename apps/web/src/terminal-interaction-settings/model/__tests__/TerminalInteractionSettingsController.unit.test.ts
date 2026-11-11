@@ -1,13 +1,13 @@
 import type { TerminalInteractionConfiguration } from '@orchbee/terminal';
 import { describe, expect, it, vi } from 'vitest';
 
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 import { TerminalInteractionSettingsController } from '../TerminalInteractionSettingsController';
 
 describe('TerminalInteractionSettingsController', () => {
 	it('publishes a confirmed copy-on-select transition live', async () => {
 		const controller = new TerminalInteractionSettingsController(
-			memoryUserPreferences({ copyOnSelect: true }),
+			memoryUserSettings({ values: { 'terminal.copy_on_select': true } }),
 		);
 		const configurations: TerminalInteractionConfiguration[] = [];
 		controller.subscribe((configuration) => configurations.push(configuration));
@@ -23,7 +23,7 @@ describe('TerminalInteractionSettingsController', () => {
 
 	it('publishes the Agent tail preference without changing terminal interaction configuration', async () => {
 		const controller = new TerminalInteractionSettingsController(
-			memoryUserPreferences({ copyOnSelect: true }),
+			memoryUserSettings({ values: { 'terminal.copy_on_select': true } }),
 		);
 		const configurations = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
 		const tailPreference = vi.fn<(enabled: boolean) => void>();
@@ -43,14 +43,14 @@ describe('TerminalInteractionSettingsController', () => {
 	});
 
 	it('stops publication and mutation after disposal', async () => {
-		const userPreferences = memoryUserPreferences();
-		const controller = new TerminalInteractionSettingsController(userPreferences);
+		const userSettings = memoryUserSettings();
+		const controller = new TerminalInteractionSettingsController(userSettings);
 		const listener = vi.fn<() => void>();
 		controller.subscribe(listener);
 		controller.dispose();
 
 		expect(controller.update({ copyOnSelect: false })).toEqual({ kind: 'disposed' });
-		await userPreferences.update({ copyOnSelect: false });
+		await userSettings.set('terminal.copy_on_select', false);
 		expect(listener).not.toHaveBeenCalled();
 	});
 });

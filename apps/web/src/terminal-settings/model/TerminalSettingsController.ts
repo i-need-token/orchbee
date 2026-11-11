@@ -5,34 +5,28 @@ import {
 	type TerminalColorTheme,
 	type TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
-import {
-	DEFAULT_USER_PREFERENCES,
-	type UserPreferencesPatch,
+import type {
+	SettingChange,
+	SettingKey,
+	SettingsSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
-import type { UserPreferencesControl } from '../../user-preferences';
-
-import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+import { readSetting, settingChange, type UserSettingsControl } from '../../user-settings';
 
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	normalizeTerminalAppearancePreferences,
+	normalizeTerminalHexColor,
 	resolveTerminalFontSizeChange,
+	TERMINAL_FONT_WEIGHT_OPTIONS,
 	terminalAppearancePreferencesEqual,
 	terminalDerivedPreferencesEqual,
 	terminalPresentationConfigurationFromPreferences,
 	terminalThemePreferencesEqual,
-	normalizeTerminalHexColor,
 	type TerminalAppearancePreferences,
-	type TerminalFontSizeChange,
 	type TerminalAppearancePresentationSource,
+	type TerminalFontSizeChange,
 } from './terminal-appearance-preferences';
-import {
-	normalizeTerminalAppearancePreferences,
-	readHostAppearancePreferences,
-	writeHostAppearancePreferences,
-	type TerminalAppearancePersistenceIssue,
-	type TerminalAppearanceStorage,
-} from './terminal-appearance-preferences-storage';
 import type {
 	TerminalThemePresentationParticipant,
 	TerminalThemePresentationPreparation,
@@ -46,13 +40,11 @@ export interface TerminalSettingsSnapshot {
 	/** The section the latest opening asked for; null shows the surface's own choice. */
 	readonly landing: TerminalSettingsLanding | null;
 	readonly open: boolean;
-	readonly persistenceIssue: TerminalAppearancePersistenceIssue | null;
 	readonly preferences: TerminalAppearancePreferences;
 }
 
+/** An accepted change is `pending` until the settings file answers with it. */
 export type TerminalSettingsUpdateResult =
-	| { readonly kind: 'applied-and-saved' }
-	| { readonly kind: 'applied-session-only' }
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'invalid' }
 	| { readonly kind: 'pending' }
@@ -77,9 +69,8 @@ export type TerminalSettingsVisibilityResult =
 export interface TerminalSettingsControllerOptions {
 	/** The themes a stored slot id may name; the shipped themes unless a test supplies a fixture. */
 	readonly colorThemes?: readonly TerminalColorTheme[];
-	readonly storage: TerminalAppearanceStorage;
 	readonly themeTarget: Pick<HTMLElement, 'dataset'>;
-	readonly userPreferences: UserPreferencesControl;
+	readonly userSettings: UserSettingsControl;
 	readonly systemTheme?: Pick<
 		MediaQueryList,
 		'matches' | 'addEventListener' | 'removeEventListener'
@@ -89,21 +80,47 @@ export interface TerminalSettingsControllerOptions {
 type SnapshotListener = () => void;
 type PresentationListener = (configuration: TerminalPresentationConfiguration) => void;
 
+/** The settings key behind each appearance field. */
+const APPEARANCE_KEYS = {
+	applicationTheme: 'appearance.mode',
+	backgroundOpacityPercent: 'terminal.background_opacity',
+	customBackground: 'appearance.custom_background',
+	customForeground: 'appearance.custom_foreground',
+	darkTheme: 'appearance.dark_theme',
+	fontFamily: 'terminal.font_family',
+	fontLigatures: 'terminal.font_ligatures',
+	fontSize: 'terminal.font_size',
+	fontWeight: 'terminal.font_weight',
+	fontWeightBold: 'terminal.font_weight_bold',
+	lightTheme: 'appearance.light_theme',
+	terminalDisplayTheme: 'appearance.terminal_colors',
+	terminalPadding: 'terminal.padding',
+} as const satisfies Record<keyof TerminalAppearancePreferences, SettingKey>;
+
+/** The keys the Appearance category's Reset gives back to their defaults. */
+const TERMINAL_APPEARANCE_KEYS = [
+	APPEARANCE_KEYS.backgroundOpacityPercent,
+	APPEARANCE_KEYS.fontFamily,
+	APPEARANCE_KEYS.fontLigatures,
+	APPEARANCE_KEYS.fontSize,
+	APPEARANCE_KEYS.fontWeight,
+	APPEARANCE_KEYS.fontWeightBold,
+	APPEARANCE_KEYS.terminalPadding,
+] as const;
+
 /**
- * Six common appearance leaves follow the Session's shared preferences; the seven host leaves stay in
- * this renderer's browser storage.
+ * Every appearance field is a key of the settings file on the Server's machine. A change is shown
+ * once the file answers with it, so every Client and the TUI see one appearance.
  */
 export class TerminalSettingsController
 	implements TerminalAppearancePresentationSource, TerminalThemePresentationSource
 {
 	/** The themes a slot may name, for pickers; the shipped themes unless a test supplies more. */
 	readonly colorThemes: readonly TerminalColorTheme[];
+	readonly userSettings: UserSettingsControl;
 	readonly #presentationListeners = new Set<PresentationListener>();
-	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
-	readonly #storage: TerminalAppearanceStorage;
-	readonly userPreferences: UserPreferencesControl;
-	readonly #removeUserPreferences: () => void;
+	readonly #removeUserSettings: () => void;
 	readonly #systemTheme: TerminalSettingsControllerOptions['systemTheme'];
 	readonly #themeTarget: Pick<HTMLElement, 'dataset'>;
 	readonly #themeParticipants = new Set<TerminalThemePresentationParticipant>();
@@ -111,29 +128,27 @@ export class TerminalSettingsController
 	#pendingPresentations: TerminalPresentationConfiguration[] = [];
 	#presentationConfiguration: TerminalPresentationConfiguration;
 	#publishingPresentation = false;
-	#revision = 0;
+	/** The size the last font-size step asked for, until the file answers, so steps accumulate. */
+	#requestedFontSize: number | null = null;
 	#snapshot: TerminalSettingsSnapshot;
 	#themePresentationEpoch = 0;
 	#themePreview: ActiveColorThemePreview | null = null;
 
 	constructor({
 		colorThemes = terminalColorThemes,
-		storage,
 		themeTarget,
-		userPreferences,
+		userSettings,
 		systemTheme,
 	}: TerminalSettingsControllerOptions) {
 		this.colorThemes = colorThemes;
-		this.#storage = storage;
-		this.userPreferences = userPreferences;
+		this.userSettings = userSettings;
 		this.#systemTheme = systemTheme;
 		this.#themeTarget = themeTarget;
-		const restored = readHostAppearancePreferences(storage);
-		const preferences = commonAppearance(restored.preferences, userPreferences);
+		const preferences = appearanceFromSettings(userSettings.getSnapshot().snapshot);
 		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
-		this.#snapshot = snapshot(false, null, restored.issue, preferences);
+		this.#snapshot = snapshot(false, null, preferences);
 		this.#applyTheme(preferences);
-		this.#removeUserPreferences = userPreferences.subscribe(() => this.#syncUserPreferences());
+		this.#removeUserSettings = userSettings.subscribe(() => this.#syncUserSettings());
 		systemTheme?.addEventListener('change', this.#handleSystemTheme);
 	}
 
@@ -166,12 +181,7 @@ export class TerminalSettingsController
 	open(landing: TerminalSettingsLanding | null = null): TerminalSettingsVisibilityResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#snapshot.open) return { kind: 'unchanged' };
-		this.#snapshot = snapshot(
-			true,
-			landing,
-			this.#snapshot.persistenceIssue,
-			this.#snapshot.preferences,
-		);
+		this.#snapshot = snapshot(true, landing, this.#snapshot.preferences);
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
@@ -180,63 +190,21 @@ export class TerminalSettingsController
 		if (this.#disposed) return { kind: 'disposed' };
 		if (!this.#snapshot.open) return { kind: 'unchanged' };
 		if (this.#themePreview?.committing === false) this.previewColorTheme(null);
-		this.#snapshot = snapshot(
-			false,
-			null,
-			this.#snapshot.persistenceIssue,
-			this.#snapshot.preferences,
-		);
+		this.#snapshot = snapshot(false, null, this.#snapshot.preferences);
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
 
+	/** One edit of every field `patch` changes. */
 	update(patch: Partial<TerminalAppearancePreferences>): TerminalSettingsUpdateResult {
 		if (this.#disposed) return { kind: 'disposed' };
-		const currentPreferences = this.#snapshot.preferences;
-		let candidate = normalizeTerminalAppearancePreferences({ ...currentPreferences, ...patch });
+		const current = this.#snapshot.preferences;
+		const candidate = normalizeTerminalAppearancePreferences({ ...current, ...patch });
 		if (candidate === null) return { kind: 'invalid' };
-		const changes: UserPreferencesPatch = {
-			...(patch.applicationTheme === undefined
-				? {}
-				: { applicationTheme: candidate.applicationTheme }),
-			...(patch.lightTheme === undefined ? {} : { lightTheme: candidate.lightTheme }),
-			...(patch.darkTheme === undefined ? {} : { darkTheme: candidate.darkTheme }),
-			...(patch.terminalDisplayTheme === undefined
-				? {}
-				: { terminalDisplayTheme: candidate.terminalDisplayTheme }),
-			...(patch.customForeground === undefined
-				? {}
-				: { customForeground: candidate.customForeground }),
-			...(patch.customBackground === undefined
-				? {}
-				: { customBackground: candidate.customBackground }),
-		};
-		const commonPending = Object.keys(changes).length !== 0;
-		if (commonPending) {
-			const revision = this.#revision;
-			void this.userPreferences.update(changes);
-			// Shared admission publishes synchronously and can retire or replace this host edit.
-			if (this.#disposed) return { kind: 'disposed' };
-			if (this.#revision !== revision) return { kind: 'pending' };
-		}
-		candidate = commonAppearance(candidate, this.userPreferences);
-
-		const preferencesChanged = !terminalAppearancePreferencesEqual(currentPreferences, candidate);
-		if (!preferencesChanged && this.#snapshot.persistenceIssue === null) {
-			return { kind: commonPending ? 'pending' : 'unchanged' };
-		}
-
-		const terminalChanged = !terminalDerivedPreferencesEqual(currentPreferences, candidate);
-		const themeChanged = !terminalThemePreferencesEqual(currentPreferences, candidate);
-		const revision = this.#commitCandidate(candidate, terminalChanged);
-		if (themeChanged) this.#startThemePresentation(candidate);
-		if (terminalChanged) {
-			this.#emitPresentation(this.#presentationConfiguration);
-		}
-		if (this.#disposed) return { kind: 'disposed' };
-		if (this.#revision === revision) this.#persist(candidate, revision);
-		if (this.#disposed) return { kind: 'disposed' };
-		return commonPending ? { kind: 'pending' } : this.#currentUpdateResult();
+		const changes = appearanceChanges(current, candidate);
+		if (changes.length === 0) return { kind: 'unchanged' };
+		void this.userSettings.edit(changes);
+		return this.#disposed ? { kind: 'disposed' } : { kind: 'pending' };
 	}
 
 	/**
@@ -262,14 +230,16 @@ export class TerminalSettingsController
 	 */
 	selectColorTheme(polarity: TerminalColorTheme['polarity'], themeId: string): void {
 		if (this.#disposed) return;
-		const slot = polarity === 'dark' ? 'darkTheme' : 'lightTheme';
 		const { applicationTheme } = this.#snapshot.preferences;
-		const changes: UserPreferencesPatch = {
-			[slot]: themeId,
-			...(applicationTheme === 'system' || applicationTheme === polarity
-				? {}
-				: { applicationTheme: polarity }),
-		};
+		const changes: SettingChange[] = [
+			{
+				key: polarity === 'dark' ? APPEARANCE_KEYS.darkTheme : APPEARANCE_KEYS.lightTheme,
+				value: themeId,
+			},
+		];
+		if (applicationTheme !== 'system' && applicationTheme !== polarity) {
+			changes.push({ key: APPEARANCE_KEYS.applicationTheme, value: polarity });
+		}
 		const before = this.#presented(this.#snapshot.preferences);
 		const preview: ActiveColorThemePreview = { committing: true, polarity, themeId };
 		this.#themePreview = preview;
@@ -278,37 +248,41 @@ export class TerminalSettingsController
 			if (this.#disposed || this.#themePreview !== preview) return;
 			this.previewColorTheme(null);
 		};
-		void this.userPreferences.update(changes).then(settle, settle);
+		void this.userSettings.edit(changes).then(settle, settle);
 	}
 
-	/** Settings resets the shared appearance keys itself, together with the interaction keys. */
-	resetHostAppearance(): TerminalSettingsUpdateResult {
-		const {
-			applicationTheme: _applicationTheme,
-			darkTheme: _darkTheme,
-			lightTheme: _lightTheme,
-			terminalDisplayTheme: _terminalDisplayTheme,
-			customForeground: _customForeground,
-			customBackground: _customBackground,
-			...host
-		} = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES;
-		return this.update(host);
+	/** Gives the terminal's font, padding and opacity back to their defaults in one edit. */
+	resetTerminalAppearance(): TerminalSettingsUpdateResult {
+		if (this.#disposed) return { kind: 'disposed' };
+		void this.userSettings.restore(TERMINAL_APPEARANCE_KEYS);
+		return { kind: 'pending' };
 	}
 
 	changeFontSize(change: TerminalFontSizeChange): TerminalSettingsUpdateResult {
-		return this.update({
-			fontSize: resolveTerminalFontSizeChange(this.#snapshot.preferences.fontSize, change),
-		});
+		if (this.#disposed) return { kind: 'disposed' };
+		const base = this.#requestedFontSize ?? this.#snapshot.preferences.fontSize;
+		const fontSize = resolveTerminalFontSizeChange(base, change);
+		if (fontSize === base) return { kind: 'unchanged' };
+		this.#requestedFontSize = fontSize;
+		const settle = (): void => {
+			if (this.#requestedFontSize === fontSize) this.#requestedFontSize = null;
+		};
+		void this.userSettings
+			.edit([
+				fontSize === DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize
+					? { key: APPEARANCE_KEYS.fontSize, restore: true }
+					: { key: APPEARANCE_KEYS.fontSize, value: fontSize },
+			])
+			.then(settle, settle);
+		return { kind: 'pending' };
 	}
 
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#removeUserPreferences();
+		this.#removeUserSettings();
 		this.#systemTheme?.removeEventListener('change', this.#handleSystemTheme);
-		this.#revision += 1;
 		this.#themePresentationEpoch += 1;
-		this.#persistence.dispose();
 		this.#pendingPresentations = [];
 		this.#presentationListeners.clear();
 		this.#snapshotListeners.clear();
@@ -331,10 +305,6 @@ export class TerminalSettingsController
 		);
 	}
 
-	/**
-	 * `data-theme` keeps its polarity meaning; a named theme adds `data-color-theme` on the same
-	 * element, and the Orchbee pair sets none, so the hand-authored mapping applies.
-	 */
 	/** The preferences presented now: the committed ones with any previewed theme in its slot. */
 	#presented(preferences: TerminalAppearancePreferences): TerminalAppearancePreferences {
 		const preview = this.#themePreview;
@@ -357,6 +327,10 @@ export class TerminalSettingsController
 		this.#startThemePresentation(this.#snapshot.preferences);
 	}
 
+	/**
+	 * `data-theme` keeps its polarity meaning; a named theme adds `data-color-theme` on the same
+	 * element, and the Orchbee pair sets none, so the hand-authored mapping applies.
+	 */
 	#applyTheme(preferences: TerminalAppearancePreferences): void {
 		const polarity = this.#polarity(preferences);
 		const theme = this.#colorTheme(preferences);
@@ -371,12 +345,21 @@ export class TerminalSettingsController
 			this.#startThemePresentation(this.#snapshot.preferences);
 	};
 
-	#syncUserPreferences(): void {
+	#syncUserSettings(): void {
 		if (this.#disposed) return;
-		const preferences = commonAppearance(this.#snapshot.preferences, this.userPreferences);
-		if (terminalAppearancePreferencesEqual(preferences, this.#snapshot.preferences)) return;
-		this.#commitCandidate(preferences, false);
-		this.#startThemePresentation(preferences);
+		const current = this.#snapshot.preferences;
+		const preferences = appearanceFromSettings(this.userSettings.getSnapshot().snapshot);
+		if (terminalAppearancePreferencesEqual(preferences, current)) return;
+		const terminalChanged = !terminalDerivedPreferencesEqual(current, preferences);
+		this.#snapshot = snapshot(this.#snapshot.open, this.#snapshot.landing, preferences);
+		if (!terminalThemePreferencesEqual(current, preferences)) {
+			this.#startThemePresentation(preferences);
+		}
+		if (terminalChanged) {
+			this.#presentationConfiguration =
+				terminalPresentationConfigurationFromPreferences(preferences);
+			this.#emitPresentation(this.#presentationConfiguration);
+		}
 		this.#emitSnapshot();
 	}
 
@@ -420,27 +403,6 @@ export class TerminalSettingsController
 		});
 	}
 
-	#commitCandidate(preferences: TerminalAppearancePreferences, terminalChanged: boolean): number {
-		this.#revision += 1;
-		this.#snapshot = snapshot(
-			this.#snapshot.open,
-			this.#snapshot.landing,
-			this.#snapshot.persistenceIssue,
-			preferences,
-		);
-		if (terminalChanged) {
-			this.#presentationConfiguration =
-				terminalPresentationConfigurationFromPreferences(preferences);
-		}
-		return this.#revision;
-	}
-
-	#currentUpdateResult(): TerminalSettingsUpdateResult {
-		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
-			? { kind: 'applied-and-saved' }
-			: { kind: 'applied-session-only' };
-	}
-
 	#emitPresentation(configuration: TerminalPresentationConfiguration): void {
 		if (this.#publishingPresentation) {
 			this.#pendingPresentations.push(configuration);
@@ -464,20 +426,6 @@ export class TerminalSettingsController
 		} finally {
 			this.#publishingPresentation = false;
 		}
-	}
-
-	#persist(preferences: TerminalAppearancePreferences, revision: number): void {
-		this.#persistence.write(() => {
-			const saved = writeHostAppearancePreferences(this.#storage, preferences);
-			if (this.#disposed || this.#revision !== revision) return;
-			this.#snapshot = snapshot(
-				this.#snapshot.open,
-				this.#snapshot.landing,
-				saved ? null : 'write-failed',
-				preferences,
-			);
-			this.#emitSnapshot();
-		});
 	}
 
 	#emitSnapshot(): void {
@@ -508,28 +456,67 @@ function sameColorThemePreview(
 function snapshot(
 	open: boolean,
 	landing: TerminalSettingsLanding | null,
-	persistenceIssue: TerminalAppearancePersistenceIssue | null,
 	preferences: TerminalAppearancePreferences,
 ): TerminalSettingsSnapshot {
-	return Object.freeze({ landing, open, persistenceIssue, preferences });
+	return Object.freeze({ landing, open, preferences });
 }
 
-function commonAppearance(
-	host: TerminalAppearancePreferences,
-	control: UserPreferencesControl,
-): TerminalAppearancePreferences {
-	const values = control.getSnapshot().snapshot?.values ?? DEFAULT_USER_PREFERENCES;
-	return {
-		...host,
-		applicationTheme: values.applicationTheme,
-		darkTheme: values.darkTheme,
-		lightTheme: values.lightTheme,
-		terminalDisplayTheme: values.terminalDisplayTheme,
-		customForeground:
-			normalizeTerminalHexColor(values.customForeground) ??
-			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.customForeground,
+function fontWeight(value: number): TerminalAppearancePreferences['fontWeight'] | null {
+	return TERMINAL_FONT_WEIGHT_OPTIONS.find((weight) => weight === value) ?? null;
+}
+
+/** The appearance a settings snapshot gives; before the first one, the defaults. */
+function appearanceFromSettings(settings: SettingsSnapshot | null): TerminalAppearancePreferences {
+	const defaults = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES;
+	const read = <Key extends SettingKey>(key: Key) => readSetting(settings, key);
+	return Object.freeze({
+		applicationTheme: read(APPEARANCE_KEYS.applicationTheme),
+		backgroundOpacityPercent: read(APPEARANCE_KEYS.backgroundOpacityPercent),
 		customBackground:
-			normalizeTerminalHexColor(values.customBackground) ??
-			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.customBackground,
-	};
+			normalizeTerminalHexColor(read(APPEARANCE_KEYS.customBackground)) ??
+			defaults.customBackground,
+		customForeground:
+			normalizeTerminalHexColor(read(APPEARANCE_KEYS.customForeground)) ??
+			defaults.customForeground,
+		darkTheme: read(APPEARANCE_KEYS.darkTheme),
+		fontFamily: read(APPEARANCE_KEYS.fontFamily)?.trim() || defaults.fontFamily,
+		fontLigatures: read(APPEARANCE_KEYS.fontLigatures),
+		fontSize: read(APPEARANCE_KEYS.fontSize),
+		fontWeight: fontWeight(read(APPEARANCE_KEYS.fontWeight)) ?? defaults.fontWeight,
+		fontWeightBold: fontWeight(read(APPEARANCE_KEYS.fontWeightBold)) ?? defaults.fontWeightBold,
+		lightTheme: read(APPEARANCE_KEYS.lightTheme),
+		terminalDisplayTheme: read(APPEARANCE_KEYS.terminalDisplayTheme),
+		terminalPadding: read(APPEARANCE_KEYS.terminalPadding),
+	});
+}
+
+/**
+ * The changes that turn `current` into `candidate`, field by field. The product font is the
+ * default of `terminal.font_family`, so choosing it restores the key.
+ */
+function appearanceChanges(
+	current: TerminalAppearancePreferences,
+	candidate: TerminalAppearancePreferences,
+): SettingChange[] {
+	const changes: SettingChange[] = [];
+	for (const field of Object.keys(APPEARANCE_KEYS)) {
+		if (!isAppearanceField(field) || current[field] === candidate[field]) continue;
+		if (field === 'fontFamily') {
+			changes.push(
+				settingChange(
+					APPEARANCE_KEYS.fontFamily,
+					candidate.fontFamily === DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontFamily
+						? null
+						: candidate.fontFamily,
+				),
+			);
+			continue;
+		}
+		changes.push({ key: APPEARANCE_KEYS[field], value: candidate[field] });
+	}
+	return changes;
+}
+
+function isAppearanceField(field: string): field is keyof TerminalAppearancePreferences {
+	return Object.hasOwn(APPEARANCE_KEYS, field);
 }

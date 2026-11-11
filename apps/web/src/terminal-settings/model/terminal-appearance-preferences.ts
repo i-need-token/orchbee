@@ -1,4 +1,5 @@
 import type { TerminalColorTheme, TerminalPresentationConfiguration } from '@orchbee/terminal';
+import { z } from 'zod';
 
 import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
@@ -8,7 +9,9 @@ import {
 type ApplicationTheme = 'dark' | 'light' | 'system';
 type TerminalDisplayTheme = 'custom' | 'host' | 'theme';
 export type TerminalHexColor = `#${string}`;
+/** @internal Exported for the font-size bounds test. */
 export const MINIMUM_TERMINAL_FONT_SIZE = 8;
+/** @internal Exported for the font-size bounds test. */
 export const MAXIMUM_TERMINAL_FONT_SIZE = 48;
 const TERMINAL_FONT_SIZE_STEP = 2;
 export const TERMINAL_FONT_WEIGHT_OPTIONS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
@@ -62,6 +65,42 @@ export const DEFAULT_TERMINAL_APPEARANCE_PREFERENCES: TerminalAppearancePreferen
 	},
 );
 
+const hexColorSchema = z
+	.string()
+	.regex(/^#[\da-fA-F]{6}$/u)
+	.transform((value): TerminalHexColor => `#${value.slice(1).toLowerCase()}`);
+
+const colorThemeIdSchema = z
+	.string()
+	.max(64)
+	.regex(/^[\da-z]+(?:-[\da-z]+)*$/u);
+
+const terminalFontWeightSchema = z.union(
+	TERMINAL_FONT_WEIGHT_OPTIONS.map((weight) => z.literal(weight)),
+);
+const terminalAppearancePreferencesSchema = z.strictObject({
+	applicationTheme: z.enum(['light', 'dark', 'system']),
+	backgroundOpacityPercent: z.number().int().min(10).max(100),
+	customBackground: hexColorSchema,
+	customForeground: hexColorSchema,
+	darkTheme: colorThemeIdSchema,
+	fontFamily: z.string().trim().min(1).max(256),
+	fontSize: z.number().int().min(MINIMUM_TERMINAL_FONT_SIZE).max(MAXIMUM_TERMINAL_FONT_SIZE),
+	terminalDisplayTheme: z.enum(['theme', 'host', 'custom']),
+	fontLigatures: z.boolean(),
+	fontWeight: terminalFontWeightSchema,
+	fontWeightBold: terminalFontWeightSchema,
+	lightTheme: colorThemeIdSchema,
+	terminalPadding: z.number().int().min(0).max(32),
+});
+
+/** The appearance `input` describes when every field is in range, normalized; otherwise null. */
+export function normalizeTerminalAppearancePreferences(
+	input: unknown,
+): TerminalAppearancePreferences | null {
+	const result = terminalAppearancePreferencesSchema.safeParse(input);
+	return result.success ? Object.freeze(result.data) : null;
+}
 export function terminalPresentationConfigurationFromPreferences(
 	preferences: TerminalAppearancePreferences,
 ): TerminalPresentationConfiguration {

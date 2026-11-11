@@ -49,7 +49,7 @@ import {
 	type TerminalThemePresentationParticipant,
 } from '../../../terminal-settings';
 import type { ProjectedTerminalCommand as ClientProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 
 const attachmentId = AttachmentIdSchema.parse('22'.repeat(16));
 const creationId = CreationIdSchema.parse('33'.repeat(16));
@@ -164,9 +164,8 @@ document.body.style.background = '#d04161';
 document.body.style.margin = '0';
 
 const settings = new TerminalSettingsController({
-	storage: { getItem: () => null, setItem: () => undefined },
 	themeTarget: document.documentElement,
-	userPreferences: memoryUserPreferences(),
+	userSettings: memoryUserSettings(),
 });
 const source = new MutablePresentationConfigurationSource(settings);
 let terminal: WitnessProjectedTerminal | undefined;
@@ -265,8 +264,7 @@ releaseButton.addEventListener('click', () => {
 prepareThemeButton.addEventListener('click', () => {
 	if (pendingThemeCommand !== undefined) return;
 	root.dataset['projectedTerminalThemeState'] = 'preparing';
-	const result = settings.update({ applicationTheme: 'dark', terminalDisplayTheme: 'theme' });
-	root.dataset['witnessThemeUpdateResult'] = result.kind;
+	settings.update({ applicationTheme: 'dark', terminalDisplayTheme: 'theme' });
 	prepareThemeButton.disabled = true;
 });
 

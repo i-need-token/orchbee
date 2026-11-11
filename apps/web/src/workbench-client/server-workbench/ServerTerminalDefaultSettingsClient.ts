@@ -1,34 +1,33 @@
-import {
-	DEFAULT_USER_PREFERENCES,
-	type UserPreferencesSnapshot,
-} from '@orchbee/workbench-client-protocol';
-
 import type {
 	TerminalDefaultSettingsClientSnapshot,
 	TerminalDefaultSettingsControl,
 } from '../../terminal-default-settings-control';
-import type { UserPreferencesControl } from '../../user-preferences';
+import { readSetting, type UserSettingsControl } from '../../user-settings';
 
 /**
- * Scrollback is one of the Session's shared preferences. Settings saves it through those preferences,
- * and the Worker gives it to each terminal it launches after the save, so nothing here writes or
- * reconfigures a running terminal.
+ * Scrollback is `terminal.scrollback_bytes` in the settings file. Settings edits it through the
+ * file, and the Worker gives it to each terminal it launches after the edit, so nothing here writes
+ * or reconfigures a running terminal.
  */
 export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSettingsControl {
 	readonly #listeners = new Set<() => void>();
+	readonly #settings: UserSettingsControl;
 	readonly #stopObserving: () => void;
 	#disposed = false;
-	#observed: UserPreferencesSnapshot | null;
 	#snapshot: TerminalDefaultSettingsClientSnapshot;
 
-	constructor(preferences: UserPreferencesControl) {
-		this.#observed = preferences.getSnapshot().snapshot;
+	constructor(settings: UserSettingsControl) {
+		this.#settings = settings;
 		this.#snapshot = this.#project();
-		this.#stopObserving = preferences.subscribe(() => {
-			const observed = preferences.getSnapshot().snapshot;
-			// A source names its record's content, so an unchanged one changes nothing shown here.
-			if (observed?.source === this.#observed?.source) return;
-			this.#observed = observed;
+		this.#stopObserving = settings.subscribe(() => {
+			const next = this.#project();
+			if (
+				next.failureCode === this.#snapshot.failureCode &&
+				next.configuration.scrollbackBytes === this.#snapshot.configuration.scrollbackBytes
+			) {
+				return;
+			}
+			this.#snapshot = next;
 			this.#present();
 		});
 	}
@@ -49,19 +48,15 @@ export class ServerTerminalDefaultSettingsClient implements TerminalDefaultSetti
 	}
 
 	#project(): TerminalDefaultSettingsClientSnapshot {
-		const observed = this.#observed;
+		const { snapshot } = this.#settings.getSnapshot();
 		return {
-			configuration: {
-				scrollbackBytes:
-					observed?.values.scrollbackBytes ?? DEFAULT_USER_PREFERENCES.scrollbackBytes,
-			},
-			failureCode: observed === null ? 'control-unavailable' : null,
+			configuration: { scrollbackBytes: readSetting(snapshot, 'terminal.scrollback_bytes') },
+			failureCode: snapshot === null ? 'control-unavailable' : null,
 		};
 	}
 
 	#present(): void {
 		if (this.#disposed) return;
-		this.#snapshot = this.#project();
 		for (const listener of new Set(this.#listeners)) {
 			if (!this.#listeners.has(listener)) continue;
 			try {

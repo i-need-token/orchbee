@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 import {
 	TerminalFeedbackSettingsController,
 	type TerminalNotificationCapability,
@@ -39,7 +39,7 @@ describe('TerminalFeedbackSettingsController', () => {
 		const controller = new TerminalFeedbackSettingsController({
 			clock: () => NOW,
 			notificationCapability: notifications,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 
 		expect(controller.getSnapshot()).toEqual({
@@ -68,7 +68,7 @@ describe('TerminalFeedbackSettingsController', () => {
 		const controller = new TerminalFeedbackSettingsController({
 			clock: () => NOW,
 			notificationCapability: notifications,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		expect(controller.update({ completionReminderMode: 'always' })).toEqual({ kind: 'pending' });
 		await Promise.resolve();
@@ -105,7 +105,9 @@ describe('TerminalFeedbackSettingsController', () => {
 		const controller = new TerminalFeedbackSettingsController({
 			clock: () => NOW,
 			notificationCapability: notifications,
-			userPreferences: memoryUserPreferences({ completionReminderMode: 'unfocused' }),
+			userSettings: memoryUserSettings({
+				values: { 'notifications.completion_reminder': 'when-unfocused' },
+			}),
 		});
 		const base = {
 			focused: false,
@@ -154,7 +156,7 @@ describe('TerminalFeedbackSettingsController', () => {
 		);
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const request = controller.requestNotificationPermission();
 		expect(notifications.requestPermission).toHaveBeenCalledOnce();
@@ -168,7 +170,7 @@ describe('TerminalFeedbackSettingsController', () => {
 		const notifications = notificationCapability('granted');
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const notification = {
 			key: 'presentation-1:binding-1:3',
@@ -184,7 +186,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			kind: 'ignored',
 			reason: 'turned-off',
 		});
-		controller.update({ agentNotificationMode: 'hidden' });
+		controller.update({ agentNotificationMode: 'when-hidden' });
 		await Promise.resolve();
 		expect(controller.observeAgentNotification({ ...notification, key: 'next' })).toEqual({
 			kind: 'notify',
@@ -203,7 +205,9 @@ describe('TerminalFeedbackSettingsController', () => {
 		const notifications = notificationCapability('prompt');
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notifications,
-			userPreferences: memoryUserPreferences({ agentNotificationMode: 'hidden' }),
+			userSettings: memoryUserSettings({
+				values: { 'notifications.agent_reminder': 'when-hidden' },
+			}),
 		});
 
 		expect(

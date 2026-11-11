@@ -1,6 +1,5 @@
 export { useTerminalSettings } from './hooks';
 export {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	isTerminalThemePresentationSource,
 	normalizeTerminalHexColor,
 	TerminalSettingsController,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 import { ApplicationLocaleController } from '../ApplicationLocaleController';
 
 describe('ApplicationLocaleController', () => {
@@ -9,7 +9,7 @@ describe('ApplicationLocaleController', () => {
 		const controller = new ApplicationLocaleController({
 			documentElement,
 			preferredLocales: ['zh-Hans-CN', 'en-US'],
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 
 		expect(controller.getSnapshot()).toEqual({ effectiveLocale: 'zh-CN', preference: null });
@@ -21,7 +21,7 @@ describe('ApplicationLocaleController', () => {
 		const controller = new ApplicationLocaleController({
 			documentElement,
 			preferredLocales: ['zh-CN'],
-			userPreferences: memoryUserPreferences({ locale: 'en-US' }),
+			userSettings: memoryUserSettings({ values: { 'general.language': 'en-US' } }),
 		});
 
 		expect(controller.current()).toBe('en-US');
@@ -31,11 +31,11 @@ describe('ApplicationLocaleController', () => {
 
 	it('applies a confirmed selection live and updates document metadata', async () => {
 		const documentElement = { dir: '', lang: '' };
-		const userPreferences = memoryUserPreferences();
+		const userSettings = memoryUserSettings();
 		const controller = new ApplicationLocaleController({
 			documentElement,
 			preferredLocales: ['en-US'],
-			userPreferences,
+			userSettings,
 		});
 		const listener = vi.fn<() => void>();
 		controller.subscribe(listener);
@@ -43,7 +43,7 @@ describe('ApplicationLocaleController', () => {
 		expect(controller.select('zh-CN')).toEqual({ kind: 'pending' });
 		expect(controller.current()).toBe('en-US');
 		await Promise.resolve();
-		expect(userPreferences.getSnapshot().snapshot?.values.locale).toBe('zh-CN');
+		expect(userSettings.getSnapshot().snapshot?.values['general.language']).toBe('zh-CN');
 		expect(controller.current()).toBe('zh-CN');
 		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 		expect(listener).toHaveBeenCalled();
@@ -53,7 +53,7 @@ describe('ApplicationLocaleController', () => {
 		const controller = new ApplicationLocaleController({
 			documentElement: { dir: '', lang: '' },
 			preferredLocales: ['en-US'],
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		expect(controller.select('fr-FR')).toEqual({ kind: 'invalid' });
 
