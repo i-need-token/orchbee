@@ -68,10 +68,8 @@ fn settle_poll(slot: &WorktreeDiscoverySlot, job_id: JobId) -> PollOutcome {
     }
 }
 
-fn fd_held(fd: i32, target: &str) -> bool {
-    std::fs::read_link(format!("/proc/self/fd/{fd}"))
-        .map(|link| link.display().to_string() == target)
-        .unwrap_or(false)
+fn fd_held(fd: i32, identity: &str) -> bool {
+    super::super::descriptor_identity(fd).is_some_and(|current| current == identity)
 }
 
 fn pid_alive(pid: u32) -> bool {
@@ -538,8 +536,8 @@ fn real_git_entrypoint_produces_typed_outcome() {
 #[test]
 fn pipe_fds_are_released_after_completion() -> TestResult {
     // Owned-fd witness: the owner records the exact pipe fd numbers it
-    // held, and each one must be absent from /proc/self/fd after the
-    // job settles — immune to sibling-test fd churn.
+    // held with the identity of the pipe behind each, and no fd may still
+    // name that pipe after the job settles — immune to sibling-test fd churn.
     let slot = WorktreeDiscoverySlot::new();
     let (ttl, cmds, witness) = hooked("printf p", "printf l", Faults::default());
     assert_eq!(
@@ -555,7 +553,7 @@ fn pipe_fds_are_released_after_completion() -> TestResult {
     assert_eq!(held.len(), 4, "two children, two pipe ends each");
     assert!(
         held.iter().all(|(_, target)| !target.is_empty()),
-        "the witness must capture each pipe's /proc/self/fd target"
+        "the witness must capture each pipe's identity"
     );
     let deadline = Instant::now() + Duration::from_secs(3);
     while held.iter().any(|(fd, t)| fd_held(*fd, t)) && Instant::now() < deadline {

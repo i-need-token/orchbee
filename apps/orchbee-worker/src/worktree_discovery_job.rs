@@ -224,7 +224,7 @@ struct Faults {
 #[derive(Default)]
 struct JobWitness {
     spawned: Vec<u32>,
-    // (fd number, /proc/self/fd symlink target) — survives fd reuse.
+    // (fd number, identity of the pipe behind it) — survives fd reuse.
     #[cfg(unix)]
     pipe_ends: Vec<(i32, String)>,
     reaped: Vec<u32>,
@@ -677,6 +677,15 @@ fn witness_record(hooks: Option<&TestHooks>, record: impl FnOnce(&mut JobWitness
     }
 }
 
+/// The device and inode of the object an open descriptor names, read through `/dev/fd`, which
+/// Linux and macOS both provide; `None` once the descriptor is closed.
+#[cfg(unix)]
+fn descriptor_identity(fd: i32) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+    let status = std::fs::metadata(format!("/dev/fd/{fd}")).ok()?;
+    Some(format!("{}:{}", status.dev(), status.ino()))
+}
+
 fn set_nonblocking(file: &dyn AsLocalIo, hooks: Option<&TestHooks>) -> io::Result<()> {
     if hooks.is_some_and(|hooks| hooks.faults.nonblock) {
         return Err(io::Error::other("injected nonblocking-setup fault"));
@@ -733,10 +742,9 @@ fn drain_child(spawned: SpawnedChild, ctx: &mut StageCtx<'_>) -> StageEnd {
         .flatten()
         {
             let fd = file.as_local_io().as_raw_fd();
-            let target = std::fs::read_link(format!("/proc/self/fd/{fd}"))
-                .map(|path| path.display().to_string())
-                .unwrap_or_default();
-            witness.pipe_ends.push((fd, target));
+            witness
+                .pipe_ends
+                .push((fd, descriptor_identity(fd).unwrap_or_default()));
         }
     });
     #[cfg(all(test, windows))]
