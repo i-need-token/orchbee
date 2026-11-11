@@ -2,12 +2,11 @@
 //! Server applies at once; the launch-profile editor applies its catalog when it closes.
 use super::{
     AdjustmentStep, Category, Choice, ChoicePicker, Control, Edit, Editor, IntegrationJob, Page,
-    Pane, Pending, Row, State, Submission, Token, page::text_key, values,
+    Pane, Row, State, Submission, Token, changes::Change, page::text_key, values,
 };
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use orchbee_workbench_protocol::{
-    SettingChange, SettingPath, SettingValue, SettingsOperation, UserLaunchField,
-    UserSettingsValues,
+    SettingChange, SettingPath, SettingValue, UserLaunchField, UserSettingsValues,
 };
 
 impl Editor {
@@ -348,15 +347,9 @@ impl Editor {
             }
             _ => {
                 if let Some(picker) = ChoicePicker::open(row, &page.values) {
-                    if page.pending.is_some() {
-                        return None;
-                    }
                     page.picker = Some(picker);
                     page.follow_selection = true;
                 } else if let Some(limit) = row.text_limit() {
-                    if page.pending.is_some() {
-                        return None;
-                    }
                     if let Some(value) = values::text(page) {
                         page.text = Some(LineEditor::new(value, LengthLimit::Bytes(limit)));
                     }
@@ -405,41 +398,27 @@ impl Editor {
         self.commit(row, requested)
     }
 
-    /// Sends the edit that turns the shown values into `requested`. One edit is in flight at a
-    /// time; the row shows the requested value until the Server answers.
+    /// Asks for the edit that turns the shown values into `requested`. It is kept in order behind
+    /// the changes before it and sent once they are answered; the row shows the request meanwhile.
     fn commit(&mut self, row: Row, requested: UserSettingsValues) -> Option<Submission> {
-        let token = self.allocate()?;
         let State::Open(page) = &mut self.state else {
             return None;
         };
-        if page.pending.is_some() {
-            return None;
-        }
         let changes = orchbee_local_runtime::value_changes(&page.values, &requested, &[]);
         if changes.is_empty() {
             return None;
         }
-        page.values = requested;
-        page.pending = Some(Pending {
-            token,
-            row,
-            text: None,
-        });
-        self.redraw();
-        Some(Submission {
-            token,
-            operation: SettingsOperation::Edit { changes },
-        })
+        let change = Change::new(row, changes, None, &page.values, &requested);
+        self.queue(change)
     }
 
-    /// Sends a text key's new value; an empty text restores its default.
+    /// Asks for a text key's new value; an empty text restores its default.
     fn commit_text(&mut self, row: Row, value: String) -> Option<Submission> {
-        let token = self.allocate()?;
         let State::Open(page) = &mut self.state else {
             return None;
         };
         let key = SettingPath::parse(text_key(row)?).ok()?;
-        if page.pending.is_some() || page.text_value(row).unwrap_or_default() == value {
+        if page.text_value(row).unwrap_or_default() == value {
             return None;
         }
         let (change, text) = if value.is_empty() {
@@ -453,48 +432,50 @@ impl Editor {
                 Some(value),
             )
         };
-        page.pending = Some(Pending {
-            token,
-            row,
-            text: Some(text),
-        });
-        self.redraw();
-        Some(Submission {
-            token,
-            operation: SettingsOperation::Edit {
-                changes: vec![change],
-            },
-        })
+        let change = Change::new(row, vec![change], Some(text), &page.values, &page.values);
+        self.queue(change)
     }
 
-    /// Restores a changed row's keys to their defaults: `row`, or the focused row.
+    /// Asks to restore a row's keys to their defaults: `row`, or the focused row. A row the file
+    /// sets, or one with a change in flight or waiting, can be restored.
     fn restore(&mut self, row: Option<Row>) -> Option<Submission> {
-        let token = self.allocate()?;
         let State::Open(page) = &mut self.state else {
             return None;
         };
         let row = row.unwrap_or(page.row);
-        if page.pending.is_some() || !page.drawn || !page.changed(row) {
+        if !page.drawn || !(page.changed(row) || page.changes.waits(row)) {
             return None;
         }
         let changes = page.restore_changes(row);
+        if changes.is_empty() {
+            return None;
+        }
         page.row = row;
-        page.pending = Some(Pending {
-            token,
-            row,
-            text: None,
-        });
+        let text = text_key(row).map(|_| None);
+        let restored = page.restored_values(row);
+        let change = Change::new(row, changes, text, &page.values, &restored);
+        self.queue(change)
+    }
+
+    /// Keeps a change in order and sends it when nothing is in flight. A request beyond the
+    /// waiting limit is refused with the busy notice and changes nothing.
+    fn queue(&mut self, change: Change) -> Option<Submission> {
+        let State::Open(page) = &mut self.state else {
+            return None;
+        };
+        if !page.changes.push(change) {
+            self.notice = Some(crate::localization::SettingsNotice::Busy);
+            self.redraw();
+            return None;
+        }
+        page.follow_confirmed();
         self.redraw();
-        Some(Submission {
-            token,
-            operation: SettingsOperation::Edit { changes },
-        })
+        self.next_submission()
     }
 
     /// Leaves the launch-profile editor. An edited catalog applies as one edit; an invalid one
     /// first names its field, and leaving again discards it.
     fn leave_profiles(&mut self) -> Option<Submission> {
-        let token = self.allocate()?;
         let State::Open(page) = &mut self.state else {
             return None;
         };
@@ -526,21 +507,16 @@ impl Editor {
             self.redraw();
             return None;
         }
-        if page.pending.is_some() {
-            return None;
-        }
         let changes = orchbee_local_runtime::value_changes(&page.confirmed.values, &requested, &[]);
-        page.pending = Some(Pending {
-            token,
-            row: Row::LaunchProfiles,
-            text: None,
-        });
+        let change = Change::new(
+            Row::LaunchProfiles,
+            changes,
+            None,
+            &page.confirmed.values,
+            &requested,
+        );
         page.return_to_parent();
-        self.redraw();
-        Some(Submission {
-            token,
-            operation: SettingsOperation::Edit { changes },
-        })
+        self.queue(change)
     }
 
     pub(crate) fn scroll(&mut self, token: Token, up: bool, lines: usize) -> Option<Token> {

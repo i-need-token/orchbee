@@ -50,13 +50,20 @@ an invalid catalog first focuses the failing field, and leaving again discards i
 unavailable unless Custom is selected and login shells are unavailable on Windows; a focused
 unavailable row names its reason.
 
-One edit is in flight at a time. Its row shows the pending state while every other row, navigation
-and Back stay usable; further changes are ignored until it settles. A confirmed edit adopts the
-returned snapshot without a success notice. A refused or unknown edit puts the row back to the file
-value and shows the Server's localized reason on the status line: the file was busy, a value or key
+One edit is in flight at a time, and nothing the person does is dropped silently. Changes made while
+one is in flight wait in order and are sent one at a time, each after the previous one is answered,
+so the Server still gets one row's keys per edit; restore takes the same turn. A second change to a
+row whose change has not been sent yet replaces that waiting change. Up to 16 changes wait; a newer
+request beyond them is refused with the Settings busy notice and changes nothing. A row with a change
+in flight or waiting shows the last value asked for and the pending state, while every other row,
+navigation and Back stay usable. A confirmed edit adopts the returned snapshot without a success
+notice. A refused or unknown edit puts its row back to the file value, drops that row's later waiting
+change (it was based on a value that never existed) while the other rows' changes keep their turn,
+and shows the Server's localized reason on the status line: the file was busy, a value or key
 was refused, the file has a syntax error, cannot be read or is not a regular file, is read-only or
 would be too large, its location cannot be used, or the write failed. A syntax error points to
-`orchbee config check` for the position. No request is replayed automatically.
+`orchbee config check` for the position. A snapshot that finds the file unparsable or unreadable
+drops every waiting change and names that reason once. No request is replayed automatically.
 
 A row whose key the file sets carries a changed marker. Del on a changed row, or its painted Restore
 default action, sends one `restore` for that key; the launch-profile row restores both platform keys.
@@ -141,10 +148,10 @@ The Session freezes its `config.toml` location at startup. Clients send no paths
 | Transition           | Required behavior                                                                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Hidden → open        | Read a complete snapshot and show it.                                                                                                                                                 |
-| Open → change        | Require a current successful draw and no edit in flight; send one edit or restore for the row's key and mark only that row pending.                                                   |
+| Open → change        | Require a current successful draw; keep the row's edit or restore in order behind the one in flight, or send it at once when none is, and mark that row pending.                      |
 | Submit → commit      | Lock the file, apply every change or none in one replace and publish one snapshot; keep other keys and comments. A scalar key set to its default is removed, as a restore removes it. |
 | Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                                                                              |
-| External update      | Show the newest confirmed values at once; a pending row stays pending until its own outcome.                                                                                          |
+| External update      | Show the newest confirmed values at once under the changes still in flight or waiting; an unusable file drops the waiting ones.                                                       |
 | Refused / unknown    | Put the row back to the confirmed value and show the reason; replay nothing.                                                                                                          |
 | Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                                                                              |
 | Cancel / close       | Discard an uncommitted inline edit or preview and reveal the confirmed appearance; closing cannot roll back a sent edit.                                                              |

@@ -1,5 +1,5 @@
-//! Rules of the instant-apply page: one edit per change, one edit in flight, a refused edit puts
-//! its row back, per-row restore, and the narrow tier's one column.
+//! Rules of the instant-apply page: one edit per change, later changes kept in order behind the one
+//! in flight, a refused edit puts its row back, per-row restore, and the narrow tier's one column.
 use super::*;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_local_runtime::UserSettingsField;
@@ -236,16 +236,23 @@ fn each_change_sends_one_edit_and_only_its_row_waits_while_navigation_stays_free
         }
         .unwrap_or_else(|| panic!("{row:?} applies at once"));
         assert_eq!(keys(&submission), (vec![key(field)], Vec::new()), "{row:?}");
-        assert_eq!(page(&editor).pending_row(), Some(row), "{row:?}");
+        assert!(page(&editor).waits(row), "{row:?}");
 
-        // A second change waits for the first; moving focus does not.
+        // A second change waits its turn behind the first; moving focus does not wait.
         editor.edit(Edit::Next);
         if page(&editor).selected() == row {
             editor.edit(Edit::Previous);
         }
         draw(&mut editor);
         assert_ne!(page(&editor).selected(), row, "{row:?}");
+        let other = if row == Row::Sound {
+            Row::CopyOnSelect
+        } else {
+            Row::Sound
+        };
+        select(&mut editor, other);
         assert!(editor.edit(Edit::Activate).is_none(), "{row:?}");
+        assert!(page(&editor).waits(other), "{row:?}");
         assert!(editor.in_flight(), "{row:?}");
     }
 }
@@ -297,7 +304,7 @@ fn a_refused_edit_puts_its_row_back_to_the_file_and_an_applied_one_shows_the_con
             }
         }
         assert!(!editor.in_flight(), "{outcome:?}");
-        assert_eq!(page(&editor).pending_row(), None, "{outcome:?}");
+        assert!(!page(&editor).waits(Row::CopyOnSelect), "{outcome:?}");
         assert_eq!(
             page(&editor).values().sound_enabled,
             outside.sound_enabled,
@@ -437,5 +444,162 @@ fn an_unusable_file_is_named_while_the_page_keeps_the_last_valid_values() {
         repaired.file = SettingsFile::Ok {};
         assert!(editor.observe(&repaired));
         assert!(page(&editor).file_fact().is_none(), "{file:?}");
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Step {
+    /// Space on a row.
+    Toggle(Row),
+    /// The Server answers the edit in flight; the next waiting one is sent.
+    Answer(Outcome),
+    /// A snapshot finds the file has a syntax error.
+    BreakFile,
+}
+
+#[test]
+fn changes_made_while_one_is_in_flight_are_sent_in_order_one_at_a_time() {
+    use Outcome::{Applied, Refused};
+    use Step::{Answer, BreakFile, Toggle};
+    let copy = key(UserSettingsField::CopyOnSelect);
+    let sound = key(UserSettingsField::SoundEnabled);
+    let d = UserSettingsValues::default();
+    let (a, b) = (Row::CopyOnSelect, Row::Sound);
+    // Steps; the keys each sent edit sets; the values (copy, sound) shown while the first edit is
+    // in flight and at the end; the notice the page gives.
+    let cases = [
+        (
+            "two rows",
+            vec![Toggle(a), Toggle(b), Answer(Applied), Answer(Applied)],
+            vec![&copy, &sound],
+            (!d.copy_on_select, !d.sound_enabled),
+            (!d.copy_on_select, !d.sound_enabled),
+            None,
+        ),
+        (
+            "same row twice replaces its waiting change",
+            vec![
+                Toggle(a),
+                Toggle(b),
+                Toggle(b),
+                Answer(Applied),
+                Answer(Applied),
+            ],
+            vec![&copy, &sound],
+            (!d.copy_on_select, d.sound_enabled),
+            (!d.copy_on_select, d.sound_enabled),
+            None,
+        ),
+        (
+            "a refusal drops only its row's waiting change",
+            vec![
+                Toggle(a),
+                Toggle(b),
+                Toggle(a),
+                Answer(Refused),
+                Answer(Applied),
+            ],
+            vec![&copy, &sound],
+            (d.copy_on_select, !d.sound_enabled),
+            (d.copy_on_select, !d.sound_enabled),
+            None,
+        ),
+        (
+            "an unusable file drops the waiting changes",
+            vec![Toggle(a), Toggle(b), BreakFile, Answer(Refused)],
+            vec![&copy],
+            (!d.copy_on_select, !d.sound_enabled),
+            (d.copy_on_select, d.sound_enabled),
+            Some(crate::localization::SettingsNotice::SyntaxError),
+        ),
+    ];
+    for (name, steps, expected_sent, asked, end, expected_notice) in cases {
+        let mut file = UserSettingsValues::default();
+        let mut revision = 1;
+        let mut editor = open(&snapshot(revision, &file, &[]));
+        let mut in_flight: Option<Submission> = None;
+        let mut sent = Vec::new();
+        let mut notice = None;
+        let mut checked = false;
+        for step in steps {
+            if !matches!(step, Toggle(_)) && !checked {
+                let values = page(&editor).values();
+                assert_eq!(
+                    (values.copy_on_select, values.sound_enabled),
+                    asked,
+                    "{name}: rows show the last value asked for"
+                );
+                assert!(page(&editor).waits(b), "{name}");
+                checked = true;
+            }
+            match step {
+                Toggle(row) => {
+                    select(&mut editor, row);
+                    if let Some(submission) = editor.edit(Edit::Activate) {
+                        assert!(in_flight.is_none(), "{name}: one edit in flight");
+                        sent.push(keys(&submission).0);
+                        in_flight = Some(submission);
+                    }
+                }
+                Answer(outcome) => {
+                    let submission = in_flight.take().expect("an edit in flight");
+                    match outcome {
+                        Refused => assert!(editor.failed(submission.token), "{name}"),
+                        Applied => {
+                            assert!(editor.edited(submission.token), "{name}");
+                            let SettingsOperation::Edit { changes } = &submission.operation else {
+                                panic!("an edit");
+                            };
+                            for change in changes {
+                                if let SettingChange::Set {
+                                    key,
+                                    value: SettingValue::Boolean(value),
+                                } = change
+                                {
+                                    if key.as_str() == copy {
+                                        file.copy_on_select = *value;
+                                    } else if key.as_str() == sound {
+                                        file.sound_enabled = *value;
+                                    }
+                                }
+                            }
+                            revision += 1;
+                            editor.observe(&snapshot(revision, &file, &[]));
+                        }
+                    }
+                    if let Some(next) = editor.next_submission() {
+                        sent.push(keys(&next).0);
+                        in_flight = Some(next);
+                    }
+                }
+                BreakFile => {
+                    revision += 1;
+                    let mut broken = snapshot(revision, &file, &[]);
+                    broken.file = SettingsFile::SyntaxError {
+                        reason: orchbee_workbench_protocol::SettingsSyntaxReason::InvalidToml,
+                        line: 1,
+                        column: 1,
+                    };
+                    editor.observe(&broken);
+                    notice = notice.or(editor.take_notice());
+                }
+            }
+        }
+        assert_eq!(
+            sent,
+            expected_sent
+                .into_iter()
+                .map(|key| vec![key.clone()])
+                .collect::<Vec<_>>(),
+            "{name}: one row's key per edit, in order"
+        );
+        assert!(
+            in_flight.is_none() && editor.next_submission().is_none(),
+            "{name}"
+        );
+        let values = page(&editor).values();
+        assert_eq!((values.copy_on_select, values.sound_enabled), end, "{name}");
+        assert_eq!(notice, expected_notice, "{name}");
+        assert!(!page(&editor).waits(a) && !page(&editor).waits(b), "{name}");
     }
 }

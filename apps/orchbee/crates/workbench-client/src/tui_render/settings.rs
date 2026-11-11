@@ -739,7 +739,7 @@ fn render_row(
     fill(frame, inner, base, interaction, theme);
     let name_x = rect.x + 4;
     let end = rect.right().saturating_sub(2);
-    let pending = page.pending_row() == Some(row);
+    let pending = page.waits(row);
     let editing = is_focused && page.text().is_some();
     let content_role = if enabled {
         Role::TextPrimary
@@ -892,7 +892,7 @@ fn render_row(
                 theme,
             );
         } else {
-            let restore = (is_focused && page.changed(row) && page.pending_row().is_none())
+            let restore = (is_focused && page.changed(row))
                 .then(|| format!("[{}]", locale.settings_restore()));
             let restore_width = restore
                 .as_ref()

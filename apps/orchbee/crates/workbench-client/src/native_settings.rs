@@ -10,6 +10,7 @@ mod appearance;
 pub(crate) use appearance::AppearancePreview;
 mod catalog;
 pub(crate) use catalog::{Category, Entry, Group};
+mod changes;
 mod choices;
 pub(crate) use choices::{Choice, ChoicePicker};
 mod editing;
@@ -18,7 +19,7 @@ mod integrations;
 pub(crate) use integrations::{Diagnosis, IntegrationJob, Integrations, JobEnd};
 mod metadata;
 mod page;
-use page::{PageState, Pending};
+use page::PageState;
 pub(crate) use page::{PageView, Pane};
 mod rows;
 #[cfg(any(test, feature = "test-support"))]
@@ -243,6 +244,8 @@ pub(crate) struct Editor {
     state: State,
     presentation: PresentationPhase,
     surface_presented: bool,
+    /// Why a change the person asked for was not kept, for the Settings notice.
+    notice: Option<crate::localization::SettingsNotice>,
 }
 impl Editor {
     pub(crate) fn new(login_shell_supported: bool) -> Self {
@@ -314,7 +317,7 @@ impl Editor {
             values: confirmed.values.clone(),
             confirmed,
             file: self.file.clone(),
-            pending: None,
+            changes: changes::Changes::default(),
             category: Category::General,
             pane: Pane::Categories,
             row: Row::Language,
@@ -340,8 +343,9 @@ impl Editor {
         self.state = State::Open(Box::new(page));
         true
     }
-    /// Follows a newer snapshot: its values show at once unless an edit is in flight, and its
-    /// file state names a file the page cannot use. Returns whether a visible page changed.
+    /// Follows a newer snapshot: its values show at once under the changes still in flight or
+    /// waiting, and its file state names a file the page cannot use. A file that stops being usable
+    /// drops the waiting changes, with its reason shown once. Returns whether a visible page changed.
     pub(crate) fn observe(&mut self, snapshot: &SettingsSnapshot) -> bool {
         let file = FileState::of(snapshot);
         let file_changed = self.file != file;
@@ -351,11 +355,22 @@ impl Editor {
         };
         page.file = self.file.clone();
         let newer = snapshot.revision.value() > page.confirmed.revision;
+        let unusable = match &self.file {
+            FileState::Usable => None,
+            FileState::SyntaxError { .. } => Some(crate::localization::SettingsNotice::SyntaxError),
+            FileState::Unreadable { .. } => Some(crate::localization::SettingsNotice::Unreadable),
+        };
+        let dropped = unusable.is_some() && page.changes.clear_waiting();
+        if dropped {
+            self.notice = unusable;
+        }
         if newer {
             page.confirmed = Confirmed::of(snapshot);
+        }
+        if newer || dropped {
             page.follow_confirmed();
         }
-        if !newer && !file_changed {
+        if !newer && !file_changed && !dropped {
             return false;
         }
         self.redraw();
@@ -363,30 +378,26 @@ impl Editor {
     }
     /// The Server applied the edit `token` names; the page shows the confirmed values.
     pub(crate) fn edited(&mut self, token: Token) -> bool {
-        self.settle(token)
+        self.settle(token, false)
     }
     /// A read or an edit failed. A failed read closes the page; a refused or unanswered edit
-    /// puts its row back to the confirmed value.
+    /// puts its row back to the confirmed value and drops that row's waiting change, while the
+    /// other rows' changes keep their turn.
     pub(crate) fn failed(&mut self, token: Token) -> bool {
         if matches!(self.state, State::Loading { token: current, .. } if current == token) {
             self.state = State::Closed;
             self.surface_presented = false;
             return true;
         }
-        self.settle(token)
+        self.settle(token, true)
     }
-    fn settle(&mut self, token: Token) -> bool {
+    fn settle(&mut self, token: Token, refused: bool) -> bool {
         let State::Open(page) = &mut self.state else {
             return false;
         };
-        if page
-            .pending
-            .as_ref()
-            .is_none_or(|pending| pending.token != token)
-        {
+        if !page.changes.settle(token, refused) {
             return false;
         }
-        page.pending = None;
         page.follow_confirmed();
         self.redraw();
         true
@@ -417,7 +428,26 @@ impl Editor {
     }
     /// An edit the Server has not answered.
     pub(crate) fn in_flight(&self) -> bool {
-        matches!(&self.state, State::Open(page) if page.pending.is_some())
+        matches!(&self.state, State::Open(page) if page.changes.in_flight())
+    }
+    /// The oldest waiting change, once the one before it is answered: one edit for its row.
+    pub(crate) fn next_submission(&mut self) -> Option<Submission> {
+        if !matches!(&self.state, State::Open(page) if page.changes.ready()) {
+            return None;
+        }
+        let token = self.allocate()?;
+        let State::Open(page) = &mut self.state else {
+            return None;
+        };
+        let changes = page.changes.send(token)?.changes().to_vec();
+        Some(Submission {
+            token,
+            operation: SettingsOperation::Edit { changes },
+        })
+    }
+    /// Why the last change was not kept, once.
+    pub(crate) fn take_notice(&mut self) -> Option<crate::localization::SettingsNotice> {
+        self.notice.take()
     }
     pub(crate) fn retire(&mut self) {
         self.state = State::Closed;

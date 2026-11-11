@@ -104,6 +104,9 @@ impl Coordinator {
         }
         // The file state changes without the values when the file stops or starts parsing.
         self.editor.observe(&snapshot);
+        if let Some(notice) = self.editor.take_notice() {
+            self.note(notice);
+        }
         self.observed_revision = Some(revision);
         self.snapshot = Some(snapshot);
         true
@@ -229,6 +232,11 @@ impl WorkbenchClientUi {
     fn submit_settings(&mut self, submission: Submission) {
         // A new read or change replaces the outcome of the last one.
         self.settings.clear_notice();
+        self.send_settings(submission);
+    }
+    /// Sends a read or edit without touching the notice, so a refusal stays shown while the
+    /// changes waiting behind it are sent.
+    fn send_settings(&mut self, submission: Submission) {
         let token = submission.token;
         let Some(serial) = self.settings.serial.checked_add(1) else {
             self.fail_settings(token, Notice::Failed);
@@ -271,6 +279,7 @@ impl WorkbenchClientUi {
     }
     pub(super) fn drive_settings(&mut self) -> bool {
         self.ensure_settings_lane();
+        self.send_waiting_settings();
         let pending = matches!(self.settings.editor.view(), Some(View::Loading { .. }))
             && self.settings.started.is_some_and(|started| {
                 self.clock.now().saturating_duration_since(started) >= Duration::from_millis(200)
@@ -300,7 +309,27 @@ impl WorkbenchClientUi {
                 },
             ),
         }
+        self.send_waiting_settings();
         true
+    }
+    /// Sends the changes waiting their turn, one at a time: the next only after the one before
+    /// it is answered. A send that fails at once settles it and lets the next one go.
+    fn send_waiting_settings(&mut self) {
+        while let Some(submission) = self.settings.editor.next_submission() {
+            self.send_settings(submission);
+            if self.settings.editor.in_flight() {
+                break;
+            }
+        }
+    }
+    /// Submits what a key or click asked for and names a request the page could not keep.
+    fn submit_settings_change(&mut self, submission: Option<Submission>) {
+        if let Some(submission) = submission {
+            self.submit_settings(submission);
+        }
+        if let Some(notice) = self.settings.editor.take_notice() {
+            self.settings.note(notice);
+        }
     }
     /// Submits the job the page admitted and settles whatever ended, even while Settings is
     /// closed. A job of another Session is no longer followed.
@@ -424,10 +453,9 @@ impl WorkbenchClientUi {
             .editor
             .view()
             .and_then(|view| key_edit_for_view(event, view));
-        if let Some(edit) = edit
-            && let Some(submission) = self.settings.editor.edit(edit)
-        {
-            self.submit_settings(submission);
+        if let Some(edit) = edit {
+            let submission = self.settings.editor.edit(edit);
+            self.submit_settings_change(submission);
         }
     }
     pub(in crate::workbench_client) fn capture_settings_paste(&mut self, text: Option<&str>) {
@@ -442,14 +470,12 @@ impl WorkbenchClientUi {
         token: Token,
         control: crate::native_settings::Control,
     ) {
-        if let Some(submission) = self.settings.editor.control(token, control) {
-            self.submit_settings(submission);
-        }
+        let submission = self.settings.editor.control(token, control);
+        self.submit_settings_change(submission);
     }
     pub(in crate::workbench_client) fn click_settings(&mut self, token: Token, row: Row) {
-        if let Some(submission) = self.settings.editor.click(token, row) {
-            self.submit_settings(submission);
-        }
+        let submission = self.settings.editor.click(token, row);
+        self.submit_settings_change(submission);
     }
     pub(super) fn after_settings_draw(&mut self, draw: Option<ModalPresentation<SettingsDraw>>) {
         match draw {

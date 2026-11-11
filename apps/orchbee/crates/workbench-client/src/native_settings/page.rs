@@ -1,9 +1,10 @@
-//! What the page shows and what is in flight: the confirmed values, at most one edit the Server
-//! has not answered, and where focus is. Drawing and key decoding stay outside.
+//! What the page shows and what is in flight: the confirmed values, the changes the person asked
+//! for in order, and where focus is. Drawing and key decoding stay outside.
 use super::{
     Adjustment, Category, Choice, ChoicePicker, Confirmed, Entry, FileState, Group, Integrations,
     Page, Row, SettingAvailability, SettingControl, SettingsDraw, Token,
     catalog::{self, Filter},
+    changes::Changes,
     setting, setting_for_row,
 };
 use crate::terminal_text::line_editor::LineEditor;
@@ -18,15 +19,6 @@ use orchbee_workbench_protocol::{
 pub(crate) enum Pane {
     Categories,
     Rows,
-}
-
-/// The one edit the Server has not answered: the row it changes and, for a text key, the text it
-/// asked for (`None` restores the default).
-#[derive(Clone, Debug)]
-pub(super) struct Pending {
-    pub(super) token: Token,
-    pub(super) row: Row,
-    pub(super) text: Option<Option<String>>,
 }
 
 /// Where a child page returns.
@@ -44,10 +36,10 @@ pub(super) struct PageState {
     pub(super) token: Token,
     pub(super) confirmed: Confirmed,
     pub(super) file: FileState,
-    /// What the rows show: the confirmed values, a pending edit's requested value, and the
-    /// launch-profile editor's catalog while it is open.
+    /// What the rows show: the confirmed values with every change in flight or waiting laid over
+    /// them, and the launch-profile editor's catalog while it is open.
     pub(super) values: UserSettingsValues,
-    pub(super) pending: Option<Pending>,
+    pub(super) changes: Changes,
     pub(super) category: Category,
     pub(super) pane: Pane,
     pub(super) row: Row,
@@ -277,14 +269,11 @@ impl PageState {
         self.settle_focus();
     }
 
-    /// Shown values follow the newest confirmed ones unless an edit is in flight; the open
-    /// launch-profile editor keeps its catalog.
+    /// Shown values follow the newest confirmed ones with the changes in flight or waiting laid
+    /// over them; the open launch-profile editor keeps its catalog.
     pub(super) fn follow_confirmed(&mut self) {
-        if self.pending.is_some() {
-            return;
-        }
         let catalog = (self.page == Page::Profiles).then(|| self.values.launch_profiles.clone());
-        self.values = self.confirmed.values.clone();
+        self.values = self.changes.shown(&self.confirmed.values);
         if let Some(catalog) = catalog {
             self.values.launch_profiles = catalog;
         }
@@ -320,18 +309,53 @@ impl PageState {
             })
     }
 
-    /// The text a text-key row shows: a pending edit's request, else the file's value.
+    /// The text a text-key row shows: the last text asked for, else the file's value.
     pub(super) fn text_value(&self, row: Row) -> Option<&str> {
-        if let Some(Pending {
-            row: pending,
-            text: Some(text),
-            ..
-        }) = &self.pending
-            && *pending == row
-        {
-            return text.as_deref();
+        if let Some(text) = self.changes.text(row) {
+            return text;
         }
         self.confirmed.text(text_key(row)?)
+    }
+
+    /// The shown values with `row`'s field back at its default, as a restore asks.
+    pub(super) fn restored_values(&self, row: Row) -> UserSettingsValues {
+        let restored = self.restore_changes(row);
+        let names = |changes: &[SettingChange], key: &str| {
+            changes.iter().any(|change| match change {
+                SettingChange::Set { key: changed, .. } => changed.as_str() == key,
+                SettingChange::Restore { .. } => false,
+            })
+        };
+        let (Ok(serde_json::Value::Object(shown)), Ok(serde_json::Value::Object(defaults))) = (
+            serde_json::to_value(&self.values),
+            serde_json::to_value(UserSettingsValues::default()),
+        ) else {
+            return self.values.clone();
+        };
+        let mut values = shown.clone();
+        for (member, default) in defaults {
+            if shown.get(&member) == Some(&default) {
+                continue;
+            }
+            let mut candidate = shown.clone();
+            candidate.insert(member.clone(), default.clone());
+            let Ok(candidate) =
+                serde_json::from_value::<UserSettingsValues>(serde_json::Value::Object(candidate))
+            else {
+                continue;
+            };
+            let moved = orchbee_local_runtime::value_changes(&self.values, &candidate, &[]);
+            if restored.iter().any(|change| {
+                let key = match change {
+                    SettingChange::Set { key, .. } | SettingChange::Restore { key } => key,
+                };
+                names(&moved, key.as_str())
+            }) {
+                values.insert(member, default);
+            }
+        }
+        serde_json::from_value(serde_json::Value::Object(values))
+            .unwrap_or_else(|_| self.values.clone())
     }
 
     pub(super) fn enabled(&self, integrations: &Integrations, row: Row) -> bool {
@@ -522,8 +546,9 @@ impl<'a> PageView<'a> {
     pub(crate) const fn values(self) -> &'a UserSettingsValues {
         &self.state.values
     }
-    pub(crate) fn pending_row(self) -> Option<Row> {
-        self.state.pending.as_ref().map(|pending| pending.row)
+    /// The row has a change in flight or waiting its turn.
+    pub(crate) fn waits(self, row: Row) -> bool {
+        self.state.changes.waits(row)
     }
     pub(crate) const fn profile(self) -> usize {
         self.state.profile

@@ -234,7 +234,7 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
     }
     hints.push(hint(PRIMARY, primary_label(page, selected)));
     hints.push(hint(SEARCH, SettingsHintLabel::Search));
-    if page.changed(selected) && page.pending_row().is_none() {
+    if page.changed(selected) {
         hints.push(hint(RESTORE, SettingsHintLabel::Restore));
     }
     hints
