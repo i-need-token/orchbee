@@ -6,5 +6,7 @@ License: Apache-2.0 (see LICENSE).
 Orchbee owns local rule corrections, its parser and sampling integration.
 grok.toml adds browser-authentication blockers and an uncertain-login guard, with updated version metadata.
 opencode.toml and pi.toml add live-footer idle and status-loader working rules, with updated version metadata.
-omp.toml is authored by Orchbee and is not derived from Herdr.
+atomcode.toml, codebuddy.toml, command-code.toml, deveco.toml, jcode.toml, mimo.toml,
+minimax-code.toml, mothx.toml, omp.toml, penguin.toml, prime-agent.toml, reasonix.toml and
+snow.toml are authored by Orchbee and are not derived from Herdr.
 The region matching implementation is adapted from src/detect/manifest.rs, with UTF-8-safe CRLF offsets.

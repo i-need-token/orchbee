@@ -1,0 +1,43 @@
+id = "minimax-code"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["mcode"]
+
+# MiniMax Code (mcode) 0.7.x starts its OSC title with its run state: "Ready", "Working", "Done"
+# or "Stopped", then " | ". A running turn also shows a braille spinner status such as
+# "Loading · …" or "Running 11s · …" above the › composer, which stays visible between two
+# rules at rest.
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 200
+region = "osc_title"
+visible_working = true
+regex = ['^Working \| ']
+
+[[rules]]
+id = "spinner_status_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+line_regex = ['^\s*[\x{2800}-\x{28FF}] \S+(?: [\dhms.]+)* · ']
+
+[[rules]]
+id = "osc_title_idle"
+state = "idle"
+priority = 50
+region = "osc_title"
+visible_idle = true
+regex = ['^(?:Ready|Done|Stopped) \| ']
+
+[[rules]]
+id = "composer_idle"
+state = "idle"
+priority = 40
+region = "bottom_non_empty_lines(5)"
+visible_idle = true
+line_regex = ['^\s*─{3,}\s*$', '^\s*›\s']
+not = [{ line_regex = ['^\s*[\x{2800}-\x{28FF}] \S+(?: [\dhms.]+)* · '] }]

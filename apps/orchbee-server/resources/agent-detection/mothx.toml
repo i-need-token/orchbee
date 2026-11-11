@@ -1,0 +1,24 @@
+id = "mothx"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+
+# Mothx 1.3.x leaves the OSC title to the shell. Its bottom row is a key-hint footer that starts
+# with "| Tab:mode" at rest, or "last <time> | Tab:mode" after a turn. A running turn replaces
+# that row with a braille spinner, elapsed time and "esc to cancel". A ▄▄▄ bar tops the composer.
+
+[[rules]]
+id = "spinner_footer_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(1)"
+visible_working = true
+line_regex = ['^\s*[\x{2800}-\x{28FF}] <?\d+(?:\.\d+)?[smh]\b.*· esc to cancel']
+
+[[rules]]
+id = "hint_footer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+line_regex = ['^\s*▄{3,}', '^\s*(?:last \S+\s+)?\| Tab:mode\b']

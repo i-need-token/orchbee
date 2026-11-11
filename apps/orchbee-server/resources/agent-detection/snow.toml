@@ -1,0 +1,43 @@
+id = "snow"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["snow-cli"]
+
+# Snow CLI 0.9.x titles a session "Snow CLI - <summary> - snow" for its whole life and prefixes
+# "[ ! ] Action Required" (blinking to "[ . ]") while a tool confirmation waits. A running turn
+# shows a one-glyph spinner status such as "Thinking...( 3s · …)" above the ❯ composer; the
+# composer and the "tok/s" status line stay visible at rest.
+
+[[rules]]
+id = "osc_title_action_required_blocked"
+state = "blocked"
+priority = 300
+region = "osc_title"
+visible_blocker = true
+regex = ['^\[ [!.] \] Action Required\b']
+
+[[rules]]
+id = "tool_confirmation_blocked"
+state = "blocked"
+priority = 290
+region = "bottom_non_empty_lines(16)"
+visible_blocker = true
+contains = ["[tool confirmation]", "select action:"]
+any = [{ contains = ["approve (once)"] }, { contains = ["enter rejection reason:"] }]
+
+[[rules]]
+id = "spinner_status_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(12)"
+visible_working = true
+line_regex = ['^\s*\S \S[^(]*\.\.\.\(.*\b\d+(?:\.\d+)?[smh] ·.*\)\s*$']
+
+[[rules]]
+id = "composer_status_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(6)"
+visible_idle = true
+line_regex = ['^\s*─{3,}\s*$', '^\s*❯ ', '\btok/s\b']

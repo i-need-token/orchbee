@@ -206,6 +206,228 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
         );
     }
 }
+/// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
+/// mothx 1.3.108, prime-agent 0.10.2, penguin 0.2.18, jcode 0.99.1, codebuddy 2.182.0, command-code
+/// and deveco 0.3.0. Busy chrome outranks the composer that stays on screen, a startup question
+/// blocks only while its live choices or empty answer row are shown, and stray words stay unknown.
+#[test]
+fn new_provider_rules_follow_redacted_windows_captures() {
+    use Provider as P;
+    const ATOM: &str = "─────────\n❯\n─────────\nmodel │ app │ 27.2K/1M tok (3%)";
+    const MIMO_BOX: &str = "  ┃\n  ┃  Build · Model\n  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n";
+    const TRUST: &str = "│  Once trusted, the Agent can read, edit, and execute files.\n│\n◆\n│  ● Yes, I trust this folder\n│  ○ No, exit\n└";
+    const RX: &str = "─────────\n ❯\n─────────\n";
+    const SNOW: &str = " ─────────\n ❯ Ask me anything about coding... New line: Alt+Enter / Ctrl+Enter\n ─────────\n\n § default | ⏱ 0 tok/s";
+    const MC: &str =
+        "   ─────────\n ›  Ask Mcode to do anything\n   ─────────\n\n app │ Auto │ ✦ Model";
+    const MOTH: &str = "▄▄▄▄▄▄▄▄▄▄▄▄\n Type a message...\n 🚀 YOLO | Model | …\n";
+    const PRIME: &str = "        Collapsed mode (Ctrl+O to expand)\n >\n← manage        model · 0 (0%)\n─────────\n ◆ 0 subagents  ·  ◷ 0 heartbeats  ·  ▸ 0 shells";
+    const JC_FOOT: &str = " C:\\Users\\example\\src\\app 0% Model";
+    let atom_idle = format!("✻ Done 02:19 · 10.9s · 1 rounds · 0 tools\n{ATOM}");
+    let atom_busy = format!("⠧ waiting for the model （0s elapsed）\n{ATOM}");
+    let mimo_idle = format!(
+        "{MIMO_BOX}   27.6K/900K (3%) · $0.00  tab switch   ctrl+p        @ attach     $ subagent/\n                            mode         settings      file                   commands"
+    );
+    let mimo_busy = format!(
+        "{MIMO_BOX}           ∙·˙∙·🛸  esc         27.6K/900K (3%) · $0.00  tab switch mode ctrl+p settings\n                    interrupt"
+    );
+    let rx_tail = " MODEL model   EFFORT auto\n ─────────\n CTX 5.9K (0%)  COMPACT 90%";
+    let rx_idle = format!("{RX}  Ask  · ready · Shift+Tab read-only/ask/auto/YOLO/plan\n{rx_tail}");
+    let rx_busy =
+        format!("  ⣻ working · 0s\n{RX}  Ask  · Shift+Tab read-only/ask/auto/YOLO/plan\n{rx_tail}");
+    let snow_idle = format!(" └─ AI finished at 02:23:18 (10s)\n{SNOW}");
+    let snow_busy = format!(
+        " ✼ Thinking...( model · 3s · awaiting response...)\n   └─ tips: Type / to view all commands\n{SNOW}"
+    );
+    let snow_approval = " │ [Tool Confirmation]\n │ Tool: terminal-execute\n │ Select action:\n │ ❯ Approve (once)\n │   Reject with reply\n ╰─────────╯";
+    let snow_reply = " │ [Tool Confirmation]\n │ Select action:\n │ Enter rejection reason:\n │ >\n │ Press Enter to submit\n ╰─────────╯";
+    let mc_idle = format!("   Message · Enter send · Shift+Enter newline\n{MC}");
+    let mc_loading = format!("   ⠸ Loading · Alt+Enter queue · Esc stop\n{MC}");
+    let mc_running = format!("   ⠴ Running 11s · Alt+Enter queue · Esc stop\n{MC}");
+    let jc_idle = format!(" ~\\src\\app\n\n1>\n{JC_FOOT}");
+    let jc_busy = format!(" 1› Count to forty\n⠦ sending context… 2s · https\n2…\n{JC_FOOT}");
+    let jc_question =
+        "│    [y] Set up   [n] Not now   [d] Don't ask again        │\n└──────────┘\n  >";
+    let engine = ScreenDetector::bundled().unwrap();
+    for (provider, screen, title, expected) in [
+        (P::AtomCode, atom_idle.as_str(), "🟢 atomcode", Idle),
+        (P::AtomCode, &atom_idle, "", Idle),
+        (P::AtomCode, &atom_busy, "🟡 Summary", Working),
+        (P::AtomCode, &atom_busy, "🟢 Summary", Working), // Title lags.
+        (P::AtomCode, "the log says （3s elapsed）", "", Unknown),
+        (P::Mimo, &mimo_idle, "MC | Summary", Idle),
+        (P::Mimo, &mimo_busy, "MC | Summary", Working),
+        (P::Mimo, TRUST, "", Blocked),
+        (
+            P::Mimo,
+            "◇\n│  Yes, I trust this folder\n│\n◆  Workspace trusted.",
+            "",
+            Unknown,
+        ),
+        (P::Reasonix, &rx_idle, "", Idle),
+        (P::Reasonix, &rx_busy, "", Working),
+        (
+            P::Reasonix,
+            "Allow anonymous CLI usage statistics? [Y/n]:",
+            "",
+            Blocked,
+        ),
+        (
+            P::Reasonix,
+            "Allow anonymous CLI usage statistics? [Y/n]: n\nPS C:\\Users\\example\\src\\app>",
+            "",
+            Unknown,
+        ),
+        (P::Snow, &snow_idle, "Snow CLI - Task - snow", Idle),
+        (P::Snow, &snow_busy, "Snow CLI - Task - snow", Working),
+        (P::Snow, snow_approval, "", Blocked),
+        (P::Snow, snow_reply, "", Blocked),
+        (
+            P::Snow,
+            &snow_idle,
+            "[ ! ] Action Required - Snow CLI - Task - snow",
+            Blocked,
+        ),
+        (P::Snow, "Thinking...", "Snow CLI - Task - snow", Unknown),
+        (P::MinimaxCode, "", "Ready | app | MCode", Idle),
+        (P::MinimaxCode, "", "Done | Summary | MCode", Idle),
+        (P::MinimaxCode, "", "Stopped | Summary | MCode", Idle),
+        (
+            P::MinimaxCode,
+            &mc_idle,
+            "Working | Summary | MCode",
+            Working,
+        ),
+        (P::MinimaxCode, &mc_idle, "", Idle),
+        (P::MinimaxCode, &mc_loading, "", Working),
+        (
+            P::MinimaxCode,
+            &mc_running,
+            "Done | Summary | MCode",
+            Working,
+        ),
+        (P::MinimaxCode, "", "notes | Ready", Unknown),
+        (
+            P::Mothx,
+            &format!("{MOTH} | Tab:mode Esc:abort Ctrl+O:details"),
+            "",
+            Idle,
+        ),
+        (
+            P::Mothx,
+            &format!("{MOTH} last 9s | Tab:mode Esc:abort"),
+            "",
+            Idle,
+        ),
+        (
+            P::Mothx,
+            &format!("{MOTH} ⠙ <1s · esc to cancel     🔓 No sandbox"),
+            "",
+            Working,
+        ),
+        (P::Mothx, "the docs say esc to cancel", "", Unknown),
+        (
+            P::PrimeAgent,
+            &format!(" Operation aborted · 3s\n{PRIME}"),
+            "",
+            Idle,
+        ),
+        (
+            P::PrimeAgent,
+            &format!(" ⠇ Writing · 3s · ↓ 109 tokens\n{PRIME}"),
+            "",
+            Working,
+        ),
+        (
+            P::PrimeAgent,
+            " Share agent traces with Prime Intellect?\n\n > Share\n   Not now\n\n You can change this anytime with /traces.",
+            "",
+            Blocked,
+        ),
+        (
+            P::Penguin,
+            "[stats] context 8.1k · tokens 8.1k · 10s\n>",
+            "",
+            Idle,
+        ),
+        (
+            P::Penguin,
+            "> Write the numbers from 1 to 300.\n1\n2\n3",
+            "",
+            Working,
+        ),
+        (
+            P::Penguin,
+            "[stats] context 8.1k · tokens 8.1k · 10s\n> hel",
+            "",
+            Unknown,
+        ),
+        (
+            P::Penguin,
+            "> /exit\nPS C:\\Users\\example\\src\\app>",
+            "",
+            Unknown,
+        ),
+        (P::Jcode, &jc_idle, "", Idle),
+        (P::Jcode, &jc_busy, "", Working),
+        (P::Jcode, "", "🌐 jcode/server Client · work ~2s", Working),
+        (
+            P::Jcode,
+            "",
+            "🌐 jcode/server Client · last ~1m33s",
+            Unknown,
+        ),
+        (P::Jcode, jc_question, "", Blocked),
+        (P::Jcode, &format!("{jc_question} n"), "", Unknown),
+        (
+            P::CodeBuddy,
+            "│ Do you trust the files in this folder?      │\n│   > 1. Trust folder only (app)              │\n│     4. No, exit (escape)                    │\n│ Enter to confirm • Esc to exit              │\n╰─────────╯",
+            "",
+            Blocked,
+        ),
+        (
+            P::CodeBuddy,
+            " Select login method:\n\n ❯ Log in via International Site\n\n (Use ↑↓ to select, Enter to login)",
+            "",
+            Blocked,
+        ),
+        (
+            P::CodeBuddy,
+            ">\n─────────\nmodel · ? for shortcuts",
+            "",
+            Unknown,
+        ),
+        (
+            P::CommandCode,
+            "Sign in to Command Code\n\n⠧ Complete login in your browser...\n│ API Key: Paste your API key... │\n\nAuthorize in browser, or paste API key here\n\nctrl+c to cancel",
+            "",
+            Blocked,
+        ),
+        (
+            P::CommandCode,
+            "Sign in to Command Code\n│ API Key: Paste your API key... │\nctrl+c to cancel\n└  ✘ Authentication cancelled by user.",
+            "",
+            Unknown,
+        ),
+        (P::DevEco, TRUST, "", Blocked),
+        (
+            P::DevEco,
+            "   [ ] I have read and agree to the Terms of Use and Privacy Notice\n\n   Space: check · Enter: agree and continue\n\n  ~\\src\\app      0.3.0-stable",
+            "",
+            Blocked,
+        ),
+    ] {
+        let sample = ScreenInput {
+            screen,
+            title,
+            progress: "",
+        };
+        let detected = engine.detect(Some(provider), sample).unwrap();
+        assert_eq!(detected.state, expected, "{provider:?} {title:?}\n{screen}");
+        assert_eq!(detected.visible_blocker, expected == Blocked);
+        assert_eq!(engine.explain(provider, sample).unwrap().state, expected);
+    }
+}
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }

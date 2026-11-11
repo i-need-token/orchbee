@@ -1,0 +1,26 @@
+id = "codebuddy"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["codebuddy-code"]
+
+# CodeBuddy Code 2.x asks two startup questions before it accepts a message: a folder trust list
+# and, without a login, a login-method list. Both wait for a choice. Idle and working screens
+# have not been captured, so this file holds only those blockers.
+
+[[rules]]
+id = "folder_trust_prompt"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(24)"
+visible_blocker = true
+contains = ["do you trust the files in this folder?", "enter to confirm • esc to exit"]
+line_regex = ['^│\s+(?:> )?\d+\. Trust folder']
+
+[[rules]]
+id = "login_method_prompt"
+state = "blocked"
+priority = 290
+region = "bottom_non_empty_lines(10)"
+visible_blocker = true
+line_regex = ['^\s*Select login method:\s*$', '^\s*\(Use ↑↓ to select, Enter to login\)\s*$']

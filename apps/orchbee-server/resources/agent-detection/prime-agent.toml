@@ -1,0 +1,33 @@
+id = "prime-agent"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+
+# PRIME Agent 0.10.x leaves the OSC title to the shell. A running turn shows a braille spinner
+# status such as "Thinking · 2s" above its > composer; the footer under the composer counts
+# subagents, heartbeats and shells in every state. Its first start asks whether to share traces
+# and waits for a choice.
+
+[[rules]]
+id = "trace_sharing_question"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(10)"
+visible_blocker = true
+line_regex = ['^\s*Share agent traces with Prime Intellect\?\s*$', '^\s*(?:> )?Not now\s*$']
+
+[[rules]]
+id = "spinner_status_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+line_regex = ['^\s*[\x{2800}-\x{28FF}] \S+ · \d+(?:\.\d+)?[smh]\b']
+
+[[rules]]
+id = "composer_footer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(5)"
+visible_idle = true
+line_regex = ['^\s*>(?:\s|$)', '^\s*◆ \d+ subagents?\s+·\s+◷ \d+ heartbeats?']

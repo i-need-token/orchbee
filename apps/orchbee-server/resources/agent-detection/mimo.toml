@@ -1,0 +1,52 @@
+id = "mimo"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["mimocode", "mimo-code"]
+
+# MiMo Code 0.1.x draws an OpenCode-style prompt box closed by a ╹▀▀▀ border with a key-hint
+# footer under it. Its OSC title names the session and does not change while a turn runs. A
+# running turn puts "esc interrupt" into the footer; narrow panes wrap each hint into two rows,
+# leaving "interrupt" alone on the second row. The startup workspace trust question is a list
+# whose live choices carry ●/○ bullets until it is answered.
+
+[[rules]]
+id = "workspace_trust_prompt"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(4)"
+visible_blocker = true
+line_regex = ['^│\s+[●○] Yes, I trust this folder\s*$', '^│\s+[●○] No, exit\s*$', '^└\s*$']
+
+[[rules]]
+id = "interrupt_footer_working"
+state = "working"
+priority = 110
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+line_regex = ['^\s*╹▀{3,}']
+any = [
+	{ line_regex = [
+		'(?i)\besc (?:again to )?interrupt\b',
+	] },
+	{ line_regex = [
+		'(?:^|\s)esc(?:\s|$)',
+		'^\s*interrupt\s*$',
+	] },
+]
+
+[[rules]]
+id = "prompt_footer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(10)"
+visible_idle = true
+line_regex = ['^\s*╹▀{3,}', '(?:^|\s)commands(?:\s|$)']
+not = [
+	{ line_regex = [
+		'(?i)\besc (?:again to )?interrupt\b',
+	] },
+	{ line_regex = [
+		'^\s*interrupt\s*$',
+	] },
+]

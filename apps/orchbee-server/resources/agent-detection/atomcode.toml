@@ -1,0 +1,40 @@
+id = "atomcode"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+
+# AtomCode 5.x starts its OSC title with a status light: green at rest, yellow while a turn
+# runs. Its screen shows a braille spinner with elapsed time while it waits for the model or
+# runs a tool, above the ❯ composer between two rules and the token-usage footer.
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 200
+region = "osc_title"
+visible_working = true
+regex = ['^\x{1F7E1}\s']
+
+[[rules]]
+id = "spinner_elapsed_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+line_regex = ['^\s*[\x{2800}-\x{28FF}] \S.*[（(][\dhms .]+ elapsed']
+
+[[rules]]
+id = "osc_title_idle"
+state = "idle"
+priority = 50
+region = "osc_title"
+visible_idle = true
+regex = ['^\x{1F7E2}\s']
+
+[[rules]]
+id = "composer_footer_idle"
+state = "idle"
+priority = 40
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+line_regex = ['^─{3,}', '^❯(?:\s|$)', '│.*\btok \(\d+%\)']

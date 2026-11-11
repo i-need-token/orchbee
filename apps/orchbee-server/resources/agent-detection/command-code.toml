@@ -1,0 +1,19 @@
+id = "command-code"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["commandcode"]
+
+# Command Code without a login opens a sign-in screen that waits for browser authorization or a
+# pasted API key, with "ctrl+c to cancel" as its last row. Idle and working screens have not
+# been captured, so this file holds only that blocker.
+
+[[rules]]
+id = "sign_in_blocked"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(18)"
+visible_blocker = true
+contains = ["sign in to command code", "paste your api key"]
+regex = ['(?m)^ctrl\+c to cancel\s*\z']
+not = [{ contains = ["authentication cancelled"] }]

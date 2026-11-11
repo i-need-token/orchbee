@@ -1,0 +1,48 @@
+id = "jcode"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["j-code"]
+
+# jcode 0.99.x numbers its composer: "1>" waits for a message and turns into "2…" while the turn
+# runs, under a braille spinner status such as "sending context… 4s". During a turn the OSC title
+# ends with "· work ~<time>". Its first starts ask y/n/d questions in a box with a "> " answer row.
+
+[[rules]]
+id = "startup_question_blocked"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(3)"
+visible_blocker = true
+line_regex = ['^│\s+\[y\] .+\[n\] Not now\s+\[d\] Don.t ask again', '^\s*>\s*$']
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 200
+region = "osc_title"
+visible_working = true
+regex = ['(?:^|\s)jcode/\S+ .*· work ~\d']
+
+[[rules]]
+id = "spinner_status_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(4)"
+visible_working = true
+any = [
+	{ line_regex = [
+		'^\s*[\x{2800}-\x{28FF}] \S.*… (?:\d+m )?\d+s\b',
+	] },
+	{ line_regex = [
+		'^\s*\d+…(?:\s|$)',
+	] },
+]
+
+[[rules]]
+id = "numbered_composer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+line_regex = ['^\s*\d+>(?:\s|$)']

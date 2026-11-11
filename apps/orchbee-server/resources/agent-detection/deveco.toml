@@ -1,0 +1,28 @@
+id = "deveco"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+aliases = ["deveco-code"]
+
+# DevEco Code 0.3.x first asks whether to trust the workspace (a list whose live choices carry
+# ●/○ bullets), then shows an agreements page that waits for the user to accept. Idle and
+# working screens have not been captured, so this file holds only those blockers.
+
+[[rules]]
+id = "workspace_trust_prompt"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(4)"
+visible_blocker = true
+line_regex = ['^│\s+[●○] Yes, I trust this folder\s*$', '^│\s+[●○] No, exit\s*$', '^└\s*$']
+
+[[rules]]
+id = "agreements_prompt"
+state = "blocked"
+priority = 290
+region = "bottom_non_empty_lines(8)"
+visible_blocker = true
+line_regex = [
+	'^\s*\[[ xX✓]\] I have read and agree to the Terms of Use',
+	'Enter: agree and continue',
+]

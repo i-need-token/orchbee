@@ -1,0 +1,33 @@
+id = "reasonix"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+
+# Reasonix leaves the OSC title to the shell. Under its ❯ composer a mode line reads
+# "<mode> · ready · …" at rest; a running turn drops "ready" and shows a braille spinner status
+# with elapsed time above the composer. Its first start asks a telemetry question on a plain
+# line that waits for an answer.
+
+[[rules]]
+id = "telemetry_question_blocked"
+state = "blocked"
+priority = 300
+region = "bottom_non_empty_lines(1)"
+visible_blocker = true
+line_regex = ['^Allow anonymous CLI usage statistics\? \[Y/n\]:\s*$']
+
+[[rules]]
+id = "spinner_status_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(10)"
+visible_working = true
+line_regex = ['^\s*[\x{2800}-\x{28FF}] \S.* · \d+(?:\.\d+)?[smh]\b']
+
+[[rules]]
+id = "ready_mode_line_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(8)"
+visible_idle = true
+line_regex = ['^\s*❯(?:\s|$)', '^\s*\S+\s+· ready ·']
