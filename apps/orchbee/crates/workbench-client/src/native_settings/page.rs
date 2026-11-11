@@ -51,6 +51,7 @@ pub(super) struct PageState {
     /// Keyboard movement reveals the focused row; a wheel scroll keeps the viewport it chose.
     pub(super) follow_selection: bool,
     pub(super) activation_ready: bool,
+    /// The current frame was painted: a click, wheel turn or painted control acts on what it shows.
     pub(super) drawn: bool,
     /// The last frame showed one column at a time.
     pub(super) narrow: bool,

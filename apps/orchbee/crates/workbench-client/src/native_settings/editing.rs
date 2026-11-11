@@ -10,6 +10,8 @@ use orchbee_workbench_protocol::{
 };
 
 impl Editor {
+    /// One key's edit. Keys act on the state the keys before them left, so every key of a packet
+    /// applies in order once the page has painted; only pointer actions need the current frame.
     pub(crate) fn edit(&mut self, edit: Edit) -> Option<Submission> {
         if matches!(edit, Edit::Cancel) {
             return self.cancel();
@@ -58,7 +60,7 @@ impl Editor {
             return None;
         }
         if page.confirm_delete {
-            if matches!(edit, Edit::Activate) && page.drawn {
+            if matches!(edit, Edit::Activate) {
                 page.confirm_delete = false;
                 values::delete_profile(page);
                 self.redraw();
@@ -71,7 +73,7 @@ impl Editor {
                 Edit::Previous | Edit::Adjust(false) => picker.navigate(false),
                 Edit::Home => picker.cursor = 0,
                 Edit::End => picker.cursor = Choice::options(picker.row).len() - 1,
-                Edit::Activate if page.drawn => {
+                Edit::Activate => {
                     page.picker = None;
                     let mut requested = page.values.clone();
                     picker.candidate().apply(&mut requested);
@@ -138,7 +140,7 @@ impl Editor {
             Edit::Explain => {
                 let id = match (page.page, page.row) {
                     (Page::Integrations, Row::Agent(id)) if page.activation_ready => id,
-                    (Page::Diagnosis(id), _) if page.drawn => id,
+                    (Page::Diagnosis(id), _) => id,
                     _ => return None,
                 };
                 if !self.integrations.begin(IntegrationJob::Explain(id)) {
@@ -443,7 +445,7 @@ impl Editor {
             return None;
         };
         let row = row.unwrap_or(page.row);
-        if !page.drawn || !(page.changed(row) || page.changes.waits(row)) {
+        if !(page.changed(row) || page.changes.waits(row)) {
             return None;
         }
         let changes = page.restore_changes(row);

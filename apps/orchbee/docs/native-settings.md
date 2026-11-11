@@ -50,8 +50,10 @@ an invalid catalog first focuses the failing field, and leaving again discards i
 unavailable unless Custom is selected and login shells are unavailable on Windows; a focused
 unavailable row names its reason.
 
-One edit is in flight at a time, and nothing the person does is dropped silently. Changes made while
-one is in flight wait in order and are sent one at a time, each after the previous one is answered,
+One edit is in flight at a time, and nothing the person does is dropped silently. Every key of one
+input packet applies in order on the state the keys before it left, Enter and Del included; only a
+key that closes the page keeps the rest of its packet. Changes made while one is in flight wait in
+order and are sent one at a time, each after the previous one is answered,
 so the Server still gets one row's keys per edit; restore takes the same turn. A second change to a
 row whose change has not been sent yet replaces that waiting change. Up to 16 changes wait; a newer
 request beyond them is refused with the Settings busy notice and changes nothing. A row with a change
@@ -148,7 +150,7 @@ The Session freezes its `config.toml` location at startup. Clients send no paths
 | Transition           | Required behavior                                                                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Hidden → open        | Read a complete snapshot and show it.                                                                                                                                                 |
-| Open → change        | Require a current successful draw; keep the row's edit or restore in order behind the one in flight, or send it at once when none is, and mark that row pending.                      |
+| Open → change        | Require a successful draw of the page; keep the row's edit or restore in order behind the one in flight, or send it at once when none is, and mark that row pending.                  |
 | Submit → commit      | Lock the file, apply every change or none in one replace and publish one snapshot; keep other keys and comments. A scalar key set to its default is removed, as a restore removes it. |
 | Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                                                                              |
 | External update      | Show the newest confirmed values at once under the changes still in flight or waiting; an unusable file drops the waiting ones.                                                       |

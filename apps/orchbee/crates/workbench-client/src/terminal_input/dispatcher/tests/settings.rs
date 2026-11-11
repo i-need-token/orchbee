@@ -78,6 +78,81 @@ fn search_query_and_local_return_packets_never_edit_preferences_or_reach_a_pane(
     assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
+/// Settings stays the owner after Enter, Delete or a move, so every key of one packet applies in
+/// order on the state the keys before it left, and none reaches a pane.
+#[test]
+fn every_key_of_a_settings_packet_applies_in_order() {
+    struct Case {
+        name: &'static str,
+        start: Row,
+        /// Keys the file sets; each starts at the value opposite to its default.
+        set: &'static [&'static str],
+        packet: &'static [u8],
+        check: fn(crate::native_settings::PageView<'_>) -> bool,
+    }
+    let defaults = UserSettingsValues::default();
+    let cases: [Case; 3] = [
+        Case {
+            name: "toggle, three rows down, toggle",
+            start: Row::CopyOnSelect,
+            set: &[],
+            packet: b"\r\x1b[B\x1b[B\x1b[B\r",
+            check: |page| {
+                page.selected() == Row::TrimAgents
+                    && page.waits(Row::CopyOnSelect)
+                    && page.waits(Row::TrimAgents)
+            },
+        },
+        Case {
+            name: "three rows down, three up, restore",
+            start: Row::CopyOnSelect,
+            set: &["terminal.copy_on_select"],
+            packet: b"\x1b[B\x1b[B\x1b[B\x1b[A\x1b[A\x1b[A\x1b[3~",
+            check: |page| {
+                page.selected() == Row::CopyOnSelect
+                    && page.waits(Row::CopyOnSelect)
+                    && page.values().copy_on_select == UserSettingsValues::default().copy_on_select
+            },
+        },
+        Case {
+            name: "open a list, move, accept",
+            start: Row::Language,
+            set: &[],
+            packet: b"\r\x1b[B\r",
+            check: |page| page.picker().is_none() && page.waits(Row::Language),
+        },
+    ];
+    for case in cases {
+        let mut values = defaults.clone();
+        if case.set.contains(&"terminal.copy_on_select") {
+            values.copy_on_select = !defaults.copy_on_select;
+        }
+        let mut file = snapshot(&values);
+        file.set = case
+            .set
+            .iter()
+            .map(|key| orchbee_workbench_protocol::SettingPath::parse(key).unwrap())
+            .collect();
+        let mut editor = Editor::default();
+        let token = editor.open().unwrap();
+        assert!(editor.loaded(token, &file));
+        editor.draw(editor.view().unwrap().token());
+        editor.edit(Edit::Select(case.start));
+        let mut port = Port {
+            editor,
+            edits: 0,
+            calls: Rc::new(RefCell::new(Vec::new())),
+        };
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+        dispatcher.publish_hit_map(map);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, case.packet);
+        assert!((case.check)(page(&port)), "{}", case.name);
+        assert!(forwarded_bytes(&port.calls).is_empty(), "{}", case.name);
+    }
+}
+
 impl Port {
     fn ready() -> Self {
         Self::ready_with(&UserSettingsValues::default())
@@ -364,7 +439,7 @@ fn settings_text_paste_is_bounded_atomic_and_never_forwarded_to_the_terminal() {
         &mut port,
         b"\x1b[200~#ABCDEF\x1b[201~",
     );
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\rpacket tail");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
     assert_eq!(page(&port).values().custom_foreground, "#abcdef");
     assert!(page(&port).text().is_none());
     assert_eq!(port.edits, 1, "Enter applies the pasted color once");

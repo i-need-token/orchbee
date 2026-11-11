@@ -1019,20 +1019,14 @@ impl InputDispatcher {
                         });
                         self.pointer.invalidate_map_with_port(port);
                     }
+                    // Settings stays the owner after Enter or Esc unless it closed, so the rest
+                    // of the packet is typed-ahead page input in order; only a close fences it.
                     DecodedKind::Key(event) => {
                         let _consumed = port.surface_input(SurfaceInput::Settings {
                             expected,
                             entry: TextEntry::Key(event),
                         });
                         self.pointer.invalidate_map_with_port(port);
-                        if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
-                            .matches(event)
-                            || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
-                                .matches(event)
-                        {
-                            self.settings_packet = true;
-                            self.keys.capture_pending();
-                        }
                     }
                     DecodedKind::Mouse(event) => match self.pointer.settings_event(event) {
                         PointerOutcome::IdleMotion { changed } => {
