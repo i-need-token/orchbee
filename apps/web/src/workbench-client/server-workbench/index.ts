@@ -19,7 +19,7 @@ export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSett
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
 export { ServerTerminalTitleSource } from './ServerTerminalTitleSource';
-export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
+export { ServerUserSettingsClient } from './ServerUserSettingsClient';
 export { ServerWindowTitle } from './ServerWindowTitle';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
 export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority';

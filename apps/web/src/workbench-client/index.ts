@@ -9,7 +9,7 @@ export {
 	ServerAgentIntegrationClient,
 	ServerTerminalDefaultSettingsClient,
 	ServerTerminalLaunchProfileClient,
-	ServerUserPreferencesClient,
+	ServerUserSettingsClient,
 	ServerWorkbenchSession,
 	stopServerSession,
 	workspaceLaunchAction,
