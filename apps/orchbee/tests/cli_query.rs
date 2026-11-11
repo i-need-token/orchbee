@@ -30,7 +30,6 @@ use orchbee_client_server_protocol::{
 use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, read_message, write_message,
 };
-use orchbee_local_runtime::ModeCheckedLocalSessionRendezvous;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
     ProjectionBlockReason, ProjectionBlocked, ProjectionDemandControl, decode_terminal_text_frame,
@@ -78,7 +77,7 @@ fn cohort() -> &'static Path {
                 "orchbee-worker",
                 "orchbee-terminal-host",
             ] {
-                let target = directory.join(name);
+                let target = directory.join(crate::support::staged_artifact_name(name));
                 if name == "orchbee" {
                     fs::copy(env!("CARGO_BIN_EXE_orchbee"), &target).expect("copy cohort artifact");
                 } else {
@@ -131,7 +130,7 @@ fn stage_scope(base: &Path) -> PathBuf {
 
 // ---- scripted peer --------------------------------------------------------
 
-/// Bind `client.sock` inside the scope and run `script` on the first admitted
+/// Bind the scope's client socket and run `script` on the first admitted
 /// connection. Returns the join handle; the CLI must exit first, so the peer
 /// is joined after the child completes.
 fn spawn_peer(
@@ -153,7 +152,7 @@ fn spawn_peer_n(
     connections: usize,
     script: impl Fn(UnixStream) + Send + 'static,
 ) -> thread::JoinHandle<()> {
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     // The rendezvous validator admits only owner-private sockets.
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
@@ -239,7 +238,11 @@ fn snapshot_response(
 /// Every spawned CLI child runs under the shared 45s wall-clock backstop in
 /// `tests/support` — the same guard `cli_mutation` uses.
 fn run(base: &Path, arguments: &[&str]) -> Output {
-    support::run(&cohort().join("orchbee"), base, arguments)
+    support::run(
+        &cohort().join(crate::support::staged_artifact_name("orchbee")),
+        base,
+        arguments,
+    )
 }
 
 /// `run` that keeps the `Child` handle so a test can signal this process —
@@ -248,17 +251,19 @@ fn run(base: &Path, arguments: &[&str]) -> Output {
 /// caller finishes through `support::bounded_wait_with_output`, keeping the
 /// shared wall-clock backstop, drain discipline, and capture budget.
 fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
-    crate::staged_client::orchbee_command(cohort().join("orchbee"))
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", base)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .env("LANG", "en_US.UTF-8")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn cli child")
+    crate::staged_client::orchbee_command(
+        cohort().join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(arguments)
+    .env("ORCHBEE_RUNTIME_BASE", base)
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .env("LANG", "en_US.UTF-8")
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect("spawn cli child")
 }
 
 fn failure_kind(output: &Output) -> serde_json::Value {
@@ -1122,7 +1127,7 @@ fn query_writes_nothing_to_the_scope() -> TestResult {
 fn refused_connect_is_service_unavailable() -> TestResult {
     let base = base_dir("refused");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     drop(listener);
@@ -1707,165 +1712,6 @@ fn config_check_reports_established_path_facts() -> TestResult {
     Ok(())
 }
 
-/// The derived Host endpoint under a staged scope — the deepest socket
-/// address the Session derives (`<scope>/host/<endpoint-id>.s`).
-fn host_endpoint(scope: &Path) -> PathBuf {
-    ModeCheckedLocalSessionRendezvous::host_endpoint_path(scope)
-}
-
-/// Pad `base` with one extra path component so `measured` — an endpoint path
-/// derived under `<base>/<scope>` — reaches `target_len` bytes. Returns `base`
-/// unchanged when the derived path already reaches the target.
-fn padded_base(base: &Path, measured: &Path, target_len: usize) -> PathBuf {
-    let current = measured.as_os_str().as_encoded_bytes().len();
-    if current == target_len {
-        return base.to_owned();
-    }
-    let pad = target_len
-        .checked_sub(current + 1)
-        .unwrap_or_else(|| panic!("base {base:?} already exceeds the {target_len}B socket target"));
-    let padded = base.join("x".repeat(pad));
-    fs::create_dir(&padded).expect("create padded runtime base");
-    fs::set_permissions(&padded, fs::Permissions::from_mode(0o700)).expect("chmod padded base");
-    padded
-}
-
-#[test]
-fn config_check_flags_a_derived_socket_path_that_cannot_fit() -> TestResult {
-    let capacity = support::sun_path_limit();
-
-    // Boundary: the deepest derived endpoint — the Host endpoint — exactly at
-    // capacity still fits; every entry reports an honest verdict, never a
-    // fabricated fault.
-    let base = base_dir("sockfit");
-    let fitted = padded_base(&base, &host_endpoint(&scope_dir(&base)), capacity);
-    stage_scope(&fitted);
-    let output = run(&fitted, &["config", "check", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["result"]["ok"], serde_json::json!(true));
-    let sockets = &document["result"]["checks"][4];
-    assert_eq!(sockets["status"], "not-applicable");
-    assert_eq!(sockets["details"]["client"]["presence"], "absent");
-    for name in ["clientPending", "host"] {
-        let entry = &sockets["details"][name];
-        assert_eq!(entry["presence"], "unchecked", "{name}: {entry}");
-        assert_eq!(entry["status"], "not-applicable", "{name}: {entry}");
-        assert_eq!(entry["reason"], "presence-not-inspected", "{name}: {entry}");
-        assert_eq!(entry["addressCapacityBytes"], serde_json::json!(capacity));
-    }
-    assert_eq!(
-        sockets["details"]["host"]["addressBytes"],
-        serde_json::json!(capacity)
-    );
-
-    // One byte over on every derived path with an inspected scope: all four
-    // entries fail address-too-long with the measured byte counts — the
-    // verdict is about the derived address, independent of presence.
-    let base = base_dir("socklong");
-    let over = padded_base(&base, &scope_dir(&base).join("client.sock"), capacity + 1);
-    stage_scope(&over);
-    let output = run(&over, &["config", "check", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(1));
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["result"]["ok"], serde_json::json!(false));
-    let sockets = &document["result"]["checks"][4];
-    assert_eq!(sockets["status"], "fail");
-    for name in ["client", "worker"] {
-        let entry = &sockets["details"][name];
-        assert_eq!(entry["presence"], "absent", "{name}: {entry}");
-        assert_eq!(entry["status"], "fail");
-        assert_eq!(entry["reason"], "address-too-long");
-        assert_eq!(entry["addressBytes"], serde_json::json!(capacity + 1));
-        assert_eq!(entry["addressCapacityBytes"], serde_json::json!(capacity));
-        let path = entry["path"].as_str().expect("utf-8 socket path");
-        assert!(path.ends_with(&format!("{name}.sock")), "{name}: {path}");
-    }
-    for (name, derived) in [
-        (
-            "clientPending",
-            ModeCheckedLocalSessionRendezvous::client_pending_socket_path(&scope_dir(&over)),
-        ),
-        ("host", host_endpoint(&scope_dir(&over))),
-    ] {
-        let entry = &sockets["details"][name];
-        assert_eq!(entry["presence"], "unchecked", "{name}: {entry}");
-        assert_eq!(entry["status"], "fail", "{name}: {entry}");
-        assert_eq!(entry["reason"], "address-too-long", "{name}: {entry}");
-        assert_eq!(
-            entry["addressCapacityBytes"],
-            serde_json::json!(capacity),
-            "{name}: {entry}"
-        );
-        let path = entry["path"].as_str().expect("utf-8 socket path");
-        assert_eq!(Path::new(path), derived, "{name}: {path}");
-    }
-
-    // Only the Host endpoint over: inspected client/worker stay honest absent
-    // facts and the pending budget still fits — one budget failure fails the
-    // aggregate without inventing presence anywhere.
-    let base = base_dir("sockhost");
-    let over = padded_base(&base, &host_endpoint(&scope_dir(&base)), capacity + 1);
-    stage_scope(&over);
-    let output = run(&over, &["config", "check", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(1));
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["result"]["ok"], serde_json::json!(false));
-    let sockets = &document["result"]["checks"][4];
-    assert_eq!(sockets["status"], "fail");
-    for name in ["client", "worker"] {
-        let entry = &sockets["details"][name];
-        assert_eq!(entry["presence"], "absent", "{name}: {entry}");
-        assert_eq!(entry["status"], "not-applicable", "{name}: {entry}");
-    }
-    let pending = &sockets["details"]["clientPending"];
-    assert_eq!(pending["presence"], "unchecked");
-    assert_eq!(pending["status"], "not-applicable");
-    assert_eq!(pending["reason"], "presence-not-inspected");
-    let host = &sockets["details"]["host"];
-    assert_eq!(host["presence"], "unchecked");
-    assert_eq!(host["status"], "fail");
-    assert_eq!(host["reason"], "address-too-long");
-    assert_eq!(host["addressBytes"], serde_json::json!(capacity + 1));
-
-    // No Session staged at all under an over-budget base: presence stays
-    // honestly unchecked while the address verdict is still exact.
-    let base = base_dir("socknone");
-    let over = padded_base(&base, &scope_dir(&base).join("client.sock"), capacity + 1);
-    let output = run(&over, &["config", "check", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(1));
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let sockets = &document["result"]["checks"][4];
-    assert_eq!(sockets["status"], "fail");
-    for name in ["client", "worker", "clientPending", "host"] {
-        let entry = &sockets["details"][name];
-        assert_eq!(entry["presence"], "unchecked", "{name}: {entry}");
-        assert_eq!(entry["reason"], "address-too-long");
-    }
-
-    // A real bound socket inside the budget still passes: live presence is
-    // reported without confusing it for the address budget, and the
-    // budget-only entries never pretend presence.
-    let base = base_dir("socklive");
-    let scope = stage_scope(&base);
-    let _listener = UnixListener::bind(scope.join("client.sock"))?;
-    fs::set_permissions(scope.join("client.sock"), fs::Permissions::from_mode(0o600))?;
-    let output = run(&base, &["config", "check", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["result"]["ok"], serde_json::json!(true));
-    let sockets = &document["result"]["checks"][4];
-    assert_eq!(sockets["status"], "pass");
-    assert_eq!(sockets["details"]["client"]["status"], "pass");
-    for name in ["clientPending", "host"] {
-        let entry = &sockets["details"][name];
-        assert_eq!(entry["presence"], "unchecked", "{name}: {entry}");
-        assert_eq!(entry["status"], "not-applicable", "{name}: {entry}");
-        assert_eq!(entry["reason"], "presence-not-inspected", "{name}: {entry}");
-    }
-    Ok(())
-}
-
 // ---- real emit-boundary write failure ------------------------------------------
 //
 // A controlled writer failure at the real stdout boundary must surface as a
@@ -1877,13 +1723,15 @@ fn stdout_write_failure_is_reported() -> TestResult {
     // /dev/full fails every write: the real emit boundary, not an injected
     // earlier stage.
     let dev_full = fs::File::options().write(true).open("/dev/full")?;
-    let child = crate::staged_client::orchbee_command(cohort().join("orchbee"))
-        .args(["api", "schema", "orchbee.status", "--format", "json"])
-        .env("ORCHBEE_RUNTIME_BASE", &base)
-        .env("LANG", "en_US.UTF-8")
-        .stdout(std::process::Stdio::from(dev_full))
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
+    let child = crate::staged_client::orchbee_command(
+        cohort().join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(["api", "schema", "orchbee.status", "--format", "json"])
+    .env("ORCHBEE_RUNTIME_BASE", &base)
+    .env("LANG", "en_US.UTF-8")
+    .stdout(std::process::Stdio::from(dev_full))
+    .stderr(std::process::Stdio::piped())
+    .spawn()?;
     let output = support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
         .unwrap_or_else(|timeout| panic!("{timeout}"));
     assert_eq!(output.status.code(), Some(1));
@@ -5113,7 +4961,12 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "json",
     ];
     let english = run(&base, &argv);
-    let chinese = support::run_lang(&cohort().join("orchbee"), &base, &argv, "zh_CN.UTF-8");
+    let chinese = support::run_lang(
+        &cohort().join(crate::support::staged_artifact_name("orchbee")),
+        &base,
+        &argv,
+        "zh_CN.UTF-8",
+    );
     assert_eq!(english.status.code(), Some(0));
     assert_eq!(chinese.status.code(), Some(0));
     assert_eq!(

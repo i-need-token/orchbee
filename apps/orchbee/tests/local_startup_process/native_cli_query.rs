@@ -50,15 +50,19 @@ impl Drop for Reap {
 /// Run one query invocation of the staged `orchbee` binary. stdin is null and
 /// both streams are pipes: every witness here is non-TTY.
 pub(super) fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
-    crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-        .env("LANG", "en_US.UTF-8")
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .stdin(Stdio::null())
-        .output()
-        .unwrap_or_else(|error| panic!("spawn query CLI {arguments:?}: {error}"))
+    crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(arguments)
+    .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+    .env("LANG", "en_US.UTF-8")
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .stdin(Stdio::null())
+    .output()
+    .unwrap_or_else(|error| panic!("spawn query CLI {arguments:?}: {error}"))
 }
 
 pub(super) fn run_json(fixture: &Fixture, arguments: &[&str]) -> (Output, serde_json::Value) {
@@ -143,7 +147,11 @@ pub(super) fn spawn_real_server(fixture: &Fixture) -> Reap {
 pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) -> Reap {
     let session = fixture.session();
     session.commit_activation().expect("fixture activation");
-    let mut command = crate::support::orchbee_command(fixture.cohort.join("orchbee-server"));
+    let mut command = crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee-server")),
+    );
     for (name, value) in env {
         command.env(name, value);
     }
@@ -484,13 +492,17 @@ fn blocked_stdout_keeps_no_transport_and_releases_the_real_server() -> TestResul
     // Minimum legal pipe capacity keeps the witness small and deterministic.
     fcntl(&read_end, FcntlArg::F_SETPIPE_SZ(4096))?;
     let mut child = Reap::spawn(
-        crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-            .args(["api", "snapshot", "--format", "json"])
-            .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-            .env("LANG", "en_US.UTF-8")
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(fs::File::from(write_end)))
-            .stderr(Stdio::piped()),
+        crate::support::orchbee_command(
+            fixture
+                .cohort
+                .join(crate::support::staged_artifact_name("orchbee")),
+        )
+        .args(["api", "snapshot", "--format", "json"])
+        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+        .env("LANG", "en_US.UTF-8")
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(fs::File::from(write_end)))
+        .stderr(Stdio::piped()),
     )?;
     let child_id = child.id() as i32;
 

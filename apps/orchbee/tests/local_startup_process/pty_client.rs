@@ -162,17 +162,21 @@ impl Client {
         fixture.register_runtime_base(base);
         let pty = open_outer_pty(columns, rows, pixels_known).unwrap();
         let original = tcgetattr(&pty.slave).unwrap();
-        let mut child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-            .args(args)
-            .env("ORCHBEE_RUNTIME_BASE", base)
-            .env("LC_ALL", locale)
-            .env("TERM", "xterm-256color")
-            .env("SHELL", "/bin/sh")
-            .stdin(Stdio::from(File::from(clone_cloexec(&pty.slave).unwrap())))
-            .stdout(Stdio::from(File::from(clone_cloexec(&pty.slave).unwrap())))
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+        let mut child = crate::support::orchbee_command(
+            fixture
+                .cohort
+                .join(crate::support::staged_artifact_name("orchbee")),
+        )
+        .args(args)
+        .env("ORCHBEE_RUNTIME_BASE", base)
+        .env("LC_ALL", locale)
+        .env("TERM", "xterm-256color")
+        .env("SHELL", "/bin/sh")
+        .stdin(Stdio::from(File::from(clone_cloexec(&pty.slave).unwrap())))
+        .stdout(Stdio::from(File::from(clone_cloexec(&pty.slave).unwrap())))
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
         let stderr = child.stderr.take().unwrap();
         fcntl(&stderr, FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).unwrap();
         Self {

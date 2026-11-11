@@ -44,6 +44,10 @@ pub(super) fn run(
     else {
         return Err(io::Error::other("Session lifetime is already owned"));
     };
+    // A temporary-file cleaner that honours locks leaves the socket folder alone while this
+    // Session lives.
+    #[cfg(unix)]
+    let _sockets = session.hold_socket_root()?;
     #[cfg(windows)]
     let record = session.retain_active_record()?;
     #[cfg(windows)]
@@ -236,6 +240,7 @@ pub(super) fn run(
     {
         let _clients = local_client_service::start_managed(
             session.client_socket_path(),
+            &ModeCheckedLocalSessionRendezvous::client_pending_socket_path(runtime),
             local_client_service::ServerIdentity::local(Some(cohort.identity()), worker_process),
             terminals,
             agents,

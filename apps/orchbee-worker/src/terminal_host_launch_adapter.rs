@@ -96,7 +96,6 @@ impl ObservedTerminalHostResponse {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostLaunchAdapterError {
-    #[cfg(windows)]
     InvalidSessionRoute,
     OperationKindMismatch,
     UnexpectedHostResponse,
@@ -112,7 +111,6 @@ pub(crate) enum HostLaunchAdapterError {
 impl fmt::Display for HostLaunchAdapterError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            #[cfg(windows)]
             Self::InvalidSessionRoute => formatter.write_str(
                 "managed Session route cannot be represented in the terminal environment",
             ),
@@ -142,7 +140,6 @@ impl fmt::Display for HostLaunchAdapterError {
 impl std::error::Error for HostLaunchAdapterError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            #[cfg(windows)]
             Self::InvalidSessionRoute => None,
             Self::CapabilityProtocol(error) => Some(error),
             Self::HostIdentity(error) => Some(error),
@@ -175,11 +172,6 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
     }
 }
 
-// Cross-owner convention with Server's private endpoint: the managed Session
-// runtime directory holds the Agent observation socket under this exact file
-// name. The Worker keeps its own literal copy; no Server code is imported.
-#[cfg(unix)]
-const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
 const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 
 /// Maps an authorized launch to its closed ordinary or source-capturing Host request.
@@ -262,60 +254,51 @@ fn launch_overlay(
     launch: &orchbee_capability_node_protocol::AuthorizedTerminalLaunch,
     session_runtime: Option<&Path>,
 ) -> Result<Vec<EnvironmentOverlayEntry>, HostLaunchAdapterError> {
-    let overlay = observation_overlay(session_runtime);
-    #[cfg(windows)]
-    {
-        let mut overlay = overlay;
-        if let Some(runtime) = session_runtime {
-            let base = runtime
-                .parent()
-                .filter(|base| base.is_absolute())
-                .and_then(|base| base.to_str())
-                .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
-            let scope = runtime
-                .file_name()
-                .and_then(|scope| scope.to_str())
-                .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
-            orchbee_local_runtime::SessionScope::parse(scope)
-                .map_err(|_| HostLaunchAdapterError::InvalidSessionRoute)?;
-            // The tag lets a Client of another environment ignore this route (ORC-382).
-            for (name, value) in [
-                ("ORCHBEE_RUNTIME_BASE", base),
-                ("ORCHBEE_RUNTIME_SCOPE", scope),
-                (
-                    orchbee_local_runtime::ENVIRONMENT_VARIABLE,
-                    orchbee_local_runtime::environment_stem(),
-                ),
-            ] {
-                if value.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
-                    return Err(HostLaunchAdapterError::InvalidSessionRoute);
-                }
-                overlay.push(EnvironmentOverlayEntry {
-                    name: name.to_owned(),
-                    value: value.to_owned(),
-                });
-            }
-        }
-        let authorization = launch.authorization();
-        for (name, bytes) in [
+    let mut overlay = observation_overlay(session_runtime);
+    if let Some(runtime) = session_runtime {
+        let base = runtime
+            .parent()
+            .filter(|base| base.is_absolute())
+            .and_then(|base| base.to_str())
+            .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
+        let scope = runtime
+            .file_name()
+            .and_then(|scope| scope.to_str())
+            .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
+        orchbee_local_runtime::SessionScope::parse(scope)
+            .map_err(|_| HostLaunchAdapterError::InvalidSessionRoute)?;
+        // The tag lets a Client of another environment ignore this route (ORC-382).
+        for (name, value) in [
+            ("ORCHBEE_RUNTIME_BASE", base),
+            ("ORCHBEE_RUNTIME_SCOPE", scope),
             (
-                "ORCHBEE_TERMINAL_ID",
-                authorization.terminal_id().as_bytes(),
+                orchbee_local_runtime::ENVIRONMENT_VARIABLE,
+                orchbee_local_runtime::environment_stem(),
             ),
-            ("ORCHBEE_WORKER_ID", authorization.worker_id().as_bytes()),
         ] {
+            if value.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
+                return Err(HostLaunchAdapterError::InvalidSessionRoute);
+            }
             overlay.push(EnvironmentOverlayEntry {
                 name: name.to_owned(),
-                value: format!("{:032x}", u128::from_be_bytes(bytes)),
+                value: value.to_owned(),
             });
         }
-        Ok(overlay)
     }
-    #[cfg(not(windows))]
-    {
-        let _ = launch;
-        Ok(overlay)
+    let authorization = launch.authorization();
+    for (name, bytes) in [
+        (
+            "ORCHBEE_TERMINAL_ID",
+            authorization.terminal_id().as_bytes(),
+        ),
+        ("ORCHBEE_WORKER_ID", authorization.worker_id().as_bytes()),
+    ] {
+        overlay.push(EnvironmentOverlayEntry {
+            name: name.to_owned(),
+            value: format!("{:032x}", u128::from_be_bytes(bytes)),
+        });
     }
+    Ok(overlay)
 }
 
 pub(crate) fn map_start_dispatch(
@@ -398,7 +381,10 @@ fn observation_overlay(session_runtime: Option<&Path>) -> Vec<EnvironmentOverlay
     let Some(runtime) = session_runtime else {
         return Vec::new();
     };
-    let candidate = runtime.join(OBSERVATION_SOCKET_NAME);
+    let candidate =
+        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
+            runtime,
+        );
     let admitted = std::fs::symlink_metadata(&candidate)
         .map(|metadata| {
             metadata.file_type().is_socket() && metadata.uid() == nix::unistd::geteuid().as_raw()

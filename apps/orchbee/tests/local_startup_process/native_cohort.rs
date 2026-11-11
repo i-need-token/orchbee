@@ -1,11 +1,9 @@
 use nix::{
     errno::Errno,
     poll::{PollFd, PollFlags, PollTimeout, poll},
-    unistd::{Pid, geteuid},
+    unistd::Pid,
 };
-use orchbee_local_runtime::{
-    Cohort, HOST_ENDPOINT_ID, ModeCheckedLocalSessionRendezvous, SessionScope,
-};
+use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous, SessionName, SessionScope};
 use rustix::process::{Pid as RustixPid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 use sha2::{Digest, Sha256};
 use std::{
@@ -138,15 +136,19 @@ impl Fixture {
             WorkspacePlacement,
         };
         let fixture = Self::new();
-        let child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-            .args(["server", "start"])
-            .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-            .env("SHELL", "/bin/sh")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
+        let child = crate::support::orchbee_command(
+            fixture
+                .cohort
+                .join(crate::support::staged_artifact_name("orchbee")),
+        )
+        .args(["server", "start"])
+        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+        .env("SHELL", "/bin/sh")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
         let output =
             super::support::bounded_wait_with_output(child, super::STARTUP_OR_CREATE_TIMEOUT)
                 .unwrap_or_else(|error| panic!("Workspace fixture startup: {error}"));
@@ -212,8 +214,9 @@ impl Fixture {
                 .expect("valid staged test cohort");
         }
         for name in BINARIES {
+            let staged_name = crate::support::staged_artifact_name(name);
             let source = if let Some(staged) = &staged {
-                staged.join(name)
+                staged.join(&staged_name)
             } else if name == "orchbee-terminal-host" {
                 Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../terminal-host/zig-out/bin")
@@ -221,11 +224,14 @@ impl Fixture {
             } else {
                 binaries.join(name)
             };
-            fs::copy(&source, fixture.cohort.join(name)).unwrap_or_else(|error| {
+            fs::copy(&source, fixture.cohort.join(&staged_name)).unwrap_or_else(|error| {
                 panic!("build native fixture {}: {error}", source.display())
             });
-            fs::set_permissions(fixture.cohort.join(name), fs::Permissions::from_mode(0o700))
-                .unwrap();
+            fs::set_permissions(
+                fixture.cohort.join(&staged_name),
+                fs::Permissions::from_mode(0o700),
+            )
+            .unwrap();
         }
         fixture.manifest();
         fixture
@@ -238,7 +244,10 @@ impl Fixture {
                 name.into(),
                 serde_json::Value::String(format!(
                     "{:x}",
-                    Sha256::digest(fs::read(self.cohort.join(name)).unwrap())
+                    Sha256::digest(
+                        fs::read(self.cohort.join(crate::support::staged_artifact_name(name)))
+                            .unwrap()
+                    )
                 )),
             );
         }
@@ -280,7 +289,7 @@ impl Fixture {
     pub(super) fn session(&self) -> ModeCheckedLocalSessionRendezvous {
         ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
             &self.base,
-            SessionScope::parse(&format!("orchbee-native-{}", geteuid())).unwrap(),
+            SessionScope::parse(SessionName::default_session().as_str()).unwrap(),
         )
         .unwrap()
     }
@@ -302,7 +311,9 @@ impl Fixture {
     }
 
     fn managed_processes(&self, role: ManagedRole) -> io::Result<ManagedProcessScan> {
-        let executable = self.cohort.join(role.name());
+        let executable = self
+            .cohort
+            .join(crate::support::staged_artifact_name(role.name()));
         let commands = self.expected_commands(role);
         let mut scan = ManagedProcessScan::default();
         for entry in fs::read_dir("/proc")? {
@@ -334,7 +345,10 @@ impl Fixture {
     }
 
     fn expected_commands(&self, role: ManagedRole) -> Vec<Vec<OsString>> {
-        let executable = self.cohort.join(role.name()).into_os_string();
+        let executable = self
+            .cohort
+            .join(crate::support::staged_artifact_name(role.name()))
+            .into_os_string();
         self.authorized_runtimes
             .lock()
             .unwrap()
@@ -352,7 +366,9 @@ impl Fixture {
                     ModeCheckedLocalSessionRendezvous::host_runtime_directory(runtime)
                         .into_os_string(),
                     OsString::from("--endpoint-id"),
-                    OsString::from(HOST_ENDPOINT_ID),
+                    OsString::from(ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime)),
+                    OsString::from("--endpoint-directory"),
+                    ModeCheckedLocalSessionRendezvous::socket_root_path().into_os_string(),
                 ],
             })
             .collect()
@@ -389,7 +405,7 @@ fn reserve_fixture_directories(cohort: &Path, base: &Path) -> io::Result<()> {
 }
 
 pub(super) fn runtime_for_base(base: &Path) -> PathBuf {
-    base.join(format!("orchbee-native-{}", geteuid()))
+    base.join(SessionName::default_session().as_str())
 }
 
 fn command_argument(command: &[u8], index: usize) -> Option<&[u8]> {
@@ -644,7 +660,9 @@ mod tests {
         let alternate_base = root.join("other-base");
         fixture.register_runtime_base(&alternate_base);
         let alternate_runtime = runtime_for_base(&alternate_base);
-        let executable = fixture.cohort.join("orchbee-server");
+        let executable = fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee-server"));
         let observed = encode_command(&[
             executable.as_os_str(),
             OsStr::new("--runtime-directory"),

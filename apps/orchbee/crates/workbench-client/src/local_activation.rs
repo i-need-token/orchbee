@@ -88,7 +88,7 @@ impl ActivationFailure {
 pub struct StartedSession {
     pub client: LocalClient,
     pub spawned: bool,
-    /// The scope string parsed for this attempt (`orchbee-native-<euid>`).
+    /// The scope string parsed for this attempt: the selected Session's name.
     pub scope: String,
     /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or the environment default), for
     /// machine-readable output.
@@ -120,8 +120,20 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
     }
     #[cfg(windows)]
     let (base, scope_text) = (selection.base.clone(), selection.scope().to_owned());
-    #[cfg(not(windows))]
-    let (base, scope_text) = runtime_location().map_err(runtime_location_failure)?;
+    // The default base lives in the data root, which may not exist yet; it is created, admitted,
+    // and named through the data root's canonical path. An explicit `ORCHBEE_RUNTIME_BASE` must
+    // already exist.
+    #[cfg(unix)]
+    let (base, scope_text) = {
+        let location = unix_location().map_err(runtime_location_failure)?;
+        let base = if location.default_base {
+            orchbee_local_runtime::prepare_default_runtime_base(|name| std::env::var_os(name))
+                .map_err(runtime_location_failure)?
+        } else {
+            location.base
+        };
+        (base, location.scope)
+    };
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
@@ -146,7 +158,7 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
     let session =
         ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
             ActivationFailure::caused(
-                StartupFailure::Runtime,
+                runtime_verdict(error.refusal()),
                 ActivationCause::Rendezvous(error, scope_directory),
             )
         })?;
@@ -403,14 +415,32 @@ fn admission_failure(error: &ConnectClientError) -> StartupFailure {
 /// Marker/probe/commit I/O keeps the existing `Runtime` verdict; the raw io
 /// error rides along for CLI kind classification.
 fn runtime_failure(error: io::Error) -> ActivationFailure {
-    ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::RuntimeIo(error))
+    ActivationFailure::caused(
+        runtime_verdict(orchbee_local_runtime::AdmissionRefusal::of(&error).cloned()),
+        ActivationCause::RuntimeIo(error),
+    )
 }
 
 fn runtime_location_failure(error: io::Error) -> ActivationFailure {
     ActivationFailure::caused(
-        StartupFailure::Runtime,
+        runtime_verdict(orchbee_local_runtime::AdmissionRefusal::of(&error).cloned()),
         ActivationCause::RuntimeLocation(error),
     )
+}
+
+/// A macOS or Linux folder refused by the ownership, permission, or file-lock rules is reported
+/// with the item at fault; every other runtime failure keeps the `Runtime` verdict.
+#[cfg(unix)]
+fn runtime_verdict(refusal: Option<orchbee_local_runtime::AdmissionRefusal>) -> StartupFailure {
+    refusal.map_or(StartupFailure::Runtime, |refusal| {
+        StartupFailure::Refused(Box::new(refusal))
+    })
+}
+
+/// A Windows runtime failure keeps the `Runtime` verdict.
+#[cfg(windows)]
+fn runtime_verdict(_refusal: Option<orchbee_local_runtime::AdmissionRefusal>) -> StartupFailure {
+    StartupFailure::Runtime
 }
 
 #[cfg(windows)]
@@ -426,7 +456,10 @@ fn recovery_failure(error: io::Error) -> ActivationFailure {
 /// A lock acquisition keeps the existing `Runtime` verdict; the raw
 /// rendezvous error rides along for CLI kind classification.
 fn lock_failure(error: orchbee_local_runtime::RendezvousError) -> ActivationFailure {
-    ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::LockFailure(error))
+    ActivationFailure::caused(
+        runtime_verdict(error.refusal()),
+        ActivationCause::LockFailure(error),
+    )
 }
 
 /// Shared deadline check — the TUI readiness loop consumes the identical
@@ -473,7 +506,12 @@ pub fn runtime_base_unstarted() -> io::Result<bool> {
     }
     #[cfg(unix)]
     {
-        Ok(false)
+        let location = unix_location()?;
+        Ok(location.default_base
+            && matches!(
+                std::fs::symlink_metadata(&location.base),
+                Err(error) if error.kind() == io::ErrorKind::NotFound
+            ))
     }
 }
 
@@ -486,16 +524,55 @@ pub fn runtime_location() -> io::Result<(PathBuf, String)> {
     }
     #[cfg(unix)]
     {
-        let environment =
-            orchbee_local_runtime::session_route_environment(|key| std::env::var_os(key));
-        let fallback = orchbee_local_runtime::default_runtime_base(|key| std::env::var_os(key))
-            .ok_or(io::ErrorKind::NotFound)?;
-        let scope = format!("orchbee-native-{}", nix::unistd::geteuid());
-        Ok((
-            environment("ORCHBEE_RUNTIME_BASE")
-                .map(PathBuf::from)
-                .unwrap_or(fallback),
-            scope,
-        ))
+        let location = unix_location()?;
+        Ok((location.base, location.scope))
     }
+}
+
+/// A macOS or Linux runtime location: the inherited `ORCHBEE_RUNTIME_BASE` or this environment's
+/// default base, and the inherited `ORCHBEE_RUNTIME_SCOPE` or the default Session.
+#[cfg(unix)]
+struct UnixLocation {
+    base: PathBuf,
+    scope: String,
+    /// The base is this environment's default rather than `ORCHBEE_RUNTIME_BASE`.
+    default_base: bool,
+}
+
+/// The default base is named through the data root's canonical path once the root exists, the
+/// spelling activation creates it under and every socket name derives from; the root and its
+/// ancestors may be symbolic links.
+#[cfg(unix)]
+fn unix_location() -> io::Result<UnixLocation> {
+    let environment = orchbee_local_runtime::session_route_environment(|key| std::env::var_os(key));
+    let scope = match environment("ORCHBEE_RUNTIME_SCOPE") {
+        Some(value) => value
+            .to_str()
+            .and_then(|text| orchbee_local_runtime::SessionName::parse(text).ok())
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "invalid ORCHBEE_RUNTIME_SCOPE")
+            })?,
+        None => orchbee_local_runtime::SessionName::default_session(),
+    }
+    .as_str()
+    .to_owned();
+    if let Some(base) = environment("ORCHBEE_RUNTIME_BASE") {
+        return Ok(UnixLocation {
+            base: PathBuf::from(base),
+            scope,
+            default_base: false,
+        });
+    }
+    let root = orchbee_local_runtime::DataRoot::resolve(|key| std::env::var_os(key))
+        .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?;
+    let base = match std::fs::canonicalize(root.path()) {
+        Ok(canonical) => orchbee_local_runtime::DataRoot::at(canonical).runtime(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => root.runtime(),
+        Err(error) => return Err(error),
+    };
+    Ok(UnixLocation {
+        base,
+        scope,
+        default_base: true,
+    })
 }

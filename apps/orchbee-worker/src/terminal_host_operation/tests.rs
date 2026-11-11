@@ -558,7 +558,7 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
     let directory = Directory::new()?;
     let endpoint_id = format!("{:032x}", u128::from(std::process::id()) + (1u128 << 96));
     #[cfg(unix)]
-    let endpoint = directory.0.join(format!("{endpoint_id}.s"));
+    let endpoint = directory.0.join(format!("{endpoint_id}-host.sock"));
     #[cfg(windows)]
     let endpoint = PathBuf::from(format!(r"\\.\pipe\orchbee-terminal-host-{endpoint_id}"));
     let binary = std::env::var_os("ORCHBEE_TERMINAL_HOST_TEST_BINARY")

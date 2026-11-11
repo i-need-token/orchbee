@@ -1,11 +1,19 @@
-//! Admits descriptor-relative private Session runtime paths and owns exact activation or
-//! lifetime locks, marker publication, and read-only endpoint observations. It never repairs
+//! Admits descriptor-relative private Session runtime paths and the environment's socket folder,
+//! and owns exact activation or lifetime locks, marker publication, and read-only endpoint
+//! observations. Locks and markers live in the runtime directory; sockets live in
+//! `/tmp/<stem>-<uid>` (`/private/tmp` on macOS), named `<id>-<role>.sock`. It never repairs
 //! another owner's path or infers authenticated peer identity from a socket name.
 
+#[cfg(not(target_os = "macos"))]
+use crate::rendezvous_types::LINUX_SOCKET_PARENT as SOCKET_PARENT;
+#[cfg(target_os = "macos")]
+use crate::rendezvous_types::MACOS_SOCKET_PARENT as SOCKET_PARENT;
 pub use crate::rendezvous_types::{
     EntryKind, EntryObservation, LockKind, RendezvousError, SessionLifetimeObservation,
     SessionScope,
 };
+use crate::rendezvous_types::{SocketRole, endpoint_id, socket_leaf, socket_root};
+use crate::{AdmissionRefusal, RefusalReason};
 use std::{
     ffi::OsStr,
     fs::{File, TryLockError},
@@ -22,28 +30,9 @@ use nix::{
 
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
 const ACTIVATION_MARKER_NAME: &str = "activation.started";
-/// The managed Agent observation leaf the Server binds inside the Session
-/// runtime directory — a private known-path convention shared with the
-/// endpoint binder, not a general socket API.
-const AGENT_OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
-/// The Host endpoint's name relative to the Session runtime directory —
-/// `host/{HOST_ENDPOINT_NAME}` — for descriptor-relative observation.
-fn host_endpoint_relative_name() -> String {
-    format!("{HOST_SCOPE_NAME}/{HOST_ENDPOINT_NAME}")
-}
 const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
-const CLIENT_SOCKET_NAME: &str = "client.sock";
-const WORKER_SOCKET_NAME: &str = "worker.sock";
-/// The pending leaf the Server binds before atomically renaming it onto
-/// `client.sock`; the name is shared so binders and reporters derive one fact.
-pub const CLIENT_PENDING_SOCKET_NAME: &str = "client-pending.sock";
-/// The Session scope name whose runtime directory the Host owns.
+/// The Session scope name whose runtime directory holds the Host's lock.
 pub const HOST_SCOPE_NAME: &str = "host";
-/// The fixed Host endpoint identity the lazy Worker passes to a spawned Host.
-pub const HOST_ENDPOINT_ID: &str = "00000000000000000000000000000001";
-/// The endpoint leaf the Host binds inside its own runtime directory — always
-/// `{HOST_ENDPOINT_ID}.s`; the rendezvous tests pin that identity.
-pub const HOST_ENDPOINT_NAME: &str = "00000000000000000000000000000001.s";
 const RUNTIME_DIRECTORY_MODE: u32 = 0o700;
 const LOCK_FILE_MODE: u32 = 0o600;
 
@@ -76,6 +65,8 @@ pub struct ModeCheckedSessionLock {
 pub struct ModeCheckedLocalSessionRendezvous {
     paths: LocalSessionPaths,
     directory: OwnedFd,
+    /// The admitted socket folder; a validation finds none when nothing has created it.
+    sockets: Option<OwnedFd>,
     expected_uid: u32,
 }
 
@@ -116,16 +107,31 @@ impl ModeCheckedLocalSessionRendezvous {
         &self.paths.worker_socket
     }
 
-    /// The pending client socket path a runtime directory derives — the leaf
-    /// the Server binds before atomically renaming it onto `client.sock`.
-    /// Pure path math, like [`socket_paths`](Self::socket_paths).
-    pub fn client_pending_socket_path(runtime_directory: &Path) -> PathBuf {
-        runtime_directory.join(CLIENT_PENDING_SOCKET_NAME)
+    /// This environment's socket folder for the effective user, `/tmp/<stem>-<uid>` on Linux and
+    /// `/private/tmp/<stem>-<uid>` on macOS. Pure path math; the Host binds its endpoint here.
+    pub fn socket_root_path() -> PathBuf {
+        PathBuf::from(socket_root(
+            SOCKET_PARENT,
+            crate::environment_stem(),
+            effective_uid(),
+        ))
     }
 
-    /// The Host runtime directory a Session runtime directory derives. The Host
-    /// binds its endpoint relatively inside this directory while the Worker
-    /// connects through this derived absolute path.
+    /// The name every socket of this runtime directory starts with, which the Host also receives
+    /// as its endpoint identity. Pure path math.
+    pub fn host_endpoint_id(runtime_directory: &Path) -> String {
+        runtime_endpoint_id(runtime_directory)
+    }
+
+    /// The pending client socket path a runtime directory derives — the socket the Server binds
+    /// before atomically renaming it onto the client socket. Pure path math, like
+    /// [`socket_paths`](Self::socket_paths).
+    pub fn client_pending_socket_path(runtime_directory: &Path) -> PathBuf {
+        socket_path(runtime_directory, SocketRole::Pending)
+    }
+
+    /// The Host runtime directory a Session runtime directory derives. It holds the Host's lock;
+    /// the Host binds its endpoint in the socket folder.
     pub fn host_runtime_directory(runtime_directory: &Path) -> PathBuf {
         runtime_directory.join(HOST_SCOPE_NAME)
     }
@@ -133,7 +139,13 @@ impl ModeCheckedLocalSessionRendezvous {
     /// The Host endpoint path a Session runtime directory derives — the absolute
     /// address the Worker connects to. Pure path math.
     pub fn host_endpoint_path(runtime_directory: &Path) -> PathBuf {
-        Self::host_runtime_directory(runtime_directory).join(HOST_ENDPOINT_NAME)
+        socket_path(runtime_directory, SocketRole::Host)
+    }
+
+    /// The managed Agent observation endpoint a Session runtime directory derives. Pure path
+    /// math.
+    pub fn observation_endpoint_path(runtime_directory: &Path) -> PathBuf {
+        socket_path(runtime_directory, SocketRole::Agent)
     }
 
     /// The `[client, worker]` socket paths a runtime directory derives. Pure
@@ -141,8 +153,8 @@ impl ModeCheckedLocalSessionRendezvous {
     /// validated or is absent.
     pub fn socket_paths(runtime_directory: &Path) -> [PathBuf; 2] {
         [
-            runtime_directory.join(CLIENT_SOCKET_NAME),
-            runtime_directory.join(WORKER_SOCKET_NAME),
+            socket_path(runtime_directory, SocketRole::Client),
+            socket_path(runtime_directory, SocketRole::Worker),
         ]
     }
 
@@ -225,6 +237,13 @@ impl ModeCheckedLocalSessionRendezvous {
             created_status.as_ref(),
         )?;
 
+        let sockets = match policy {
+            OpenPolicy::CreateIfMissing => {
+                Some(prepare_socket_root(&paths.socket_root, expected_uid)?)
+            }
+            OpenPolicy::ExistingOnly => open_socket_root(&paths.socket_root, expected_uid)?,
+        };
+
         // A prior lifetime lock is incompatible evidence, never an unlocked current owner.
         match fstatat(
             &directory,
@@ -251,8 +270,20 @@ impl ModeCheckedLocalSessionRendezvous {
         Ok(Self {
             paths,
             directory,
+            sockets,
             expected_uid,
         })
+    }
+
+    /// Holds a shared lock on the socket folder for as long as the returned lock lives, so a
+    /// temporary-file cleaner that honours locks leaves this Session's sockets alone. Shared
+    /// holders never contend; a cleaner holds its exclusive lock only while it scans.
+    pub fn hold_socket_root(&self) -> std::io::Result<ModeCheckedSessionLock> {
+        let sockets = self.sockets.as_ref().ok_or(std::io::ErrorKind::NotFound)?;
+        // A descriptor of its own, so dropping the lock releases it.
+        let file = File::from(openat(sockets, ".", DIRECTORY_OPEN_FLAGS, Mode::empty())?);
+        file.lock_shared()?;
+        Ok(ModeCheckedSessionLock { _file: file })
     }
 
     /// Validates an existing managed runtime without creating directories.
@@ -315,15 +346,22 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     pub fn client_socket_exists(&self) -> std::io::Result<bool> {
-        self.socket_exists(CLIENT_SOCKET_NAME)
+        self.socket_exists(SocketRole::Client)
     }
 
     pub fn worker_socket_exists(&self) -> std::io::Result<bool> {
-        self.socket_exists(WORKER_SOCKET_NAME)
+        self.socket_exists(SocketRole::Worker)
     }
 
-    fn socket_exists(&self, name: &str) -> std::io::Result<bool> {
-        match fstatat(&self.directory, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+    fn socket_exists(&self, role: SocketRole) -> std::io::Result<bool> {
+        let Some(sockets) = &self.sockets else {
+            return Ok(false);
+        };
+        match fstatat(
+            sockets,
+            socket_leaf(&self.paths.endpoint_id, role).as_str(),
+            AtFlags::AT_SYMLINK_NOFOLLOW,
+        ) {
             Ok(status)
                 if SFlag::from_bits_truncate(status.st_mode) == SFlag::S_IFSOCK
                     && status.st_uid == self.expected_uid
@@ -375,8 +413,8 @@ impl ModeCheckedLocalSessionRendezvous {
             Err(TryLockError::Error(source)) => Err(RendezvousError::System {
                 operation: "acquire nonblocking lock",
                 source: if locks_unsupported(&source) {
-                    crate::AdmissionRefusal::io(
-                        crate::RefusalReason::LocksUnsupported,
+                    AdmissionRefusal::io(
+                        RefusalReason::LocksUnsupported,
                         &self.paths.runtime_directory,
                     )
                 } else {
@@ -407,7 +445,19 @@ impl ModeCheckedLocalSessionRendezvous {
     /// or follows an unadmitted object; every answer is a pathname or
     /// descriptor fact at its own instant, never a process claim.
     fn inspect(&self, name: &str) -> std::io::Result<EntryObservation> {
-        match fstatat(&self.directory, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+        self.inspect_at(&self.directory, name)
+    }
+
+    /// A socket of this runtime, observed in the socket folder; a missing folder holds none.
+    fn inspect_socket(&self, role: SocketRole) -> std::io::Result<EntryObservation> {
+        match &self.sockets {
+            Some(sockets) => self.inspect_at(sockets, &socket_leaf(&self.paths.endpoint_id, role)),
+            None => Ok(EntryObservation::Absent),
+        }
+    }
+
+    fn inspect_at(&self, directory: &OwnedFd, name: &str) -> std::io::Result<EntryObservation> {
+        match fstatat(directory, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
             Ok(status) => Ok(EntryObservation::Present {
                 kind: EntryKind::of(status.st_mode),
                 owner_matches: status.st_uid == self.expected_uid,
@@ -431,45 +481,28 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     pub fn observe_client_socket(&self) -> std::io::Result<EntryObservation> {
-        self.inspect(CLIENT_SOCKET_NAME)
+        self.inspect_socket(SocketRole::Client)
     }
 
     pub fn observe_worker_socket(&self) -> std::io::Result<EntryObservation> {
-        self.inspect(WORKER_SOCKET_NAME)
+        self.inspect_socket(SocketRole::Worker)
     }
 
     pub fn observe_client_pending_socket(&self) -> std::io::Result<EntryObservation> {
-        self.inspect(CLIENT_PENDING_SOCKET_NAME)
+        self.inspect_socket(SocketRole::Pending)
     }
 
     pub fn observe_agent_observation_socket(&self) -> std::io::Result<EntryObservation> {
-        self.inspect(AGENT_OBSERVATION_SOCKET_NAME)
+        self.inspect_socket(SocketRole::Agent)
     }
 
     pub fn observe_host_directory(&self) -> std::io::Result<EntryObservation> {
         self.inspect(HOST_SCOPE_NAME)
     }
 
-    /// The Host endpoint name lives inside the Host directory: the parent
-    /// is inspected first and only a validated owner-owned directory is
-    /// traversed — an absent parent means the endpoint is absent, and any
-    /// other unadmitted parent fails instead of being followed.
+    /// The Host endpoint, observed in the socket folder.
     pub fn observe_host_endpoint(&self) -> std::io::Result<EntryObservation> {
-        match self.inspect(HOST_SCOPE_NAME)? {
-            EntryObservation::Absent => return Ok(EntryObservation::Absent),
-            EntryObservation::Present {
-                kind: EntryKind::Directory,
-                owner_matches: true,
-                ..
-            } => {}
-            EntryObservation::Present { .. } => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::PermissionDenied,
-                    "unadmitted local Session host directory",
-                ));
-            }
-        }
-        self.inspect(&host_endpoint_relative_name())
+        self.inspect_socket(SocketRole::Host)
     }
 
     /// Observes the Session lifetime lock without creating it: a name that
@@ -525,6 +558,8 @@ struct LocalSessionPaths {
     runtime_directory: PathBuf,
     activation_lock: PathBuf,
     session_lifetime_lock: PathBuf,
+    socket_root: PathBuf,
+    endpoint_id: String,
     client_socket: PathBuf,
     worker_socket: PathBuf,
 }
@@ -533,11 +568,15 @@ impl LocalSessionPaths {
     fn new(runtime_base: &Path, scope: &SessionScope) -> Result<Self, RendezvousError> {
         validate_runtime_base_path(runtime_base)?;
         let runtime_directory = runtime_base.join(scope.as_str());
+        let [client_socket, worker_socket] =
+            ModeCheckedLocalSessionRendezvous::socket_paths(&runtime_directory);
         Ok(Self {
             activation_lock: runtime_directory.join(ACTIVATION_LOCK_NAME),
             session_lifetime_lock: runtime_directory.join(SESSION_LIFETIME_LOCK_NAME),
-            client_socket: runtime_directory.join(CLIENT_SOCKET_NAME),
-            worker_socket: runtime_directory.join(WORKER_SOCKET_NAME),
+            socket_root: ModeCheckedLocalSessionRendezvous::socket_root_path(),
+            endpoint_id: runtime_endpoint_id(&runtime_directory),
+            client_socket,
+            worker_socket,
             runtime_directory,
         })
     }
@@ -564,6 +603,103 @@ enum DirectoryRole {
 
 fn effective_uid() -> u32 {
     geteuid().as_raw()
+}
+
+/// The socket name prefix of a runtime directory, from its canonical base and its Session name.
+fn runtime_endpoint_id(runtime_directory: &Path) -> String {
+    let base = runtime_directory
+        .parent()
+        .map_or(&[][..], |base| base.as_os_str().as_bytes());
+    let session = runtime_directory
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    endpoint_id(base, &session)
+}
+
+fn socket_path(runtime_directory: &Path, role: SocketRole) -> PathBuf {
+    ModeCheckedLocalSessionRendezvous::socket_root_path()
+        .join(socket_leaf(&runtime_endpoint_id(runtime_directory), role))
+}
+
+/// Opens the folder that holds every socket folder, which must belong to root and carry the
+/// sticky bit, so no other user can replace this user's socket folder.
+fn open_socket_parent() -> Result<OwnedFd, RendezvousError> {
+    let parent = Path::new(SOCKET_PARENT);
+    let descriptor = open(parent, DIRECTORY_OPEN_FLAGS, Mode::empty())
+        .map_err(|error| system_error("open socket folder parent", parent, error))?;
+    let status = descriptor_status(&descriptor, "inspect socket folder parent", parent)?;
+    if status.st_uid != 0 || status.st_mode & nix::libc::S_ISVTX == 0 {
+        return Err(unsafe_socket_folder(parent));
+    }
+    Ok(descriptor)
+}
+
+/// Creates this environment's socket folder as 0700 when it is missing and admits it.
+fn prepare_socket_root(path: &Path, expected_uid: u32) -> Result<OwnedFd, RendezvousError> {
+    let parent = open_socket_parent()?;
+    let name = path.file_name().unwrap_or_default();
+    let created = match mkdirat(&parent, name, exact_mode(RUNTIME_DIRECTORY_MODE)) {
+        Ok(()) => Some(
+            initialize_created_directory(&parent, name, path, expected_uid)
+                .map_err(|error| socket_folder_error(path, error))?,
+        ),
+        Err(Errno::EEXIST) => None,
+        Err(error) => return Err(system_error("create socket folder", path, error)),
+    };
+    admit_socket_root(&parent, path, expected_uid, created.as_ref())
+}
+
+/// Admits an existing socket folder; none exists before an activation creates it.
+fn open_socket_root(path: &Path, expected_uid: u32) -> Result<Option<OwnedFd>, RendezvousError> {
+    let parent = open_socket_parent()?;
+    match fstatat(
+        &parent,
+        path.file_name().unwrap_or_default(),
+        AtFlags::AT_SYMLINK_NOFOLLOW,
+    ) {
+        Err(Errno::ENOENT) => Ok(None),
+        Err(error) => Err(system_error("inspect socket folder", path, error)),
+        Ok(_) => admit_socket_root(&parent, path, expected_uid, None).map(Some),
+    }
+}
+
+fn admit_socket_root(
+    parent: &OwnedFd,
+    path: &Path,
+    expected_uid: u32,
+    created_status: Option<&FileStat>,
+) -> Result<OwnedFd, RendezvousError> {
+    let descriptor = openat(
+        parent,
+        path.file_name().unwrap_or_default(),
+        DIRECTORY_OPEN_FLAGS,
+        Mode::empty(),
+    )
+    .map_err(|error| match error {
+        Errno::ELOOP | Errno::ENOTDIR => unsafe_socket_folder(path),
+        _ => system_error("open socket folder", path, error),
+    })?;
+    validate_directory(&descriptor, path, expected_uid, created_status)
+        .map_err(|error| socket_folder_error(path, error))?;
+    Ok(descriptor)
+}
+
+/// A socket folder that fails its owner, type, or mode rule is refused as unsafe; a refusal or an
+/// I/O failure keeps its own meaning.
+fn socket_folder_error(path: &Path, error: RendezvousError) -> RendezvousError {
+    match error {
+        RendezvousError::System { .. } => error,
+        _ => unsafe_socket_folder(path),
+    }
+}
+
+fn unsafe_socket_folder(path: &Path) -> RendezvousError {
+    RendezvousError::System {
+        operation: "admit socket folder",
+        path: path.to_path_buf(),
+        source: AdmissionRefusal::io(RefusalReason::UnsafeSocketFolder, path),
+    }
 }
 
 fn validate_runtime_base_path(path: &Path) -> Result<(), RendezvousError> {
@@ -642,7 +778,7 @@ fn initialize_created_directory(
     Ok(status)
 }
 
-pub(crate) fn validate_directory(
+fn validate_directory(
     descriptor: &OwnedFd,
     path: &Path,
     expected_uid: u32,
@@ -653,6 +789,7 @@ pub(crate) fn validate_directory(
     require_owner(&status, path, expected_uid)?;
     if let Some(created_status) = created_status {
         require_same_directory_identity(created_status, &status, path)?;
+        require_kept_mode(status.st_mode, path, RUNTIME_DIRECTORY_MODE)?;
     }
     require_mode(status.st_mode, path, RUNTIME_DIRECTORY_MODE)?;
     #[cfg(target_os = "macos")]
@@ -692,6 +829,9 @@ fn validate_lock_file(
     require_type(&status, SFlag::S_IFREG, path, Some(kind))?;
     require_owner(&status, path, expected_uid)?;
     require_single_link(status.st_nlink, kind, path)?;
+    if created {
+        require_kept_mode(status.st_mode, path, LOCK_FILE_MODE)?;
+    }
     require_mode(status.st_mode, path, LOCK_FILE_MODE)?;
     #[cfg(target_os = "macos")]
     require_macos_permissions(descriptor, path)?;
@@ -756,6 +896,23 @@ fn require_mode(mode: impl Into<u32>, path: &Path, expected: u32) -> Result<(), 
         path: path.to_path_buf(),
         expected,
         actual,
+    })
+}
+
+/// A mode Orchbee has just set that does not read back means the file system does not keep
+/// permissions.
+fn require_kept_mode(
+    mode: impl Into<u32>,
+    path: &Path,
+    expected: u32,
+) -> Result<(), RendezvousError> {
+    if permission_bits(mode) == expected {
+        return Ok(());
+    }
+    Err(RendezvousError::System {
+        operation: "keep permissions",
+        path: path.to_path_buf(),
+        source: AdmissionRefusal::io(RefusalReason::PermissionsNotKept, path),
     })
 }
 

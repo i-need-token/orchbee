@@ -213,7 +213,7 @@ impl RealTerminalRuntime {
         let runtime = host_directory.0.as_path();
         std::fs::set_permissions(runtime, std::fs::Permissions::from_mode(0o700))?;
         let endpoint_id = "1234567890abcdef1234567890abcdef";
-        let endpoint = runtime.join(format!("{endpoint_id}.s"));
+        let endpoint = runtime.join(format!("{endpoint_id}-host.sock"));
         let host_binary = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
         let worker_binary =

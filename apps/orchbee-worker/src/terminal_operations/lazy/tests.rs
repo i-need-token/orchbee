@@ -36,6 +36,19 @@ const ARTIFACTS: [&str; 4] = [
     "orchbee-terminal-host",
 ];
 const ARTIFACT_CONTENT: &[u8] = b"native fixture\n";
+
+/// The file name a cohort role is staged under; the manifest keeps naming the role.
+fn staged_name(role: &str) -> String {
+    use orchbee_local_runtime::CohortArtifact;
+    match role {
+        "orchbee" => CohortArtifact::Client,
+        "orchbee-server" => CohortArtifact::Server,
+        "orchbee-worker" => CohortArtifact::Worker,
+        "orchbee-terminal-host" => CohortArtifact::TerminalHost,
+        _ => panic!("unknown cohort role {role:?}"),
+    }
+    .file_name()
+}
 const ARTIFACT_SHA256: &str = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
 // Controlled dummy digest declared for the adapters payload — the fixture
 // stages no sidecar; cohort admission stays lazy.
@@ -317,7 +330,7 @@ impl TestCohort {
         fs::create_dir(&path)?;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700))?;
         for artifact in ARTIFACTS {
-            let artifact_path = path.join(artifact);
+            let artifact_path = path.join(staged_name(artifact));
             fs::write(&artifact_path, ARTIFACT_CONTENT)?;
             fs::set_permissions(artifact_path, fs::Permissions::from_mode(0o700))?;
         }
@@ -449,7 +462,7 @@ mod fixture_lifecycle {
     };
 
     use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
-    use orchbee_local_runtime::HOST_ENDPOINT_ID;
+    use orchbee_local_runtime::ModeCheckedLocalSessionRendezvous;
     use rustix::process::{Pid as RustixPid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 
     use super::TestCohort;
@@ -522,7 +535,8 @@ mod fixture_lifecycle {
 
     /// Fixture-private reclaim target: exactly this cohort's Host argv
     /// shape — `<exe> serve --runtime-directory <host runtime>
-    /// --endpoint-id <id>` as `start_host` spawns it.
+    /// --endpoint-id <id> --endpoint-directory <socket folder>` as
+    /// `start_host` spawns it.
     struct HostReclaim {
         executable: PathBuf,
         host_runtime: PathBuf,
@@ -530,13 +544,18 @@ mod fixture_lifecycle {
 
     impl HostReclaim {
         fn expected_argv(&self) -> Vec<Vec<u8>> {
+            let session_runtime = self.host_runtime.parent().unwrap_or(&self.host_runtime);
+            let endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(session_runtime);
+            let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
             [
                 self.executable.as_os_str(),
                 std::ffi::OsStr::new("serve"),
                 std::ffi::OsStr::new("--runtime-directory"),
                 self.host_runtime.as_os_str(),
                 std::ffi::OsStr::new("--endpoint-id"),
-                std::ffi::OsStr::new(HOST_ENDPOINT_ID),
+                std::ffi::OsStr::new(&endpoint_id),
+                std::ffi::OsStr::new("--endpoint-directory"),
+                socket_root.as_os_str(),
             ]
             .iter()
             .map(|value| value.as_bytes().to_vec())
@@ -975,7 +994,7 @@ fn guarded_real_host() -> TestResult<(FixtureLifecycle, PathBuf, PathBuf)> {
     fs::create_dir(&session_runtime)?;
     fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
     let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
-    let executable = cohort_root.join("orchbee-terminal-host");
+    let executable = cohort_root.join(staged_name("orchbee-terminal-host"));
     let (server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(FIXTURE_TIMEOUT))?;
     server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
@@ -1402,7 +1421,7 @@ fn fixture_lifecycle_reclaims_pinned_host_on_panic_unwind() {
 fn reclaim_never_matches_an_unrelated_cohort() -> TestResult {
     let own = TestCohort::new()?;
     let other = TestCohort::new()?;
-    let own_exe = own.path().join("orchbee-terminal-host");
+    let own_exe = own.path().join(staged_name("orchbee-terminal-host"));
     let own_host_runtime =
         ModeCheckedLocalSessionRendezvous::host_runtime_directory(&own.path().join("runtime"));
     let other_host_runtime =
@@ -1419,16 +1438,20 @@ fn reclaim_never_matches_an_unrelated_cohort() -> TestResult {
         push(&mut argv, std::ffi::OsStr::new("serve"));
         push(&mut argv, std::ffi::OsStr::new("--runtime-directory"));
         push(&mut argv, host_runtime.as_os_str());
+        let session_runtime = host_runtime.parent().unwrap_or(host_runtime);
+        let endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(session_runtime);
         push(&mut argv, std::ffi::OsStr::new("--endpoint-id"));
+        push(&mut argv, std::ffi::OsStr::new(&endpoint_id));
+        push(&mut argv, std::ffi::OsStr::new("--endpoint-directory"));
         push(
             &mut argv,
-            std::ffi::OsStr::new(orchbee_local_runtime::HOST_ENDPOINT_ID),
+            ModeCheckedLocalSessionRendezvous::socket_root_path().as_os_str(),
         );
         argv
     };
     let own_argv = argv_of(&own_exe, &own_host_runtime);
     let foreign_argv = argv_of(
-        &other.path().join("orchbee-terminal-host"),
+        &other.path().join(staged_name("orchbee-terminal-host")),
         &other_host_runtime,
     );
     assert!(fixture_lifecycle::argv_is_fixture_host(
@@ -1532,7 +1555,7 @@ impl TestCohort {
             return Ok(None);
         }
         let cohort = Self::new()?;
-        let host_path = cohort.path().join("orchbee-terminal-host");
+        let host_path = cohort.path().join(staged_name("orchbee-terminal-host"));
         fs::copy(&binary, &host_path)?;
         fs::set_permissions(&host_path, fs::Permissions::from_mode(0o700))?;
         eprintln!(
@@ -1542,7 +1565,7 @@ impl TestCohort {
         );
         let mut hashes = Vec::new();
         for name in ARTIFACTS {
-            hashes.push(sha256_file(&cohort.path().join(name))?);
+            hashes.push(sha256_file(&cohort.path().join(staged_name(name)))?);
         }
         let manifest = cohort.path().join("cohort.json");
         fs::write(

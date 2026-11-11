@@ -15,15 +15,19 @@ use std::process::Output;
 /// Run `server start` with a caller-chosen LANG/base override; identical to
 /// `run_cli` apart from the extra environment pair.
 fn run_start(fixture: &Fixture, arguments: &[&str], lang: &str, base: &std::path::Path) -> Output {
-    crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", base)
-        .env("LANG", lang)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .stdin(Stdio::null())
-        .output()
-        .unwrap_or_else(|error| panic!("spawn server start {arguments:?}: {error}"))
+    crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(arguments)
+    .env("ORCHBEE_RUNTIME_BASE", base)
+    .env("LANG", lang)
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .stdin(Stdio::null())
+    .output()
+    .unwrap_or_else(|error| panic!("spawn server start {arguments:?}: {error}"))
 }
 
 /// A live Server admitting through the real client socket is the only proof
@@ -82,10 +86,7 @@ fn session_start_cold_then_warm_reports_the_actual_branch() -> TestResult {
     );
     validate(&validators, "orchbee.server.start", &output);
     assert_eq!(document["result"]["outcome"], "started");
-    assert_eq!(
-        document["result"]["scope"],
-        format!("orchbee-native-{}", nix::unistd::geteuid())
-    );
+    assert_eq!(document["result"]["scope"], "default");
     assert_eq!(
         document["result"]["runtimeBase"]["path"],
         fixture.base.to_str().expect("fixture base is UTF-8")
@@ -128,16 +129,20 @@ fn session_start_overlapping_invocations_spawn_exactly_one_server() -> TestResul
     let mut children = Vec::new();
     for _ in 0..3 {
         children.push(
-            crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-                .args(["server", "start", "--format", "json"])
-                .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-                .env("LANG", "en_US.UTF-8")
-                .env_remove("LC_ALL")
-                .env_remove("LC_MESSAGES")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()?,
+            crate::support::orchbee_command(
+                fixture
+                    .cohort
+                    .join(crate::support::staged_artifact_name("orchbee")),
+            )
+            .args(["server", "start", "--format", "json"])
+            .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+            .env("LANG", "en_US.UTF-8")
+            .env_remove("LC_ALL")
+            .env_remove("LC_MESSAGES")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?,
         );
     }
     let mut started = 0;
@@ -231,16 +236,20 @@ fn session_start_sigterm_is_signal_death_not_a_cancel_envelope() -> TestResult {
         LockAttempt::Acquired(lock) => lock,
         LockAttempt::Contended => panic!("fixture activation lock must be free"),
     };
-    let child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-        .args(["server", "start", "--format", "json"])
-        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-        .env("LANG", "en_US.UTF-8")
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+    let child = crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(["server", "start", "--format", "json"])
+    .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+    .env("LANG", "en_US.UTF-8")
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()?;
     thread::sleep(Duration::from_millis(1500));
     nix::sys::signal::kill(
         nix::unistd::Pid::from_raw(child.id() as i32),
@@ -280,7 +289,9 @@ fn session_start_cohort_failures_classify_typed() -> TestResult {
 
     // Tampered artifact: hash mismatch is InvalidData → incompatible.
     let fixture = Fixture::new();
-    let server = fixture.cohort.join("orchbee-server");
+    let server = fixture
+        .cohort
+        .join(crate::support::staged_artifact_name("orchbee-server"));
     fs::write(&server, b"not a server")?;
     let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(output.status.code(), Some(6));

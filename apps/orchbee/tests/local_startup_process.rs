@@ -12,8 +12,6 @@ mod native_close;
 mod native_cohort;
 #[path = "local_startup_process/native_context.rs"]
 mod native_context;
-#[path = "local_startup_process/native_endpoint_budget.rs"]
-mod native_endpoint_budget;
 #[path = "local_startup_process/native_exec_launch.rs"]
 mod native_exec_launch;
 #[path = "local_startup_process/native_history.rs"]
@@ -60,7 +58,7 @@ mod support;
 
 use native_cohort::{Fixture, ManagedProcess};
 use orchbee_local_client_protocol::ClientConnection;
-use orchbee_local_runtime::{Cohort, LockAttempt};
+use orchbee_local_runtime::{Cohort, LockAttempt, ModeCheckedLocalSessionRendezvous};
 use pty_client::{Client, ReadyMode, wait_file};
 use std::{
     error::Error,
@@ -671,13 +669,17 @@ fn server_and_worker_readiness_does_not_start_a_host() -> TestResult {
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::load(&fixture.cohort, deadline)
         .map_err(|error| format!("fixture cohort admission: {error}"))?;
-    let mut server = crate::support::orchbee_command(fixture.cohort.join("orchbee-server"))
-        .arg("--runtime-directory")
-        .arg(fixture.runtime())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+    let mut server = crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee-server")),
+    )
+    .arg("--runtime-directory")
+    .arg(fixture.runtime())
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()?;
     loop {
         if session.client_socket_exists()? {
             break;
@@ -718,7 +720,8 @@ fn committed_failed_startup_requires_recovery_and_does_not_launch_again() {
             "需要显式恢复"
         }));
         assert!(fixture.processes("orchbee-server").is_empty());
-        assert!(!fixture.runtime().join("worker.sock").exists());
+        let [_client, worker] = ModeCheckedLocalSessionRendezvous::socket_paths(&fixture.runtime());
+        assert!(!worker.exists());
     }
 }
 
@@ -746,7 +749,13 @@ fn activation_contention_uses_one_deadline_and_delayed_progress() {
 fn changed_cohort_fails_before_runtime_creation() {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
-    fs::write(fixture.cohort.join("orchbee-terminal-host"), b"mixed Host").unwrap();
+    fs::write(
+        fixture.cohort.join(crate::support::staged_artifact_name(
+            "orchbee-terminal-host",
+        )),
+        b"mixed Host",
+    )
+    .unwrap();
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     assert!(
@@ -787,13 +796,17 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
     let cohort_identity = Cohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))?
         .identity()
         .to_owned();
-    let mut worker = crate::support::orchbee_command(fixture.cohort.join("orchbee-worker"))
-        .arg("--runtime-directory")
-        .arg(fixture.runtime())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+    let mut worker = crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee-worker")),
+    )
+    .arg("--runtime-directory")
+    .arg(fixture.runtime())
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()?;
     let deadline = Instant::now() + Duration::from_secs(8);
     let mut server = loop {
         match listener.accept() {
@@ -967,11 +980,15 @@ fn help_version_and_non_tty_use_no_runtime_or_processes() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     for arguments in [vec!["--help"], vec!["--version"], vec![]] {
-        let output = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-            .args(&arguments)
-            .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-            .env("LC_ALL", "en_US.UTF-8")
-            .output()?;
+        let output = crate::support::orchbee_command(
+            fixture
+                .cohort
+                .join(crate::support::staged_artifact_name("orchbee")),
+        )
+        .args(&arguments)
+        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+        .env("LC_ALL", "en_US.UTF-8")
+        .output()?;
         assert_eq!(
             output.status.code(),
             Some(if arguments.is_empty() { 1 } else { 0 })
@@ -994,7 +1011,9 @@ fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_session() 
     let other = Fixture::with_workspace();
     fs::OpenOptions::new()
         .append(true)
-        .open(other.cohort.join("orchbee-terminal-host"))?
+        .open(other.cohort.join(crate::support::staged_artifact_name(
+            "orchbee-terminal-host",
+        )))?
         .write_all(b"another-build")?;
     other.manifest();
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;

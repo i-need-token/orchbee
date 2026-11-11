@@ -23,106 +23,6 @@ pub(crate) static FILESYSTEM_TEST_LOCK: Mutex<()> = Mutex::new(());
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
 #[test]
-fn derives_exact_stable_paths_from_the_typed_scope() -> TestResult {
-    let paths = LocalSessionPaths::new(
-        Path::new("/run/user/501"),
-        &SessionScope::parse("orchbee-dev-a1b2c3")?,
-    )?;
-
-    assert_eq!(
-        paths.runtime_directory,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3")
-    );
-    assert_eq!(
-        paths.activation_lock,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/activation.lock")
-    );
-    assert_eq!(
-        paths.session_lifetime_lock,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/session-lifetime.lock")
-    );
-    assert_eq!(
-        paths.client_socket,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/client.sock")
-    );
-    assert_eq!(
-        paths.worker_socket,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/worker.sock")
-    );
-    assert!(matches!(
-        LocalSessionPaths::new(
-            Path::new("relative"),
-            &SessionScope::parse("orchbee-local")?
-        ),
-        Err(RendezvousError::RuntimeBaseNotAbsolute { .. })
-    ));
-    Ok(())
-}
-
-#[test]
-fn derives_pending_and_host_paths_from_one_runtime_directory() -> TestResult {
-    let runtime = Path::new("/run/user/501/orchbee-dev-a1b2c3");
-
-    assert_eq!(
-        ModeCheckedLocalSessionRendezvous::client_pending_socket_path(runtime),
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/client-pending.sock")
-    );
-    assert_eq!(
-        ModeCheckedLocalSessionRendezvous::host_runtime_directory(runtime),
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/host")
-    );
-    assert_eq!(
-        ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime),
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/host/00000000000000000000000000000001.s")
-    );
-    // `socket_paths` keeps its original two-address contract: exactly
-    // `[client, worker]`, in that order.
-    let [client, worker] = ModeCheckedLocalSessionRendezvous::socket_paths(runtime);
-    assert_eq!(
-        client,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/client.sock")
-    );
-    assert_eq!(
-        worker,
-        Path::new("/run/user/501/orchbee-dev-a1b2c3/worker.sock")
-    );
-    // The budget view is that same pair followed by the pending and Host
-    // endpoints, in stable `[client, worker, client-pending, host]` order.
-    assert_eq!(
-        ModeCheckedLocalSessionRendezvous::socket_budget_paths(runtime),
-        [
-            client.clone(),
-            worker.clone(),
-            PathBuf::from("/run/user/501/orchbee-dev-a1b2c3/client-pending.sock"),
-            PathBuf::from(
-                "/run/user/501/orchbee-dev-a1b2c3/host/00000000000000000000000000000001.s"
-            ),
-        ]
-    );
-    // The shared names are the same facts every consumer derives from: the
-    // pending leaf, the Host scope, and the Host endpoint id/name.
-    assert_eq!(CLIENT_PENDING_SOCKET_NAME, "client-pending.sock");
-    assert_eq!(HOST_SCOPE_NAME, "host");
-    assert_eq!(HOST_ENDPOINT_ID, "00000000000000000000000000000001");
-    assert_eq!(HOST_ENDPOINT_NAME, "00000000000000000000000000000001.s");
-    assert_eq!(HOST_ENDPOINT_NAME, format!("{HOST_ENDPOINT_ID}.s"));
-
-    // Pure derivation answers for relative, absent, or non-inspectable
-    // directories — path math never touches the filesystem.
-    let relative = Path::new("not/absolute");
-    assert_eq!(
-        ModeCheckedLocalSessionRendezvous::host_endpoint_path(relative),
-        relative.join("host").join(HOST_ENDPOINT_NAME)
-    );
-    let missing = Path::new("/definitely/absent/runtime");
-    assert_eq!(
-        ModeCheckedLocalSessionRendezvous::client_pending_socket_path(missing),
-        missing.join(CLIENT_PENDING_SOCKET_NAME)
-    );
-    Ok(())
-}
-
-#[test]
 fn rejects_non_normal_runtime_base_forms_before_filesystem_resolution() -> TestResult {
     let fixture = TestDirectory::new("runtime-base-lexical")?;
     fs::create_dir(fixture.path().join("nested"))?;
@@ -167,14 +67,6 @@ fn creates_and_validates_an_owned_exact_mode_runtime_directory() -> TestResult {
     assert_eq!(
         rendezvous.runtime_directory(),
         fixture.path().join(scope.as_str())
-    );
-    assert_eq!(
-        rendezvous.client_socket_path(),
-        rendezvous.runtime_directory().join(CLIENT_SOCKET_NAME)
-    );
-    assert_eq!(
-        rendezvous.worker_socket_path(),
-        rendezvous.runtime_directory().join(WORKER_SOCKET_NAME)
     );
     assert_eq!(
         mode(rendezvous.runtime_directory())?,
@@ -577,6 +469,8 @@ fn dropping_rendezvous_resources_releases_only_locks_and_removes_nothing() -> Te
     let activation_path = rendezvous.paths.activation_lock.clone();
     let lifetime_path = rendezvous.paths.session_lifetime_lock.clone();
     let runtime_directory = rendezvous.runtime_directory().to_path_buf();
+    let client_socket = rendezvous.client_socket_path().to_path_buf();
+    let worker_socket = rendezvous.worker_socket_path().to_path_buf();
     let activation = acquired(rendezvous.try_acquire_activation_lock()?)?;
     let lifetime = acquired(rendezvous.try_acquire_session_lifetime_lock()?)?;
 
@@ -587,14 +481,8 @@ fn dropping_rendezvous_resources_releases_only_locks_and_removes_nothing() -> Te
     assert!(runtime_directory.is_dir());
     assert!(activation_path.is_file());
     assert!(lifetime_path.is_file());
-    assert_eq!(
-        fs::read(runtime_directory.join(CLIENT_SOCKET_NAME))?,
-        b"client sentinel\n"
-    );
-    assert_eq!(
-        fs::read(runtime_directory.join(WORKER_SOCKET_NAME))?,
-        b"worker sentinel\n"
-    );
+    assert_eq!(fs::read(&client_socket)?, b"client sentinel\n");
+    assert_eq!(fs::read(&worker_socket)?, b"worker sentinel\n");
     let reopened = ModeCheckedLocalSessionRendezvous::validate_mode_checked(fixture.path(), scope)?;
     assert!(matches!(
         reopened.try_acquire_activation_lock()?,
@@ -604,6 +492,8 @@ fn dropping_rendezvous_resources_releases_only_locks_and_removes_nothing() -> Te
         reopened.try_acquire_session_lifetime_lock()?,
         LockAttempt::Acquired(_)
     ));
+    fs::remove_file(&client_socket)?;
+    fs::remove_file(&worker_socket)?;
     Ok(())
 }
 
@@ -754,6 +644,10 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
         SessionScope::parse("orchbee-observe")?,
     )?;
     let runtime = session.runtime_directory().to_path_buf();
+    let client_socket = session.client_socket_path().to_path_buf();
+    let worker_socket = session.worker_socket_path().to_path_buf();
+    let pending_socket = ModeCheckedLocalSessionRendezvous::client_pending_socket_path(&runtime);
+    let host_endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&runtime);
 
     // An empty validated directory answers `Absent` everywhere.
     for observation in [
@@ -789,11 +683,8 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
 
     // A real socket leaf reports `Socket`; a regular file reports its own
     // kind — the verdict stays with the caller.
-    let listener = std::os::unix::net::UnixListener::bind(runtime.join(CLIENT_SOCKET_NAME))?;
-    fs::set_permissions(
-        runtime.join(CLIENT_SOCKET_NAME),
-        fs::Permissions::from_mode(0o600),
-    )?;
+    let listener = std::os::unix::net::UnixListener::bind(&client_socket)?;
+    fs::set_permissions(&client_socket, fs::Permissions::from_mode(0o600))?;
     assert_eq!(
         session.observe_client_socket()?,
         EntryObservation::Present {
@@ -804,14 +695,8 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
             link_count: 1,
         }
     );
-    fs::write(
-        runtime.join(CLIENT_PENDING_SOCKET_NAME),
-        b"pending sentinel\n",
-    )?;
-    fs::set_permissions(
-        runtime.join(CLIENT_PENDING_SOCKET_NAME),
-        fs::Permissions::from_mode(0o644),
-    )?;
+    fs::write(&pending_socket, b"pending sentinel\n")?;
+    fs::set_permissions(&pending_socket, fs::Permissions::from_mode(0o644))?;
     assert_eq!(
         session.observe_client_pending_socket()?,
         EntryObservation::Present {
@@ -824,7 +709,7 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
     );
 
     // A symlink is reported as a symlink — never followed, never opened.
-    symlink(CLIENT_SOCKET_NAME, runtime.join(WORKER_SOCKET_NAME))?;
+    symlink(&client_socket, &worker_socket)?;
     let observed = session.observe_worker_socket()?;
     assert!(matches!(
         observed,
@@ -834,13 +719,10 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
             ..
         }
     ));
-    assert_eq!(
-        fs::read_link(runtime.join(WORKER_SOCKET_NAME))?,
-        Path::new(CLIENT_SOCKET_NAME)
-    );
+    assert_eq!(fs::read_link(&worker_socket)?, client_socket);
 
-    // Host endpoint: an absent parent is `Absent`; a validated parent
-    // traverses; anything else is refused instead of followed.
+    // The Host directory is observed in the runtime directory and its endpoint in the socket
+    // folder.
     let host_directory = runtime.join(HOST_SCOPE_NAME);
     fs::create_dir(&host_directory)?;
     fs::set_permissions(&host_directory, fs::Permissions::from_mode(0o700))?;
@@ -855,8 +737,7 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
         }
     );
     assert_eq!(session.observe_host_endpoint()?, EntryObservation::Absent);
-    let host_listener =
-        std::os::unix::net::UnixListener::bind(host_directory.join(HOST_ENDPOINT_NAME))?;
+    let host_listener = std::os::unix::net::UnixListener::bind(&host_endpoint)?;
     assert!(matches!(
         session.observe_host_endpoint()?,
         EntryObservation::Present {
@@ -867,19 +748,7 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
     ));
     drop(host_listener);
     drop(listener);
-    fs::remove_file(host_directory.join(HOST_ENDPOINT_NAME))?;
-    fs::remove_dir(&host_directory)?;
-    symlink("client.sock", &host_directory)?;
-    assert_eq!(
-        session.observe_host_endpoint().unwrap_err().kind(),
-        io::ErrorKind::PermissionDenied
-    );
-    fs::remove_file(&host_directory)?;
-    fs::write(&host_directory, b"host sentinel\n")?;
-    assert_eq!(
-        session.observe_host_endpoint().unwrap_err().kind(),
-        io::ErrorKind::PermissionDenied
-    );
+    fs::remove_file(&host_endpoint)?;
 
     // A hard-linked or non-empty lock still reports facts — `Unsafe` is the
     // verdict, never an open attempt on an unadmitted name.
@@ -912,21 +781,11 @@ fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
         .map(|entry| entry.map(|e| e.file_name().to_string_lossy().into_owned()))
         .collect::<Result<_, io::Error>>()?;
     leaves.sort();
-    assert_eq!(
-        leaves,
-        [
-            "activation.started",
-            "client-pending.sock",
-            "client.sock",
-            "host",
-            "worker.sock",
-        ]
-        .map(str::to_owned)
-    );
-    assert_eq!(
-        fs::read(runtime.join(CLIENT_PENDING_SOCKET_NAME))?,
-        b"pending sentinel\n"
-    );
+    assert_eq!(leaves, ["activation.started", "host"].map(str::to_owned));
+    assert_eq!(fs::read(&pending_socket)?, b"pending sentinel\n");
+    for socket in [&client_socket, &worker_socket, &pending_socket] {
+        fs::remove_file(socket)?;
+    }
     Ok(())
 }
 

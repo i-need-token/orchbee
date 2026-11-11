@@ -43,8 +43,6 @@ fn immediate_launch_maps_stable_identity_explicit_cwd_and_all_resolved_facts() -
 
     assert_eq!(request.creation_id.as_bytes(), &[HOST_CREATION; 16]);
     assert_ne!(request.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
-    #[cfg(not(windows))]
-    assert!(request.environment_overlay.is_empty());
     #[cfg(windows)]
     assert_eq!(request.environment_overlay.len(), 2);
     assert_eq!(request.launch.executable, "/bin/zsh");
@@ -79,8 +77,6 @@ fn deferred_launch_uses_resolved_home_and_carries_no_geometry() -> TestResult {
         Some("/home/worker")
     );
     assert_eq!(request.launch.start_mode, LaunchStartMode::Deferred);
-    #[cfg(not(windows))]
-    assert!(request.environment_overlay.is_empty());
     #[cfg(windows)]
     assert_eq!(request.environment_overlay.len(), 2);
     Ok(())
@@ -504,13 +500,7 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
 #[test]
 fn admitted_session_observation_socket_sets_the_overlay_variable() -> TestResult {
     let directory = ObservationSessionDirectory::new()?;
-    #[cfg(unix)]
-    let endpoint = directory.path().join(OBSERVATION_SOCKET_NAME);
-    #[cfg(windows)]
-    let endpoint =
-        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
-            directory.path(),
-        );
+    let endpoint = directory.observation_endpoint();
     let _listener = UnixListener::bind(&endpoint)?;
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
 
@@ -557,7 +547,13 @@ fn admitted_session_observation_socket_sets_the_overlay_variable() -> TestResult
 fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
     let directory = ObservationSessionDirectory::new()?;
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
-    let socket_name = directory.path().join(OBSERVATION_SOCKET_NAME);
+    let socket_name = directory.observation_endpoint();
+    let observation = |request: &CreateTerminal| {
+        request
+            .environment_overlay
+            .iter()
+            .any(|entry| entry.name == OBSERVATION_SOCKET_ENV)
+    };
 
     // Nothing at the socket name: no variable is published.
     let request = map_launch_dispatch(
@@ -565,7 +561,7 @@ fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
         resolved_facts("/home/worker")?,
         Some(directory.path()),
     )?;
-    assert!(request.environment_overlay.is_empty());
+    assert!(!observation(&request));
 
     // A regular file is not the bound socket.
     std::fs::write(&socket_name, b"not-a-socket")?;
@@ -574,7 +570,7 @@ fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
         resolved_facts("/home/worker")?,
         Some(directory.path()),
     )?;
-    assert!(request.environment_overlay.is_empty());
+    assert!(!observation(&request));
 
     // A symlink to a real socket still fails the symlink_metadata type check.
     std::fs::remove_file(&socket_name)?;
@@ -586,7 +582,7 @@ fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
         resolved_facts("/home/worker")?,
         Some(directory.path()),
     )?;
-    assert!(request.environment_overlay.is_empty());
+    assert!(!observation(&request));
     Ok(())
 }
 
@@ -610,10 +606,28 @@ impl ObservationSessionDirectory {
     fn path(&self) -> &Path {
         &self.0
     }
+
+    /// The Session's observation endpoint; a macOS or Linux socket folder is created for it.
+    fn observation_endpoint(&self) -> PathBuf {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            let _created = std::fs::DirBuilder::new().mode(0o700).create(
+                orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::socket_root_path(),
+            );
+        }
+        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(&self.0)
+    }
 }
 
 impl Drop for ObservationSessionDirectory {
     fn drop(&mut self) {
+        #[cfg(unix)]
+        let _ = std::fs::remove_file(
+            orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
+                &self.0,
+            ),
+        );
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }

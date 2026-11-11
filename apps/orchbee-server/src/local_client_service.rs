@@ -99,34 +99,44 @@ pub(crate) fn start(
     start_listener(listener, identity, terminals, agents)
 }
 
+/// Binds the managed Client endpoint. On Linux the socket is bound at `pending`, beside the
+/// endpoint, and renamed onto it once private, so the endpoint appears ready in one step.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn start_managed(
     endpoint: &Path,
+    pending: &Path,
     identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
-    start_listener(bind_managed(endpoint)?, identity, terminals, agents)
+    start_listener(
+        bind_managed(endpoint, pending)?,
+        identity,
+        terminals,
+        agents,
+    )
 }
 
 #[cfg(target_os = "linux")]
-fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
+fn bind_managed(endpoint: &Path, pending: &Path) -> io::Result<UnixListener> {
     use nix::fcntl::{OFlag, RenameFlags, open, renameat2};
-    use orchbee_local_runtime::CLIENT_PENDING_SOCKET_NAME;
     let parent = endpoint.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let name = endpoint.file_name().ok_or(io::ErrorKind::InvalidInput)?;
+    let pending_name = pending.file_name().ok_or(io::ErrorKind::InvalidInput)?;
+    if pending.parent() != Some(parent) {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
     let directory = open(
         parent,
         OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
         nix::sys::stat::Mode::empty(),
     )?;
-    let pending = parent.join(CLIENT_PENDING_SOCKET_NAME);
-    let listener = UnixListener::bind(&pending)?;
+    let listener = UnixListener::bind(pending)?;
     #[cfg(unix)]
-    fs::set_permissions(&pending, fs::Permissions::from_mode(0o600))?;
+    fs::set_permissions(pending, fs::Permissions::from_mode(0o600))?;
     renameat2(
         &directory,
-        CLIENT_PENDING_SOCKET_NAME,
+        pending_name,
         &directory,
         name,
         RenameFlags::RENAME_NOREPLACE,
@@ -135,11 +145,11 @@ fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
 }
 
 #[cfg(target_os = "macos")]
-fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
+fn bind_managed(endpoint: &Path, _pending: &Path) -> io::Result<UnixListener> {
     let listener = UnixListener::bind(endpoint)?;
     use nix::unistd::geteuid;
 
-    // The private runtime directory is already mode-checked. macOS applies
+    // The private socket folder is already mode-checked. macOS applies
     // Unix-socket permissions through chmod(path); fstat(socket_fd) does not
     // expose the pathname vnode identity, so validate the protected path.
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;

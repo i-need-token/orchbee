@@ -1340,7 +1340,7 @@ fn socket_fact(observation: fs::Observation) -> Value {
         // Named pipes have no filesystem socket fact; never infer endpoint liveness.
         return json!({ "state": "not-inspected", "reason": "windows-endpoint-not-inspected" });
     };
-    let path = fs::observation_socket_path(euid, observation);
+    let path = fs::observation_socket_path(observation);
     let path_state = || {
         let (key, value) = native_path::detail(&path);
         Map::from_iter([(key, value)])

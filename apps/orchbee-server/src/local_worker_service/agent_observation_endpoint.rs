@@ -30,8 +30,6 @@ struct BoundIdentity;
 use crate::agent::HookGeneration;
 use crate::agent_service::AgentService;
 
-#[cfg(unix)]
-const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
 /// `server.maxConnections` — oracle `MAX_ACTIVE_CONNECTIONS`.
 const MAX_ACTIVE_CONNECTIONS: usize = 64;
 /// `MAX_OBSERVATION_BODY_BYTES` — also re-checked inside the admit fold.
@@ -79,7 +77,7 @@ pub(crate) struct AgentObservationEndpoint {
 /// a metadata error, or an unverifiable identity leaves the path
 /// untouched: an unverified pathname is never unlinked. The residual
 /// same-euid swap window between this check and the unlink is bounded
-/// by the private mode-0700 runtime directory plus the Session lifetime
+/// by the private mode-0700 socket folder plus the Session lifetime
 /// contract and sits inside the established same-euid trust boundary.
 #[cfg(unix)]
 fn unlink_if_identity_matches(path: &Path, bound_identity: Option<BoundIdentity>) {
@@ -108,7 +106,9 @@ fn unlink_if_identity_matches(path: &Path, bound_identity: Option<BoundIdentity>
 /// bind's pre-gate reclaims a leftover own socket.
 #[cfg(unix)]
 pub(crate) fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
-    let path = runtime_directory.join(OBSERVATION_SOCKET_NAME);
+    let path = orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(
+        runtime_directory,
+    );
     match fs::symlink_metadata(&path) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),

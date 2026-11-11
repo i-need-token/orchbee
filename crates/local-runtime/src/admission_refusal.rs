@@ -46,7 +46,10 @@ impl AdmissionRefusal {
     /// The refusal as the I/O error an admission step returns.
     #[cfg(unix)]
     pub(crate) fn io(reason: RefusalReason, path: &Path) -> std::io::Error {
-        std::io::Error::new(std::io::ErrorKind::PermissionDenied, Self::new(reason, path))
+        std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            Self::new(reason, path),
+        )
     }
 
     /// The refusal an I/O error carries, if it carries one.

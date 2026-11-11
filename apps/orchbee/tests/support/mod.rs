@@ -8,7 +8,7 @@ use std::{
     fs,
     io::{ErrorKind, Read},
     os::fd::AsFd,
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::{DirBuilderExt, PermissionsExt},
     os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Output, Stdio},
@@ -377,8 +377,8 @@ pub fn run_lang(binary: &Path, base: &Path, arguments: &[&str], lang: &str) -> O
 
 // ---- short runtime base -----------------------------------------------------
 
-/// Session scope directory prefix the rendezvous validator expects.
-const SCOPE_PREFIX: &str = "orchbee-native-";
+/// The Session scope the CLI selects when nothing names another.
+const DEFAULT_SCOPE: &str = "default";
 
 /// Leaf-name length minted by `runtime_base`: `"oc-"` + 8 hex chars. Fixed
 /// and short so the socket-margin check below bounds the canonical TMPDIR
@@ -400,8 +400,8 @@ pub fn sun_path_limit() -> usize {
 }
 
 /// Mint a short, exclusively-created, mode-0700 runtime base under the
-/// canonical TMPDIR so `<base>/<scope>/client.sock` stays inside `sun_path`
-/// even when TMPDIR itself is long. `tag` feeds the name entropy only — it is
+/// canonical TMPDIR; sockets live in this environment's socket folder, whose
+/// names stay inside `sun_path` whatever the base. `tag` feeds the name entropy only — it is
 /// not a uniqueness guarantee; exclusive `create_dir` plus bounded retries
 /// are. Fails fast with a clear message when the canonical TMPDIR leaves no
 /// socket margin at all instead of hanging or silently skipping.
@@ -409,12 +409,8 @@ pub fn runtime_base(tag: &str) -> PathBuf {
     let tmp = std::env::temp_dir()
         .canonicalize()
         .expect("canonicalize TMPDIR for the cli runtime base");
-    let uid = nix::unistd::geteuid().as_raw();
-    // Worst socket the rendezvous can derive is the Host endpoint
-    // `<scope>/host/<endpoint-id>.s` — deeper than client/worker/pending.
-    let probe_scope = tmp
-        .join("x".repeat(BASE_LEAF_LEN))
-        .join(format!("{SCOPE_PREFIX}{uid}"));
+    // Every socket the rendezvous derives has the same length in the socket folder.
+    let probe_scope = tmp.join("x".repeat(BASE_LEAF_LEN)).join(DEFAULT_SCOPE);
     let worst_len = ModeCheckedLocalSessionRendezvous::host_endpoint_path(&probe_scope)
         .as_os_str()
         .as_encoded_bytes()
@@ -459,9 +455,36 @@ pub fn runtime_base(tag: &str) -> PathBuf {
     );
 }
 
+/// The file name a cohort role is staged under: the environment stem with the role's suffix. The
+/// cohort manifest keeps naming the role (`orchbee`, `orchbee-server`, ...).
+pub fn staged_artifact_name(role: &str) -> String {
+    use orchbee_local_runtime::CohortArtifact;
+    match role {
+        "orchbee" => CohortArtifact::Client,
+        "orchbee-server" => CohortArtifact::Server,
+        "orchbee-worker" => CohortArtifact::Worker,
+        "orchbee-terminal-host" => CohortArtifact::TerminalHost,
+        _ => panic!("unknown cohort role {role:?}"),
+    }
+    .file_name()
+}
+
 /// The existing-only Session scope path inside a runtime base.
 pub fn scope_dir(base: &Path) -> PathBuf {
-    base.join(format!("{SCOPE_PREFIX}{}", nix::unistd::geteuid()))
+    base.join(DEFAULT_SCOPE)
+}
+
+/// The client socket a Session scope derives, with this environment's socket folder created for
+/// it as activation would. Callers remove the socket when they are done.
+pub fn client_socket(scope: &Path) -> PathBuf {
+    let folder = ModeCheckedLocalSessionRendezvous::socket_root_path();
+    match fs::DirBuilder::new().mode(0o700).create(&folder) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+        Err(error) => panic!("create socket folder {}: {error}", folder.display()),
+    }
+    let [client, _worker] = ModeCheckedLocalSessionRendezvous::socket_paths(scope);
+    client
 }
 
 /// Create the Session scope directory the rendezvous validator expects (mode

@@ -55,7 +55,18 @@ fn tmp_dir(tag: &str) -> PathBuf {
         TMP_COUNTER.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir_all(&dir).unwrap();
+    // The endpoint binds in this environment's socket folder, which activation creates.
+    let _created = {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::socket_root_path())
+    };
     dir
+}
+
+fn observation_socket(dir: &std::path::Path) -> PathBuf {
+    orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(dir)
 }
 
 fn carrier_id(worker_seed: u8, generation: u64) -> CarrierIdentity {
@@ -253,7 +264,7 @@ fn matched_envelope_applies_immediately_without_a_timer() {
     assert!(get_session_found(&service, &sessions[0]));
     assert_eq!(service.next_deadline().unwrap(), None);
     drop(endpoint);
-    assert!(!dir.join(OBSERVATION_SOCKET_NAME).exists());
+    assert!(!observation_socket(&dir).exists());
 }
 
 /// L2 — admit-side settle on the REAL endpoint: a two-correlation
@@ -516,7 +527,7 @@ fn identity_mismatch_leaves_replacement_path() {
         })
         .unwrap(),
     );
-    let socket_path = dir.join(OBSERVATION_SOCKET_NAME);
+    let socket_path = observation_socket(&dir);
 
     // Bound-never-started: own socket reclaimed on drop.
     {

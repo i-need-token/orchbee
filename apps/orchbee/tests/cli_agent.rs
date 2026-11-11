@@ -59,7 +59,7 @@ fn cohort() -> &'static Path {
                 "orchbee-worker",
                 "orchbee-terminal-host",
             ] {
-                let target = directory.join(name);
+                let target = directory.join(crate::support::staged_artifact_name(name));
                 if name == "orchbee" {
                     fs::copy(env!("CARGO_BIN_EXE_orchbee"), &target).expect("copy cohort artifact");
                 } else {
@@ -100,14 +100,14 @@ fn stage_scope(base: &Path) -> PathBuf {
 
 // ---- scripted peer --------------------------------------------------------
 
-/// Bind `client.sock` inside the scope and run `script` on each of
+/// Bind the scope's client socket and run `script` on each of
 /// `connections` sequential admitted sessions.
 fn spawn_peer(
     scope: &Path,
     connections: usize,
     script: impl Fn(UnixStream) + Send + 'static,
 ) -> thread::JoinHandle<()> {
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     listener
@@ -177,7 +177,11 @@ fn answer(stream: &UnixStream, document: serde_json::Value) {
 }
 
 fn run(base: &Path, arguments: &[&str]) -> Output {
-    support::run(&cohort().join("orchbee"), base, arguments)
+    support::run(
+        &cohort().join(crate::support::staged_artifact_name("orchbee")),
+        base,
+        arguments,
+    )
 }
 
 fn document(output: &Output) -> serde_json::Value {
@@ -559,7 +563,7 @@ fn held_peer_timeout_reports_agent_failure() -> TestResult {
 /// A spawn with the shared deterministic-locale environment whose `Child`
 /// stays caller-owned — signal tests must hold it to signal and reap it.
 fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
-    crate::support::orchbee_command(cohort().join("orchbee"))
+    crate::support::orchbee_command(cohort().join(crate::support::staged_artifact_name("orchbee")))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env_remove("LC_ALL")
@@ -586,7 +590,7 @@ fn spawn_cli_no_core(base: &Path, arguments: &[&str]) -> Child {
         .arg("-c")
         .arg("ulimit -c 0; exec \"$@\"")
         .arg("sh")
-        .arg(cohort().join("orchbee"))
+        .arg(cohort().join(crate::support::staged_artifact_name("orchbee")))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env_remove("LC_ALL")
@@ -862,7 +866,7 @@ fn list_inherited_ignored_sigint_is_not_captured() -> TestResult {
     let base = base_dir("alist-ign");
     let scope = stage_scope(&base);
     let (peer, ready) = held_exchange_peer(&scope);
-    let binary = cohort().join("orchbee");
+    let binary = cohort().join(crate::support::staged_artifact_name("orchbee"));
     // `trap '' INT` installs SIG_IGN for SIGINT, which `exec` preserves —
     // the CLI inherits an ignored SIGINT, exactly the eligibility input the
     // guard must respect.

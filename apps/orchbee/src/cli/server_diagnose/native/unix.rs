@@ -15,17 +15,14 @@ pub(in crate::cli::server_diagnose) fn unsupported_field(key: &str) -> bool {
     )
 }
 
+/// The selected runtime base, as activation names it.
 pub(in crate::cli::server_diagnose) fn metadata_base() -> io::Result<PathBuf> {
-    Ok(std::env::var_os("ORCHBEE_RUNTIME_BASE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp")))
+    crate::local_activation::runtime_location().map(|(base, _)| base)
 }
 
+/// The selected Session scope, as activation names it.
 pub(in crate::cli::server_diagnose) fn metadata_scope() -> io::Result<String> {
-    Ok(format!(
-        "orchbee-native-{}",
-        nix::unistd::geteuid().as_raw()
-    ))
+    crate::local_activation::runtime_location().map(|(_, scope)| scope)
 }
 
 pub(in crate::cli::server_diagnose) fn observe_entry(

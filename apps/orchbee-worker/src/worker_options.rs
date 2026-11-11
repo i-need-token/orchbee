@@ -39,7 +39,7 @@ impl WorkerOptions {
 
         Ok(Self {
             server_endpoint,
-            terminal_host_endpoint: runtime_directory.join(format!("{endpoint_id}.s")),
+            terminal_host_endpoint: runtime_directory.join(format!("{endpoint_id}-host.sock")),
         })
     }
 }

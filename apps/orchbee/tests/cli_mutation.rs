@@ -66,7 +66,7 @@ fn cohort() -> &'static Path {
                 "orchbee-worker",
                 "orchbee-terminal-host",
             ] {
-                let target = directory.join(name);
+                let target = directory.join(crate::support::staged_artifact_name(name));
                 if name == "orchbee" {
                     fs::copy(env!("CARGO_BIN_EXE_orchbee"), &target).expect("copy cohort artifact");
                 } else {
@@ -115,7 +115,7 @@ fn stage_scope(base: &Path) -> PathBuf {
 
 // ---- scripted peer --------------------------------------------------------
 
-/// Bind `client.sock` inside the scope and run `script` on the first admitted
+/// Bind the scope's client socket and run `script` on the first admitted
 /// connection. Returns the join handle; the CLI must exit first, so the peer
 /// is joined after the child completes.
 fn spawn_peer(
@@ -137,7 +137,7 @@ fn spawn_peer_n(
     connections: usize,
     script: impl Fn(UnixStream) + Send + 'static,
 ) -> thread::JoinHandle<()> {
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(scope);
     // A socket file survives its listener: sequential peers in one test must
     // unlink the stale node before rebinding.
     let _ = fs::remove_file(&socket);
@@ -278,7 +278,11 @@ fn command_response(
 /// Every spawned CLI child runs under the shared 45s wall-clock backstop in
 /// `tests/support` — the same guard `cli_query` uses.
 fn run(base: &Path, arguments: &[&str]) -> Output {
-    support::run(&cohort().join("orchbee"), base, arguments)
+    support::run(
+        &cohort().join(crate::support::staged_artifact_name("orchbee")),
+        base,
+        arguments,
+    )
 }
 
 fn envelope(output: &Output) -> serde_json::Value {
@@ -1420,7 +1424,7 @@ fn denied_and_unavailable_map_to_the_existing_matrix() -> TestResult {
 fn no_listening_peer_fails_discovery_or_admission_fast() -> TestResult {
     let base = base_dir("no-peer");
     let scope = stage_scope(&base);
-    // No client.sock at all: rendezvous finds the scope but no listener, so
+    // No client socket at all: rendezvous finds the scope but no listener, so
     // discovery itself answers without any peer involvement.
     let output = run(
         &base,
@@ -1432,7 +1436,7 @@ fn no_listening_peer_fails_discovery_or_admission_fast() -> TestResult {
     assert_eq!(document["failure"]["details"]["stage"], "discovery");
 
     // A stale socket with nobody listening: connect fails on the spot.
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     drop(listener);
@@ -1769,36 +1773,8 @@ fn capture_budget_reports_an_already_exited_child() -> TestResult {
 
 // ---- short runtime base -----------------------------------------------------
 //
-// The shared minter keeps `<base>/<scope>/client.sock` inside `sun_path` even
-// under a long TMPDIR. These witnesses pin the observable contract — real
-// bind, exclusivity, 0700 — under whatever TMPDIR the suite actually runs.
-
-#[test]
-fn runtime_base_leaves_socket_margin_and_really_binds() -> TestResult {
-    let base = base_dir("margin");
-    let mode = fs::metadata(&base)
-        .expect("base exists")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o700, "exclusive private directory");
-    let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
-    // Same bound the minter enforces — the real usable sun_path capacity on
-    // this platform, not a hardcoded Linux literal.
-    let limit = support::sun_path_limit();
-    assert!(
-        socket.as_os_str().as_encoded_bytes().len() <= limit,
-        "socket path {}B exceeds sun_path limit {}B",
-        socket.as_os_str().as_encoded_bytes().len(),
-        limit
-    );
-    // The real bind — not just the length math — proves the margin on this
-    // TMPDIR. A listener that could not bind is what SUN_LEN was failing on.
-    let listener = UnixListener::bind(&socket).expect("socket binds within sun_path");
-    drop(listener);
-    let _ = fs::remove_file(&socket);
-    Ok(())
-}
+// The shared minter's observable contract — the real sun_path boundary,
+// exclusivity, 0700 — under whatever TMPDIR the suite actually runs.
 
 #[test]
 fn sun_path_boundary_is_exact_and_limit_plus_one_is_red() -> TestResult {
@@ -1855,7 +1831,7 @@ fn dropped_response_is_outcome_unknown_without_replay() -> TestResult {
     // The peer admits one session, answers the snapshot, reads the command,
     // then drops the connection mid-flight. The listener is bound but serves
     // exactly this one script; a CLI replay would need a new connection.
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     listener
@@ -2039,7 +2015,7 @@ fn project_create_dropped_response_is_unknown_without_replay() -> TestResult {
     // Same mid-flight drop as `dropped_response_is_outcome_unknown_without_replay`,
     // against the project arm: the listener stays bound so a replay would need a
     // fresh connection — any accept after the drop is a retry attempt.
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     listener
@@ -2323,7 +2299,7 @@ fn workspace_accept_directory_dropped_response_is_unknown_without_replay() -> Te
     let scope = stage_scope(&base);
     // Same mid-flight drop as the other mutation arms: the listener stays
     // bound, so any second accept is a replay attempt.
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     listener
@@ -3216,7 +3192,7 @@ fn project_rename_resolve_failures_submit_nothing() -> TestResult {
 fn project_rename_dropped_response_is_outcome_unknown() -> TestResult {
     let base = base_dir("project-rename-drop");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
     listener
@@ -3300,7 +3276,12 @@ fn project_rename_machine_document_is_locale_neutral() -> TestResult {
         "project", "rename", PROJECT, "--label", "new", "--format", "json",
     ];
     let english = run(&base, &argv);
-    let chinese = support::run_lang(&cohort().join("orchbee"), &base, &argv, "zh_CN.UTF-8");
+    let chinese = support::run_lang(
+        &cohort().join(crate::support::staged_artifact_name("orchbee")),
+        &base,
+        &argv,
+        "zh_CN.UTF-8",
+    );
     peer.join().expect("peer finished");
     assert_eq!(english.status.code(), Some(0));
     assert_eq!(chinese.status.code(), Some(0));

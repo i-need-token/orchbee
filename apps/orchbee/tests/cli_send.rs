@@ -65,7 +65,7 @@ fn cohort() -> &'static Path {
                 "orchbee-worker",
                 "orchbee-terminal-host",
             ] {
-                let target = directory.join(name);
+                let target = directory.join(crate::support::staged_artifact_name(name));
                 if name == "orchbee" {
                     fs::copy(env!("CARGO_BIN_EXE_orchbee"), &target).expect("copy cohort artifact");
                 } else {
@@ -123,7 +123,7 @@ fn spawn_peer_n(
     connections: usize,
     script: impl Fn(UnixStream) + Send + 'static,
 ) -> thread::JoinHandle<()> {
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(scope);
     let _ = fs::remove_file(&socket);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
@@ -231,7 +231,11 @@ fn expect_session_closed(stream: &UnixStream) {
 }
 
 fn run(base: &Path, arguments: &[&str]) -> Output {
-    support::run(&cohort().join("orchbee"), base, arguments)
+    support::run(
+        &cohort().join(crate::support::staged_artifact_name("orchbee")),
+        base,
+        arguments,
+    )
 }
 
 fn envelope(output: &Output) -> serde_json::Value {
@@ -891,17 +895,19 @@ fn terminal_send_invalid_argv_never_connects() -> TestResult {
 
 /// A spawn with caller-owned stdin (the shared `run` always closes it).
 fn run_with_stdin(base: &Path, arguments: &[&str], stdin: Stdio) -> std::process::Child {
-    crate::staged_client::orchbee_command(cohort().join("orchbee"))
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", base)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .env("LANG", "en_US.UTF-8")
-        .stdin(stdin)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn cli child")
+    crate::staged_client::orchbee_command(
+        cohort().join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(arguments)
+    .env("ORCHBEE_RUNTIME_BASE", base)
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .env("LANG", "en_US.UTF-8")
+    .stdin(stdin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect("spawn cli child")
 }
 
 fn wait(child: std::process::Child) -> Output {
@@ -1107,7 +1113,7 @@ fn terminal_send_stdin_regular_file_inherits_offset() -> TestResult {
 fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
     let base = base_dir("send-source-usage");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
@@ -1167,7 +1173,7 @@ fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
 fn terminal_send_stdin_timeout_is_typed_and_effectless() -> TestResult {
     let base = base_dir("send-stdin-timeout");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
@@ -1234,7 +1240,7 @@ fn terminal_send_stdin_timeout_is_typed_and_effectless() -> TestResult {
 fn terminal_send_stdin_sigint_is_typed_cancellation() -> TestResult {
     let base = base_dir("send-stdin-int");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
@@ -1294,9 +1300,9 @@ fn terminal_send_stdin_sigint_is_typed_cancellation() -> TestResult {
 fn terminal_send_stdin_inherited_ignore_excluded() -> TestResult {
     let base = base_dir("send-stdin-ign");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let _listener = UnixListener::bind(&socket).expect("bind client socket");
-    let binary = cohort().join("orchbee");
+    let binary = cohort().join(crate::support::staged_artifact_name("orchbee"));
     // `trap '' INT` installs SIG_IGN for SIGINT, which `exec` preserves —
     // the CLI inherits an ignored SIGINT, exactly the eligibility input the
     // guard must respect.
@@ -1346,7 +1352,7 @@ fn terminal_send_stdin_inherited_ignore_excluded() -> TestResult {
 fn terminal_send_stdin_unsupported_streams() -> TestResult {
     let base = base_dir("send-stdin-unsupported");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
@@ -1404,7 +1410,7 @@ fn terminal_send_stdin_unsupported_streams() -> TestResult {
 fn terminal_send_stdin_oversize_bounds_consumption() -> TestResult {
     let base = base_dir("send-stdin-cap");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
@@ -1546,12 +1552,12 @@ fn terminal_send_file_utf8_multibyte_boundaries() -> TestResult {
 fn terminal_send_stdin_tty_is_refused() -> TestResult {
     let base = base_dir("send-stdin-tty");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
         .expect("listener nonblocking");
-    let binary = cohort().join("orchbee");
+    let binary = cohort().join(crate::support::staged_artifact_name("orchbee"));
     let output = Command::new("script")
         .args([
             "-qec",
@@ -1602,20 +1608,22 @@ fn terminal_send_file_dash_is_a_literal_path() -> TestResult {
     fs::create_dir(&workdir).expect("create literal cwd");
     staged_file(&workdir, "-", b"from the dash file\n");
     let peer = serve_send(&scope, "from the dash file\n".to_owned(), 19, false);
-    let child = crate::staged_client::orchbee_command(cohort().join("orchbee"))
-        .args([
-            "terminal", "send", TERMINAL, "--file", "-", "--format", "json",
-        ])
-        .current_dir(&workdir)
-        .env("ORCHBEE_RUNTIME_BASE", &base)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .env("LANG", "en_US.UTF-8")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn cli child");
+    let child = crate::staged_client::orchbee_command(
+        cohort().join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args([
+        "terminal", "send", TERMINAL, "--file", "-", "--format", "json",
+    ])
+    .current_dir(&workdir)
+    .env("ORCHBEE_RUNTIME_BASE", &base)
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .env("LANG", "en_US.UTF-8")
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect("spawn cli child");
     let output = wait(child);
     peer.join().expect("peer finished");
     assert_eq!(
@@ -1730,7 +1738,7 @@ fn terminal_send_stdin_sighup_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGHUP);
     let base = base_dir("send-stdin-hup");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)
@@ -1777,7 +1785,7 @@ fn terminal_send_stdin_sigquit_is_typed_cancellation() -> TestResult {
     require_eligible(nix::sys::signal::Signal::SIGQUIT);
     let base = base_dir("send-stdin-quit");
     let scope = stage_scope(&base);
-    let socket = scope.join("client.sock");
+    let socket = support::client_socket(&scope);
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     listener
         .set_nonblocking(true)

@@ -19,15 +19,19 @@ use std::process::Output;
 /// Run one CLI invocation under a chosen locale. Identical to `run_cli`
 /// except `LANG`; the worktree surface owns no locale flag of its own.
 fn run_cli_lang(fixture: &Fixture, lang: &str, arguments: &[&str]) -> Output {
-    crate::support::orchbee_command(fixture.cohort.join("orchbee"))
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
-        .env("LANG", lang)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .stdin(Stdio::null())
-        .output()
-        .unwrap_or_else(|error| panic!("spawn query CLI {arguments:?}: {error}"))
+    crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee")),
+    )
+    .args(arguments)
+    .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+    .env("LANG", lang)
+    .env_remove("LC_ALL")
+    .env_remove("LC_MESSAGES")
+    .stdin(Stdio::null())
+    .output()
+    .unwrap_or_else(|error| panic!("spawn query CLI {arguments:?}: {error}"))
 }
 
 /// Build a private disposable Git repository: `main` with one real commit and

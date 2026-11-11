@@ -175,13 +175,22 @@ fn cohort_report_maps_verifier_outcomes() {
     // plus a hash-true manifest, all owner-private.
     let cohort = scratch("cohort-pass");
     let mut artifacts = serde_json::Map::new();
-    for name in [
-        "orchbee",
-        "orchbee-server",
-        "orchbee-worker",
-        "orchbee-terminal-host",
+    for (name, artifact) in [
+        ("orchbee", orchbee_local_runtime::CohortArtifact::Client),
+        (
+            "orchbee-server",
+            orchbee_local_runtime::CohortArtifact::Server,
+        ),
+        (
+            "orchbee-worker",
+            orchbee_local_runtime::CohortArtifact::Worker,
+        ),
+        (
+            "orchbee-terminal-host",
+            orchbee_local_runtime::CohortArtifact::TerminalHost,
+        ),
     ] {
-        let path = cohort.join(name);
+        let path = cohort.join(artifact.file_name());
         fs::write(&path, format!("stand-in for {name}\n")).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         let digest = Sha256::digest(fs::read(&path).unwrap());
@@ -463,25 +472,21 @@ fn socket_checks_aggregate_real_states() {
         )
         .expect("validated scope")
     };
-    let scope_directory = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
+    let prepared = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
         &base,
         SessionScope::parse("ob-test-sockets").unwrap(),
     )
-    .expect("prepared scope")
-    .runtime_directory()
-    .to_owned();
+    .expect("prepared scope");
+    let scope_directory = prepared.runtime_directory().to_owned();
+    let client_socket = prepared.client_socket_path().to_owned();
     let report = socket_checks(&Ok(session()), &scope_directory);
     assert_eq!(report.status, "not-applicable");
     assert_eq!(report.details["client"]["presence"], json!("absent"));
     assert_eq!(report.details["worker"]["presence"], json!("absent"));
 
     // One compliant socket passes the check.
-    let listener = UnixListener::bind(scope_directory.join("client.sock")).unwrap();
-    fs::set_permissions(
-        scope_directory.join("client.sock"),
-        fs::Permissions::from_mode(0o600),
-    )
-    .unwrap();
+    let listener = UnixListener::bind(&client_socket).unwrap();
+    fs::set_permissions(&client_socket, fs::Permissions::from_mode(0o600)).unwrap();
     let report = socket_checks(&Ok(session()), &scope_directory);
     assert_eq!(report.status, "pass");
     assert_eq!(report.details["client"]["presence"], json!("present"));
@@ -490,13 +495,14 @@ fn socket_checks_aggregate_real_states() {
     drop(listener);
 
     // An inspected invalid entry fails: a regular file is not a socket.
-    fs::remove_file(scope_directory.join("client.sock")).unwrap();
-    fs::write(scope_directory.join("client.sock"), b"not a socket").unwrap();
+    fs::remove_file(&client_socket).unwrap();
+    fs::write(&client_socket, b"not a socket").unwrap();
     let report = socket_checks(&Ok(session()), &scope_directory);
     assert_eq!(report.status, "fail");
     assert_eq!(report.details["client"]["presence"], json!("present"));
     assert_eq!(report.details["client"]["status"], json!("fail"));
     assert_eq!(report.details["client"]["reason"], json!("unsafe"));
     assert_eq!(report.details["worker"]["presence"], json!("absent"));
+    fs::remove_file(&client_socket).ok();
     fs::remove_dir_all(&base).ok();
 }

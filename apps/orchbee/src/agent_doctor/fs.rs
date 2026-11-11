@@ -518,25 +518,23 @@ pub(crate) enum SocketFact {
     Unreadable,
 }
 
-/// The observation endpoint filename inside the native runtime directory.
-pub(crate) const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
-
 /// The endpoint path the hook payloads resolve:
 /// `ORCHBEE_AGENT_OBSERVATION_SOCKET` when it carries a non-empty value,
-/// else `<ORCHBEE_RUNTIME_BASE || /tmp>/orchbee-native-<euid>/agent-observation-v1.sock`.
-/// Pure path derivation — no inspection.
-pub(crate) fn observation_socket_path(euid: u32, observation: Observation) -> PathBuf {
+/// else the selected Session's observation endpoint, derived as activation
+/// derives it. Path derivation only — no inspection.
+pub(crate) fn observation_socket_path(observation: Observation) -> PathBuf {
     if let EnvValue::Value(value) = env_value(super::probes::OBSERVATION_SOCKET_ENV, observation)
         && !value.is_empty()
     {
         return path_from_bytes(&value);
     }
-    let base = match env_value("ORCHBEE_RUNTIME_BASE", observation) {
-        EnvValue::Value(value) if !value.is_empty() => path_from_bytes(&value),
-        _ => PathBuf::from("/tmp"),
-    };
-    base.join(format!("orchbee-native-{euid}"))
-        .join(OBSERVATION_SOCKET_NAME)
+    let runtime = crate::local_activation::runtime_location()
+        .map(|(base, scope)| base.join(scope))
+        // Without a runtime location no Session can run, so the derived endpoint is absent.
+        .unwrap_or_else(|_| {
+            PathBuf::from(orchbee_local_runtime::SessionName::default_session().as_str())
+        });
+    orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(&runtime)
 }
 
 /// The endpoint probe: `lstat` of the final component — never a connect —

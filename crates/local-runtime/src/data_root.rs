@@ -2,8 +2,8 @@
 //! `<home>/.<stem>`, or the folder `ORCHBEE_HOME` names. Its top level holds only what a person
 //! reads, edits, or keeps; everything Orchbee manages for itself lives under `internal/`. Every
 //! Orchbee state path derives from here, so callers never spell a folder or choose a home variable
-//! themselves. Resolving touches no file; the Windows adapter creates private folders on first
-//! write and records the root's layout. Every process that opens a root admits its layout first,
+//! themselves. Resolving touches no file; the platform adapters create private folders on first
+//! write, and the Windows adapter records the root's layout. Every process that opens a root admits its layout first,
 //! before any other read.
 use std::{
     ffi::OsString,
@@ -18,6 +18,10 @@ pub use version_record::{LAYOUT, LayoutRefusal, PRODUCT_VERSION};
 mod windows;
 #[cfg(all(test, windows))]
 pub(crate) use windows::settle_version_record;
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+pub use unix::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub use windows::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
@@ -313,22 +317,9 @@ pub fn agent_integration_may_have_been_enabled() -> bool {
 }
 
 /// The runtime base this environment uses when `ORCHBEE_RUNTIME_BASE` does not name one: the data
-/// root's `internal/runtime` on Windows, absent only when the data root cannot be resolved. POSIX
-/// keeps its temporary directory until ORC-328.
+/// root's `internal/runtime`, absent only when the data root cannot be resolved.
 pub fn default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    #[cfg(windows)]
-    {
-        DataRoot::resolve(env).ok().map(|root| root.runtime())
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = env;
-        #[cfg(target_os = "macos")]
-        let base = PathBuf::from("/private/tmp");
-        #[cfg(not(target_os = "macos"))]
-        let base = PathBuf::from("/tmp");
-        Some(base)
-    }
+    DataRoot::resolve(env).ok().map(|root| root.runtime())
 }
 
 #[cfg(windows)]

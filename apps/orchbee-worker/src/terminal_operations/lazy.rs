@@ -12,8 +12,6 @@ use crate::{
 };
 use orchbee_capability_node_protocol::CapabilityNodeMessage;
 use orchbee_local_ipc::LocalStream as UnixStream;
-#[cfg(unix)]
-use orchbee_local_runtime::HOST_ENDPOINT_ID;
 use orchbee_local_runtime::{
     Cohort, CohortArtifact, HOST_SCOPE_NAME, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
@@ -383,10 +381,9 @@ fn start_host(
     drain: Rc<RefCell<AgentDrain>>,
 ) -> Result<(HostBrokerConnection, orchbee_local_runtime::RetainedChild), Box<dyn Error>> {
     let deadline = Instant::now() + Duration::from_secs(5);
-    // The Host binds `<id>.s` relatively inside `host/` — a 34-byte leaf that
-    // always fits — while the Worker connects through the derived absolute
-    // path. That absolute address can outgrow this platform's socket ABI, so
-    // validate it before the Host directory or process can appear.
+    // The Host binds `<id>-host.sock` relatively inside the socket folder while the Worker
+    // connects through the derived absolute path; validate that address before the Host
+    // directory or process can appear.
     let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
     #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)?;
@@ -410,10 +407,7 @@ fn start_host(
             io::Error::new(io::ErrorKind::AlreadyExists, "Host recovery is required").into(),
         );
     }
-    #[cfg(windows)]
     let host_endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime);
-    #[cfg(unix)]
-    let host_endpoint_id = HOST_ENDPOINT_ID;
     let executable = cohort.executable(CohortArtifact::TerminalHost);
     let arguments = [
         std::ffi::OsStr::new("serve"),
@@ -422,6 +416,18 @@ fn start_host(
         std::ffi::OsStr::new("--endpoint-id"),
         std::ffi::OsStr::new(&host_endpoint_id),
     ];
+    // A macOS or Linux Host binds its endpoint in the socket folder, which the Session admitted.
+    #[cfg(unix)]
+    let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
+    #[cfg(unix)]
+    let arguments = [
+        &arguments[..],
+        &[
+            std::ffi::OsStr::new("--endpoint-directory"),
+            socket_root.as_os_str(),
+        ],
+    ]
+    .concat();
     // Only a Windows Host writes editor documents; it receives the folder, which the Worker
     // creates before the first editor launch.
     #[cfg(windows)]

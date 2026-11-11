@@ -274,7 +274,9 @@ fn names(directory: &Path) -> Vec<String> {
 }
 
 fn scope_name() -> String {
-    format!("orchbee-native-{}", nix::unistd::geteuid().as_raw())
+    orchbee_local_runtime::SessionName::default_session()
+        .as_str()
+        .to_owned()
 }
 
 #[test]
@@ -287,10 +289,9 @@ fn collect_at_reports_every_row_and_creates_nothing() {
     )
     .expect("prepare scratch runtime");
     session.commit_activation().expect("commit marker");
-    let _listener = UnixListener::bind(session.runtime_directory().join("client.sock"))
-        .expect("bind client leaf");
+    let _listener = UnixListener::bind(session.client_socket_path()).expect("bind client leaf");
     fs::set_permissions(
-        session.runtime_directory().join("client.sock"),
+        session.client_socket_path(),
         fs::Permissions::from_mode(0o600),
     )
     .expect("chmod client leaf");
@@ -336,6 +337,7 @@ fn collect_at_reports_every_row_and_creates_nothing() {
     let mut after = names(&base);
     after.extend(names(session.runtime_directory()));
     assert_eq!(after, before);
+    fs::remove_file(session.client_socket_path()).ok();
     fs::remove_dir_all(&base).ok();
 }
 

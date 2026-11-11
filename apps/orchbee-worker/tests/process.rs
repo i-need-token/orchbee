@@ -561,7 +561,9 @@ impl RuntimeFixture {
     }
 
     fn host_endpoint(&self) -> PathBuf {
-        self._directory.path().join(format!("{HOST_ENDPOINT_ID}.s"))
+        self._directory
+            .path()
+            .join(format!("{HOST_ENDPOINT_ID}-host.sock"))
     }
 }
 

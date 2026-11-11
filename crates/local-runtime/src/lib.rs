@@ -90,7 +90,6 @@ pub use diagnostic_log::{
 };
 #[cfg(windows)]
 mod destructive_log;
-#[cfg(windows)]
 pub use data_root::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
@@ -149,10 +148,12 @@ pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
 }
 
 pub use cohort::{Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar};
+#[cfg(windows)]
+pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
 pub use rendezvous::{
-    CLIENT_PENDING_SOCKET_NAME, EntryKind, EntryObservation, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME,
-    HOST_SCOPE_NAME, LockAttempt, LockKind, ModeCheckedLocalSessionRendezvous,
-    ModeCheckedSessionLock, RendezvousError, SessionLifetimeObservation, SessionScope,
+    EntryKind, EntryObservation, HOST_SCOPE_NAME, LockAttempt, LockKind,
+    ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
+    SessionLifetimeObservation, SessionScope,
 };
 pub use retained_child::RetainedChild;
 

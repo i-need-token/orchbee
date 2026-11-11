@@ -262,7 +262,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     let host_directory = HostDirectory::new()?;
     let runtime = host_directory.0.as_path();
     let endpoint_id = "1234567890abcdef1234567890abcdef";
-    let endpoint = runtime.join(format!("{endpoint_id}.s"));
+    let endpoint = runtime.join(format!("{endpoint_id}-host.sock"));
     let host_binary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
     let worker_binary =

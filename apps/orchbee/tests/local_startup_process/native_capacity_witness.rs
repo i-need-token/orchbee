@@ -422,7 +422,11 @@ fn c1_cli_json(
 ) -> Result<(CliChildEnd, Duration, serde_json::Value), String> {
     let stdout_path = output_dir.join(format!("{stem}.out"));
     let stderr_path = output_dir.join(format!("{stem}.err"));
-    let mut command = crate::support::orchbee_command(fixture.cohort.join("orchbee"));
+    let mut command = crate::support::orchbee_command(
+        fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee")),
+    );
     command
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
