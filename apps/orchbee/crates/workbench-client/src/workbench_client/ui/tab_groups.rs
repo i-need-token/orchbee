@@ -554,9 +554,10 @@ impl WorkbenchClientUi {
                 tab_ids: selected,
                 pinned: action == PinTab,
             },
+            // The name field starts empty: Enter there creates the unnamed group its help offers.
             CreateGroup => TabConfiguration::CreateGroupForTabs {
                 tab_ids: selected,
-                label: WorkbenchTabGroupLabel::parse(&tab.display_label(index)).ok()?,
+                label: WorkbenchTabGroupLabel::parse("").ok()?,
                 color: TabGroupColor::Blue,
             },
             JoinGroup(index) => TabConfiguration::SetTabsGroup {

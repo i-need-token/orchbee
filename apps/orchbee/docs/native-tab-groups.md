@@ -171,6 +171,8 @@ matching `createNewTabGroup`; the group limit applies after that cleanup. Group 
 0–512 Unicode scalar values through `WorkbenchTabGroupLabel`, while Tab/Presentation labels stay
 nonempty. Empty headers and menu targets display localized **Unnamed group** / **未命名分组**;
 identity, color, count and disclosure remain usable without writing that fallback into shared state.
+The TUI's New Tab Group dialog opens with an empty name field, so Enter there creates an unnamed
+group as its blank-field help says; Rename group opens with the current name selected.
 
 Duplicate expands an invoked selected Tab to the canonical ordered selected set; an unselected
 background Tab remains one exact target. The admitted local GUI has the same scope:
