@@ -175,6 +175,49 @@ impl AgentReportProvider {
         }
     }
 
+    /// The name people know the product by. Product names are not translated, so every locale
+    /// shows this spelling; the GUI's `agent.observation.provider.*` messages carry the same names.
+    pub const fn product_name(self) -> &'static str {
+        match self {
+            Self::Pi => "Pi",
+            Self::Claude => "Claude Code",
+            Self::Codex => "Codex",
+            Self::Gemini => "Gemini CLI",
+            Self::Cursor => "Cursor",
+            Self::Devin => "Devin",
+            Self::Antigravity => "Antigravity CLI",
+            Self::Cline => "Cline",
+            Self::Omp => "OMP",
+            Self::Mastracode => "Mastracode",
+            Self::OpenCode => "OpenCode",
+            Self::Copilot => "GitHub Copilot CLI",
+            Self::Kimi => "Kimi",
+            Self::Kiro => "Kiro CLI",
+            Self::Droid => "Droid",
+            Self::Amp => "Amp",
+            Self::Grok => "Grok",
+            Self::Hermes => "Hermes",
+            Self::Kilo => "Kilo",
+            Self::Qoder => "Qoder CLI",
+            Self::Qwen => "Qwen Code",
+            Self::Letta => "Letta",
+            Self::Maki => "Maki",
+            Self::Muse => "Muse",
+            Self::AtomCode => "AtomCode",
+            Self::CodeBuddy => "CodeBuddy Code",
+            Self::CommandCode => "Command Code",
+            Self::DevEco => "DevEco Code",
+            Self::Mimo => "MiMo Code",
+            Self::Reasonix => "Reasonix",
+            Self::Snow => "Snow CLI",
+            Self::MinimaxCode => "MiniMax Code",
+            Self::Mothx => "MothX",
+            Self::Jcode => "J-Code",
+            Self::OpenClaw => "OpenClaw",
+            Self::PrimeAgent => "Prime Agent",
+        }
+    }
+
     /// Exact parse of a canonical native provider ID; aliases and report labels stay absent.
     pub fn from_native_provider_id(id: &str) -> Option<Self> {
         Self::ALL

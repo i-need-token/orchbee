@@ -181,11 +181,12 @@ impl Row {
             .as_ref()
             .map_or(&self.label, |v| v.as_str())
     }
+    /// The Panel's display Agent, else the observed provider's product name, else its label.
     pub(crate) fn provider(&self) -> &str {
-        self.metadata
-            .display_agent
-            .as_ref()
-            .map_or(&self.target.agent, |v| v.as_str())
+        self.metadata.display_agent.as_ref().map_or_else(
+            || crate::agent_provider::product_name(&self.target.agent),
+            |v| v.as_str(),
+        )
     }
 
     /// What names this Agent ahead of its provider, sanitized: a person's name for it, then a Panel

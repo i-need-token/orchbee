@@ -928,7 +928,7 @@ fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
         )),
     )]);
     expand_context_agents(&mut view, target);
-    let agent_row = format!("{title} · codex");
+    let agent_row = format!("{title} · Codex");
     let mut width = SidebarWidth::DEFAULT;
     for (columns, cut) in [(60, false), (30, true)] {
         let next = SidebarWidth::new(columns).unwrap();
@@ -1741,7 +1741,7 @@ fn duplicate_agent_titles_paint_alone_and_stay_separate_rows() {
             .join("\n");
         // The title gives way to keep the provider whole, and no ID tag tells the rows apart.
         assert_eq!(text.matches("same Ag").count(), 2, "{width}: {text}");
-        assert_eq!(text.matches(" · codex").count(), 2, "{width}: {text}");
+        assert_eq!(text.matches(" · Codex").count(), 2, "{width}: {text}");
         assert!(!text.contains('['), "{width}: {text}");
         let mut selected = Vec::new();
         for y in 0..20 {

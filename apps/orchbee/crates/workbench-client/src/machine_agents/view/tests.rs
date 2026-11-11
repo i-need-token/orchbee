@@ -252,7 +252,7 @@ fn view_order_uses_effective_titles_and_providers_with_canonical_ties() {
     let mut b = row();
     b.label = "a".into();
     b.metadata.title = Some(MetadataTokenValue::parse("z").unwrap());
-    b.metadata.display_agent = Some(MetadataTokenValue::parse("a").unwrap());
+    b.metadata.display_agent = Some(MetadataTokenValue::parse("A").unwrap());
     let rows = vec![(Choice::Local, a), (Choice::Local, b)];
     assert_eq!(
         project(

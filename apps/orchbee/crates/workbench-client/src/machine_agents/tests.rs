@@ -547,7 +547,7 @@ fn agent_checkpoint_metadata_uses_authority_guards_without_losing_independent_to
             assert_eq!(rows[1].state_label(), Some("Writing code"));
         } else {
             assert_eq!(rows[1].title(), rows[1].label);
-            assert_eq!(rows[1].provider(), "codex");
+            assert_eq!(rows[1].provider(), "Codex");
             assert!(rows[1].state_label().is_none());
         }
         assert_eq!(

@@ -405,7 +405,7 @@ impl StartFormLayout {
             .skip(selected)
             .take(5)
         {
-            let label = (*provider).to_owned();
+            let label = crate::agent_provider::product_name(provider).to_owned();
             let remaining = Rect::new(x, y, body.right().saturating_sub(x), 1);
             let rect = provider_choice_rect(bounds, remaining, &label, theme).or_else(|| {
                 y += 1;
@@ -493,7 +493,11 @@ fn render_start_form(
         format!(
             "{}: {}{pending}",
             text.board.start_providers,
-            detected.join(", ")
+            detected
+                .iter()
+                .map(|provider| crate::agent_provider::product_name(provider))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     };
     frame.render_widget(
@@ -672,7 +676,7 @@ fn start_status(text: ShellText, board: &AgentBoardView<'_>, theme: &Theme) -> (
             "  {} {} {}",
             name.as_str(),
             theme.glyphs.middle_dot,
-            provider.as_str()
+            crate::agent_provider::product_name(provider.as_str())
         )
     });
     (
@@ -1002,7 +1006,9 @@ fn render_row(
     // The opaque session id stays internal: selection and jumps use it, but the
     // row names the session by its terminal's Tab-strip name, then provider and
     // Workspace, and an unplaced session by a localized placeholder.
-    let provider = sanitize_terminal_text(row.provider_id().as_str());
+    let provider = sanitize_terminal_text(crate::agent_provider::product_name(
+        row.provider_id().as_str(),
+    ));
     let separator = format!(" {} ", theme.glyphs.middle_dot);
     let placed = row
         .attachments()

@@ -87,7 +87,8 @@ mod worktree_destination;
 pub mod application {
     pub mod agent_provider {
         pub use crate::agent_provider::{
-            CANONICAL_IDS, executable, integration_id, reported_label,
+            CANONICAL_IDS, ProviderChoice, choice, choices, executable, integration_id,
+            product_name, reported_label,
         };
     }
 

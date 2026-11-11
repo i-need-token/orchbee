@@ -72,7 +72,7 @@ fn rows_show_title_provider_and_workspace_or_a_placeholder_never_the_session_id(
             .find(|line| line.contains("Fix parser"))
             .unwrap_or_else(|| panic!("titled row: {text}"));
         assert!(
-            titled.contains("devin") && titled.contains("orchbee"),
+            titled.contains("Devin") && titled.contains("orchbee"),
             "{titled}"
         );
         assert_eq!(titled.matches("Fix parser").count(), 1, "{titled}");
@@ -80,6 +80,6 @@ fn rows_show_title_provider_and_workspace_or_a_placeholder_never_the_session_id(
             .iter()
             .find(|line| line.contains(placeholder))
             .unwrap_or_else(|| panic!("placeholder row: {text}"));
-        assert!(unplaced.contains("devin"), "{unplaced}");
+        assert!(unplaced.contains("Devin"), "{unplaced}");
     }
 }

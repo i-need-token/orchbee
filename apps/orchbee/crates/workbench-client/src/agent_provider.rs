@@ -124,18 +124,55 @@ fn session_options(canonical: &str) -> Option<&'static [&'static str]> {
     })
 }
 
-/// A command that the registry classes as generic, such as `agent` or `snow`, is not enough
-/// evidence to advertise a provider as installed.
-pub(crate) fn detection_executable(canonical: &str) -> Option<&'static str> {
+/// One startable provider as a person chooses it: the canonical id a start and the CLI take, the
+/// product name every list shows, and the command a start sends.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProviderChoice {
+    pub id: &'static str,
+    pub product: &'static str,
+    pub command: &'static str,
+    /// Whether finding `command` on PATH says the provider is installed. A command the registry
+    /// classes as generic, such as Cursor's `agent` or `snow`, may belong to another program, so
+    /// such a provider can be started but not checked.
+    pub checkable: bool,
+}
+
+/// Every startable provider in the catalog's stable order.
+pub fn choices() -> impl Iterator<Item = ProviderChoice> {
+    CANONICAL_IDS.iter().filter_map(|id| choice(id))
+}
+
+/// The catalog entry for a canonical id; aliases and report labels stay absent.
+pub fn choice(canonical: &str) -> Option<ProviderChoice> {
+    let provider = AgentReportProvider::from_native_provider_id(canonical)?;
     let command = executable(canonical)?;
-    let generic = AgentReportProvider::ALL.iter().any(|provider| {
-        provider
+    let generic = AgentReportProvider::ALL.iter().any(|known| {
+        known
             .registry_entry()
             .aliases
             .iter()
             .any(|alias| alias.name == command && alias.class == AgentAliasClass::Generic)
     });
-    (!generic).then_some(command)
+    Some(ProviderChoice {
+        id: provider.native_provider_id(),
+        product: provider.product_name(),
+        command,
+        checkable: !generic,
+    })
+}
+
+/// The product name of a canonical id or report label, else the text itself, for what a person
+/// reads.
+pub fn product_name(label: &str) -> &str {
+    AgentReportProvider::lookup(label).map_or(label, |provider| provider.product_name())
+}
+
+/// A command that the registry classes as generic is not enough evidence to advertise a provider
+/// as installed.
+pub(crate) fn detection_executable(canonical: &str) -> Option<&'static str> {
+    choice(canonical)
+        .filter(|choice| choice.checkable)
+        .map(|choice| choice.command)
 }
 
 /// The `agent integration --provider` identity that manages a canonical

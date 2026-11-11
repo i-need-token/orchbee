@@ -224,8 +224,8 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
     }
 
     // A local-only list omits the machine prefix; a distinct task title follows the name.
-    let first = find_ascii(&terminal, "1 codex · build");
-    let second = find_ascii(&terminal, "2 codex · build");
+    let first = find_ascii(&terminal, "1 Codex · build");
+    let second = find_ascii(&terminal, "2 Codex · build");
     let buffer = terminal.backend().buffer();
     assert_eq!(
         buffer[(first.0 - 2, first.1)].symbol(),

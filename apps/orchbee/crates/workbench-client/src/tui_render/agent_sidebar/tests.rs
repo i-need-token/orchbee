@@ -58,7 +58,7 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
             "frontend",
             true,
             observed(Some("Respond to greeting")),
-            "alpha · codex",
+            "alpha · Codex",
         ),
         (
             None,
@@ -66,7 +66,7 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
             "frontend",
             false,
             observed(Some("Respond to greeting")),
-            "Fix input · codex",
+            "Fix input · Codex",
         ),
         (
             None,
@@ -74,7 +74,7 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
             "frontend",
             true,
             observed(Some("Respond to greeting")),
-            "frontend · codex",
+            "frontend · Codex",
         ),
         // The program's title, without its activity prefix, outranks a creation label.
         (
@@ -83,7 +83,7 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
             "build",
             false,
             observed(Some("⠋ Respond to greeting | Desktop")),
-            "Respond to greeting | Desktop · codex",
+            "Respond to greeting | Desktop · Codex",
         ),
         (
             None,
@@ -91,24 +91,24 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
             "build",
             false,
             unavailable.clone(),
-            "build · codex",
+            "build · Codex",
         ),
-        (None, None, "build", false, observed(None), "build · codex"),
+        (None, None, "build", false, observed(None), "build · Codex"),
         // A title naming only the provider or its program, a console launch path, an automatic
         // number and blank text name nothing, so the provider shows alone.
-        (None, None, "1", false, observed(Some("Codex")), "codex"),
-        (None, None, "1", false, observed(Some("✳ codex")), "codex"),
+        (None, None, "1", false, observed(Some("Codex")), "Codex"),
+        (None, None, "1", false, observed(Some("✳ codex")), "Codex"),
         (
             None,
             None,
             "1",
             false,
             observed(Some(r"C:\Tools\codex.exe")),
-            "codex",
+            "Codex",
         ),
-        (Some("  "), None, "1", false, unavailable.clone(), "codex"),
-        (None, None, " \t", false, observed(Some("  ")), "codex"),
-        (Some("codex"), None, "", false, unavailable.clone(), "codex"),
+        (Some("  "), None, "1", false, unavailable.clone(), "Codex"),
+        (None, None, " \t", false, observed(Some("  ")), "Codex"),
+        (Some("codex"), None, "", false, unavailable.clone(), "Codex"),
     ] {
         let mut agent = row(23);
         agent.name = name.map(str::to_owned);
@@ -128,7 +128,7 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
     agent.terminal_title = observed(Some("✳ Claude Code"));
     let (spans, _) = default_line(agent, &Theme::terminal_native(), usize::MAX);
     assert_eq!(spans.len(), 1);
-    assert_eq!(spans[0].content, "claude");
+    assert_eq!(spans[0].content, "Claude Code");
 }
 
 #[test]
@@ -143,17 +143,17 @@ fn default_agent_row_cuts_its_title_before_its_provider_and_keeps_the_title_when
             theme,
             "Respond to greeting",
             27,
-            "Respond to greeting · codex",
+            "Respond to greeting · Codex",
         ),
-        (theme, "Respond to greeting", 20, "Respond to … · codex"),
+        (theme, "Respond to greeting", 20, "Respond to … · Codex"),
         // The title keeps three cells before its ellipsis beside the provider ...
-        (theme, "Respond to greeting", 12, "Res… · codex"),
+        (theme, "Respond to greeting", 12, "Res… · Codex"),
         // ... and narrower still tells siblings apart by its title alone, cut by the row later.
         (theme, "Respond to greeting", 11, "Respond to greeting"),
         // Wide characters are never split and the provider stays whole.
-        (theme, "修复标题问题", 15, "修复标… · codex"),
-        (theme, "修复标题问题", 14, "修复… · codex"),
-        (ascii, "Respond to greeting", 13, "Res.. - codex"),
+        (theme, "修复标题问题", 15, "修复标… · Codex"),
+        (theme, "修复标题问题", 14, "修复… · Codex"),
+        (ascii, "Respond to greeting", 13, "Res.. - Codex"),
     ] {
         let mut agent = row(23);
         agent.label = "1".into();
@@ -166,7 +166,7 @@ fn default_agent_row_cuts_its_title_before_its_provider_and_keeps_the_title_when
         assert_eq!(actual, expected, "{title} in {width}");
         assert_eq!(
             whole,
-            format!("{title} {} codex", theme.glyphs.middle_dot),
+            format!("{title} {} Codex", theme.glyphs.middle_dot),
             "the tooltip gives the whole row"
         );
         // The title uses primary text and the separator and provider quieter secondary text.
@@ -864,7 +864,7 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .collect::<String>();
             assert_eq!(
                 projected_title,
-                format!("Input handling {} codex", theme.glyphs.middle_dot)
+                format!("Input handling {} Codex", theme.glyphs.middle_dot)
             );
             assert_eq!(projected.len(), 1, "state text lives in the hover hint");
             let y = (0..40)
@@ -911,7 +911,7 @@ fn default_agent_identity_uses_provider_for_blank_titles_without_repeating_it() 
                 )
             })
             .unwrap();
-        assert!(rows[y as usize].contains("codex"), "{rows:?}");
+        assert!(rows[y as usize].contains("Codex"), "{rows:?}");
         assert!(!rows[y as usize].contains("Working"), "{rows:?}");
         assert!(!rows[y as usize].contains('·'), "{rows:?}");
     }
@@ -1235,7 +1235,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                         hits.hit_target_at(2, y),
                         Some(HitTarget::SettingsButton)
                     )));
-                    assert!(!joined.contains("codex ·"), "hidden sidebar drew: {rows:?}");
+                    assert!(!joined.contains("Codex ·"), "hidden sidebar drew: {rows:?}");
                     assert!((0..height).all(|y| !matches!(
                         hits.hit_target_at(2, y),
                         Some(HitTarget::MachineAgentRow { .. })

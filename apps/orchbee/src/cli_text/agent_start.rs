@@ -2,6 +2,7 @@
 
 use super::Locale;
 use crate::cli_outcome::Failure;
+use std::sync::LazyLock;
 
 impl super::CliText {
     pub(crate) fn cli_agent_started(self, name: &str, session: &str) -> String {
@@ -186,14 +187,26 @@ impl super::CliText {
         }
     }
 
+    /// Every provider id a start takes, each beside the product name it stands for.
     pub(super) fn cli_agent_start_provider_choices(self) -> &'static str {
+        static EN_US: LazyLock<String> =
+            LazyLock::new(|| format!("one of {}", provider_list("{id} ({product})", ", ")));
+        static ZH_CN: LazyLock<String> =
+            LazyLock::new(|| format!("以下之一：{}", provider_list("{id}（{product}）", "、")));
         match self.locale {
-            Locale::EnUs => {
-                "one of pi, claude-code, codex, gemini, cursor, devin, antigravity, cline, omp, mastracode, opencode, github-copilot, kimi, kiro, droid, amp, grok, hermes, kilo, qodercli, qwen-code, letta, maki, muse, atomcode, codebuddy, command-code, deveco, mimo, reasonix, snow, minimax-code, mothx, jcode, openclaw, prime-agent"
-            }
-            Locale::ZhCn => {
-                "以下之一：pi、claude-code、codex、gemini、cursor、devin、antigravity、cline、omp、mastracode、opencode、github-copilot、kimi、kiro、droid、amp、grok、hermes、kilo、qodercli、qwen-code、letta、maki、muse、atomcode、codebuddy、command-code、deveco、mimo、reasonix、snow、minimax-code、mothx、jcode、openclaw、prime-agent"
-            }
+            Locale::EnUs => EN_US.as_str(),
+            Locale::ZhCn => ZH_CN.as_str(),
         }
     }
+}
+
+fn provider_list(entry: &str, separator: &str) -> String {
+    crate::agent_provider::choices()
+        .map(|choice| {
+            entry
+                .replace("{id}", choice.id)
+                .replace("{product}", choice.product)
+        })
+        .collect::<Vec<_>>()
+        .join(separator)
 }
