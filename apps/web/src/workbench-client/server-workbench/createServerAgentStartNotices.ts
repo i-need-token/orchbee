@@ -1,4 +1,4 @@
-import type { WorkbenchAgentStartNotices } from '../../workbench';
+import type { WorkbenchAgentStartFailure, WorkbenchAgentStartNotices } from '../../workbench';
 
 import {
 	subscribeServerPresentationFacts,
@@ -19,7 +19,10 @@ export function createServerAgentStartNotices(
 			subscribeServerPresentationFacts(
 				session,
 				(presentation) => presentation.agentStartFailure,
-				(fact) => listener({ providerId: fact.providerId, reason: fact.reason }),
+				({ providerId, reason }) => {
+					const notice: WorkbenchAgentStartFailure = { providerId, reason };
+					listener(notice);
+				},
 				{ now, since: now() },
 			),
 	};

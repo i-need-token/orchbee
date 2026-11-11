@@ -1,4 +1,4 @@
-import type { WorkbenchAgentResumeNotices } from '../../workbench';
+import type { WorkbenchAgentNotResumed, WorkbenchAgentResumeNotices } from '../../workbench';
 
 import {
 	subscribeServerPresentationFacts,
@@ -19,7 +19,10 @@ export function createServerAgentResumeNotices(
 			subscribeServerPresentationFacts(
 				session,
 				(presentation) => presentation.agentNotResumed,
-				(fact) => listener({ providerId: fact.providerId, reason: fact.reason }),
+				({ providerId, reason }) => {
+					const notice: WorkbenchAgentNotResumed = { providerId, reason };
+					listener(notice);
+				},
 				{ now, since: 0 },
 			),
 	};
