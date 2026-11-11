@@ -194,16 +194,6 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.mothx'],
 		description: 'Curated product name for the MothX Agent provider.',
 	},
-	providerKiroCrew: {
-		id: 'agent.observation.provider.kiroCrew',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.kiroCrew'],
-		description: 'Curated product name for the Kiro Crew Agent provider.',
-	},
-	providerQwenPaw: {
-		id: 'agent.observation.provider.qwenPaw',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.qwenPaw'],
-		description: 'Curated product name for the QwenPaw Agent provider.',
-	},
 	providerJcode: {
 		id: 'agent.observation.provider.jcode',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.jcode'],
@@ -213,11 +203,6 @@ export const agentObservationMessages = defineMessages({
 		id: 'agent.observation.provider.openClaw',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.openClaw'],
 		description: 'Curated product name for the OpenClaw Agent provider.',
-	},
-	providerPenguin: {
-		id: 'agent.observation.provider.penguin',
-		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.penguin'],
-		description: 'Curated product name for the Penguin Agent provider.',
 	},
 	providerPrimeAgent: {
 		id: 'agent.observation.provider.primeAgent',
