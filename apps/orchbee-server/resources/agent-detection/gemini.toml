@@ -6,7 +6,8 @@ updated_at = "2026-11-11T00:00:00Z"
 # Orchbee extension: Gemini CLI 0.67 asks "Do you trust the files in this folder?" in a framed box
 # when it starts in a folder it has not seen, and waits for one of its numbered choices. The rule
 # needs the framed question and the first and last choice rows; the selection marker sits on any
-# choice, and the folder names and the wrapped explanation are not matched.
+# choice, and the folder names and the wrapped explanation are not matched. An answered box stays
+# on screen above the restart line and the new composer, so either of those below it ends the match.
 [[rules]]
 id = "folder_trust_prompt"
 state = "blocked"
@@ -17,6 +18,17 @@ line_regex = [
 	'^\s*│\s+Do you trust the files in this folder\?\s*│?\s*$',
 	'^\s*│\s+(?:●\s+)?1\. Trust folder\b',
 	'^\s*│\s+(?:●\s+)?\d\. Don.t trust\b',
+]
+not = [
+	{ line_regex = [
+		'^\s*Gemini CLI is restarting to apply the trust changes',
+	] },
+	{ line_regex = [
+		'^\s*▄{3,}\s*$',
+	] },
+	{ line_regex = [
+		'^\s*▀{3,}\s*$',
+	] },
 ]
 
 [[rules]]

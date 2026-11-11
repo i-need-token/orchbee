@@ -257,9 +257,17 @@ fn new_provider_rules_follow_redacted_windows_captures() {
     let gemini_trust_first = gemini_trust("●", " ");
     let gemini_trust_last = gemini_trust(" ", "●");
     let gemini_idle = "ℹ Do you trust the files in this folder?\n  1. Trust folder (app)\n\n ╭─────────╮\n │ >   Type your message or @path/to/file │\n ╰─────────╯\n ~\\src\\app      no sandbox      model";
+    // The answered box stays above the restart line, the banner and the new composer.
+    let gemini_composer = "─────────\n Shift+Tab to accept edits      2 skills\n▄▄▄▄▄▄▄▄▄\n > list the files\n▀▀▀▀▀▀▀▀▀\n ~\\src\\app      no sandbox      model";
+    let gemini_trusted = format!(
+        "{gemini_trust_first}\n\n Gemini CLI is restarting to apply the trust changes...\n\n ▝▜▄     Gemini CLI v0.68.0\n ▝▀\n\n{gemini_composer}"
+    );
+    let gemini_trusted_later = format!("{gemini_trust_first}\n\n ▝▀\n\n{gemini_composer}");
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
         (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
+        (P::Gemini, &gemini_trusted, "", Unknown),
+        (P::Gemini, &gemini_trusted_later, "", Unknown),
         (P::Gemini, &gemini_trust_last, "", Blocked),
         (P::Gemini, gemini_idle, "", Unknown),
         (P::AtomCode, atom_idle.as_str(), "🟢 atomcode", Idle),
