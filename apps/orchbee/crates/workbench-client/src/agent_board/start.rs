@@ -66,20 +66,10 @@ pub(crate) enum StartPlace {
     ThisPanel(WorkbenchPanelId),
     /// A new Tab in the current Workspace.
     NewTab,
-}
-
-/// The automatic place: the focused Panel while it may be an idle shell at an empty prompt,
-/// otherwise a new Tab. The Client cannot see the prompt itself, so a Panel counts as idle
-/// unless an Agent is known to hold it or one of this Client's starts still guards it; the
-/// Host's prompt gate decides when the command is sent.
-pub(crate) fn automatic_place(
-    focus: Option<&WorkbenchPanelId>,
-    busy: impl Fn(&WorkbenchPanelId) -> bool,
-) -> StartPlace {
-    match focus {
-        Some(panel) if !busy(panel) => StartPlace::ThisPanel(panel.clone()),
-        _ => StartPlace::NewTab,
-    }
+    /// A new Panel split to the right of the focused Panel.
+    SplitRight,
+    /// A new Panel split below the focused Panel.
+    SplitDown,
 }
 
 /// What a start in its Panel became once its outcome settled: a refusal that typed nothing

@@ -49,9 +49,9 @@ Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alon
 read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
 opens, a search field, a divider, the grouped list, a status row only while there is something to
 report (the lookup running, no match, or a host that cannot start Agents) and the hint row
-`Esc close │ Enter start │ ↑↓ select`. Typing filters at once by product name, command or provider
-id. `Esc` first clears a query, then returns to the Board when the picker came from it, else
-closes; the close control acts like `Esc` with an empty query, and an outside press closes the
+`Esc close │ Enter start │ ↑↓ select │ Tab place`. Typing filters at once by product name, command
+or provider id. `Esc` first clears a query, then returns to the Board when the picker came from it,
+else closes; the close control acts like `Esc` with an empty query, and an outside press closes the
 whole owner. No key reaches the Panel.
 
 Groups follow the list order: **Recent** holds at most three installed providers, most recent
@@ -77,17 +77,31 @@ There is no name field. `Enter` or a row click, against the current successful d
 picker on the same frame and starts the provider. A terminal's Enter arrives as a bare CR, the
 canonical `Ctrl+M`, and starts the same way. A start the picker cannot make leaves it open and says
 why: the status row on a host that cannot start Agents, otherwise "Agent did not start" in the status
-line. The place is automatic: the focused Panel when
-its shell is idle — no known Agent holds it and none of this Client's starts guards it — else a new
-Tab, and the context row says which. In the focused Panel the provider is typed through the same
-single-submission workflow as the CLI, which keeps its named start. A new Tab comes from the
-ordinary Tab creation in the focused Workspace with the provider's catalog id: the Server launches
-the Tab's shell with the Agent as its first command, so nothing is typed, the Panel shows the
-Agent's own first screen, and the shell stays when the Agent exits. The Client asks once and never
-polls for the Tab; when the creation commits it watches the new Panel the way a typed start is
-watched. A shell that cannot take a first command, such as cmd or a custom launch profile, gets
-the typed start at its first prompt instead. A Host refusal because the focused Panel is no longer
-at an idle prompt starts in a new Tab instead and says "Panel busy · opened a new Tab". The workflow
+line.
+
+The place row names where the Agent opens before `Enter`. The place is automatic and nothing is
+asked: the focused Panel when its shell is idle — no known Agent holds it and none of this Client's
+starts guards it — else a new Tab. `Tab` moves to the next offered place and `Shift+Tab` to the
+previous one, wrapping, in the order this Panel, new Tab, split right, split down; a click on the
+place row acts like `Tab`. This Panel is offered only when it is the automatic place, and the two
+splits only while a Panel is focused; the offer is fixed when the picker opens. The chosen place
+holds while the picker stays open, also across filtering, and is forgotten when it closes. The place
+row is never removed under height pressure; a row too narrow for the label and the place drops the
+label "Opens in" first, then truncates the place name, and the hint row drops `Tab place` before
+its other hints. New Worktree is not offered yet: the worktree operation launches its Workspace on
+the Server and its request has no field that carries the Agent.
+
+In the focused Panel the provider is typed through the same single-submission workflow as the CLI,
+which keeps its named start. A new Tab comes from the ordinary Tab creation in the focused
+Workspace with the provider's catalog id: the Server launches the Tab's shell with the Agent as its
+first command, so nothing is typed, the Panel shows the Agent's own first screen, and the shell
+stays when the Agent exits. A split goes through the split keys' own action on the focused Panel
+with the same catalog id, so their admission, refusals and notices apply unchanged; a refusal
+leaves the picker closed. The Client asks once and never polls; when the creation or split commits
+it watches the new Panel the way a typed start is watched. A shell that cannot take a first
+command, such as cmd or a custom launch profile, gets the typed start at its first prompt instead. A
+Host refusal because the focused Panel is no longer at an idle prompt starts in a new Tab instead
+and says "Panel busy · opened a new Tab". The workflow
 never installs a provider, inspects an integration or changes configuration. Success shows no
 notice; the Panel's Agent row shows the Agent opening. A failure is a short status notice, such as
 "Codex not found · Ctrl+B G choose another" or "Codex exited · see its Tab", and a provider not
@@ -144,17 +158,17 @@ Session or terminal too old to confirm one, typed nothing
 ([prompt-gated input](windows-agent-start.md#prompt-gated-input)); the next choice in the picker
 starts afresh, since there is no retry state.
 
-| Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open           | Modal/confirmation-free board admits a fresh epoch and one lane thread; a previous lane must have actually exited first. Last-good rows, their install age and the residual cooldown persist across the reopen; selection is repaired by opaque id against the preserved rows.                                                                                    |
-| Draw settle    | The first evaluated paint either admits the episode or refuses it. A later geometry block suspends an admitted episode without destroying rows, selection, viewport or accepted work; cover revokes current-frame visibility and exact activation proof. Resume requires a complete exact-episode paint. A stale receipt cannot mutate or reopen another episode. |
-| List round     | One bounded walk: at most six same-revision pages under one absolute deadline, one re-walk on a stale cursor, twelve exchanges and 12 MiB total.                                                                                                                                                                                                                  |
-| Settle read    | A same-revision full walk is complete and becomes `last_good`; an exhausted budget or deadline is incomplete or failed — never a masquerading empty success, and never a rewrite of `last_good`'s install age.                                                                                                                                                    |
-| Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
-| Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
-| Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
-| Start Agent    | A current successful picker draw admits one canonical provider and the automatic place: the focused idle Panel unless a running or unknown start guards it, else a new Tab whose shell runs the Agent as its first command. The workflow submits input at most once and ends after its early check; a generation/Panel mismatch drops the completion.             |
-| Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. Accepted startup tasks remain Session-owned and keep running; only Session teardown wakes them.                                                                                                                                                                |
+| Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open           | Modal/confirmation-free board admits a fresh epoch and one lane thread; a previous lane must have actually exited first. Last-good rows, their install age and the residual cooldown persist across the reopen; selection is repaired by opaque id against the preserved rows.                                                                                            |
+| Draw settle    | The first evaluated paint either admits the episode or refuses it. A later geometry block suspends an admitted episode without destroying rows, selection, viewport or accepted work; cover revokes current-frame visibility and exact activation proof. Resume requires a complete exact-episode paint. A stale receipt cannot mutate or reopen another episode.         |
+| List round     | One bounded walk: at most six same-revision pages under one absolute deadline, one re-walk on a stale cursor, twelve exchanges and 12 MiB total.                                                                                                                                                                                                                          |
+| Settle read    | A same-revision full walk is complete and becomes `last_good`; an exhausted budget or deadline is incomplete or failed — never a masquerading empty success, and never a rewrite of `last_good`'s install age.                                                                                                                                                            |
+| Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                                      |
+| Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.                |
+| Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                                 |
+| Start Agent    | A current successful picker draw admits one canonical provider and the shown place: the focused idle Panel unless a running or unknown start guards it (then a new Tab), or a new Tab or split whose shell runs the Agent as its first command. The workflow submits input at most once and ends after its early check; a generation/Panel mismatch drops the completion. |
+| Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. Accepted startup tasks remain Session-owned and keep running; only Session teardown wakes them.                                                                                                                                                                        |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked
 stale; without `last_good` it may show only same-revision rows marked incomplete — and preserving
@@ -182,7 +196,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, picker grouping, order, filtering and `Esc` order, automatic place selection, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, picker grouping, order, filtering and `Esc` order, the offered places and their `Tab` cycle, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission and both locales.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/agent_board/tests.rs`, `crates/workbench-client/src/agent_board/picker/tests.rs`, `crates/workbench-client/src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

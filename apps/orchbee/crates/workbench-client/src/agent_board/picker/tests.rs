@@ -1,7 +1,7 @@
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
-use super::super::start::{Phase, StartPlace, automatic_place, place_after};
-use super::{Escape, Group, Item, Meta, Picker, Sources, escape, items};
+use super::super::start::{Phase, StartPlace, place_after};
+use super::{Escape, Group, Item, Meta, Picker, Places, Sources, escape, items};
 use crate::workbench_state::AgentStartRefusal;
 
 fn panel(value: u128) -> WorkbenchPanelId {
@@ -243,7 +243,7 @@ fn the_cursor_rests_on_the_most_recent_provider_else_the_first_installed() {
             "",
             false,
         );
-        let picker = Picker::new(false, StartPlace::NewTab);
+        let picker = Picker::new(false, Places::new(None, |_| false));
         let index = picker.cursor_index(&rows).unwrap();
         assert!(
             matches!(rows[index], Item::Provider { id, .. } if id == expected),
@@ -253,21 +253,33 @@ fn the_cursor_rests_on_the_most_recent_provider_else_the_first_installed() {
 }
 
 #[test]
-fn place_is_this_idle_panel_otherwise_a_new_tab() {
+fn places_offered_follow_the_focused_panel_and_auto_is_the_first() {
+    use StartPlace::{NewTab, SplitDown, SplitRight, ThisPanel};
     let focused = panel(7);
     let cases = [
-        ("no focused Panel", None, false, StartPlace::NewTab),
+        ("no focused Panel", None, false, vec![NewTab]),
         (
             "an idle Panel",
             Some(&focused),
             false,
-            StartPlace::ThisPanel(focused.clone()),
+            vec![ThisPanel(focused.clone()), NewTab, SplitRight, SplitDown],
         ),
-        ("a busy Panel", Some(&focused), true, StartPlace::NewTab),
+        (
+            "a busy Panel",
+            Some(&focused),
+            true,
+            vec![NewTab, SplitRight, SplitDown],
+        ),
     ];
     for (name, focus, busy, expected) in cases {
-        assert_eq!(automatic_place(focus, |_| busy), expected, "{name}");
+        let places = Places::new(focus, |_| busy);
+        assert_eq!(places.offered(), expected, "{name}");
+        assert_eq!(places.automatic(), expected[0], "{name}");
     }
+}
+
+#[test]
+fn a_typed_start_refused_at_its_prompt_moves_to_a_new_tab_once() {
     let settled = [
         (
             "became busy",
@@ -293,6 +305,31 @@ fn place_is_this_idle_panel_otherwise_a_new_tab() {
     ];
     for (name, fallback, phase, expected) in settled {
         assert_eq!(place_after(fallback, phase), expected, "{name}");
+    }
+}
+
+#[test]
+fn tab_cycles_the_places_forward_and_shift_tab_backward_wrapping() {
+    use StartPlace::{NewTab, SplitDown, SplitRight, ThisPanel};
+    let focused = panel(7);
+    let cases = [
+        (
+            "idle",
+            Places::new(Some(&focused), |_| false),
+            vec![ThisPanel(focused.clone()), NewTab, SplitRight, SplitDown],
+        ),
+        ("no Panel", Places::new(None, |_| false), vec![NewTab]),
+    ];
+    for (name, places, order) in cases {
+        let len = order.len();
+        for (index, place) in order.iter().enumerate() {
+            assert_eq!(places.next(place, true), order[(index + 1) % len], "{name}");
+            assert_eq!(
+                places.next(place, false),
+                order[(index + len - 1) % len],
+                "{name}"
+            );
+        }
     }
 }
 

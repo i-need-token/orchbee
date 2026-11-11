@@ -781,6 +781,8 @@ pub(crate) enum AgentBoardControl {
     StartRow,
     /// One picker row, by its index in the drawn picker rows.
     Pick(usize),
+    /// The picker's place row; a click moves to the next place.
+    Place,
 }
 
 /// Exact Board control painted into one admitted frame.
@@ -956,7 +958,9 @@ impl AgentBoard {
             AgentBoardControl::Refresh => self.request_refresh(now),
             AgentBoardControl::Close => self.close(),
             // The composition opens the picker and runs a picked start.
-            AgentBoardControl::StartRow | AgentBoardControl::Pick(_) => return false,
+            AgentBoardControl::StartRow | AgentBoardControl::Pick(_) | AgentBoardControl::Place => {
+                return false;
+            }
         }
         true
     }

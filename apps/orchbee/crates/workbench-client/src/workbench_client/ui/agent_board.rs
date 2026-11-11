@@ -25,7 +25,7 @@ use crate::agent_board::{
     AgentBoardRowTarget, AgentBoardToken, AgentBoardView, JumpStage, JumpStep, board_key_action,
     plan_jump_step,
 };
-use crate::client_view::{KeyCode, KeyEvent, Modifiers};
+use crate::client_view::{KeyCode, KeyEvent, Modifiers, PanelDirection};
 use crate::tui_composition::{WorkbenchCaptureOwner, project_native_capture};
 use crate::workbench_projection::ClientContextLocation;
 use crate::workbench_state::AgentStartNotice;
@@ -261,7 +261,16 @@ impl WorkbenchClientUi {
                 }
             }
             StartPlace::NewTab => self.start_in_new_tab(picked.provider),
+            StartPlace::SplitRight => self.start_in_split(picked.provider, PanelDirection::Right),
+            StartPlace::SplitDown => self.start_in_split(picked.provider, PanelDirection::Down),
         }
+    }
+
+    /// Asks the Server for a split of the focused Panel whose new shell runs the Agent as its
+    /// first command, through the split keys' own action, so their refusals and notices apply.
+    fn start_in_split(&mut self, provider: &'static str, direction: PanelDirection) {
+        let _disposition =
+            self.structure_action(super::StructureAction::SplitAgent(direction, provider));
     }
 
     /// Asks the Server for a new Tab in the current Workspace whose shell runs the Agent as its
@@ -276,8 +285,8 @@ impl WorkbenchClientUi {
         let _disposition = self.structure_action(super::StructureAction::CreateAgentTab(provider));
     }
 
-    /// Moves refused starts to new Tabs, and watches each Agent a created Tab's shell runs as its
-    /// first command, as a typed start is watched.
+    /// Moves refused starts to new Tabs, and watches each Agent a created Tab's or split's shell
+    /// runs as its first command, as a typed start is watched.
     fn drive_start_places(&mut self) -> bool {
         let mut changed = false;
         while let Some(provider) = self.board.start_state().take_fallback() {

@@ -52,6 +52,14 @@ impl ClientExecutor {
                 label,
                 geometry,
             } => {
+                // The catalog id names the Agent; the Server resolves the command.
+                let agent_start = match operation.agent_start() {
+                    Some(provider) => Some(
+                        orchbee_workbench_protocol::AgentStartSelector::parse(provider)
+                            .ok_or(CarrierFailure::Protocol)?,
+                    ),
+                    None => None,
+                };
                 let request =
                     WorkbenchPanelSplitRequest::try_from(command(WorkbenchAction::PanelSplit {
                         right_click: Default::default(),
@@ -67,7 +75,10 @@ impl ClientExecutor {
                         geometry: *geometry,
                         launch: None,
                         profile: None,
-                        options: Default::default(),
+                        options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                            agent_start,
+                            ..Default::default()
+                        }),
                     }))
                     .map_err(|_command| CarrierFailure::Protocol)?;
                 match self.client.submit_workbench_panel_split(request, cutoff) {

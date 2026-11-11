@@ -98,6 +98,8 @@ pub(crate) struct PanelOperation {
     intent: PanelIntent,
     deadline: Instant,
     focus_new_panel: bool,
+    /// The Agent a split's new shell runs as its first command, by catalog id.
+    agent_start: Option<&'static str>,
 }
 
 impl PanelOperation {
@@ -119,7 +121,19 @@ impl PanelOperation {
             intent,
             deadline,
             focus_new_panel: false,
+            agent_start: None,
         }
+    }
+
+    /// A split whose new shell runs `provider` as its first command; other operations ignore it.
+    #[must_use]
+    pub(crate) const fn with_agent_start(mut self, provider: Option<&'static str>) -> Self {
+        self.agent_start = provider;
+        self
+    }
+
+    pub(crate) const fn agent_start(&self) -> Option<&'static str> {
+        self.agent_start
     }
 
     pub(crate) const fn request_id(&self) -> &WorkbenchRequestId {
@@ -604,11 +618,13 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn begin_panel(&mut self, operation: PanelOperation) -> bool {
-        let expected = self.plan_panel(
-            operation.request_id.clone(),
-            operation.kind,
-            operation.deadline,
-        );
+        let expected = self
+            .plan_panel(
+                operation.request_id.clone(),
+                operation.kind,
+                operation.deadline,
+            )
+            .map(|expected| expected.with_agent_start(operation.agent_start));
         if expected.as_ref() != Some(&operation) {
             return false;
         }
@@ -799,6 +815,7 @@ impl WorkbenchClientState {
                 return PanelDecision::Retire;
             }
             PreparedPanelResult::Committed { pending, candidate } => {
+                self.note_started_agent(&pending);
                 self.settled_panel = Some(pending.clone());
                 if let Some(candidate) = candidate {
                     if !self.merge_projection(candidate) {
@@ -823,6 +840,15 @@ impl WorkbenchClientState {
             self.leave_accepted_panel_close(&prepared.operation, &accepted);
         }
         PanelDecision::Continue
+    }
+
+    /// A committed split whose new shell runs an Agent first is watched like a new Tab's.
+    fn note_started_agent(&mut self, pending: &PendingPanelCommit) {
+        if let (Some(provider), Some(panel)) =
+            (pending.operation.agent_start, pending.commit.new_panel_id())
+        {
+            self.started_agents.push((panel.clone(), provider));
+        }
     }
 
     fn panel_result_is_current(&self, operation: &PanelOperation) -> bool {
@@ -854,6 +880,7 @@ impl WorkbenchClientState {
             return Err(CarrierFailure::Protocol);
         };
         self.notice = if let Some(pending) = pending {
+            self.note_started_agent(&pending);
             self.settled_panel = Some(pending);
             None
         } else {

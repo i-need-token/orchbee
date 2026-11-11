@@ -609,6 +609,83 @@ fn terminal_enter_starts_the_picked_provider_from_every_entry() {
     }
 }
 
+/// A terminal sends Tab as a bare HT and Shift+Tab as `CSI Z`. In the picker both cycle the place
+/// and reach neither the Panel nor any other owner; Enter on a split asks for that split with the
+/// Agent as its new shell's first command instead of typing into the focused Panel.
+#[test]
+fn terminal_tab_cycles_the_place_and_enter_starts_a_split() {
+    use crate::agent_board::start::StartPlace::{NewTab, SplitDown, SplitRight, ThisPanel};
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    install_capture_empty_read(&mut ui);
+    ui.board.install_start_catalog_t(&["codex"]);
+    ui.board.accept_start_without_task_t();
+    ui.board.close();
+    ui.observe_geometry(Geometry::new(120, 36, 8, 16).unwrap());
+    let theme = crate::tui_theme::Theme::terminal_native();
+    let mut dispatcher = crate::terminal_input::InputDispatcher::default();
+    let mut view = crate::client_view::ClientView::new(120);
+    let mut forwarded = Vec::new();
+    let mut route = |ui: &mut WorkbenchClientUi, bytes: &[u8]| {
+        dispatcher
+            .dispatch(
+                &mut view,
+                bytes,
+                &mut RoutedInput {
+                    ui,
+                    forwarded: &mut forwarded,
+                },
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        render_board_frame(ui, 120, 36, crate::localization::Locale::EnUs, &theme).settle(ui);
+    };
+    route(&mut ui, b"\x02G");
+    let focused = ui
+        .state
+        .as_ref()
+        .and_then(|state| state.focus_panel_id().cloned())
+        .expect("fixture has one exact focused Panel");
+    let place = |ui: &WorkbenchClientUi| ui.board.picker().map(|picker| picker.place().clone());
+    assert_eq!(place(&ui), Some(ThisPanel(focused.clone())));
+    for (bytes, expected) in [
+        (&b"\t"[..], NewTab),
+        (b"\t", SplitRight),
+        (b"\x1b[Z", NewTab),
+        (b"\x1b[Z", ThisPanel(focused.clone())),
+        (b"\x1b[Z", SplitDown),
+        (b"\t", ThisPanel(focused.clone())),
+        (b"\x1b[Z", SplitDown),
+    ] {
+        route(&mut ui, bytes);
+        assert_eq!(place(&ui), Some(expected), "{bytes:?}");
+    }
+    route(&mut ui, b"\r");
+
+    assert!(!ui.board.is_open(), "the start closes the picker");
+    assert!(forwarded.is_empty(), "no key reached the Panel");
+    assert_eq!(
+        ui.board.start_operation_panel_t(),
+        None,
+        "nothing is typed into the focused Panel"
+    );
+    let operation = ui
+        .state
+        .as_ref()
+        .and_then(|state| state.pending_panel())
+        .expect("Enter asks for the split");
+    assert!(matches!(
+        operation.intent(),
+        crate::workbench_state::PanelIntent::Split { direction, .. }
+            if *direction == orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Below
+    ));
+    assert_eq!(operation.panel_id(), &focused);
+    assert_eq!(operation.agent_start(), Some("codex"));
+}
+
 #[test]
 fn captures_whole_shell_agent_board_alignment_frames() {
     use crate::tui_presentation::PresentationPhase;

@@ -2,7 +2,12 @@
 //! grouped provider list and one hint row. The Board owner keeps its episode and capture; this
 //! file only paints the picker rows and publishes their exact targets.
 
-use ratatui::{Frame, layout::Rect, widgets::Paragraph};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    text::{Line, Span},
+    widgets::Paragraph,
+};
 
 use super::super::controls::{
     self, ControlSurface, KeyHint, QueryField, RowContentBand, RowFocusCue, RowTracks,
@@ -29,6 +34,7 @@ use crate::tui_theme::{Role, Theme};
 
 /// The query row takes the Medium class's picker width: 56 content cells, 62 outside.
 const QUERY_WIDTH: u16 = 56;
+const PLACE: usize = 0;
 const QUERY: usize = 2;
 const DIVIDER: usize = 3;
 const LIST: usize = 4;
@@ -48,6 +54,8 @@ pub(super) fn render(
     let place = match picker.place() {
         StartPlace::ThisPanel(_) => copy.this_panel,
         StartPlace::NewTab => copy.new_tab,
+        StartPlace::SplitRight => copy.split_right,
+        StartPlace::SplitDown => copy.split_down,
     };
     let context = copy.opens_in.replace("{place}", place);
     let status = match board.start_catalog_status() {
@@ -73,14 +81,17 @@ pub(super) fn render(
     let up = modal_key_label(theme, &Binding::new(KeyCode::Up, Modifiers::NONE));
     let down = modal_key_label(theme, &Binding::new(KeyCode::Down, Modifiers::NONE));
     let vertical = format!("{up}{down}");
+    let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));
     let hints = [
         KeyHint::new(&escape, text.board.close_hint),
         KeyHint::new(&enter, copy.start_hint),
         KeyHint::new(&vertical, text.board.select_hint),
+        KeyHint::new(&tab, copy.place_hint),
     ];
-    // The dialog pads below its title and above its footer itself.
+    // The dialog pads below its title and above its footer itself. The place row is required:
+    // Enter starts where it says, so height pressure never removes it.
     let mut rows = vec![
-        DialogRow::Context(context.into()),
+        DialogRow::Item(context.into(), Role::TextSecondary),
         DialogRow::Blank,
         DialogRow::Field {
             minimum: QUERY_WIDTH,
@@ -130,6 +141,9 @@ pub(super) fn render(
     );
     // The Board's own close publishes the interaction its pointer lane routes.
     let _ = render_header_close(frame, layout.area, &draw, theme, hits);
+    if let Some(row) = layout.row(PLACE) {
+        paint_place(frame, row, copy.opens_in, place, &draw, theme, hits);
+    }
     let _ = render_query_field(
         frame,
         query_row,
@@ -163,6 +177,46 @@ pub(super) fn render(
         );
     }
     AgentBoardDraw::Presented(draw)
+}
+
+/// The place row: the label in `text-secondary` and the place in `text-primary`. A row too
+/// narrow for both drops the label first, so the place stays named; the whole row cycles the
+/// place on click, like `Tab`.
+fn paint_place(
+    frame: &mut Frame<'_>,
+    row: Rect,
+    template: &str,
+    place: &str,
+    draw: &crate::agent_board::AgentBoardActualDraw,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let cells = usize::from(row.width);
+    let (label, rest) = template.split_once("{place}").unwrap_or(("", ""));
+    let fits = display_width(label) + display_width(place) + display_width(rest) <= cells;
+    let label = if fits { label } else { "" };
+    let place = truncate_display(
+        place,
+        cells.saturating_sub(display_width(label)),
+        theme.glyphs.ellipsis,
+    );
+    let rest = if fits { rest } else { "" };
+    let used = display_width(label) + display_width(&place) + display_width(rest);
+    // The padding overwrites what the dialog painted under the row.
+    let line = Line::from(vec![
+        Span::styled(label, theme.style(Role::TextSecondary)),
+        Span::styled(place, theme.style(Role::TextPrimary)),
+        Span::styled(rest, theme.style(Role::TextSecondary)),
+        Span::raw(" ".repeat(cells.saturating_sub(used))),
+    ]);
+    frame.render_widget(Paragraph::new(line), row);
+    hits.record_interaction(
+        HitLayer::Overlay,
+        row,
+        row,
+        InteractionTarget::AgentBoardControl(draw.control_target(AgentBoardControl::Place)),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]

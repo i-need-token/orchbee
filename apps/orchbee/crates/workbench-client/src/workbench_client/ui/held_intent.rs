@@ -93,6 +93,8 @@ pub(super) enum StructureAction {
     CreateTab,
     /// A new Tab whose shell runs this Agent as its first command.
     CreateAgentTab(&'static str),
+    /// A split of the focused Panel whose new shell runs this Agent as its first command.
+    SplitAgent(PanelDirection, &'static str),
 }
 
 struct Hold {
@@ -342,7 +344,8 @@ impl WorkbenchClientUi {
             | StructureAction::MoveTab(_)
             | StructureAction::Panel(_)
             | StructureAction::CreateTab
-            | StructureAction::CreateAgentTab(_) => ClientActionDisposition::DismissNavigator,
+            | StructureAction::CreateAgentTab(_)
+            | StructureAction::SplitAgent(..) => ClientActionDisposition::DismissNavigator,
         };
         self.hold_intent(HeldIntent::Structure(action));
         disposition
@@ -368,6 +371,9 @@ impl WorkbenchClientUi {
             StructureAction::Panel(kind) => self.panel_operation(kind),
             StructureAction::CreateTab => self.create_tab(),
             StructureAction::CreateAgentTab(provider) => self.create_agent_tab(provider),
+            StructureAction::SplitAgent(direction, provider) => {
+                self.panel_operation_starting(PanelRequestKind::Split { direction }, Some(provider))
+            }
         }
     }
 

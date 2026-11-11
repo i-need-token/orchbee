@@ -105,6 +105,8 @@ pub(crate) struct AgentPickerText {
     pub(crate) opens_in: &'static str,
     pub(crate) this_panel: &'static str,
     pub(crate) new_tab: &'static str,
+    pub(crate) split_right: &'static str,
+    pub(crate) split_down: &'static str,
     pub(crate) recent: &'static str,
     pub(crate) installed: &'static str,
     pub(crate) not_found: &'static str,
@@ -117,6 +119,8 @@ pub(crate) struct AgentPickerText {
     pub(crate) checking: &'static str,
     pub(crate) unsupported: &'static str,
     pub(crate) start_hint: &'static str,
+    /// The footer verb for `Tab`, which moves to the next place.
+    pub(crate) place_hint: &'static str,
 }
 
 /// Shorter start notices for a narrow status line. A panel-busy notice is already short.
@@ -153,6 +157,8 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         opens_in: "Opens in: {place}",
         this_panel: "this Panel",
         new_tab: "new Tab",
+        split_right: "split right",
+        split_down: "split down",
         recent: "Recent",
         installed: "Installed",
         not_found: "Not found",
@@ -164,6 +170,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         checking: "Looking for installed Agents…",
         unsupported: "Starting an Agent is not supported on this platform.",
         start_hint: "start",
+        place_hint: "place",
     },
     start_failed: "Agent did not start. Check its Panel and try again.",
     start_not_found: "{product} not found · Ctrl+B G choose another",
@@ -222,6 +229,8 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         opens_in: "打开位置：{place}",
         this_panel: "当前面板",
         new_tab: "新标签页",
+        split_right: "向右拆分",
+        split_down: "向下拆分",
         recent: "最近使用",
         installed: "已安装",
         not_found: "未找到",
@@ -233,6 +242,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         checking: "正在查找已安装的智能体…",
         unsupported: "此平台尚不支持启动智能体。",
         start_hint: "启动",
+        place_hint: "位置",
     },
     start_failed: "智能体未启动，请检查其面板后重试。",
     start_not_found: "未找到 {product} · Ctrl+B G 换一个",

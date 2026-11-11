@@ -9,11 +9,14 @@
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 use super::session_agents::{RECENT_LIMIT, SessionAgents, recent};
-use super::start::{self, StartPlace};
+use super::start::StartPlace;
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::workbench_state::AgentStartNotice;
+
+mod place;
+pub(crate) use place::Places;
 
 #[cfg(test)]
 mod tests;
@@ -212,12 +215,14 @@ pub(crate) struct Picker {
     scroll: usize,
     viewport: usize,
     from_board: bool,
+    places: Places,
+    /// Holds while the picker stays open; a query change never resets it.
     place: StartPlace,
     revision: u64,
 }
 
 impl Picker {
-    fn new(from_board: bool, place: StartPlace) -> Self {
+    fn new(from_board: bool, places: Places) -> Self {
         Self {
             query: LineEditor::new(String::new(), LengthLimit::Bytes(MAXIMUM_QUERY_BYTES)),
             cursor: None,
@@ -225,9 +230,15 @@ impl Picker {
             scroll: 0,
             viewport: 0,
             from_board,
-            place,
+            place: places.automatic(),
+            places,
             revision: 0,
         }
+    }
+
+    fn cycle_place(&mut self, forward: bool) {
+        self.place = self.places.next(&self.place, forward);
+        self.touch();
     }
 
     fn touch(&mut self) {
@@ -396,8 +407,8 @@ impl AgentBoard {
         self.start.can_start()
     }
 
-    fn automatic_place(&self, focus: Option<&WorkbenchPanelId>) -> StartPlace {
-        start::automatic_place(focus, |panel| {
+    fn places(&self, focus: Option<&WorkbenchPanelId>) -> Places {
+        Places::new(focus, |panel| {
             self.session_agents.holds(panel) || self.start.guards(panel)
         })
     }
@@ -433,8 +444,8 @@ impl AgentBoard {
         focus: Option<&WorkbenchPanelId>,
         from_board: bool,
     ) {
-        let place = self.automatic_place(focus);
-        self.picker = Some(Picker::new(from_board, place));
+        let places = self.places(focus);
+        self.picker = Some(Picker::new(from_board, places));
         self.start_catalog_path = path;
         self.start.refresh_catalog();
         self.shown = None;
@@ -489,6 +500,13 @@ impl AgentBoard {
                     .and_then(|index| items.get(index).copied());
                 return self.activate(target);
             }
+            // A terminal sends Tab as a bare HT and Shift+Tab as `CSI Z`.
+            _ if Binding::new(KeyCode::Tab, Modifiers::NONE).matches(event) => {
+                picker.cycle_place(true);
+            }
+            _ if Binding::new(KeyCode::Tab, Modifiers::NONE.with_shift()).matches(event) => {
+                picker.cycle_place(false);
+            }
             (KeyCode::Up, Modifiers::NONE) => picker.move_cursor(&items, -1),
             (KeyCode::Down, Modifiers::NONE) => picker.move_cursor(&items, 1),
             (KeyCode::PageUp, Modifiers::NONE) => picker.move_cursor(&items, -page),
@@ -518,6 +536,13 @@ impl AgentBoard {
             AgentBoardControl::Pick(index) => {
                 let item = self.picker_items().get(index).copied();
                 self.activate(item)
+            }
+            AgentBoardControl::Place => {
+                if let Some(picker) = self.picker.as_mut() {
+                    picker.cycle_place(true);
+                }
+                self.shown = None;
+                PickerOutcome::Handled
             }
             AgentBoardControl::Close => {
                 // The close control leaves the picker the way Esc does with an empty query.

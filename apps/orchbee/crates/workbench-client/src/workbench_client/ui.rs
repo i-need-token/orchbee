@@ -3869,6 +3869,16 @@ impl WorkbenchClientUi {
     }
 
     fn panel_operation(&mut self, kind: PanelRequestKind) -> ClientActionDisposition {
+        self.panel_operation_starting(kind, None)
+    }
+
+    /// A Panel operation whose new shell, for a split, runs `agent_start` as its first command
+    /// under the same admission and refusals as the split keys.
+    fn panel_operation_starting(
+        &mut self,
+        kind: PanelRequestKind,
+        agent_start: Option<&'static str>,
+    ) -> ClientActionDisposition {
         if self.panel_close_confirmation_armed() {
             return ClientActionDisposition::KeepNavigator;
         }
@@ -3891,8 +3901,14 @@ impl WorkbenchClientUi {
             deadline,
             &self.clock,
             |state, request_id| {
+                if agent_start.is_some_and(|provider| {
+                    orchbee_workbench_protocol::AgentStartSelector::parse(provider).is_none()
+                }) {
+                    return Err(ActionBuildError::Protocol);
+                }
                 state
                     .plan_panel(request_id, kind, deadline)
+                    .map(|operation| operation.with_agent_start(agent_start))
                     .ok_or(ActionBuildError::Busy)
             },
             |state, operation| {
