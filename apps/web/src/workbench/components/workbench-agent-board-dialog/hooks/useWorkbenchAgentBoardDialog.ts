@@ -68,8 +68,8 @@ const JUMP_FAILURE_MESSAGES: Readonly<Record<WorkbenchAgentBoardJumpFailure, Mes
 };
 
 /**
- * The open board as the TUI keeps it: an episode for as long as it is mounted, rows that keep the
- * Server's order, a selection that follows its session, and one status line in which a stopped jump
+ * The open board as the TUI keeps it: an episode for as long as it is mounted, rows in the port's
+ * order, a selection that follows its row, and one status line in which a stopped jump
  * outranks a jump under way, which outranks the state of the last read.
  */
 export function useWorkbenchAgentBoardDialog({

@@ -1,5 +1,6 @@
 import { projectServerAgentBoardRows } from './projectServerAgentBoardRows';
 import {
+	projectWorkbenchAgentOverview,
 	showWorkbenchPresentation,
 	type WorkbenchAgentBoard,
 	type WorkbenchAgentBoardJump,
@@ -31,7 +32,9 @@ type Request = { readonly kind: 'list' } | { readonly kind: 'get'; readonly seri
  * the two seconds since the last read have passed, and a close drops whatever its reads still owe.
  * One request is out at a time, and a jump waiting for it takes the place of a waiting read. A jump
  * reads its session again, then shows the first of the session's terminals this window holds, in
- * the shown Tab before the others and visible before hidden; landing closes the episode.
+ * the shown Tab before the others and visible before hidden; landing closes the episode. Every Agent
+ * the sidebar shows without a session is a row too, which follows the sidebar while the board is
+ * open and jumps to its terminal without a read.
  */
 export function bindServerAgentBoard({
 	agentObservationSource,
@@ -93,30 +96,44 @@ export function bindServerAgentBoard({
 	};
 
 	let summaries: readonly AgentSessionSummary[] = [];
-	const stopAgentObservation = agentObservationSource?.subscribe(() => {
-		if (!disposed && open)
-			publish({
-				rows: projectServerAgentBoardRows(summaries, agentObservationSource.getSnapshot()),
-			});
-	});
+	// As in the TUI, the sidebar's Agents join the rows once a read has installed some.
+	let rowsInstalled = false;
+	/** The sessions of the last installed read and the Agents the sidebar shows now. */
+	const projectRows = (): WorkbenchAgentBoardSnapshot['rows'] => {
+		const observation = agentObservationSource?.getSnapshot();
+		const sidebarAgents =
+			observation === undefined || !rowsInstalled
+				? []
+				: projectWorkbenchAgentOverview(observation, runtime).flatMap((workspace) =>
+						workspace.rows.map(({ destination, observation: current }) => ({
+							observation: current,
+							presentationId: destination.presentationId,
+						})),
+					);
+		return projectServerAgentBoardRows(summaries, observation, sidebarAgents);
+	};
+	// The open board follows what the sidebar follows: its Agents and where their terminals sit.
+	const follow = (): void => {
+		if (!disposed && open) publish({ rows: projectRows() });
+	};
+	const stopAgentObservation = agentObservationSource?.subscribe(follow);
+	const stopTerminalTopology = runtime.subscribeTerminalTopology(follow);
 
 	const listed = (round: Awaited<ReturnType<typeof listServerAgentSessions>>): void => {
 		if (round.kind === 'failed') {
 			publish({ read: { kind: 'failed', reason: round.reason } });
 			return;
 		}
-		// A cut-short walk never replaces the rows of a whole one.
-		const replace = round.complete || !rowsFromComplete;
-		if (replace) {
+		// A cut-short walk never replaces the sessions of a whole one.
+		if (round.complete || !rowsFromComplete) {
 			rowsFromComplete = round.complete;
+			rowsInstalled = true;
 			summaries = round.items;
 		}
 		publish({
 			notice: null,
 			read: { complete: round.complete, kind: 'listed' },
-			rows: replace
-				? projectServerAgentBoardRows(round.items, agentObservationSource?.getSnapshot())
-				: snapshot.rows,
+			rows: projectRows(),
 		});
 	};
 
@@ -231,6 +248,16 @@ export function bindServerAgentBoard({
 				return Promise.resolve<WorkbenchAgentBoardJump>('failed');
 			}
 			settleJump('superseded');
+			// A sidebar row has no session to read again: it shows its terminal at once.
+			if (row.origin === 'sidebar') {
+				const candidates = [{ presentationId: row.presentationId, visible: false }];
+				if (showWorkbenchPresentation(runtime, candidates).kind !== 'shown') {
+					publish({ notice: 'gone' });
+					return Promise.resolve<WorkbenchAgentBoardJump>('failed');
+				}
+				endEpisode();
+				return Promise.resolve<WorkbenchAgentBoardJump>('shown');
+			}
 			jumpSerial += 1;
 			const serial = jumpSerial;
 			return new Promise<WorkbenchAgentBoardJump>((resolve) => {
@@ -244,9 +271,7 @@ export function bindServerAgentBoard({
 			if (disposed) return;
 			endEpisode();
 			open = true;
-			publish({
-				rows: projectServerAgentBoardRows(summaries, agentObservationSource?.getSnapshot()),
-			});
+			publish({ rows: projectRows() });
 			intent = 'refresh';
 			pump();
 		},
@@ -272,6 +297,7 @@ export function bindServerAgentBoard({
 			endEpisode();
 			disposed = true;
 			stopAgentObservation?.();
+			stopTerminalTopology();
 			listeners.clear();
 		},
 	};

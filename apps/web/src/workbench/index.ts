@@ -129,3 +129,5 @@ export type {
 export { hasWorkbenchExclusiveFocusSurface } from './utils/workbench-focus-dom';
 
 export { resolveWorkbenchAgentDisplayState } from './utils/resolveWorkbenchAgentDisplayState';
+export { resolveWorkbenchAgentProviderId } from './utils/workbench-agent-names';
+export { projectWorkbenchAgentOverview } from './model/project-workbench-agent-overview';

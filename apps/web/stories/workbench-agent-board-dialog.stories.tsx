@@ -48,6 +48,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'fresh',
+		origin: 'session',
 		presentationId: fixturePresentationId(2),
 		providerId: 'claude',
 		sessionId: 'session-review',
@@ -56,6 +57,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'fresh',
+		origin: 'session',
 		presentationId: fixturePresentationId(1),
 		providerId: 'codex',
 		sessionId: 'session-build',
@@ -64,6 +66,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'stale',
+		origin: 'session',
 		presentationId: fixturePresentationId(3),
 		providerId: 'gemini',
 		sessionId: 'session-docs',
@@ -72,6 +75,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'disconnected',
+		origin: 'session',
 		presentationId: null,
 		providerId: 'my-agent',
 		sessionId: 'session-elsewhere',
@@ -80,6 +84,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: true,
 		freshness: 'fresh',
+		origin: 'session',
 		presentationId: null,
 		providerId: 'claude',
 		sessionId: 'session-done',
@@ -88,6 +93,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: true,
 		freshness: 'fresh',
+		origin: 'session',
 		presentationId: null,
 		providerId: 'opencode',
 		sessionId: 'session-stopped',
