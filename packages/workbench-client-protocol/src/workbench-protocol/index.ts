@@ -24,3 +24,14 @@ export type {
 	WorkbenchRequest,
 	WorkbenchResponse,
 } from './workbench-command-contract';
+/** @internal Fixture parser for Web tests and Stories; production parses snapshots inside the settings result schema. */
+export { SettingsSnapshotSchema } from './workbench-settings-contract';
+export type {
+	SettingChange,
+	SettingEntries,
+	SettingsRefusal,
+	SettingsRefusalReason,
+	SettingsSnapshot,
+} from './workbench-settings-contract';
+/** @internal The file state, for Web fixtures that publish one. */
+export type { SettingsFile } from './workbench-settings-contract';

@@ -54,16 +54,18 @@ export type {
 	UserLaunchProfileId,
 } from './user-launch-profile-contract';
 
-export {
-	DEFAULT_USER_PREFERENCES,
-	USER_PREFERENCE_KEYS,
-	UserPreferencesPatchSchema,
-	UserPreferencesSourceSchema,
-} from './user-preferences-contract';
+/** @internal Fixture parser for Web tests and Stories; production parses snapshots inside the settings result schema. */
+export { SettingsSnapshotSchema } from './workbench-protocol';
 export type {
-	UserPreferenceKey,
-	UserPreferencesPatch,
-	UserPreferencesSnapshot,
-	UserPreferencesFailure,
-	UserPreferencesResponse,
-} from './user-preferences-contract';
+	SettingChange,
+	SettingEntries,
+	SettingsRefusal,
+	SettingsRefusalReason,
+	SettingsSnapshot,
+} from './workbench-protocol';
+export { readSettingValue, settingDefault } from './setting-keys';
+/** @internal Every scalar key, for the Web in-memory settings fixture. */
+export { SETTING_KEYS } from './setting-keys';
+export type { SettingKey, SettingValues, SettingsPlatform } from './setting-keys';
+/** @internal The file state, for Web fixtures that publish one. */
+export type { SettingsFile } from './workbench-protocol';
