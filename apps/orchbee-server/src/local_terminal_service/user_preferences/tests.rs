@@ -23,7 +23,13 @@ impl Drop for Scope {
 }
 
 fn private_root() -> Scope {
-    let root = std::env::temp_dir().join(format!(
+    // The store opens every folder without following symlinks, as the product reaches it through
+    // the canonical data root; macOS's temporary folder sits behind /var.
+    #[cfg(unix)]
+    let parent = std::env::temp_dir().canonicalize().unwrap();
+    #[cfg(windows)]
+    let parent = std::env::temp_dir();
+    let root = parent.join(format!(
         "orchbee-session-preferences-{}-{}",
         std::process::id(),
         SystemTime::now()
