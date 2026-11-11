@@ -34,8 +34,10 @@ use report::{Report, Verdict};
 const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-start";
 /// The pause before starting again on a new Panel whose shell is not ready yet.
 const PROMPT_RETRY: Duration = Duration::from_millis(250);
-/// The stale-base retries a new Panel's prompt gate refusal may take; each typed nothing.
-const GATE_RETRIES: u8 = 3;
+/// How long a new Panel's prompt gate refusals, each of which typed nothing, are attempted again:
+/// a shell that still runs its profile redraws its prompt for seconds. The picker's first-prompt
+/// fallback waits as long.
+const NEW_SHELL_SETTLE: Duration = Duration::from_secs(30);
 
 #[cfg(test)]
 mod tests;
@@ -244,15 +246,16 @@ fn first_command(
 
 /// Start on a Panel this invocation just created. Until its terminal is bound and its shell shows
 /// an idle prompt, a start types nothing and is only read again; a submission the prompt gate
-/// refused, which typed nothing, is the stale-base refusal and is attempted again at most
-/// `GATE_RETRIES` times under a fresh identity. Every attempt shares the original deadline.
+/// refused, which typed nothing, is the stale-base refusal and is attempted again under a fresh
+/// identity until `NEW_SHELL_SETTLE` has passed since this call. Every attempt shares the original
+/// deadline.
 fn start_in_new_panel(
     request: &Request,
     (started, deadline): (Instant, Instant),
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     panel: &WorkbenchPanelId,
 ) -> Report {
-    let mut gate_retries = 0;
+    let settle_until = Instant::now() + NEW_SHELL_SETTLE;
     loop {
         let report = match settle(admit(deadline, wake), wake) {
             Ok((client, snapshot)) => crate::agent_start::run_on_client(
@@ -268,13 +271,12 @@ fn start_in_new_panel(
         };
         let gate_refusal = report.submission.is_some();
         let retry = report.awaits_new_shell()
-            && (!gate_refusal || gate_retries < GATE_RETRIES)
+            && (!gate_refusal || Instant::now() < settle_until)
             && deadline.saturating_duration_since(Instant::now()) > PROMPT_RETRY * 8;
         // An interruption ends the wait here; signal finalization reports the cancellation.
         if !retry || crate::agent_runtime::wait_backoff(wake, PROMPT_RETRY) {
             return report.into();
         }
-        gate_retries += u8::from(gate_refusal);
     }
 }
 

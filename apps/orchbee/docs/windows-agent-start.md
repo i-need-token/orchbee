@@ -47,7 +47,8 @@ first confirmed prompt; a named start keeps the reservation and readiness wait. 
 terminal is unbound or its shell is not idle, the CLI only reads again, every 250 ms until two
 seconds before the deadline. A submission the [prompt gate](#prompt-gated-input) refused typed
 nothing and is this workflow's stale-base refusal: it is attempted again under a fresh request
-identity at most three times. A refused creation reports `place-failed` with the Server's reason;
+identity for up to 30 seconds, because a shell that still runs its profile redraws its prompt for
+seconds, and never past the deadline. A refused creation reports `place-failed` with the Server's reason;
 a Panel created before a later step fails stays open, and the outcome names it.
 
 Agent integrations are opt-in, so starting never inspects one and never refuses because one is
