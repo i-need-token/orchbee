@@ -149,6 +149,81 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.muse'],
 		description: 'Curated product name for the Muse Agent provider.',
 	},
+	providerAtomCode: {
+		id: 'agent.observation.provider.atomCode',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.atomCode'],
+		description: 'Curated product name for the AtomCode Agent provider.',
+	},
+	providerCodeBuddy: {
+		id: 'agent.observation.provider.codeBuddy',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.codeBuddy'],
+		description: 'Curated product name for the CodeBuddy Code Agent provider.',
+	},
+	providerCommandCode: {
+		id: 'agent.observation.provider.commandCode',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.commandCode'],
+		description: 'Curated product name for the Command Code Agent provider.',
+	},
+	providerDevEco: {
+		id: 'agent.observation.provider.devEco',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.devEco'],
+		description: 'Curated product name for the DevEco Code Agent provider.',
+	},
+	providerMimo: {
+		id: 'agent.observation.provider.mimo',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.mimo'],
+		description: 'Curated product name for the MiMo Code Agent provider.',
+	},
+	providerReasonix: {
+		id: 'agent.observation.provider.reasonix',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.reasonix'],
+		description: 'Curated product name for the Reasonix Agent provider.',
+	},
+	providerSnow: {
+		id: 'agent.observation.provider.snow',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.snow'],
+		description: 'Curated product name for the Snow CLI Agent provider.',
+	},
+	providerMinimaxCode: {
+		id: 'agent.observation.provider.minimaxCode',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.minimaxCode'],
+		description: 'Curated product name for the MiniMax Code Agent provider.',
+	},
+	providerMothx: {
+		id: 'agent.observation.provider.mothx',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.mothx'],
+		description: 'Curated product name for the MothX Agent provider.',
+	},
+	providerKiroCrew: {
+		id: 'agent.observation.provider.kiroCrew',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.kiroCrew'],
+		description: 'Curated product name for the Kiro Crew Agent provider.',
+	},
+	providerQwenPaw: {
+		id: 'agent.observation.provider.qwenPaw',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.qwenPaw'],
+		description: 'Curated product name for the QwenPaw Agent provider.',
+	},
+	providerJcode: {
+		id: 'agent.observation.provider.jcode',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.jcode'],
+		description: 'Curated product name for the J-Code Agent provider.',
+	},
+	providerOpenClaw: {
+		id: 'agent.observation.provider.openClaw',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.openClaw'],
+		description: 'Curated product name for the OpenClaw Agent provider.',
+	},
+	providerPenguin: {
+		id: 'agent.observation.provider.penguin',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.penguin'],
+		description: 'Curated product name for the Penguin Agent provider.',
+	},
+	providerPrimeAgent: {
+		id: 'agent.observation.provider.primeAgent',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.primeAgent'],
+		description: 'Curated product name for the Prime Agent Agent provider.',
+	},
 	statusCanceled: {
 		id: 'agent.observation.status.canceled',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.canceled'],

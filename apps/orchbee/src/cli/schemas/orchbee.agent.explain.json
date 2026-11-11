@@ -741,7 +741,22 @@
 						"qwen",
 						"letta",
 						"maki",
-						"muse"
+						"muse",
+						"atomcode",
+						"codebuddy",
+						"command-code",
+						"deveco",
+						"mimo",
+						"reasonix",
+						"snow",
+						"minimax-code",
+						"mothx",
+						"kirocrew",
+						"qwenpaw",
+						"jcode",
+						"openclaw",
+						"penguin",
+						"prime-agent"
 					]
 				},
 				"state": {
