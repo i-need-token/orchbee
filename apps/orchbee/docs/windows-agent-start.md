@@ -25,18 +25,18 @@ characters are refused, and the encoded command must fit 8000 ASCII characters. 
 invalid-value diagnostic list the complete `--provider` set.
 
 Agent integrations are opt-in, so starting never inspects one and never refuses because one is
-missing: neither the CLI nor the board runs a provider command or reads provider configuration
+missing: neither the CLI nor the TUI runs a provider command or reads provider configuration
 before it types. A start without a name reserves nothing. A named start without an integration is
 confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
 names the next step: `agent wait --panel <panel> --until idle` after a start without a name,
 `agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
 after an observed one, whose name was not bound.
 
-After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`
+Each time the [Start Agent picker](agent-board.md) opens, it runs fixed System32 `where.exe`
 queries through `agent_provider::detection_executable()`. Up to four scoped workers publish individual
 candidates into a mailbox bounded by the provider count plus one final verdict. Queries have a 900 ms
 run slot and 600 ms teardown allowance inside one six-second catalog deadline. A partial or failed
-round retains its found candidates and the manual form. Each helper owns no output pipe and runs in
+round retains its found candidates, and an incomplete first round claims nothing installed. Each helper owns no output pipe and runs in
 a kill-on-close Windows Job after fixed local process creation and suspended assignment. All workers
 join before the catalog owner exits; UI retirement only reaps exited owners.
 
@@ -44,12 +44,12 @@ The `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` matches are Client-PATH hints, nev
 proof. A command that the process-identity registry classes as generic is excluded from automatic
 detection: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation), but other providers
 can install the same basename, and Snow CLI's `snow` is a common word that unrelated programs
-also use. These providers stay manually selectable using their existing launch
-mapping. Shared names such as `amp` and `mcode` are still advertised, as before. A remote origin performs no Client-PATH lookup and also offers manual selection.
-The form lists each provider by its product name, leaves the name field empty and optional, and
-injects the exact focused Panel ID after current-draw admission. Manual choices use the same
-single-submit owner, and a typed name the same reserve and readiness owners. No caller context
-environment variable or subprocess adapter is introduced.
+also use. The picker lists these providers as "can't check" and still starts them using their
+existing launch mapping. Shared names such as `amp` and `mcode` are still advertised, as before. A
+remote origin performs no Client-PATH lookup and lists every provider as not checked. The picker
+lists each provider by its product name, has no name field, and after current-draw admission
+passes the focused Panel ID, or the first Panel of a Tab it created, to the same single-submit
+owner. No caller context environment variable or subprocess adapter is introduced.
 
 Fixed local System32 process creation and suspended Job assignment are synchronous Windows ownership
 primitives which application cancellation cannot interrupt. After the owned child is returned, every
@@ -60,26 +60,28 @@ and joins only owners whose worker has exited. Session teardown owns the final j
 wait for an initial process-creation or Job-assignment call already in progress; after ownership, the
 deadline and teardown slot bound it.
 
-The board's background task calls the app-private typed workflow directly. A start without a name
+The picker's background task calls the app-private typed workflow directly. A start without a name
 runs under one 20000 ms deadline covering admission, the single send and the early check; a named
 start runs under one 300000 ms deadline, including time for interactive trust and sign-in prompts.
-Accepting Start closes the board
-and restores terminal input immediately. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
-Session teardown wakes and joins every bounded owner. Every completion carries its generation and
-Panel target, so an old result cannot settle a replacement draft or target. Each start guards only
-its own Panel: the board opens on the focused Panel and presents that Panel's start, so a start
-still running or unknown in another Panel never locks the form. A start guards its Panel while its
+Choosing a provider closes the picker and restores terminal input on the same frame; nothing in
+the TUI cancels an accepted start, and Session teardown wakes and joins every bounded owner. Every
+completion carries its generation and Panel target, so an old result cannot settle another target.
+Each start guards only its own Panel, so a start still running or unknown in another Panel never
+blocks a new one; a guarded focused Panel makes the picker open the Agent in a new Tab. A start
+whose new Tab has no idle marked prompt yet repeats the prompt-gated start while the shell settles,
+within its own deadline; a refusal that typed nothing in an existing Panel starts in a new Tab
+instead. A start guards its Panel while its
 workflow runs and, after an unknown result, until the workflow deadline; observing the shell prompt
 again (`command-not-found`, `agent-exited` or `launch-command-failed`) ends the guard at once.
 Unknown reservation or input effects remain visible as unknown and are never replayed. A named
 start whose fully accepted command's readiness wait expires is labeled unconfirmed, with
 instructions to check the terminal; its deadline has passed, so the Panel may start again, and
 [prompt-gated input](#prompt-gated-input) types nothing into an Agent that is still running.
-For a named start, pinned canonical attention requests update a non-capturing notice and the reopened board while the
+For a named start, pinned canonical attention requests update a non-capturing notice while the
 background workflow keeps observing within its original deadline. Clearing attention can complete the
-same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The board does not install Agents or
-change integration/default configuration. When discovery finds nothing, manual selection remains
-available without claiming that any provider was detected. Cancellation wakes process sampling and
+same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The picker does not install Agents or
+change integration/default configuration. When discovery finds nothing, every provider remains
+startable from the not-found group without claiming that any was detected. Cancellation wakes process sampling and
 the single send exchange, but an in-progress Windows process-creation/Job-assignment call and a
 best-effort reservation release of at most one second can still delay teardown; cancellation is not
 instantaneous.
@@ -109,7 +111,7 @@ own thread, which holds no shared channel and wakes on cancellation, and asks on
 `prompt-gated-input`, checked before any sample or reservation, and never falls back to an ungated
 send; `orchbee terminal send` and `orchbee terminal run` stay ungated.
 
-| Refusal                                                           | Board short form (retry allowed)                  | CLI document and exit code                                                 |
+| Refusal                                                           | TUI short form                                    | CLI document and exit code                                                 |
 | ----------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
 | Preflight idle-shell refusal, or the Host's `busy` or `not-shell` | Nothing was typed: shell not at an empty prompt   | `rejected`, `reason: "terminal-not-idle"`, `3`                             |
 | The Host's `unmarked`                                             | Nothing was typed: no marked prompt yet           | `rejected`, `reason: "prompt-unconfirmed"`, `promptState: "unmarked"`, `3` |
@@ -117,13 +119,12 @@ send; `orchbee terminal send` and `orchbee terminal run` stay ungated.
 | The Session's handshake lacks `prompt-gated-input`                | Nothing was typed: Session too old                | `incompatible`, cause `stage: "capability"`, `session-too-old`, `6`        |
 | The Host lacks the gate or reports no launch kind                 | Nothing was typed: terminal from an older Orchbee | `incompatible`, cause `stage: "capability"`, `terminal-too-old`, `6`       |
 
-The board and stderr text say what to do next; the JSON carries only the reason. The board's
+The TUI and stderr text say what to do next; the JSON carries only the reason. The TUI's
 not-at-prompt text and the CLI's `prompt-unconfirmed` text other than `unmarked` say to finish the
 running program, or clear the line and press Enter for a new prompt. Input typed after a prompt
 blocks typing until the shell's next prompt, so the person clears the line and presses Enter. The
-TUI status line shows the board's full text when it fits and otherwise the short form above, in
-the same locale; every other start notice except the already short cancelling one also has a
-short form. A capability refusal has `details.reason` `startup-failed` with the shared
+TUI status line shows its full text when it fits and otherwise the short form above, in
+the same locale; every other start notice also has a short form under 60 columns. A capability refusal has `details.reason` `startup-failed` with the shared
 [capability failure](../../../docs/cli/output.md) as its `cause`.
 
 The fixed Windows launch names for canonical `cursor`, `qodercli` and `minimax-code` are `agent`,
@@ -143,7 +144,7 @@ and [Qoder installation](https://docs.qoder.com/cli/installation).
 ### Launch-time conversation ids
 
 Grok, Gemini, Qwen Code, Copilot and Pi open a new conversation under an id the caller chooses,
-`--session-id <uuid>`. A start of one of them, from the board or `orchbee agent start`, passes a
+`--session-id <uuid>`. A start of one of them, from the TUI or `orchbee agent start`, passes a
 fresh id that way so the Server can [resume the conversation](../../orchbee-server/docs/agent-session-resume.md#command-line)
 after a restart without a hook:
 
@@ -195,7 +196,7 @@ after a restart without a hook:
    whose integrations this Client cannot see, it waits 10000 ms, so an enabled hook can bind the
    name first. Observation binds no name: the workflow releases the reservation and reports the
    Agent started. The CLI keeps its blocked-start rule and refuses a blocked state as
-   `agent-blocked`; the board accepts it. Session resume needs a hook session or a session the
+   `agent-blocked`; the TUI accepts it. Session resume needs a hook session or a session the
    published run's own process names: Claude Code's run table entry, else the conversation id
    bound on its command line, such as a [launch-time id](#launch-time-conversation-ids)
    ([Agent session resume](../../orchbee-server/docs/agent-session-resume.md#process-source)).
@@ -263,7 +264,7 @@ foreground for that step and startup keeps polling within its budget.
 
 ## Windows argument boundary
 
-An argument-free start, from the board or the CLI, uses a short provider command so the shell
+An argument-free start, from the TUI or the CLI, uses a short provider command so the shell
 echoes one line: cmd invokes the fixed command name; PowerShell resolves Application/ExternalScript
 explicitly before invocation, excluding functions and aliases. A
 [launch-time id](#launch-time-conversation-ids) rides both forms: after the fixed words in the
@@ -293,10 +294,10 @@ receipt or submission failure. Remaining time in the last observation is histori
 Known partial input retains exit 9; unknown input or a lost mutating reply retains exit 8.
 Accepted input with unconfirmed cleanup is not startup success.
 
-The board keeps an unknown recovery result for any pending or unknown reservation, accepted or
-partially accepted input, unknown delivery frontier, or accepted worker that disconnects without its
-typed completion. Closing and reopening does not clear that result; it guards only its own Panel
-and only until the workflow deadline. The Panel may start again earlier only after the workflow
+The picker's startup owner keeps an unknown result for any pending or unknown reservation, accepted
+or partially accepted input, unknown delivery frontier, or accepted worker that disconnects without
+its typed completion. Closing and reopening does not clear that result; it guards only its own
+Panel and only until the workflow deadline. The Panel may start again earlier only after the workflow
 proves zero input and a settled reservation, or observes the shell prompt again. A queued completion
 is channel-authoritative even if its worker has already exited, so worker-exit observation cannot
 discard a Started result.

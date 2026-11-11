@@ -75,8 +75,9 @@ I/O failure or fabricates a recovered or empty checkpoint.
 ## Admission and unsupported outcomes
 
 Unsupported optional actions are absent from menus and shortcut discovery. The sidebar omits
-New workspace without directory input. An empty Agent board offers Refresh and the localized
-unsupported explanation when no launch adapter exists, without presenting a Start form. Copy-mode navigation
+New workspace without directory input. Without a launch adapter, Start Agent is absent from menus,
+shortcut help, the status line and the Agent board; its binding opens the picker only to show the
+localized unsupported explanation. Copy-mode navigation
 and search remain usable without a clipboard; the copy button and copy hint are absent. The UI
 revalidates capability at invocation, so a stale or explicitly entered operation reports an
 `en-US` or `zh-CN` unsupported-platform notice through the ordinary noncapturing notice owner.
