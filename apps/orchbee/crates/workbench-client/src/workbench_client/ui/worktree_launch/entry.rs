@@ -1,8 +1,11 @@
 //! Local entry after a known canonical Opened receipt, using existing native membership and attachment owners.
 use super::{WorkbenchClientUi, WorktreeNotice};
+use crate::agent_board::start::jobs::Place;
 use crate::workbench_client::ui::{ActionBuildError, ClientProjectionStatus, finish_action};
-use crate::workbench_state::{ClientPhaseKind, OperationDeadlines};
-use orchbee_workbench_protocol::{Snapshot, WorkbenchWorktreeOutcome, WorktreeOperationStatus};
+use crate::workbench_state::{AgentStartNotice, ClientPhaseKind, OperationDeadlines};
+use orchbee_workbench_protocol::{
+    Snapshot, WorkbenchWorktreeOutcome, WorktreeIntent, WorktreeOperationStatus,
+};
 use std::time::{Duration, Instant};
 pub(super) struct Entry {
     member: crate::workbench_projection::ClientMemberTarget,
@@ -24,6 +27,40 @@ enum EntryStage {
 mod membership;
 
 impl WorkbenchClientUi {
+    /// Watches the Agent a create from the Start Agent picker runs in its new Workspace's first
+    /// shell, once per operation, as a new Tab's start is watched. The Panel comes from the Opened
+    /// receipt's own snapshot; a reused Workspace or a shell that did not start launched no Agent.
+    pub(super) fn watch_worktree_agent(&mut self, snapshot: Option<&Snapshot>) {
+        let Some(op) = self.worktrees.launcher.operation() else {
+            return;
+        };
+        let WorktreeIntent::Create {
+            agent_start: Some(selector),
+            ..
+        } = &op.plan.intent
+        else {
+            return;
+        };
+        if self.worktrees.watched.as_ref() == Some(&op.plan.operation_id) {
+            return;
+        }
+        let Some(panel) = snapshot.and_then(|snapshot| started_first_panel(op, snapshot)) else {
+            return;
+        };
+        let provider = selector.agent().id();
+        self.worktrees.watched = Some(op.plan.operation_id.clone());
+        let clock = self.clock.clone();
+        if !self.start_jobs.start(
+            self.board.start_state(),
+            provider,
+            Place::StartCommand(panel),
+            clock,
+        ) {
+            self.board
+                .start_state()
+                .set_notice(AgentStartNotice::Failed);
+        }
+    }
     pub(super) fn begin_worktree_entry(&mut self, snapshot: Option<Snapshot>) {
         let Some(op) = self.worktrees.launcher.operation() else {
             return;
@@ -285,6 +322,30 @@ fn entry(
         stage: EntryStage::Refresh,
         deadline: OperationDeadlines::from_sample(now)?.total(),
     })
+}
+
+/// The first Panel of the Workspace this operation launched, when its first shell started.
+fn started_first_panel(
+    op: &crate::workbench_state::worktree_launch::Operation,
+    snapshot: &Snapshot,
+) -> Option<orchbee_workbench_protocol::WorkbenchPanelId> {
+    let WorkbenchWorktreeOutcome::Available { status, .. } = op.outcome.as_ref()? else {
+        return None;
+    };
+    if !matches!(
+        status.as_ref(),
+        WorktreeOperationStatus::Opened {
+            reused: false,
+            terminal_outcome: Some(
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. }
+            ),
+            ..
+        }
+    ) {
+        return None;
+    }
+    let (candidate, _) = target_context(op, snapshot)?;
+    Some(candidate.tabs().first()?.panel(0)?.panel_id().clone())
 }
 
 fn target_context(

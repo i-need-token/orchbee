@@ -56,6 +56,7 @@ pub(super) fn render(
         StartPlace::NewTab => copy.new_tab,
         StartPlace::SplitRight => copy.split_right,
         StartPlace::SplitDown => copy.split_down,
+        StartPlace::NewWorktree => copy.new_worktree,
     };
     let context = copy.opens_in.replace("{place}", place);
     let status = match board.start_catalog_status() {

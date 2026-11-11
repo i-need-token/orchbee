@@ -138,6 +138,7 @@ fn prepare_from(
             primary_pane: None,
         },
         deadlines: OperationDeadlines::from_sample(Instant::now()).ok_or("deadlines")?,
+        agent: None,
     };
     let prepared = executor.prepare_worktree_source(
         &preparation,

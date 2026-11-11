@@ -45,6 +45,9 @@ pub(super) struct Coordinator {
     entry: Option<Entry>,
     /// Absent until the first Server configuration snapshot is applied.
     configured_root: Option<ConfiguredRoot>,
+    /// The last operation whose new Workspace's Agent is watched, so a later read of the same
+    /// receipt starts no second watch.
+    watched: Option<WorkbenchRequestId>,
 }
 impl Coordinator {
     /// A hidden Opened result whose terminal entry has finished.
@@ -213,6 +216,36 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn request_worktree(&mut self, mode: WorktreeMode) -> ClientActionDisposition {
+        self.request_worktree_starting(mode, None)
+    }
+
+    /// Whether the Start Agent picker may offer New Worktree: the form would open a fresh create
+    /// for the current Workspace now, by the same refusals `W` meets.
+    pub(super) fn worktree_place_available(&self) -> bool {
+        self.capabilities
+            .supports(crate::tui_capabilities::Capability::DirectoryInput)
+            && self.retirement_failure.is_none()
+            && !self.copy_mode_active()
+            && !self.popup.captured()
+            && self.worktrees.entry.is_none()
+            && (self.worktrees.launcher.idle() || self.worktrees.launcher.hidden_opened_result())
+            && self.state.as_ref().is_some_and(|state| {
+                state.worktree_refusal().is_none()
+                    && matches!(
+                        state.cache().location(),
+                        crate::workbench_projection::ClientContextLocation::Workspace { .. }
+                    )
+            })
+    }
+
+    /// `W` or `O`, or New Worktree from the Start Agent picker with the Agent its new Workspace's
+    /// first shell runs. The picker's form opens over the open picker, which returns when the form
+    /// is cancelled and closes once the form submits.
+    pub(super) fn request_worktree_starting(
+        &mut self,
+        mode: WorktreeMode,
+        agent: Option<&'static str>,
+    ) -> ClientActionDisposition {
         if self.retirement_failure.is_some()
             || (self.modal_owns_input() && !self.worktrees.launcher.visible())
             || self.copy_mode_active()
@@ -245,7 +278,7 @@ impl WorkbenchClientUi {
         };
         // A landing switch settles on its own: the key waits for it rather than being refused.
         if landing {
-            self.hold_intent(super::held_intent::HeldIntent::Worktree(mode));
+            self.hold_intent(super::held_intent::HeldIntent::Worktree(mode, agent));
             return ClientActionDisposition::DismissNavigator;
         }
         // A refused W or O starts nothing; say why instead of dropping the key.
@@ -257,14 +290,17 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         }
         if state.background_refresh_only() {
-            self.hold_intent(super::held_intent::HeldIntent::Worktree(mode));
+            self.hold_intent(super::held_intent::HeldIntent::Worktree(mode, agent));
             return ClientActionDisposition::DismissNavigator;
         }
-        self.board_reads.close_board(&mut self.board);
+        if agent.is_none() {
+            self.board_reads.close_board(&mut self.board);
+        }
         if mailbox.try_enqueue_worktree_preparation_for(
             state,
             &mut self.worktrees.launcher,
             mode,
+            agent,
             deadlines,
             &self.clock,
         ) {
@@ -432,6 +468,16 @@ impl WorkbenchClientUi {
         let Some(plan) = self.worktrees.launcher.confirm(token, operation, &origin) else {
             return;
         };
+        // The Start Agent picker under this form has done its part once the create is submitted.
+        if matches!(
+            &plan.intent,
+            orchbee_workbench_protocol::WorktreeIntent::Create {
+                agent_start: Some(_),
+                ..
+            }
+        ) {
+            self.board_reads.close_board(&mut self.board);
+        }
         self.observe_worktree();
         self.submit_worktree_start(plan);
     }
@@ -591,6 +637,7 @@ impl WorkbenchClientUi {
                         } else {
                             self.worktrees.read_at = None;
                             if self.worktrees.launcher.notice() == WorktreeNotice::Opened {
+                                self.watch_worktree_agent(snapshot.as_ref());
                                 self.begin_worktree_entry(snapshot);
                             }
                         }

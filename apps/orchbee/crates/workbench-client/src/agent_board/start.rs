@@ -70,6 +70,8 @@ pub(crate) enum StartPlace {
     SplitRight,
     /// A new Panel split below the focused Panel.
     SplitDown,
+    /// The first shell of a new worktree's Workspace, after the New Worktree form is submitted.
+    NewWorktree,
 }
 
 /// What a start in its Panel became once its outcome settled: a refusal that typed nothing

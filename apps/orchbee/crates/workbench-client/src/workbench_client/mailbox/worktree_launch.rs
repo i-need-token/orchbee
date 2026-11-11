@@ -11,6 +11,7 @@ impl CommandMailbox {
         canonical: &mut WorkbenchClientState,
         launcher: &mut Launcher,
         mode: WorktreeMode,
+        agent: Option<&'static str>,
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
     ) -> bool {
@@ -29,7 +30,8 @@ impl CommandMailbox {
             |(canonical, launcher), generation| {
                 let preparation = canonical
                     .worktree_preparation(mode, generation, WorktreeToken(0), deadlines)
-                    .ok_or(())?;
+                    .ok_or(())?
+                    .starting(agent);
                 if !launcher.open(preparation) {
                     return Err(());
                 }

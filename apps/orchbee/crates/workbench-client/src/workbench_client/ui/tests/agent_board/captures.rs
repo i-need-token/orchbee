@@ -609,62 +609,101 @@ fn terminal_enter_starts_the_picked_provider_from_every_entry() {
     }
 }
 
+/// Raw terminal bytes through the production dispatcher, each followed by a complete frame.
+struct TerminalRoute {
+    dispatcher: crate::terminal_input::InputDispatcher,
+    view: crate::client_view::ClientView,
+    forwarded: Vec<u8>,
+    theme: crate::tui_theme::Theme,
+}
+
+impl TerminalRoute {
+    /// A ready Workbench with a found catalog of `found` and a closed Board.
+    fn ready(found: &[&'static str]) -> (WorkbenchClientUi, Self) {
+        let (mut ui, mailbox, clock) = fixture();
+        bootstrap(&mut ui, &mailbox, &clock);
+        ready(&mut ui);
+        install_capture_empty_read(&mut ui);
+        ui.board.install_start_catalog_t(found);
+        ui.board.accept_start_without_task_t();
+        ui.board.close();
+        ui.observe_geometry(Geometry::new(120, 36, 8, 16).unwrap());
+        let route = Self {
+            dispatcher: crate::terminal_input::InputDispatcher::default(),
+            view: crate::client_view::ClientView::new(120),
+            forwarded: Vec::new(),
+            theme: crate::tui_theme::Theme::terminal_native(),
+        };
+        (ui, route)
+    }
+
+    fn send(&mut self, ui: &mut WorkbenchClientUi, bytes: &[u8]) {
+        self.send_at(ui, bytes, Instant::now());
+    }
+
+    fn send_at(&mut self, ui: &mut WorkbenchClientUi, bytes: &[u8], now: Instant) {
+        self.dispatcher
+            .dispatch(
+                &mut self.view,
+                bytes,
+                &mut RoutedInput {
+                    ui,
+                    forwarded: &mut self.forwarded,
+                },
+                now,
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        render_board_frame(ui, 120, 36, crate::localization::Locale::EnUs, &self.theme).settle(ui);
+    }
+
+    /// A lone ESC byte, which the decoder resolves only once its wait for a sequence has passed.
+    fn escape(&mut self, ui: &mut WorkbenchClientUi) {
+        let now = Instant::now();
+        self.send_at(ui, b"\x1b", now);
+        self.send_at(ui, b"", now + Duration::from_secs(1));
+    }
+}
+
+fn picker_place(ui: &WorkbenchClientUi) -> Option<crate::agent_board::start::StartPlace> {
+    ui.board.picker().map(|picker| picker.place().clone())
+}
+
 /// A terminal sends Tab as a bare HT and Shift+Tab as `CSI Z`. In the picker both cycle the place
 /// and reach neither the Panel nor any other owner; Enter on a split asks for that split with the
 /// Agent as its new shell's first command instead of typing into the focused Panel.
 #[test]
 fn terminal_tab_cycles_the_place_and_enter_starts_a_split() {
-    use crate::agent_board::start::StartPlace::{NewTab, SplitDown, SplitRight, ThisPanel};
-    let (mut ui, mailbox, clock) = fixture();
-    bootstrap(&mut ui, &mailbox, &clock);
-    ready(&mut ui);
-    install_capture_empty_read(&mut ui);
-    ui.board.install_start_catalog_t(&["codex"]);
-    ui.board.accept_start_without_task_t();
-    ui.board.close();
-    ui.observe_geometry(Geometry::new(120, 36, 8, 16).unwrap());
-    let theme = crate::tui_theme::Theme::terminal_native();
-    let mut dispatcher = crate::terminal_input::InputDispatcher::default();
-    let mut view = crate::client_view::ClientView::new(120);
-    let mut forwarded = Vec::new();
-    let mut route = |ui: &mut WorkbenchClientUi, bytes: &[u8]| {
-        dispatcher
-            .dispatch(
-                &mut view,
-                bytes,
-                &mut RoutedInput {
-                    ui,
-                    forwarded: &mut forwarded,
-                },
-                Instant::now(),
-                |_, _| Ok::<bool, io::Error>(false),
-                &mut |_| Ok(()),
-            )
-            .unwrap();
-        render_board_frame(ui, 120, 36, crate::localization::Locale::EnUs, &theme).settle(ui);
+    use crate::agent_board::start::StartPlace::{
+        NewTab, NewWorktree, SplitDown, SplitRight, ThisPanel,
     };
-    route(&mut ui, b"\x02G");
+    let (mut ui, mut route) = TerminalRoute::ready(&["codex"]);
+    route.send(&mut ui, b"\x02G");
     let focused = ui
         .state
         .as_ref()
         .and_then(|state| state.focus_panel_id().cloned())
         .expect("fixture has one exact focused Panel");
-    let place = |ui: &WorkbenchClientUi| ui.board.picker().map(|picker| picker.place().clone());
-    assert_eq!(place(&ui), Some(ThisPanel(focused.clone())));
+    assert_eq!(picker_place(&ui), Some(ThisPanel(focused.clone())));
     for (bytes, expected) in [
         (&b"\t"[..], NewTab),
         (b"\t", SplitRight),
         (b"\x1b[Z", NewTab),
         (b"\x1b[Z", ThisPanel(focused.clone())),
+        (b"\x1b[Z", NewWorktree),
         (b"\x1b[Z", SplitDown),
+        (b"\t", NewWorktree),
         (b"\t", ThisPanel(focused.clone())),
+        (b"\x1b[Z", NewWorktree),
         (b"\x1b[Z", SplitDown),
     ] {
-        route(&mut ui, bytes);
-        assert_eq!(place(&ui), Some(expected), "{bytes:?}");
+        route.send(&mut ui, bytes);
+        assert_eq!(picker_place(&ui), Some(expected), "{bytes:?}");
     }
-    route(&mut ui, b"\r");
+    route.send(&mut ui, b"\r");
 
+    let forwarded = &route.forwarded;
     assert!(!ui.board.is_open(), "the start closes the picker");
     assert!(forwarded.is_empty(), "no key reached the Panel");
     assert_eq!(
@@ -684,6 +723,60 @@ fn terminal_tab_cycles_the_place_and_enter_starts_a_split() {
     ));
     assert_eq!(operation.panel_id(), &focused);
     assert_eq!(operation.agent_start(), Some("codex"));
+}
+
+/// Enter on New Worktree opens the New Worktree form over the picker for the picked Agent and
+/// starts nothing yet; Esc in the form returns to the picker with its query, cursor and place.
+#[test]
+fn terminal_enter_on_new_worktree_opens_the_form_and_esc_restores_the_picker() {
+    use crate::agent_board::start::StartPlace::NewWorktree;
+    use crate::workbench_state::worktree_launch::WorktreeMode;
+    let (mut ui, mut route) = TerminalRoute::ready(&["codex", "gemini"]);
+    route.send(&mut ui, b"\x02G");
+    route.send(&mut ui, b"co");
+    for _ in 0..4 {
+        route.send(&mut ui, b"\t");
+    }
+    assert_eq!(picker_place(&ui), Some(NewWorktree));
+    let picker_state = |ui: &WorkbenchClientUi| {
+        let items = ui.agent_board_view()?.picker_items();
+        let picker = ui.board.picker()?;
+        Some((
+            picker.query().to_owned(),
+            picker
+                .cursor_index(&items)
+                .and_then(|index| items.get(index).copied()),
+            picker.place().clone(),
+        ))
+    };
+    let before = picker_state(&ui);
+    assert!(
+        matches!(&before, Some((query, Some(crate::agent_board::picker::Item::Provider { id: "codex", .. }), _)) if query == "co"),
+        "{before:?}"
+    );
+    route.send(&mut ui, b"\r");
+
+    assert!(ui.worktrees.launcher.visible(), "Enter opens the form");
+    assert_eq!(
+        ui.worktrees
+            .launcher
+            .preparation()
+            .map(|preparation| (preparation.mode, preparation.agent)),
+        Some((WorktreeMode::Create, Some("codex")))
+    );
+    assert_eq!(picker_state(&ui), before, "the picker waits under the form");
+    assert_eq!(ui.board.start_operation_panel_t(), None, "nothing is typed");
+    assert!(
+        ui.state
+            .as_ref()
+            .is_some_and(|state| state.pending_panel().is_none()),
+        "nothing is created before the form submits"
+    );
+    route.escape(&mut ui);
+
+    assert!(!ui.worktrees.launcher.visible(), "Esc cancels the form");
+    assert_eq!(picker_state(&ui), before, "the picker returns as it was");
+    assert!(route.forwarded.is_empty(), "no key reached the Panel");
 }
 
 #[test]

@@ -45,8 +45,9 @@ pub(super) enum HeldIntent {
     /// Close of the current Workspace, aimed at the Context the landing switch was headed for when
     /// the key was pressed. It runs only once the switch landed there; anywhere else it is refused.
     CurrentWorkspaceClose(ClientContextLocation),
-    /// A Worktree form or listing was requested.
-    Worktree(WorktreeMode),
+    /// A Worktree form or listing was requested, for a create from the Start Agent picker with the
+    /// Agent its new Workspace's first shell runs.
+    Worktree(WorktreeMode, Option<&'static str>),
     /// The next or previous Context was requested. Terminal input waits with it.
     Context { next: bool },
     /// A Tab or Panel action of the current Workspace, resolved against the landed projection.
@@ -440,8 +441,8 @@ impl WorkbenchClientUi {
                     state.set_notice(ClientNotice::WorkspaceChanged);
                 }
             }
-            HeldIntent::Worktree(mode) => {
-                let _disposition = self.request_worktree(mode);
+            HeldIntent::Worktree(mode, agent) => {
+                let _disposition = self.request_worktree_starting(mode, agent);
             }
             HeldIntent::Context { next } => {
                 let _disposition = self.select_context(next);

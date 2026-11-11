@@ -100,12 +100,13 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         }
         let focus = self.focused_panel();
+        let worktree = self.worktree_place_available();
         if self.board.is_open() {
             if self.board.picker().is_some() {
                 self.board_reads.close_board(&mut self.board);
             } else {
                 self.board
-                    .enter_picker(std::env::var_os("PATH"), focus.as_ref());
+                    .enter_picker(std::env::var_os("PATH"), focus.as_ref(), worktree);
             }
             return ClientActionDisposition::KeepNavigator;
         }
@@ -116,7 +117,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         }
         self.board
-            .open_picker(std::env::var_os("PATH"), focus.as_ref());
+            .open_picker(std::env::var_os("PATH"), focus.as_ref(), worktree);
         ClientActionDisposition::DismissNavigator
     }
 
@@ -242,8 +243,9 @@ impl WorkbenchClientUi {
 
     fn enter_agent_picker(&mut self) {
         let focus = self.focused_panel();
+        let worktree = self.worktree_place_available();
         self.board
-            .enter_picker(std::env::var_os("PATH"), focus.as_ref());
+            .enter_picker(std::env::var_os("PATH"), focus.as_ref(), worktree);
     }
 
     /// Runs a start the picker accepted in the place it showed.
@@ -263,6 +265,12 @@ impl WorkbenchClientUi {
             StartPlace::NewTab => self.start_in_new_tab(picked.provider),
             StartPlace::SplitRight => self.start_in_split(picked.provider, PanelDirection::Right),
             StartPlace::SplitDown => self.start_in_split(picked.provider, PanelDirection::Down),
+            StartPlace::NewWorktree => {
+                let _disposition = self.request_worktree_starting(
+                    super::worktree_launch::WorktreeMode::Create,
+                    Some(picked.provider),
+                );
+            }
         }
     }
 

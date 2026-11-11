@@ -366,7 +366,7 @@ fn a_provider_counts_as_not_found_only_after_its_check_completed() {
 #[test]
 fn a_late_lookup_result_never_moves_the_cursor() {
     let mut board = super::super::AgentBoard::new(true);
-    board.open_picker(None, None);
+    board.open_picker(None, None, false);
     board.start.begin_lookup_finding(&["gemini"]);
     let cursor = |board: &super::super::AgentBoard| {
         let rows = board.picker_items();
@@ -394,13 +394,14 @@ fn a_late_lookup_result_never_moves_the_cursor() {
 
 #[test]
 fn places_offered_follow_the_focused_panel_and_auto_is_the_first() {
-    use StartPlace::{NewTab, SplitDown, SplitRight, ThisPanel};
+    use StartPlace::{NewTab, NewWorktree, SplitDown, SplitRight, ThisPanel};
     let focused = panel(7);
     let cases = [
-        ("no focused Panel", None, false, vec![NewTab]),
+        ("no focused Panel", None, false, false, vec![NewTab]),
         (
             "an idle Panel",
             Some(&focused),
+            false,
             false,
             vec![ThisPanel(focused.clone()), NewTab, SplitRight, SplitDown],
         ),
@@ -408,11 +409,32 @@ fn places_offered_follow_the_focused_panel_and_auto_is_the_first() {
             "a busy Panel",
             Some(&focused),
             true,
+            false,
             vec![NewTab, SplitRight, SplitDown],
         ),
+        (
+            "a worktree can be created",
+            Some(&focused),
+            false,
+            true,
+            vec![
+                ThisPanel(focused.clone()),
+                NewTab,
+                SplitRight,
+                SplitDown,
+                NewWorktree,
+            ],
+        ),
+        (
+            "a worktree but no focused Panel",
+            None,
+            false,
+            true,
+            vec![NewTab, NewWorktree],
+        ),
     ];
-    for (name, focus, busy, expected) in cases {
-        let places = Places::new(focus, |_| busy);
+    for (name, focus, busy, worktree, expected) in cases {
+        let places = Places::new(focus, |_| busy).with_worktree(worktree);
         assert_eq!(places.offered(), expected, "{name}");
         assert_eq!(places.automatic(), expected[0], "{name}");
     }

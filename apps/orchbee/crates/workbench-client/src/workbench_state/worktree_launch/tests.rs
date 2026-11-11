@@ -27,6 +27,15 @@ fn fixture_with_discovery(
     mode: WorktreeMode,
     discovery: Discovery,
 ) -> (Launcher, Origin) {
+    fixture_starting(projects, mode, discovery, None)
+}
+/// A drawn draft whose preparation came from the Start Agent picker with `agent`.
+fn fixture_starting(
+    projects: usize,
+    mode: WorktreeMode,
+    discovery: Discovery,
+    agent: Option<&'static str>,
+) -> (Launcher, Origin) {
     let snapshot = canonical(projects, 1);
     let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let p = state
@@ -36,7 +45,8 @@ fn fixture_with_discovery(
             WorktreeToken(0),
             OperationDeadlines::from_sample(Instant::now()).unwrap(),
         )
-        .unwrap();
+        .unwrap()
+        .starting(agent);
     let origin = p.origin.clone();
     let mut launcher = Launcher::default();
     assert!(launcher.open(p));
@@ -157,6 +167,53 @@ fn a_shortcut_listing_where_the_terminal_stands_becomes_the_draft() {
         if !matching {
             assert_eq!(launcher.notice, WorktreeNotice::SourceChanged);
         }
+    }
+}
+/// A create from the Start Agent picker opens with the branch `agent/<provider>`, which edits like
+/// any branch, waits for the form's own Enter and names its Agent; an ordinary create names none
+/// and submits its defaults on the first draw.
+#[test]
+fn a_picker_create_prefills_the_agent_branch_waits_for_enter_and_names_its_agent() {
+    let codex = orchbee_workbench_protocol::AgentStartSelector::parse("codex");
+    for (name, agent, edit_text, branch, default_ready, agent_start) in [
+        (
+            "picker",
+            Some("codex"),
+            None,
+            Some("agent/codex"),
+            false,
+            codex,
+        ),
+        (
+            "picker, edited",
+            Some("codex"),
+            Some("-2"),
+            Some("agent/codex-2"),
+            false,
+            codex,
+        ),
+        ("ordinary", None, None, None, true, None),
+    ] {
+        let (mut l, origin) = fixture_starting(1, WorktreeMode::Create, discovery(), agent);
+        assert_eq!(l.default_create_ready(), default_ready, "{name}");
+        if let Some(text) = edit_text {
+            edit(&mut l, WorktreeEdit::Append(text));
+        }
+        let plan = confirm(&mut l, &origin).expect(name);
+        let WorktreeIntent::Create {
+            branch: planned,
+            agent_start: planned_agent,
+            ..
+        } = &plan.intent
+        else {
+            panic!("{name}: a create plan");
+        };
+        assert_eq!(
+            planned.as_ref().map(WorktreeReference::as_str),
+            branch,
+            "{name}"
+        );
+        assert_eq!(*planned_agent, agent_start, "{name}");
     }
 }
 #[test]

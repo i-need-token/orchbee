@@ -203,6 +203,10 @@ impl Launcher {
     pub(crate) fn visible(&self) -> bool {
         self.visible
     }
+    /// No operation, form or result is held, shown or hidden.
+    pub(crate) fn idle(&self) -> bool {
+        !self.visible && matches!(self.phase, Phase::Idle)
+    }
     /// Only a hidden, correlated successful terminal result can yield to a new
     /// explicit operation. Failed/uncertain outcomes retain their recovery owner.
     pub(crate) fn hidden_opened_result(&self) -> bool {
@@ -220,11 +224,13 @@ impl Launcher {
     pub(crate) fn accepts_input(&self, token: WorktreeToken) -> bool {
         self.token() == Some(token) && self.presentation.interactive() && self.input_frame_live
     }
+    /// A create that starts an Agent waits for the form's own Enter instead, so its prefilled
+    /// branch can be edited first.
     pub(crate) fn default_create_ready(&self) -> bool {
         self.shown == self.token()
             && self.presentation.interactive()
             && !self.focus_revoked
-            && matches!(&self.phase, Phase::Draft(draft) if draft.is_create())
+            && matches!(&self.phase, Phase::Draft(draft) if draft.is_create() && !draft.starts_agent())
     }
     /// The menu already chose one exact checkout. Its complete source form
     /// must still be painted before the choice can start an operation.
@@ -339,7 +345,8 @@ impl Launcher {
             source.clone(),
             discovery,
             preparation.mode,
-        );
+        )
+        .starting(preparation.agent);
         let Some(next) = self.advance_token() else {
             self.fail(WorktreeNotice::SourceUnavailable);
             return true;

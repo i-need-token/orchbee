@@ -76,6 +76,15 @@ pub(crate) struct Preparation {
     pub(crate) mode: WorktreeMode,
     pub(crate) origin: Origin,
     pub(crate) deadlines: OperationDeadlines,
+    /// The Agent a create from the Start Agent picker starts in its new Workspace's first shell.
+    pub(crate) agent: Option<&'static str>,
+}
+impl Preparation {
+    #[must_use]
+    pub(crate) const fn starting(mut self, agent: Option<&'static str>) -> Self {
+        self.agent = agent;
+        self
+    }
 }
 impl WorkbenchClientState {
     /// Why W and O cannot start from this Client state, such as a Workspace whose
@@ -129,6 +138,7 @@ impl WorkbenchClientState {
             mode,
             origin: self.worktree_origin()?,
             deadlines,
+            agent: None,
         })
     }
 }

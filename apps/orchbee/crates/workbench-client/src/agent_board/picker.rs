@@ -435,22 +435,24 @@ impl AgentBoard {
         self.start.can_start()
     }
 
-    fn places(&self, focus: Option<&WorkbenchPanelId>) -> Places {
+    fn places(&self, focus: Option<&WorkbenchPanelId>, worktree: bool) -> Places {
         Places::new(focus, |panel| {
             self.session_agents.holds(panel) || self.start.guards(panel)
         })
+        .with_worktree(worktree)
     }
 
     /// `Ctrl+B G`: opens the Board's owner straight into the picker, without reading the
-    /// Board's rows.
+    /// Board's rows. `worktree` offers New Worktree.
     pub(crate) fn open_picker(
         &mut self,
         path: Option<std::ffi::OsString>,
         focus: Option<&WorkbenchPanelId>,
+        worktree: bool,
     ) {
         self.open();
         self.intent = None;
-        self.start_picker(path, focus, false);
+        self.start_picker(path, focus, worktree, false);
     }
 
     /// The Board's Start Agent row or `s`: the picker replaces the Board's content until Esc.
@@ -458,11 +460,12 @@ impl AgentBoard {
         &mut self,
         path: Option<std::ffi::OsString>,
         focus: Option<&WorkbenchPanelId>,
+        worktree: bool,
     ) -> bool {
         if !self.open || self.picker.is_some() || !self.offers_start() {
             return false;
         }
-        self.start_picker(path, focus, true);
+        self.start_picker(path, focus, worktree, true);
         true
     }
 
@@ -470,9 +473,10 @@ impl AgentBoard {
         &mut self,
         path: Option<std::ffi::OsString>,
         focus: Option<&WorkbenchPanelId>,
+        worktree: bool,
         from_board: bool,
     ) {
-        let places = self.places(focus);
+        let places = self.places(focus, worktree);
         self.picker = Some(Picker::new(from_board, places));
         self.start_catalog_path = path;
         self.start.refresh_catalog();
@@ -597,7 +601,11 @@ impl AgentBoard {
                     StartPlace::ThisPanel(panel) if self.start.guards(panel) => StartPlace::NewTab,
                     place => place.clone(),
                 };
-                self.close();
+                // The New Worktree form opens over the picker, which keeps its query, cursor and
+                // place for the form's cancellation; the form's submission closes it.
+                if place != StartPlace::NewWorktree {
+                    self.close();
+                }
                 PickerOutcome::Start(PickedStart {
                     provider: id,
                     place,

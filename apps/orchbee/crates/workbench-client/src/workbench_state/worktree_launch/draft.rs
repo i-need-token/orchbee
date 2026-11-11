@@ -48,6 +48,8 @@ pub(super) struct Draft {
     base: LineEditor,
     pub(crate) complete: bool,
     fault: bool,
+    /// The Agent the new Workspace's first shell runs, for a create the Start Agent picker opened.
+    agent: Option<&'static str>,
 }
 impl Draft {
     pub(super) fn choose_checkout(&mut self, index: usize) -> bool {
@@ -92,10 +94,27 @@ impl Draft {
             base: LineEditor::new("HEAD".into(), LengthLimit::Bytes(1024)),
             complete: true,
             fault: false,
+            agent: None,
         }
+    }
+    /// A create the Start Agent picker opened: the branch starts as `agent/<provider>`, which the
+    /// person may edit under the form's own rules, and the plan names the Agent. Other modes start
+    /// no Agent.
+    #[must_use]
+    pub(super) fn starting(mut self, agent: Option<&'static str>) -> Self {
+        let Some(agent) = agent.filter(|_| self.mode == WorktreeMode::Create) else {
+            return self;
+        };
+        self.branch = LineEditor::new(format!("agent/{agent}"), LengthLimit::Bytes(1024));
+        self.agent = Some(agent);
+        self
     }
     pub(crate) fn is_create(&self) -> bool {
         self.mode == WorktreeMode::Create
+    }
+    /// Whether this create starts an Agent, so it waits for the form's own submission.
+    pub(super) const fn starts_agent(&self) -> bool {
+        self.agent.is_some()
     }
     pub(super) fn is_checkout(&self) -> bool {
         self.stage == WorktreeStage::Checkout
@@ -231,7 +250,12 @@ impl Draft {
                 label: None,
                 geometry,
                 trust_repository: false,
-                agent_start: None,
+                agent_start: match self.agent {
+                    Some(agent) => Some(orchbee_workbench_protocol::AgentStartSelector::parse(
+                        agent,
+                    )?),
+                    None => None,
+                },
             },
             WorktreeMode::Open => {
                 let selected = self.discovery.entries.get(self.selected_checkout)?;
