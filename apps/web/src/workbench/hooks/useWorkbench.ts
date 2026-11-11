@@ -1308,7 +1308,9 @@ export function useWorkbench({
 		terminalFocusRequest: focusRouting.terminalFocusRequest,
 		hasVisibleTerminalTabs: tabCount > 0,
 		emptyWorkspace:
-			tabCount > 0 ? null : projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl),
+			tabCount > 0
+				? null
+				: projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl, agentDialogs.startOffered),
 		onEmptyContentDoubleClick: (event) => {
 			if (!isPlainPrimaryPress(event) || tabCount > 0) return;
 			actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null }, 'pointer');

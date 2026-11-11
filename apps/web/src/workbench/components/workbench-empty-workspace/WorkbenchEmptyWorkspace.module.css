@@ -11,9 +11,20 @@
 	overflow-wrap: anywhere;
 }
 
+.hints {
+	display: grid;
+	grid-template-columns: max-content minmax(var(--ob-ref-space-0), 1fr);
+	gap: var(--ob-ref-space-1) var(--ob-ref-space-2);
+}
+
 .hint {
-	display: flex;
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
 	align-items: center;
-	gap: var(--ob-ref-space-2);
 	color: var(--ob-sys-color-text-muted);
+}
+
+.key {
+	justify-self: start;
 }

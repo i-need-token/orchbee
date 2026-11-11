@@ -551,6 +551,10 @@ export function Workbench({
 												newTabShortcutLabel={shortcutLabelForAction(
 													WORKBENCH_ACTION_IDS.createTerminal,
 												)}
+												startAgentLabel={view.emptyWorkspace.startAgentLabel}
+												startAgentShortcutLabel={shortcutLabelForAction(
+													WORKBENCH_ACTION_IDS.openAgentStart,
+												)}
 											/>
 										)}
 									</div>
