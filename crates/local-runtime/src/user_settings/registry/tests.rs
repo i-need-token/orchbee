@@ -3,6 +3,8 @@
 use super::*;
 use orchbee_workbench_protocol::UserPreferencesValues;
 
+mod key_file;
+
 #[test]
 fn every_preference_has_one_file_key_with_the_same_default() {
     let defaults = serde_json::to_value(UserPreferencesValues::default()).unwrap();

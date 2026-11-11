@@ -91,6 +91,17 @@ pub enum SettingClients {
     Desktop,
 }
 
+impl SettingClients {
+    /// Stable identifier shared by both clients.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Both => "both",
+            Self::Tui => "tui",
+            Self::Desktop => "desktop",
+        }
+    }
+}
+
 /// Whose file a key is read from and written to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingScope {
@@ -120,6 +131,17 @@ pub enum SettingEffect {
     NewTerminals,
     /// It takes effect after Orchbee restarts.
     Restart,
+}
+
+impl SettingEffect {
+    /// Stable identifier shared by both clients.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Immediate => "immediate",
+            Self::NewTerminals => "new-terminals",
+            Self::Restart => "restart",
+        }
+    }
 }
 
 /// The value a key admits.

@@ -2,7 +2,6 @@
 //! edits that change only the keys they name.
 mod agent_sidebar;
 mod diagnostics;
-mod source;
 use diagnostics::{DiagnosticsCollector, unknown_field};
 mod sidebar_tokens;
 mod space_sidebar;
@@ -252,18 +251,12 @@ pub enum DirectoryPolicy {
 fn location(
     env: &impl Fn(&str) -> Option<OsString>,
 ) -> Result<Option<(PathBuf, bool)>, SettingsError> {
-    source::require()?;
     let (path, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
         let field = "ORCHBEE_CONFIG_FILE";
-        let raw = value
-            .to_str()
-            .ok_or(SettingsError::new(field, "invalid-path"))?;
-        if !Path::new(raw).is_absolute() || raw.is_empty() {
-            return Err(SettingsError::new(field, "invalid-path"));
-        }
-        let checked = normalize_user_path(raw, env, || Err(std::io::ErrorKind::NotFound.into()))
+        // The same absolute-path admission as `ORCHBEE_HOME`, in this host's path form.
+        let path = crate::data_root::admit_absolute(&value, field)
             .map_err(|_| SettingsError::new(field, "invalid-path"))?;
-        (PathBuf::from(checked.as_str()), field, true)
+        (path, field, true)
     } else {
         match DataRoot::resolve(env) {
             Ok(root) => (root.config_file(), DataRoot::variable(env), false),
@@ -310,7 +303,6 @@ fn read_file_at(
     explicit: bool,
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<UserSettingsLoad, SettingsError> {
-    source::require()?;
     let Some(path) = path else {
         if explicit {
             return Err(SettingsError::new("file", "invalid-path"));
@@ -318,7 +310,7 @@ fn read_file_at(
         return Ok(UserSettingsLoad::default());
     };
     let path = path.to_owned();
-    let file = match source::open(&path) {
+    let file = match std::fs::File::open(&path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && !explicit => {
             return Ok(UserSettingsLoad {

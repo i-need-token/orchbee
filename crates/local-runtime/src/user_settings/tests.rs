@@ -1,6 +1,5 @@
 use super::*;
 use crate::NotificationDelivery;
-#[cfg(windows)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
@@ -125,13 +124,11 @@ fn companion_asset_location_reuses_precedence_without_opening_settings() {
     );
 }
 
-#[cfg(windows)]
 struct Fixture(PathBuf);
-#[cfg(windows)]
 impl Fixture {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
-        let path = std::env::temp_dir().join(format!(
+        let path = crate::test_temporary_directory().join(format!(
             "orchbee-user-settings-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
@@ -149,7 +146,6 @@ impl Fixture {
         })
     }
 }
-#[cfg(windows)]
 impl Drop for Fixture {
     fn drop(&mut self) {
         if self.file().exists() {
@@ -199,12 +195,12 @@ fn parsed_field_failures_warn_without_exposing_values() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn file_bounds_missing_locations_and_no_creation_are_preserved() {
     let fixture = Fixture::new();
-    let environment =
-        |key: &str| (key == "USERPROFILE").then(|| fixture.0.clone().into_os_string());
+    let environment = |key: &str| {
+        (key == crate::DataRoot::home_variable()).then(|| fixture.0.clone().into_os_string())
+    };
     let settings = read_user_settings(environment).unwrap();
     assert!(!settings.exists);
     assert_eq!(
@@ -262,7 +258,6 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     let fixture = Fixture::new();

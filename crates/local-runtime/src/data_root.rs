@@ -162,7 +162,7 @@ impl DataRoot {
     /// process's own home.
     pub fn resolve(env: impl Fn(&str) -> Option<OsString>) -> Result<Self, DataRootError> {
         if let Some(value) = env(HOME_VARIABLE) {
-            return admit(&value, HOME_VARIABLE).map(|path| Self { path });
+            return admit_absolute(&value, HOME_VARIABLE).map(|path| Self { path });
         }
         let variable = HOME_SOURCE;
         let home = env(variable)
@@ -171,7 +171,7 @@ impl DataRoot {
                 variable,
                 reason: "missing",
             })?;
-        Ok(Self::under_home(&admit(&home, variable)?))
+        Ok(Self::under_home(&admit_absolute(&home, variable)?))
     }
 
     /// This environment's root below `home`, `<home>/.<stem>`, without admitting `home`; help
@@ -327,10 +327,14 @@ pub(crate) const HOME_SOURCE: &str = "USERPROFILE";
 #[cfg(not(windows))]
 pub(crate) const HOME_SOURCE: &str = "HOME";
 
-/// Admits an absolute folder without touching the file system. Windows applies the user-path
-/// grammar the settings file always used, so forward slashes and verbatim prefixes normalize the
-/// same way there.
-fn admit(value: &OsString, variable: &'static str) -> Result<PathBuf, DataRootError> {
+/// Admits an absolute path, such as `ORCHBEE_HOME` or `ORCHBEE_CONFIG_FILE`, without touching the
+/// file system. Windows applies the user-path grammar the settings file always used, so forward
+/// slashes and verbatim prefixes normalize the same way there; other hosts take a plain absolute
+/// path without `.` or `..` parts.
+pub(crate) fn admit_absolute(
+    value: &OsString,
+    variable: &'static str,
+) -> Result<PathBuf, DataRootError> {
     let invalid = DataRootError {
         variable,
         reason: "invalid-path",

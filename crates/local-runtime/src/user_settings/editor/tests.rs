@@ -1,7 +1,6 @@
-// The editor's rules are the evidence settings pages and scripts rely on: one key changes, the rest
-// of the person's text survives, a broken file is never written, a concurrent edit is not lost, and
-// links and held files are treated truthfully. The reader they validate against is Windows-only.
-#![cfg(windows)]
+// The editor's rules are the evidence settings pages and scripts rely on: only the named keys
+// change and all of them or none do, the rest of the person's text survives, a broken file is never
+// written, a concurrent edit is not lost, and links and held files are treated truthfully.
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -10,7 +9,7 @@ struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
-        let path = std::env::temp_dir().join(format!(
+        let path = crate::test_temporary_directory().join(format!(
             "orchbee-settings-editor-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
@@ -384,7 +383,7 @@ fn a_symbolic_link_keeps_pointing_at_the_replaced_target() {
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, "# synced\n").unwrap();
     let link = fixture.0.join("link.toml");
-    if let Err(error) = std::os::windows::fs::symlink_file(&target, &link) {
+    if let Err(error) = symlink_file(&target, &link) {
         // Creating symbolic links needs Developer Mode or elevation on Windows.
         eprintln!("symbolic link not created ({error}); the link rule is unverified here");
         return;
@@ -412,6 +411,18 @@ fn a_symbolic_link_keeps_pointing_at_the_replaced_target() {
     );
 }
 
+#[cfg(windows)]
+fn symlink_file(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::windows::fs::symlink_file(target, link)
+}
+
+#[cfg(unix)]
+fn symlink_file(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+// Only Windows refuses to replace a file another program holds open.
+#[cfg(windows)]
 #[test]
 fn a_file_held_open_is_retried_then_reported() {
     use std::os::windows::fs::OpenOptionsExt;
