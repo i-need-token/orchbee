@@ -257,7 +257,8 @@ fn new_provider_rules_follow_redacted_windows_captures() {
     let gemini_trust_first = gemini_trust("●", " ");
     let gemini_trust_last = gemini_trust(" ", "●");
     let gemini_idle = "ℹ Do you trust the files in this folder?\n  1. Trust folder (app)\n\n ╭─────────╮\n │ >   Type your message or @path/to/file │\n ╰─────────╯\n ~\\src\\app      no sandbox      model";
-    // The answered box stays above the restart line, the banner and the new composer.
+    // The answered box stays above the restart line, the banner and the new composer: it no longer
+    // blocks, and the composer below it is idle.
     let gemini_composer = "─────────\n Shift+Tab to accept edits      2 skills\n▄▄▄▄▄▄▄▄▄\n > list the files\n▀▀▀▀▀▀▀▀▀\n ~\\src\\app      no sandbox      model";
     let gemini_trusted = format!(
         "{gemini_trust_first}\n\n Gemini CLI is restarting to apply the trust changes...\n\n ▝▜▄     Gemini CLI v0.68.0\n ▝▀\n\n{gemini_composer}"
@@ -275,6 +276,7 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         "  Type your message or @path/to/file",
     );
     let gemini_typed = gemini_live("", "abc");
+    let gemini_footer_hidden = gemini_ready.strip_suffix(gemini_foot).unwrap().trim_end();
     let gemini_ready_after_trust = format!(
         "{gemini_trust_first}\n\n Gemini CLI is restarting to apply the trust changes...\n\n ▝▜▄     Gemini CLI v0.68.0\n ▝▀\n\n{gemini_ready}"
     );
@@ -305,13 +307,14 @@ fn new_provider_rules_follow_redacted_windows_captures() {
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
         (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
-        (P::Gemini, &gemini_trusted, "", Unknown),
-        (P::Gemini, &gemini_trusted_later, "", Unknown),
+        (P::Gemini, &gemini_trusted, "", Idle), // Answered box is not Blocked; the composer is idle.
+        (P::Gemini, &gemini_trusted_later, "", Idle),
         (P::Gemini, &gemini_trust_last, "", Blocked),
         (P::Gemini, gemini_idle, "", Unknown),
         (P::Gemini, &gemini_ready, "◇  Ready (app)", Idle),
         (P::Gemini, &gemini_ready_after_trust, "◇  Ready (app)", Idle),
         (P::Gemini, &gemini_typed, "◇  Ready (app)", Idle),
+        (P::Gemini, gemini_footer_hidden, "◇  Ready (app)", Idle),
         (P::Gemini, &gemini_trust_first, "◇  Ready (app)", Blocked), // The title is Ready while the box waits.
         (P::Gemini, &gemini_busy, "◇  Ready (app)", Working),
         (P::Gemini, gemini_foot, "◇  Ready (app)", Unknown), // No composer.
