@@ -177,6 +177,7 @@ fn run_answering(
     let output = fixture.run(&[
         "agent",
         "start",
+        "--name",
         "alpha",
         "--provider=amp",
         "--panel",

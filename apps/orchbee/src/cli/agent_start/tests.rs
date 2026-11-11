@@ -13,7 +13,7 @@ use serde_json::Value;
 
 fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
     Report {
-        name: AgentName::parse("alpha").unwrap(),
+        name: Some(AgentName::parse("alpha").unwrap()),
         provider: AgentProviderId::parse("codex").unwrap(),
         reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
         last_observed: None,
@@ -147,7 +147,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
         let failure =
             DomainFailure::Start(StartFailure::InputNotAccepted(receipt.refusal().unwrap()));
         let report = Report::from(DomainReport::from(ReportFixture {
-            name: AgentName::parse("alpha").unwrap(),
+            name: Some(AgentName::parse("alpha").unwrap()),
             provider: AgentProviderId::parse("codex").unwrap(),
             reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
             last_observed: None,
@@ -274,6 +274,25 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
         assert_eq!(document["result"]["confirmation"], "observed");
         assert!(document["result"].get("sessionId").is_none());
         assert_eq!(document["result"]["submission"], receipt);
+
+        // A start without a name reserves nothing and promises no ready Agent.
+        let mut sent = report(
+            &receipt,
+            ReservationState::None,
+            Verdict::Sent {
+                panel: orchbee_workbench_protocol::WorkbenchPanelId::parse(&"a".repeat(32))
+                    .unwrap(),
+            },
+        );
+        sent.name = None;
+        sent.reservation = None;
+        let answer = project(sent, OutputFormat::Json, locale, None);
+        assert_eq!(answer.status, 0);
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(success_schema.is_valid(&document), "{document}");
+        assert_eq!(document["result"]["confirmation"], "sent");
+        assert_eq!(document["result"]["interactiveReady"], false);
+        assert_eq!(document["result"]["panelId"], "a".repeat(32));
     }
 }
 

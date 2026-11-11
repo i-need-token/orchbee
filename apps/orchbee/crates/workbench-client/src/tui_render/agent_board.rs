@@ -249,7 +249,7 @@ pub(super) fn render(
         )
     };
     let (status, status_role) = if start_mode || board.start_phase().is_some() {
-        start_status(text, board, theme)
+        start_status(text, locale, board, theme)
     } else {
         (status, status_role)
     };
@@ -649,40 +649,48 @@ fn render_start_name(
     }
 }
 
-fn start_status(text: ShellText, board: &AgentBoardView<'_>, theme: &Theme) -> (String, Role) {
-    let result = match board.start_phase() {
-        Some(AgentStartPhase::WaitingInput) => {
-            (text.board.start_waiting_input, Role::StatusWarning)
-        }
-        Some(AgentStartPhase::Unconfirmed) => (text.board.start_unconfirmed, Role::StatusWarning),
-        Some(AgentStartPhase::Starting) => (text.board.start_starting, Role::StatusPending),
-        Some(AgentStartPhase::Cancelling) => (text.board.start_cancelling, Role::StatusPending),
-        Some(AgentStartPhase::Started) => (text.board.start_started, Role::StatusSuccess),
-        Some(AgentStartPhase::Failed) => (text.board.start_failed, Role::StatusError),
-        Some(AgentStartPhase::Refused(refusal)) => {
-            (text.board.start_refusal(refusal), Role::StatusError)
-        }
-        Some(AgentStartPhase::Unknown) => (text.board.start_unknown, Role::StatusWarning),
-        Some(AgentStartPhase::Cancelled) => (text.board.start_cancelled, Role::StatusWarning),
-        None if orchbee_agent_observation_protocol::AgentName::parse(board.start_name())
-            .is_err() =>
+fn start_status(
+    text: ShellText,
+    locale: Locale,
+    board: &AgentBoardView<'_>,
+    theme: &Theme,
+) -> (String, Role) {
+    let role = match board.start_phase() {
+        Some(
+            AgentStartPhase::WaitingInput
+            | AgentStartPhase::Unconfirmed
+            | AgentStartPhase::Unknown
+            | AgentStartPhase::Cancelled,
+        ) => Role::StatusWarning,
+        Some(AgentStartPhase::Starting | AgentStartPhase::Cancelling) => Role::StatusPending,
+        Some(AgentStartPhase::Started) => Role::StatusSuccess,
+        Some(
+            AgentStartPhase::Failed
+            | AgentStartPhase::NotFound(_)
+            | AgentStartPhase::Exited(_)
+            | AgentStartPhase::Refused(_),
+        ) => Role::StatusError,
+        None => Role::StatusInfo,
+    };
+    let status = match board.start_phase() {
+        Some(phase) => locale.agent_start_phase(phase),
+        // An empty name starts without one; only a typed name must be valid.
+        None if !board.start_name().is_empty()
+            && orchbee_agent_observation_protocol::AgentName::parse(board.start_name())
+                .is_err() =>
         {
-            (text.board.start_name_invalid, Role::StatusInfo)
+            text.board.start_name_invalid.to_owned()
         }
-        None => ("", Role::TextSecondary),
+        None => return (String::new(), Role::TextSecondary),
     };
     let identity = board.start_operation_identity().map(|(name, provider)| {
-        format!(
-            "  {} {} {}",
-            name.as_str(),
-            theme.glyphs.middle_dot,
-            crate::agent_provider::product_name(provider.as_str())
-        )
+        let product = crate::agent_provider::product_name(provider.as_str());
+        match name {
+            Some(name) => format!("  {} {} {product}", name.as_str(), theme.glyphs.middle_dot),
+            None => format!("  {product}"),
+        }
     });
-    (
-        format!("{}{}", result.0, identity.unwrap_or_default()),
-        result.1,
-    )
+    (format!("{status}{}", identity.unwrap_or_default()), role)
 }
 
 fn render_start_footer_actions(

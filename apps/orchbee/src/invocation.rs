@@ -680,7 +680,8 @@ pub(crate) struct AgentPromptWait {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AgentStartCommand {
-    pub(crate) name: AgentName,
+    /// `--name`: bound only once an integration reports the Agent's session.
+    pub(crate) name: Option<AgentName>,
     pub(crate) provider: String,
     pub(crate) panel: Option<Target>,
     pub(crate) args: Vec<String>,
@@ -979,6 +980,8 @@ pub(crate) struct SelectedRequest {
 
 #[derive(Default)]
 struct Options {
+    /// How many positional tokens preceded a bare `--`; `None` when the argv has none.
+    separator: Option<usize>,
     seen: Vec<&'static str>,
     values: Vec<(&'static str, String)>,
     dry_run: bool,

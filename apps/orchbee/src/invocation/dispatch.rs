@@ -218,10 +218,11 @@ pub(super) fn resolve_words(
                     envelope,
                 )
             };
-            let Some(name) = rest.first() else {
-                return Err(missing_required(context, "<name>", envelope));
-            };
-            let name = agent_name(name, context, envelope)?;
+            let name = options
+                .name
+                .as_deref()
+                .map(|name| agent_name(name, context, envelope))
+                .transpose()?;
             if options.providers.len() != 1 {
                 return Err(missing_required(context, "one --provider", envelope));
             }
@@ -254,7 +255,15 @@ pub(super) fn resolve_words(
                     envelope,
                 ));
             }
-            if rest.len() > 1 && !options.args.is_empty() {
+            // Agent arguments follow `--`; a word before it is refused rather than passed to the
+            // Agent, so a stale `agent start <name>` never becomes the Agent's first argument.
+            let leading = options
+                .separator
+                .map_or(rest.len(), |separator| separator.saturating_sub(2));
+            if let Some(word) = rest.get(..leading).and_then(<[_]>::first) {
+                return Err(unexpected_argument(context, word, envelope));
+            }
+            if !rest.is_empty() && !options.args.is_empty() {
                 return Err(usage_with(
                     UsageReason::ConflictingOptions {
                         context,
@@ -265,7 +274,7 @@ pub(super) fn resolve_words(
                 ));
             }
             let args = if options.args.is_empty() {
-                rest[1..].iter().map(|v| (*v).to_owned()).collect()
+                rest.iter().map(|v| (*v).to_owned()).collect()
             } else {
                 options.args.clone()
             };

@@ -173,6 +173,7 @@ pub(super) fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure>
         match token.as_str() {
             "--" => {
                 ended = true;
+                options.separator = Some(positionals.len());
                 index += 1;
             }
             "--format" => {

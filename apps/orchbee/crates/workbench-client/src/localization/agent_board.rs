@@ -12,6 +12,8 @@ pub(crate) enum AgentStartStatus {
     Cancelling,
     Started,
     Failed,
+    NotFound(&'static str),
+    Exited(&'static str),
     Refused(AgentStartRefusal),
     Unknown,
     Cancelled,
@@ -57,6 +59,9 @@ pub(crate) struct AgentBoardText {
     pub(crate) start_cancelling: &'static str,
     pub(crate) start_started: &'static str,
     pub(crate) start_failed: &'static str,
+    /// `{product}` is the provider's product name.
+    pub(crate) start_not_found: &'static str,
+    pub(crate) start_exited: &'static str,
     /// Nothing was typed because the shell's prompt could not be confirmed; each ends in what
     /// to do before starting again.
     pub(crate) start_not_at_prompt: &'static str,
@@ -108,6 +113,8 @@ pub(crate) struct AgentStartShortText {
     pub(crate) unconfirmed: &'static str,
     pub(crate) started: &'static str,
     pub(crate) failed: &'static str,
+    pub(crate) not_found: &'static str,
+    pub(crate) exited: &'static str,
     pub(crate) not_at_prompt: &'static str,
     pub(crate) unmarked: &'static str,
     pub(crate) session_too_old: &'static str,
@@ -128,7 +135,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     read_transport: "Agent read failed: transport",
     lane_unavailable: "Agent board unavailable: no read lane",
     empty: "No Agent sessions",
-    empty_start: "Choose an installed Agent. Its name is ready to use or edit.",
+    empty_start: "Choose an installed Agent. A name is optional.",
     empty_partial: "No sessions in this partial read.",
     start_checking: "Looking for installed commands; you can choose now.",
     start_platform_unsupported: "Starting an Agent is not supported on this platform.",
@@ -136,16 +143,18 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_none_found: "Nothing detected. You can still choose an installed Agent.",
     start_providers: "Found on PATH",
     start_name: "Agent name",
-    start_name_placeholder: "choose a name",
+    start_name_placeholder: "optional",
     start_name_invalid: "Name: 1–32 lowercase letters, digits, _ or -; start with a letter.",
     start_button: "Start Agent",
     start_cancel_button: "Cancel start",
-    start_starting: "Waiting for startup confirmation. Check the Agent terminal.",
+    start_starting: "Starting the Agent in this panel…",
     start_waiting_input: "Your input is needed in the terminal to continue startup.",
     start_unconfirmed: "Command sent; readiness was not confirmed in time. Check the terminal.",
     start_cancelling: "Cancelling startup…",
     start_started: "Agent started.",
     start_failed: "Agent did not start. Check the current panel and try again.",
+    start_not_found: "{product} not found · see the panel",
+    start_exited: "{product} exited · see the panel",
     start_not_at_prompt: "Nothing was typed: the shell is not at an empty prompt. Finish the running command, or clear the line and press Enter for a new prompt, then try again.",
     start_unmarked: "Nothing was typed: this terminal has not shown a marked prompt. Wait for its prompt, or use a PowerShell or cmd terminal Orchbee started.",
     start_session_too_old: "Nothing was typed: this Session is too old to confirm the prompt. Update Orchbee and restart the Session.",
@@ -153,11 +162,13 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_unknown: "Startup is unconfirmed. Check the terminal before starting another Agent.",
     start_cancelled: "Startup canceled. The Agent process may still be running.",
     start_short: AgentStartShortText {
-        starting: "Waiting for Agent startup",
+        starting: "Starting Agent",
         waiting_input: "Agent startup needs your input",
         unconfirmed: "Command sent, not confirmed · check the terminal",
         started: "Agent started",
         failed: "Agent did not start",
+        not_found: "{product} not found",
+        exited: "{product} exited",
         not_at_prompt: "Nothing was typed: shell not at an empty prompt",
         unmarked: "Nothing was typed: no marked prompt yet",
         session_too_old: "Nothing was typed: Session too old",
@@ -197,7 +208,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     read_transport: "智能体读取失败：传输错误",
     lane_unavailable: "看板不可用：无读取通道",
     empty: "没有智能体会话",
-    empty_start: "选择已安装的智能体，名称已填好，也可修改。",
+    empty_start: "选择已安装的智能体，名称可不填。",
     empty_partial: "本次不完整读取暂未返回会话。",
     start_checking: "正在查找已安装的命令；也可直接选择。",
     start_platform_unsupported: "此平台尚不支持启动智能体。",
@@ -205,16 +216,18 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_none_found: "未检测到命令，仍可手动选择已安装的智能体。",
     start_providers: "已在 PATH 中找到",
     start_name: "智能体名称",
-    start_name_placeholder: "请输入名称",
+    start_name_placeholder: "可选",
     start_name_invalid: "请以小写字母开头，后接字母、数字、_ 或 -，最多 32 个字符。",
     start_button: "启动智能体",
     start_cancel_button: "取消启动",
-    start_starting: "正在等待启动确认，请查看智能体终端并按提示操作。",
+    start_starting: "正在当前面板中启动智能体…",
     start_waiting_input: "请在终端中确认或输入，以继续启动。",
     start_unconfirmed: "命令已发送，但未能在时限内确认就绪，请查看终端。",
     start_cancelling: "正在取消启动…",
     start_started: "智能体已启动。",
     start_failed: "智能体未启动，请检查当前面板后重试。",
+    start_not_found: "找不到 {product} · 请查看面板",
+    start_exited: "{product} 已退出 · 请查看面板",
     start_not_at_prompt: "未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令，或清空输入行后按回车获得新的提示符，再重试。",
     start_unmarked: "未输入任何内容：这个终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。",
     start_session_too_old: "未输入任何内容：这个会话版本太旧，无法确认提示符。请更新 Orchbee 并重启会话。",
@@ -222,11 +235,13 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_unknown: "尚未确认启动结果，请先查看终端，再决定是否重新启动。",
     start_cancelled: "已取消启动；智能体进程仍可能在运行。",
     start_short: AgentStartShortText {
-        starting: "正在等待启动确认",
+        starting: "正在启动智能体",
         waiting_input: "启动需要你在终端中输入",
         unconfirmed: "命令已发送，未确认就绪 · 请查看终端",
         started: "智能体已启动",
         failed: "智能体未启动",
+        not_found: "找不到 {product}",
+        exited: "{product} 已退出",
         not_at_prompt: "未输入任何内容：shell 不在空的提示符上",
         unmarked: "未输入任何内容：尚无带标记的提示符",
         session_too_old: "未输入任何内容：会话版本太旧",
@@ -427,7 +442,7 @@ impl Locale {
         }
     }
 
-    pub(crate) fn agent_start_phase(self, phase: impl Into<AgentStartStatus>) -> &'static str {
+    pub(crate) fn agent_start_phase(self, phase: impl Into<AgentStartStatus>) -> String {
         use AgentStartStatus as Phase;
         let text = self.agent_board_text();
         match phase.into() {
@@ -437,32 +452,42 @@ impl Locale {
             Phase::Cancelling => text.start_cancelling,
             Phase::Started => text.start_started,
             Phase::Failed => text.start_failed,
+            Phase::NotFound(product) => return text.start_not_found.replace("{product}", product),
+            Phase::Exited(product) => return text.start_exited.replace("{product}", product),
             Phase::Refused(refusal) => text.start_refusal(refusal),
             Phase::Unknown => text.start_unknown,
             Phase::Cancelled => text.start_cancelled,
         }
+        .to_owned()
     }
 
     /// The status line's shorter form of a start notice, for every phase that has one.
     pub(crate) fn agent_start_phase_shorter(
         self,
         phase: impl Into<AgentStartStatus>,
-    ) -> Option<&'static str> {
+    ) -> Option<String> {
         use AgentStartStatus as Phase;
         let short = self.agent_board_text().start_short;
-        Some(match phase.into() {
-            Phase::Starting => short.starting,
-            Phase::WaitingInput => short.waiting_input,
-            Phase::Unconfirmed => short.unconfirmed,
-            Phase::Cancelling => return None,
-            Phase::Started => short.started,
-            Phase::Failed => short.failed,
-            Phase::Refused(AgentStartRefusal::NotAtPrompt) => short.not_at_prompt,
-            Phase::Refused(AgentStartRefusal::Unmarked) => short.unmarked,
-            Phase::Refused(AgentStartRefusal::SessionTooOld) => short.session_too_old,
-            Phase::Refused(AgentStartRefusal::TerminalTooOld) => short.terminal_too_old,
-            Phase::Unknown => short.unknown,
-            Phase::Cancelled => short.cancelled,
-        })
+        Some(
+            match phase.into() {
+                Phase::Starting => short.starting,
+                Phase::WaitingInput => short.waiting_input,
+                Phase::Unconfirmed => short.unconfirmed,
+                Phase::Cancelling => return None,
+                Phase::Started => short.started,
+                Phase::Failed => short.failed,
+                Phase::NotFound(product) => {
+                    return Some(short.not_found.replace("{product}", product));
+                }
+                Phase::Exited(product) => return Some(short.exited.replace("{product}", product)),
+                Phase::Refused(AgentStartRefusal::NotAtPrompt) => short.not_at_prompt,
+                Phase::Refused(AgentStartRefusal::Unmarked) => short.unmarked,
+                Phase::Refused(AgentStartRefusal::SessionTooOld) => short.session_too_old,
+                Phase::Refused(AgentStartRefusal::TerminalTooOld) => short.terminal_too_old,
+                Phase::Unknown => short.unknown,
+                Phase::Cancelled => short.cancelled,
+            }
+            .to_owned(),
+        )
     }
 }

@@ -14,7 +14,7 @@ fn operation(generation: u64, panel: WorkbenchPanelId, phase: Phase) -> Operatio
         generation,
         episode: 1,
         panel,
-        name: AgentName::parse("alpha").unwrap(),
+        name: Some(AgentName::parse("alpha").unwrap()),
         provider: AgentProviderId::parse("codex").unwrap(),
         phase,
         held_until: Some(Instant::now() + START_DEADLINE),
@@ -28,7 +28,7 @@ fn report(
     submission_status: Option<u8>,
 ) -> Report {
     Report {
-        name: AgentName::parse("alpha").unwrap(),
+        name: Some(AgentName::parse("alpha").unwrap()),
         provider: AgentProviderId::parse("codex").unwrap(),
         reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
         last_observed: None,
@@ -358,7 +358,6 @@ fn catalog_result_survives_empty_then_sender_exit() {
     assert_eq!(state.detected(), ["codex"]);
     assert_eq!(state.catalog_status(), CatalogStatus::Loading);
     assert_eq!(state.selected_provider(), Some("codex"));
-    assert_eq!(state.name(), "codex-1");
     sender.send((4, CatalogUpdate::Finished(false))).unwrap();
     drop(sender);
     assert!(jobs.drain_catalog(&mut state));
@@ -420,7 +419,6 @@ fn detection_selects_no_undetected_default_and_lists_detected_providers_first() 
     assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.providers()[..2], ["claude-code", "codex"]);
     assert_eq!(state.selected_provider(), Some("codex"));
-    assert_eq!(state.name(), "codex-1");
     assert_eq!(
         state.providers().len(),
         crate::agent_provider::CANONICAL_IDS.len(),
@@ -540,23 +538,6 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
         Instant::now(),
         |_| panic!("expired lookup")
     ));
-}
-
-#[test]
-fn automatic_names_follow_provider_until_edited_and_advance_after_an_attempt() {
-    let mut state = State::new(true);
-    state.install_catalog(&["claude-code", "codex"]);
-    assert_eq!(state.name(), "claude-1");
-    state.select_provider(1);
-    assert_eq!(state.name(), "codex-1");
-    state.edit(KeyEvent::press(KeyCode::Char('m'), Modifiers::NONE));
-    state.select_provider(0);
-    assert_eq!(state.name(), "m");
-    state.automatic_name = true;
-    state.generation = 1;
-    state.operations = vec![operation(1, panel(1), Phase::Cancelled)];
-    state.opened(2);
-    assert_eq!(state.name(), "claude-2");
 }
 
 #[cfg(windows)]
@@ -688,7 +669,13 @@ fn an_observed_start_is_started_and_a_returned_prompt_is_retryable() {
     );
     observed.verdict = Verdict::Observed { panel: panel(1) };
     assert_eq!(report_phase(&observed), Phase::Started);
-    for failure in [StartFailure::AgentExited, StartFailure::LaunchFailed] {
+    observed.verdict = Verdict::Sent { panel: panel(1) };
+    assert_eq!(report_phase(&observed), Phase::Started);
+    for failure in [
+        StartFailure::AgentExited,
+        StartFailure::LaunchFailed,
+        StartFailure::CommandNotFound,
+    ] {
         for reservation in [ReservationState::Released, ReservationState::Unknown] {
             assert!(
                 report_phase(&report(

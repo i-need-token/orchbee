@@ -1,5 +1,6 @@
-//! Agent startup workflow. One absolute budget covers admission, reservation,
-//! the single send, observation and best-effort name release.
+//! Agent startup workflow. One absolute budget covers admission, the single send and the early
+//! check; with a name it also covers reservation, readiness observation and best-effort name
+//! release.
 
 use super::failure::ExchangeFailure;
 use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
@@ -13,7 +14,7 @@ use crate::local_client::{
 use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
     AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
-    AgentPresentationId, AgentReportProvider, AgentSafeInteger, AgentSemanticStatus,
+    AgentPresentationId, AgentReportProvider, AgentRunToken, AgentSafeInteger, AgentSemanticStatus,
     AgentSessionId, ObapRequestId, ShellRoot, idle_shell_only,
 };
 use orchbee_local_ipc::LocalIo;
@@ -23,6 +24,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const READ_BUDGET: Duration = Duration::from_secs(5);
+/// How long after submission a shell back at its prompt means the command ended: the early check
+/// of a start without a name, and the exit rule of a named start's observation.
 const SETTLE: Duration = Duration::from_millis(3000);
 /// How long after submission observation waits while an integration may report the canonical
 /// Session, so an enabled hook binds the name before observation confirms without one.
@@ -199,6 +202,17 @@ impl Workflow<'_> {
     ) -> Result<Confirmed, Failure> {
         let sample = self.sample(client, terminal, wake)?;
         let shell = idle_shell(&sample.info)?;
+        // The Host's own launch record, not the root's command line, selects the command format;
+        // the idle-shell check above admits only managed PowerShell and marked cmd.
+        let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
+        let Some(name) = self.request.name.clone() else {
+            // Without a name nothing is reserved: the line goes once to the confirmed prompt and
+            // the early check reads only the shell's own answer.
+            interrupted(wake)?;
+            let submitted =
+                self.submit(client, snapshot, terminal, text, powershell, None, wake)?;
+            return self.check_early(client, terminal, submitted, wake);
+        };
         let before = shell.clone();
         let epoch = AgentHostEpoch::parse(&sample.epoch.to_text()).map_err(|_| invalid())?;
         let physical = AgentHostTerminalId::parse(&sample.info.terminal_id.to_text())
@@ -222,7 +236,7 @@ impl Workflow<'_> {
             client,
             AgentLaunchRequest::Reserve {
                 request_id: reservation_id.clone(),
-                name: self.request.name.clone(),
+                name: name.clone(),
                 provider_id: self.request.provider.clone(),
                 presentation_id: presentation.clone(),
                 host_epoch: epoch.clone(),
@@ -237,7 +251,7 @@ impl Workflow<'_> {
                 reservation,
                 run_token,
             } if reservation.reservation_id == reservation_id
-                && reservation.name == self.request.name
+                && reservation.name == name
                 && reservation.provider_id == self.request.provider
                 && reservation.binding.presentation_id == presentation
                 && reservation.binding.host_epoch == epoch
@@ -269,9 +283,31 @@ impl Workflow<'_> {
             return Err(Failure::Start(StartFailure::BindingChanged));
         }
         interrupted(wake)?;
-        // The Host's own launch record, not the root's command line, selects the command format;
-        // the idle-shell check above admits only managed PowerShell and marked cmd.
-        let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
+        let submitted = self.submit(
+            client,
+            snapshot,
+            terminal,
+            text,
+            powershell,
+            Some(&run_token),
+            wake,
+        )?;
+        self.observe(client, snapshot, terminal, &reservation, submitted, wake)
+    }
+
+    /// Types the one launch line at the confirmed prompt and records its receipt; a refusal
+    /// typed nothing. `run_token` marks the line for managed PowerShell's receipt.
+    #[allow(clippy::too_many_arguments)]
+    fn submit(
+        &mut self,
+        client: &mut LocalClient,
+        snapshot: &Snapshot,
+        terminal: &PrimaryTerminal,
+        text: &str,
+        powershell: bool,
+        run_token: Option<&AgentRunToken>,
+        wake: Option<LocalIo<'_>>,
+    ) -> Result<Instant, Failure> {
         // Without arguments no literal argv wrapper is needed; the short form keeps the
         // shell's echo to one line for the board and the CLI alike.
         let concise = self
@@ -289,11 +325,12 @@ impl Workflow<'_> {
         // without the managed wrapper reads the prefix as a block comment and runs the command
         // unchanged.
         let receipted;
-        let text = if powershell {
-            receipted = format!("<#orchbee-run:{run_token}#> {text}");
-            receipted.as_str()
-        } else {
-            text
+        let text = match run_token {
+            Some(run_token) if powershell => {
+                receipted = format!("<#orchbee-run:{run_token}#> {text}");
+                receipted.as_str()
+            }
+            _ => text,
         };
         let receipt = match agent_start_runtime::send::submit_prompt(
             client,
@@ -336,7 +373,50 @@ impl Workflow<'_> {
         if let Some(progress) = self.progress {
             progress(super::Progress::Observing);
         }
-        self.observe(client, snapshot, terminal, &reservation, submitted, wake)
+        Ok(submitted)
+    }
+
+    /// The early check of a start without a name. The command was typed; this reads only whether
+    /// the shell came back to its prompt within [`SETTLE`]: after a process of the requested
+    /// provider was seen, the Agent exited; without one, the command was not found or failed
+    /// before the Agent appeared. A shell still running something at the end, or a Panel this
+    /// check can no longer read, leaves the start sent.
+    fn check_early(
+        &mut self,
+        client: &mut LocalClient,
+        terminal: &PrimaryTerminal,
+        submitted: Instant,
+        wake: Option<LocalIo<'_>>,
+    ) -> Result<Confirmed, Failure> {
+        let request = self.request;
+        let requested = request.provider.as_str();
+        let mut seen = false;
+        loop {
+            let process = match self.sample(client, terminal, wake) {
+                Ok(process) => process,
+                Err(failure) if failure.cancelled() => return Err(failure),
+                Err(_) => return Ok(Confirmed::Sent),
+            };
+            seen |= agent_start_runtime::interpret(&process.info)
+                .iter()
+                .any(|process| process.provider == Some(requested));
+            let settled = submitted.elapsed() >= SETTLE;
+            if idle_shell(&process.info).is_ok() && (seen || settled) {
+                return Err(Failure::Start(if seen {
+                    StartFailure::AgentExited
+                } else {
+                    StartFailure::CommandNotFound
+                }));
+            }
+            if settled {
+                return Ok(Confirmed::Sent);
+            }
+            let delay = Duration::from_millis(100)
+                .min(self.deadline.saturating_duration_since(Instant::now()));
+            if agent_start_runtime::wait_backoff(wake, delay) {
+                return Err(Failure::Start(StartFailure::Cancelled));
+            }
+        }
     }
 
     fn observe(
@@ -511,7 +591,7 @@ impl Workflow<'_> {
                             name,
                             session_id: confirmed,
                         } if reservation_id == reservation.reservation_id
-                            && name == self.request.name
+                            && name == reservation.name
                             && confirmed == session_id =>
                         {
                             self.state = ReservationState::Completed;
@@ -620,6 +700,7 @@ impl Workflow<'_> {
         let verdict = match result {
             Ok(Confirmed::Canonical(session)) => Verdict::Started { session },
             Ok(Confirmed::Observed) => Verdict::Observed { panel },
+            Ok(Confirmed::Sent) => Verdict::Sent { panel },
             Err(failure) => Verdict::Failed {
                 failure,
                 read_cause: self.last_read_failure,
@@ -656,10 +737,12 @@ fn observed_ready(
         == Some(provider.as_str())
 }
 
-/// The evidence that confirmed a start.
+/// The evidence that settled a start.
 enum Confirmed {
     Canonical(AgentSessionId),
     Observed,
+    /// A start without a name passed its early check.
+    Sent,
 }
 
 const fn delivery_disposition(verdict: agent_start_runtime::SendVerdict) -> DeliveryDisposition {

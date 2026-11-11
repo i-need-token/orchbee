@@ -48,6 +48,10 @@ pub enum StartFailure {
     /// The launch command returned to the managed PowerShell prompt with `$?` false, for
     /// example because the provider was not found.
     LaunchFailed,
+    /// Without a name, the shell came back to its prompt within the early check and no process
+    /// of the requested provider was seen: the command was not found, or failed before the Agent
+    /// appeared.
+    CommandNotFound,
     AgentBlocked,
     ReplyNotConfirmed,
     InvalidProtocol,

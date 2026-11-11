@@ -67,7 +67,12 @@ impl Phase {
     pub(super) const fn retryable(self) -> bool {
         matches!(
             self,
-            Self::Failed | Self::Refused(_) | Self::Cancelled | Self::Unconfirmed
+            Self::Failed
+                | Self::NotFound(_)
+                | Self::Exited(_)
+                | Self::Refused(_)
+                | Self::Cancelled
+                | Self::Unconfirmed
         )
     }
 }
@@ -77,7 +82,7 @@ struct Operation {
     generation: u64,
     episode: u64,
     panel: WorkbenchPanelId,
-    name: AgentName,
+    name: Option<AgentName>,
     provider: AgentProviderId,
     phase: Phase,
     /// The workflow deadline while an Unknown result may still hold the Panel; cleared once it
@@ -101,8 +106,8 @@ pub(crate) struct State {
     launch_supported: bool,
     catalog: Catalog,
     catalog_revision: u64,
+    /// Optional; an empty name starts the Agent without one.
     name: LineEditor,
-    automatic_name: bool,
     provider_chosen: bool,
     providers: Vec<&'static str>,
     detected: Vec<&'static str>,
@@ -134,7 +139,6 @@ impl State {
             },
             catalog_revision: 0,
             name: name_editor(String::new()),
-            automatic_name: true,
             provider_chosen: false,
             providers: crate::agent_provider::CANONICAL_IDS.to_vec(),
             detected: Vec::new(),
@@ -198,7 +202,7 @@ impl State {
             && let Some(index) = self.providers.iter().position(|id| *id == provider)
         {
             self.selected_provider = Some(index);
-            self.suggest_name();
+            self.draft_revision = self.draft_revision.wrapping_add(1);
         }
         true
     }
@@ -223,7 +227,6 @@ impl State {
     }
 
     pub(super) fn opened(&mut self, episode: u64) {
-        let before = self.operations.len();
         self.operations.retain_mut(|operation| {
             if operation.episode == episode {
                 return true;
@@ -239,9 +242,6 @@ impl State {
             }
             guards
         });
-        if self.operations.len() != before {
-            self.suggest_name();
-        }
     }
 
     fn presented(&self) -> Option<&Operation> {
@@ -300,15 +300,6 @@ impl State {
         &self.detected
     }
 
-    fn suggest_name(&mut self) {
-        if self.automatic_name && self.draft_editable() {
-            let provider = self.selected_provider().unwrap_or("agent");
-            let base = crate::agent_provider::executable(provider).unwrap_or(provider);
-            self.name = name_editor(format!("{base}-{}", self.generation.saturating_add(1)));
-            self.touch_draft();
-        }
-    }
-
     pub(super) fn selected_provider(&self) -> Option<&'static str> {
         self.providers().get(self.selected_provider?).copied()
     }
@@ -318,7 +309,7 @@ impl State {
     fn settle_default_provider(&mut self) {
         if self.selected_provider.is_none() && self.draft_editable() && !self.providers.is_empty() {
             self.selected_provider = Some(0);
-            self.suggest_name();
+            self.draft_revision = self.draft_revision.wrapping_add(1);
         }
     }
 
@@ -363,10 +354,10 @@ impl State {
     pub(super) fn operation_identity(
         &self,
         episode: u64,
-    ) -> Option<(&AgentName, &AgentProviderId)> {
+    ) -> Option<(Option<&AgentName>, &AgentProviderId)> {
         self.presented().and_then(|operation| {
             (operation.phase.running() || operation.episode == episode)
-                .then_some((&operation.name, &operation.provider))
+                .then_some((operation.name.as_ref(), &operation.provider))
         })
     }
 
@@ -379,8 +370,18 @@ impl State {
         self.launch_supported
             && self.draft_editable()
             && self.selected_provider().is_some()
-            && AgentName::parse(self.name.text()).is_ok()
+            && self.draft_name().is_ok()
             && self.origin_local.is_some()
+    }
+
+    /// The draft's name: `None` while the field is empty, and an error for a typed name that is
+    /// not a valid Agent name.
+    fn draft_name(&self) -> Result<Option<AgentName>, ()> {
+        let text = self.name.text();
+        if text.is_empty() {
+            return Ok(None);
+        }
+        AgentName::parse(text).map(Some).map_err(|_| ())
     }
 
     pub(super) fn draft_editable(&self) -> bool {
@@ -396,7 +397,6 @@ impl State {
             return false;
         }
         self.selected_provider = Some(index);
-        self.suggest_name();
         self.touch_draft();
         true
     }
@@ -415,7 +415,6 @@ impl State {
         if event.kind == KeyKind::Release || !self.draft_editable() {
             return false;
         }
-        // A shared readline key edits the suggested name in place rather than replacing it.
         let changed = if let Some(key) = LineKey::for_key(event) {
             self.name.apply(key) == Ok(true)
         } else {
@@ -428,9 +427,6 @@ impl State {
                         || character.is_ascii_digit()
                         || matches!(character, '-' | '_')
                     {
-                        if self.automatic_name {
-                            self.name.clear();
-                        }
                         self.name.insert(&character.to_string()).is_ok()
                     } else {
                         false
@@ -446,7 +442,6 @@ impl State {
             }
         };
         if changed {
-            self.automatic_name = false;
             self.provider_chosen = true;
             self.touch_draft();
         }
@@ -479,7 +474,7 @@ impl State {
             return None;
         }
         let (Ok(name), Some(provider)) = (
-            AgentName::parse(self.name.text()),
+            self.draft_name(),
             self.selected_provider()
                 .and_then(|provider| AgentProviderId::parse(provider).ok()),
         ) else {
@@ -619,13 +614,12 @@ impl State {
             .collect();
         self.catalog_revision = self.catalog_revision.wrapping_add(1);
         self.selected_provider = Some(0);
-        self.suggest_name();
+        self.draft_revision = self.draft_revision.wrapping_add(1);
     }
 
     #[cfg(test)]
     pub(super) fn set_name(&mut self, name: &str) {
         self.name = name_editor(name.to_owned());
-        self.automatic_name = false;
         self.touch_draft();
     }
 
@@ -656,7 +650,7 @@ enum CatalogBegin {
 struct StartOperation {
     generation: u64,
     panel: WorkbenchPanelId,
-    name: AgentName,
+    name: Option<AgentName>,
     provider: AgentProviderId,
     #[cfg(test)]
     without_task: bool,

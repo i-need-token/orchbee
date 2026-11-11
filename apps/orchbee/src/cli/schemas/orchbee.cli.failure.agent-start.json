@@ -83,6 +83,7 @@
 								"agent-provider-mismatch",
 								"agent-exited",
 								"launch-command-failed",
+								"command-not-found",
 								"agent-blocked",
 								"cancelled",
 								"signal-finalization-failed",
@@ -108,7 +109,14 @@
 							]
 						},
 						"name": {
-							"$ref": "#/$defs/agentName"
+							"oneOf": [
+								{
+									"$ref": "#/$defs/agentName"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"providerId": {
 							"$ref": "#/$defs/providerId"

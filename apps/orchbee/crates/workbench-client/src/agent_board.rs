@@ -1996,7 +1996,7 @@ impl<'a> AgentBoardView<'a> {
     pub(crate) fn start_operation_identity(
         &self,
     ) -> Option<(
-        &orchbee_agent_observation_protocol::AgentName,
+        Option<&orchbee_agent_observation_protocol::AgentName>,
         &AgentProviderId,
     )> {
         self.board.start.operation_identity(self.board.epoch)
@@ -2026,6 +2026,8 @@ impl From<AgentStartPhase> for crate::localization::AgentStartStatus {
             AgentStartPhase::Cancelling => Self::Cancelling,
             AgentStartPhase::Started => Self::Started,
             AgentStartPhase::Failed => Self::Failed,
+            AgentStartPhase::NotFound(product) => Self::NotFound(product),
+            AgentStartPhase::Exited(product) => Self::Exited(product),
             AgentStartPhase::Refused(refusal) => Self::Refused(refusal),
             AgentStartPhase::Unknown => Self::Unknown,
             AgentStartPhase::Cancelled => Self::Cancelled,

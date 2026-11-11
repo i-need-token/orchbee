@@ -131,6 +131,8 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             Start::Cancelling,
             Start::Started,
             Start::Failed,
+            Start::NotFound("GitHub Copilot CLI"),
+            Start::Exited("GitHub Copilot CLI"),
             Start::Refused(Refusal::NotAtPrompt),
             Start::Refused(Refusal::Unmarked),
             Start::Refused(Refusal::SessionTooOld),
@@ -211,6 +213,8 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                 | Start::Cancelling
                 | Start::Started
                 | Start::Failed
+                | Start::NotFound(_)
+                | Start::Exited(_)
                 | Start::Refused(
                     Refusal::NotAtPrompt
                     | Refusal::Unmarked

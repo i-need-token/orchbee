@@ -198,6 +198,10 @@ pub(crate) enum AgentStartPhase {
     Cancelling,
     Started,
     Failed,
+    /// The shell came back to its prompt before the named product's Agent appeared.
+    NotFound(&'static str),
+    /// The named product's Agent exited during startup; its output stays in the Panel.
+    Exited(&'static str),
     /// Nothing was typed and the name reservation is settled, so starting again is safe.
     Refused(AgentStartRefusal),
     Unknown,
@@ -775,6 +779,8 @@ impl ClientNotice {
                 phase,
                 AgentStartPhase::Started
                     | AgentStartPhase::Failed
+                    | AgentStartPhase::NotFound(_)
+                    | AgentStartPhase::Exited(_)
                     | AgentStartPhase::Refused(_)
                     | AgentStartPhase::Cancelled
             ),

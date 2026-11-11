@@ -152,6 +152,11 @@ impl super::CliText {
                 | CommandPath::WorkspaceCloseResume,
                 "--workspace",
             ) => ("<target>", "Select a workspace.", "选择工作区。"),
+            (CommandPath::AgentStart, "--name") => (
+                "<name>",
+                "Optional name, bound once an integration reports the Agent's session.",
+                "可选名称，在集成报告智能体会话后绑定。",
+            ),
             (CommandPath::LaunchProfileCreate, "--name") => (
                 "<name>",
                 "Name of the saved launch profile.",

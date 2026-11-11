@@ -154,7 +154,7 @@ fn one_started_completion_requests_exactly_one_refresh() {
     let target = panel_id(1);
     assert!(jobs.start(&mut board.start, board.epoch, target, clock()));
     let report = Report {
-        name: AgentName::parse("alpha").unwrap(),
+        name: Some(AgentName::parse("alpha").unwrap()),
         provider: AgentProviderId::parse("codex").unwrap(),
         reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
         last_observed: None,

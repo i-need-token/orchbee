@@ -95,7 +95,8 @@ fn typed_send_verdict_not_process_status_decides_delivery() {
 }
 
 /// Without a canonical Session, only the requested provider's published idle or blocked state
-/// confirms a start; a working, unknown or ended state, another Agent, or no named Agent never does.
+/// confirms a start; a working, opening, unknown or ended state, another Agent, or no named Agent
+/// never does.
 #[test]
 fn observation_confirms_only_the_requested_agent_waiting_for_its_user() {
     use agent_start_runtime::state::Published;
@@ -115,6 +116,7 @@ fn observation_confirms_only_the_requested_agent_waiting_for_its_user() {
     }
     for state in [
         PanelAgentState::Working,
+        PanelAgentState::Opening,
         PanelAgentState::Unknown,
         PanelAgentState::Done,
         PanelAgentState::Error,

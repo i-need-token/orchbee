@@ -17,6 +17,10 @@ pub(crate) enum Verdict {
     Observed {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
+    /// Without a name, the command was typed in `panel` and passed the early check.
+    Sent {
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    },
     Failed {
         failure: Failure,
         reason: String,
@@ -27,7 +31,7 @@ pub(crate) enum Verdict {
 /// CLI presentation of the independently retained domain facts, with process-local overrides.
 #[derive(Debug)]
 pub(crate) struct Report {
-    pub(crate) name: AgentName,
+    pub(crate) name: Option<AgentName>,
     pub(crate) provider: AgentProviderId,
     pub(crate) reservation: Option<ObapRequestId>,
     pub(crate) last_observed: Option<AgentLaunchReservation>,
@@ -76,16 +80,17 @@ impl Report {
     /// Expose the current presentation failure for signal-finalization arbitration.
     pub(crate) const fn failure_kind(&self) -> Option<FailureKind> {
         match &self.verdict {
-            Verdict::Started { .. } | Verdict::Observed { .. } => None,
+            Verdict::Started { .. } | Verdict::Observed { .. } | Verdict::Sent { .. } => None,
             Verdict::Failed { failure, .. } => Some(failure.kind),
         }
     }
 
-    /// Report confirmed startup completion; accepted input alone does not satisfy this condition.
+    /// Report a settled start: a named start confirmed ready, or a start without a name that
+    /// passed its early check. Accepted input alone does not satisfy this condition.
     pub(crate) const fn completed(&self) -> bool {
         matches!(
             self.verdict,
-            Verdict::Started { .. } | Verdict::Observed { .. }
+            Verdict::Started { .. } | Verdict::Observed { .. } | Verdict::Sent { .. }
         )
     }
 
@@ -106,7 +111,10 @@ impl Report {
             {
                 cause.clone()
             }
-            Verdict::Started { .. } | Verdict::Observed { .. } | Verdict::Failed { .. } => None,
+            Verdict::Started { .. }
+            | Verdict::Observed { .. }
+            | Verdict::Sent { .. }
+            | Verdict::Failed { .. } => None,
         };
         let reason = failure
             .details
@@ -177,6 +185,7 @@ impl From<crate::agent_start::Report> for Report {
         let verdict = match report.verdict {
             DomainVerdict::Started { session } => Verdict::Started { session },
             DomainVerdict::Observed { panel } => Verdict::Observed { panel },
+            DomainVerdict::Sent { panel } => Verdict::Sent { panel },
             DomainVerdict::Failed {
                 failure,
                 read_cause,
@@ -275,6 +284,7 @@ pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
         StartFailure::ProviderMismatch => (FailureKind::Rejected, "agent-provider-mismatch"),
         StartFailure::AgentExited => (FailureKind::Rejected, "agent-exited"),
         StartFailure::LaunchFailed => (FailureKind::Rejected, "launch-command-failed"),
+        StartFailure::CommandNotFound => (FailureKind::Rejected, "command-not-found"),
         StartFailure::AgentBlocked => (FailureKind::Rejected, "agent-blocked"),
         StartFailure::ReplyNotConfirmed => (FailureKind::OutcomeUnknown, "reply-not-confirmed"),
         StartFailure::InvalidProtocol => (FailureKind::ProtocolInvalid, "launch-protocol-invalid"),

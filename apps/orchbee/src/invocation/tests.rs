@@ -135,6 +135,7 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     let Request::AgentStart { command, format } = parse(&[
         "agent",
         "start",
+        "--name",
         "alpha",
         "--provider=codex",
         "--timeout=3001",
@@ -149,7 +150,10 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     .unwrap() else {
         panic!("start");
     };
-    assert_eq!(command.name.as_str(), "alpha");
+    assert_eq!(
+        command.name.as_ref().map(|name| name.as_str()),
+        Some("alpha")
+    );
     assert_eq!(command.provider, "codex");
     assert_eq!(command.timeout_ms, 3001);
     assert_eq!(format, OutputFormat::Json);
@@ -157,7 +161,6 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     let Request::AgentStart { command, .. } = parse(&[
         "agent",
         "start",
-        "alpha",
         "--provider=codex",
         "--arg=",
         "--arg=--",
@@ -168,64 +171,40 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     };
     assert_eq!(command.timeout_ms, 30000);
     assert_eq!(command.args, ["", "--"]);
+    assert_eq!(command.name, None);
     for words in [
-        vec!["agent", "start", "alpha"],
-        vec!["agent", "start", "INVALID", "--provider=codex"],
-        vec!["agent", "start", "alpha", "--provider=unknown"],
-        vec!["agent", "start", "alpha", "--provider=claude"],
+        vec!["agent", "start"],
+        vec!["agent", "start", "--name=INVALID", "--provider=codex"],
+        // A word before `--` is never passed to the Agent.
+        vec!["agent", "start", "alpha", "--provider=codex"],
+        vec!["agent", "start", "--provider=unknown"],
+        vec!["agent", "start", "--provider=claude"],
+        vec!["agent", "start", "--provider=codex", "--timeout=3000"],
+        vec!["agent", "start", "--provider=codex", "--timeout=300001"],
+        vec!["agent", "start", "--provider=codex", "--forever"],
         vec![
             "agent",
             "start",
-            "alpha",
-            "--provider=codex",
-            "--timeout=3000",
-        ],
-        vec![
-            "agent",
-            "start",
-            "alpha",
-            "--provider=codex",
-            "--timeout=300001",
-        ],
-        vec!["agent", "start", "alpha", "--provider=codex", "--forever"],
-        vec![
-            "agent",
-            "start",
-            "alpha",
             "--provider=codex",
             "--current",
             "--panel=11111111111111111111111111111111",
         ],
-        vec![
-            "agent",
-            "start",
-            "alpha",
-            "--provider=codex",
-            "--arg=x",
-            "--",
-            "y",
-        ],
-        vec!["agent", "start", "alpha", "--provider=codex", "--", "a\nb"],
-        vec![
-            "agent",
-            "start",
-            "alpha",
-            "--provider=codex",
-            "--provider=pi",
-        ],
+        vec!["agent", "start", "--provider=codex", "--arg=x", "--", "y"],
+        vec!["agent", "start", "--provider=codex", "--", "a\nb"],
+        vec!["agent", "start", "--provider=codex", "--provider=pi"],
         vec!["agent", "names", "--provider=codex"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
     for provider in crate::agent_provider::CANONICAL_IDS {
         assert!(
-            parse(&["agent", "start", "alpha", "--provider", provider]).is_ok(),
+            parse(&["agent", "start", "--provider", provider]).is_ok(),
             "{provider}"
         );
     }
     // The invalid-value diagnostic and the option help both enumerate the
     // complete closed `--provider` set from the provider registry.
-    let failure = parse(&["agent", "start", "alpha", "--provider=claude"]).unwrap_err();
+    let failure = parse(&["agent", "start", "--provider=claude"]).unwrap_err();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let stderr = crate::cli::parse_failure(failure.clone(), locale).stderr;
         let (_, help) =

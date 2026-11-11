@@ -2324,6 +2324,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::AgentExplain,
             CommandPath::AgentResolve,
             CommandPath::AgentRename,
+            CommandPath::AgentStart,
             CommandPath::AgentWait,
             CommandPath::LaunchProfileCreate,
         ],

@@ -71,7 +71,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::AgentFocus => &["review"],
         CommandPath::AgentAttention => &["review"],
         CommandPath::AgentRead => &["review", "--source", "recent", "--lines", "40"],
-        CommandPath::AgentStart => &["review", "--provider", "codex"],
+        CommandPath::AgentStart => &["--provider", "codex"],
         CommandPath::AgentPrompt => &["review", "Review the current changes"],
         CommandPath::AgentSendKeys => &["review", "enter"],
         CommandPath::AgentExplain => &["review"],

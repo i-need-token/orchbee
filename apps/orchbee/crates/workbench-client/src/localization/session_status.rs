@@ -244,7 +244,7 @@ impl Locale {
         match notice {
             N::RecordUnusable(record, problem) => Some(self.record_status(record, problem)),
             N::AgentNotResumed(agent, _) => Some(self.agent_not_resumed(agent)),
-            N::AgentStart(phase) => self.agent_start_phase_shorter(phase).map(str::to_owned),
+            N::AgentStart(phase) => self.agent_start_phase_shorter(phase),
             N::Settings(notice) => self.settings_notice_shorter(notice).map(str::to_owned),
             N::Unsupported(capability) => Some(self.unsupported_capability_shorter(capability)),
             N::EarlierLayout(notice) => self
@@ -363,7 +363,7 @@ impl Locale {
         match notice {
             WorkbenchClientNotice::Unsupported(capability) => self.unsupported_capability(capability),
             WorkbenchClientNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
-            WorkbenchClientNotice::AgentStart(phase) => self.agent_start_phase(phase).to_owned(),
+            WorkbenchClientNotice::AgentStart(phase) => self.agent_start_phase(phase),
             WorkbenchClientNotice::LocalBusy => self.native_local_busy().to_owned(),
             WorkbenchClientNotice::TerminalClearing => match self { Self::EnUs => "Clearing terminal…".into(), Self::ZhCn => "正在清除终端…".into() },
             WorkbenchClientNotice::TerminalCleared => match self { Self::EnUs => "Terminal cleared".into(), Self::ZhCn => "终端已清除".into() },

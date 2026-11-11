@@ -1,7 +1,10 @@
 //! Typed Agent startup shared by the CLI adapter and native Client surfaces.
 //!
-//! The workflow owns the reserve -> one input submission -> readiness sequence.
-//! Readiness is canonical, or observed from the Panel's process identity and
+//! Without a name, the workflow types the command once at the Panel's confirmed
+//! prompt and ends after a short check for the shell's own answer; from then on
+//! the Agent is observed like one typed by hand. With a name, it owns the
+//! reserve -> one input submission -> readiness sequence that binds the name:
+//! readiness is canonical, or observed from the Panel's process identity and
 //! published state while no canonical Session has reported. Callers inject an
 //! exact Panel, one absolute deadline, and an optional cancellation wake.
 //! Presentation, process-wide signals, and surface generations remain with their
@@ -25,13 +28,15 @@ mod workflow;
 /// admitted Snapshot.
 #[derive(Clone, Debug)]
 pub struct Request {
-    pub name: AgentName,
+    /// The name to bind once the Agent's integration reports its Session; `None` starts the
+    /// Agent without reserving anything.
+    pub name: Option<AgentName>,
     pub provider: AgentProviderId,
     pub(crate) args: Box<[String]>,
 }
 
 impl Request {
-    pub fn new(name: AgentName, provider: AgentProviderId, args: Vec<String>) -> Self {
+    pub fn new(name: Option<AgentName>, provider: AgentProviderId, args: Vec<String>) -> Self {
         Self {
             name,
             provider,
@@ -101,6 +106,12 @@ pub enum Verdict {
     Observed {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
+    /// Without a name, the command was typed at the confirmed prompt of `panel` and the shell did
+    /// not come back to that prompt during the early check. Nothing waits for readiness: the
+    /// Server shows the Agent as opening once its process is seen.
+    Sent {
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    },
     Failed {
         failure: Failure,
         read_cause: Option<Box<Failure>>,
@@ -110,7 +121,7 @@ pub enum Verdict {
 /// Independently known reservation and delivery facts survive every later observation failure.
 #[derive(Debug)]
 pub struct Report {
-    pub name: AgentName,
+    pub name: Option<AgentName>,
     pub provider: AgentProviderId,
     pub reservation: Option<ObapRequestId>,
     pub last_observed: Option<AgentLaunchReservation>,
@@ -209,7 +220,7 @@ pub fn command_valid(request: &Request) -> bool {
 /// Field-for-field `Report` fixture the application's tests build values from.
 #[cfg(any(test, feature = "test-support"))]
 pub struct ReportFixture {
-    pub name: AgentName,
+    pub name: Option<AgentName>,
     pub provider: AgentProviderId,
     pub reservation: Option<ObapRequestId>,
     pub last_observed: Option<AgentLaunchReservation>,

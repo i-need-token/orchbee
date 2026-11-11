@@ -29,6 +29,19 @@ impl super::CliText {
         }
     }
 
+    /// A start without a name typed the command in `panel` and passed the early check; the Agent
+    /// is opening there and nothing waited for it to become ready.
+    pub(crate) fn cli_agent_sent(self, product: &str, panel: &str) -> String {
+        match self.locale {
+            Locale::EnUs => format!(
+                "{product} is opening in Panel {panel}.\nNext: orchbee agent wait --panel {panel} --until idle\n"
+            ),
+            Locale::ZhCn => format!(
+                "{product} 正在面板 {panel} 中打开。\n下一步：orchbee agent wait --panel {panel} --until idle\n"
+            ),
+        }
+    }
+
     pub(super) fn cli_agent_start_failure(self, failure: &Failure) -> String {
         if matches!(
             failure.usage.as_deref(),
@@ -114,7 +127,10 @@ impl super::CliText {
             .as_ref()
             .and_then(|details| details.get("submission"))
             .is_some_and(|value| !value.is_null());
-        let delivery = match (self.locale, submitted && !nothing_typed) {
+        // Only a named start keeps watching after the line is typed; a start without a name
+        // reports its early check alone.
+        let named = !field("name").is_empty();
+        let delivery = match (self.locale, named && submitted && !nothing_typed) {
             (Locale::EnUs, true) => {
                 " Input was attempted once; the Agent may still be running. No process was terminated."
             }
@@ -145,19 +161,25 @@ impl super::CliText {
                 "编码后的 Windows 启动命令超过 8000 个字符，请缩短参数。"
             }
             (Locale::EnUs, "start-deadline") => {
-                "The Agent did not confirm readiness before the deadline; its command may still be running. Inspect its terminal."
+                "Agent startup did not finish before the deadline; its command may still be running. Inspect its terminal."
             }
             (Locale::ZhCn, "start-deadline") => {
-                "智能体未在时限内确认就绪，其命令可能仍在运行。请检查终端输出。"
+                "智能体启动未在时限内完成，其命令可能仍在运行。请检查终端输出。"
             }
             (Locale::EnUs, "agent-blocked") => {
                 "The Agent needs attention. Resolve the prompt shown in its terminal."
             }
             (Locale::ZhCn, "agent-blocked") => "智能体需要人工处理，请查看其终端中的提示。",
             (Locale::EnUs, "agent-exited") => {
-                "The Agent exited before readiness was confirmed. Inspect its terminal output."
+                "The Agent exited during startup. Inspect its terminal output."
             }
-            (Locale::ZhCn, "agent-exited") => "智能体在确认就绪前已退出，请检查其终端输出。",
+            (Locale::ZhCn, "agent-exited") => "智能体在启动期间退出，请检查其终端输出。",
+            (Locale::EnUs, "command-not-found") => {
+                "Command not found: the shell came back to its prompt and no Agent process appeared. Inspect its terminal output."
+            }
+            (Locale::ZhCn, "command-not-found") => {
+                "找不到命令：shell 已回到提示符，且没有出现智能体进程。请检查其终端输出。"
+            }
             (Locale::EnUs, "launch-command-failed") => {
                 "The launch command failed in PowerShell before the Agent started, for example because the provider was not found. Inspect its terminal output."
             }

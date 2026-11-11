@@ -29,7 +29,12 @@ use crate::{
 };
 use orchbee_client_server_protocol::SendPromptState;
 
-const START_DEADLINE: Duration = Duration::from_secs(300);
+/// Bounds a start without a name: admission, the one send and the early check. Nothing waits for
+/// the Agent to become ready.
+const START_DEADLINE: Duration = Duration::from_secs(20);
+/// Bounds a named start, which waits until the Agent's integration reports the Session that the
+/// name binds to.
+const NAMED_START_DEADLINE: Duration = Duration::from_secs(300);
 const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 
 mod client_path;
@@ -126,7 +131,12 @@ impl Jobs {
         let Some(origin) = self.origin.clone() else {
             return false;
         };
-        let Some(deadline) = Instant::now().checked_add(START_DEADLINE) else {
+        let budget = if state.name().is_empty() {
+            START_DEADLINE
+        } else {
+            NAMED_START_DEADLINE
+        };
+        let Some(deadline) = Instant::now().checked_add(budget) else {
             return false;
         };
         let Some(operation) = state.begin_start(episode, panel, deadline) else {
@@ -294,17 +304,31 @@ impl Drop for Jobs {
 }
 
 fn report_phase(report: &Report) -> Phase {
+    let product = || {
+        crate::agent_provider::choice(report.provider.as_str())
+            .map_or("Agent", |choice| choice.product)
+    };
     match &report.verdict {
-        Verdict::Started { .. } | Verdict::Observed { .. } => Phase::Started,
+        Verdict::Started { .. } | Verdict::Observed { .. } | Verdict::Sent { .. } => Phase::Started,
+        // Only a named start waits for readiness, so only it can run out of time after typing.
         Verdict::Failed { failure, .. }
-            if failure.timed_out()
+            if report.name.is_some()
+                && failure.timed_out()
                 && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>
         {
             Phase::Unconfirmed
         }
         // Observation showed the Panel back at its shell prompt: no Agent holds it.
         Verdict::Failed {
-            failure: Failure::Start(StartFailure::AgentExited | StartFailure::LaunchFailed),
+            failure: Failure::Start(StartFailure::AgentExited),
+            ..
+        } => Phase::Exited(product()),
+        Verdict::Failed {
+            failure: Failure::Start(StartFailure::CommandNotFound),
+            ..
+        } => Phase::NotFound(product()),
+        Verdict::Failed {
+            failure: Failure::Start(StartFailure::LaunchFailed),
             ..
         } => Phase::Failed,
         Verdict::Failed { failure, .. }

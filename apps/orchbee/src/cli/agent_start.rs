@@ -1,5 +1,6 @@
-//! Agent startup composes a name reservation, one terminal submission and
-//! canonical or observed readiness. Every failure retains the independently known effects.
+//! Agent startup types one terminal submission; without a name it returns after the early check,
+//! and with one it also composes a name reservation and canonical or observed readiness. Every
+//! failure retains the independently known effects.
 
 use super::Failure;
 use super::output;
@@ -150,26 +151,44 @@ fn project(
     finalization: Option<super::SourceFinalization>,
 ) -> Output {
     let text = CliText::new(locale);
+    let name = report.name.as_ref().map_or("", |name| name.as_str());
     let started = match &report.verdict {
         Verdict::Started { session } => Some((
+            "session",
             Some(session),
-            text.cli_agent_started(report.name.as_str(), session.as_str()),
+            None,
+            text.cli_agent_started(name, session.as_str()),
         )),
         Verdict::Observed { panel } => Some((
+            "observed",
             None,
-            text.cli_agent_observed(report.name.as_str(), panel.as_str()),
+            None,
+            text.cli_agent_observed(name, panel.as_str()),
+        )),
+        Verdict::Sent { panel } => Some((
+            "sent",
+            None,
+            Some(panel),
+            text.cli_agent_sent(
+                crate::agent_provider::product_name(report.provider.as_str()),
+                panel.as_str(),
+            ),
         )),
         Verdict::Failed { .. } => None,
     };
-    if let Some((session, rendered)) = started {
+    if let Some((confirmation, session, panel, rendered)) = started {
+        // A start without a name ends when its line is typed, so it promises no ready Agent.
         let mut document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
-            "kind":"started", "confirmation":if session.is_some() {"session"} else {"observed"},
-            "interactiveReady":true, "name":&report.name, "providerId":&report.provider,
+            "kind":"started", "confirmation":confirmation,
+            "interactiveReady":confirmation != "sent", "name":&report.name, "providerId":&report.provider,
             "reservationId":&report.reservation, "elapsedMs":report.elapsed_ms, "submission":&report.submission,
         }});
         // Only the canonical Session holds the name; an observed start has none to report.
         if let Some(session) = session {
             document["result"]["sessionId"] = json!(session);
+        }
+        if let Some(panel) = panel {
+            document["result"]["panelId"] = json!(panel.as_str());
         }
         let bytes = match format {
             OutputFormat::Json => output::encode_document(&document),

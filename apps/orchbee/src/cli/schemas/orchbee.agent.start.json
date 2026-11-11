@@ -25,39 +25,99 @@
 				"interactiveReady"
 			],
 			"additionalProperties": false,
-			"if": {
-				"properties": {
-					"confirmation": {
-						"const": "session"
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"confirmation": {
+								"const": "session"
+							}
+						}
+					},
+					"then": {
+						"required": ["sessionId"]
+					},
+					"else": {
+						"not": {
+							"required": ["sessionId"]
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"confirmation": {
+								"const": "sent"
+							}
+						}
+					},
+					"then": {
+						"required": ["panelId"],
+						"properties": {
+							"name": {
+								"type": "null"
+							},
+							"reservationId": {
+								"type": "null"
+							},
+							"interactiveReady": {
+								"const": false
+							}
+						}
+					},
+					"else": {
+						"not": {
+							"required": ["panelId"]
+						},
+						"properties": {
+							"name": {
+								"$ref": "#/$defs/agentName"
+							},
+							"reservationId": {
+								"$ref": "#/$defs/hexId"
+							},
+							"interactiveReady": {
+								"const": true
+							}
+						}
 					}
 				}
-			},
-			"then": {
-				"required": ["sessionId"]
-			},
-			"else": {
-				"not": {
-					"required": ["sessionId"]
-				}
-			},
+			],
 			"properties": {
 				"kind": {
 					"const": "started"
 				},
 				"confirmation": {
-					"enum": ["session", "observed"]
+					"enum": ["session", "observed", "sent"]
 				},
 				"sessionId": {
 					"$ref": "#/$defs/opaqueId"
 				},
+				"panelId": {
+					"$ref": "#/$defs/hexId"
+				},
 				"name": {
-					"$ref": "#/$defs/agentName"
+					"oneOf": [
+						{
+							"$ref": "#/$defs/agentName"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"providerId": {
 					"$ref": "#/$defs/providerId"
 				},
 				"reservationId": {
-					"$ref": "#/$defs/hexId"
+					"oneOf": [
+						{
+							"$ref": "#/$defs/hexId"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"elapsedMs": {
 					"$ref": "#/$defs/safeInteger"
@@ -66,7 +126,7 @@
 					"$ref": "#/$defs/sendReceipt"
 				},
 				"interactiveReady": {
-					"const": true
+					"type": "boolean"
 				}
 			}
 		}
