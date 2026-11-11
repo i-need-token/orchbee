@@ -12,8 +12,15 @@ Idle rules need positive live composer chrome and lose to any busy or question c
 
 The bundled Devin Thinking rule requires an anchored live footer with elapsed time and an interrupt hint; a transcript mention or the word Thinking alone is insufficient. A startup choice that the user must answer before the Agent proceeds is a visible blocker. Devin's workspace trust prompt and its first-run theme question (`Detected light theme but configured for dark. Switch?`) need the question and the live choice footer; the question text alone stays unknown. Sampled rows lose trailing whitespace, so needles must not depend on a trailing space. Screen manifests reject `done` and `error`: those outcomes require explicit state authority, not text inference.
 
-Orchbee authored the AtomCode, MiMo Code, Reasonix, Snow CLI, MiniMax Code, MothX, Prime Agent
-and J-Code rules from Windows captures. Where the CLI writes its state into the OSC title,
+MiMo Code is built on OpenCode 1.x, so its rules are the OpenCode 1.x rules of `opencode.toml`: the
+permission blocker, the interrupt hints and the busy spinner, which MiMo draws as a UFO with a dot
+trail instead of progress squares. The OpenCode 1.x rules have no idle rule, so MiMo adds one: the
+prompt-box bottom and a key-hint footer ending in `commands`, without an interrupt hint or the
+spinner; a narrow pane wraps each hint, so a lone `interrupt` row is busy chrome. Its `MC |`-prefixed
+title only names the session.
+
+Orchbee authored the AtomCode, Reasonix, Snow CLI, MiniMax Code, MothX, Prime Agent and J-Code
+rules from Windows captures. Where the CLI writes its state into the OSC title,
 the title decides: AtomCode's green or yellow status light, MiniMax Code's `Ready`, `Working`,
 `Done` or `Stopped` prefix, J-Code's `· work ~` suffix and Snow's `Action Required` prefix. A visible
 busy line still outranks an idle title that lags. Reasonix, MothX and Prime Agent leave
@@ -24,7 +31,8 @@ blocker: workspace trust (MiMo Code, DevEco Code, CodeBuddy Code), sign-in or lo
 Code, CodeBuddy Code), the agreements page (DevEco Code), telemetry or trace sharing (Reasonix,
 Prime Agent) and J-Code's y/n/d setup questions. Each needs its live choices or empty answer row, so
 an answered question stays unknown. Only Snow's tool confirmation has been observed; the other CLIs
-ran the captured shell command without asking, so their approval screens have no rule.
+ran the captured shell command without asking, so their approval screens have no rule apart from
+MiMo Code's OpenCode 1.x permission rule.
 `agent_screen/tests.rs` covers these rules with redacted excerpts.
 
 The bundled Grok rules include browser authentication chrome from Grok

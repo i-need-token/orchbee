@@ -1,14 +1,49 @@
 id = "mimo"
-version = "2026.11.11.1"
+version = "2026.11.11.2"
 min_engine_version = 1
 updated_at = "2026-11-11T00:00:00Z"
 aliases = ["mimocode", "mimo-code"]
 
-# MiMo Code 0.1.x draws an OpenCode-style prompt box closed by a ╹▀▀▀ border with a key-hint
-# footer under it. Its OSC title names the session and does not change while a turn runs. A
-# running turn puts "esc interrupt" into the footer; narrow panes wrap each hint into two rows,
-# leaving "interrupt" alone on the second row. The startup workspace trust question is a list
-# whose live choices carry ●/○ bullets until it is answered.
+# MiMo Code 0.1.x is built on OpenCode 1.x, so these are opencode.toml's OpenCode 1.x rules adapted
+# to it. MiMo's busy spinner is a UFO with a dot trail instead of OpenCode's progress squares, and
+# its brand replaces OpenCode's in the interrupt hint. Its OSC title (`MC | <session>`) names the
+# session and does not change while a turn runs, so it carries no state. Two rules are MiMo's own:
+# the startup workspace trust question, whose live choices carry ●/○ bullets until it is answered,
+# and idle, which the OpenCode 1.x rules do not detect.
+
+[[rules]]
+id = "permission_required"
+state = "blocked"
+priority = 300
+region = "whole_recent"
+visible_blocker = true
+any = [
+	{ contains = [
+		"△ Permission required",
+	] },
+	{ contains = [
+		"esc dismiss",
+	], any = [
+		{ contains = [
+			"enter confirm",
+		] },
+		{ contains = [
+			"enter submit",
+		] },
+		{ contains = [
+			"enter toggle",
+		] },
+	], all = [
+		{ any = [
+			{ contains = [
+				"↑↓ select",
+			] },
+			{ contains = [
+				"⇆ tab",
+			] },
+		] },
+	] },
+]
 
 [[rules]]
 id = "workspace_trust_prompt"
@@ -19,22 +54,37 @@ visible_blocker = true
 line_regex = ['^│\s+[●○] Yes, I trust this folder\s*$', '^│\s+[●○] No, exit\s*$', '^└\s*$']
 
 [[rules]]
-id = "interrupt_footer_working"
+id = "interrupt_hint_working"
 state = "working"
 priority = 110
-region = "bottom_non_empty_lines(3)"
+region = "whole_recent"
 visible_working = true
-line_regex = ['^\s*╹▀{3,}']
 any = [
-	{ line_regex = [
-		'(?i)\besc (?:again to )?interrupt\b',
+	{ contains = [
+		"esc to interrupt",
+	] },
+	{ contains = [
+		"ctrl+c to interrupt",
+	] },
+	{ contains = [
+		"press esc to interrupt",
 	] },
 	{ line_regex = [
-		'(?:^|\s)esc(?:\s|$)',
-		'^\s*interrupt\s*$',
+		'(?i).*mimo.*esc (again to )?interrupt',
 	] },
 ]
 
+[[rules]]
+id = "progress_bar_working"
+state = "working"
+priority = 100
+region = "whole_recent"
+visible_working = true
+regex = ['[∙·˙]🛸|🛸[∙·˙]']
+
+# Idle needs the live prompt box bottom and the key-hint footer that ends in "commands". Narrow
+# panes wrap each footer hint into two rows, so a busy footer can leave "interrupt" alone on the
+# second row.
 [[rules]]
 id = "prompt_footer_idle"
 state = "idle"
@@ -48,5 +98,14 @@ not = [
 	] },
 	{ line_regex = [
 		'^\s*interrupt\s*$',
+	] },
+	{ regex = [
+		'[∙·˙]🛸|🛸[∙·˙]',
+	] },
+	{ contains = [
+		"esc dismiss",
+	] },
+	{ contains = [
+		"△ Permission required",
 	] },
 ]
