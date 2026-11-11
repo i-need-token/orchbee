@@ -405,14 +405,7 @@ impl Picker {
             let suffix = if let Some(status) = row.agent_status() {
                 locale.machine_picker_text(status).to_owned()
             } else if let Some(agent) = row.agent() {
-                let fallback = locale.machine_picker_text(match agent.display_state() {
-                    orchbee_workbench_protocol::MetadataState::Idle => "agent-idle",
-                    orchbee_workbench_protocol::MetadataState::Done => "agent-done",
-                    orchbee_workbench_protocol::MetadataState::Error => "agent-error",
-                    orchbee_workbench_protocol::MetadataState::Working => "agent-working",
-                    orchbee_workbench_protocol::MetadataState::Blocked => "agent-blocked",
-                    orchbee_workbench_protocol::MetadataState::Unknown => "agent-unknown",
-                });
+                let fallback = locale.machine_picker_text(agent.state_word_key());
                 // Sanitize the owned label before it enters a terminal render widget.
                 agent
                     .state_label()

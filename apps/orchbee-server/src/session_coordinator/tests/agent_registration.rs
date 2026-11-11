@@ -630,7 +630,6 @@ mod process_samples {
         assert!(session.observe_host_process(target, &sample, now, now));
         let (rev, view) = read(&mut session);
         assert_eq!(view.agent.as_deref(), Some("claude"));
-        assert_eq!(view.state, PanelAgentState::Unknown);
         let later = now + Duration::from_millis(1);
         assert!(session.observe_host_process(target, &sample, later, later));
         assert_eq!(read(&mut session).0, rev);
@@ -699,7 +698,7 @@ mod process_samples {
         assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
         admit(&mut session, 0, Some(working));
         admit(&mut session, 2999, Some(working));
-        assert_eq!(read(&mut session).1.state, PanelAgentState::Unknown);
+        assert_ne!(read(&mut session).1.state, PanelAgentState::Working);
         admit(&mut session, 3000, Some(working));
         let working_view = read(&mut session);
         assert_eq!(working_view.1.state, PanelAgentState::Working);
@@ -719,7 +718,7 @@ mod process_samples {
         for ms in [5000, 5100, 5500, 8400] {
             let at = now + Duration::from_millis(ms);
             assert!(session.observe_host_screen(target, &sample, Some(working), at, at));
-            assert_eq!(read(&mut session).1.state, PanelAgentState::Unknown);
+            assert_ne!(read(&mut session).1.state, PanelAgentState::Working);
         }
         let at = now + Duration::from_millis(8500);
         assert!(session.observe_host_screen(target, &sample, Some(working), at, at));

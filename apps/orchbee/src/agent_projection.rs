@@ -335,7 +335,8 @@ pub(crate) fn terminal_state(state: PanelAgentState) -> &'static str {
         PanelAgentState::Idle => "idle",
         PanelAgentState::Blocked => "blocked",
         PanelAgentState::Working => "working",
-        PanelAgentState::Unknown => "unknown",
+        // The Agent list has no startup status: an opening Agent's status is not known yet.
+        PanelAgentState::Unknown | PanelAgentState::Opening => "unknown",
     }
 }
 

@@ -501,7 +501,8 @@ specification limit also bounds string operands. Filters use `all`, `any`, `not`
 `tab_id`, `pane_id`, `agent`, `seen`, `state_change_seq`, or `{ "token": "name" }`.
 Values are strings, booleans for `seen`, full unsigned 64-bit integers for sequence,
 or `{ "context": "current_workspace_id" }` / `current_tab_id` for matching ID
-fields. Status admits idle, working, blocked, done, error and unknown.
+fields. Status admits idle, working, blocked, done, error and unknown. A row whose Agent is
+opening has status `opening`, which no filter value names; it ranks with working.
 
 Up to eight sort entries contain `field` and optional `order` (`asc` by default,
 or `desc`). Fields are workspace_order, tab_order, pane_order, attention, status,

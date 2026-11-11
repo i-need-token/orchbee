@@ -70,6 +70,7 @@ fn generated_status_pages_refine_retained_wait_and_prompt_activity_policy() {
             Status::Unknown => AgentWaitCondition::Unknown,
             Status::Done => AgentWaitCondition::Succeeded,
             Status::Error => AgentWaitCondition::Failed,
+            Status::Opening => unreachable!("opening has no wait condition"),
         };
         let mut state = State::new(&read(1, 1, initial, &[]), &[condition], None, prompt).unwrap();
         let actual = state

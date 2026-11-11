@@ -132,7 +132,7 @@
 			}
 		},
 		"agentState": {
-			"enum": ["idle", "working", "blocked", "done", "error", "unknown", null]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown", "opening", null]
 		},
 		"unsupported": {
 			"type": "object",

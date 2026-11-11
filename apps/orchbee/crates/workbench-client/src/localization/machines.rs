@@ -239,6 +239,8 @@ impl Locale {
             (Self::ZhCn, "agent-idle") => "就绪",
             (Self::EnUs, "agent-working") => "Working",
             (Self::ZhCn, "agent-working") => "运行中",
+            (Self::EnUs, "agent-starting") => "Starting",
+            (Self::ZhCn, "agent-starting") => "启动中",
             (Self::EnUs, "agent-blocked") => "Needs attention",
             (Self::ZhCn, "agent-blocked") => "需要处理",
             (Self::EnUs, "agent-unknown") => "Limited status",

@@ -34,7 +34,8 @@ pub(super) fn agent_state(view: PanelReportView<'_>) -> Option<MetadataState> {
     Some(
         match report.map_or(PanelAgentState::Unknown, |r| r.display_state()) {
             PanelAgentState::Idle => MetadataState::Idle,
-            PanelAgentState::Working => MetadataState::Working,
+            // Opening shares the working glyph; only its state word differs.
+            PanelAgentState::Working | PanelAgentState::Opening => MetadataState::Working,
             PanelAgentState::Done => MetadataState::Done,
             PanelAgentState::Error => MetadataState::Error,
             PanelAgentState::Blocked => MetadataState::Blocked,

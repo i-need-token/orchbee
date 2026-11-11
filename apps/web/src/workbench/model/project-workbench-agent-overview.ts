@@ -63,6 +63,7 @@ const STATE_URGENCY: Readonly<Record<WorkbenchAgentState, number>> = {
 	error: 4,
 	done: 3,
 	working: 2,
+	opening: 2,
 	idle: 1,
 	unknown: 0,
 };

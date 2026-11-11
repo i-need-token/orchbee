@@ -48,6 +48,9 @@ pub enum PanelAgentState {
     Error,
     #[default]
     Unknown,
+    /// The Agent process is seen and its screen is not yet recognised. Only the Server's screen
+    /// fallback publishes it; reports and screen rules cannot assert it.
+    Opening,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -88,6 +91,10 @@ pub enum PanelAgentReport {
 impl PanelAgentReport {
     pub fn validate(&self) -> Result<(), ContractError> {
         let agent = match self {
+            Self::State {
+                state: PanelAgentState::Opening,
+                ..
+            } => return Err(ContractError::InvalidDocument),
             Self::State { agent, .. } | Self::Release { agent, .. } => agent,
             Self::Clear { .. } => return Ok(()),
         };

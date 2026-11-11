@@ -100,7 +100,33 @@ The Windows Host adapter validates the exact attachment, Worker generation and H
 
 Each owned read-only viewer reads process identity before consuming its initial full frame, requests a fresh snapshot with StoreReset for that viewer alone, then reads the bottom live-height rows at that exact frame revision and generation. The same fresh frame supplies directory/projection facts and screen interpretation; a second snapshot is unnecessary. UI scroll position does not choose detection text. Both surrounding complete process samples must select the same PID, creation time and provider. A failed or stale frame/row read supplies no screen evidence; the successful complete process sample can still establish presence or exit. Transport rows are bounded to 8 MiB and decoded text to 64 KiB, preserving physical newlines and trimming trailing whitespace/blank tail rows. Title and progress come from the same frame; typed progress projects the current OSC 9;4 state, not raw escape history. No Client display frame is acknowledged.
 
-The coordinator retains screen stability and a three-second startup grace for evidence without a visible working, idle or blocker flag per physical process identity. Explicit visible evidence bypasses that grace, so a short first turn can publish Working and return to Idle before three seconds elapse. Process-only observations preserve screen timing; identity departure/replacement resets it. Changed explicit-report input permits fresh matching screen evidence to republish the settled fallback without bypassing idle confirmation. Prepared timing and fallback commit only after report/metadata admission succeeds. Bundled rule license and attribution ship in the Windows cohort under `licenses/agent-detection`.
+The coordinator retains screen stability and a three-second startup grace for evidence without a visible working, idle or blocker flag per physical process identity. Explicit visible evidence bypasses that grace, so a short first turn can publish Working and return to Idle before three seconds elapse. Process-only observations preserve screen timing; identity departure/replacement resets it.
+
+### Opening
+
+The first process sample that publishes an Agent run also publishes the Panel state `opening`: the
+process is seen and no screen rule or program status has recognised its state yet. Every run enters
+the same way, whether an Orchbee start sent its command or the person typed it. Clients draw
+`opening` with the working glyph and its breathing motion and no other mark; their state word is
+"Starting". The run stays opening while its screen yields no state evidence or only evidence still
+inside the startup grace. The first recognised state (idle, working, blocked, done or error) ends
+opening for the life of the run; later unreadable screens publish unknown as before. A run that is
+still unrecognised 15 seconds after it was first seen publishes unknown, and any later match
+publishes its state. Opening never becomes blocked by itself: only a visible blocker, a program
+status or an explicit report publishes blocked, so a screen Orchbee cannot read stays gray instead
+of claiming the person is needed. The settle time is longer than the grace because captured Agents
+fetch plugins, install skills or start a daemon before their first screen, and capture probes waited
+5 seconds for a first frame; 15 seconds covers those starts without leaving an exited or unreadable
+Agent breathing for long. Both constants live in the Server's screen adapter
+(`agent_screen/startup.rs`), and a rule reload restores opening only for runs not yet recognised.
+
+`opening` is a published value only. Panel reports, screen rules and program status records cannot
+assert it: report validation and rule loading refuse it. Completion is unaffected, because only a
+published working state arms Done. The Agent list status and physical attention read it as unknown,
+`agent wait` has no condition for it, and terminal lists and panel reports show "starting". The
+state lives on the wire, not in Clients, because only the Server knows when a run was first seen;
+deriving it in each Client would need that time on the wire anyway, and publishing working instead
+would mislead automation that waits for working. Changed explicit-report input permits fresh matching screen evidence to republish the settled fallback without bypassing idle confirmation. Prepared timing and fallback commit only after report/metadata admission succeeds. Bundled rule license and attribution ship in the Windows cohort under `licenses/agent-detection`.
 
 Working-to-plain-idle transitions hold for three further confirmations or 700 ms; explicit visible idle/blockers, provider change or exit clear that hold. Stable visible blockers refresh at 800 ms so newer weak reports can be challenged without publishing every sampling tick. Startup grace and sampling cadence are adapter responsibilities. Screen and process sampling must retain the existing required-completion and uncertain-viewer-cleanup ownership. No controller/input/focus effect is admitted.
 

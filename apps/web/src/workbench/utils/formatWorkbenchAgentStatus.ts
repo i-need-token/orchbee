@@ -32,6 +32,12 @@ const STATE_VIEWS: Readonly<Record<WorkbenchAgentState, WorkbenchAgentStateView>
 		tone: 'danger',
 	},
 	idle: { message: agentObservationMessages.statusReady, shape: 'ring', tone: 'idle' },
+	// Opening breathes with the working glyph until the Agent's screen is recognised.
+	opening: {
+		message: agentObservationMessages.statusStarting,
+		shape: 'hex',
+		tone: 'working',
+	},
 	unknown: {
 		message: agentObservationMessages.statusUnknown,
 		shape: 'dot',

@@ -310,7 +310,7 @@ fn panel_state(state: PanelAgentState) -> Option<String> {
             PanelAgentState::Blocked => "blocked",
             PanelAgentState::Done => "done",
             PanelAgentState::Error => "error",
-            PanelAgentState::Unknown => return None,
+            PanelAgentState::Unknown | PanelAgentState::Opening => return None,
         }
         .to_owned(),
     )

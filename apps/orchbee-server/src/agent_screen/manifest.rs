@@ -211,6 +211,9 @@ impl Manifest {
             if matches!(state, PanelAgentState::Done | PanelAgentState::Error) {
                 return Err("Turn outcomes require explicit reports, not screen matchers".into());
             }
+            if state == PanelAgentState::Opening {
+                return Err("Opening is the Server's startup state, not a screen matcher".into());
+            }
             let result = Detection {
                 state,
                 skip: raw.skip_state_update,

@@ -600,7 +600,7 @@
 			}
 		},
 		"physical_state": {
-			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown", "opening"]
 		},
 		"physical_revision": {
 			"type": "string",

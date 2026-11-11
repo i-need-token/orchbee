@@ -61,7 +61,7 @@ impl ViewEntry for Entry<'_> {
             "blocked" => 5,
             "error" => 4,
             "done" => 3,
-            "working" => 2,
+            "working" | "opening" => 2,
             "idle" => 1,
             _ => 0,
         }
@@ -111,6 +111,7 @@ impl Row {
             PanelAgentState::Blocked => "blocked",
             PanelAgentState::Working => "working",
             PanelAgentState::Unknown => "unknown",
+            PanelAgentState::Opening => "opening",
         }
     }
 }

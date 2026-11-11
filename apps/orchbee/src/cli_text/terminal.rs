@@ -286,6 +286,8 @@ impl super::CliText {
             (Locale::ZhCn, TerminalListState::Agent(PanelAgentState::Done)) => "完成",
             (Locale::ZhCn, TerminalListState::Agent(PanelAgentState::Error)) => "错误",
             (Locale::ZhCn, TerminalListState::Agent(PanelAgentState::Unknown)) => "未知",
+            (Locale::EnUs, TerminalListState::Agent(PanelAgentState::Opening)) => "starting",
+            (Locale::ZhCn, TerminalListState::Agent(PanelAgentState::Opening)) => "启动中",
         }
     }
 

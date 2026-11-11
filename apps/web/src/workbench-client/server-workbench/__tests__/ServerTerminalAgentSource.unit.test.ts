@@ -10,7 +10,7 @@ import type { ServerWorkbenchEnd } from '../ServerWorkbenchSession';
 import { ServerTerminalAgentSource } from '../ServerTerminalAgentSource';
 
 type Handlers = Parameters<ServerConnection['subscribe']>[2];
-type AgentState = 'blocked' | 'done' | 'error' | 'idle' | 'unknown' | 'working';
+type AgentState = 'blocked' | 'done' | 'error' | 'idle' | 'opening' | 'unknown' | 'working';
 
 const SESSION_ID = hex(0x1);
 const WORKER_ID = hex(0x3);

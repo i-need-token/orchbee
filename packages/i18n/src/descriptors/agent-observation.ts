@@ -254,6 +254,12 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.unknown'],
 		description: 'Terminal Agent state that is not known; it does not guess idle or work.',
 	},
+	statusStarting: {
+		id: 'agent.observation.status.starting',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.status.starting'],
+		description:
+			'Terminal Agent state: the Agent process is running and its first screen is not recognised yet.',
+	},
 	statusWorking: {
 		id: 'agent.observation.status.working',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.status.working'],

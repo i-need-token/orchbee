@@ -221,7 +221,8 @@ impl PhysicalAttentionState {
                         PanelAgentState::Error => State::Error,
                         PanelAgentState::Working => State::Working,
                         PanelAgentState::Blocked => State::Blocked,
-                        PanelAgentState::Unknown => State::Unknown,
+                        // An opening Agent has no turn yet, so it raises no notification.
+                        PanelAgentState::Unknown | PanelAgentState::Opening => State::Unknown,
                     },
                     seen: entry.seen,
                 })

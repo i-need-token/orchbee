@@ -37,6 +37,8 @@ pub(super) struct Sample {
     identity: identity::IdentityState,
     input_revision: u64,
     first_seen: Instant,
+    /// Whether a screen rule or program status has recognised this run's state since first sight.
+    recognised: bool,
     screen: Stability,
     screen_input_revision: u64,
     directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
@@ -249,25 +251,23 @@ impl SessionCoordinator {
         };
         let same = prior.filter(|p| p.published() == retained);
         let first_seen = same.map_or(started, |p| p.first_seen);
+        let recognised = same.is_some_and(|p| p.recognised);
+        // A newly seen run reads as opening until its screen is recognised or settles.
         let mut screen = same.map_or_else(
-            || Stability::new(Detection::fallback(false)),
+            || Stability::new(Detection::opening()),
             |p| p.screen.clone(),
         );
         let mut screen_input_revision = same.map_or(0, |p| p.screen_input_revision);
         #[cfg(windows)]
         let command_line = published_command_line(sample, retained, same);
         let mut fallback = None;
+        let since_seen = started.saturating_duration_since(first_seen);
         if departed.is_none()
             && selected.is_some()
-            && let Some(detection) = detection
-            && (detection.visible_working
-                || detection.visible_idle
-                || detection.visible_blocker
-                || started.saturating_duration_since(first_seen)
-                    >= std::time::Duration::from_secs(3))
+            && let Some(detection) =
+                crate::agent_screen::admit_startup_evidence(detection, since_seen, recognised)
         {
-            let Ok(tick) = u64::try_from(started.saturating_duration_since(first_seen).as_millis())
-            else {
+            let Ok(tick) = u64::try_from(since_seen.as_millis()) else {
                 return false;
             };
             let Ok(prepared) = screen.prepare(detection, tick, false) else {
@@ -288,6 +288,13 @@ impl SessionCoordinator {
                     visible_blocker: p.visible_blocker,
                 });
         }
+        if same.is_none() && departed.is_none() && retained.is_some() && fallback.is_none() {
+            fallback = Some(orchbee_server::TerminalAgentScreenObservation {
+                state: screen.published().state,
+                visible_blocker: false,
+            });
+        }
+        let recognised = recognised || screen.published().recognised();
         let event = event.or_else(|| fallback.and(selected.map(|p| (p.provider, false))));
         if let Some((provider, exited)) = event
             && workbench
@@ -322,6 +329,7 @@ impl SessionCoordinator {
                 identity,
                 input_revision,
                 first_seen,
+                recognised,
                 screen,
                 screen_input_revision,
                 directory,
@@ -637,7 +645,11 @@ impl SessionCoordinator {
 
     pub(crate) fn reset_screen_stabilization(&mut self) {
         for sample in self.process_samples.values_mut() {
-            sample.screen = Stability::new(Detection::fallback(false));
+            sample.screen = Stability::new(if sample.recognised {
+                Detection::fallback(false)
+            } else {
+                Detection::opening()
+            });
             sample.screen_input_revision = 0;
         }
     }

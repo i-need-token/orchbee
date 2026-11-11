@@ -1640,7 +1640,7 @@
 			}
 		},
 		"publicPanel_d60": {
-			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown", "opening"]
 		},
 		"publicPanel_d63": {
 			"oneOf": [

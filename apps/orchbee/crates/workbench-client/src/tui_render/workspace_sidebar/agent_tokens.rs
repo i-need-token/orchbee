@@ -14,13 +14,12 @@ struct Context<'a> {
 impl<'a> Context<'a> {
     fn new(view: &ClientView, row: &'a Row, locale: Locale) -> Option<Self> {
         let agent = row.sidebar_agent()?;
-        let (key, _) = super::super::sidebar_text::state_role(agent.display_state());
         Some(Self {
             agent,
             machine: machine_label(view, row, locale),
             state: agent
                 .state_label()
-                .unwrap_or(locale.machine_picker_text(key)),
+                .unwrap_or(locale.machine_picker_text(agent.state_word_key())),
         })
     }
     fn value(&self, kind: Kind<'_>) -> Option<&str> {

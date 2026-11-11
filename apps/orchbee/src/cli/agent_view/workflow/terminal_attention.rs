@@ -70,7 +70,7 @@ impl Read {
             PanelAgentState::Error => Some("error"),
             PanelAgentState::Working => Some("working"),
             PanelAgentState::Blocked => Some("blocked"),
-            PanelAgentState::Unknown => Some("unknown"),
+            PanelAgentState::Unknown | PanelAgentState::Opening => Some("unknown"),
         };
         ClientAttention {
             client_id: self.client,

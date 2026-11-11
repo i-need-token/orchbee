@@ -1409,7 +1409,7 @@
 			}
 		},
 		"reportState": {
-			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown", "opening"]
 		},
 		"reportView": {
 			"type": "object",

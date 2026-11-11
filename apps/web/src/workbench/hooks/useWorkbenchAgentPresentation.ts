@@ -83,6 +83,7 @@ const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornme
 	done: 'success',
 	error: 'error',
 	idle: 'idle',
+	opening: 'active',
 	unknown: 'idle',
 	working: 'active',
 };

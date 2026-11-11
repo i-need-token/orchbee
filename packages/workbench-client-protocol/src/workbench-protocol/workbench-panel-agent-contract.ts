@@ -10,6 +10,7 @@ import {
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES = 512 * 1024;
+/** `opening`: the Agent process is seen and its screen is not yet recognised; only the Server publishes it. */
 export const PanelAgentStateSchema = z.enum([
 	'idle',
 	'working',
@@ -17,7 +18,9 @@ export const PanelAgentStateSchema = z.enum([
 	'done',
 	'error',
 	'unknown',
+	'opening',
 ]);
+const PanelAgentReportStateSchema = PanelAgentStateSchema.exclude(['opening']);
 const PanelAgentDispositionSchema = z.enum(['applied', 'ignored']);
 const trim = (value: string) => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
 const label = z.string().refine((value) => trim(value).length > 0);
@@ -33,7 +36,7 @@ const PanelAgentReportSchema = z.discriminatedUnion('kind', [
 			kind: z.literal('state'),
 			source: z.string(),
 			agent: label,
-			state: PanelAgentStateSchema,
+			state: PanelAgentReportStateSchema,
 			message: optionalString,
 			sequence: optionalSequence,
 		})

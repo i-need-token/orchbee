@@ -8,10 +8,12 @@ mod loading;
 mod manifest;
 mod regions;
 mod stability;
+mod startup;
 pub(crate) mod updating;
 mod version;
 pub(crate) use loading::RemoteCache;
 pub(crate) use stability::Stability;
+pub(crate) use startup::admit as admit_startup_evidence;
 #[cfg(test)]
 mod tests;
 

@@ -15,6 +15,8 @@ impl Locale {
             (Self::ZhCn, PanelAgentState::Error) => "错误",
             (Self::EnUs, PanelAgentState::Unknown) => "unknown",
             (Self::ZhCn, PanelAgentState::Unknown) => "未知",
+            (Self::EnUs, PanelAgentState::Opening) => "starting",
+            (Self::ZhCn, PanelAgentState::Opening) => "启动中",
         }
     }
 }

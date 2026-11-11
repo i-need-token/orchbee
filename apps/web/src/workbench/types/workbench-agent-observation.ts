@@ -1,5 +1,15 @@
-/** A terminal Agent's report state; only explicit reports say done or error. */
-export type WorkbenchAgentState = 'blocked' | 'done' | 'error' | 'idle' | 'unknown' | 'working';
+/**
+ * A terminal Agent's report state; only explicit reports say done or error. `opening`: the Agent
+ * process is seen and its screen is not yet recognised.
+ */
+export type WorkbenchAgentState =
+	| 'blocked'
+	| 'done'
+	| 'error'
+	| 'idle'
+	| 'opening'
+	| 'unknown'
+	| 'working';
 
 /** The Agent the Server observes in one terminal Presentation. */
 export interface WorkbenchAgentObservation {

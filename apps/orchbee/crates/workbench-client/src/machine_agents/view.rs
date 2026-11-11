@@ -161,7 +161,7 @@ pub(crate) fn urgency(row: &Row) -> u8 {
         "blocked" => 5,
         "error" => 4,
         "done" => 3,
-        "working" => 2,
+        "working" | "opening" => 2,
         "idle" => 1,
         _ => 0,
     }
@@ -256,9 +256,24 @@ impl Row {
             "blocked" => MetadataState::Blocked,
             "done" => MetadataState::Done,
             "error" => MetadataState::Error,
-            "working" => MetadataState::Working,
+            // An opening Agent breathes with the working glyph until its screen is recognised.
+            "working" | "opening" => MetadataState::Working,
             "idle" => MetadataState::Idle,
             _ => MetadataState::Unknown,
+        }
+    }
+    /// The machine-picker text key of this row's state word.
+    pub(crate) fn state_word_key(&self) -> &'static str {
+        match self.status() {
+            "opening" => "agent-starting",
+            _ => match self.display_state() {
+                MetadataState::Idle => "agent-idle",
+                MetadataState::Done => "agent-done",
+                MetadataState::Error => "agent-error",
+                MetadataState::Working => "agent-working",
+                MetadataState::Blocked => "agent-blocked",
+                MetadataState::Unknown => "agent-unknown",
+            },
         }
     }
     pub(crate) fn state_label(&self) -> Option<&str> {
@@ -266,7 +281,7 @@ impl Row {
             PanelAgentState::Done => MetadataState::Done,
             PanelAgentState::Error => MetadataState::Error,
             PanelAgentState::Blocked => MetadataState::Blocked,
-            PanelAgentState::Working => MetadataState::Working,
+            PanelAgentState::Working | PanelAgentState::Opening => MetadataState::Working,
             PanelAgentState::Idle => MetadataState::Idle,
             PanelAgentState::Unknown => MetadataState::Unknown,
         };

@@ -100,6 +100,7 @@ function summarize(
 				workingAgents += 1;
 				break;
 			case 'idle':
+			case 'opening':
 			case 'unknown':
 				break;
 		}

@@ -623,7 +623,7 @@ physical `observe` / `observed` reads. The shared corpus checks required nullabl
 Host identities and semantic change shapes; language bindings additionally enforce contiguous
 sequence/head/current-state consistency. Exact cursor coverage belongs to request/result correlation.
 
-Panel reports admit idle, working, blocked, done, error and unknown. Done and error require explicit state reports; screen rules cannot assert outcomes. Client read acknowledgement is independent and never converts idle into completion. The shared corpus carries explicit done/error requests and unknown fallback explanations.
+Panel reports admit idle, working, blocked, done, error and unknown. Published Panel state adds opening, which only the Server publishes while an Agent process is seen and its screen is not yet recognised; reports cannot assert it. Done and error require explicit state reports; screen rules cannot assert outcomes. Client read acknowledgement is independent and never converts idle into completion. The shared corpus carries explicit done/error requests and unknown fallback explanations.
 
 Report views and physical state snapshots additionally publish `completion`: `none`,
 `awaiting-input` or `acknowledged` (omission decodes as `none`). The Server retains this fact for
