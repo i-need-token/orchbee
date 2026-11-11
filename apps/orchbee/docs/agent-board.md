@@ -44,7 +44,11 @@ task sending, scheduling and persistence are excluded.
 
 One action, `agent.start`, opens the Start Agent picker: `Ctrl+B G`, the action menu's
 **Start Agent…**, the Board's always-present **+ Start Agent** row above its sessions, `s` anywhere
-in the Board, and the empty Workspace hint beside new Tab. From the Board the picker replaces the
+in the Board, the empty Workspace hint beside new Tab, and the new-Tab button's More Agents…, which
+opens it with new Tab as its place. That menu's Agent rows start directly instead: they list up to
+four of this picker's Recent then Installed providers, fixed when the menu opens, and start one as
+the new-Tab place does, with the same watch, notices and first-prompt fallback
+([action menus](native-action-menus.md)). From the Board the picker replaces the
 Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alone without a Board
 read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
 opens, a search field, a divider, the grouped list, a status row only while there is something to
@@ -67,7 +71,8 @@ entry per provider; nothing is persisted. A remote Session performs no local PAT
 lists Recent, then every provider under "Not checked on this machine" A–Z.
 
 On Windows each opening repeats the lookup of mapped commands on the Client's inherited `PATH`
-using fixed System32 `where.exe` helpers, keeping the previous list until it completes. At most
+using fixed System32 `where.exe` helpers, keeping the previous list until it completes. Opening the
+new-Tab button's menu begins the first lookup when none has run, and never repeats one. At most
 four owned workers run concurrently, with a six-second shared deadline, a 900 ms lookup slot and
 bounded Job termination. Results publish one at a time; a missing, failed or timed-out lookup never
 discards other results, and an incomplete first lookup claims nothing installed. Until the first

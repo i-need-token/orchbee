@@ -105,7 +105,8 @@ the selection surface and accent text.
 ## Pointer arrangement and menu navigation
 
 The new-Tab button's right-click menu lists the saved launch profiles, the default first and
-marked Default, and opens only with more than one profile. The global menu's new-Tab submenu holds
+marked Default, then its [Agents section](native-action-menus.md); with a single profile and no
+Agents section it opens no menu. The global menu's new-Tab submenu holds
 New Tab, New Tab in Recent Group, New Group with Tab and the profiles. The recent group is local
 to the current context: active group, last retained group, then the last existing group.
 A group header's right-click opens the exact group menu: in-group creation, rename and a
