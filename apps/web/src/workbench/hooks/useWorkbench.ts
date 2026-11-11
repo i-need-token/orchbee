@@ -397,7 +397,11 @@ export function useWorkbench({
 	const startAgentShortcutLabel = visibleShortcutLabel(
 		formatWorkbenchShortcut('startAgent', shortcutPlatform, shortcutBindings),
 	);
-	const authorityNotice = useWorkbenchAuthorityNotice(authority, projectWorkspaceRuntime);
+	const authorityNotice = useWorkbenchAuthorityNotice(
+		authority,
+		projectWorkspaceRuntime,
+		startAgentShortcutLabel,
+	);
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
 	);

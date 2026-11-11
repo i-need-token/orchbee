@@ -24,6 +24,7 @@ import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { createServerWorkbenchClose } from './createServerWorkbenchClose';
 import { createServerWorktrees } from './createServerWorktrees';
 import { createServerAgentResumeNotices } from './createServerAgentResumeNotices';
+import { createServerAgentStartNotices } from './createServerAgentStartNotices';
 import { createServerHeldRestores } from './createServerHeldRestores';
 import { createServerEarlierLayouts } from './createServerEarlierLayouts';
 import { duplicateServerTabs } from './duplicateServerTabs';
@@ -383,6 +384,7 @@ export function createServerWorkbenchAuthority({
 		},
 		duplicateTabs: (context, duplication) => duplicateServerTabs(session, context, duplication),
 		agentResumeNotices: createServerAgentResumeNotices(session),
+		agentStartNotices: createServerAgentStartNotices(session),
 		earlierLayouts: createServerEarlierLayouts(session),
 		heldRestores: createServerHeldRestores(session),
 		worktrees: createServerWorktrees(session),

@@ -57,6 +57,8 @@ export type {
 export type {
 	WorkbenchAgentNotResumed,
 	WorkbenchAgentResumeNotices,
+	WorkbenchAgentStartFailure,
+	WorkbenchAgentStartNotices,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityClosure,

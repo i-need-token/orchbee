@@ -310,6 +310,23 @@ export interface WorkbenchAgentResumeNotices {
 	subscribe(listener: (notice: WorkbenchAgentNotResumed) => void): () => void;
 }
 
+/** The Agent start a new Tab, split or Worktree carried did not happen, as the Server found. */
+export interface WorkbenchAgentStartFailure {
+	readonly providerId: WorkbenchAgentStartProvider;
+	readonly reason:
+		| 'exited'
+		| 'not-found'
+		| 'prompt-unconfirmed'
+		| 'terminal-too-old'
+		| 'unsupported-shell';
+}
+
+/** The Server's start facts as news: each one once, only while it is fresh and newer than the listener. */
+export interface WorkbenchAgentStartNotices {
+	/** Calls `listener` with the newest fact each snapshot brings that this Client has not seen. */
+	subscribe(listener: (notice: WorkbenchAgentStartFailure) => void): () => void;
+}
+
 /** Starts the terminal of a held restore in its saved directory or the home folder, once. */
 export interface WorkbenchHeldRestores {
 	restore(
@@ -372,6 +389,8 @@ export interface WorkbenchAuthority {
 	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where no Server resumes Agent conversations after a restart. */
 	readonly agentResumeNotices?: WorkbenchAgentResumeNotices | undefined;
+	/** Absent where no Server delivers the Agent start a new terminal carries. */
+	readonly agentStartNotices?: WorkbenchAgentStartNotices | undefined;
 	/** Absent where this authority runs no configured commands. */
 	readonly configuredCommands?: WorkbenchConfiguredCommands | undefined;
 	change(

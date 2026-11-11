@@ -26,12 +26,14 @@ import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-locat
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchAgentNotResumed,
+	WorkbenchAgentStartFailure,
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
 	WorkbenchEarlierLayouts,
 	WorkbenchHeldRestores,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
+import type { WorkbenchAgentCatalogSource } from '../types/workbench-agent-start';
 import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 import { formatWorkbenchAgentProvider } from '../utils/workbench-agent-names';
@@ -157,6 +159,45 @@ function agentNotResumedNotice(
 	};
 }
 
+/**
+ * A start the Server found did not happen, worded as the TUI's start notice. Not found names the
+ * key that opens Start Agent to choose another Agent; the shell's prompt never confirmed, or a
+ * terminal too old to confirm one, reads like a typed start's own refusal.
+ */
+function agentStartFailureNotice(
+	intl: IntlShape,
+	{ providerId, reason }: WorkbenchAgentStartFailure,
+	catalog: WorkbenchAgentCatalogSource | undefined,
+	startAgentShortcutLabel: string | undefined,
+): WorkbenchAuthorityNotice {
+	const product =
+		catalog?.getSnapshot()?.agents.find((agent) => agent.providerId === providerId)?.productName ??
+		formatWorkbenchAgentProvider(intl, providerId);
+	const values = { product };
+	switch (reason) {
+		case 'not-found':
+			return startAgentShortcutLabel === undefined
+				? { descriptor: workbenchMessages.agentStartNotFoundUnbound, lifetime: 'timed', values }
+				: {
+						descriptor: workbenchMessages.agentStartNotFound,
+						lifetime: 'timed',
+						values: { key: startAgentShortcutLabel, product },
+					};
+		case 'exited':
+			return { descriptor: workbenchMessages.agentStartExited, lifetime: 'timed', values };
+		case 'unsupported-shell':
+			return {
+				descriptor: workbenchMessages.agentStartUnsupportedShell,
+				lifetime: 'timed',
+				values,
+			};
+		case 'prompt-unconfirmed':
+			return { descriptor: workbenchMessages.agentStartNotAtPrompt, lifetime: 'timed' };
+		case 'terminal-too-old':
+			return { descriptor: workbenchMessages.agentStartTerminalTooOld, lifetime: 'timed' };
+	}
+}
+
 /** Whether `current` already says what `next` says, so `next` would only restart its time. */
 function sameWords(
 	current: WorkbenchAuthorityNotice | null,
@@ -193,11 +234,14 @@ function reportingEarlierLayouts(
  * Workspace or Project close says Closed once its Workspaces leave at the Server's acceptance, and
  * one Tab's close says Closing only while it runs slow after its Tab left. Dissolving a Project
  * says that its Workspaces remain. A resume the Server gave up after a restart is said once, and
- * the same words already showing keep their time.
+ * the same words already showing keep their time; so is an Agent start a new terminal carried that
+ * did not happen.
  */
 export function useWorkbenchAuthorityNotice(
 	authority: WorkbenchAuthority,
 	projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime,
+	/** Start Agent's effective shortcut, which a not-found start names; absent while it has none. */
+	startAgentShortcutLabel?: string,
 ): WorkbenchAuthorityNoticeView {
 	const intl = useOrchbeeIntl();
 	const [notice, setNotice] = React.useState<WorkbenchAuthorityNotice | null>(null);
@@ -402,6 +446,20 @@ export function useWorkbenchAuthorityNotice(
 				);
 			}),
 		[agentResumeNotices, intl],
+	);
+	const agentStartNotices = authority.agentStartNotices;
+	const startNoticeFor = useMemoizedFn((failure: WorkbenchAgentStartFailure) =>
+		agentStartFailureNotice(intl, failure, authority.agentCatalog, startAgentShortcutLabel),
+	);
+	React.useEffect(
+		() =>
+			agentStartNotices?.subscribe((failure) => {
+				const next = startNoticeFor(failure);
+				setNotice((current) =>
+					current?.lifetime === 'until-press' || sameWords(current, next) ? current : next,
+				);
+			}),
+		[agentStartNotices, startNoticeFor],
 	);
 	const withdrawDirectoryRefusal = useMemoizedFn(() => {
 		setNotice((current) =>
