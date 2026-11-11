@@ -1693,7 +1693,9 @@ and is never reset per stage:
    `<data root>/internal/runtime`, select the Session (`default` unless routed), then
    `prepare_mode_checked` in create-if-missing mode: the runtime directory may be created even
    on an invocation that later refuses. Rendezvous errors classify exactly like a query's
-   discovery stage.
+   discovery stage. A data folder the macOS or Linux admission rules refuse is `check-failed`
+   `{stage:"runtime-base"}`; its text names the item at fault and the fix with the TUI's
+   startup refusal copy, while the machine document keeps only the stage.
 3. **Socket budget** — every derived socket path must fit this platform's `sockaddr_un`;
    an over-budget path is `service-unavailable`
    `{stage:"runtime-directory",reason:"address-too-long"}` before any lock or admission attempt.

@@ -206,7 +206,13 @@ fn classify(failure: ActivationFailure) -> Failure {
             if error.kind() == std::io::ErrorKind::TimedOut {
                 timeout()
             } else {
-                Failure::new(FailureKind::CheckFailed).details(stage_details("runtime-base"))
+                let failed =
+                    Failure::new(FailureKind::CheckFailed).details(stage_details("runtime-base"));
+                // A refused folder names the item at fault and how to fix it, as the TUI does.
+                match failure.failure {
+                    StartupFailure::Refused(refusal) => failed.admission_refusal(refusal),
+                    _ => failed,
+                }
             }
         }
         // Lock/marker/probe I/O: a TimedOut kind means the shared budget

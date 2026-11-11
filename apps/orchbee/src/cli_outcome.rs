@@ -114,6 +114,9 @@ pub(crate) enum FailureDisplay {
     /// interrupt ended it while the local session kept answering; the machine
     /// document keeps its own stage details.
     Awaited(Awaited),
+    /// A macOS or Linux data folder the local runtime refused, with the item
+    /// at fault; the machine document keeps its `runtime-base` stage.
+    Refused(Box<orchbee_local_runtime::AdmissionRefusal>),
 }
 
 /// An outcome a CLI wait observes through the local session.
@@ -264,6 +267,23 @@ impl Failure {
                 .map(orchbee_local_runtime::CohortArtifact::file_name),
         })));
         self
+    }
+
+    /// Retain the folder the local runtime refused and why, for the localized
+    /// diagnostic only; the machine document keeps its stage.
+    pub(crate) fn admission_refusal(
+        mut self,
+        refusal: Box<orchbee_local_runtime::AdmissionRefusal>,
+    ) -> Self {
+        self.display = Some(Box::new(FailureDisplay::Refused(refusal)));
+        self
+    }
+
+    pub(crate) fn refused(&self) -> Option<&orchbee_local_runtime::AdmissionRefusal> {
+        match self.display.as_deref() {
+            Some(FailureDisplay::Refused(refusal)) => Some(refusal),
+            _ => None,
+        }
     }
 }
 

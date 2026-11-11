@@ -609,6 +609,16 @@ impl super::CliText {
             .and_then(|details| details.get("stage"))
             .and_then(|value| value.as_str())
             .unwrap_or("");
+        if stage == "runtime-base"
+            && let Some(refusal) = failure.refused()
+        {
+            return self
+                .locale
+                .startup_failure(&crate::local_startup::StartupFailure::Refused(Box::new(
+                    refusal.clone(),
+                )))
+                .into_owned();
+        }
         match (self.locale, stage) {
             (Locale::EnUs, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
             (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
