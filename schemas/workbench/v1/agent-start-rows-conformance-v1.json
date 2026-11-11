@@ -1,0 +1,1039 @@
+{
+	"contractVersion": 1,
+	"cases": [
+		{
+			"name": "first lookup lists nothing and shows no fold",
+			"catalog": {
+				"revision": "2",
+				"startable": true,
+				"lookup": { "status": "running", "checkedAt": null },
+				"recent": ["codex", "claude-code"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "checking" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "checking"
+					},
+					{
+						"providerId": "codex",
+						"productName": "Codex",
+						"command": "codex",
+						"state": "checking"
+					},
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "checking"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "checking"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "checking"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": "looking",
+				"rows": []
+			}
+		},
+		{
+			"name": "first lookup ignores a query and an opened fold",
+			"catalog": {
+				"revision": "2",
+				"startable": true,
+				"lookup": { "status": "running", "checkedAt": null },
+				"recent": ["codex", "claude-code"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "checking" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "checking"
+					},
+					{
+						"providerId": "codex",
+						"productName": "Codex",
+						"command": "codex",
+						"state": "checking"
+					},
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "checking"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "checking"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "checking"
+					}
+				]
+			},
+			"query": "snow",
+			"expanded": true,
+			"expected": {
+				"status": "looking",
+				"rows": []
+			}
+		},
+		{
+			"name": "complete lookup lists Recent, Installed and the fold",
+			"catalog": {
+				"revision": "5",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "opencode", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "codex", "group": "recent", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "recent",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "fold", "count": 4 }
+				]
+			}
+		},
+		{
+			"name": "an opened fold lists not found and cannot check A to Z",
+			"catalog": {
+				"revision": "5",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": true,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "opencode", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "codex", "group": "recent", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "recent",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "not-found" },
+					{
+						"kind": "provider",
+						"providerId": "cursor",
+						"group": "not-found",
+						"detail": "cant-check"
+					},
+					{
+						"kind": "provider",
+						"providerId": "openclaw",
+						"group": "not-found",
+						"detail": "cant-check"
+					},
+					{ "kind": "provider", "providerId": "pi", "group": "not-found", "detail": "not-found" },
+					{ "kind": "provider", "providerId": "snow", "group": "not-found", "detail": "cant-check" }
+				]
+			}
+		},
+		{
+			"name": "a later running lookup keeps the last rows",
+			"catalog": {
+				"revision": "6",
+				"startable": true,
+				"lookup": { "status": "running", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "opencode", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "codex", "group": "recent", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "recent",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "fold", "count": 4 }
+				]
+			}
+		},
+		{
+			"name": "a later failed lookup keeps the last rows",
+			"catalog": {
+				"revision": "7",
+				"startable": true,
+				"lookup": { "status": "failed", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "opencode", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "codex", "group": "recent", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "recent",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "fold", "count": 4 }
+				]
+			}
+		},
+		{
+			"name": "a query searches folded rows by command",
+			"catalog": {
+				"revision": "5",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "agent",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "not-found" },
+					{
+						"kind": "provider",
+						"providerId": "cursor",
+						"group": "not-found",
+						"detail": "cant-check"
+					}
+				]
+			}
+		},
+		{
+			"name": "a query is trimmed and ignores case",
+			"catalog": {
+				"revision": "5",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": " CODE ",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "opencode", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "codex", "group": "recent", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "recent",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "installed",
+						"detail": "command"
+					}
+				]
+			}
+		},
+		{
+			"name": "a query matches a provider id",
+			"catalog": {
+				"revision": "5",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "e-c",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "recent",
+						"detail": "command"
+					},
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					}
+				]
+			}
+		},
+		{
+			"name": "a query without matches lists nothing",
+			"catalog": {
+				"revision": "5",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": ["opencode", "pi", "codex", "claude-code", "gemini"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "found"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "found"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "zzz",
+			"expanded": true,
+			"expected": {
+				"status": null,
+				"rows": []
+			}
+		},
+		{
+			"name": "an empty fold shows no fold row",
+			"catalog": {
+				"revision": "3",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": [],
+				"agents": [
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "found"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "found"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "installed" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "installed",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{
+						"kind": "provider",
+						"providerId": "openclaw",
+						"group": "installed",
+						"detail": "command"
+					}
+				]
+			}
+		},
+		{
+			"name": "a failed first lookup lists every row not checked",
+			"catalog": {
+				"revision": "3",
+				"startable": true,
+				"lookup": { "status": "failed", "checkedAt": null },
+				"recent": ["pi", "snow", "codex", "gemini", "claude-code"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "unknown"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "unknown" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "unknown"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "unknown"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": "couldnt-check",
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "snow", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "codex", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "gemini", "group": "recent", "detail": "command" },
+					{ "kind": "heading", "group": "not-checked" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "codex",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "cursor",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "gemini",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "openclaw",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "snow", "group": "not-checked", "detail": "command" },
+					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "provider", "providerId": "pi", "group": "not-found", "detail": "not-found" }
+				]
+			}
+		},
+		{
+			"name": "a failed first lookup filters every group by the query",
+			"catalog": {
+				"revision": "3",
+				"startable": true,
+				"lookup": { "status": "failed", "checkedAt": null },
+				"recent": ["pi", "snow", "codex", "gemini", "claude-code"],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "unknown"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "unknown" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "unknown"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "unknown"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "i",
+			"expanded": false,
+			"expected": {
+				"status": "couldnt-check",
+				"rows": [
+					{ "kind": "heading", "group": "recent" },
+					{ "kind": "provider", "providerId": "snow", "group": "recent", "detail": "command" },
+					{ "kind": "provider", "providerId": "gemini", "group": "recent", "detail": "command" },
+					{ "kind": "heading", "group": "not-checked" },
+					{
+						"kind": "provider",
+						"providerId": "gemini",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "snow", "group": "not-checked", "detail": "command" },
+					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "provider", "providerId": "pi", "group": "not-found", "detail": "not-found" }
+				]
+			}
+		},
+		{
+			"name": "an unsupported lookup lists every row not checked",
+			"catalog": {
+				"revision": "2",
+				"startable": true,
+				"lookup": { "status": "unsupported", "checkedAt": null },
+				"recent": [],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "unknown" },
+					{
+						"providerId": "claude-code",
+						"productName": "Claude Code",
+						"command": "claude",
+						"state": "unknown"
+					},
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "unknown" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "unknown"
+					},
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "opencode",
+						"productName": "OpenCode",
+						"command": "opencode",
+						"state": "unknown"
+					},
+					{
+						"providerId": "snow",
+						"productName": "Snow CLI",
+						"command": "snow",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": "couldnt-check",
+				"rows": [
+					{ "kind": "heading", "group": "not-checked" },
+					{
+						"kind": "provider",
+						"providerId": "claude-code",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "codex",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "cursor",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "gemini",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "openclaw",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{
+						"kind": "provider",
+						"providerId": "opencode",
+						"group": "not-checked",
+						"detail": "command"
+					},
+					{ "kind": "provider", "providerId": "pi", "group": "not-checked", "detail": "command" },
+					{ "kind": "provider", "providerId": "snow", "group": "not-checked", "detail": "command" }
+				]
+			}
+		}
+	]
+}

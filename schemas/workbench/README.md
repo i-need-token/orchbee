@@ -885,9 +885,10 @@ as a login shell.
 
 ## Cross-Client parity sources
 
-Three version-1 files hold parity data that native tests previously read from GUI package sources.
-Each carries `contractVersion: 1`; TypeScript and Rust tests read the same file, and neither reads
-the other's source.
+Four version-1 files hold parity data that native and GUI tests share. Three hold data that native
+tests previously read from GUI package sources, and the fourth holds a display rule both Clients
+implement. Each carries `contractVersion: 1`; TypeScript and Rust tests read the same file, and
+neither reads the other's source.
 
 - The [action identity registry](v1/workbench-action-identities-v1.json) lists, per owning GUI
   catalog (`workbench`, `tabs`), every GUI-namespace action identity that a native Client reuses.
@@ -909,7 +910,25 @@ the other's source.
   composited over its chrome when translucent; a name either consumer cannot map fails its test.
   Every other color, terminal-native colors and reduced-color fallbacks stay with each theme's
   owner.
+- The [Agent start rows corpus](v1/agent-start-rows-conformance-v1.json) gives an
+  [Agent catalog](#session-agent-catalog-reads), a query and whether the not-found fold is open,
+  with the expected status row (`looking`, `couldnt-check` or none) and the ordered rows the Start
+  Agent list shows: `heading` rows naming a group (`recent`, `installed`, `not-checked`,
+  `not-found`), `provider` rows with their group and right-hand `detail` (`command`, `not-found`,
+  `cant-check`), and a closing `fold` row with its count. The rule is the one display rule for both
+  Clients: while any row is `checking`, Recent and Installed from the `found` rows and no fold;
+  once a lookup has completed (`complete`, or `running` or `failed` with `checkedAt` set), Recent
+  (the first three `recent` providers that are `found`), Installed (every `found` row, A–Z by
+  product name) and the fold holding every other row, A–Z, as `not-found` or `cant-check`; after a
+  `failed` or `unsupported` lookup with `checkedAt` null, Recent (the first three not `not-found`),
+  Not checked (every row not `not-found`, A–Z) and Not found. A query, trimmed and ignoring case,
+  keeps the rows whose product name, command or id contains it, searches the folded rows as the
+  open Not found group, and a group without a row shows no heading. Case catalogs hold only the
+  rows a case needs, in catalog order, so they meet the catalog schema but not the bindings'
+  one-row-per-provider rule. Both protocol packages check that the corpus is well formed; the
+  native and GUI row models must produce its rows.
 
-Reusing another identity, changing Close target policy or changing a shared color updates the file
-and both consumers in one change. `scripts/verification-scope.mjs` records the exact consumers of
-all three files.
+Reusing another identity, changing Close target policy, changing a shared color or changing the
+Agent start display rule updates the file and every consumer in one change.
+`scripts/verification-scope.mjs` records the exact consumers of the first three files; a change to
+the Agent start rows corpus runs the full gate.

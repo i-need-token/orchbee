@@ -419,7 +419,10 @@ is the catalog order every result's rows must follow; product names, commands an
 the wire, so the package holds no Agent table. It consumes the
 [shared corpus](../../schemas/workbench/v1/workbench-agent-catalog-conformance-v1.json) and
 [schema](../../schemas/workbench/v1/workbench-agent-catalog.schema.json) with the independent Rust
-binding. The [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the catalog.
+binding. The [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the catalog. Its test
+also checks that the
+[Agent start rows corpus](../../schemas/workbench/README.md#cross-client-parity-sources) is well
+formed against the catalog schema; the row model that must produce its rows belongs to the GUI.
 
 ## Agent integration jobs
 

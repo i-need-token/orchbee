@@ -369,7 +369,9 @@ request keeps the 16 KiB intent cap. Exact request/Session correlation is mandat
 changes no Workbench state. The
 [schema and shared corpus](../../schemas/workbench/README.md#session-agent-catalog-reads) cover both
 Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the
-catalog.
+catalog. The integration tests also check that the
+[Agent start rows corpus](../../schemas/workbench/README.md#cross-client-parity-sources) is well
+formed; the row model that must produce its rows belongs to the native Client.
 
 ## Plugin overlay observation and Client return identity
 
