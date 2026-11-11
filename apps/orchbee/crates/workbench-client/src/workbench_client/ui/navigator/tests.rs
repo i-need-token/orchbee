@@ -327,7 +327,11 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
                         .collect();
                     assert!(text.contains("Esc"));
                     assert!(text.contains("Enter"));
-                    assert!(text.contains(if remapped { "Ctrl+a w" } else { "Ctrl+b w" }));
+                    assert!(
+                        text.contains(&crate::terminal_events::keys::tests::host_label(
+                            if remapped { "Ctrl+a w" } else { "Ctrl+b w" }
+                        ))
+                    );
                     assert!(text.contains(if column == Command::Tabs {
                         "20/20"
                     } else {

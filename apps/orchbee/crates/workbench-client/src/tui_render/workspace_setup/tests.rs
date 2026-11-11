@@ -339,18 +339,26 @@ fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_o
     .unwrap();
     let visible = draw(&ready, true);
     assert!(visible.contains("Directory: C:/workspace"));
-    assert!(visible.contains("Ctrl+a c New Tab"));
+    assert!(
+        visible.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+a c New Tab"
+        ))
+    );
     // Shown only to a connected Client, the hint never claims a connection is still required.
     assert!(!visible.contains("requires connection"));
-    assert!(!visible.contains("Ctrl+B c"));
+    assert!(!visible.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+B c")));
 
     let needed = directory_guidance(Locale::EnUs, DisplayPhase::Empty, false, None, true).unwrap();
     let visible = draw(&needed, true);
     assert!(visible.contains("No directory configured."));
-    assert!(visible.contains("Ctrl+a e Set Workspace directory"));
-    assert!(!visible.contains("Ctrl+B e"));
+    assert!(
+        visible.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+a e Set Workspace directory"
+        ))
+    );
+    assert!(!visible.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+B e")));
 
     let covered = draw(&ready, false);
     assert!(covered.contains("Directory: C:/workspace"));
-    assert!(!covered.contains("Ctrl+a c"));
+    assert!(!covered.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+a c")));
 }

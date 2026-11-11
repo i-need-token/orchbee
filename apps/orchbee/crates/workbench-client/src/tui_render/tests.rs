@@ -869,7 +869,9 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     let mut view = ClientView::new(120);
     commit(&mut view, ctrl_b());
     let prefix_mode = rendered_text(120, 32, &view, Locale::ZhCn);
-    assert!(without_cell_padding(&prefix_mode).contains("前缀Ctrl+b"));
+    assert!(without_cell_padding(&prefix_mode).contains(
+        &crate::terminal_events::keys::tests::host_label("前缀Ctrl+b")
+    ));
 
     commit(&mut view, plain('?'));
     for character in "关闭帮助".chars() {
@@ -877,8 +879,12 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     }
     let filtered_help = rendered_text(120, 32, &view, Locale::ZhCn);
     let filtered_compact = without_cell_padding(&filtered_help);
-    assert!(filtered_help.contains("Ctrl+b ?"));
-    assert!(filtered_compact.contains("Ctrl+b?关闭帮助"));
+    assert!(filtered_help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ?")));
+    assert!(
+        filtered_compact.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b?关闭帮助"
+        ))
+    );
     assert!(filtered_compact.contains("其他"));
 
     commit(
@@ -889,9 +895,9 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     let help = rendered_text(120, 32, &view, Locale::ZhCn);
     let compact_help = without_cell_padding(&help);
     assert!(compact_help.contains("键盘快捷键"));
-    assert!(help.contains("Ctrl+b c"));
+    assert!(help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c")));
     assert!(
-        !help.contains("Ctrl+b ,"),
+        !help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ,")),
         "Help opens with common tasks only"
     );
     commit(
@@ -899,14 +905,18 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
         PrefixInput::Key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE)),
     );
     let help = rendered_text(120, 32, &view, Locale::ZhCn);
-    let mut rename_visible = help.contains("Ctrl+b ,");
+    let mut rename_visible =
+        help.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ,"));
 
     // The composed registry paginates whole groups at this size: the
     // literal-prefix row sits on a later page. Page forward with the
     // documented `Ctrl+B PageDown` binding until it renders.
     let mut paged = String::new();
     for _ in 0..8 {
-        if paged.contains("Ctrl+b Ctrl+b") && rename_visible {
+        if paged.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b Ctrl+b",
+        )) && rename_visible
+        {
             break;
         }
         commit(&mut view, ctrl_b());
@@ -915,11 +925,14 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
             PrefixInput::Key(KeyEvent::press(KeyCode::PageDown, Modifiers::NONE)),
         );
         paged = rendered_text(120, 32, &view, Locale::ZhCn);
-        rename_visible |= paged.contains("Ctrl+b ,");
+        rename_visible |=
+            paged.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b ,"));
     }
     assert!(rename_visible, "rename is discoverable in expanded Help");
     assert!(
-        paged.contains("Ctrl+b Ctrl+b"),
+        paged.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b Ctrl+b"
+        )),
         "the literal-prefix row must render on a reachable help page"
     );
 }
@@ -987,14 +1000,22 @@ fn overlays_never_cover_the_status_row() {
 fn degrades_to_minimal_chrome_below_sixty_columns_or_twelve_rows() {
     let view = ClientView::new(50);
     let rendered = rendered_text(50, 10, &view, Locale::EnUs);
-    assert!(!rendered.contains("Ctrl+b q · exit"));
+    assert!(
+        !rendered.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b q · exit"
+        ))
+    );
     assert!(!rendered.contains("ORCHBEE"));
     assert!(!rendered.contains("WORKBENCH · "));
 
     // Width alone qualifies as Full; height forces Minimal.
     let view = ClientView::new(120);
     let short = rendered_text(120, 10, &view, Locale::EnUs);
-    assert!(!short.contains("Ctrl+b q · exit"));
+    assert!(
+        !short.contains(&crate::terminal_events::keys::tests::host_label(
+            "Ctrl+b q · exit"
+        ))
+    );
     assert!(!short.contains("ORCHBEE"));
 }
 
@@ -1086,7 +1107,11 @@ fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let copy = locale.status();
         let context = copy.zoomed;
-        let hint = format!("Ctrl+b z {}", copy.restore);
+        let hint = format!(
+            "{} {}",
+            crate::terminal_events::keys::tests::host_label("Ctrl+b z"),
+            copy.restore
+        );
         let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
         let view = ClientView::new(120);
         infallible(terminal.draw(|frame| {

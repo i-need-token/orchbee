@@ -610,14 +610,24 @@ mod tests {
             .filter(|entry| entry.title == "New Workspace")
             .collect::<Vec<_>>();
         assert!(!workspace.is_empty(), "workspace creation is discoverable");
-        assert!(workspace.iter().any(|entry| entry.key.contains("Ctrl+b a")));
+        assert!(workspace.iter().any(|entry| {
+            entry
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b a"))
+        }));
         {
             assert_eq!(
                 workspace.len(),
                 1,
                 "two input bindings for one workspace operation share a row"
             );
-            assert!(workspace[0].key.contains("Ctrl+b Shift+N"));
+            assert!(
+                workspace[0]
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label(
+                        "Ctrl+b Shift+N"
+                    ))
+            );
             assert_eq!(workspace[0].identity, "workbench.workspace.create");
             assert_eq!(
                 workspace[0].title,
@@ -628,20 +638,40 @@ mod tests {
         let entries_zh = super::entries(Locale::ZhCn, &view, true, KeyLabelGlyphs::Unicode);
         let rename_workspace = entries
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b r"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b r"))
+            })
             .expect("Workspace rename keeps its owning binding");
         let rename_project = entries
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b Shift+R"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label(
+                        "Ctrl+b Shift+R",
+                    ))
+            })
             .expect("Project rename keeps its owning binding");
         assert_ne!(rename_workspace.identity, rename_project.identity);
         let rename_workspace_zh = entries_zh
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b r"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b r"))
+            })
             .expect("localized Workspace rename keeps its owning binding");
         let rename_project_zh = entries_zh
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b Shift+R"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label(
+                        "Ctrl+b Shift+R",
+                    ))
+            })
             .expect("localized Project rename keeps its owning binding");
         assert_eq!(rename_workspace.identity, rename_workspace_zh.identity);
         assert_eq!(rename_project.identity, rename_project_zh.identity);
@@ -671,9 +701,15 @@ mod tests {
             .filter(|entry| entry.title == "新建工作区")
             .collect::<Vec<_>>();
         assert_eq!(workspace_zh.len(), 1);
-        assert!(workspace_zh[0].key.contains("Ctrl+b a"));
+        assert!(
+            workspace_zh[0]
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b a"))
+        );
         {
-            assert!(workspace_zh[0].key.contains("Ctrl+b Shift+N"));
+            assert!(workspace_zh[0].key.contains(
+                &crate::terminal_events::keys::tests::host_label("Ctrl+b Shift+N")
+            ));
             assert_eq!(
                 workspace_zh[0].title,
                 Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::NewWorkspace)
@@ -681,12 +717,20 @@ mod tests {
         }
         let create_tab = entries
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b c"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c"))
+            })
             .expect("Tab creation keeps its semantic name");
         assert_eq!(create_tab.title, "New Tab");
         let create_tab_zh = entries_zh
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b c"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c"))
+            })
             .expect("localized Tab creation keeps its semantic name");
         assert_eq!(create_tab_zh.title, "新建标签页");
         {
@@ -700,7 +744,9 @@ mod tests {
             );
             for entries in [&entries, &entries_zh] {
                 assert!(
-                    entries.iter().any(|entry| entry.key.contains("Shift+B")),
+                    entries.iter().any(|entry| entry
+                        .key
+                        .contains(&crate::terminal_events::keys::tests::host_label("Shift+B"))),
                     "sidebar focus keeps its owning binding in either locale"
                 );
             }
@@ -800,10 +846,28 @@ mod tests {
             .filter(|entry| entry.title == "New Workspace")
             .collect::<Vec<_>>();
         assert_eq!(workspace.len(), 1);
-        assert!(workspace[0].key.contains("Ctrl+b x"));
-        assert!(workspace[0].key.contains("Ctrl+b z"));
-        assert!(workspace[0].key.contains("Ctrl+b Shift+N"));
-        assert!(!workspace[0].key.contains("Ctrl+b a"));
+        assert!(
+            workspace[0]
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b x"))
+        );
+        assert!(
+            workspace[0]
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b z"))
+        );
+        assert!(
+            workspace[0]
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label(
+                    "Ctrl+b Shift+N"
+                ))
+        );
+        assert!(
+            !workspace[0]
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b a"))
+        );
         assert_eq!(workspace[0].identity, "workbench.workspace.create");
     }
 
@@ -899,7 +963,11 @@ mod tests {
                 entry.title == Locale::EnUs.menu_action(&crate::action_menu::MenuAction::Machines)
             })
             .expect("machine discovery should reuse its menu action name");
-        assert!(entry.key.contains("Shift+M"));
+        assert!(
+            entry
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Shift+M"))
+        );
     }
 
     #[test]
@@ -908,7 +976,11 @@ mod tests {
         let entries = super::entries(Locale::EnUs, &view, false, KeyLabelGlyphs::Unicode);
         let create_tab = entries
             .iter()
-            .find(|entry| entry.key.contains("Ctrl+b c"))
+            .find(|entry| {
+                entry
+                    .key
+                    .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c"))
+            })
             .expect("Tab creation remains discoverable");
         assert_eq!(
             create_tab.disabled_reason.as_deref(),

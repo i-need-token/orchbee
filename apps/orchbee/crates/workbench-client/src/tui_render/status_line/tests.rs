@@ -49,7 +49,10 @@ fn workspace_and_tab_creation_hints_retain_the_same_effective_action_binding_and
         )
         .unwrap();
         assert_eq!(workspace.key, tab.key);
-        assert_eq!(workspace.key, "Ctrl+a c");
+        assert_eq!(
+            workspace.key,
+            crate::terminal_events::keys::tests::host_label("Ctrl+a c")
+        );
         assert_eq!(workspace.label, locale.status().create_workspace);
         assert_eq!(tab.label, locale.status().create_tab);
         assert_ne!(workspace.label, tab.label);
@@ -276,10 +279,15 @@ fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_
     let (terminal, _) = paint(&view, 120, facts("Ready"), &theme);
     let text = row(&terminal, 120);
     assert!(
-        text.contains("PREFIX Ctrl+a · Esc cancel · ← help"),
+        text.contains(&crate::terminal_events::keys::tests::host_label(
+            "PREFIX Ctrl+a · Esc cancel · ← help"
+        )),
         "{text}"
     );
-    assert!(!text.contains("Ctrl+a ←"), "{text}");
+    assert!(
+        !text.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+a ←")),
+        "{text}"
+    );
 }
 
 fn configured_arrow_help() -> orchbee_local_runtime::KeySettings {

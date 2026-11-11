@@ -1,5 +1,19 @@
 use super::*;
 
+/// Spells a label written in the `Other` style, such as `Ctrl+b Shift+N`, the way this host shows
+/// it with Unicode key glyphs, so a rendering test asserts the effective binding on every
+/// platform. ASCII fallback keeps the `Other` spelling everywhere; this suite pins both styles.
+pub(crate) fn host_label(other: &str) -> String {
+    match LabelStyle::for_host() {
+        LabelStyle::Other => other.to_owned(),
+        LabelStyle::Apple => other
+            .replace("Ctrl+", "⌃")
+            .replace("Alt+", "⌥")
+            .replace("Shift+", "⇧")
+            .replace("Super+", "⌘"),
+    }
+}
+
 const fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::press(code, Modifiers::NONE)
 }

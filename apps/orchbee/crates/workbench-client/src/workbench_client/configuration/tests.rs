@@ -83,7 +83,7 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
             crate::client_view::PrefixAction::Client(ClientAction::ReloadConfiguration),
             crate::client_view::KeyLabelGlyphs::Unicode,
         ),
-        ["Ctrl+a F6"],
+        [crate::terminal_events::keys::tests::host_label("Ctrl+a F6")],
         "discovery uses the effective configured action"
     );
 }

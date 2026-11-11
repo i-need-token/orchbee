@@ -90,7 +90,9 @@ fn status_preserves_mode_discovery_and_search_caret_across_supported_geometry_an
                 let text = visible_row(terminal.backend().buffer(), width, 0);
                 assert!(text.contains("?"));
                 if width >= 80 {
-                    assert!(text.contains("Ctrl+r"));
+                    assert!(
+                        text.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+r"))
+                    );
                     assert!(text.contains(
                         locale.copy_hint_label(crate::client_view::CopyHintLabel::Reverse)
                     ));

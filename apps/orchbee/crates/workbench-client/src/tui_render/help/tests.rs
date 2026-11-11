@@ -155,7 +155,8 @@ fn word_prefix_filter_uses_semantic_names_and_clear_restores_the_list() {
     let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
     let filtered = rows(&buffer);
     assert!(
-        filtered.contains("Ctrl+b e") && filtered.contains("Set Directory…"),
+        filtered.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b e"))
+            && filtered.contains("Set Directory…"),
         "{filtered}"
     );
     assert!(
@@ -350,7 +351,11 @@ fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
     entry.key = aliases.join(" / ");
     let workspace_title = entries
         .iter()
-        .find(|entry| entry.key.contains("Ctrl+b a"))
+        .find(|entry| {
+            entry
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b a"))
+        })
         .expect("workspace creation remains discoverable beside the long aliases")
         .title
         .clone();

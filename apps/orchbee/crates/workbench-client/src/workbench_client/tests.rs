@@ -250,7 +250,12 @@ fn assert_ready_prefix_client(
     );
 
     // Beside the sidebar the chip keeps the leading hints; later ones drop whole.
-    for hint in ["PREFIX Ctrl+b", "Esc cancel", "? help", "Tab sidebar"] {
+    for hint in [
+        crate::terminal_events::keys::tests::host_label("PREFIX Ctrl+b").as_str(),
+        "Esc cancel",
+        "? help",
+        "Tab sidebar",
+    ] {
         assert!(
             rendered.contains(hint),
             "missing prefix hint {hint:?}\n{rendered}"
@@ -684,7 +689,12 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                 rendered.contains("Tab moved · refresh required"),
                 "{rendered}"
             );
-            assert!(rendered.contains("Ctrl+b w refresh"), "{rendered}");
+            assert!(
+                rendered.contains(&crate::terminal_events::keys::tests::host_label(
+                    "Ctrl+b w refresh"
+                )),
+                "{rendered}"
+            );
         } else {
             assert_ready_prefix_client(
                 &workbench_client,
@@ -1742,7 +1752,12 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
                 rendered.contains("initial_workspace · Ready · view only"),
                 "{rendered}"
             );
-            assert!(rendered.contains("Ctrl+b t take control"), "{rendered}");
+            assert!(
+                rendered.contains(&crate::terminal_events::keys::tests::host_label(
+                    "Ctrl+b t take control"
+                )),
+                "{rendered}"
+            );
         }
         let prefixed = render_prefix_client(&workbench_client, &client_view)?;
         assert_ready_prefix_client(&workbench_client, &prefixed, 1, expected);
@@ -1754,7 +1769,9 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
             "{navigator}"
         );
         assert!(
-            navigator.contains("Esc / Ctrl+b w return  │  Enter open"),
+            navigator.contains(&crate::terminal_events::keys::tests::host_label(
+                "Esc / Ctrl+b w return  │  Enter open"
+            )),
             "{navigator}"
         );
         workbench_client.observe_geometry(changed_geometry);

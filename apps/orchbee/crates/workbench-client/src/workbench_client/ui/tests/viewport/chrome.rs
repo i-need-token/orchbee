@@ -577,7 +577,11 @@ fn ended_single_terminal_names_its_exit_in_the_floating_chip_beside_its_fix() {
                         let named = |text: &str| format!("{} {text}", theme.glyphs.status_bullet);
                         let short = named(locale.status().terminal_exited);
                         let compact = named(&locale.terminal_end_compact(end));
-                        let fix = format!("Ctrl+b c {}", locale.status().create_tab);
+                        let fix = format!(
+                            "{} {}",
+                            crate::terminal_events::keys::tests::host_label("Ctrl+b c"),
+                            locale.status().create_tab
+                        );
                         let buffer = terminal.backend().buffer();
                         let mut status = String::new();
                         let mut x = areas.status.x;

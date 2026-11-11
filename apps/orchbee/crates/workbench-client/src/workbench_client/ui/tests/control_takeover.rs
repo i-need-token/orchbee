@@ -466,7 +466,11 @@ fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
                 }),
                 "{locale:?}: {status}"
             );
-            assert!(readable.contains("Ctrlbt"), "{locale:?}: {status}");
+            let takeover: String = crate::terminal_events::keys::tests::host_label("Ctrl+b t")
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .collect();
+            assert!(readable.contains(&takeover), "{locale:?}: {status}");
         }
     }
 }

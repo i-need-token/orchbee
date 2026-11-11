@@ -355,15 +355,15 @@ fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
                 assert_eq!(cells.len(), usize::from(maximum - minimum + 1));
                 assert!(cells.len() >= display_width(expected));
                 let expected = if row == Row::Save && width >= 44 {
-                    match locale {
+                    crate::terminal_events::keys::tests::host_label(match locale {
                         Locale::EnUs => "[SaveCtrl+s]",
                         Locale::ZhCn => "[保存Ctrl+s]",
-                    }
+                    })
                 } else {
-                    expected
+                    expected.to_owned()
                 };
                 assert!(
-                    without_cell_padding(&line_text(&terminal, y)).contains(expected),
+                    without_cell_padding(&line_text(&terminal, y)).contains(&expected),
                     "{row:?} at {width}x10 {locale:?}"
                 );
             }

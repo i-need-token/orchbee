@@ -1002,7 +1002,10 @@ fn wide_english_row_keeps_the_full_label_and_effective_chord_in_separate_slots()
         .into_iter()
         .next()
         .unwrap();
-    assert_eq!(chord, "Ctrl+b Shift+M");
+    assert_eq!(
+        chord,
+        crate::terminal_events::keys::tests::host_label("Ctrl+b Shift+M")
+    );
     let (buffer, map, token) = render_machines_row(width, height, &client, Locale::EnUs, &theme);
 
     assert_bound_row_layout(&buffer, &map, token, Locale::EnUs, &theme, &chord, false);
@@ -1040,12 +1043,16 @@ fn wide_english_row_keeps_the_full_label_and_effective_chord_in_separate_slots()
 
 #[test]
 fn compact_chinese_row_truncates_only_the_label_and_keeps_a_custom_chord_whole() {
-    let width = 60;
+    let chord =
+        crate::terminal_events::keys::tests::host_label("Ctrl+Alt+Shift+Super+PageDown Shift+M");
+    // Apple glyphs spell this chord in 15 cells instead of 37; the overlay keeps 23 cells beside
+    // it either way, too few for the whole Chinese label, so only the label truncates.
+    let width = 23 + u16::try_from(display_width(&chord)).unwrap();
     let height = 12;
     let mut client = ClientView::new(width);
     client.configure_keys(&configured_prefix("pagedown", true, true, true, true));
     let theme = Theme::terminal_native();
-    let chord = client
+    let effective = client
         .bindings()
         .action_labels_with_glyphs(
             PrefixAction::Client(ClientAction::OpenMachines),
@@ -1054,7 +1061,7 @@ fn compact_chinese_row_truncates_only_the_label_and_keeps_a_custom_chord_whole()
         .into_iter()
         .next()
         .unwrap();
-    assert_eq!(chord, "Ctrl+Alt+Shift+Super+PageDown Shift+M");
+    assert_eq!(effective, chord);
     let (buffer, map, token) = render_machines_row(width, height, &client, Locale::ZhCn, &theme);
 
     assert_bound_row_layout(&buffer, &map, token, Locale::ZhCn, &theme, &chord, true);
@@ -1062,19 +1069,23 @@ fn compact_chinese_row_truncates_only_the_label_and_keeps_a_custom_chord_whole()
 
 #[test]
 fn minimal_row_omits_an_unfit_chord_as_one_unit_without_shrinking_its_hit_geometry() {
-    let width = 26;
+    let chord =
+        crate::terminal_events::keys::tests::host_label("Ctrl+Alt+Shift+Super+PageDown Shift+M");
+    // The minimum overlay width when the chord cannot fit there; the shorter Apple spelling would
+    // fit, so that host narrows until the frame edges, the padding cell and the binding gap leave
+    // no room for the chord beside even an empty label.
+    let width = 26.min(u16::try_from(display_width(&chord)).unwrap() + 5);
     let height = 8;
     let mut client = ClientView::new(width);
     client.configure_keys(&configured_prefix("pagedown", true, true, true, true));
     let theme = Theme::terminal_native();
-    let chord = "Ctrl+Alt+Shift+Super+PageDown Shift+M";
     let (buffer, map, token) = render_machines_row(width, height, &client, Locale::ZhCn, &theme);
     let row = action_row_rect(&map, buffer.area, token);
     let text = (row.x..row.right())
         .map(|x| buffer[(x, row.y)].symbol())
         .collect::<String>();
 
-    assert!(!text.contains(chord));
+    assert!(!text.contains(&chord));
     assert!(
         !text.contains("PageDown"),
         "no clipped chord fragment: {text:?}"

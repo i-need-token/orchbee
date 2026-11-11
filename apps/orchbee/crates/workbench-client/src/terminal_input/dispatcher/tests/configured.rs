@@ -333,8 +333,16 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
             .iter()
             .find(|entry| entry.title == title)
             .expect("numbered Agent binding remains discoverable");
-        assert!(numbered_agents.key.contains("Alt+1"));
-        assert!(numbered_agents.key.contains("Alt+9"));
+        assert!(
+            numbered_agents
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Alt+1"))
+        );
+        assert!(
+            numbered_agents
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Alt+9"))
+        );
     }
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
@@ -562,16 +570,24 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         let bound = shell_text.bind(&view.bindings().shell_bindings(shell_text.binding_unbound));
         let text = bound.text();
         assert!(text.hint_short.contains("F1"));
-        assert!(!text.hint_short.contains("Ctrl+b"));
-        assert!(text.prefix_active.ends_with("Ctrl+a"));
+        assert!(
+            !text
+                .hint_short
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b"))
+        );
+        assert!(
+            text.prefix_active
+                .ends_with(&crate::terminal_events::keys::tests::host_label("Ctrl+a"))
+        );
         let entries = shortcut_entries(locale, &view);
         assert!(entries.iter().any(|entry| entry.key == "F1"));
         assert!(!entries.iter().any(|entry| entry.title == "New Tab"));
-        assert!(
-            !entries
-                .iter()
-                .any(|entry| entry.key.contains("Ctrl+b") || entry.key.contains("F9"))
-        );
+        assert!(!entries.iter().any(|entry| {
+            entry
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b"))
+                || entry.key.contains("F9")
+        }));
     }
 }
 
@@ -643,7 +659,13 @@ fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
         .find(|entry| entry.title == "Select Tab by number")
         .expect("direct Tab selection remains discoverable");
     for digit in 1..=9 {
-        assert!(indexed_tabs.key.contains(format!("Alt+{digit}").as_str()));
+        assert!(
+            indexed_tabs
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label(&format!(
+                    "Alt+{digit}"
+                )))
+        );
     }
     let keys = KeySettings {
         commands: Vec::new(),
@@ -653,11 +675,12 @@ fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
     view.configure_keys(&keys);
     let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
     assert!(!entries.iter().any(|entry| entry.title == "Select next Tab"));
-    assert!(
-        entries.iter().any(|entry| {
-            entry.title == "Select previous Tab" && entry.key.contains("Ctrl+b p")
-        })
-    );
+    assert!(entries.iter().any(|entry| {
+        entry.title == "Select previous Tab"
+            && entry
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b p"))
+    }));
 }
 
 #[test]
@@ -745,7 +768,9 @@ fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_
     let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
     assert!(entries.iter().any(|entry| {
         entry.title == "Resize panel"
-            && entry.key.contains("Ctrl+")
+            && entry
+                .key
+                .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+"))
             && (entry.key.contains("Left") || entry.key.contains("←"))
     }));
     run(&mut view, &mut dispatcher, &mut port, b"\x02R");

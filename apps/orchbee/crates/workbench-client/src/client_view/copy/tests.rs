@@ -30,7 +30,10 @@ fn every_discovered_binding_is_unique_exact_and_repeatable() {
         .position(|(_, desc)| *desc == PrefixDesc::CopyRepeatSearch)
         .unwrap();
     let reverse = &help[repeat + 1];
-    assert_eq!(reverse.0, "Ctrl+r");
+    assert_eq!(
+        reverse.0,
+        crate::terminal_events::keys::tests::host_label("Ctrl+r")
+    );
     assert_eq!(reverse.1, PrefixDesc::CopyReverseSearch);
 }
 

@@ -40,7 +40,10 @@ fn effective_action_labels_apply_glyph_fallback_to_all_complete_overridden_chord
     );
     assert_eq!(
         bindings.action_labels_with_glyphs(action, KeyLabelGlyphs::Unicode),
-        ["Ctrl+a ←", "Ctrl+→"]
+        [
+            crate::terminal_events::keys::tests::host_label("Ctrl+a ←"),
+            crate::terminal_events::keys::tests::host_label("Ctrl+→")
+        ]
     );
 }
 

@@ -78,12 +78,13 @@ fn action_tooltip(
     locale: Locale,
     label: TooltipLabel,
     key: PrefixAction,
+    theme: &Theme,
 ) -> TooltipContent {
     TooltipContent::Action {
         label: locale.tooltip_label(label).to_owned(),
         key: view
             .bindings()
-            .action_labels_with_glyphs(key, Theme::terminal_native().glyphs.key_labels())
+            .action_labels_with_glyphs(key, theme.glyphs.key_labels())
             .into_iter()
             .next(),
     }
@@ -180,7 +181,7 @@ fn visible_sidebar_ends_its_first_and_settings_rows_with_the_toggle_and_help() {
                         (TooltipLabel::HideSidebar, PrefixAction::SidebarToggle),
                         (TooltipLabel::Shortcuts, PrefixAction::ShowHelp),
                     ] {
-                        let expected = action_tooltip(&view, locale, label, key);
+                        let expected = action_tooltip(&view, locale, label, key, &theme);
                         assert!(tooltips.contains(&expected), "{case}: {expected:?}");
                     }
                 }
@@ -227,6 +228,7 @@ fn hidden_sidebar_leaves_its_toggle_at_the_strip_leading_edge() {
                 locale,
                 TooltipLabel::ShowSidebar,
                 PrefixAction::SidebarToggle,
+                &theme,
             );
             assert!(tooltips.contains(&expected), "{expected:?}");
         }

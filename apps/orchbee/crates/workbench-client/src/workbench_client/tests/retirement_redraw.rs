@@ -107,11 +107,18 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
                 "{after}"
             );
             assert!(
-                after.contains("Esc / Ctrl+b w return  │  Enter open"),
+                after.contains(&crate::terminal_events::keys::tests::host_label(
+                    "Esc / Ctrl+b w return  │  Enter open"
+                )),
                 "{after}"
             );
         } else {
-            assert!(after.contains("Ctrl+b q / Ctrl+b d exit"), "{after}");
+            assert!(
+                after.contains(&crate::terminal_events::keys::tests::host_label(
+                    "Ctrl+b q / Ctrl+b d exit"
+                )),
+                "{after}"
+            );
         }
         workbench_client.after_draw();
         assert!(

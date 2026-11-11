@@ -691,7 +691,10 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                 locale.status().create_workspace.to_owned()
             };
             assert_eq!(
-                main_text.contains(&format!("Ctrl+a n {label}")),
+                main_text.contains(&format!(
+                    "{} {label}",
+                    crate::terminal_events::keys::tests::host_label("Ctrl+a n")
+                )),
                 canonical,
                 "{text}"
             );
@@ -699,11 +702,17 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                 assert!(!text.contains(locale.status().create_tab), "{text}");
                 assert!(main_text.trim().is_empty(), "{main_text}");
                 assert!(
-                    status_text.contains(&format!("Ctrl+a n {label}")),
+                    status_text.contains(&format!(
+                        "{} {label}",
+                        crate::terminal_events::keys::tests::host_label("Ctrl+a n")
+                    )),
                     "the fixed status hint still advertises the effective creation binding"
                 );
             }
-            assert!(!text.contains("Ctrl+b c"), "{text}");
+            assert!(
+                !text.contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b c")),
+                "{text}"
+            );
             let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
                 KeyCode::Char('a'),
                 Modifiers::CTRL,
