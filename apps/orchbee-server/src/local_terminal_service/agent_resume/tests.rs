@@ -119,7 +119,10 @@ fn facts(
 }
 
 fn decide(facts: &ResumeFacts) -> Readiness {
-    readiness(facts, &WorkbenchDirectoryPath::parse(RETAINED).unwrap())
+    readiness(
+        facts,
+        Some(&WorkbenchDirectoryPath::parse(RETAINED).unwrap()),
+    )
 }
 
 #[test]

@@ -1,8 +1,9 @@
-//! Whether one fresh read of a restored terminal makes a gated resume worth trying now, later or
-//! never. Only a shell the Host launched with prompt marks, with nothing else in its console, at its
-//! prompt in the retained directory is worth trying; the Host's prompt gate alone decides whether
-//! anything is typed. Every doubt waits until the attempt's deadline, and every refutation gives
-//! up. It reads evidence only and never decides timing, ordering or consumption.
+//! Whether one fresh read of a terminal makes a gated line worth trying now, later or never. Only a
+//! shell the Host launched with prompt marks, with nothing else in its console, at its prompt, and
+//! for a resume in the retained directory, is worth trying; the Host's prompt gate alone decides
+//! whether anything is typed. Every doubt waits until the attempt's deadline, and every refutation
+//! gives up. It reads evidence only and never decides timing, ordering or consumption; Agent start
+//! delivery reads its new shells through the same rule, without a directory.
 use super::{Reason, plan::ResumeShell};
 use crate::local_terminal_service::tab_close::evidence::ShellReport;
 use orchbee_agent_observation_protocol::{ShellRoot, idle_shell_only, is_console_host};
@@ -22,7 +23,7 @@ pub(in crate::local_terminal_service) struct ResumeFacts {
 
 /// What one read admits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Readiness {
+pub(in crate::local_terminal_service) enum Readiness {
     /// Worth one gated send of the line for this shell now.
     Try(ResumeShell),
     /// The read cannot decide yet.
@@ -34,10 +35,13 @@ pub(super) enum Readiness {
 /// Decides one read. A running command or any other program skips as not idle. The Host's own
 /// launch record names the shell: managed PowerShell and marked cmd are tried, another program
 /// skips as unsupported, and a Host that records no launch kind predates the prompt gate and skips
-/// as too old. A directory other than `retained` skips as a mismatch. A truncated sample, an
-/// unreadable row, a missing directory or frame, and a silent shell wait: only a shell at its
-/// prompt is tried.
-pub(super) fn readiness(facts: &ResumeFacts, retained: &WorkbenchDirectoryPath) -> Readiness {
+/// as too old. When `retained` is given, a directory other than it skips as a mismatch and a
+/// missing directory waits. A truncated sample, an unreadable row, a missing frame and a silent
+/// shell wait: only a shell at its prompt is tried.
+pub(in crate::local_terminal_service) fn readiness(
+    facts: &ResumeFacts,
+    retained: Option<&WorkbenchDirectoryPath>,
+) -> Readiness {
     if facts.report == Some(ShellReport::Running) {
         return Readiness::Skip(Reason::NotIdle);
     }
@@ -66,12 +70,14 @@ pub(super) fn readiness(facts: &ResumeFacts, retained: &WorkbenchDirectoryPath) 
     ) {
         return Readiness::Wait;
     }
-    match &facts.directory {
-        None => return Readiness::Wait,
-        Some(directory) if !same_directory(directory.as_str(), retained.as_str()) => {
-            return Readiness::Skip(Reason::DirectoryMismatch);
+    if let Some(retained) = retained {
+        match &facts.directory {
+            None => return Readiness::Wait,
+            Some(directory) if !same_directory(directory.as_str(), retained.as_str()) => {
+                return Readiness::Skip(Reason::DirectoryMismatch);
+            }
+            Some(_) => {}
         }
-        Some(_) => {}
     }
     match facts.report {
         Some(ShellReport::AtPrompt) => Readiness::Try(shell),

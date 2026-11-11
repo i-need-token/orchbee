@@ -58,6 +58,8 @@ mod panel_metadata;
 mod panel_restore;
 mod process_observer;
 mod projection;
+#[cfg(windows)]
+mod prompt_line;
 mod send;
 mod tab_close;
 mod tab_create;

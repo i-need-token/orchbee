@@ -1,15 +1,12 @@
-//! Each provider's program and the exact text and records one resume types into a restored shell.
-//! It builds input only; deciding whether to type it belongs to admission and the driver, and the
-//! argument tokens come from the Session's closed conversation id table.
+//! Each provider's program and the exact text one resume types into a restored shell. It builds
+//! input only; deciding whether to type it belongs to admission and the driver, and the argument
+//! tokens come from the Session's closed conversation id table.
 use crate::session_coordinator::resume_arguments;
-use orchbee_client_server_protocol::{
-    SendKey, SendKeyStroke, SendPasteContent, SendRecord, SendRecords, SendStrokeKey,
-};
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 
 /// The restored shell a resume line is written for: one the Host launched with prompt marks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ResumeShell {
+pub(in crate::local_terminal_service) enum ResumeShell {
     /// `powershell` or `pwsh` running the Worker's fixed initialization, which strips the run
     /// prefix and echoes its token in the command's start and finish markers.
     ManagedPowerShell,
@@ -85,21 +82,4 @@ pub(super) fn run_token() -> Option<String> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).ok()?;
     Some(format!("{:032x}", u128::from_be_bytes(bytes)))
-}
-
-/// Paste, then Right for PowerShell, then Enter, in one submission: the one prompt line the Host's
-/// gate admits, and the same records an Agent start types into the same shells.
-pub(super) fn records(text: &str, powershell: bool) -> Option<SendRecords> {
-    let mut records = vec![SendRecord::Paste {
-        content: SendPasteContent::new(text.as_bytes().to_vec()).ok()?,
-    }];
-    if powershell {
-        records.push(SendRecord::Stroke(
-            SendKeyStroke::new(SendStrokeKey::Named(SendKey::Right), 0).ok()?,
-        ));
-    }
-    records.push(SendRecord::Stroke(
-        SendKeyStroke::new(SendStrokeKey::Named(SendKey::Enter), 0).ok()?,
-    ));
-    SendRecords::new(records).ok()
 }

@@ -11,16 +11,15 @@
 //! the Server stops. An attempt that ends because the prompt could not be confirmed publishes one
 //! not-resumed fact on its Presentation, the only thing Clients are shown; no session id is ever
 //! logged or published.
-use super::{LocalTerminalService, create_reference, placement};
+use super::{
+    LocalTerminalService, placement,
+    prompt_line::{self, Answer},
+};
 use crate::{
     session_coordinator::{ProcessObservationTarget, ResumeTarget, SessionCoordinator},
     terminal_coordinator::{BindingViewerTarget, WorkerPlacement},
 };
-use orchbee_client_server_protocol::{
-    SendPromptState, SendRejectedReason, ServerMessage, SessionId as ObcsSessionId,
-    TerminalId as ClientTerminalId, TerminalSendOutcome, TerminalSendRequest,
-    WorkerId as ClientWorkerId,
-};
+use orchbee_client_server_protocol::{SendPromptState, ServerMessage};
 use orchbee_server::RetainedAgentSession;
 use orchbee_workbench_protocol::{
     AgentNotResumedReason, PresentationBinding, TerminalPresentationId, WorkbenchDirectoryPath,
@@ -39,8 +38,7 @@ mod signals;
 #[cfg(test)]
 mod tests;
 
-pub(super) use admission::ResumeFacts;
-use admission::{Readiness, readiness};
+pub(super) use admission::{Readiness, ResumeFacts, readiness};
 use plan::ResumeShell;
 
 /// Clients size what they show before the first delivery, and a retried shell's Client sizes it.
@@ -457,7 +455,7 @@ impl LocalTerminalService {
                 .request_resume_facts(target.clone())
                 .unwrap_or_default();
             let mut pause = POLL;
-            match readiness(&facts, &candidate.directory) {
+            match readiness(&facts, Some(&candidate.directory)) {
                 Readiness::Try(shell) => match self.deliver(candidate, committed, &target, shell) {
                     Delivery::Done(outcome) => return outcome,
                     Delivery::Refused(state) => {
@@ -512,17 +510,7 @@ impl LocalTerminalService {
             None
         };
         let text = plan::text(&session, shell, token.as_deref());
-        let request = plan::records(&text, shell.powershell()).and_then(|records| {
-            TerminalSendRequest::idle_prompt(
-                create_reference()?,
-                ObcsSessionId::parse(target.session_id.as_str()).ok()?,
-                ClientWorkerId::parse(target.binding.worker_id.as_str()).ok()?,
-                ClientTerminalId::parse(target.binding.terminal_id.as_str()).ok()?,
-                records,
-            )
-            .ok()
-        });
-        let Some(request) = request else {
+        let Some(request) = prompt_line::request(target, &text, shell.powershell()) else {
             return Delivery::Done(self.consume(candidate, Reason::SendFailed));
         };
         let mut admission = None;
@@ -551,27 +539,16 @@ impl LocalTerminalService {
         session: RetainedAgentSession,
         message: &ServerMessage,
     ) -> Delivery {
-        let ServerMessage::TerminalSendResult(result) = message else {
-            return Delivery::Done(Outcome::Skipped(Reason::SendFailed));
-        };
-        let refusal = match result.outcome() {
-            TerminalSendOutcome::Accepted { .. } => return Delivery::Done(Outcome::Sent),
-            TerminalSendOutcome::Rejected {
-                reason:
-                    reason @ (SendRejectedReason::PromptUnconfirmed(_)
-                    | SendRejectedReason::HostPromptGateUnsupported),
-                progress,
-                ..
-            } if progress.records_accepted() == 0 && progress.accepted_encoded_bytes() == 0 => {
-                *reason
-            }
-            _ => return Delivery::Done(Outcome::Skipped(Reason::SendFailed)),
+        let refusal = match prompt_line::answer(message) {
+            Answer::Accepted => return Delivery::Done(Outcome::Sent),
+            Answer::Failed => return Delivery::Done(Outcome::Skipped(Reason::SendFailed)),
+            refusal @ (Answer::Refused(_) | Answer::GateUnsupported) => refusal,
         };
         if let Ok(mut coordinator) = self.coordinator.lock() {
             coordinator.return_agent_session(&candidate.presentation, target, session);
         }
         match refusal {
-            SendRejectedReason::PromptUnconfirmed(state) => Delivery::Refused(state),
+            Answer::Refused(state) => Delivery::Refused(state),
             _ => Delivery::Done(self.give_up(candidate, committed, Reason::TerminalTooOld)),
         }
     }
