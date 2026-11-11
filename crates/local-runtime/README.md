@@ -818,13 +818,140 @@ Retained-shell admission recognizes only the exact current shared PowerShell sta
 Historical directory-only/UTF-8 argv fingerprints, arbitrary suffixes and extra argv are rejected.
 Initialization and encoded helpers consume only the owned assets.
 
-## Windows user settings
+## User settings
 
-The same reader owns `UpdateChannel` (`stable`/`preview`, default stable) and default/file provenance. An invalid file value defaults that leaf and enters the warning record; the documented environment boundary remains fatal. Native `channel show` consumes the effective preference offline; it does not infer installed release identity or run an updater.
+`config.toml` is the one user settings file; settings pages will become a view over it. The
+registry, `SETTING_KEYS` in `src/user_settings/registry.rs`, declares every key once: its dotted
+path, value type with allowed values or range, default, page category and group ids, the Clients it
+applies to, when a change applies, whether the settings page shows it, and the shared preference it
+mirrors. The reader, the `orchbee --default-config` reference, `config check` key knowledge and the
+single-key editor all derive from it, so adding a key starts there.
 
-The shared bounded settings reader and pure Windows user-path adapter, which normalizes resolved relative and tilde operands lexically while keeping absolute literals verbatim, serve CLI configuration, common Client activation and direct managed Server startup. They own fatal file/path/environment admission, field-local fallback to existing safe defaults, resolved restore policy and a deterministic warning record; applications own wire projection, activation commit and private child arguments. The load result keeps effective settings and diagnostics together. Diagnostics are deduplicated before display truncation, sorted by field and reason, capped at 128 entries with an exact omitted count, and never retain source values or commands. See [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The pinned `toml` dependency parses at this file boundary. The reader has no Workbench dependency.
+### Tables and keys
 
-The pure `user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the data root; a missing home leaves the location absent, and an invalid `ORCHBEE_HOME` is a settings error. Detection rules, preferences and other records follow the data root, never the settings file's folder.
+Each top-level table names the page category whose keys it mainly holds: `[general]`,
+`[appearance]`, `[terminal]`, `[notifications]`, `[keys]` (Keyboard) and `[agents]`;
+`[worktrees]`, `[agent_detection]` and `[update]` hold one key each. The page category is metadata,
+so a key can appear under another category's group, as the table below shows. Themes is the one
+category without a table of its own: its two keys keep their `[appearance]` paths, the single
+exception to a table naming its category. `<platform>` stands for `windows`, `macos` or `linux`,
+`<action>` for a registered Client action and `*` for any name. `orchbee --default-config` prints
+every key's purpose, allowed values and default.
+
+| Key                                                                                         | Default                          | Page (category / group)              |
+| ------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------ |
+| `general.language`                                                                          | `"system"`                       | General / Basics                     |
+| `appearance.mode`                                                                           | `"system"`                       | Appearance / Theme                   |
+| `appearance.light_theme`                                                                    | `"orchbee-light"`                | Themes / Light                       |
+| `appearance.dark_theme`                                                                     | `"orchbee-dark"`                 | Themes / Dark                        |
+| `appearance.tui_colors`                                                                     | `"theme"`                        | file only (TUI)                      |
+| `appearance.terminal_colors`                                                                | `"theme"`                        | Appearance / Terminal colors         |
+| `appearance.custom_foreground`, `custom_background`                                         | `"#141414"`, `"#fcfcfc"`         | Appearance / Terminal colors         |
+| `appearance.window_title`                                                                   | `"{hostname}: {workspace}"`      | file only                            |
+| `appearance.sidebar.agents.rows`, `rows_by_agent`                                           | one-line title row, no overrides | file only                            |
+| `appearance.sidebar.workspaces.rows`                                                        | workspace and Git, then location | file only                            |
+| `appearance.sidebar.agents.row_gap`, `workspaces.row_gap`                                   | `0`                              | file only                            |
+| `terminal.new_cwd`                                                                          | unset (no override)              | General / Basics                     |
+| `terminal.focus_new_panel`                                                                  | `true`                           | file only                            |
+| `terminal.copy_on_select`                                                                   | `false`                          | Terminal / Input                     |
+| `terminal.macos_option_as_alt`                                                              | `"off"`                          | Terminal / Input (Desktop)           |
+| `terminal.scrollback_bytes`                                                                 | `10000000`                       | Terminal / Output                    |
+| `terminal.trim_trailing_blank_rows_for_agents`                                              | `true`                           | file only                            |
+| `terminal.restore_output`                                                                   | `false`                          | General / Restore                    |
+| `terminal.font_family`, `font_size`                                                         | built-in stack, `13`             | Appearance / Terminal text (Desktop) |
+| `terminal.font_weight`, `font_weight_bold`, `font_ligatures`, `padding`                     | `400`, `700`, `true`, `0`        | file only (Desktop)                  |
+| `terminal.background_opacity`                                                               | `100`                            | file only (Desktop)                  |
+| `terminal.default_profile.<platform>`                                                       | `"system-default"`               | Terminal / Profiles                  |
+| `[[terminal.profiles.<platform>]]` `id`, `name`, `kind`, `login`, `executable`, `arguments` | only the built-in profile        | Terminal / Profiles                  |
+| `worktrees.directory`                                                                       | unset (beside the repository)    | file only                            |
+| `notifications.agent_reminder`                                                              | `"never"`                        | Notifications / When                 |
+| `notifications.completion_reminder`                                                         | `"never"`                        | Notifications / When                 |
+| `notifications.completion_minimum_seconds`                                                  | `5`                              | file only                            |
+| `notifications.sound`                                                                       | `false`                          | Notifications / How                  |
+| `notifications.cli_delivery`, `delay_seconds`, `position`                                   | `"off"`, `1`, `"bottom-right"`   | file only                            |
+| `notifications.sound_by_agent.*`                                                            | no overrides                     | file only                            |
+| `keys.prefix`                                                                               | `"ctrl+b"`                       | Keyboard / Prefix (TUI)              |
+| `keys.<action>`                                                                             | the action's built-in keys       | Keyboard (TUI)                       |
+| `[[keys.command]]` `command`, `type`, `key`, `description`, `width`, `height`               | no commands                      | file only                            |
+| `agents.resume_on_restore`                                                                  | `true`                           | Agents / Restore                     |
+| `agent_detection.auto_update`                                                               | `true`                           | file only                            |
+| `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
+
+The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The
+preference keys (those with a `preference` in the registry) and the launch profiles parse into
+`UserSettings::preferences`, and the Desktop font, padding, opacity and Option keys into
+`UserSettings::desktop`, but their runtime source is still the shared preference record and the
+Desktop's own state until later phases move consumers onto the file. The notification profile the
+Server publishes keeps its `[ui.toast]` wire spelling.
+
+### Reading
+
+The reader is strict per key and tolerant per file:
+
+- A file over 2 MiB (`MAXIMUM_USER_SETTINGS_BYTES`), a directory, an unreadable file, a missing
+  explicit file and an invalid location variable are errors; a missing default file is the
+  defaults.
+- A file that is not valid UTF-8 or TOML gives the defaults, or the last valid settings through
+  `UserSettingsLoad::or_last_valid`, plus a `file` diagnostic. `UserSettingsLoad::syntax` names the
+  reason and the 1-based line and column, counted in characters. Startup paths (Client activation
+  and the managed Server's first read) continue on that result; `config check`, `channel show`,
+  `channel set`, `update`, `server reload-config` and the Server's sampler call
+  `UserSettingsLoad::require_valid_syntax` and keep what they had.
+- An unknown key is reported as `unknown-key` with disposition `ignored`, left in the file and
+  never echoed.
+- A value of the wrong type or outside its allowed values falls back to that key's default and is
+  reported (`wrong-type`, `invalid-value`, `invalid-mode`, `value-too-long` or a key-specific
+  reason); an invalid layout or launch-profile table falls back as a whole.
+
+Diagnostics are deduplicated before display truncation, sorted by field and reason, capped at 128
+entries with an exact omitted count, and never retain source values or commands. See
+[configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The reader
+runs on Windows, and the editor shares that gate; other hosts get `unsupported-platform` until
+their Clients adopt the file.
+
+The same reader owns `UpdateChannel` (`stable`/`preview`, default stable) with default/file
+provenance; native `channel show` consumes it offline and infers nothing about the installed
+release. The pure Windows user-path adapter normalizes relative and tilde operands lexically and
+keeps absolute literals verbatim; applications own wire projection, activation commit and private
+child arguments.
+
+`user_settings_path` resolves the same file without opening it. It preserves explicit
+`ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the data root; a missing home leaves the
+location absent, and an invalid `ORCHBEE_HOME` is a settings error. Detection rules, preferences
+and other records follow the data root, never the settings file's folder.
+
+### Editing
+
+`set_setting(key, value, env)` and `restore_setting_default(key, env)` change one registered key
+and keep every other byte:
+
+1. Take `internal/config.lock` in the data root, waiting up to two seconds (`locked`).
+2. Read the file, following a symbolic link to the file it names, and record its SHA-256.
+3. Change the key with `toml_edit`: a key already present keeps its comments and inline comment; a
+   new key goes into its table, and a missing table is created with a header after any comments
+   that end the file. Restoring removes the key and any table it leaves empty, unless that table carries
+   a comment.
+4. Validate the result with the reader and refuse a value it would not accept for that key
+   (`invalid-value` with the reader's reason) or an unregistered key (`unknown-key`). An array of
+   tables is edited whole, never one element.
+5. Write `config.pending` beside the file and flush it, then compare the file with the recorded
+   digest; when another program changed it, redo the edit once from the new text, then report
+   `changed`.
+6. Replace the file atomically. A symbolic link keeps its link and the target is replaced.
+
+A missing file is created holding only that key. A file that does not parse is never written: the
+edit returns `Syntax` with its line and column. A read-only file is `read-only`; on Windows a file
+another program holds open is retried for two seconds, then `in-use`. Nothing changes when the file
+already says what the edit asks for. `set_update_channel` is `set_setting` on `update.channel`;
+its errors map onto the file failure vocabulary `channel set` already publishes.
+
+### Reference
+
+`default_user_settings_toml_with_actions` renders the registry as comments only, headers included:
+a fixed-English header, then each key's purpose, when a change applies, its default and allowed
+values, and a commented example line; the application supplies each Client action's current
+default keys. `config check` accepts it unchanged, and parsing it gives the same settings as an
+absent file.
 
 ## Windows private update cache
 
@@ -844,7 +971,7 @@ Applications own what each record holds; this adapter alone implements no update
 
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
 
-Windows settings also admit `[update] manifest_check` (default true) and retain default/file provenance plus explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
+Windows settings also admit `[agent_detection] auto_update` (default true) and retain default/file provenance plus explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
 
 ## Windows keybinding configuration repair
 
@@ -856,14 +983,14 @@ The Windows plugin catalog boundary supplies bounded manifest parsing, normalize
 
 ## Windows update channel writes
 
-`set_update_channel` is the shared explicit settings writer: it validates the entire current file, preserves TOML syntax with the already pinned toml_edit parser, serializes cooperating writers, rechecks for edits, and flushes an atomic private replacement. It may create the selected absent file. It never downloads or rolls back a saved preference after a caller's update failure.
+`set_update_channel` saves the channel through the [single-key editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads or rolls back a saved preference after a caller's update failure.
 
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 
 ## Windows sidebar presentation settings
 
-The shared settings owner admits separate `ui.sidebar.agents` and `ui.sidebar.spaces`
-layouts. Token styling/raw-value first-match rules have one common admission owner;
+The shared settings owner admits separate `appearance.sidebar.agents` and
+`appearance.sidebar.workspaces` layouts. Token styling/raw-value first-match rules have one common admission owner;
 family-specific wrappers reject unsupported tokens and non-text rules. Each closed
 canonical profile caps at 32 KiB independently. Workspace layouts use rows/row_gap;
 Agent layouts retain provider overrides. Startup, CLI checks and Session reload all

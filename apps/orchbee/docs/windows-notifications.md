@@ -21,7 +21,7 @@ Focused evidence covers sanitizer boundaries, independent protocol validation, r
 
 ## Configured custom-notification delivery
 
-Windows `[ui.toast] delivery` selects `off` (default), `orchbee`, `terminal` or `system`. `[ui.toast.overlay] position` selects the default corner using the existing four CLI names. Omitted CLI position follows each receiving Client; explicit position wins. Startup uses the Client's settings. An explicit Session configuration publication applies the canonical bounded notification profile together with keys; malformed publications retain both previous policies. Other Agent/clipboard/sound preferences are outside this custom-notification slice.
+Windows `[notifications] cli_delivery` selects `off` (default), `orchbee`, `terminal` or `system`. `[notifications] position` selects the default corner using the existing four CLI names. Omitted CLI position follows each receiving Client; explicit position wins. Startup uses the Client's settings. An explicit Session configuration publication applies the canonical bounded notification profile together with keys; malformed publications retain both previous policies. Other Agent/clipboard/sound preferences are outside this custom-notification slice.
 
 Off suppresses visuals, while explicitly requested custom sounds remain independent. With no Client, the Server's off policy returns `disabled`; otherwise it returns `no-foreground-client`. A connected Client using off can still acknowledge transport admission as `shown`. Policy changes discard undrawn pending effects and cards; they do not replay prior messages.
 
@@ -40,15 +40,15 @@ Both default to off (`never` and `false`). Native configuration supplies the del
 sound overrides independently of manual delivery:
 
 ```toml
-[ui.toast]
-delivery = "off"                 # manual `notification show`; existing default
+[notifications]
+cli_delivery = "off"             # manual `notification show`; existing default
 delay_seconds = 1                # 0 through 3600
 
-[ui.sound.agents]
+[notifications.sound_by_agent]
 codex = "off"                    # default, on, or off
 ```
 
-These preferences do not change manual `delivery` or explicit `notification show` sound.
+These preferences do not change manual `cli_delivery` or explicit `notification show` sound.
 Shared `soundEnabled = false` is a hard stop; with sound enabled, a per-Agent `off` mutes
 that detected label and `default` or `on` permits the built-in cue.
 Agent keys are lowercase detector IDs of at most 64 ASCII letters, digits, dots or hyphens, with an
@@ -146,4 +146,4 @@ Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 
-The canonical position key is `ui.toast.overlay.position`. Generated configuration and Session profiles use the canonical section; profile publication and rollback require the same cohort.
+The file's position key is `notifications.position`; the Session's bounded notification profile keeps its own `[ui.toast.overlay]` wire spelling; profile publication and rollback require the same cohort.

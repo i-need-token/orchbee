@@ -3120,7 +3120,7 @@ from `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`; there is no default. Withou
 invalid value, Update is unavailable, no check runs, the remote cache is ignored and the catalog reads
 `not configured` or reports the source error, while bundled and local rules remain usable. The source
 is frozen at Session startup. With a catalog, managed release Sessions automatically check at startup and
-every thirty minutes when `update.manifest_check` is true (default). Debug/test and standalone
+every thirty minutes when `agent_detection.auto_update` is true (default). Debug/test and standalone
 execution do not schedule checks. Only configuration publication (the Session's sampler or
 `server reload-config`) changes this switch; rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
 a separate latest-result slot without consuming manual receipts.

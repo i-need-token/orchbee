@@ -2,7 +2,7 @@
 
 ## File and validation
 
-Orchbee reads `config.toml` in its environment's [data root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults; a missing explicit file is an error. Invalid or empty location variables, unreadable files, directories, files larger than 64 KiB and invalid UTF-8/TOML are fatal to the read that meets them. A successfully parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
+Orchbee reads `config.toml` in its environment's [data root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults; a missing explicit file is an error. Invalid or empty location variables, unreadable files, directories and files larger than 2 MiB are fatal to the read that meets them. A file that is not valid UTF-8 or TOML gives the defaults and a `file` warning whose reader result names the line and column; Session startup and Client activation continue on those defaults, while `config check`, `channel show`, `channel set`, `update`, `server reload-config` and the Server's sampler treat it as fatal and keep what they had. A parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
 
 ```toml
 [terminal]
@@ -14,10 +14,12 @@ directory = "~/Projects/worktrees"
 
 [update]
 channel = "stable"
-manifest_check = true
+
+[agent_detection]
+auto_update = true
 ```
 
-Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. Unknown sections, fields and actions warn and are ignored; loading configuration never enables a plugin, installs a provider or runs a configured command.
+Only registered keys affect Orchbee; the [settings key table](../../../crates/local-runtime/README.md#user-settings) lists every table and key. Unknown sections, fields and actions warn and are ignored, and the retired `[ui]` names are simply unknown: nothing migrates or aliases them; loading configuration never enables a plugin, installs a provider or runs a configured command.
 
 `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A path must also be a workbench directory path, so a bare verbatim drive such as `\\?\C:` is invalid; the same rules apply to `worktrees.directory`. An invalid path falls back only that leaf. A missing `USERPROFILE`, with no `ORCHBEE_HOME`, leaves `config check` on defaults, but Session activation then has no data root for the Session's preference scope: it fails as configuration `USERPROFILE`/`missing` (exit 1) before its activation marker commits. An empty or relative `ORCHBEE_HOME` is the configuration failure `ORCHBEE_HOME`/`invalid-path`. An explicit malformed value does not silently fall back.
 
@@ -25,7 +27,7 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ### Default configuration output
 
-`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. A fixed-English comment reference lists admitted setting defaults, choices and purposes; English keeps this copyable config artifact identical across CLI locales. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The reference also describes custom-command rules. Settings manages shared preferences independently of the native configuration file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file. An absent shared preference record returns canonical defaults regardless of the generated configuration file.
+`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table headers included: a fixed-English reference generated from the settings registry gives each key's purpose, default, allowed values and when a change applies; English keeps this copyable config artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. Settings manages shared preferences independently of the native configuration file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file. An absent shared preference record returns canonical defaults regardless of the generated configuration file.
 
 ## Named chrome themes
 
@@ -36,9 +38,10 @@ terminal-native contrast when no host background is observed. Shared preferences
 appearance. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
 consumers, shared reload and rollback.
 
-The native configuration file has no theme setting: a `[theme]` table is an unknown section that
-warns and is ignored, and neither `config check` v1 details nor Session configuration v1
-snapshots carry a theme field.
+`appearance.mode`, `appearance.light_theme` and `appearance.dark_theme` are read into the settings
+model, but the shared preference record remains their runtime source until settings pages move onto
+the file. A `[theme]` table is an unknown section that warns and is ignored, and neither
+`config check` v1 details nor Session configuration v1 snapshots carry a theme field.
 
 ## Creation policy
 
@@ -52,7 +55,7 @@ snapshots carry a theme field.
 
 Branch slugs lowercase ASCII letters, collapse nonalphanumeric runs to a hyphen, trim hyphens and use `worktree` if empty. Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The read-only repository query uses the same source and trust policy as creation. The Server still rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem transaction. Explicit path avoids the extra query.
 
-Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin pane never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a fatal edit keeps the last published snapshot and fails `server reload-config`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
+Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin pane never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a file that does not parse starts it on defaults with a `file` warning, a fatal edit keeps the last published snapshot and fails `server reload-config`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
 
 The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload and keybindings retain their own contracts; every creation surface takes its default program from the shared launch profile described below.
 
@@ -64,9 +67,9 @@ The shared Windows settings reader owns bounded file inspection, deterministic f
 
 ## Rule update policy
 
-`[update] channel` accepts exactly `stable` (default) or `preview`, independently of `manifest_check`. `orchbee channel show [--format text|json]`, which a release build [withholds](#windows-release-installation), reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
+`[update] channel` accepts exactly `stable` (default) or `preview`, independently of `agent_detection.auto_update`. `orchbee channel show [--format text|json]`, which a release build [withholds](#windows-release-installation), reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
 
-`[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
+`[agent_detection] auto_update` is a TOML boolean, default true, with `default`/`file` provenance.
 It allows automatic detection-rule checks only when the Server has a catalog from
 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`; Orchbee ships no default catalog.
 Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
@@ -88,7 +91,7 @@ active update returns busy for reload. Other running settings and keybindings ar
 by this command. Explicit updates remain available when automatic checks are disabled. See the
 [screen model](../../orchbee-server/docs/agent-screen-model.md#automatic-checks-and-configuration-snapshots).
 Release acceptance fixtures must explicitly disable checks when public network access is outside
-the test's purpose. Rolling back to a reader predating this key requires removing the update section;
+the test's purpose. A reader predating the current key names ignores the renamed tables with warnings;
 user overrides and already committed rule caches are retained.
 
 ## Reset custom keybindings
@@ -97,7 +100,7 @@ Windows `config reset-keys [--format text|json]` is an offline configuration rep
 It uses the same file location as `config check`, but a missing file (including an explicit path)
 or no top-level `keys` value succeeds without creating or writing anything. It removes `[keys]`,
 its nested tables and command arrays, or a safely removable top-level assignment. Other settings,
-comments outside the removed tables and line endings remain byte-for-byte. Invalid UTF-8/TOML, files over 64 KiB and edits whose
+comments outside the removed tables and line endings remain byte-for-byte. Invalid UTF-8/TOML, files over 2 MiB and edits whose
 parsed result differs from the original minus `keys` fail before writing. This allows recovery from
 custom keys that the current settings reader does not yet support; it does not validate or repair
 other settings or reload a running Client.
@@ -252,7 +255,7 @@ these keys still depends on the terminal host.
 ## Live configuration reload
 
 The sidebar profile participates in the same admission/publication transition:
-`ui.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
+`appearance.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
 Windows settings owner, then published as a bounded canonical profile. A Client
 validates keys, notifications and both sidebars before installing any field. A bad
 private wire profile leaves the whole previous Client configuration intact. Startup applies
@@ -283,7 +286,7 @@ publications wake every configuration subscriber; they have no reply and show no
 configuration-warning summary. `server reload-config` remains the way to confirm a publication
 immediately.
 
-The 64 KiB source limit and each profile's individual bound are admission inputs; the composed
+The 2 MiB source limit and each profile's individual bound are admission inputs; the composed
 response must also fit the unchanged 256 KiB configuration-response limit. Before installing
 revision 0 or applying any live policy, and before every reload commit, Server runs the same exact
 serializer preflight over a complete `ConfigurationResult` (`Current` at startup and `Reloaded` on
@@ -327,18 +330,18 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Outer window titles
 
-`[ui] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v1 warning record; unknown `[ui]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `server config`/`server reload-config` v1 expose the effective published template and diagnostics.
+`[appearance] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v1 warning record; unknown `[appearance]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `server config`/`server reload-config` v1 expose the effective published template and diagnostics.
 
 ## Custom-notification configuration
 
-`ui.toast.delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `ui.toast.overlay.position` selects the four-corner default. Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic Agent notifications and sound. `ui.toast.delay_seconds` supplies their delay (one second by default, 0–3600); `[ui.sound.agents]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v1 carry the 16 KiB `notificationProfile`, `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `notifications.position` selects the four-corner default. Shared `agentNotificationMode` and `soundEnabled` preferences govern automatic Agent notifications and sound; the file's `notifications.agent_reminder` and `notifications.sound` are read into the settings model, but those preferences remain the runtime source. `notifications.delay_seconds` supplies the delay (one second by default, 0–3600); `[notifications.sound_by_agent]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v1 carry the 16 KiB `notificationProfile`, `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
 
 Common Agent reminder mode and global sound remain authoritative; manual notification delivery
 and per-Agent sound overrides retain their separate ownership.
 
 ## Windows release installation
 
-`orchbee update [--format text|json]` installs the configured channel. `orchbee channel set <stable|preview> [--format text|json]` validates and atomically saves the channel first, preserving comments and other TOML values, then runs the same updater. A missing explicitly selected file may be created by this writer. Update failure retains the saved preference. Both commands work without a Session; neither starts, stops, replaces or reconnects a running Session. A release build withholds the whole `update` and `channel` command trees, `channel show` included, until they are released: help, completion and the `--skill` guide leave them out, and an invocation is refused with `stage: "release"`, `reason: "withheld-in-release"`, `feature: "update"` or `"channel"`, exit `4`, before any configuration read; see [release-withheld surfaces](../README.md#release-withheld-surfaces).
+`orchbee update [--format text|json]` installs the configured channel. `orchbee channel set <stable|preview> [--format text|json]` saves the channel first through the shared single-key settings editor, preserving comments and other TOML values, then runs the same updater. A missing file is created holding only the channel; a file that does not parse is never written. Update failure retains the saved preference. Both commands work without a Session; neither starts, stops, replaces or reconnects a running Session. A release build withholds the whole `update` and `channel` command trees, `channel show` included, until they are released: help, completion and the `--skill` guide leave them out, and an invocation is refused with `stage: "release"`, `reason: "withheld-in-release"`, `feature: "update"` or `"channel"`, exit `4`, before any configuration read; see [release-withheld surfaces](../README.md#release-withheld-surfaces).
 
 The shared update workflow, signature verification, source/manifest admission, bounded transfer policy, verification, publication, activation decisions and installed-release provenance compile on every host. Named native ports own declared environment/configuration access, installation-root admission, no-follow manifest opening, system executable lookup, capsule verification and owned process execution. Capability admission runs before signal registration or any environment, file, network or process effect. A development or test build, whose cohort carries an environment artifact stem, refuses with `non-release-build` before saving a channel or touching the installation; this check lives only in the CLI entry layer. Below it, the install and activation engine receives the manifest source, trusted keys, installation root, state lookup, version probe and activation command as values, so in-process tests drive it with the test key and fixture roots. Linux/macOS retain the generic unsupported-platform result (exit 4); they neither save a channel nor perform an update.
 
@@ -374,15 +377,15 @@ The CLI-private `release_store` module owns immutable publication. `ReleaseStore
 
 ## Windows Agent sidebar layouts
 
-The main Windows TUI applies `ui.sidebar.agents` at startup and after `server reload-config`.
+The main Windows TUI applies `appearance.sidebar.agents` at startup and after `server reload-config`.
 For example:
 
 ```toml
-[ui.sidebar.agents]
+[appearance.sidebar.agents]
 rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"], ["terminal_title_stripped"]]
 row_gap = 1
 
-[ui.sidebar.agents.rows_by_agent]
+[appearance.sidebar.agents.rows_by_agent]
 claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ contains = "fast", ignore_case = true, bold = true }] }]]
 ```
 
@@ -394,11 +397,12 @@ Live `terminal_title`/`terminal_title_stripped` now read the exact physical OSC 
 The raw form retains activity glyphs; the stripped form removes one elevation prefix
 and one recognized leading activity glyph. Missing or cleared titles disappear;
 `$terminal_title` remains a separate custom value.
-`ui.sidebar.spaces` has its own Workspace layout and profile, described below.
+`appearance.sidebar.workspaces` has its own Workspace layout and profile, described below.
 
 `config check` v1 and Session configuration receipts v1 expose required
 `agentSidebarProfile` and `spacesSidebarProfile` (closed canonical JSON, at most 32 KiB). Configuration failure
-v1 includes `ui.sidebar.agents` and layout/color/token/rule/provider diagnostics.
+v1 includes the Agent layout field and layout/color/token/rule/provider diagnostics; diagnostics now
+name it `appearance.sidebar.agents`.
 The catalog lists the current documents and command paths. Matched private cohorts carry the new required profile
 together; deployment/rollback is by whole cohort, without persistent migration.
 
@@ -410,13 +414,13 @@ their exact Workspace owner, with one shared scroll window. The
 disclosure and keyboard navigation. The Workspace picker remains available by
 opening Machines then pressing Tab.
 Row clicks retain complete machine/Session/context identity even when names coincide.
-`ui.sidebar.spaces` controls Workspace rows; `ui.sidebar.agents` controls their
+`appearance.sidebar.workspaces` controls Workspace rows; `appearance.sidebar.agents` controls their
 Agent children. Agent `row_gap` applies before and between Agent rows; Workspace
 `row_gap` applies before the next Context row and at least one row before each group.
 A Project's first Workspace sits directly under its heading.
 
 ```toml
-[ui.sidebar.spaces]
+[appearance.sidebar.workspaces]
 rows = [["workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
 row_gap = 0
 ```
@@ -442,7 +446,7 @@ startup or per-draw I/O occurs. Custom `$branch`/`$git_status` stay distinct.
 See the [Workspace sidebar model](machines.md#workspace-sidebar-model) for fences,
 aggregation, budgets, exact activation and acceptance limits.
 
-Configuration failure v1 admits `ui.sidebar.spaces`. Session/Client reload validates
+Workspace layout diagnostics name `appearance.sidebar.workspaces`. Session/Client reload validates
 keys, notifications and both sidebar profiles before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
 including escaping.

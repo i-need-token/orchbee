@@ -609,7 +609,7 @@ SSH/emulator visual acceptance remain separate obligations.
 
 ## Agent sidebar configuration model
 
-Windows users can select sidebar content through `ui.sidebar.agents.rows`,
+Windows users can select sidebar content through `appearance.sidebar.agents.rows`,
 `rows_by_agent` and `row_gap`. The shared Windows settings owner admits the
 bounded whole file and a canonical, closed JSON profile of at most 32 KiB.
 The existing Session configuration owner publishes that profile alongside keys and
@@ -721,7 +721,7 @@ Agent rows retain a fixed leading state symbol independently of configured text 
 
 The Windows main sidebar resolves workspace rows from exact Session/context identities,
 not display labels or Agent source-view filtering. The settings owner admits
-`ui.sidebar.spaces` rows and `row_gap`, with at most 16 rows and 16 tokens per row.
+`appearance.sidebar.workspaces` rows and `row_gap`, with at most 16 rows and 16 tokens per row.
 Builtins are `state_icon`, `state_text`, `workspace`, `branch`, `location` and `git_status`;
 `$custom` values come from the Workspace report owner. Styles and first-match
 text rules inspect original values before terminal sanitization. Icon and Git

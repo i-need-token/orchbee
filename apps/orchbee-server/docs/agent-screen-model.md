@@ -271,7 +271,7 @@ ownership are specified below.
 
 ## Automatic checks and configuration snapshots
 
-Windows `update.manifest_check` is a strict boolean, default true; it takes effect only with a
+Windows `agent_detection.auto_update` is a strict boolean, default true; it takes effect only with a
 configured catalog. Only persistent managed Sessions in
 release, non-test builds allow background checks. Standalone, debug and test execution do not
 schedule network work. An enabled owner schedules once at startup, then every thirty minutes by

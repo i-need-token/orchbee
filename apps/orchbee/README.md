@@ -1142,11 +1142,11 @@ Windows `panel report-agent`, `clear-agent-authority` and `release-agent` submit
 
 ## Windows CLI notifications
 
-`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Session. Configure `[ui.toast] delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Session. Configure `[notifications] cli_delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
 
 ## Windows outer terminal title
 
-`orchbee terminal title set "Build workspace"` publishes an override for the foreground Client, a main TUI or a Desktop window, which shows it as its window title; `orchbee terminal title clear` returns to the live `ui.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
+`orchbee terminal title set "Build workspace"` publishes an override for the foreground Client, a main TUI or a Desktop window, which shows it as its window title; `orchbee terminal title clear` returns to the live `appearance.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
 
 Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Session; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, startup and event hooks, managed install/update/uninstall and Pane integration. A start receipt confirms admission; logs report execution results.
 
