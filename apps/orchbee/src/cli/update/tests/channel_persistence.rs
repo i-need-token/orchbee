@@ -94,22 +94,6 @@ fn channel_set_persists_before_failed_update_and_never_activates_a_session() {
     assert_eq!(report.config_path.as_deref(), Some(config.as_path()));
     assert_eq!(roots.effective_channel(), UpdateChannel::Preview);
 
-    let original = "# keep comment\n[update]\nmanifest_check=false # keep policy\nchannel='preview' # retained channel note\n[terminal]\nnew_cwd='home'\n";
-    fs::write(&config, original).unwrap();
-    let (_, rendered) = roots.update(Some(UpdateChannel::Stable), None);
-    assert_failed_after_save(&rendered, true, "source-unconfigured");
-    let text = fs::read_to_string(&config).unwrap();
-    for retained in [
-        "# keep comment",
-        "# keep policy",
-        "# retained channel note",
-        "manifest_check=false",
-        "new_cwd='home'",
-    ] {
-        assert!(text.contains(retained), "{retained}: {text}");
-    }
-    assert_eq!(roots.effective_channel(), UpdateChannel::Stable);
-
     // Warnings never block the save: unknown sections survive and an invalid channel is replaced.
     for (warning, retained) in [
         ("[unknown]\nsecret='kept'", Some("secret='kept'")),

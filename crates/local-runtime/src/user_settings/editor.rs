@@ -9,7 +9,7 @@
 //! the file replaced. A file that does not parse is never written.
 use super::{
     LIMIT, SettingsError, SettingsSyntaxError, parse, parse_bytes,
-    registry::{SETTING_KEYS, SettingValue, find_setting, recognized_path},
+    registry::{SETTING_KEYS, SettingDefault, SettingValue, find_setting, recognized_path},
     unknown_field, user_settings_path,
 };
 use crate::DataRoot;
@@ -51,7 +51,8 @@ pub const MAXIMUM_STRUCTURED_VALUE_BYTES: usize = 64 * 1024;
 #[derive(Clone, Debug, PartialEq)]
 pub enum SettingChange {
     /// Set the key to `value`. A structured key such as `terminal.profiles.<platform>` takes its
-    /// whole value in the file's form, an array of tables included.
+    /// whole value in the file's form, an array of tables included. A scalar key set to its
+    /// registered default is removed, as [`Self::Restore`] removes it.
     Set {
         key: Vec<String>,
         value: toml::Value,
@@ -159,9 +160,9 @@ impl std::error::Error for SettingsEditError {}
 
 /// Apply every change in one write, or none, and return whether the file changed. Each value must
 /// be one the reader admits for its key, and the file the edit makes must give the reader no new
-/// diagnostic on a registered setting. Restoring a key removes it, and a table left empty and
-/// without a comment goes with it. A file that already says what the changes ask for is not
-/// written.
+/// diagnostic on a registered setting. Restoring a key removes it, as does setting a scalar key to
+/// its registered default, and a table left empty and without a comment goes with it. A file that
+/// already says what the changes ask for is not written.
 ///
 /// # Errors
 /// Returns the first refusal; nothing is written then.
@@ -320,6 +321,11 @@ fn candidate(
     for change in changes {
         let segments: Vec<&str> = change.key().iter().map(String::as_str).collect();
         match change {
+            // A set to the default leaves the file as a restore does, so the key follows a later
+            // default instead of pinning today's.
+            SettingChange::Set { value, .. } if registered_default(&segments, value) => {
+                restore_in(document.as_table_mut(), &segments);
+            }
             SettingChange::Set { value, .. } => {
                 let refused = |field: String| SettingsEditError::InvalidValue {
                     key: dotted(change.key()),
@@ -370,6 +376,28 @@ fn candidate(
         });
     }
     Ok(Some(after))
+}
+
+/// Whether `value` is the registered default of the scalar key `segments` names. A structured value,
+/// a key under a map of names and a key without a scalar default are never a default here, so they
+/// are written as given. A `<platform>` key's default is the one registered for every platform.
+fn registered_default(segments: &[&str], value: &toml::Value) -> bool {
+    let Some(setting) = find_setting(segments) else {
+        return false;
+    };
+    if matches!(setting.value, SettingValue::Structured(_))
+        || ["*", "<action>", "[]"]
+            .iter()
+            .any(|open| setting.path.contains(open))
+    {
+        return false;
+    }
+    match (setting.default, value) {
+        (SettingDefault::Boolean(default), toml::Value::Boolean(value)) => default == *value,
+        (SettingDefault::Integer(default), toml::Value::Integer(value)) => default == *value,
+        (SettingDefault::Text(default), toml::Value::String(value)) => default == value.as_str(),
+        _ => false,
+    }
 }
 
 /// Whether a diagnostic on `field` concerns `key`: the key itself, a table that holds it, or a

@@ -328,6 +328,86 @@ fn refusals_leave_the_file_untouched() {
 }
 
 #[test]
+fn a_set_to_the_registered_default_removes_the_key_and_any_other_value_is_written() {
+    let platform = super::super::registry::current_platform();
+    let profiles = format!("terminal.profiles.{platform}");
+    let default_profile = format!("terminal.default_profile.{platform}");
+    let original = "# my settings\n[terminal]\nfocus_new_panel = false\n# keep this\ncopy_on_select = true # inline note\nnew_cwd = 'home'\n\n[mystery]\nanswer = 42\n";
+    // (key, value, whether the file changes, the key's value in the file afterwards)
+    let cases = [
+        // A scalar key set to its default is removed, or stays absent, as a restore leaves it.
+        (
+            "terminal.focus_new_panel",
+            toml::Value::Boolean(true),
+            true,
+            None,
+        ),
+        ("appearance.mode", string("system"), false, None),
+        (
+            "terminal.scrollback_bytes",
+            toml::Value::Integer(10_000_000),
+            false,
+            None,
+        ),
+        (
+            default_profile.as_str(),
+            string("system-default"),
+            false,
+            None,
+        ),
+        // Any other value is written.
+        (
+            "terminal.focus_new_panel",
+            toml::Value::Boolean(false),
+            false,
+            Some(toml::Value::Boolean(false)),
+        ),
+        (
+            "terminal.scrollback_bytes",
+            toml::Value::Integer(5_000_000),
+            true,
+            Some(toml::Value::Integer(5_000_000)),
+        ),
+        (
+            "appearance.mode",
+            string("dark"),
+            true,
+            Some(string("dark")),
+        ),
+        // A structured value is written as given, even one that means what its absence does.
+        (
+            profiles.as_str(),
+            toml::Value::Array(Vec::new()),
+            true,
+            Some(toml::Value::Array(Vec::new())),
+        ),
+    ];
+    for (path, value, changed, after) in cases {
+        let fixture = Fixture::new();
+        fixture.write(original);
+        assert_eq!(
+            edit_settings(&changes(vec![set(path, value)]), fixture.env()),
+            Ok(changed),
+            "{path}"
+        );
+        let text = fixture.text();
+        let root = toml::Value::Table(toml::from_str(&text).unwrap());
+        let found = path
+            .split('.')
+            .try_fold(&root, |value, segment| value.get(segment));
+        assert_eq!(found, after.as_ref(), "{path}: {text}");
+        // Every other key and comment stays as written.
+        for kept in [
+            "# my settings\n[terminal]\n",
+            "# keep this\ncopy_on_select = true # inline note\nnew_cwd = 'home'\n",
+            "[mystery]\nanswer = 42\n",
+        ] {
+            assert!(text.contains(kept), "{path}: {text}");
+        }
+    }
+}
+
+#[test]
 fn a_settings_path_that_names_a_folder_is_refused_as_unreadable_not_read_only() {
     let fixture = Fixture::new();
     fs::create_dir_all(fixture.file()).unwrap();
