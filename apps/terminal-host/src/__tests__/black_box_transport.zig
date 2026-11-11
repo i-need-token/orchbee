@@ -202,7 +202,7 @@ const PosixClient = if (builtin.os.tag == .windows) void else struct {
     ) !PosixClient {
         const path = try std.fmt.allocPrint(
             allocator,
-            "{s}{c}{s}.s",
+            "{s}{c}{s}-host.sock",
             .{ runtime_directory, std.fs.path.sep, endpoint_id },
         );
         defer allocator.free(path);
