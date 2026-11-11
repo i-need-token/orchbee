@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { projectWorkbenchAgentStartRows } from '../project-workbench-agent-start-rows';
+import { projectWorkbenchAgentStartRows } from '../projectWorkbenchAgentStartRows';
 
 const stateSchema = z.enum(['cant-check', 'checking', 'found', 'not-found', 'unknown']);
 const groupSchema = z.enum(['installed', 'not-checked', 'not-found', 'recent']);

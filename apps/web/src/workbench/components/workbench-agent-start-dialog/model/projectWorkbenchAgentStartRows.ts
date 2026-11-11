@@ -1,5 +1,5 @@
 /** What the dialog needs of one catalog row; the parsed wire catalog satisfies it. */
-export interface WorkbenchAgentStartEntry<Provider extends string = string> {
+interface WorkbenchAgentStartEntry<Provider extends string = string> {
 	readonly command: string;
 	readonly productName: string;
 	readonly providerId: Provider;
@@ -18,7 +18,7 @@ export interface WorkbenchAgentStartCatalogView<Provider extends string = string
 
 export type WorkbenchAgentStartGroup = 'installed' | 'not-checked' | 'not-found' | 'recent';
 
-export type WorkbenchAgentStartRow<Provider extends string = string> =
+type WorkbenchAgentStartRow<Provider extends string = string> =
 	| { readonly group: WorkbenchAgentStartGroup; readonly kind: 'heading' }
 	| {
 			readonly detail: 'cant-check' | 'command' | 'not-found';
@@ -124,6 +124,7 @@ function alphabetical<Entry extends { readonly productName: string }>(
 	return [...entries].sort((left, right) => {
 		const a = left.productName.toLowerCase();
 		const b = right.productName.toLowerCase();
-		return a < b ? -1 : a > b ? 1 : 0;
+		if (a === b) return 0;
+		return a < b ? -1 : 1;
 	});
 }

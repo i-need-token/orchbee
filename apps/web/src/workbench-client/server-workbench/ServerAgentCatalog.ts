@@ -103,7 +103,7 @@ export class ServerAgentCatalog implements WorkbenchAgentCatalogSource {
 			return;
 		}
 		this.#catalog = catalog;
-		for (const listener of [...this.#listeners]) listener();
+		for (const listener of this.#listeners) listener();
 	}
 
 	#observe(): void {

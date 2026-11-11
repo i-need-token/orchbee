@@ -3,10 +3,13 @@ import type {
 	WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
+/** One Session Agent catalog as the Workbench reads it; the revision stays with the reader. */
+export type WorkbenchAgentCatalogSnapshot = Omit<WorkbenchAgentCatalog, 'revision'>;
+
 /** The Session's Agent catalog, read from the Server; product names and commands come from it. */
 export interface WorkbenchAgentCatalogSource {
 	/** Null until the first catalog arrives; the last catalog stays when the reading stops. */
-	getSnapshot(): WorkbenchAgentCatalog | null;
+	getSnapshot(): WorkbenchAgentCatalogSnapshot | null;
 	subscribe(listener: () => void): () => void;
 	/** Asks for a new lookup of installed Agents; its result arrives as a later catalog. */
 	refresh(): void;
