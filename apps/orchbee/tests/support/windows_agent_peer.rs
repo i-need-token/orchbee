@@ -851,7 +851,7 @@ pub(super) fn configuration_reply(
                     diagnostics: ConfigurationDiagnostics::default(),
                     keys_profile: "[keys]".into(),
                     window_title: String::new(),
-                    notification_profile: "[ui.toast]".into(),
+                    notification_profile: "[notifications]\ncli_delivery='off'\n".into(),
                     agent_sidebar_profile: "{}".into(),
                     spaces_sidebar_profile: "{}".into(),
                     manifest_check: true,

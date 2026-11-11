@@ -15,7 +15,7 @@ fn notification_profile_roundtrips_deliveries_delay_position_and_agent_sound() {
     for delivery in ["off", "orchbee", "terminal", "system"] {
         for agent_delivery in ["off", "orchbee", "terminal", "system"] {
             let text = format!(
-                "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='{agent_delivery}'\ndelay_seconds=3600\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'"
+                "[notifications]\ncli_delivery='{delivery}'\nagent_delivery='{agent_delivery}'\ndelay_seconds=3600\nposition='top-left'\nsound=true\n[notifications.sound_by_agent]\ncodex='off'\npi='on'"
             );
             let policy = NotificationSettings::from_profile(&text).unwrap();
             assert_eq!(policy.position(), "top-left");
@@ -35,34 +35,33 @@ fn notification_profile_roundtrips_deliveries_delay_position_and_agent_sound() {
 
 #[test]
 fn notification_profile_rejects_unknown_types_bounds_and_agent_ids() {
-    for text in [
-        "[ui.toast]\ndelivery=1",
-        "[ui.toast]\ndelivery='bad'",
-        "[ui.toast]\nagent_delivery='bad'",
-        "[ui.toast]\ndelivery='invalid-provider'",
-        "[ui.toast]\nagent_delivery='invalid-provider'",
-        "[ui.toast]\nenabled=true",
-        "[ui.toast.unknown]\nposition='top-left'",
-        "[ui.toast]\ndelay_seconds=-1",
-        "[ui.toast]\ndelay_seconds=3601",
-        "[ui.toast]\nunknown=true",
-        "[ui.toast.overlay]\nposition='center'",
-        "[ui.sound]\nenabled='yes'",
-        "[ui.sound]\npath='later.mp3'",
-        "[ui.sound.agents]\n'Bad Agent'='off'",
-        "[ui.sound.agents]\ncodex='sometimes'",
-        "[ui]",
-        "[ui.toast]\ndelivery='off'\n[terminal]",
-    ] {
-        assert!(NotificationSettings::from_profile(text).is_err(), "{text}");
-    }
     let too_many = (0..=MAXIMUM_AGENT_SOUND_OVERRIDES)
         .map(|index| format!("a{index}='off'"))
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(NotificationSettings::from_profile(&format!("[ui.sound.agents]\n{too_many}")).is_err());
-    assert!(
-        NotificationSettings::from_profile(&"x".repeat(MAXIMUM_NOTIFICATION_PROFILE_BYTES + 1))
-            .is_err()
-    );
+    for text in [
+        "[notifications]\ncli_delivery=1",
+        "[notifications]\ncli_delivery='bad'",
+        "[notifications]\nagent_delivery='bad'",
+        "[notifications]\ncli_delivery='invalid-provider'",
+        "[notifications]\nagent_delivery='invalid-provider'",
+        "[notifications]\nenabled=true",
+        "[notifications.unknown]\nposition='top-left'",
+        "[notifications]\ndelay_seconds=-1",
+        "[notifications]\ndelay_seconds=3601",
+        "[notifications]\nunknown=true",
+        "[notifications]\nposition='center'",
+        "[notifications]\nsound='yes'",
+        "[notifications]\nsound_path='later.mp3'",
+        "[notifications.sound_by_agent]\n'Bad Agent'='off'",
+        "[notifications.sound_by_agent]\ncodex='sometimes'",
+        &format!("[notifications.sound_by_agent]\n{too_many}"),
+        "[notifications]",
+        "[notifications]\ncli_delivery='off'\n[terminal]",
+        "not = 'toml",
+        &"x".repeat(MAXIMUM_NOTIFICATION_PROFILE_BYTES + 1),
+    ] {
+        let error = NotificationSettings::from_profile(text).unwrap_err();
+        assert_eq!(error.field, "notifications", "{text}");
+    }
 }

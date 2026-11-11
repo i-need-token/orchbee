@@ -1,7 +1,9 @@
 //! Manual and automatic notification policy shared by startup, checking and live reload.
 //!
-//! `config.toml` spells these keys under `[notifications]`; the Server-to-Client profile keeps its
-//! own `[ui.toast]` and `[ui.sound]` wire form.
+//! The Server-to-Client profile uses the file's spelling: one `[notifications]` table with
+//! `cli_delivery`, `agent_delivery` (profile only), `delay_seconds`, `position`, `sound` and a
+//! `[notifications.sound_by_agent]` table. A profile still spelled `[ui.toast]` and `[ui.sound]`
+//! stays readable; nothing writes it.
 
 use super::{DiagnosticsCollector, SettingsDiagnosticDisposition, SettingsError, unknown_field};
 
@@ -16,7 +18,7 @@ pub use crate::notification_policy::{
 impl NotificationSettings {
     pub fn profile(&self) -> String {
         let mut profile = format!(
-            "[ui.toast]\ndelivery='{}'\nagent_delivery='{}'\ndelay_seconds={}\n[ui.toast.overlay]\nposition='{}'\n[ui.sound]\nenabled={}\n",
+            "[notifications]\ncli_delivery='{}'\nagent_delivery='{}'\ndelay_seconds={}\nposition='{}'\nsound={}\n",
             self.delivery.as_str(),
             self.agent_delivery.as_str(),
             self.delay_seconds,
@@ -24,7 +26,7 @@ impl NotificationSettings {
             self.sound_enabled
         );
         if !self.agent_sounds.is_empty() {
-            profile.push_str("[ui.sound.agents]\n");
+            profile.push_str("[notifications.sound_by_agent]\n");
             for (agent, setting) in &self.agent_sounds {
                 profile.push_str(&format!("'{agent}'='{}'\n", setting.as_str()));
             }
@@ -32,40 +34,77 @@ impl NotificationSettings {
         profile
     }
 
+    /// Admit a profile in full; every refusal names `notifications`.
     pub fn from_profile(profile: &str) -> Result<Self, SettingsError> {
         if profile.len() > MAXIMUM_NOTIFICATION_PROFILE_BYTES {
-            return Err(toast_error("value-too-long"));
+            return Err(profile_error("value-too-long"));
         }
-        let raw: toml::Value = toml::from_str(profile).map_err(|_| toast_error("invalid-toml"))?;
-        let root = raw.as_table().ok_or(toast_error("wrong-type"))?;
-        if root.len() != 1 {
-            return Err(toast_error("unknown-key"));
+        let root: toml::Table =
+            toml::from_str(profile).map_err(|_| profile_error("invalid-toml"))?;
+        let mut entries = root.iter();
+        let (Some((name, table)), None) = (entries.next(), entries.next()) else {
+            return Err(profile_error("unknown-key"));
+        };
+        let table = table
+            .as_table()
+            .filter(|table| !table.is_empty())
+            .ok_or(profile_error("wrong-type"))?;
+        match name.as_str() {
+            "notifications" => Self::parse_profile(table),
+            "ui" => Self::parse_legacy_profile(table),
+            _ => Err(profile_error("unknown-key")),
         }
-        let ui = root
-            .get("ui")
-            .and_then(toml::Value::as_table)
-            .ok_or(toast_error("wrong-type"))?;
-        if ui.is_empty() {
-            return Err(toast_error("wrong-type"));
+    }
+
+    fn parse_profile(table: &toml::Table) -> Result<Self, SettingsError> {
+        let mut settings = Self::default();
+        if table.keys().any(|key| {
+            !matches!(
+                key.as_str(),
+                "cli_delivery"
+                    | "agent_delivery"
+                    | "delay_seconds"
+                    | "position"
+                    | "sound"
+                    | "sound_by_agent"
+            )
+        }) {
+            return Err(profile_error("unknown-key"));
         }
+        if let Some(delivery) = table.get("cli_delivery") {
+            settings.delivery = parse_delivery(delivery, profile_error)?;
+        }
+        if let Some(delivery) = table.get("agent_delivery") {
+            settings.agent_delivery = parse_delivery(delivery, profile_error)?;
+        }
+        if let Some(delay) = table.get("delay_seconds") {
+            settings.delay_seconds = parse_delay(delay)?;
+        }
+        if let Some(position) = table.get("position") {
+            settings.position = parse_position(position)?;
+        }
+        if let Some(sound) = table.get("sound") {
+            settings.sound_enabled = sound.as_bool().ok_or(profile_error("wrong-type"))?;
+        }
+        if let Some(agents) = table.get("sound_by_agent") {
+            settings.parse_agent_sounds(agents)?;
+        }
+        Ok(settings)
+    }
+
+    /// The `[ui.toast]` and `[ui.sound]` spelling profiles had before they took the file's.
+    fn parse_legacy_profile(ui: &toml::Table) -> Result<Self, SettingsError> {
         if ui
             .keys()
             .any(|key| !matches!(key.as_str(), "toast" | "sound"))
         {
-            return Err(toast_error("unknown-key"));
+            return Err(profile_error("unknown-key"));
         }
-        Self::parse(ui.get("toast"), ui.get("sound"))
-    }
-
-    pub(super) fn parse(
-        toast: Option<&toml::Value>,
-        sound: Option<&toml::Value>,
-    ) -> Result<Self, SettingsError> {
         let mut settings = Self::default();
-        if let Some(raw) = toast {
+        if let Some(raw) = ui.get("toast") {
             settings.parse_toast(raw)?;
         }
-        if let Some(raw) = sound {
+        if let Some(raw) = ui.get("sound") {
             settings.parse_sound(raw)?;
         }
         Ok(settings)
@@ -79,7 +118,7 @@ impl NotificationSettings {
     ) -> Self {
         let mut settings = Self::default();
         if let Some(delivery) = table.get("cli_delivery") {
-            match parse_delivery(delivery, toast_error) {
+            match parse_delivery(delivery, profile_error) {
                 Ok(value) => settings.delivery = value,
                 Err(error) => diagnostics.push(
                     "notifications.cli_delivery",
@@ -184,76 +223,88 @@ impl NotificationSettings {
     }
 
     fn parse_toast(&mut self, raw: &toml::Value) -> Result<(), SettingsError> {
-        let table = raw.as_table().ok_or(toast_error("wrong-type"))?;
+        let table = raw.as_table().ok_or(profile_error("wrong-type"))?;
         if table.keys().any(|key| {
             !matches!(
                 key.as_str(),
                 "delivery" | "agent_delivery" | "delay_seconds" | "overlay"
             )
         }) {
-            return Err(toast_error("unknown-key"));
+            return Err(profile_error("unknown-key"));
         }
         if let Some(delivery) = table.get("delivery") {
-            self.delivery = parse_delivery(delivery, toast_error)?;
+            self.delivery = parse_delivery(delivery, profile_error)?;
         }
         if let Some(delivery) = table.get("agent_delivery") {
-            self.agent_delivery = parse_delivery(delivery, toast_error)?;
+            self.agent_delivery = parse_delivery(delivery, profile_error)?;
         }
         if let Some(delay) = table.get("delay_seconds") {
-            self.delay_seconds = delay
-                .as_integer()
-                .ok_or(toast_error("wrong-type"))?
-                .try_into()
-                .map_err(|_| toast_error("invalid-delay"))?;
-            if self.delay_seconds > MAXIMUM_NOTIFICATION_DELAY_SECONDS {
-                return Err(toast_error("invalid-delay"));
-            }
+            self.delay_seconds = parse_delay(delay)?;
         }
         if let Some(overlay) = table.get("overlay") {
-            let overlay = overlay.as_table().ok_or(toast_error("wrong-type"))?;
+            let overlay = overlay.as_table().ok_or(profile_error("wrong-type"))?;
             if overlay.keys().any(|key| key != "position") {
-                return Err(toast_error("unknown-key"));
+                return Err(profile_error("unknown-key"));
             }
             if let Some(position) = overlay.get("position") {
-                self.position = corner(position.as_str().ok_or(toast_error("wrong-type"))?)
-                    .ok_or(toast_error("invalid-mode"))?;
+                self.position = parse_position(position)?;
             }
         }
         Ok(())
     }
 
     fn parse_sound(&mut self, raw: &toml::Value) -> Result<(), SettingsError> {
-        let table = raw.as_table().ok_or(sound_error("wrong-type"))?;
+        let table = raw.as_table().ok_or(profile_error("wrong-type"))?;
         if table
             .keys()
             .any(|key| !matches!(key.as_str(), "enabled" | "agents"))
         {
-            return Err(sound_error("unknown-key"));
+            return Err(profile_error("unknown-key"));
         }
         if let Some(enabled) = table.get("enabled") {
-            self.sound_enabled = enabled.as_bool().ok_or(sound_error("wrong-type"))?;
+            self.sound_enabled = enabled.as_bool().ok_or(profile_error("wrong-type"))?;
         }
-        let Some(agents) = table.get("agents") else {
-            return Ok(());
-        };
-        let agents = agents.as_table().ok_or(sound_error("wrong-type"))?;
+        match table.get("agents") {
+            Some(agents) => self.parse_agent_sounds(agents),
+            None => Ok(()),
+        }
+    }
+
+    fn parse_agent_sounds(&mut self, agents: &toml::Value) -> Result<(), SettingsError> {
+        let agents = agents.as_table().ok_or(profile_error("wrong-type"))?;
         if agents.len() > MAXIMUM_AGENT_SOUND_OVERRIDES {
-            return Err(sound_error("too-many-agents"));
+            return Err(profile_error("too-many-agents"));
         }
         for (agent, value) in agents {
             if !valid_agent_id(agent) {
-                return Err(sound_error("invalid-agent"));
+                return Err(profile_error("invalid-agent"));
             }
-            let setting = match value.as_str().ok_or(sound_error("wrong-type"))? {
+            let setting = match value.as_str().ok_or(profile_error("wrong-type"))? {
                 "default" => AgentSoundSetting::Default,
                 "on" => AgentSoundSetting::On,
                 "off" => AgentSoundSetting::Off,
-                _ => return Err(sound_error("invalid-mode")),
+                _ => return Err(profile_error("invalid-mode")),
             };
             self.agent_sounds.insert(agent.clone(), setting);
         }
         Ok(())
     }
+}
+
+fn parse_delay(value: &toml::Value) -> Result<u64, SettingsError> {
+    let delay: u64 = value
+        .as_integer()
+        .ok_or(profile_error("wrong-type"))?
+        .try_into()
+        .map_err(|_| profile_error("invalid-delay"))?;
+    if delay > MAXIMUM_NOTIFICATION_DELAY_SECONDS {
+        return Err(profile_error("invalid-delay"));
+    }
+    Ok(delay)
+}
+
+fn parse_position(value: &toml::Value) -> Result<&'static str, SettingsError> {
+    corner(value.as_str().ok_or(profile_error("wrong-type"))?).ok_or(profile_error("invalid-mode"))
 }
 
 fn parse_delivery(
@@ -290,12 +341,8 @@ fn valid_agent_id(value: &str) -> bool {
             .is_some_and(u8::is_ascii_alphanumeric)
 }
 
-fn toast_error(reason: &'static str) -> SettingsError {
-    SettingsError::new("ui.toast", reason)
-}
-
-fn sound_error(reason: &'static str) -> SettingsError {
-    SettingsError::new("ui.sound", reason)
+fn profile_error(reason: &'static str) -> SettingsError {
+    SettingsError::new("notifications", reason)
 }
 
 #[cfg(test)]

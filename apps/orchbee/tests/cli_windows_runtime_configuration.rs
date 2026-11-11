@@ -58,7 +58,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                     Default::default()
                 },
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
-                notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
+                notification_profile: "[notifications]\ncli_delivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default()
                     .profile(),
@@ -218,7 +218,7 @@ fn public_configuration_requires_complete_current_snapshots() {
         "result":{"action":"current","interrupted":false,"cleanupFailed":false,
             "reply":{"protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
                 "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,
-                    "windowTitle":"{tab}","notificationProfile":"[ui.toast]",
+                    "windowTitle":"{tab}","notificationProfile":"[notifications]",
                     "agentSidebarProfile":"{}","spacesSidebarProfile":"{}",
                     "focusNewPanel":true,"worktreesDirectory":null,"newCwd":"follow",
                     "diagnostics":{"items":[{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],"omittedCount":0}}}}}
