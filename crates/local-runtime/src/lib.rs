@@ -47,9 +47,9 @@ pub use user_settings::{
     UpdateChannel, UserColorThemes, UserSettings, UserSettingsField, UserSettingsLoad,
     UserTerminalColors, UserTerminalLaunchIntent, WindowTitleTemplate, configuration_diagnostics,
     default_user_settings_toml, default_user_settings_toml_with_actions, edit_settings,
-    find_setting, read_user_settings, read_user_settings_at, restore_setting_default, set_setting,
-    setting_changes, settings_refusal, settings_snapshot, settings_values, snapshot_values,
-    trigger_label, user_settings_path, value_changes,
+    find_setting, read_startup_settings, read_user_settings, read_user_settings_at,
+    restore_setting_default, set_setting, setting_changes, settings_refusal, settings_snapshot,
+    settings_values, snapshot_values, trigger_label, user_settings_path, value_changes,
 };
 pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};
 mod directory;

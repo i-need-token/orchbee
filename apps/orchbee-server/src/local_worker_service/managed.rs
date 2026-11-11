@@ -176,11 +176,12 @@ pub(super) fn run(
     #[cfg(not(windows))]
     terminals.start_title_reads()?;
     // Hosts here cannot sample processes: the observer refuses after installing the startup read
-    // as the Session's configuration.
+    // as the Session's configuration. No Client read the file first, so a file that cannot be read
+    // starts the Session with the defaults, published as unreadable.
     #[cfg(not(windows))]
     match terminals.start_process_observer(
         || {
-            orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+            orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
                 .map_err(io::Error::other)
         },
         true,

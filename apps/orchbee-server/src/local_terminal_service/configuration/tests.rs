@@ -447,6 +447,7 @@ fn reload_releases_committed_state_while_loading_the_configuration_file() {
         settings,
         diagnostics: orchbee_local_runtime::SettingsDiagnostics::default(),
         syntax: None,
+        unreadable: None,
     };
     let outcome = registry.execute_with(
         &request(Action::Reload),

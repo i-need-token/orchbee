@@ -167,6 +167,7 @@ impl Registry {
             settings: settings.clone(),
             diagnostics: SettingsDiagnostics::default(),
             syntax: None,
+            unreadable: None,
         })
     }
     #[cfg(all(test, windows))]

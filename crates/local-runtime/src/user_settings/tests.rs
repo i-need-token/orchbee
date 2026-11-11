@@ -228,6 +228,53 @@ fn file_bounds_missing_locations_and_no_creation_are_preserved() {
 }
 
 #[test]
+fn startup_read_starts_on_any_file_and_refuses_only_an_inadmissible_location() {
+    use orchbee_workbench_protocol::SettingsFile;
+    let status = |load: &UserSettingsLoad| match settings_snapshot(load, 0).file {
+        SettingsFile::Ok {} => "ok".to_owned(),
+        SettingsFile::Missing {} => "missing".to_owned(),
+        SettingsFile::SyntaxError { .. } => "syntax-error".to_owned(),
+        SettingsFile::Unreadable { reason } => format!("unreadable {reason}"),
+    };
+    let fixture = Fixture::new();
+    let file = fixture.file();
+    let explicit = |name: &str| (name == "ORCHBEE_CONFIG_FILE").then(|| file.clone().into());
+    for (file_state, expected) in [
+        ("absent", "unreadable missing"),
+        ("too large", "unreadable too-large"),
+        ("folder", "unreadable not-file"),
+        ("[terminal", "syntax-error"),
+        ("", "ok"),
+    ] {
+        match file_state {
+            "absent" => {}
+            "too large" => std::fs::write(&file, vec![b' '; LIMIT as usize + 1]).unwrap(),
+            "folder" => std::fs::create_dir(&file).unwrap(),
+            text => std::fs::write(&file, text).unwrap(),
+        }
+        let load = read_startup_settings(explicit).unwrap();
+        assert_eq!(status(&load), expected);
+        assert_eq!(load.path.as_deref(), Some(file.as_path()), "{expected}");
+        assert_eq!(load.values, UserSettingsValues::default(), "{expected}");
+        if file.is_dir() {
+            std::fs::remove_dir(&file).unwrap();
+        } else if file.exists() {
+            std::fs::remove_file(&file).unwrap();
+        }
+    }
+    let home = |name: &str| {
+        (name == crate::DataRoot::home_variable()).then(|| fixture.0.clone().into_os_string())
+    };
+    assert_eq!(status(&read_startup_settings(home).unwrap()), "missing");
+    assert_eq!(std::fs::read_dir(&fixture.0).unwrap().count(), 0);
+    let relative = |name: &str| (name == "ORCHBEE_CONFIG_FILE").then(|| "relative".into());
+    assert_eq!(
+        read_startup_settings(relative).unwrap_err(),
+        SettingsError::new("ORCHBEE_CONFIG_FILE", "invalid-path")
+    );
+}
+
+#[test]
 fn paths_keep_file_parent_home_and_literal_operand_semantics() {
     let settings = parse(
         "[terminal]\nnew_cwd = '../项目'\n[worktrees]\ndirectory = '~/worktrees'",

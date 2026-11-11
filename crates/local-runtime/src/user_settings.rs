@@ -113,6 +113,9 @@ pub struct UserSettingsLoad {
     pub diagnostics: SettingsDiagnostics,
     /// Present when the file is not valid UTF-8 or TOML; `settings` then hold the defaults.
     pub syntax: Option<SettingsSyntaxError>,
+    /// Why the file at the admitted location could not be read, such as `too-large`, when
+    /// [`read_startup_settings`] started with the defaults in its place.
+    pub unreadable: Option<&'static str>,
 }
 
 /// Where `config.toml` stops being valid UTF-8 or TOML.
@@ -223,6 +226,32 @@ pub fn read_user_settings(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<UserSettingsLoad, SettingsError> {
     read_file(env)
+}
+
+/// The startup read of a Session that no Client checked the file for: a file at an admitted
+/// location that is missing, unreadable or too large gives the defaults there with
+/// [`UserSettingsLoad::unreadable`] set, as a file that does not parse gives them with its syntax
+/// error. Only a location that cannot be admitted, such as a relative `ORCHBEE_CONFIG_FILE`, is an
+/// error.
+pub fn read_startup_settings(
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<UserSettingsLoad, SettingsError> {
+    let location = location(&env)?;
+    let path = location.as_ref().map(|(path, _)| path.clone());
+    let explicit = location.as_ref().is_some_and(|(_, explicit)| *explicit);
+    match read_file_at(path.as_deref(), explicit, &env) {
+        Err(error) if error.field == "file" => Ok(UserSettingsLoad {
+            settings: UserSettings {
+                exists: error.reason != "missing",
+                path,
+                explicit,
+                ..UserSettings::default()
+            },
+            unreadable: Some(error.reason),
+            ..UserSettingsLoad::default()
+        }),
+        read => read,
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -395,6 +424,7 @@ fn unparsed(path: &Path, syntax: SettingsSyntaxError) -> UserSettingsLoad {
         },
         diagnostics: diagnostics.finish(),
         syntax: Some(syntax),
+        unreadable: None,
     }
 }
 
@@ -463,6 +493,7 @@ fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Us
         settings,
         diagnostics: diagnostics.finish(),
         syntax: None,
+        unreadable: None,
     }
 }
 

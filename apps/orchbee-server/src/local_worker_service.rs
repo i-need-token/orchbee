@@ -114,8 +114,12 @@ pub(crate) fn run(
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
-    let configuration = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
-        .map_err(io::Error::other)?;
+    #[cfg(windows)]
+    let configuration = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name));
+    // No Client read the file first, so only a location that cannot be admitted stops the Session.
+    #[cfg(not(windows))]
+    let configuration = orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name));
+    let configuration = configuration.map_err(io::Error::other)?;
     // Hosts here cannot sample processes, so the Session serves its settings without an observer.
     #[cfg(not(windows))]
     terminals.install_configuration(&configuration)?;

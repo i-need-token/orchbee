@@ -243,8 +243,9 @@ fn connect_or_activate(
                                 ActivationCause::Configuration(error),
                             )
                         })?;
-                // The Server starts its Worker under the data root and exits without one, so an environment that names no data root is a configuration failure here,
-                // before the marker commits, rather than a Server exit that reads as a wedge.
+                // The Server starts its Worker under the data root and exits without one, so an
+                // environment that names no data root is a configuration failure here, before the
+                // marker commits, rather than a Server exit that reads as a wedge.
                 #[cfg(windows)]
                 if let Err(error) =
                     orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))

@@ -148,12 +148,16 @@ pub fn configuration_diagnostics(diagnostics: &SettingsDiagnostics) -> Configura
 
 /// The snapshot of `load` at `revision`. A load that kept its last valid settings because the file
 /// stopped parsing ([`UserSettingsLoad::or_last_valid`]) publishes those values with the syntax
-/// error. A file that cannot be read at all is the caller's to report: it replaces `file` with
-/// [`SettingsFile::Unreadable`] on the snapshot of the last valid load.
+/// error, and a startup load that could not read the file publishes the defaults as
+/// [`SettingsFile::Unreadable`]. A later read that fails is the caller's to report: it replaces
+/// `file` with [`SettingsFile::Unreadable`] on the snapshot of the last valid load.
 pub fn settings_snapshot(load: &UserSettingsLoad, revision: u64) -> SettingsSnapshot {
     let settings = &load.settings;
-    let file = match load.syntax {
-        Some(syntax) => SettingsFile::SyntaxError {
+    let file = match (load.unreadable, load.syntax) {
+        (Some(reason), _) => SettingsFile::Unreadable {
+            reason: reason.into(),
+        },
+        (None, Some(syntax)) => SettingsFile::SyntaxError {
             reason: if syntax.reason == "invalid-utf8" {
                 SettingsSyntaxReason::InvalidUtf8
             } else {
@@ -162,8 +166,8 @@ pub fn settings_snapshot(load: &UserSettingsLoad, revision: u64) -> SettingsSnap
             line: position(syntax.line),
             column: position(syntax.column),
         },
-        None if settings.exists => SettingsFile::Ok {},
-        None => SettingsFile::Missing {},
+        (None, None) if settings.exists => SettingsFile::Ok {},
+        (None, None) => SettingsFile::Missing {},
     };
     let values = scalar_paths()
         .filter_map(|(path, default)| {
