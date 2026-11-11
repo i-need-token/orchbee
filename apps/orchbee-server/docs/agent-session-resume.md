@@ -99,7 +99,9 @@ Not in the table:
   its hook payload nor its hook environment proves which version runs, a package-version check
   races upgrades and `PATH` order, and no argument form resumes on 0.45.0 or later while failing
   harmlessly earlier. A typed resume could therefore send a prompt, which rule 2 forbids.
-- **Amp, Kiro, Maki and Muse** have no hook adapter, so no session key is ever observed.
+- **Amp, Kiro, Maki, Muse, AtomCode, CodeBuddy Code, Command Code, DevEco Code, MiMo Code,
+  Reasonix, Snow CLI, MiniMax Code, MothX, Kiro Crew, QwenPaw, J-Code, OpenClaw, Penguin and Prime
+  Agent** have no hook adapter, so no session key is ever observed.
 
 ### Tokens and quoting
 

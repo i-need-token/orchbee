@@ -35,9 +35,11 @@ a kill-on-close Windows Job after fixed local process creation and suspended ass
 join before the catalog owner exits; UI retirement only reaps exited owners.
 
 The `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` matches are Client-PATH hints, never target availability
-proof. Generic command `agent` is excluded from automatic detection: [Cursor uses that command](https://prod.cursor.com/docs/cli/installation),
-but other providers can install the same basename. Cursor stays manually selectable using its existing
-launch mapping. A remote origin performs no Client-PATH lookup and also offers manual selection.
+proof. A command that the process-identity registry classes as generic is excluded from automatic
+detection: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation), but other providers
+can install the same basename, and Snow CLI's `snow` and Penguin's `penguin` are common words that
+unrelated programs also use. These providers stay manually selectable using their existing launch
+mapping. Shared names such as `amp` and `mcode` are still advertised, as before. A remote origin performs no Client-PATH lookup and also offers manual selection.
 The form supplies an editable automatic name and injects the exact focused Panel ID after current-draw
 admission. Manual choices use the same reserve, single-submit and readiness owners. No caller
 context environment variable or subprocess adapter is introduced.
@@ -115,9 +117,16 @@ the same locale; every other start notice except the already short cancelling on
 short form. A capability refusal has `details.reason` `startup-failed` with the shared
 [capability failure](../../../docs/cli/output.md) as its `cause`.
 
-The fixed Windows launch names for canonical `cursor` and `qodercli` are `agent` and `qoder`, matching
-their current native installations. Historical names remain recognition aliases; startup does not
-fall back to them. An absent current executable follows the existing startup failure workflow.
+The fixed Windows launch names for canonical `cursor`, `qodercli` and `minimax-code` are `agent`,
+`qoder` and `mcode`, matching their current native installations. Command Code starts as
+`command-code`, never as its package's `cmd` command, which names the system command processor.
+Historical and sibling names remain recognition aliases; startup does not fall back to them.
+
+Four providers open their interactive session through a subcommand rather than their bare command:
+`kirocrew chat`, `qwenpaw tui`, `openclaw chat` and `penguin chat`. The closed provider table in
+`agent_provider::launch_arguments()` holds these fixed words, never caller text; the short
+argument-free form appends them after the command, and caller arguments follow them in the literal
+wrapper. Process recognition requires the same subcommand: their bare command stays unclassified. An absent current executable follows the existing startup failure workflow.
 Name-based process recognition alone is heuristic: an observed start also needs the Server's
 published run and published Agent state. Owned Windows subprocess tests exercise both canonical selections with literal arguments;
 they do not establish authenticated provider readiness. References: [Cursor installation](https://cursor.com/docs/cli/installation)

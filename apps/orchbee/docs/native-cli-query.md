@@ -1041,7 +1041,7 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   commands; one of the closed supported-provider ids (reported by
   `agent integration list`). Required on `explain`/`enable`/`disable`, an optional
   filter on `list`. Any other value is `invalid-usage`. On both `--provider` flags, a canonical
-  Agent that Orchbee can only start (`kiro`, `amp`, `maki`, `muse`) is still `invalid-usage`
+  Agent that Orchbee can only start (such as `kiro`, `amp`, `maki` or `muse`) is still `invalid-usage`
   (exit 2), but its diagnostic says that Agent has no Orchbee integration to check or manage and
   lists the Agents that have one.
 - `--adapter-source <abs>`: single-use value flag, admitted only on the

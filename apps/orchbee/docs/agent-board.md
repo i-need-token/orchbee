@@ -44,8 +44,9 @@ On Windows, after a complete empty list, the board queries mapped commands on th
 `PATH` using fixed System32 `where.exe` helpers. At most four owned workers run concurrently, with a
 six-second shared deadline, a 900 ms lookup slot and bounded Job termination. Results publish one at
 a time; a missing, failed or timed-out lookup never discards other results. The input thread only
-consumes bounded messages and reaps exited owners. Generic `agent` is not enough evidence for Cursor,
-so Cursor remains a manual choice and is not advertised as detected from that filename.
+consumes bounded messages and reaps exited owners. A command the process-identity registry classes
+as generic (`agent`, `snow`, `penguin`) is not enough evidence for its provider, so Cursor, Snow CLI
+and Penguin remain manual choices and are not advertised as detected from those filenames.
 Detected commands are hints about this Client's PATH, not guarantees about the target terminal.
 A remote Session performs no local PATH detection. All canonical providers remain manually selectable
 while detection is loading, unavailable or empty; a bounded moving button window and Up/Down expose
