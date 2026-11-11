@@ -334,6 +334,7 @@ fn fixture_document() -> &'static [u8] {
             "panelId": "00000000000000000000000000000051",
             "primaryPresentation": {
               "presentationId": "00000000000000000000000000000052",
+              "customLabel": null,
               "label": "s",
               "binding": null
             },
@@ -356,6 +357,7 @@ fn fixture_document() -> &'static [u8] {
             "panelId": "00000000000000000000000000000031",
             "primaryPresentation": {
               "presentationId": "00000000000000000000000000000032",
+              "customLabel": null,
               "label": "a",
               "binding": {
                 "terminalId": "00000000000000000000000000000001",
@@ -382,6 +384,7 @@ fn fixture_document() -> &'static [u8] {
                   "panelId": "00000000000000000000000000000043",
                   "primaryPresentation": {
                     "presentationId": "00000000000000000000000000000044",
+                    "customLabel": null,
                     "label": "l",
                     "binding": null
                   },
@@ -395,6 +398,7 @@ fn fixture_document() -> &'static [u8] {
                   "panelId": "00000000000000000000000000000046",
                   "primaryPresentation": {
                     "presentationId": "00000000000000000000000000000047",
+                    "customLabel": null,
                     "label": "r",
                     "binding": null
                   },

@@ -527,6 +527,7 @@ fn fixture_document() -> &'static [u8] {
             "panelId": "00000000000000000000000000000003",
             "primaryPresentation": {
               "presentationId": "00000000000000000000000000000004",
+              "customLabel": null,
               "label": "a",
               "binding": {
                 "terminalId": "00000000000000000000000000000001",
@@ -546,6 +547,7 @@ fn fixture_document() -> &'static [u8] {
             "panelId": "00000000000000000000000000000006",
             "primaryPresentation": {
               "presentationId": "00000000000000000000000000000007",
+              "customLabel": null,
               "label": "b",
               "binding": null
             },
@@ -575,6 +577,7 @@ fn fixture_document() -> &'static [u8] {
                   "panelId": "00000000000000000000000000000024",
                   "primaryPresentation": {
                     "presentationId": "00000000000000000000000000000025",
+                    "customLabel": null,
                     "label": "left",
                     "binding": null
                   },
@@ -588,6 +591,7 @@ fn fixture_document() -> &'static [u8] {
                   "panelId": "00000000000000000000000000000027",
                   "primaryPresentation": {
                     "presentationId": "00000000000000000000000000000028",
+                    "customLabel": null,
                     "label": "right",
                     "binding": {
                       "terminalId": "00000000000000000000000000000030",
@@ -597,6 +601,7 @@ fn fixture_document() -> &'static [u8] {
                   "childPresentations": [
                     {
                       "presentationId": "00000000000000000000000000000029",
+                      "customLabel": null,
                       "label": "aux",
                       "binding": null
                     }
@@ -2807,7 +2812,7 @@ fn budget_obtf_scrolled_at(
     frame.extend_from_slice(&8_u16.to_le_bytes()); // cell pixel width
     frame.extend_from_slice(&1_u16.to_le_bytes()); // cell pixel height
     frame.extend_from_slice(&(u32::from(columns) * u32::from(row_count)).to_le_bytes());
-    frame.push(3); // OBTF version byte checked by the route inspector
+    frame.push(0); // OBTF patch version, checked by the route inspector
     frame.extend_from_slice(&1_u64.to_le_bytes()); // theme revision
     frame.extend_from_slice(&[0; 7]); // trailing reserved header
     for text in strings {
