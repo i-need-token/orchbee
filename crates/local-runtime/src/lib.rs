@@ -42,11 +42,13 @@ pub use user_settings::{
     DirectoryPolicy, KeyChord, KeyOverride, KeySettings, KeyTrigger,
     MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_AGENT_SOUND_OVERRIDES,
     MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
-    MAXIMUM_SETTINGS_DIAGNOSTICS, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, SettingsDiagnostic,
-    SettingsDiagnosticDisposition, SettingsDiagnostics, SettingsError, SidebarTokenStyle,
-    SpaceSidebarSettings, SpaceSidebarToken, SpaceSidebarTokenKind, USER_CONFIG_OPTIONS,
-    UpdateChannel, UserConfigOption, UserSettings, UserSettingsLoad, WindowTitleTemplate,
-    default_user_settings_toml, default_user_settings_toml_with_actions, read_user_settings,
+    MAXIMUM_SETTINGS_DIAGNOSTICS, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, SETTING_KEYS,
+    SETTING_PLATFORMS, SettingCategory, SettingClients, SettingDefault, SettingEffect,
+    SettingGroup, SettingKey, SettingValue, SettingsDiagnostic, SettingsDiagnosticDisposition,
+    SettingsDiagnostics, SettingsError, SidebarTokenStyle, SpaceSidebarSettings, SpaceSidebarToken,
+    SpaceSidebarTokenKind, USER_CONFIG_OPTIONS, UpdateChannel, UserConfigOption, UserSettings,
+    UserSettingsLoad, WindowTitleTemplate, default_user_settings_toml,
+    default_user_settings_toml_with_actions, find_setting, read_user_settings,
     read_user_settings_at, trigger_label, user_settings_path,
 };
 pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};

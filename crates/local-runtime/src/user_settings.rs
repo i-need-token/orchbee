@@ -25,6 +25,11 @@ pub use notifications::{
     MAXIMUM_NOTIFICATION_PROFILE_BYTES, NotificationSettings,
 };
 mod reference;
+mod registry;
+pub use registry::{
+    SETTING_KEYS, SETTING_PLATFORMS, SettingCategory, SettingClients, SettingDefault,
+    SettingEffect, SettingGroup, SettingKey, SettingValue, find_setting,
+};
 mod reset_keys;
 mod window_title;
 use crate::{
