@@ -269,8 +269,8 @@ fences remain held through the Names fold. Managed names are transient and follo
 canonical launch and physical ownership; checkpoint restoration does not recreate them. Rename
 preserves live management, while name clear, provider change, confirmed exit and physical retirement
 invalidate it. Panel Agent reports and other report sources never grant a provider resume reference;
-only a managed hook session's native session key can, under
-[Agent session resume](agent-session-resume.md).
+only a managed hook session's native session key can, or, with no hook session, the published
+run's own Claude Code run table entry, under [Agent session resume](agent-session-resume.md).
 
 ## Managed launch reservations
 

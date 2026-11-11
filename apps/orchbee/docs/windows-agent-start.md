@@ -153,7 +153,9 @@ and [Qoder installation](https://docs.qoder.com/cli/installation).
    whose integrations this Client cannot see, it waits 10000 ms, so an enabled hook can bind the
    name first. Observation binds no name: the workflow releases the reservation and reports the
    Agent started. The CLI keeps its blocked-start rule and refuses a blocked state as
-   `agent-blocked`; the board accepts it. Session resume stays hook-only.
+   `agent-blocked`; the board accepts it. Session resume needs a hook session or, for Claude
+   Code, its own run table entry for the published run
+   ([Agent session resume](../../orchbee-server/docs/agent-session-resume.md#process-source)).
 
 The default total deadline is 30000 ms, with 3001–300000 admitted. Each I/O step is bounded
 by five seconds and the remaining original budget. Cancellation stops observation; name
