@@ -225,6 +225,8 @@ fn diagnostic_names_only_a_missing_artifact_open() {
         error.missing_artifact().map(CohortArtifact::file_name),
         Some(CohortArtifact::Server.file_name())
     );
+    // Each fixture holds the filesystem test lock until it drops.
+    drop(fixture);
 
     let fixture = Fixture::new();
     fs::remove_file(fixture.path.join("cohort.json")).unwrap();
