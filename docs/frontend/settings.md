@@ -81,77 +81,79 @@ renderer must not erase domain-specific controls, explanations, validation, or m
 
 ## Surface and information architecture
 
-Settings is a persistent navigation surface: a page, a dedicated window, or a bounded modal panel.
-Desktop and wide browser hosts default to the bounded composition below. A full-window panel is an
-exception when a bounded surface cannot preserve necessary context or management space; a modal
-version still provides complete modal semantics, inert background behavior, dismissal, and focus
-restoration. A compact Dialog is only for a bounded editing or setup task admitted by the Dialog and
-Forms standard; it is not a container for the Settings catalog.
+Settings is a persistent navigation surface: a full page or a dedicated window. Desktop and wide
+browser hosts present it as a full page that takes the place of the application's own sidebar and
+content; its Back path returns exactly where the person was. It is not a modal panel, so it never
+uses `aria-modal` or a scrim. A compact Dialog is only for a bounded editing or setup task admitted
+by the Dialog and Forms standard; it is not a container for the Settings catalog.
 
 - Organize categories by a person's goal and vocabulary, not source folders, packages, storage
   keys, or implementation teams.
 - Keep the primary hierarchy shallow: named groups may contain categories, while a category owns
   stable purpose-named sections. Do not add another permanent navigation tier merely to reduce row
   count.
-- Give every category one localized heading and an optional concise description. Group related rows
-  on one quiet surface with separators; do not wrap every row in an independent card.
+- Give every category one localized heading. Under it, each group is a small muted heading and one
+  card whose rows are separated by quiet hairlines; do not wrap each row in its own card. A category
+  with three or fewer settings may be one unnamed card.
 - Use a dedicated subpage when a domain owns a collection, history, credential lifecycle, complex
   conflict resolution, or repeated add/edit/remove tasks. Preserve a clear path back to the parent
   category.
-- Do not create an “Advanced” dumping ground. Name the outcome or domain. When an expert-only value
-  is intentionally file- or command-owned, link to that governed path and explain its scope instead
-  of duplicating a partial editor.
+- Do not create an “Advanced” dumping ground or fold. Name the outcome or domain. Rare and
+  expert-only values stay in their governed configuration file; the page ends with one row that
+  names that file and offers to open or copy its path, instead of duplicating a partial editor.
 - Keep category identifiers and deep links stable when the host supports linking. Reordering for
   presentation never changes the setting's identity or owner.
 
 ## Visual composition
 
-Desktop and wide browser Settings surfaces use the shell, density, hierarchy and row treatment below, implemented with Orchbee's semantic tokens and shared primitives.
+Desktop and wide browser Settings surfaces use the page, density, hierarchy and row treatment below,
+implemented with Orchbee's semantic tokens and shared primitives.
 
-- Use one centered, bounded surface with visible breathing room on a wide viewport. Expand toward
-  the viewport only as available space requires; do not make an ordinary Settings catalog feel like
-  another Workbench canvas.
-- Divide the shell into one quiet navigation rail and one content pane. The rail owns the top-level
-  close or back affordance, search, and category navigation; the content pane owns one category
-  heading and its settings. One subtle boundary between them is enough.
-- Give the rail a one-step semantic surface contrast from the content pane. Show the selected
-  category with one restrained neutral fill; keep icons monochrome and subordinate to labels. Group
-  headings appear only when they materially improve scanning and never compete with categories.
-- Keep the content measure moderate and the hierarchy plain: a compact page heading, optional short
-  introduction, then direct setting rows separated by quiet hairlines. Do not add a hero, dashboard
-  chrome, decorative illustration, or card around each section or row.
-- Align controls to a consistent trailing column on wide layouts. Put descriptions below their
-  labels, let exceptional status or recovery expand the owning row, and avoid floating explanatory
-  panels that obscure other settings.
-- Reserve radius and shadow for the outer modal boundary and transient anchored surfaces. Interior
-  structure relies on spacing and separators; accent color identifies interaction or selection, not
-  decoration.
-- Keep the shell and navigation stable while the appropriate pane scrolls. The rail may scroll
-  independently only when its categories overflow; avoid nested content scrollers and preserve the
-  selected category in view.
-- Open a complex management destination inside the same stable shell with an explicit back path, or
-  move to a dedicated persistent surface. Do not stack another catalog-sized modal over Settings.
-- At narrow widths, replace the two-column shell with one pane at a time: category list, category
-  content, or management destination. Preserve the same hierarchy and back path instead of squeezing
-  the rail beside the content.
+- Divide the page into one navigation column in the application sidebar's place and one content
+  pane. The navigation column owns Back, search, and category navigation; the content pane owns one
+  category heading and its groups. One subtle boundary between them is enough.
+- Give the navigation column a one-step semantic surface contrast from the content pane. Show the
+  selected category with one restrained neutral fill; give each category a monochrome line icon
+  subordinate to its label.
+- Center the content in one column with a moderate maximum width. Keep the hierarchy plain: a
+  compact category heading, then groups. Do not add a hero, dashboard chrome, or decorative
+  illustration.
+- Every row carries a name, an always-visible one-line description that wraps to two lines at most,
+  and exactly one control aligned to a consistent trailing column. Let exceptional status or
+  recovery expand the owning row, and avoid floating explanatory panels that obscure other settings.
+- Every change applies at once; the page has no Save, Discard, or footer.
+- A long list is one card with one entry per line. When it holds more than eight entries, its first
+  line is a filter box with the shown count.
+- A page-wide notice, such as a persistence failure or a missing permission, is a dismissible banner
+  above the category heading. A notice about one setting stays in that setting's row.
+- A setting that only matters under another setting's value, such as custom colors under a Custom
+  color mode, appears only while that value is chosen.
+- Group cards take a moderate surface radius; shadow stays reserved for transient anchored surfaces.
+  Accent color identifies interaction or selection, not decoration.
+- Keep the navigation column stable while the content pane scrolls. The navigation column scrolls
+  independently only when its categories overflow; avoid nested content scrollers.
+- Open a complex management destination inside the same page with an explicit back path, or edit
+  one entry inline under its line. Do not stack another catalog-sized modal over Settings.
+- At narrow widths, stack the navigation above the content instead of squeezing two columns, and
+  preserve the same hierarchy and back path.
 
 ## Search and discovery
 
 A Settings surface with more than one category provides global search. Search is navigation, never
 mutation.
 
-- Index localized category names, labels, concise descriptions, and reviewed aliases for currently
-  available settings and management entry points. Never index secret values, user-entered content,
+- Match localized setting names, descriptions, and reviewed aliases for currently available
+  settings and management entry points. Never index secret values, user-entered content,
   hidden roadmap, or diagnostic output.
 - Normalize case and whitespace, require every entered term to match, and make ranking and
   tie-breaking deterministic. Rebuild the index when locale or availability changes.
 - A result names the setting and its category. Show scope, source, platform, or status only when the
   exception helps distinguish the result; do not decorate every result with redundant metadata.
-- Typing preserves the currently displayed page. Activating a result navigates to and reveals the
-  row, then moves focus to its heading or row container without changing the value or unexpectedly
-  opening its control.
-- Up and Down move through results, Enter activates the highlighted result, and Escape first clears
-  a nonempty query. Provide an explicit empty state without replacing the stable navigation model.
+- Typing filters every available category in place: the content pane shows only matching rows,
+  grouped under their category names, and each match keeps its working control. Clearing the query
+  returns to the selected category.
+- Escape first clears a nonempty query. Provide an explicit plain-words empty state without
+  replacing the stable navigation model.
 - Search aliases are product copy and ship in every supported locale. A locale switch does not
   require people to know labels from the previous locale.
 
@@ -180,9 +182,9 @@ smallest semantic control that can express the value. On wider surfaces, copy an
 in stable columns; on narrow surfaces they stack without changing reading, focus, or announcement
 order.
 
-- Supporting text explains only a non-obvious consequence, scope, dependency, privacy boundary,
-  effect horizon, or recovery rule. Do not repeat the label or narrate how to operate a standard
-  control.
+- The description says in one line what the setting changes, or a non-obvious consequence, scope,
+  dependency, privacy boundary, effect horizon, or recovery rule. Do not repeat the label or narrate
+  how to operate a standard control.
 - Keep frequently scanned values visible. A tooltip cannot be the only place that explains a
   consequence, lock, error, or reset behavior.
 - Use typography, grouped surfaces, separators, spacing, and control geometry from Visual
@@ -251,7 +253,8 @@ footer.
 
 ## Reset, recovery, and destructive actions
 
-- Offer per-setting reset when an explicit value differs from its fallback. Name whether reset
+- Offer per-setting reset when an explicit value differs from its fallback: the row shows a small
+  changed dot and a Restore default action that affects only that setting. Name whether reset
   reveals an inherited value or restores the canonical product default.
 - A section or page reset is allowed only for one coherent owner and scope. Preview the affected
   values, exclude unrelated resources and data, and use an Alert Dialog when the breadth or effect
@@ -287,19 +290,20 @@ not an oversized setting row.
 - Register opening Settings as a semantic action. Desktop hosts normally expose the platform
   settings shortcut unless an owned compatibility contract selects another binding.
 - When opening the top-level surface without a deep link, initial focus may enter global search so
-  long as the page title is already programmatically named. A deep link or activated search result
-  moves focus to the destination heading or row, not directly into a value-changing control.
+  long as the page title is already programmatically named. A deep link moves focus to the
+  destination heading or row, not directly into a value-changing control.
 - Category navigation exposes the current category programmatically and supports ordinary Tab
   navigation plus the native arrow-key behavior of its chosen semantic pattern. Changing category
   never changes a setting.
 - Resolve Escape from the innermost owned state outward: dismiss a picker or editor, clear a nonempty
-  search, return from a management subpage, then close a cancellable Settings panel. A route or
-  dedicated window follows its host navigation contract instead of pretending to be modal.
-- A modal full-window panel contains focus, makes the background inert, has a visible close path,
-  and restores focus to its invoker. A page or dedicated window must not use `aria-modal`.
+  search, return from a management subpage, then take the page's Back path. A dedicated window
+  follows its host navigation contract.
+- The full page has a visible Back path and returns focus to its invoker when it closes. A page or
+  dedicated window must not use `aria-modal`.
 - Associate labels, descriptions, dependencies, errors, pending status, and source explanations with
   their controls. Announce exceptional async results politely and preserve a visible focus indicator.
-- At narrow widths, collapse or replace the rail with an explicit category control and back path.
+- At narrow widths, stack or replace the navigation column with an explicit category control and
+  back path.
   Preserve semantic order, touch targets, zoom behavior, and access to reset or recovery without
   horizontal scrolling.
 

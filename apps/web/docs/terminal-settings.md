@@ -86,9 +86,10 @@ The complete product default is:
 
 ### CLI Agent trailing-blank-row preference
 
-The Terminal History setting exposes “Trim trailing blank rows for CLI agents”. It is enabled by
-default and updates existing terminal presentations without recreating their Host attachments.
-Turning it off immediately restores the exact projected VT grid.
+The shared `trimTrailingBlankRowsForAgents` preference is enabled by default and updates existing
+terminal presentations without recreating their Host attachments. Turning it off immediately
+restores the exact projected VT grid. The GUI Settings page does not show it; the TUI's Settings
+edits it and the window applies the confirmed value.
 
 The application derives one effective presentation policy from the stored preference and the
 Server's Agent observation for that presentation identifier. It is `true` only while the preference
@@ -107,7 +108,7 @@ projected-terminal evidence owns the row-classification and Host-window boundari
 
 ### Agent resume preference
 
-The Terminal History setting also exposes “Resume Agents after restart”, the shared
+The Agents category's After a restart group exposes “Resume Agents after restart”, the shared
 `resumeAgentsOnRestore` preference. The row reads and writes it through the shared user-preference
 client, not the interaction controller, because no installed presentation consumes it. The Server
 reads it at its next restart and before each checkpoint capture; the row has no capability gate.
@@ -116,7 +117,7 @@ resumes.
 
 ### Terminal output replay preference
 
-The same section exposes “Restore terminal output after restart”, the shared
+General's After a restart group exposes “Restore terminal output after restart”, the shared
 `restoreTerminalOutput` preference, off by default. Its description warns that output can contain
 secrets and is stored on this computer. Like Agent resume, the row writes through the shared
 user-preference client and has no capability gate; the Server reads it at each checkpoint capture
@@ -138,8 +139,8 @@ modifying the stored custom pair:
 | `host`   | Keep the complete current Host color scheme, defaults, nullable cursor color, and 256-color palette.                                 |
 | `custom` | Set defaults from `customForeground` / `customBackground`; preserve the current Host scheme, cursor color, and full palette.         |
 
-Changing between Theme and Host retains the Custom values. Custom color controls are editable
-only while Custom is selected. Application theme, terminal display theme, complete fixed overlay
+Changing between Theme and Host retains the Custom values. The text and background color rows
+appear only while Custom is selected. Application theme, terminal display theme, complete fixed overlay
 colors, and the Host-assigned theme revision form one publication transaction. A successful barrier
 commits every mounted terminal before updating `data-theme` in the same JavaScript task.
 
@@ -148,7 +149,7 @@ commits every mounted terminal before updating `data-theme` in the same JavaScri
 The Desktop renderer on macOS additionally owns `orchbee:web:macos-terminal-input:v1`. The strict
 record contains only `optionAsAlt: 'off' | 'left' | 'right' | 'both'`; `off` is the product default.
 Windows and Linux compositions do not expose the Option-as-Alt row and retain the
-default; Cursor & Input remains a stable catalog destination on every platform.
+default; on macOS the row sits in the Terminal category's Selection and keys group.
 Invalid or unreadable records fail to `off`, while a failed write keeps the accepted session value
 and shows the existing persistence warning.
 
@@ -166,7 +167,7 @@ Session's shared preferences, whose `launchProfiles` value the TUI edits too and
 [shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns. Its
 snapshot exposes one bounded canonical catalog and the current default identity; it is the built-in
 catalog only until the first read and never carries a persistence issue. A composition without the
-control omits the Profiles category. The renderer never receives a store
+control omits the Launch profiles group. The renderer never receives a store
 path, Node error, filesystem primitive, or launch capability.
 
 Each profile has a stable identity, a user-visible name, and exactly one command choice:
@@ -177,11 +178,13 @@ Each profile has a stable identity, a user-visible name, and exactly one command
   Arguments are not tokenized, quoted, interpolated, or joined into a command string.
 
 The stable built-in profile uses a localized display label rather than persisted product copy. User
-names remain exact user data and duplicate names do not merge identities. The editor can create a
-new profile by copying the selected command, rename it, change its command and arguments, save the
-draft, select it as default, or delete a non-default profile after confirmation. The default and
-final profile cannot be deleted. Reset requires confirmation and replaces the complete catalog with
-the built-in default only after the Server commits it. Pending operations disable competing
+names remain exact user data and duplicate names do not merge identities. The Launch profiles card
+shows one profile per line with its Default label or a Use as default action, and an Edit action
+that opens the profile's editor under its line; Done saves the draft. Add profile, the card's last
+line, creates a new profile by copying the selected command. The editor can rename a profile,
+change its command and arguments, or delete a non-default profile after confirmation. The default
+and final profile cannot be deleted. The group's Restore default requires confirmation and replaces
+the complete catalog with the built-in default only after the Server commits it. Pending operations disable competing
 mutations and surface bounded localized failures; invalid drafts never send a mutation. A failed
 commit retains the user's draft so they can correct or retry it instead of reconstructing their
 input.
@@ -201,10 +204,10 @@ connections, and shell startup-file mutation remain outside this feature.
 ## Desktop terminal defaults
 
 Only the Desktop composition injects `TerminalDefaultSettingsControl`, filled from the
-Session's shared `scrollbackBytes` preference. The Terminal page exposes `terminal.scrollback` as a
-decimal byte count from `0` through `1_000_000_000` and states that running terminals keep their
-current limit. The row commits through the shared draft, and the TUI shows the same value in
-megabytes. The Worker gives the value to each terminal it launches after the save, so no Host
+Session's shared `scrollbackBytes` preference. The Terminal category's Output group exposes
+`terminal.history` as Terminal history in decimal megabytes from `0` through `1000`, stored as
+bytes up to `1_000_000_000`, and notes that it applies to new terminals. The row commits through the
+shared draft, and the TUI shows the same value in megabytes. The Worker gives the value to each terminal it launches after the save, so no Host
 application step can fail, and existing terminal history is unchanged. The control only reads:
 save failures show in the shared status, and the row warns that scrollback is unavailable until the
 first preference snapshot arrives. A composition without the control omits this row. The Terminal category remains visible only when that
@@ -218,8 +221,8 @@ Reload explicitly discards the draft. Reset sends null, restores defaults and cl
 keys. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
 Enter followed by blur commits at most once.
 
-System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
-for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
+System appearance follows a live prefers-color-scheme subscription. The custom color rows appear
+only for Custom terminal colors. Sound defaults off and selects silent system notification delivery.
 
 The local record algorithm below applies only to the host appearance leaves, keyboard shortcuts and
 macOS input.
@@ -280,7 +283,10 @@ update retries a complete write and clears that issue after success. One termina
 failure retains every mounted terminal and the application surface at their previously committed
 complete presentation without rolling back the preference.
 
-Reset restores the host leaves through this algorithm and sends null for the six common
+Settings offers no page-wide reset: each changed row restores only its own default, through the
+same algorithm for a host leaf and through a one-key shared reset for a common value. The
+controller's complete Reset restores the host leaves through this algorithm and sends null for the
+six common
 appearance keys, the two interaction keys, `resumeAgentsOnRestore` and `restoreTerminalOutput` in
 one shared reset:
 
@@ -303,23 +309,24 @@ other polarity. The controller sets `data-theme` to the polarity and `data-color
 theme's id on the theme target; the Orchbee pair sets no `data-color-theme`. Both attributes change
 with the terminal publication transaction above.
 
-The Appearance section holds Application theme, then the Light theme and Dark theme pickers. Each
-picker is an expanded listbox of the themes of its polarity, aligned to the top of its row so its
-label stays beside the first themes; every option shows the theme's localized name (the id for a
-theme without a name, such as a test fixture), a swatch of canvas, foreground, and ANSI 1–5, and a
+The Themes category holds a Light theme group and a Dark theme group. Each group is one card that
+lists the themes of its polarity, one per line, each with its localized name (the id for a theme
+without a name, such as a test fixture), a swatch strip of canvas, foreground, and ANSI 1–5, and a
 check on the slot's effective theme, so an unknown stored id shows the Orchbee theme it resolves
-to. Under System, each picker says when it applies.
+to. The group whose slot is in use carries a muted In use now tag; when Appearance is fixed, the
+other group carries a one-line note saying when it would apply. A list of more than eight themes
+starts with a filter box.
 
 | Interaction                               | Result                                                                                                                    |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Arrow keys, Home, End                     | Highlight a theme and preview it at its own polarity on the application and every mounted terminal; nothing is saved      |
 | Enter, Space, or a click                  | Commit the theme to its slot; when Appearance is fixed to the other polarity, also set Appearance to the theme's polarity |
-| Escape with a preview                     | Restore the committed theme and keep Settings open; without a preview, Escape closes Settings as usual                    |
+| Escape with a preview                     | Restore the committed theme and keep Settings open; without a preview, Escape leaves Settings as usual                    |
 | Focus leaves the list, or Settings closes | Restore the committed theme                                                                                               |
 
 A committed pick stays shown until the Session answers, so a confirmed pick never flashes the
-previous theme; a refused or failed save restores the committed theme. Reset returns both slots to
-the Orchbee pair. Stories show the shipped themes; tests prove the pickers with a test-only fixture
+previous theme; a refused or failed save restores the committed theme. Each group's Restore default
+returns its slot to the Orchbee theme. Stories show the shipped themes; tests prove the pickers with a test-only fixture
 pair that does not depend on the shipped data.
 
 ## Effective terminal colors and opacity
@@ -344,118 +351,80 @@ effective background with the selected alpha. Explicit backgrounds, inverse cell
 search highlights remain opaque. The implementation must not use whole-root CSS `opacity`, because
 terminal text must remain opaque.
 
-## Modal shell and focus model
+## Full-page shell and focus model
 
-Settings is an application-owned centered, bounded modal shell, not a route or another Workbench
-canvas. A scrim leaves the mounted Workbench perceptible while its subtree remains genuinely inert,
-preserving terminal surface and attachment identity and preventing Workbench shortcuts from
+Settings is an application-owned full page, not a route and not a modal. It covers the Workbench
+content and takes the application sidebar's place, while the Workbench subtree stays mounted and
+inert, preserving terminal surface and attachment identity and preventing Workbench shortcuts from
 consuming Settings input. On first open, the application captures a still-connected active element
-and focuses global Settings search. Repeated open does not replace that return target. The content
-viewport remains keyboard-scrollable and draws an inset focus indicator.
+and focuses Settings search. Repeated open does not replace that return target.
 
-The rail owns an explicit Close settings button. Escape clears a non-empty search before closing Settings; close restores a connected invoker or safe fallback. Desktop injects Agent integration, shell profile, and terminal default controls; a composition without them omits their categories and rows.
+The navigation column holds Back, search, and the categories. Back, and Escape when no control
+consumes it, return exactly where the user was; Escape first clears a non-empty search. Closing
+restores a connected invoker or safe fallback. In a Desktop window the navigation column and the
+content start below the `36px` top chrome, where the window's own controls sit. Below `48rem` the
+navigation stacks above the content.
 
-Wide Settings use the following composition: one quiet rail
-owns Close, search, monochrome product-outcome categories, and a restrained neutral selection; one
-moderate content column owns a compact category title, optional introduction, section labels, direct
-rows with hairline separators, descriptions, and a stable trailing control column. Radius and shadow
-belong to the outer shell and transient surfaces rather than ordinary setting sections. Diagnostics,
-profile management, and shell setup may retain the semantic boundaries required by
-their task states without turning every setting into a card. Behavior and architecture follow Orchbee's shared settings contract.
-
-In a Desktop window, Settings starts below the `36px` top chrome, where the window's own controls
-sit. At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
-selecting a category or search result shows content, and the content-level Back affordance restores
-the list. Controls stack below their copy when the trailing column no longer fits. Host appearance,
-input and shortcut changes apply immediately, and shared values apply on confirmation; shell-profile drafts require
-explicit Save because the Session's durable catalog mutation is a separate transaction. Reference
-branding, copy, categories, and pixel geometry are not compatibility targets.
+The content pane centers one column of at most the `container-2xl` width. It holds dismissible
+page notices, the category title, and groups: a small muted heading and one card whose rows are
+separated by hairlines. A category with three or fewer settings may use one unnamed card. Each row
+has a name, an always-visible description of at most two lines, and exactly one control at the
+row's end. A changed setting shows a small accent dot at the row's start and a Restore default
+action beside its control while the row is hovered or focused. Every change applies at once; the
+page has no Save, Discard, or footer. Shell-profile edits save on the editor's Done, because the
+Session's catalog mutation is a separate transaction.
 
 ## Settings information architecture and capability admission
 
-The catalog keeps a stable product-outcome order instead of exposing implementation packages. The
-rail renders the following groups with quiet localized labels and restrained vertical separation;
-those groups also retain deterministic category and search order:
+The categories keep a stable product-outcome order instead of exposing implementation packages:
 
-| Group        | Categories                                                |
-| ------------ | --------------------------------------------------------- |
-| Application  | General, Appearance                                       |
-| Terminal     | Text, Colors, Cursor & Input, Interaction, Terminal       |
-| Workspace    | Profiles, Keyboard Shortcuts                              |
-| Integrations | Agent Integrations, Shell Integration, Remote Development |
+| Category      | Groups                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------- |
+| General       | Language (unnamed card); After a restart: restore terminal output                      |
+| Appearance    | App appearance; Terminal colors, with custom text and background colors; Terminal text |
+| Themes        | Light theme; Dark theme                                                                |
+| Terminal      | Selection and keys; Output: terminal history; Launch profiles                          |
+| Notifications | When to notify; Sound and delivery                                                     |
+| Keyboard      | Window and panel shortcuts                                                             |
+| Agents        | After a restart: resume Agents; Agent integrations                                     |
 
-Application language and appearance, terminal typography and colors, input and interaction, shortcuts, local Agent integrations, Shell integration, remote diagnostics, Desktop launch profiles, and Desktop scrollback defaults retain their existing ownership. Navigation and search expose only implemented categories whose required capabilities are present. Roadmap-only controls remain absent.
+Every category but Themes ends with a "More options in config.toml" row that shows the
+configuration path, `~/.orchbee/config.toml`, with a copy action. The renderer has no port that
+opens a file, so the row copies the path instead. A development cohort or `ORCHBEE_CONFIG_FILE`
+can place the file elsewhere; the row names the default.
 
-Ordinary settings use direct rows between quiet hairlines. Only real control boundaries, focus
-indicators, and semantic status, warning, or danger notices retain additional borders or surfaces.
-This keeps every category in one low-chrome visual system while preserving meaningful state
-boundaries.
+Navigation and search expose only categories and rows whose required capabilities are present: the
+Terminal category needs at least one of its controls, Notifications needs the feedback controller,
+and the Agent integrations group needs the Desktop control. Roadmap-only controls remain absent.
+
+The page leaves out the renderer-local regular and bold font weights, ligatures, terminal padding
+and background opacity, the shared trailing-blank-row trimming and completion-reminder minimum,
+the complete Reset, the reminder reset, and the remote-development diagnostic. Their stored values
+keep applying; the TUI's Settings edits the shared ones.
 
 ## Settings discovery and navigation model
 
-Settings search is a global discovery surface, not an in-page filter. Its deterministic catalog
-contains every available category plus each current setting or management entry with a stable
-identifier, owning category, localized label, optional section, description, and search keywords.
-Capability-gated categories and settings enter the catalog only when their composition capability is
-present. The catalog never reads a preference value and search never changes a controller, storage,
-Host, terminal attachment, or remote environment.
-
-The query is trimmed, Unicode-normalized, split into non-empty terms, and compared
-case-insensitively in the effective locale. Category results match their category label. Setting
-results require every term to match the setting label, section, description, or explicit keyword.
-Direct label matches rank before section, description, and keyword matches; original
-information-architecture order breaks remaining ties. Empty query preserves the category rail. A non-empty query
-replaces that rail with one global result list while the current content page remains complete and
-unchanged. Zero matches render a localized empty state in the rail rather than blanking the content
-page. Search results remain one labeled listbox; the zero-match projection contains one disabled,
-unselected option with a polite live announcement, preserving the combobox relationship without
-creating an actionable result.
-
-The owned interaction state is one of:
-
-| State                    | Query     | Result selection                              | Rail projection       |
-| ------------------------ | --------- | --------------------------------------------- | --------------------- |
-| Browsing                 | Empty     | None                                          | Grouped categories    |
-| Searching with results   | Non-empty | One bounded index, initially the first result | Global search results |
-| Searching without result | Non-empty | None                                          | Localized empty state |
-
-Transitions are deterministic:
-
-| Input                      | Guard                          | Result                                                                                                                        |
-| -------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| Edit query                 | Any                            | Recompute the global projection and select its first result when present.                                                     |
-| Arrow Down or Arrow Up     | Searching with results         | Move the bounded selection by one; the current content page and every preference remain stable.                               |
-| Enter                      | Searching with results         | Activate the selected result.                                                                                                 |
-| Pointer activation         | A visible result               | Activate that result.                                                                                                         |
-| Activate a category result | Any                            | Select the category, clear the query, restore navigation, show content, and focus its heading.                                |
-| Activate a setting result  | Its category remains available | Select the category, clear the query, restore navigation, show content, reveal and focus its stable row or management target. |
-| Escape                     | Query is non-empty             | Clear search, restore navigation, keep Settings open, and retain the current category.                                        |
-| Escape                     | Query is empty                 | Follow the Settings overlay close and focus-restoration contract.                                                             |
-
-The search input retains keyboard focus while moving through results. Result activation moves focus
-to the destination heading, row, or management target, never directly changes a value, and never
-invokes its action. Changing category through the normal rail clears no user data and starts at the
-top of that category.
-
-The adopted reference projection was observed in Cursor 3.14.7 on macOS on 2026-08-17. The adopted
-scope is global category-and-setting discovery, rail replacement during a query, stable right-side
-content while typing, explicit empty results, Arrow navigation, Enter activation, Escape clearing,
-query clearing after activation, category restoration, and target reveal. Cursor branding, copy,
-catalog contents, fuzzy-search implementation, result limits, pixel geometry, animation timing, and
-ranking ties are explicitly excluded.
+Search filters the page; it never changes a controller, storage, Host, terminal attachment, or
+remote environment. The query is trimmed, NFKC-normalized, lowercased in the effective locale, and
+split into terms; a row matches when every term appears in its name or description. A non-empty
+query replaces the selected category with every available category's matching rows, grouped under
+their category names in navigation order, and each match keeps its working control. A long list's
+own filter box hides while the page is searched. Zero matches show a plain-words empty state.
+Escape or clearing the query returns to the selected category. Changing category clears the query
+and starts at the top of that category.
 
 ## Desktop Agent integrations
 
 Only the Desktop composition injects `AgentIntegrationManagementControl`, as
-`ServerAgentIntegrationClient`. A composition without it omits the Agent Integrations category and
-its search entries. The renderer consumes one
+`ServerAgentIntegrationClient`. A composition without it omits the Agent integrations group and its
+search matches. The renderer consumes one
 canonical snapshot with a row for every wire provider in registry order, taken from
 `AGENT_INTEGRATION_PROVIDERS` in `@orchbee/workbench-client-protocol`, and displays curated Agent
 names, bounded states and failures, and the shared privacy explanation. It receives no Agent command output, executable path, adapter resource
 path, filesystem capability, or remote-host authority.
 
 Opening Settings, rendering rows, and searching are read-only. Integrations are opt-in, so entering
-the Agent Integrations category from another category is the explicit request to inspect: it starts
+the Agents category from another category is the explicit request to inspect: it starts
 one `list` job unless one is pending, and a reopened Settings that still shows the category starts
 none. Refresh runs one `list` job and a switch one `enable` or `disable` job on the Session's Worker through the
 [Workbench job direction](../../../crates/workbench-protocol/README.md#agent-integration-jobs), the
@@ -465,8 +434,8 @@ them; the Worker's report decides for each row whether it is managed or needs ma
 position reflects the last report and never moves optimistically. Pending work labels the affected
 row **Working…** and disables every competing switch. The Worker alone decides whether a change may
 proceed, so the window checks nothing before it asks. A change the window cannot follow to its
-report reads as unverified, marks its row unknown, and is never repeated. Remote hosts are explained
-as manual-only and the renderer never writes terminal input or attempts remote setup. The
+report reads as unverified, marks its row unknown, and is never repeated. Remote hosts stay
+manual-only and the renderer never writes terminal input or attempts remote setup. The
 [writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
 
 Each row's Explain button runs one read-only `explain` job for that Agent, under the same one-job
@@ -485,34 +454,9 @@ operations and copy.
 Neither Client offers an integration reminder when an Agent launches. A future reminder would be
 designed for both Clients together.
 
-## Remote-development diagnostic
+## Notifications and completion reminders
 
-The Remote development category documents the Desktop launch baseline
-`TERM=xterm-256color` and exposes one constant POSIX-shell diagnostic command. The command reports a
-version marker, the observed `TERM`, `COLORTERM`, and `TERM_PROGRAM`, whether TERM matches the
-baseline, and exactly one terminfo outcome:
-
-| Outcome                        | Meaning                                                |
-| ------------------------------ | ------------------------------------------------------ |
-| `TERMINFO=term-unset`          | The remote shell has no TERM value.                    |
-| `TERMINFO=unsafe-term`         | TERM is not safe to print or pass to `infocmp`.        |
-| `TERMINFO=infocmp-unavailable` | The remote shell cannot find an `infocmp` executable.  |
-| `TERMINFO=available`           | `infocmp "$TERM"` succeeds.                            |
-| `TERMINFO=missing`             | `infocmp` exists but cannot resolve the observed TERM. |
-
-The command contains no user interpolation and runs its helper and temporary value inside one
-subshell. It only reads environment values, prints values of at most 128 characters that match a
-conservative display-safe character set, checks `command -v infocmp`, and evaluates
-`command infocmp`'s exit status. Unsafe or oversized values receive a stable marker instead of being
-echoed as potential terminal control input. It does not invoke SSH, access a network, install
-terminfo, create a directory, read a configuration file, write remote state, or leave a helper
-function in the user's interactive shell.
-Settings does not execute or paste the command; the read-only field uses normal text selection so
-the user remains responsible for choosing where and whether to run it.
-
-## Shell integration and completion reminders
-
-The Shell integration category holds completion reminders, Agent notifications, and their reset.
+The Notifications category holds Agent notifications, completion reminders, and sound.
 Reminders need standard OSC 133 command boundaries from the shell. On Windows, Terminal Host loads
 Orchbee's PowerShell integration itself; Orchbee ships no Zsh, Bash, or Fish integration for Desktop
 terminals, so those shells emit boundaries only through the user's own configuration. The surface
@@ -520,13 +464,14 @@ never reads, creates, edits, or backs up a shell startup file.
 
 Feedback uses the shared preferences: Agent mode (never/hidden), completion mode
 (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never,
-never, 5 and false. Changes and Reset apply when the confirmed snapshot arrives; no browser record
-holds them.
+never, 5 and false. The page does not show the minimum; the TUI edits it. Changes and each row's
+Restore default apply when the confirmed snapshot arrives; no browser record holds them.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
 terminal to one every 30 seconds. `unfocused` requires the document or that terminal root to lack
-focus. Browser notification permission can be requested only by the dedicated Settings button;
+focus. Browser notification permission can be requested only by the Allow button in the Notifications
+category's banner;
 terminal output, startup, storage restoration, and configuration analysis never request it. A
 qualifying event still presents a localized status inside the terminal when the system capability
 is unavailable. The notification contains duration and exit status only—never command text,
@@ -558,13 +503,13 @@ fully disconnected SSH delivery remains out of scope.
   read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
 - Application-locale controller tests cover System resolution, an explicit shared preference
   winning, a confirmed selection applying live, invalid input, and disposal. Component tests cover
-  both choices, product-copy updates, and search discovery.
+  both choices and product-copy updates.
 - Source tests prove complete single presentation publication, independent interaction publication,
   live attachment updates, application-theme isolation, terminal-setting isolation, stable
   subscription, and disposal. Color-theme tests use a fixture pair to cover the
   `data-color-theme` boundary, unknown and wrong-polarity fallback, preview without a write,
   cancel and close restoring, commit to the polarity slot with the Appearance switch, and a refused
-  save restoring; a component test covers keyboard preview, Escape, Enter, and Reset.
+  save restoring; a component test covers keyboard preview, Escape, and Enter.
 - The Server-path preference client has no unit test of its own; the retired Desktop client's
   MessageChannel tests left with it. Its current evidence is the Settings runs recorded under step 4
   of the [native runtime topology proposal](../../../proposals/platform/native-runtime-topology.md):
@@ -576,29 +521,23 @@ fully disconnected SSH delivery remains out of scope.
   semantic flag both disabled and enabled.
 - Renderer tests cover Host and override modes, explicit black/RGB/palette, inverse, underline,
   cursor, Canvas 2D and WebGPU alpha, and unchanged Host metadata.
-- Deterministic search tests cover catalog identity and capability gating, localized category,
-  section, label, description, and keyword matches, direct-match ranking, multi-term normalization,
-  stable ordering, and empty results. Component tests cover both locales, global cross-category
-  results, stable content during a query, pointer and keyboard activation, layered Escape, target
-  reveal, the disabled empty-result option, keyboard-scrollable content, invalid drafts, immediate
-  updates, Reset, read-only remote diagnostics, inertness,
-  idempotent open, focus restoration. Story browser review covers
-  the bounded shell, every available category, populated and empty search projections, wide and
-  narrow one-pane layouts, and both light and dark themes.
+- Component tests cover layered Escape, search matches grouped by category and the empty state,
+  the theme list preview, language persistence, copy on select, terminal history validation in
+  megabytes, the macOS Option-as-Alt row, an invalid font size kept as a draft, and shortcut
+  recording with its Restore default. Story browser review covers every category in English light
+  and Chinese dark.
 - Terminal-launch-profile protocol tests cover strict snapshots and malformed records. Settings
   component tests cover
-  literal custom executable arguments, the future-terminal boundary, create and default selection,
-  delete constraints, reset confirmation, platform capabilities, and localized failures.
+  literal custom executable arguments, a kept draft after a refused save, create and default
+  selection, delete constraints, and restore confirmation.
 - Terminal-default-settings component tests cover bounds, capability gating, localized
   validation, and the save to the shared preferences. The Server-path clients that fill the launch-profile,
   terminal-default and Agent-integration controls have no tests of their own.
 - Terminal-feedback model tests cover default-off behavior, shared updates and Reset, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
-  explicit permission requests, and disposal. Component tests cover both locales, reminder controls,
-  permission state, and Reset.
+  explicit permission requests, and disposal. Settings has no notification component test.
 - Agent-integration protocol and Settings tests cover canonical ordering, read-only startup, one
-  pending mutation, explicit user actions, remote exclusion, localization, and no automatic
-  mutation.
+  pending mutation, explicit user actions, and switches that move only with the inspected state.
 - No composition or Desktop window test covers Settings on the Server path.
 
 ## Named theme pickers
@@ -608,7 +547,7 @@ System follows this GUI Client's OS appearance and switches slots without restar
 theme while fixed to the other polarity switches Appearance too; under System, inactive-slot
 choices identify when they apply. Pickers filter by polarity and show localized names with
 canvas/foreground/ANSI swatches. Focus previews locally, Enter/click commits, and Escape restores
-the confirmed selection. Reset restores the Orchbee pair. Preview never publishes controlling
+the confirmed selection. Each slot's Restore default restores its Orchbee theme. Preview never publishes controlling
 query colors. Unknown/wrong-polarity ids resolve to that slot's Orchbee theme without rewriting
 the stored id. The [shared preference contract](../../../crates/workbench-protocol/docs/user-preferences.md)
 owns syntax/persistence; the [theme crate](../../../crates/color-themes/README.md) owns data.
