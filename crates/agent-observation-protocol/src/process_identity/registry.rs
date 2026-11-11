@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 4;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 5;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -120,7 +120,7 @@ const fn entry(
 /// The registry, in `AgentReportProvider::ALL` order. Desktop and IDE application names that
 /// share a provider's report label (`cursor`, `kiro`, `qoder`, `antigravity`) are not process
 /// aliases, so those applications are never candidates.
-pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 39] = {
+pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
     use AgentReportProvider as P;
     [
         AgentProviderEntry {
@@ -350,9 +350,6 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 39] = {
             &["node_modules/mothx-installer/bin/mothx"],
             &grammar::DEFAULT,
         ),
-        // A different product from Kiro CLI; neither name aliases the other.
-        entry(P::KiroCrew, &[unique("kirocrew")], NONE, &grammar::KIROCREW),
-        entry(P::QwenPaw, &[unique("qwenpaw")], NONE, &grammar::QWENPAW),
         entry(P::Jcode, &[unique("jcode")], NONE, &grammar::DEFAULT),
         entry(
             P::OpenClaw,
@@ -360,19 +357,6 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 39] = {
             &["node_modules/openclaw/openclaw.mjs"],
             &grammar::OPENCLAW,
         ),
-        AgentProviderEntry {
-            install_roots: &[AgentInstallRoot(&[
-                "node_modules",
-                "@prismshadow",
-                "penguin-cli",
-            ])],
-            ..entry(
-                P::Penguin,
-                &[generic("penguin")],
-                &["node_modules/@prismshadow/penguin-cli/dist/penguin.js"],
-                &grammar::PENGUIN,
-            )
-        },
         entry(
             P::PrimeAgent,
             &[unique("prime-agent")],

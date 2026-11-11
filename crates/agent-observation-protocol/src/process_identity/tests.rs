@@ -1044,44 +1044,7 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["snow"]),
             unresolved(Some(P::Snow), U::UnverifiedProvenance),
         ),
-        (
-            "generic name",
-            "node.exe",
-            Some(vec!["node.exe", r"C:\tools\penguin.js"]),
-            unresolved(Some(P::Penguin), U::UnverifiedProvenance),
-        ),
-        // Kiro Crew is not Kiro CLI.
-        (
-            "distinct product",
-            r"{home}\.local\bin\kirocrew.exe",
-            Some(vec!["kirocrew", "chat"]),
-            interactive(P::KiroCrew, S::NativeImage),
-        ),
         // Agents whose chat is a subcommand: only that subcommand is interactive.
-        (
-            "required command",
-            r"{home}\.local\bin\kirocrew.exe",
-            Some(vec!["kirocrew"]),
-            unresolved(Some(P::KiroCrew), U::UnclassifiedArguments),
-        ),
-        (
-            "required command",
-            r"{home}\.local\bin\qwenpaw.exe",
-            Some(vec!["qwenpaw", "tui"]),
-            interactive(P::QwenPaw, S::NativeImage),
-        ),
-        (
-            "required command",
-            r"{home}\.local\bin\qwenpaw.exe",
-            Some(vec!["qwenpaw"]),
-            unresolved(Some(P::QwenPaw), U::UnclassifiedArguments),
-        ),
-        (
-            "required command",
-            r"{home}\.local\bin\qwenpaw.exe",
-            Some(vec!["qwenpaw", "task", "x"]),
-            noninteractive(P::QwenPaw, S::NativeImage),
-        ),
         (
             "required command",
             "node.exe",
@@ -1100,25 +1063,9 @@ fn recognition_matrix_rows_and_counterexamples() {
         ),
         (
             "required command",
-            "node.exe",
-            Some(vec![
-                "node.exe",
-                r"{npm}\node_modules\@prismshadow\penguin-cli\dist\penguin.js",
-                "chat",
-                "--resume",
-            ]),
-            interactive(P::Penguin, S::PackageEntry),
-        ),
-        (
-            "required command",
-            "node.exe",
-            Some(vec![
-                "node.exe",
-                r"{npm}\node_modules\@prismshadow\penguin-cli\dist\penguin.js",
-                "run",
-                "task",
-            ]),
-            noninteractive(P::Penguin, S::PackageEntry),
+            "openclaw.exe",
+            Some(vec!["openclaw", "config"]),
+            noninteractive(P::OpenClaw, S::NativeImage),
         ),
     ];
     // A bare optional option followed by a noninteractive option stays noninteractive.

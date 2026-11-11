@@ -113,10 +113,9 @@ reuse it rather than keeping their own tables.
 - Registry: `AGENT_PROVIDER_REGISTRY` holds one entry per `AgentReportProvider`, versioned by
   `AGENT_PROVIDER_REGISTRY_VERSION`. Each alias has a collision class: `Unique` names identify the
   provider alone; `Shared` and `Generic` names need one of the entry's install roots in the path.
-  Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone; `snow` and
-  `penguin` are generic words, and `amp`, `mimo`, `mcode` and CodeBuddy's `cbc` are shared, so each
-  needs its package's install root. Kiro Crew's `kirocrew` and Kiro CLI's `kiro-cli` are separate
-  providers, and Command Code's `cmd` command is never an alias. Desktop and IDE
+  Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone; `snow` is a
+  generic word, and `amp`, `mimo`, `mcode` and CodeBuddy's `cbc` are shared, so each needs its
+  package's install root. Command Code's `cmd` command is never an alias. Desktop and IDE
   application names that share a report label (`cursor`, `kiro`, `qoder`, `antigravity`) are not
   process aliases. Entries also list package entries, bundled runtimes, and allowed Python modules.
   Version ranges enter an entry only after a real corpus verifies them; until then every entry is
@@ -139,15 +138,14 @@ reuse it rather than keeping their own tables.
   the positional rule. Each grammar lists the resume option the Server types for its provider and
   that option's documented short alias, and the launch-time `--session-id` an Agent start passes
   Grok, Gemini, Qwen Code, Copilot and Pi, with Grok's `-s` alias. OMP's grammar is Pi's without
-  that option, which OMP does not document. A grammar that requires a command (Kiro Crew and OpenClaw
-  `chat`, QwenPaw `tui`, Penguin `chat`) leaves every invocation without one of its interactive
-  commands unclassified, the bare launch included.
+  that option, which OMP does not document. A grammar that requires a command (OpenClaw `chat` and
+  `tui`) leaves every invocation without one of its interactive commands unclassified, the bare
+  launch included.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 4: the launch-time session options joined the grammars
-  after version 3's fifteen start-only providers and required-command grammar, and version 2's
-  resume options and Qwen entries.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 5. It changes whenever an entry's recognition meaning
+  changes: a provider, alias, package entry or grammar option joining or leaving the registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is

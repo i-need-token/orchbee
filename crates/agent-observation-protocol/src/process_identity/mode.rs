@@ -423,40 +423,12 @@ pub(super) mod grammar {
         ..DEFAULT
     };
 
-    /// `kirocrew` without a command prints its usage; `chat` alone is the interactive mode.
-    pub const KIROCREW: AgentModeGrammar = AgentModeGrammar {
-        noninteractive_commands: &["config"],
-        interactive_commands: &["chat"],
-        requires_command: true,
-        interactive_flags: &["--no-jail"],
-        interactive_options: &["--agent"],
-        ..base(M::Unclassified)
-    };
-
-    /// `tui [PROJECT]` opens the terminal chat; a bare launch states no interactive default.
-    pub const QWENPAW: AgentModeGrammar = AgentModeGrammar {
-        noninteractive_commands: &["clean", "plugin", "skills", "task"],
-        interactive_commands: &["tui"],
-        requires_command: true,
-        interactive_options: &["--resume"],
-        ..base(M::Interactive)
-    };
-
     /// `chat` is the local terminal UI (`tui --local`); `tui` attaches it to a Gateway session.
     pub const OPENCLAW: AgentModeGrammar = AgentModeGrammar {
         noninteractive_commands: &["attach", "config", "hooks", "mcp", "sessions"],
         interactive_commands: &["chat", "tui"],
         requires_command: true,
         interactive_flags: &["--local"],
-        ..base(M::Unclassified)
-    };
-
-    /// `chat` opens the REPL; `run` executes a single Task.
-    pub const PENGUIN: AgentModeGrammar = AgentModeGrammar {
-        noninteractive_commands: &["config", "plugin", "run"],
-        interactive_commands: &["chat"],
-        requires_command: true,
-        interactive_optional_options: &["--resume"],
         ..base(M::Unclassified)
     };
 }

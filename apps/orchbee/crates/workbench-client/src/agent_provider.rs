@@ -34,11 +34,8 @@ pub const CANONICAL_IDS: &[&str] = &[
     "snow",
     "minimax-code",
     "mothx",
-    "kirocrew",
-    "qwenpaw",
     "jcode",
     "openclaw",
-    "penguin",
     "prime-agent",
 ];
 
@@ -68,11 +65,10 @@ pub fn executable(canonical: &str) -> Option<&'static str> {
 }
 
 /// The fixed arguments that open a provider's interactive session when its bare command does
-/// not; caller arguments follow them.
+/// not, such as OpenClaw's `chat`; caller arguments follow them.
 pub fn launch_arguments(canonical: &str) -> &'static [&'static str] {
     match provider(canonical) {
-        Some("kirocrew" | "openclaw" | "penguin") => &["chat"],
-        Some("qwenpaw") => &["tui"],
+        Some("openclaw") => &["chat"],
         _ => &[],
     }
 }

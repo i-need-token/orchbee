@@ -37,17 +37,14 @@ pub enum AgentReportProvider {
     Snow,
     MinimaxCode,
     Mothx,
-    KiroCrew,
-    QwenPaw,
     Jcode,
     OpenClaw,
-    Penguin,
     PrimeAgent,
 }
 
 impl AgentReportProvider {
     /// Every recognized provider, in the native catalog's stable order.
-    pub const ALL: [Self; 39] = [
+    pub const ALL: [Self; 36] = [
         Self::Pi,
         Self::Claude,
         Self::Codex,
@@ -81,11 +78,8 @@ impl AgentReportProvider {
         Self::Snow,
         Self::MinimaxCode,
         Self::Mothx,
-        Self::KiroCrew,
-        Self::QwenPaw,
         Self::Jcode,
         Self::OpenClaw,
-        Self::Penguin,
         Self::PrimeAgent,
     ];
 
@@ -125,11 +119,8 @@ impl AgentReportProvider {
             "snow" | "snow-cli" => Self::Snow,
             "minimax-code" | "mcode" => Self::MinimaxCode,
             "mothx" => Self::Mothx,
-            "kirocrew" | "kiro-crew" => Self::KiroCrew,
-            "qwenpaw" => Self::QwenPaw,
             "jcode" | "j-code" => Self::Jcode,
             "openclaw" => Self::OpenClaw,
-            "penguin" | "penguin-cli" => Self::Penguin,
             "prime-agent" => Self::PrimeAgent,
             value
                 if value
@@ -178,11 +169,8 @@ impl AgentReportProvider {
             Self::Snow => "snow",
             Self::MinimaxCode => "minimax-code",
             Self::Mothx => "mothx",
-            Self::KiroCrew => "kirocrew",
-            Self::QwenPaw => "qwenpaw",
             Self::Jcode => "jcode",
             Self::OpenClaw => "openclaw",
-            Self::Penguin => "penguin",
             Self::PrimeAgent => "prime-agent",
         }
     }
@@ -230,11 +218,8 @@ impl AgentReportProvider {
             | Self::Snow
             | Self::MinimaxCode
             | Self::Mothx
-            | Self::KiroCrew
-            | Self::QwenPaw
             | Self::Jcode
             | Self::OpenClaw
-            | Self::Penguin
             | Self::PrimeAgent => self.report_label(),
         }
     }

@@ -207,9 +207,9 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
     }
 }
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
-/// mothx 1.3.108, prime-agent 0.10.2, penguin 0.2.18, jcode 0.99.1, codebuddy 2.182.0, command-code
-/// and deveco 0.3.0. Busy chrome outranks the composer that stays on screen, a startup question
-/// blocks only while its live choices or empty answer row are shown, and stray words stay unknown.
+/// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code and deveco
+/// 0.3.0. Busy chrome outranks the composer that stays on screen, a startup question blocks only
+/// while its live choices or empty answer row are shown, and stray words stay unknown.
 #[test]
 fn new_provider_rules_follow_redacted_windows_captures() {
     use Provider as P;
@@ -343,30 +343,6 @@ fn new_provider_rules_follow_redacted_windows_captures() {
             " Share agent traces with Prime Intellect?\n\n > Share\n   Not now\n\n You can change this anytime with /traces.",
             "",
             Blocked,
-        ),
-        (
-            P::Penguin,
-            "[stats] context 8.1k · tokens 8.1k · 10s\n>",
-            "",
-            Idle,
-        ),
-        (
-            P::Penguin,
-            "> Write the numbers from 1 to 300.\n1\n2\n3",
-            "",
-            Working,
-        ),
-        (
-            P::Penguin,
-            "[stats] context 8.1k · tokens 8.1k · 10s\n> hel",
-            "",
-            Unknown,
-        ),
-        (
-            P::Penguin,
-            "> /exit\nPS C:\\Users\\example\\src\\app>",
-            "",
-            Unknown,
         ),
         (P::Jcode, &jc_idle, "", Idle),
         (P::Jcode, &jc_busy, "", Working),

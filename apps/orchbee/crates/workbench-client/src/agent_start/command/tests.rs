@@ -21,11 +21,11 @@ fn argument_free_interactive_launch_is_short_and_excludes_powershell_aliases() {
     assert!(interactive("unknown", true, None).is_none());
     // A provider whose bare command is not a chat starts with its fixed subcommand.
     assert_eq!(
-        interactive("qwenpaw", false, None).as_deref(),
-        Some("qwenpaw tui")
+        interactive("openclaw", false, None).as_deref(),
+        Some("openclaw chat")
     );
-    let text = interactive("kirocrew", true, None).unwrap();
-    assert!(text.starts_with("& (Get-Command 'kirocrew' "));
+    let text = interactive("openclaw", true, None).unwrap();
+    assert!(text.starts_with("& (Get-Command 'openclaw' "));
     assert!(text.ends_with(") chat"));
 }
 
@@ -123,7 +123,7 @@ fn a_start_gives_exactly_one_fresh_id_only_where_the_caller_chose_no_conversatio
         "codex",
         "omp",
         "cursor",
-        "kirocrew",
+        "openclaw",
         "unknown",
     ] {
         assert_eq!(launch_session(provider, &[]), None, "{provider}");
@@ -134,8 +134,8 @@ fn a_start_gives_exactly_one_fresh_id_only_where_the_caller_chose_no_conversatio
     }
     assert!(bound(&arguments("grok", &[], None)).is_empty());
     assert_eq!(
-        interactive("kirocrew", false, Some("x")).as_deref(),
-        Some("kirocrew chat")
+        interactive("openclaw", false, Some("x")).as_deref(),
+        Some("openclaw chat")
     );
 }
 

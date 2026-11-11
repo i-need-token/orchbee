@@ -11,7 +11,6 @@ fn reported_identities_preserve_custom_labels_and_use_report_alias_rules() {
         ("muse-bin-1.2.3.exe", "muse"),
         ("cmdc.cmd", "command-code"),
         ("mcode", "minimax-code"),
-        ("KiroCrew.exe", "kirocrew"),
         ("cmd", "cmd"),
         ("/tools/codex/", "codex"),
         ("codex.exe/", "codex.exe/"),

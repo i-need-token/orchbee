@@ -330,6 +330,6 @@ impl Manifest {
 }
 pub(super) fn bundled() -> Result<Vec<Manifest>, String> {
     macro_rules! bundle { ($($provider:ident => $file:literal),* $(,)?) => {vec![$((AgentReportProvider::$provider,include_str!(concat!("../../resources/agent-detection/",$file,".toml")))),*]}; }
-    bundle!(Amp=>"amp",Antigravity=>"antigravity",Claude=>"claude",Cline=>"cline",Codex=>"codex",Cursor=>"cursor",Devin=>"devin",Droid=>"droid",Gemini=>"gemini",Grok=>"grok",Hermes=>"hermes",Kilo=>"kilo",Kimi=>"kimi",Kiro=>"kiro",Letta=>"letta",Maki=>"maki",Muse=>"muse",Omp=>"omp",OpenCode=>"opencode",Pi=>"pi",Qoder=>"qodercli",Qwen=>"qwen",Copilot=>"github-copilot",AtomCode=>"atomcode",CodeBuddy=>"codebuddy",CommandCode=>"command-code",DevEco=>"deveco",Jcode=>"jcode",Mimo=>"mimo",MinimaxCode=>"minimax-code",Mothx=>"mothx",Penguin=>"penguin",PrimeAgent=>"prime-agent",Reasonix=>"reasonix",Snow=>"snow")
+    bundle!(Amp=>"amp",Antigravity=>"antigravity",Claude=>"claude",Cline=>"cline",Codex=>"codex",Cursor=>"cursor",Devin=>"devin",Droid=>"droid",Gemini=>"gemini",Grok=>"grok",Hermes=>"hermes",Kilo=>"kilo",Kimi=>"kimi",Kiro=>"kiro",Letta=>"letta",Maki=>"maki",Muse=>"muse",Omp=>"omp",OpenCode=>"opencode",Pi=>"pi",Qoder=>"qodercli",Qwen=>"qwen",Copilot=>"github-copilot",AtomCode=>"atomcode",CodeBuddy=>"codebuddy",CommandCode=>"command-code",DevEco=>"deveco",Jcode=>"jcode",Mimo=>"mimo",MinimaxCode=>"minimax-code",Mothx=>"mothx",PrimeAgent=>"prime-agent",Reasonix=>"reasonix",Snow=>"snow")
         .into_iter().map(|(p,text)|Manifest::parse(p,text)).collect()
 }

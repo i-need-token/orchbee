@@ -500,9 +500,7 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
         |command| {
             observed.push(command.to_owned());
             match command {
-                "codex" | "agent" | "amp" | "mcode" | "snow" | "penguin" => {
-                    client_path::Query::Found
-                }
+                "codex" | "agent" | "amp" | "mcode" | "snow" => client_path::Query::Found,
                 "pi" => client_path::Query::Unavailable,
                 _ => client_path::Query::Missing,
             }
@@ -512,7 +510,7 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
     assert!(!complete);
     assert_eq!(found, ["codex", "amp", "minimax-code"]);
     // A command the registry classes as generic never advertises its provider.
-    for generic in ["agent", "snow", "penguin"] {
+    for generic in ["agent", "snow"] {
         assert!(
             !observed.iter().any(|command| command == generic),
             "{generic}"

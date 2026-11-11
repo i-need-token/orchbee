@@ -4,7 +4,7 @@ The Server owns fallback screen interpretation separately from explicit Agent re
 
 ## Inputs and rule ownership
 
-The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Mastracode, Kiro Crew, QwenPaw and OpenClaw have no bundled screen manifest and use this known-provider fallback. CodeBuddy Code, Command Code and DevEco Code bundle only their startup blockers, so their idle and working screens also stay unknown.
+The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Mastracode and OpenClaw have no bundled screen manifest and use this known-provider fallback. CodeBuddy Code, Command Code and DevEco Code bundle only their startup blockers, so their idle and working screens also stay unknown.
 
 Bundled TOML files are retained under `resources/agent-detection`; files derived from Herdr keep its Apache-2.0 license and source attribution, and `NOTICE` names the files Orchbee authored. Server maintainers own review and pinned updates. Parsing rejects unknown fields, invalid states/regions, empty rule identifiers, unsupported engine versions, invalid skip-state combinations and excessive complexity before compiling any executable rule set. Each manifest allows at most 128 rules, 512 gates, depth 8 and 1,024 matchers; each gate allows 32 direct matchers of at most 512 Unicode characters. Regex compilation has explicit memory limits. The already locked `regex` and `toml` packages supply syntax that the standard library cannot implement; no new versions or runtime framework are required.
 
@@ -12,17 +12,14 @@ Idle rules need positive live composer chrome and lose to any busy or question c
 
 The bundled Devin Thinking rule requires an anchored live footer with elapsed time and an interrupt hint; a transcript mention or the word Thinking alone is insufficient. A startup choice that the user must answer before the Agent proceeds is a visible blocker. Devin's workspace trust prompt and its first-run theme question (`Detected light theme but configured for dark. Switch?`) need the question and the live choice footer; the question text alone stays unknown. Sampled rows lose trailing whitespace, so needles must not depend on a trailing space. Screen manifests reject `done` and `error`: those outcomes require explicit state authority, not text inference.
 
-Orchbee authored the AtomCode, MiMo Code, Reasonix, Snow CLI, MiniMax Code, MothX, Prime Agent,
-Penguin and J-Code rules from Windows captures. Where the CLI writes its state into the OSC title,
+Orchbee authored the AtomCode, MiMo Code, Reasonix, Snow CLI, MiniMax Code, MothX, Prime Agent
+and J-Code rules from Windows captures. Where the CLI writes its state into the OSC title,
 the title decides: AtomCode's green or yellow status light, MiniMax Code's `Ready`, `Working`,
 `Done` or `Stopped` prefix, J-Code's `· work ~` suffix and Snow's `Action Required` prefix. A visible
-busy line still outranks an idle title that lags. Reasonix, MothX, Prime Agent and Penguin leave
+busy line still outranks an idle title that lags. Reasonix, MothX and Prime Agent leave
 the title to the shell, and titles that only name the session carry no state, so screens decide: a
 braille or glyph spinner status with elapsed time, or a footer interrupt hint, is working, and the
-CLI's composer or key-hint footer without it is idle. Penguin is a line-mode chat without busy
-chrome: an empty `>` prompt row is idle, and any other bottom row except a shell prompt is working
-evidence without the visible flag, so it waits out the startup grace and idle hold, because a long
-unsent message wraps the same way. A startup question that waits for an answer is a visible
+CLI's composer or key-hint footer without it is idle. A startup question that waits for an answer is a visible
 blocker: workspace trust (MiMo Code, DevEco Code, CodeBuddy Code), sign-in or login method (Command
 Code, CodeBuddy Code), the agreements page (DevEco Code), telemetry or trace sharing (Reasonix,
 Prime Agent) and J-Code's y/n/d setup questions. Each needs its live choices or empty answer row, so
