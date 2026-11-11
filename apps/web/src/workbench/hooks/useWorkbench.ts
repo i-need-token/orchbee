@@ -89,6 +89,11 @@ import type {
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+import type { WorkbenchAgentStartInput } from '../types/workbench-agent-start';
+import {
+	useWorkbenchAgentStart,
+	type WorkbenchAgentStartDialogModel,
+} from './useWorkbenchAgentStart';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
 import { useWorkbenchMobileFocusRouter } from './useWorkbenchMobileFocusRouter';
@@ -170,6 +175,11 @@ interface WorkbenchView {
 	readonly closeAgentBoard: () => void;
 	/** Closes the board after a jump and hands the shown terminal the keyboard. */
 	readonly showAgentBoardSession: () => void;
+	/** Present while Start Agent is open. */
+	readonly agentStart: WorkbenchAgentStartDialogModel | undefined;
+	readonly closeAgentStart: () => void;
+	/** Closes Start Agent and runs `workbench.agent.start-provider`. */
+	readonly startAgent: (input: WorkbenchAgentStartInput) => void;
 	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
@@ -544,6 +554,10 @@ export function useWorkbench({
 			? capturedTarget
 			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
 	});
+	const agentStart = useWorkbenchAgentStart({
+		agentCatalog: authorityNotice.authority.agentCatalog,
+		projectWorkspaceRuntime,
+	});
 	const toggleSidebar = sidebar.toggle;
 	const closeSidebarOverlay = sidebar.dismissOverlay;
 	// The overlay and the full-window lists take the keyboard as they open, as the TUI's do.
@@ -683,6 +697,7 @@ export function useWorkbench({
 		onShortcuts,
 		onTerminalFontSizeChange,
 		openAgentBoard,
+		openAgentStart: agentStart.open,
 		openSearch,
 		openTabTitleEditor: openNameEditor,
 		openPanelNameEditor: openNameEditor,
@@ -694,6 +709,10 @@ export function useWorkbench({
 		tabStripOrientation,
 		toggleSidebar,
 		worktreeLabel,
+	});
+	const startAgent = useMemoizedFn((input: WorkbenchAgentStartInput) => {
+		agentStart.close();
+		actions.invoke(WORKBENCH_ACTION_IDS.startAgent, input, 'button');
 	});
 	const createProject = useMemoizedFn((path: string) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
@@ -937,6 +956,9 @@ export function useWorkbench({
 		agentBoardFinalFocus,
 		closeAgentBoard,
 		showAgentBoardSession,
+		agentStart: agentStart.dialog,
+		closeAgentStart: agentStart.close,
+		startAgent,
 		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,
 		navigateAgent: (input) => {

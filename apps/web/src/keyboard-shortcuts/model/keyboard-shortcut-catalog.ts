@@ -105,6 +105,7 @@ type KeyboardShortcutName =
 	| 'shortcuts'
 	| 'split-below'
 	| 'split-right'
+	| 'start-agent'
 	| 'swap-panel-visible'
 	| 'toggle-sidebar';
 
@@ -324,6 +325,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'set-tab-title',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.setTabTitle.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.startAgent.id,
+		actionInput: WORKBENCH_SHORTCUTS.startAgent.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.startAgent.defaults,
+		feature: 'workbench',
+		name: 'start-agent',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.startAgent.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.selectPreviousTab.id,

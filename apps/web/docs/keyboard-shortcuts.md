@@ -25,6 +25,7 @@ those surfaces owns another binding copy.
 | `workbench.tab.active.move-backward`          | Workbench                         | `Ctrl+Shift+,`           | `Ctrl+Shift+,`         |
 | `workbench.tab.active.move-forward`           | Workbench                         | `Ctrl+Shift+.`           | `Ctrl+Shift+.`         |
 | `workbench.tab.title.set`                     | Workbench                         | `Cmd+Shift+I`            | `Ctrl+Alt+Shift+T`     |
+| `workbench.agent.start`                       | Workbench                         | `Cmd+Shift+G`            | `Ctrl+Alt+Shift+G`     |
 | `workbench.terminal.active.close`             | Active terminal                   | `Cmd+W`                  | `Ctrl+Shift+W`         |
 | `workbench.panel.active.focus-down`           | Active panel                      | `Cmd+Option+Down`        | `Ctrl+Alt+Down`        |
 | `workbench.panel.active.focus-left`           | Active panel                      | `Cmd+Option+Left`        | `Ctrl+Alt+Left`        |
@@ -78,6 +79,8 @@ New Workspace and the shortcut reference carry the TUI's `Ctrl+B Shift+N` and `C
 Prompt navigation uses physical `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).
 
 Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; Mod is Command on Apple and Control on Standard. Visible keyboard hints use `Mod+Shift+O`, leaving Standard `Ctrl+Shift+E` for Split Below. [Keyboard hints](../../../packages/terminal/docs/keyboard-hints.md) owns targets, effects and cancellation.
+
+Start Agent uses Apple `Cmd+Shift+G` and Standard `Ctrl+Alt+Shift+G`, Rename Tab's chord shape with G for Agent; Standard adds Alt because `Ctrl+Shift+G` shows the last command's output. It opens the dialog only while the Session can start an Agent.
 
 Show Last Command Output and Show Scrollback use physical `Ctrl+Shift+G` and `Ctrl+Shift+H` on both platforms and open immutable text viewers. [Command-output viewer](../../../packages/terminal/docs/command-output-viewer.md) and [Scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md) own extraction, search, copying, cancellation and focus restoration.
 

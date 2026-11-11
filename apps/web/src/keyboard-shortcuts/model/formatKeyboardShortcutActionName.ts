@@ -30,6 +30,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.moveTabForward);
 		case 'set-tab-title':
 			return intl.formatMessage(keyboardShortcutMessages.setTabTitle);
+		case 'start-agent':
+			return intl.formatMessage(keyboardShortcutMessages.startAgent);
 		case 'next-prompt':
 			return intl.formatMessage(keyboardShortcutMessages.nextPrompt);
 		case 'show-last-command-output':

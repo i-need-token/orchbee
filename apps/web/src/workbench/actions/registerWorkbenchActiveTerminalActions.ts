@@ -12,6 +12,7 @@ import {
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
+import type { WorkbenchAgentStartProvider } from '@orchbee/workbench-client-protocol';
 
 import { PANEL_ACTION_IDS } from '../components/workbench-panel-workspace/actions/panel-action-contracts';
 import {
@@ -31,7 +32,9 @@ import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descen
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
+	type WorkbenchAgentStartOption,
 	type WorkbenchPanelPositionInput,
+	workbenchAgentStartOption,
 	workbenchPanelPositionInput,
 } from './workbench-action-ids';
 
@@ -84,6 +87,18 @@ export function registerWorkbenchActiveTerminalActions({
 			runtime,
 			scope,
 		});
+	/** A split can name the Agent its new terminal runs first, as Start Agent asks. */
+	const executeSplit =
+		(command: ActiveTerminalCommand) =>
+		async (context: ActionExecutionContext, input: WorkbenchAgentStartOption) =>
+			await executeResolvedCommand({
+				agentStart: input?.agentStart,
+				command,
+				context,
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+			});
 
 	return [
 		typedRuntime.register(
@@ -415,9 +430,9 @@ export function registerWorkbenchActiveTerminalActions({
 					mode: 'foreground',
 				},
 				getAvailability: availabilityFor('split-below'),
-				handler: { execute: execute('split-below') },
+				handler: { execute: executeSplit('split-below') },
 				id: WORKBENCH_ACTION_IDS.splitActivePanelBelow,
-				input: noActionInput,
+				input: workbenchAgentStartOption,
 				title: workbenchMessages.panelSplitBelow,
 			}),
 		),
@@ -431,9 +446,9 @@ export function registerWorkbenchActiveTerminalActions({
 					mode: 'foreground',
 				},
 				getAvailability: availabilityFor('split-right'),
-				handler: { execute: execute('split-right') },
+				handler: { execute: executeSplit('split-right') },
 				id: WORKBENCH_ACTION_IDS.splitActivePanelRight,
-				input: noActionInput,
+				input: workbenchAgentStartOption,
 				title: workbenchMessages.panelSplitRight,
 			}),
 		),
@@ -627,12 +642,15 @@ function resolveForContext(
 }
 
 async function executeResolvedCommand({
+	agentStart,
 	command,
 	context,
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
 }: {
+	/** The Agent a split's new terminal runs first. */
+	readonly agentStart?: WorkbenchAgentStartProvider | undefined;
 	readonly command: ActiveTerminalCommand;
 	readonly context: ActionExecutionContext;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -654,7 +672,10 @@ async function executeResolvedCommand({
 				includeDescendants: true,
 				inputByActionId: {
 					...WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS,
-					[resolution.actionId]: resolution.input,
+					[resolution.actionId]:
+						resolution.actionId === PANEL_ACTION_IDS.split && agentStart !== undefined
+							? { ...resolution.input, agentStart }
+							: resolution.input,
 				},
 			},
 		)

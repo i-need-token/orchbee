@@ -1,6 +1,5 @@
 import {
 	defineAction,
-	noActionInput,
 	type ActionDisposable,
 	type ActionExecutionContext,
 	type ActionResult,
@@ -21,6 +20,7 @@ import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
 	type WorkbenchWorktreeOpening,
+	workbenchAgentStartOption,
 	workbenchFocusedPanelWorktreeCheckoutInput,
 	workbenchWorkspaceInput,
 	workbenchWorktreeCheckoutInput,
@@ -177,12 +177,13 @@ export function registerWorkbenchWorktreeActions({
 				},
 				getAvailability: focusedPanelAvailability,
 				handler: {
-					execute: async (context) => {
+					execute: async (context, input) => {
 						const focused = resolveFocusedPanel(projectWorkspaceRuntime);
 						if (focused === null) return { kind: 'blocked', code: 'focused-panel-unavailable' };
 						// Git's answer is unknown until the authority reads where the Panel stands.
 						return openingResult(
 							await send(context, {
+								...(input?.agentStart === undefined ? {} : { agentStart: input.agentStart }),
 								kind: 'create',
 								label: defaultLabel(),
 								panel: { panelId: focused.panelId, presentationId: focused.presentationId },
@@ -192,7 +193,7 @@ export function registerWorkbenchWorktreeActions({
 					},
 				},
 				id: WORKBENCH_ACTION_IDS.createFocusedPanelWorktree,
-				input: noActionInput,
+				input: workbenchAgentStartOption,
 				title: workbenchMessages.worktreeNew,
 			}),
 		),

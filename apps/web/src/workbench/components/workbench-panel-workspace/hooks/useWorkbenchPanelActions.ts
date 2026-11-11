@@ -452,6 +452,7 @@ export function useWorkbenchPanelActions({
 								? { code: 'active-tab-unavailable', kind: 'blocked' }
 								: createPanelTerminal(context, {
 										...sharedTabTarget,
+										...(input.agentStart === undefined ? {} : { agentStart: input.agentStart }),
 										cwd: reportedDirectory(input.panelId),
 										direction: input.direction,
 										panelId: input.panelId,

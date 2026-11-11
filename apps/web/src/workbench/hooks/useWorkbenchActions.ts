@@ -20,6 +20,7 @@ import * as React from 'react';
 import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import { registerWorkbenchAgentNavigationAction } from '../actions/registerWorkbenchAgentNavigationAction';
+import { registerWorkbenchAgentStartActions } from '../actions/registerWorkbenchAgentStartActions';
 import { registerWorkbenchConfiguredCommandActions } from '../actions/registerWorkbenchConfiguredCommandActions';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
 import { registerWorkbenchActiveTabActions } from '../actions/registerWorkbenchActiveTabActions';
@@ -56,6 +57,7 @@ import type { TerminalCloseImpact } from '../model/terminal-close-impact';
 import { WorkbenchPanelFocusTrail } from '../model/WorkbenchPanelFocusTrail';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
+import type { WorkbenchAgentStartPlace } from '../types/workbench-agent-start';
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
@@ -89,6 +91,7 @@ interface UseWorkbenchActionsOptions {
 		| ((input: WorkbenchTerminalCreateInput) => ActionAvailability)
 		| undefined;
 	readonly openAgentBoard: () => void;
+	readonly openAgentStart: (places: readonly WorkbenchAgentStartPlace[]) => void;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	/** The Search filters the window offers; a release offers only Actions. */
 	readonly searchFilters: readonly WorkbenchSearchFilter[];
@@ -135,6 +138,7 @@ export function useWorkbenchActions({
 	onNewTerminal,
 	getNewTerminalAvailability,
 	openAgentBoard,
+	openAgentStart,
 	openSearch,
 	openTabTitleEditor,
 	openPanelNameEditor,
@@ -307,6 +311,17 @@ export function useWorkbenchActions({
 							typedRuntime,
 						}),
 					]),
+			...(authority.agentCatalog === undefined
+				? []
+				: registerWorkbenchAgentStartActions({
+						agentCatalog: authority.agentCatalog,
+						authority,
+						beginTerminalHandover: focusRouting.beginTerminalHandover,
+						openAgentStart,
+						projectWorkspaceRuntime,
+						scope,
+						typedRuntime,
+					})),
 			...(authority.worktrees === undefined
 				? []
 				: registerWorkbenchWorktreeActions({
@@ -571,6 +586,7 @@ export function useWorkbenchActions({
 		onShortcuts,
 		onTerminalFontSizeChange,
 		openAgentBoard,
+		openAgentStart,
 		openSearch,
 		openTabTitleEditor,
 		openPanelNameEditor,
@@ -696,6 +712,7 @@ export function useWorkbenchActions({
 				case 'resetTerminalFontSize':
 				case 'resizeActivePanel':
 				case 'setTabTitle':
+				case 'startAgent':
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':
 				case 'swapActivePanelVisible':

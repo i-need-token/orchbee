@@ -1,7 +1,9 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 import {
 	TerminalPresentationIdSchema,
+	WorkbenchAgentStartProviderSchema,
 	type TerminalPresentationId,
+	type WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
 import type { PanelSplitDirection } from '../model/panel-workspace-state';
@@ -37,6 +39,8 @@ export interface PanelChildTerminalInput extends PanelTargetInput {
 }
 
 export interface PanelSplitInput extends PanelTargetInput {
+	/** The Agent the new Panel's terminal runs first. */
+	readonly agentStart?: WorkbenchAgentStartProvider | undefined;
 	readonly direction: PanelSplitDirection;
 }
 
@@ -139,16 +143,26 @@ export const panelChildTerminalInput: ActionInputValidation<PanelChildTerminalIn
 
 export const panelSplitInput: ActionInputValidation<PanelSplitInput> = {
 	name: 'PanelSplitInput',
-	parse: (input) =>
-		isRecord(input) && typeof input['panelId'] === 'string' && isDirection(input['direction'])
+	parse: (input) => {
+		if (
+			!isRecord(input) ||
+			typeof input['panelId'] !== 'string' ||
+			!isDirection(input['direction'])
+		) {
+			return { success: false, code: 'expected-panel-split' };
+		}
+		const agentStart = WorkbenchAgentStartProviderSchema.optional().safeParse(input['agentStart']);
+		return agentStart.success
 			? {
 					success: true,
 					data: {
+						...(agentStart.data === undefined ? {} : { agentStart: agentStart.data }),
 						direction: input['direction'],
 						panelId: input['panelId'],
 					},
 				}
-			: { success: false, code: 'expected-panel-split' },
+			: { success: false, code: 'expected-panel-split' };
+	},
 };
 
 export const panelMoveInput: ActionInputValidation<PanelMoveInput> = {

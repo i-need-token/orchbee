@@ -43,6 +43,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
 		| typeof WORKBENCH_ACTION_IDS.openShortcuts
+		| typeof WORKBENCH_ACTION_IDS.openAgentStart
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.resizeActivePanel
 		| typeof WORKBENCH_ACTION_IDS.selectNextTab
@@ -299,6 +300,17 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.setTabTitle,
 	},
+	// Start Agent takes G with Rename Tab's chord shape: Apple Cmd+Shift+G, and the standard
+	// platforms add Alt because Ctrl+Shift+G shows a terminal's last output.
+	startAgent: {
+		defaults: {
+			apple: chord('KeyG', ['mod', 'shift']),
+			standard: chord('KeyG', ['mod', 'alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.openAgentStart,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.openAgentStart,
+	},
 	newTerminal: {
 		defaults: {
 			apple: chord('KeyT', ['mod']),
@@ -495,6 +507,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'shortcuts',
 	'splitActivePanelBelow',
 	'splitActivePanelRight',
+	'startAgent',
 	'swapActivePanelVisible',
 	'toggleSidebar',
 ] as const satisfies readonly WorkbenchShortcutAction[]);
@@ -612,6 +625,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('settings', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openShortcuts:
 			return formatWorkbenchShortcut('shortcuts', platform, bindings);
+		case WORKBENCH_ACTION_IDS.openAgentStart:
+			return formatWorkbenchShortcut('startAgent', platform, bindings);
 		case WORKBENCH_ACTION_IDS.createWorkspace:
 			return formatWorkbenchShortcut('newWorkspace', platform, bindings);
 		case WORKBENCH_ACTION_IDS.selectNextTab:
@@ -721,6 +736,7 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.moveActiveTabForward.defaults[platform],
 		[WORKBENCH_SHORTCUTS.setTabTitle.shortcutId]:
 			WORKBENCH_SHORTCUTS.setTabTitle.defaults[platform],
+		[WORKBENCH_SHORTCUTS.startAgent.shortcutId]: WORKBENCH_SHORTCUTS.startAgent.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId]:

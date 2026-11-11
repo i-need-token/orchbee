@@ -108,6 +108,7 @@ function WorkbenchActionsHarness({
 		onSettings: undefined,
 		onTerminalFontSizeChange,
 		openAgentBoard: () => undefined,
+		openAgentStart: () => undefined,
 		openSearch: () => undefined,
 		openTabTitleEditor: () => undefined,
 		openPanelNameEditor: () => undefined,
@@ -314,6 +315,9 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.resumeTabClose &&
 						// Only an authority that reads the Server's Agent sessions has a board.
 						actionId !== WORKBENCH_ACTION_IDS.openAgentBoard &&
+						// Only an authority that reads the Session's Agent catalog starts an Agent.
+						actionId !== WORKBENCH_ACTION_IDS.openAgentStart &&
+						actionId !== WORKBENCH_ACTION_IDS.startAgent &&
 						// Only an authority that keeps earlier layouts reopens one.
 						actionId !== WORKBENCH_ACTION_IDS.reopenEarlierLayout &&
 						// Worktree Actions exist only where an authority reaches Git.

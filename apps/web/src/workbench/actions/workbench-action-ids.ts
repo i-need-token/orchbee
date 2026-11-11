@@ -4,13 +4,19 @@ import type { TabStripOrientation } from '@orchbee/tab-strip';
 import {
 	TerminalPresentationIdSchema,
 	UserLaunchProfileSchema,
+	WorkbenchAgentStartProviderSchema,
 	WorkbenchLabelSchema,
 	type TerminalPresentationId,
 	type UserLaunchProfile,
+	type WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import { isWorkbenchWorktreeFailureCause } from '../model/workbench-worktree-failure';
+import {
+	WORKBENCH_AGENT_START_PLACES,
+	type WorkbenchAgentStartInput,
+} from '../types/workbench-agent-start';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import type { WorkbenchWorktreeFailureCause } from '../types/workbench-worktrees';
@@ -50,6 +56,8 @@ export const WORKBENCH_ACTION_IDS = {
 	reopenEarlierLayout: 'workbench.layout.reopen-earlier',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openAgentBoard: 'workbench.agent-board.open',
+	openAgentStart: 'workbench.agent.start',
+	startAgent: 'workbench.agent.start-provider',
 	openSearch: 'workbench.search.open',
 	openSettings: 'workbench.settings.open',
 	openShortcuts: 'workbench.shortcuts.open',
@@ -266,6 +274,9 @@ export interface WorkbenchTerminalCreateInput {
 	readonly profile?: UserLaunchProfile | undefined;
 }
 
+/** An Agent a created terminal runs first; without it the terminal starts its shell. */
+export type WorkbenchAgentStartOption = void | { readonly agentStart: WorkbenchAgentStartProvider };
+
 export interface WorkbenchSearchOpenInput {
 	readonly filter: WorkbenchSearchFilter;
 }
@@ -308,6 +319,8 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.reopenEarlierLayout]: ActionSignature<WorkbenchEarlierLayoutInput>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openAgentBoard]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.openAgentStart]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.startAgent]: ActionSignature<WorkbenchAgentStartInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openShortcuts]: ActionSignature<void>;
@@ -336,9 +349,9 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.selectTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeActiveTerminal]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelAbove]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.splitActivePanelBelow]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.splitActivePanelBelow]: ActionSignature<WorkbenchAgentStartOption>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelLeft]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<WorkbenchAgentStartOption>;
 	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
@@ -351,7 +364,7 @@ export interface WorkbenchActionCatalog {
 		WorkbenchWorktreeOpening
 	>;
 	readonly [WORKBENCH_ACTION_IDS.createFocusedPanelWorktree]: ActionSignature<
-		void,
+		WorkbenchAgentStartOption,
 		WorkbenchWorktreeOpening
 	>;
 	readonly [WORKBENCH_ACTION_IDS.openWorktree]: ActionSignature<
@@ -431,6 +444,31 @@ export const workbenchTerminalCreateInput: ActionInputValidation<WorkbenchTermin
 				...(profile === undefined ? {} : { profile: profile.data }),
 			},
 		};
+	},
+};
+
+export const workbenchAgentStartOption: ActionInputValidation<WorkbenchAgentStartOption> = {
+	name: 'WorkbenchAgentStartOption',
+	parse: (input) => {
+		if (input === undefined) return { success: true, data: undefined };
+		const agentStart = isRecord(input)
+			? WorkbenchAgentStartProviderSchema.safeParse(input['agentStart'])
+			: null;
+		return agentStart?.success === true
+			? { success: true, data: { agentStart: agentStart.data } }
+			: { success: false, code: 'expected-workbench-agent-start-option' };
+	},
+};
+
+export const workbenchAgentStartInput: ActionInputValidation<WorkbenchAgentStartInput> = {
+	name: 'WorkbenchAgentStartInput',
+	parse: (input) => {
+		if (!isRecord(input)) return { success: false, code: 'expected-workbench-agent-start' };
+		const providerId = WorkbenchAgentStartProviderSchema.safeParse(input['providerId']);
+		const place = WORKBENCH_AGENT_START_PLACES.find((candidate) => candidate === input['place']);
+		return providerId.success && place !== undefined
+			? { success: true, data: { place, providerId: providerId.data } }
+			: { success: false, code: 'expected-workbench-agent-start' };
 	},
 };
 

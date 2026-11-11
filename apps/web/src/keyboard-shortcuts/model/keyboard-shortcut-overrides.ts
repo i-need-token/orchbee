@@ -128,6 +128,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.setTabTitle.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.setTabTitle.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.startAgent.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.startAgent.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 		),
