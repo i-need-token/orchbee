@@ -71,8 +71,14 @@ export async function stageConptyBundle(output) {
 		const systemRoot = process.env.SystemRoot;
 		if (typeof systemRoot !== 'string' || !path.isAbsolute(systemRoot))
 			throw new Error('Missing Windows system root');
+		// Windows PowerShell must load its own Archive module. A PowerShell 7 parent leaves its module
+		// path in the environment, and that module's extraction call does not exist in this host.
+		const windowsPowerShell = path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0');
+		const inherited = Object.fromEntries(
+			Object.entries(process.env).filter(([name]) => name.toLowerCase() !== 'psmodulepath'),
+		);
 		execFileSync(
-			path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+			path.join(windowsPowerShell, 'powershell.exe'),
 			[
 				'-NoLogo',
 				'-NoProfile',
@@ -81,7 +87,12 @@ export async function stageConptyBundle(output) {
 				"$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath $env:ORCHBEE_CONPTY_ARCHIVE -DestinationPath $env:ORCHBEE_CONPTY_EXPANDED",
 			],
 			{
-				env: { ...process.env, ORCHBEE_CONPTY_ARCHIVE: archive, ORCHBEE_CONPTY_EXPANDED: expanded },
+				env: {
+					...inherited,
+					PSModulePath: path.join(windowsPowerShell, 'Modules'),
+					ORCHBEE_CONPTY_ARCHIVE: archive,
+					ORCHBEE_CONPTY_EXPANDED: expanded,
+				},
 				stdio: 'inherit',
 				timeout: 30_000,
 				windowsHide: true,
