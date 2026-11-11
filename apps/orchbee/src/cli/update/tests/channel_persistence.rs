@@ -62,6 +62,11 @@ impl Roots {
 fn assert_failed_after_save(rendered: &Value, saved: bool, error: &str) {
     assert_eq!(rendered["result"]["channelSaved"], saved, "{rendered}");
     assert_eq!(rendered["result"]["error"], error, "{rendered}");
+    assert_eq!(
+        rendered["result"]["configurationFailure"].is_object(),
+        error == "configuration",
+        "{rendered}"
+    );
 }
 
 #[test]
@@ -120,11 +125,35 @@ fn channel_set_persists_before_failed_update_and_never_activates_a_session() {
         assert_eq!(roots.effective_channel(), UpdateChannel::Preview);
     }
 
+    // A file that cannot be saved names its own reason, and the syntax reason its position.
     let invalid = "not TOML";
     fs::write(&config, invalid).unwrap();
     let (_, rendered) = roots.update(Some(UpdateChannel::Preview), None);
     assert_failed_after_save(&rendered, false, "configuration");
+    let failure = &rendered["result"]["configurationFailure"];
+    assert_eq!(
+        (&failure["field"], &failure["reason"], &failure["line"]),
+        (&"file".into(), &"invalid-toml".into(), &1.into()),
+        "{rendered}"
+    );
+    assert!(failure["column"].as_u64().is_some(), "{rendered}");
     assert_eq!(fs::read_to_string(&config).unwrap(), invalid);
+
+    let kept = "[update]\nchannel='stable'\n";
+    fs::write(&config, kept).unwrap();
+    let mut permissions = fs::metadata(&config).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&config, permissions.clone()).unwrap();
+    let (_, rendered) = roots.update(Some(UpdateChannel::Preview), None);
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(false);
+    fs::set_permissions(&config, permissions).unwrap();
+    assert_failed_after_save(&rendered, false, "configuration");
+    assert_eq!(
+        rendered["result"]["configurationFailure"],
+        serde_json::json!({"field": "file", "reason": "read-only"})
+    );
+    assert_eq!(fs::read_to_string(&config).unwrap(), kept);
 
     assert!(!roots.install.exists());
     assert!(!Path::new(&roots.runtime).exists());

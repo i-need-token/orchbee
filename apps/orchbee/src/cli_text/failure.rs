@@ -103,6 +103,19 @@ impl super::CliText {
                     ),
                 };
             }
+            let position = |name| {
+                failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get(name))
+                    .and_then(serde_json::Value::as_u64)
+            };
+            if let Some(message) =
+                self.cli_configuration_refusal(reason, position("line").zip(position("column")))
+            {
+                return message;
+            }
+            let field = super::escape::escape(field);
             return match self.locale {
                 Locale::EnUs => format!(
                     "Configuration preparation failed ({field}: {reason}). Check the file with orchbee config check.\n"

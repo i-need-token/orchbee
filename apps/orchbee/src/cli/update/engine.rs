@@ -6,9 +6,9 @@ use super::{
     acquire::Source,
     install::{self, Activation, Probe},
     manifest::{self, Release},
-    platform,
     signature::{self, Refusal, TrustedKey},
 };
+use crate::cli::configuration;
 use orchbee_local_runtime::UpdateChannel;
 use std::{ffi::OsString, path::PathBuf};
 
@@ -30,7 +30,8 @@ pub(super) struct Inputs<'a> {
 
 /// Saves the channel, then admits, verifies, publishes and activates one release, recording each
 /// reached phase in `report`. The signature verifies before the manifest is parsed, every file
-/// verifies before the staged Client runs, and activation follows publication.
+/// verifies before the staged Client runs, and activation follows publication. A settings file that
+/// cannot be saved or read stops the run with its typed reason in `report`.
 ///
 /// # Errors
 /// Returns the first refusal or failure; `report` keeps the phase and every committed effect.
@@ -41,11 +42,16 @@ pub(super) fn run(
 ) -> Result<(), Error> {
     context.check()?;
     if let Some(channel) = inputs.channel {
-        report.config_path =
-            Some(platform::save_channel(channel, inputs.state).map_err(|_| Error::Configuration)?);
+        match orchbee_local_runtime::set_update_channel(channel, inputs.state) {
+            Ok(path) => report.config_path = Some(path),
+            Err(error) => return Err(report.configuration(error.into())),
+        }
         report.channel_saved = true;
     }
-    let selected = platform::selected_channel(inputs.state).map_err(|_| Error::Configuration)?;
+    let selected = match configuration::read_valid(inputs.state) {
+        Ok(load) => load.settings.update_channel,
+        Err(error) => return Err(report.configuration(error)),
+    };
     report.channel = Some(selected);
     report.phase = "source";
     // A build without a trusted key can install nothing, so it never contacts a feed.

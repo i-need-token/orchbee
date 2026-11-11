@@ -40,7 +40,8 @@
 				"buildId",
 				"cleanupPending",
 				"error",
-				"interrupted"
+				"interrupted",
+				"configurationFailure"
 			],
 			"properties": {
 				"channel": {
@@ -111,6 +112,16 @@
 				},
 				"interrupted": {
 					"type": "boolean"
+				},
+				"configurationFailure": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/configurationFailure"
+						}
+					]
 				}
 			},
 			"if": {
@@ -148,8 +159,117 @@
 							}
 						}
 					}
+				},
+				{
+					"if": {
+						"properties": {
+							"error": {
+								"const": "configuration"
+							}
+						},
+						"required": ["error"]
+					},
+					"then": {
+						"properties": {
+							"configurationFailure": {
+								"type": "object"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"configurationFailure": {
+								"type": "null"
+							}
+						}
+					}
 				}
 			]
+		}
+	},
+	"$defs": {
+		"configurationFailure": {
+			"type": "object",
+			"required": ["field", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"field": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 256,
+					"pattern": "^(?:[A-Z][A-Z0-9_]*|[a-z][a-z0-9_]*(?:[.\\[][^\\u0000-\\u001f\\u007f-\\u009f]*)?)$"
+				},
+				"reason": {
+					"enum": [
+						"invalid-path",
+						"missing",
+						"io-error",
+						"not-file",
+						"too-large",
+						"invalid-utf8",
+						"invalid-toml",
+						"unknown-key",
+						"wrong-type",
+						"invalid-value",
+						"invalid-mode",
+						"value-too-long",
+						"invalid-channel",
+						"unknown-profile",
+						"unclosed-brace",
+						"unknown-token",
+						"unmatched-brace",
+						"invalid-binding",
+						"reserved-binding",
+						"unsafe-binding",
+						"duplicate-binding",
+						"too-many-bindings",
+						"invalid-layout",
+						"invalid-color",
+						"invalid-token",
+						"invalid-rules",
+						"invalid-agent",
+						"invalid-delay",
+						"too-many-agents",
+						"source-query-failed",
+						"source-query-interrupted",
+						"read-only",
+						"file-in-use",
+						"locked",
+						"changed"
+					]
+				},
+				"line": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"column": {
+					"type": "integer",
+					"minimum": 1
+				}
+			},
+			"if": {
+				"properties": {
+					"reason": {
+						"enum": ["invalid-toml", "invalid-utf8"]
+					}
+				},
+				"required": ["reason"]
+			},
+			"then": {
+				"required": ["line", "column"]
+			},
+			"else": {
+				"not": {
+					"anyOf": [
+						{
+							"required": ["line"]
+						},
+						{
+							"required": ["column"]
+						}
+					]
+				}
+			}
 		}
 	}
 }

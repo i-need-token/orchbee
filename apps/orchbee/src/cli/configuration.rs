@@ -4,8 +4,8 @@ use crate::invocation::CreationDirectory;
 #[cfg(test)]
 use orchbee_local_runtime::UserSettings;
 use orchbee_local_runtime::{
-    DirectoryPolicy, SettingsDiagnostics, SettingsError, SettingsSyntaxError, UserSettingsLoad,
-    read_user_settings,
+    DirectoryPolicy, SettingsDiagnostics, SettingsEditError, SettingsError, SettingsSyntaxError,
+    UserSettingsLoad, read_user_settings,
 };
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 use std::{ffi::OsString, path::PathBuf};
@@ -89,6 +89,25 @@ impl Error {
 impl From<SettingsError> for Error {
     fn from(error: SettingsError) -> Self {
         Self::new(error.field, error.reason)
+    }
+}
+
+/// Each edit refusal keeps its own reason: an edit-specific one names `file`, a refused value names
+/// the reader's field, and a syntax error keeps its line and column.
+impl From<SettingsEditError> for Error {
+    fn from(error: SettingsEditError) -> Self {
+        match error {
+            SettingsEditError::UnknownKey { key } => Self::new(key, "unknown-key"),
+            SettingsEditError::InvalidValue { field, reason, .. } => Self::new(field, reason),
+            SettingsEditError::Syntax(syntax) => Self::syntax(syntax, None),
+            SettingsEditError::Source(error) => error.into(),
+            SettingsEditError::ReadOnly
+            | SettingsEditError::InUse
+            | SettingsEditError::Locked
+            | SettingsEditError::Changed
+            | SettingsEditError::TooLarge
+            | SettingsEditError::Io(_) => Self::new("file", error.reason()),
+        }
     }
 }
 

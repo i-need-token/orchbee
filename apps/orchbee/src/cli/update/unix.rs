@@ -1,26 +1,12 @@
 //! No update effects are implemented on Unix; every port refuses without observation or mutation.
 use super::Context;
-use orchbee_local_runtime::{CommandOutput, UpdateChannel};
+use orchbee_local_runtime::CommandOutput;
 use std::{
-    ffi::OsString,
     fs::File,
     io,
     path::{Path, PathBuf},
     process::Command,
 };
-
-pub(super) fn save_channel(
-    _channel: UpdateChannel,
-    _state: &dyn Fn(&str) -> Option<OsString>,
-) -> io::Result<PathBuf> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
-pub(super) fn selected_channel(
-    _state: &dyn Fn(&str) -> Option<OsString>,
-) -> io::Result<UpdateChannel> {
-    Err(io::ErrorKind::Unsupported.into())
-}
 
 pub(super) fn manifest_source() -> Option<String> {
     None

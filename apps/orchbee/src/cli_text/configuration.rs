@@ -74,6 +74,39 @@ impl super::CliText {
         }
     }
 
+    /// The line for a configuration refusal whose reason has its own fix, from the closed
+    /// `{field, reason, line?, column?}` details; `None` leaves the generic message.
+    pub(crate) fn cli_configuration_refusal(
+        self,
+        reason: &str,
+        position: Option<(u64, u64)>,
+    ) -> Option<String> {
+        const MIB: u64 = orchbee_local_runtime::MAXIMUM_USER_SETTINGS_BYTES / (1024 * 1024);
+        let message = match (self.locale, reason, position) {
+            (locale, "invalid-toml" | "invalid-utf8", Some((line, column))) => {
+                let problem = self.cli_configuration_syntax(reason, line);
+                match locale {
+                    Locale::EnUs => {
+                        format!("Configuration file line {line}, column {column}: {problem}")
+                    }
+                    Locale::ZhCn => format!("配置文件第 {line} 行第 {column} 列：{problem}"),
+                }
+            }
+            (Locale::EnUs, "read-only", _) => "The configuration file is read-only, so nothing was saved. Clear its read-only attribute and try again.".to_owned(),
+            (Locale::ZhCn, "read-only", _) => "配置文件为只读，未保存任何内容。请清除其只读属性后重试。".to_owned(),
+            (Locale::EnUs, "file-in-use", _) => "Another program has the configuration file open, so nothing was saved. Close the editor holding it and try again.".to_owned(),
+            (Locale::ZhCn, "file-in-use", _) => "另一个程序正打开配置文件，未保存任何内容。请关闭占用它的编辑器后重试。".to_owned(),
+            (Locale::EnUs, "locked", _) => "Another Orchbee change to the configuration file did not finish in time, so nothing was saved. Try again in a moment.".to_owned(),
+            (Locale::ZhCn, "locked", _) => "另一个 Orchbee 对配置文件的修改未及时完成，未保存任何内容。请稍后重试。".to_owned(),
+            (Locale::EnUs, "changed", _) => "The configuration file changed while it was being saved, so nothing was saved. Try again.".to_owned(),
+            (Locale::ZhCn, "changed", _) => "保存期间配置文件被修改，未保存任何内容。请重试。".to_owned(),
+            (Locale::EnUs, "too-large", _) => format!("The configuration file is over the {MIB} MiB limit. Remove settings you do not need and try again."),
+            (Locale::ZhCn, "too-large", _) => format!("配置文件超过 {MIB} MiB 上限。请删除不需要的设置后重试。"),
+            _ => return None,
+        };
+        Some(message + "\n")
+    }
+
     pub(crate) fn cli_resolved_executable(self, path: &str) -> String {
         match self.locale {
             Locale::EnUs => format!("Resolved executable: {path}\n"),

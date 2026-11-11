@@ -77,6 +77,7 @@ pub(super) fn report() -> Report {
         cleanup_pending: None,
         version: None,
         build_id: None,
+        configuration_failure: None,
     }
 }
 

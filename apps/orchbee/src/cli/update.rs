@@ -133,6 +133,15 @@ struct Report {
     cleanup_pending: Option<PathBuf>,
     version: Option<String>,
     build_id: Option<String>,
+    /// Why the settings file could not be saved or read, once that stopped the run.
+    configuration_failure: Option<super::configuration::Error>,
+}
+impl Report {
+    /// Records why the settings file stopped the run and returns the run's error.
+    fn configuration(&mut self, failure: super::configuration::Error) -> Error {
+        self.configuration_failure = Some(failure);
+        Error::Configuration
+    }
 }
 
 /// The `orchbee.update` document for one run that requested `channel`, if any.
@@ -151,8 +160,24 @@ fn document(
             "releasePath":report.published, "reused":report.reused, "activated":report.activated,
             "releaseVersion":report.version, "buildId":report.build_id, "cleanupPending":report.cleanup_pending,
             "error":error.map(Error::code), "interrupted":interrupted,
+            "configurationFailure":report.configuration_failure.as_ref()
+                .filter(|_| matches!(error, Some(Error::Configuration)))
+                .map(super::configuration::Error::details),
         }
     })
+}
+
+/// The text for a run the settings file stopped: the configuration failure message for the same
+/// closed details the JSON form carries.
+fn configuration_text(
+    details: &serde_json::Map<String, serde_json::Value>,
+    locale: Locale,
+) -> String {
+    CliText::new(locale).cli_failure(
+        &Failure::new(FailureKind::CheckFailed)
+            .failure_schema("orchbee.cli.failure.configuration")
+            .details(details.clone()),
+    )
 }
 
 /// Persists an optional channel first, then attempts its complete Windows update.
@@ -191,6 +216,7 @@ pub(crate) fn run(
         cleanup_pending: None,
         version: None,
         build_id: None,
+        configuration_failure: None,
     };
     let result = (|| {
         context.check()?;
@@ -246,14 +272,20 @@ pub(crate) fn run(
                 text.push_str(CliText::new(locale).cli_update_message("channel-saved"));
                 text.push('\n');
             }
-            text.push_str(CliText::new(locale).cli_update_message(error.map_or(
-                "complete",
-                |error| match error {
-                    Error::LocalManifestRead => "local-manifest-read",
-                    _ => error.code(),
-                },
-            )));
-            text.push('\n');
+            match document["result"]["configurationFailure"].as_object() {
+                // The typed reason and its fix come from the same details the JSON form carries.
+                Some(failure) => text.push_str(&configuration_text(failure, locale)),
+                None => {
+                    text.push_str(CliText::new(locale).cli_update_message(error.map_or(
+                        "complete",
+                        |error| match error {
+                            Error::LocalManifestRead => "local-manifest-read",
+                            _ => error.code(),
+                        },
+                    )));
+                    text.push('\n');
+                }
+            }
             if let Some(path) = &report.published {
                 text.push_str(&crate::cli_text::escape::escape(
                     &path.join("orchbee.exe").to_string_lossy(),

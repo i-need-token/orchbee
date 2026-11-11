@@ -1,32 +1,13 @@
 //! Windows update effects: declared inputs, no-follow source admission and owned process execution.
 use super::Context;
-use orchbee_local_runtime::{CommandOutput, UpdateChannel};
+use orchbee_local_runtime::CommandOutput;
 use std::{
-    ffi::OsString,
     fs::{File, OpenOptions},
     io,
     os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     process::Command,
 };
-
-/// Saves the channel in the settings file that `state` locates.
-pub(super) fn save_channel(
-    channel: UpdateChannel,
-    state: &dyn Fn(&str) -> Option<OsString>,
-) -> io::Result<PathBuf> {
-    orchbee_local_runtime::set_update_channel(channel, state).map_err(io::Error::other)
-}
-
-/// Reads the effective channel from the settings file that `state` locates.
-pub(super) fn selected_channel(
-    state: &dyn Fn(&str) -> Option<OsString>,
-) -> io::Result<UpdateChannel> {
-    orchbee_local_runtime::read_user_settings(state)
-        .and_then(orchbee_local_runtime::UserSettingsLoad::require_valid_syntax)
-        .map(|settings| settings.update_channel)
-        .map_err(io::Error::other)
-}
 
 /// `ORCHBEE_UPDATE_MANIFEST`; an absent or non-Unicode value leaves the source unconfigured.
 pub(super) fn manifest_source() -> Option<String> {

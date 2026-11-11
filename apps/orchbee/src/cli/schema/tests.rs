@@ -41,28 +41,46 @@ fn json_option_inputs_have_named_definitions_and_executable_examples() {
     }
 }
 
+/// One closed detail object: `field` is `file`, an environment variable or any settings key path,
+/// and only a syntax reason carries its line and column.
 #[test]
-fn notification_configuration_failure_admits_current_closed_details() {
+fn configuration_failure_admits_one_closed_detail_object() {
+    use serde_json::json;
     let schema: Value =
         serde_json::from_str(super::document("orchbee.cli.failure.configuration").unwrap())
             .unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    for (field, reason) in [
-        ("ui.sound", "wrong-type"),
-        ("ui.toast", "invalid-delay"),
-        ("ui.sound", "too-many-agents"),
-    ] {
-        let mut document = serde_json::json!({
+    let document = |details: Value| {
+        json!({
             "schema": "orchbee.cli.failure.configuration",
             "version": 1,
-            "failure": {
-                "kind": "check-failed",
-                "details": { "field": field, "reason": reason }
-            }
-        });
-        assert!(validator.is_valid(&document), "{field}: {reason}");
-        document["failure"]["details"]["extra"] = true.into();
-        assert!(!validator.is_valid(&document));
+            "failure": {"kind": "check-failed", "details": details}
+        })
+    };
+    for details in [
+        json!({"field": "file", "reason": "read-only"}),
+        json!({"field": "USERPROFILE", "reason": "missing"}),
+        json!({"field": "notifications", "reason": "invalid-delay"}),
+        json!({"field": "notifications.sound_by_agent.claude", "reason": "wrong-type"}),
+        json!({"field": "keys.bindings[2]", "reason": "invalid-binding"}),
+        json!({"field": "file", "reason": "invalid-toml", "line": 3, "column": 7}),
+        json!({"field": "file", "reason": "invalid-utf8", "line": 1, "column": 1}),
+    ] {
+        assert!(validator.is_valid(&document(details.clone())), "{details}");
+        let mut extra = details;
+        extra["path"] = "C:/config.toml".into();
+        assert!(!validator.is_valid(&document(extra.clone())), "{extra}");
+    }
+    for details in [
+        json!({"field": "file", "reason": "invalid-boolean"}),
+        json!({"field": "file", "reason": "invalid-toml"}),
+        json!({"field": "file", "reason": "invalid-toml", "line": 0, "column": 1}),
+        json!({"field": "file", "reason": "io-error", "line": 1, "column": 1}),
+        json!({"field": "", "reason": "missing"}),
+        json!({"field": "Bad Field", "reason": "missing"}),
+        json!({"field": "terminal.\u{1b}[2J", "reason": "wrong-type"}),
+    ] {
+        assert!(!validator.is_valid(&document(details.clone())), "{details}");
     }
 }
 

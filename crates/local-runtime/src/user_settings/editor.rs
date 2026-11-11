@@ -157,20 +157,6 @@ impl std::fmt::Display for SettingsEditError {
 
 impl std::error::Error for SettingsEditError {}
 
-/// The projection onto the file failure vocabulary that `channel set` already publishes: a
-/// syntax error and an oversized result keep their reasons, and any write that cannot complete is
-/// `io-error`. Callers that show the typed reason use [`SettingsEditError`] itself.
-impl From<SettingsEditError> for SettingsError {
-    fn from(error: SettingsEditError) -> Self {
-        match error {
-            SettingsEditError::Source(error) => error,
-            SettingsEditError::Syntax(syntax) => SettingsError::new("file", syntax.reason),
-            SettingsEditError::TooLarge => SettingsError::new("file", "too-large"),
-            _ => SettingsError::new("file", "io-error"),
-        }
-    }
-}
-
 /// Apply every change in one write, or none, and return whether the file changed. Each value must
 /// be one the reader admits for its key, and the file the edit makes must give the reader no new
 /// diagnostic on a registered setting. Restoring a key removes it, and a table left empty and
