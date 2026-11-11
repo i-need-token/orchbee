@@ -2,200 +2,92 @@
 
 ## Interaction and scope
 
-`Ctrl+B F4`, the sidebar Settings row and the global action menu open Settings
-on supported native TUI hosts. The capturing surface edits a
-local draft while pane output continues. It covers every common setting both Clients present in
-the [settings registry](../../../crates/local-runtime/README.md#user-settings), including launch
-profiles and new-terminal scrollback defaults. Host-owned fonts, pixel metrics and management
-workflows stay with their own owners.
-The native Settings feature maps the thirteen shared keys once to their row,
-category, control kind, availability, integer unit, bounds, steps and effect
-horizon. The editor, localization and renderer currently consume the row,
-category, control, availability and bounded-integer facts. Effect metadata
-documents and tests the feature contract; the existing domain owners still apply
-those effects. The batch edit, restoring defaults and snapshot publication stay with the
-settings editor and the Session Server. The settings registry owns keys, defaults and validation,
-and Workbench Protocol the value types and their bounds.
+`Ctrl+B F4`, the sidebar Settings row and the global action menu open Settings on supported native
+TUI hosts. Settings is a full page that captures the client area while pane output continues. It
+covers every common setting both Clients present in the
+[settings registry](../../../crates/local-runtime/README.md#user-settings), including launch profiles
+and new-terminal scrollback defaults, plus the TUI-only interface colors, Agent blank-space trimming,
+the completion-reminder threshold and the prefix key. Host-owned fonts, pixel metrics and management
+workflows stay with their own owners. The native Settings feature maps each shared key once to its
+row, group, category, control kind, availability, integer unit, bounds, step and effect horizon. The
+settings registry owns keys, defaults and validation, and Workbench Protocol the value types and
+their bounds.
 
-The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles,
-and on a local origin adds an [Agent integrations](#agent-integrations) entry.
-Each section has a quiet heading and divider; every setting has one stable label track and one
-value track. The current setting uses a neutral current-context band and bold label, which
-terminal-native also underlines across the row, while the modal frame identifies keyboard
-ownership. Checked booleans, `~` changed-draft markers, disabled
-values and picker navigation have independent cues. Reset all, Reload, Close and Save remain in
-a fixed action area below the list; they never appear among scrolling settings. The root keeps
-one contextual description and one state line rather than a persistent preview paragraph or
-row-index counter. While the newest snapshot finds `config.toml` unparsable or unreadable, the
-state line names the file, the line and column of a syntax error, and that the page shows the last
-valid settings, whether Settings opens in that state or is open when it begins; a narrow line drops
-the path first. The draft's own state returns once a snapshot finds the file usable, and the status
-line's settings-file notice follows the same snapshots. A narrow surface removes the contextual description before any required action
-and uses two fixed action rows; labels truncate by display width and exact integers keep their value.
+The page follows the Desktop page's structure, wording and order in both locales. The left column
+holds Back, search and the categories General, Appearance, Themes, Terminal, Notifications, Keyboard
+and Agents. The right column holds the category title, a line naming the settings file when it is
+unusable, and framed groups under their headings. Every row shows its name, a one-line description
+that is always visible, and its control at the row's end. Themes shows the light list and the dark
+list; the list the current appearance paints is tagged in use, and System follows the canvas. A row
+that only applies in some state, such as custom colors outside Custom or the reminder threshold while
+reminders are off, is hidden until it applies. The last line names More options in `config.toml` and
+its path. Below 56 columns the page shows one column at a time; Esc or the title's Back steps from
+rows to categories before it leaves. The page requires 24 columns by 8 rows. A frame below that is
+not presented: before the first successful frame the page is refused with the enlarge-and-reopen
+notice, and later it suspends drawn interaction while staying the selected capture.
 
-`/` or the painted Search row starts global search. The bounded 256-byte query matches every term
-against English and Simplified Chinese category names, labels and concise descriptions in stable
-category order; values and user-authored profile text are excluded. Only categories with results
-remain. Search shows its result count and an explicit empty result. Enter or Tab leaves query entry
-and focuses the matching row without editing it; Enter with no result stays in search. Esc clears
-an active search or retained filter before closing the root. Filtering preserves the draft and
-saved source. A nonempty filter's Back button takes the same local step as Esc; header Close always
-closes the whole surface.
+The page's last line is its status line. It names the keys for the focused row, or shows a Settings
+notice, which stays until the next change replaces it. Up/Down, PageUp/PageDown and Home/End move
+within the focused column; Left or Shift+Tab moves to the categories and Right, Tab or Enter to the
+rows. `/` or the painted search field starts global search. The bounded query matches every term
+against English and Simplified Chinese category names, labels and descriptions in stable category
+order; values and user-authored profile text are excluded. Search shows its result count and an
+explicit empty result; Enter or Tab focuses the matching row without changing it, and Esc clears the
+query before stepping back. Text fields use the
+[shared bounded line editor](native-line-editor.md), including Ctrl+W word deletion and literal
+paste.
 
-Tab/Up/Down moves between settings and fixed actions; PageUp/PageDown moves by a page, and
-Home/End reaches the first/last focus target. Left/Right changes a finite choice or bounded value
-directly in the draft. Enter/Space or a row click opens a finite-choice selector in the same modal;
-boolean activation toggles its draft. A breadcrumb names a child editor or selector, whose concise
-description and Cancel/Confirm footer replace root content and actions. Picker navigation changes
-only a provisional candidate; appearance candidates preview locally, while other choices have no
-runtime effect. Acceptance changes the parent draft, and cancellation restores its prior preview.
-Child footers measure complete localized Cancel/Confirm labels and their Esc/Enter bindings.
-When the pair cannot fit side by side, it occupies two fixed rows before the child viewport is
-allocated. A minimal picker retains at least one choice row, and a text editor retains its
-entry and cursor. Confirmations admit only their complete localized decision and both controls;
-unsupported geometry publishes no controls. Preflight and painting consume the same resolved regions.
-At compact height, picker wheel movement scrolls its own viewport and relocates only the
-provisional cursor to the nearest visible choice; it never accepts a value or moves the parent viewport.
-`Ctrl+s` invokes the fixed Save action only from root browsing, using the same painted authority as
-its button. Text
-fields use the [shared bounded line editor](native-line-editor.md), including Ctrl+W word deletion,
-and literal paste. Rendering projects the complete raw value once and maps its cursor to a visible
-grapheme boundary, so removing controls cannot leave the caret inside a painted cluster. Launch profiles
-have their own page, one literal argument per editor, explicit default selection,
-and confirmation before deleting a profile. Entering that child records the parent
-row, viewport and focus; Back restores them while retaining accepted draft edits. Custom colors are disabled unless
-Custom is selected; login shells are unavailable on Windows. The selected row
-is revealed by keyboard navigation and remains a stable navigation anchor while the
-pointer scrolls or the surface resizes. Setting names preserve the GUI's
-English/Simplified Chinese vocabulary. Native category grouping and keyboard navigation adapt that
-shared inventory to the cell grid; GUI behavior is unchanged.
+## Changes
 
-An empty custom executable is marked Required. Launch-field details identify the
-profile, field and value requirements in both locales. A failed Save reveals the
-first invalid profile field, including a non-default profile and the exact literal
-argument, without changing other draft values, the saved basis or the default
-profile. Back restores the Save location; correction or confirmed removal/reset
-allows another intentional Save. Editing, removal, reset and matched Reload retire
-old validation feedback. Catalog structure failures retain the generic refusal.
+Every change applies at once: there is no draft and no Save. A change sends one `workbench.settings`
+`edit` naming only its key. A toggle applies on Enter, Space or a click. A choice opens an inline list
+whose candidate previews when it is an appearance field and applies on acceptance. A text or number
+row edits in place, applies on Enter, and Esc keeps the confirmed value. Left/Right and the painted
+minus/plus controls step a number by its step and apply that step. Picking a theme line sends its slot,
+the appearance that shows it and Colors set to Theme in one edit; the focused uncommitted line previews, and Esc returns
+to the theme in use. Launch profiles open as a child page whose edits apply as one edit on leaving;
+an invalid catalog first focuses the failing field, and leaving again discards it. Custom colors are
+unavailable unless Custom is selected and login shells are unavailable on Windows; a focused
+unavailable row names its reason.
 
-The completion threshold stepper uses 1-second small and 10-second large steps.
-Scrollback uses 1,000,000-byte small and 10,000,000-byte large steps. Steps preserve
-the exact current value, saturate at the owned domain bounds and never round to a
-multiple. Left/Right and painted minus/plus controls use the small step;
-Shift+Left/Right uses the large step outside a text child. Enter retains the exact
-bounded editor for direct values.
+One edit is in flight at a time. Its row shows the pending state while every other row, navigation
+and Back stay usable; further changes are ignored until it settles. A confirmed edit adopts the
+returned snapshot without a success notice. A refused or unknown edit puts the row back to the file
+value and shows the Server's localized reason on the status line: the file was busy, a value or key
+was refused, the file has a syntax error, cannot be read or is not a regular file, is read-only or
+would be too large, its location cannot be used, or the write failed. A syntax error points to
+`orchbee config check` for the position. No request is replayed automatically.
 
-Settings centers horizontally and vertically in the full host viewport, including the sidebar, top
-strip and last row; the floating status reserves no row of it. Its preferred extent is 92 columns by 30 rows, clamped
-to that viewport; sidebar visibility or width does not shift it. Existing minimum-content admission,
-refusal and suspension preserve drafts and keep the status chip uncovered. Placement does not resize
-PTYs. Root-compositor cases cover both locales, 120x40, 120x30, 100x24 and 80x24, hidden/visible
-sidebars and 24/30/60-column preferences; these are render/input-map checks rather than physical
-host gesture evidence.
+A row whose key the file sets carries a changed marker. Del on a changed row, or its painted Restore
+default action, sends one `restore` for that key; the launch-profile row restores both platform keys.
+There is no page-wide reset.
 
-Settings preflight and painting consume the theme's `paired_pointer_surfaces` projection. Reverse-video
-hover/press fallbacks become one band of primary text on chrome across the complete row, including
-labels, values, markers and blank cells; in terminal-native and Monochrome it is the host's own
-reverse band, as on the Tab strip. Content in the band takes its foreground without DIM; picker
-choices and fixed footer actions use the same projection. Named RGB surfaces keep their palette,
-and explicit content colors keep their roles on them. This local theme copy changes presentation
-without changing hit geometry, pointer admission, selection, the draft or save authority.
+Snapshots from the settings subscription show on the open page at once, whoever wrote them, while
+focus stays on its row. A snapshot whose revision is not newer than the last one observed is dropped.
+While the newest snapshot finds `config.toml` unparsable or unreadable, the page names the file and
+the line and column of a syntax error, keeps the last valid values, and every change is refused with
+that reason until a snapshot finds the file usable.
 
-The renderer projects typed shared actions, rows and value controls. Header Close,
-footer actions, rows and minus/plus controls publish the same generic
-activate-on-release interaction, including visible typed disabled targets that
-cannot arm, activate or click through. Plain left release must match the press's
-exact current token and rectangle; keyboard edits, focus loss or layout changes
-revoke that press. Pointer capture currently admits button events only, so these
-controls do not claim ordinary hover feedback until the host admits any-motion
-delivery. Wheel is admitted only inside the active list: three rows per notch,
-bounded per pass by its visible height, without wrapping or changing the selected
-row, semantic focus, draft or effective value. It changes the requested viewport
-and stops automatic selection following. The exact `SettingsDraw` receipt carries
-the surface token, category-list viewport and actual painted setting/action identities: an anchor that remains painted
-retains row activation, while a nonpainted anchor cannot activate. Keyboard
-navigation reveals that anchor again; a painted pointer target may establish a new
-one. Child editors and confirmations retain input and expose their own
-Confirm/Cancel. Confirmations place their effective Esc/Enter bindings inside the
-Cancel/Confirm buttons in secondary, normal-weight text, without a duplicate hint
-row. Only unmodified Enter confirms; Space remains a list choice or text input,
-never a confirmation. Explicitly modified Enter and key releases cannot confirm;
-legacy carriage return remains supported. Esc backs out of a child editor or confirmation before
-closing the root. Header Close closes the whole surface. Only an idle General
-draft admits a plain left press and matching release on the surrounding blank
-backdrop through that same exact painted Close target. Unsaved changes, search/filter, text entry,
-a choice picker, the launch-profile child, confirmations, reconciliation and an in-flight read or
-save retain the surface and its task on an outside click. This guard uses the same
-active-task predicate that freezes the draft basis on external updates. Moving
-into the surface, a stale token, focus loss or a changed layout cancels a backdrop
-gesture. Explicit Close and Esc retain their existing local exit behavior;
-deliberately closing hides an accepted save without cancelling it.
-
-Save is the only write action. Opening, editing, cancelling and resizing do not
-publish runtime policy. Language, appearance, theme slots, Colors and terminal default colors
-preview locally across the whole frame, including background chrome, live and
-retained terminal rows, and hints. Explicit program colors and terminal bytes
-remain owned by the program. Invalid color text keeps the last accepted draft
-color. Closing restores the newest confirmed appearance; accepting a color field
-or returning from the launch-profile child retains the parent preview.
-
-Preview carries only appearance fields. Locally changed leaves overlay the newest
-confirmed effective appearance without rebasing the saved basis; unrelated external
-updates therefore do not erase preview. A same-key conflict keeps the local preview
-and existing conflict/Reload gate. Reset-all previews every default only after its
-confirmation. A visible pending Save keeps preview; hiding it releases preview while
-the accepted commit continues. An unknown result withdraws preview until an explicit
-matched read. A covering Client surface uses confirmed appearance and restores the
-retained preview when Settings becomes the active capture again.
-Enter, `Ctrl+s` or a click on the successfully drawn Save button consumes its
-authority exactly once. Save sends one batch `edit` holding only the keys the draft changed.
-Reset-all requires confirmation and remains a draft until Save; it restores every common key to
-its default even if its value already is the default. The launch-profile page also offers a
-confirmed catalog-only reset that restores this platform's profiles and default profile,
-preserving other draft settings. Clean open views follow confirmed external changes; active
-edits, text entry, the launch-profile child and confirmations retain their original
-saved basis while separately exposing the newest confirmed effective snapshot and a
-conflict when its values differ. A snapshot whose revision is not newer than the last one
-observed is dropped. Reload confirms discarding edits and performs a new read. A refused edit
-wrote nothing; it keeps the draft and names its reason: the file was busy, a value or key was
-refused, the file has a syntax error, cannot be read or is not a regular file, is read-only or
-would be too large, its location cannot be used, or the write failed. Read-only names only a
-readable file that does not admit writing. A syntax error points to `orchbee config check` for the position. A
-definite refusal can retry only from a fresh rendered context. A `changed` refusal or unknown
-outcome disables Save until a matched explicit Reload read succeeds; passive observations,
-redraws, cached snapshots and old read completions do not clear that requirement. No request is
-replayed automatically.
-
-After child and search return steps, Esc discards an unsubmitted root draft; after submission it hides the surface while
-the accepted save can continue. Captured packet/paste tails remain owned through
-cancellation and the next redraw. The pane cursor stays hidden under Settings.
-The surface requires at least 36 columns by 10 rows and complete localized footer
-actions. A confirmation also requires its complete decision text, including draft
-scope, so it can require more width. If the first evaluated frame
-cannot meet that geometry, the opening surface is refused and hidden with a localized
-enlarge-and-reopen notice; an already accepted read or save still settles under its
-original token and cannot reopen the surface. After at least one successful frame,
-smaller geometry suspends drawn interaction authority while retaining Settings as
-the selected recovery capture: non-Escape input is consumed and Escape closes
-locally, so input cannot fall through to a pane or retained workflow underneath.
-The draft, frozen basis, effective snapshot, child state, viewport and focus anchor
-remain for the next successful frame. A missing receipt caused by another owner
-covering the surface revokes exact draw authority but is not a geometry refusal;
-that covering owner alone holds top capture while Settings remains retained.
-Pending feedback begins after 200 ms. The ordered settings
-lane has a two-second exchange deadline and a state subscription on the shared carrier.
-A save remains a one-shot request; snapshot revisions order the subscription's observations and
-the replies, so no fresh subscription follows a write. Closing cancels its requests and
-subscription without a forwarding thread.
-A replacement Session/editor episode cannot inherit an old completion.
+Settings preflight and painting consume the theme's `paired_pointer_surfaces` projection, so hover
+and press bands follow the Tab strip's fallbacks under terminal-native and Monochrome themes. Clicks
+on a category, row or control publish the generic activate-on-release interaction; a plain left
+release must match the press's token and rectangle. The wheel scrolls the column under the pointer,
+three rows per notch, without changing focus or any value; keyboard navigation reveals the focused
+row again. Closing the page discards an uncommitted inline edit or preview, while an edit already
+sent still settles under its token. Captured packet and paste tails remain owned through closing and
+the next redraw, and the pane cursor stays hidden under Settings. Pending feedback for the first read
+begins after 200 ms. The ordered settings lane has a two-second exchange deadline and a state
+subscription on the shared carrier; an edit is a one-shot request whose reply and the subscription's
+observations are ordered by revision. Closing cancels its requests and subscription. A replacement
+Session or editor episode cannot inherit an old completion.
 
 ## Agent integrations
 
-The General list ends with an Agent integrations entry on a Session reached through a local origin.
+The Agents category holds an Agent integrations entry on a Session reached through a local origin.
 A saved-machine origin omits the entry, as the GUI offers the page only in Desktop: remote hosts
 stay manual. Search matches the entry's title, its description and every Agent name. Activating
-the entry opens a child page, like Launch profiles, that never joins the preference draft; Back or
-Esc returns to the entry, and the draft, filter and saved basis are unchanged.
+the entry opens a child page, like Launch profiles, that edits no preference; Back or Esc returns to
+the entry with the filter unchanged.
 
 The page lists the same twenty Agents as the GUI in the Agent integration contract's canonical
 order, under a "Local Agent status adapters" heading, then a disabled "Remote hosts stay manual"
@@ -205,8 +97,8 @@ unavailable, Agent not found, then the reported state. Rows start Unknown and ch
 Worker report. Entering the page is the explicit request to inspect: it starts one refresh unless
 a job already runs. Opening, navigating, searching and closing Settings read and write nothing,
 so without that request no provider command runs and no provider configuration is read. The
-footer offers Refresh status and Back, and the state line shows the last failure, a running job,
-the not-yet-checked hint or the GUI's disclosure.
+page ends with a Refresh status row, and the line below the title shows the last failure, a running
+job, the not-yet-checked hint or the GUI's disclosure.
 
 Entering the page, Refresh status, Enter/Space or a click on an Agent row, and Explain each start
 one Server-authorized Worker job over the shared carrier, through the same `workbench.agent-integration` start, poll and
@@ -235,28 +127,27 @@ diagnosis clips its facts after the headline and sentence.
 
 ## Domain and ownership
 
-| Record field | Contract                                                                                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                                                                |
-| Inputs       | Frozen `config.toml` location, complete confirmed snapshot and its revision, the changed keys, painted-row receipt, explicit save/reset intent.                                                               |
-| Authority    | Workbench Protocol owns values/bounds; Local Runtime owns the settings registry and the locked batch edit of `config.toml`; the Session Server serves and publishes it.                                       |
-| State        | Newest effective runtime values, independently frozen draft basis, local changes, viewport/focus anchor and painted activation authority, one admitted exchange, and explicit refusal/unknown reconciliation. |
-| Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
-| Refusal      | A syntax error, unknown key, refused value, changed or busy file, unusable location, busy lane or failed write preserves existing data and confirmed behavior.                                                |
+| Record field | Contract                                                                                                                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                                                             |
+| Inputs       | Frozen `config.toml` location, complete confirmed snapshot and its revision, the one changed key, painted-row receipt, explicit edit/restore intent.                                                       |
+| Authority    | Workbench Protocol owns values/bounds; Local Runtime owns the settings registry and the locked batch edit of `config.toml`; the Session Server serves and publishes it.                                    |
+| State        | Newest confirmed values, an uncommitted inline edit or preview, viewport/focus anchor and painted activation authority, one in-flight edit, and the last refusal notice.                                   |
+| Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation. |
+| Refusal      | A syntax error, unknown key, refused value, changed or busy file, unusable location, busy lane or failed write preserves existing data and confirmed behavior.                                             |
 
 The Session freezes its `config.toml` location at startup. Clients send no paths, raw TOML, alternate device selector or arbitrary file write; an edit names registered keys only. An absent file supplies every default, and a file that stops parsing keeps the last valid values. See the [settings contract](../../../crates/workbench-protocol/README.md#native-settings-contract).
 
-| Transition           | Required behavior                                                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Hidden → open        | Read a complete snapshot and freeze it as the draft basis.                                                                            |
-| Draft → edit / draw  | Keep edits local, project reversible appearance to the whole frame, and revoke old drawing authority.                                 |
-| Draft → save         | Require a current successful draw, freeze a nonempty batch edit and consume submission before dispatch.                               |
+| Transition           | Required behavior                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hidden → open        | Read a complete snapshot and show it.                                                                                                                                                 |
+| Open → change        | Require a current successful draw and no edit in flight; send one edit or restore for the row's key and mark only that row pending.                                                   |
 | Submit → commit      | Lock the file, apply every change or none in one replace and publish one snapshot; keep other keys and comments. A scalar key set to its default is removed, as a restore removes it. |
-| Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                              |
-| External update      | Publish newest effective values and refresh clean views; preserve active edits or child tasks and their frozen basis with a conflict. |
-| Refused / unknown    | Preserve the visible draft and effective values; require a matched explicit read before another Save after `changed` or unknown.      |
-| Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                              |
-| Cancel / close       | Discard unsubmitted edits and reveal newest confirmed appearance; hiding after submission cannot roll back a commit.                  |
+| Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                                                                              |
+| External update      | Show the newest confirmed values at once; a pending row stays pending until its own outcome.                                                                                          |
+| Refused / unknown    | Put the row back to the confirmed value and show the reason; replay nothing.                                                                                                          |
+| Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                                                                              |
+| Cancel / close       | Discard an uncommitted inline edit or preview and reveal the confirmed appearance; closing cannot roll back a sent edit.                                                              |
 
 Application themes change chrome independently of terminal colors. Host terminal colors under
 application System, and Theme or Host under Terminal colors, keep the outer terminal's own
@@ -266,18 +157,17 @@ Disabled foreground/background rows show the effective display colors rather tha
 values; reduced-color hosts show the selected terminal appearance when RGB is unavailable.
 Copy-on-select governs later gesture completion; explicit Copy remains available.
 
-Appearance holds Appearance, Light theme, Dark theme and Colors, with the GUI's wording in both
-languages; theme names stay untranslated. A theme picker lists the shipped themes of its polarity
-in catalog order, Orchbee first, and scrolls when they outgrow the viewport. Each row ends in a
-swatch, a foreground sample on the theme's canvas and five ANSI fills, shown only at truecolor and
-where the row has room. Moving through a picker previews the candidate at its own polarity with
-Colors set to Theme; Enter accepts it into the draft and Esc restores the prior preview. Accepting
-a theme sets its slot, switches a fixed Appearance of the other polarity and sets Colors to Theme,
-so the accepted theme shows; under System it shows when the host matches, and the slot's
-description says so. A stored id this build does not ship opens on the Orchbee theme it resolves
-to and stays stored until another theme is accepted. Reset all restores both slots and Colors.
-Below truecolor the three rows stay visible but unavailable with the 24-bit reason, and an open
-theme picker closes when the host loses truecolor.
+Themes holds the light list and the dark list, with the GUI's wording in both languages; theme names
+stay untranslated. Each list holds the shipped themes of its polarity in catalog order, Orchbee
+first. Each line ends in a swatch, a foreground sample on the theme's canvas and five ANSI fills,
+shown only at truecolor and where the line has room. Focusing an uncommitted line previews it at its
+own polarity with Colors set to Theme; Enter applies it and Esc returns to the theme in use. Applying a theme sets its
+slot, switches a fixed Appearance of the other polarity and sets Colors to Theme, so the applied
+theme shows; under System it shows when the host matches, and the list's description says so. A
+stored id this build does not ship opens on the Orchbee theme it resolves to and stays stored until
+another theme is applied.
+Below truecolor the lists stay visible but unavailable, and the line below the title gives the
+24-bit reason or the `NO_COLOR` note.
 Agent mode/global sound override automatic enablement without erasing host delivery
 or per-Agent mute policy. Completion reminders consume physical-terminal sequence
 facts once, require a fresh timestamp and minimum duration, and never replay when
@@ -309,10 +199,10 @@ Every other Client consumer, including the TUI, Desktop windows, and CLI creatio
 
 Every shared key persists through the same edit of `config.toml`. The
 [settings registry](../../../crates/local-runtime/README.md#user-settings) owns keys, validation and
-defaults. The native editor exposes these effect
-horizons in localized row help:
+defaults. The native page applies each change at once and names new-terminal effects beside the row
+name:
 
-| Key                                | Draft behavior                                                                | Effect after confirmed Save or external observation                                                                     |
+| Key                                | Before commit                                                                 | Effect after a confirmed edit or external observation                                                                   |
 | ---------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                      |
 | `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                                   |
@@ -322,16 +212,16 @@ horizons in localized row help:
 | `terminalDisplayTheme`             | Theme/Host/Custom default-color preview                                       | Existing live and retained terminal presentation; explicit program colors remain exact                                  |
 | `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                         |
 | `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                         |
-| `copyOnSelect`                     | Draft only                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                      |
-| `trimTrailingBlankRowsForAgents`   | Draft only                                                                    | Existing detected Agents through the exact retained-window/acknowledgment owner; user selection/history retains control |
-| `resumeAgentsOnRestore`            | Draft only                                                                    | The Server's next restart from its checkpoint; Off also stops recording Agent session IDs at its next capture           |
-| `restoreTerminalOutput`            | Draft only                                                                    | The Server's next capture keeps recent output and its next restart replays it; Off deletes every kept copy at once      |
-| `agentNotificationMode`            | Draft only                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply                  |
-| `completionReminderMode`           | Draft only                                                                    | Future fresh command completions; requires shell integration and respects focus policy                                  |
-| `completionReminderMinimumSeconds` | Draft only                                                                    | Later completion evaluation at the new duration threshold                                                               |
-| `soundEnabled`                     | Draft only                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                          |
-| `scrollbackBytes`                  | Draft only                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                      |
-| `launchProfiles`                   | Child edits remain in the parent draft                                        | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                      |
+| `copyOnSelect`                     | No preview                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                      |
+| `trimTrailingBlankRowsForAgents`   | No preview                                                                    | Existing detected Agents through the exact retained-window/acknowledgment owner; user selection/history retains control |
+| `resumeAgentsOnRestore`            | No preview                                                                    | The Server's next restart from its checkpoint; Off also stops recording Agent session IDs at its next capture           |
+| `restoreTerminalOutput`            | No preview                                                                    | The Server's next capture keeps recent output and its next restart replays it; Off deletes every kept copy at once      |
+| `agentNotificationMode`            | No preview                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply                  |
+| `completionReminderMode`           | No preview                                                                    | Future fresh command completions; requires shell integration and respects focus policy                                  |
+| `completionReminderMinimumSeconds` | No preview                                                                    | Later completion evaluation at the new duration threshold                                                               |
+| `soundEnabled`                     | No preview                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                          |
+| `scrollbackBytes`                  | No preview                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                      |
+| `launchProfiles`                   | Child-page edits apply as one edit on leaving                                 | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                      |
 
 Native host configuration is a separate admitted surface, not extra shared-editor
 rows. Windows TOML changes publish when the Server's sampler sees the edit, about
@@ -363,38 +253,21 @@ restart, process launch or synthetic completion event is caused by appearance pr
 
 ## Correctness and evidence
 
-The [browse/choice traces](../crates/workbench-client/src/native_settings/tests/browse.rs) cover bilingual all-term search,
-value exclusion, atomic query bounds, empty results, exact one-leaf picker acceptance, cancelled
-appearance preview, external changes, stale pointer choices and filtered profile return. The
-[composition cases](../crates/workbench-client/src/tui_render/settings/tests/browse.rs) pin the category/label/value body,
-fixed actions across scrolling and size tiers, hidden-hit removal, search cursor and same-modal
-picker acceptance in both locales. The [input packet cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
-keep query entry and local return out of pane input and persistence. These local navigation changes
-do not change the shared commit/publication protocol.
-
-The [composed pointer cases](../crates/workbench-client/src/tui_render/settings/tests/pointer.rs) drive admitted motion and
-press reports through the painted Settings hit map. They check complete label/value, checkbox,
-bounded-number, picker and footer bands under native, named, ANSI-16 and monochrome themes in both
-locales, including a disabled decrement and secondary shortcut text. Pointer feedback retains the
-same draw receipt, hit geometry, selected setting and draft values; actual host presentation still
-requires separate screenshot review.
-
-The [theme picker cases](../crates/workbench-client/src/native_settings/tests/themes.rs) cover a
-candidate's preview at its polarity, Esc restoration, the keys Save edits, an unshipped stored id, Reset
-all and reduced-color unavailability. The [theme picker render cases](../crates/workbench-client/src/tui_render/settings/tests/themes.rs)
-cover swatches, their absence without truecolor, scrolling and the System notice.
-
-The [editor preview cases](../crates/workbench-client/src/native_settings/tests/appearance.rs) cover every
-admitted key's exact one-key Save edit, frozen basis, child return, reset, invalid
-color entry, conflict projection, unknown result and episode retirement. The
-[whole-frame cases](../src/tui_shell/tests/settings.rs) drive
-the real Shell drawing boundary with an existing native terminal, both locales,
-80x24/120x40 and truecolor/256/16/monochrome capability. They compare background
-chrome, default and explicit program cells, cancellation, external updates and
-covering Client capture. These deterministic witnesses do not establish clipboard,
-notification, sound or physical emulator delivery. The configuration watcher cases
-also retain confirmed shared appearance and pointer-release state while updating
-live bindings, their hints and both sidebar profiles together.
+The [editor cases](../crates/workbench-client/src/native_settings/tests.rs) cover the complete
+shared metadata with one place for every setting, legacy carriage return, one edit per change with
+only its row pending while navigation stays free, refusal and confirmation of an edit with an outside
+change in flight, one restore per changed row (including both launch-profile keys), the narrow
+column steps, one edit for a theme line's slot and appearance, and the unusable-file line. The
+[page render cases](../crates/workbench-client/src/tui_render/settings/tests.rs) cover one column
+below 56 columns and two above, always-visible descriptions in both locales, and refusal below the
+page minimum. The [whole-frame cases](../src/tui_shell/tests/settings.rs) drive the real Shell
+drawing boundary with an existing native terminal, both locales, 120x40 and 50x20, and
+truecolor/256/16/monochrome capability. They compare a previewed candidate on the page's status row,
+the shell's unchanged confirmed state, an outside change shown at once on the open page, and covering
+Client capture. These deterministic witnesses do not establish clipboard, notification, sound or
+physical emulator delivery. The configuration watcher cases also retain confirmed shared appearance
+and pointer-release state while updating live bindings, their hints and both sidebar profiles
+together.
 
 The [integration settlement cases](../crates/workbench-client/src/native_settings/integrations/tests.rs)
 cover unknown results of a change that may have begun, definite refusals before start, unlisted
@@ -427,8 +300,8 @@ Checked properties:
 The negative control removes the content recheck from `Replace` and must produce an
 `OtherKeysPreserved` counterexample. TOML bytes and comments, the cross-process lock, unreadable
 files, live-policy apply failure, absent-file defaults and filesystem primitives remain
-obligations of the editor, snapshot and Server configuration tests. GUI/TUI draft tests,
-field-focused correction and guarded outside-click lifetimes, launch capture, terminal
+obligations of the editor, snapshot and Server configuration tests. GUI/TUI editor tests,
+field-focused correction, launch capture, terminal
 presentation and input tests cover the Client boundaries. Actual bidirectional GUI/TUI edits,
 reopen, reset, errors and visible effects remain acceptance requirements.
 
@@ -437,7 +310,7 @@ Cargo/TypeScript checks. The affected root gate remains required.
 
 ## History units and host-color display
 
-History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 to 1000 MB. Up to six fractional digits preserve individual bytes; storage and small/large steps retain their existing byte domain. Disabled color fields show known effective RGB defaults; an unresolved host default shows its localized choice label instead of fallback palette values. Agent blank-space trimming uses plain-language copy. These are presentation and draft-conversion changes; Save and new-terminal effect boundaries stay with the existing owners.
+History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 to 1000 MB. Up to six fractional digits preserve individual bytes; storage and the step retain their existing byte domain: 1,000,000 bytes, and 1 second for the completion threshold. Disabled color fields show known effective RGB defaults; an unresolved host default shows its localized choice label instead of fallback palette values. Agent blank-space trimming uses plain-language copy. These are presentation and entry-conversion changes; commit and new-terminal effect boundaries stay with the existing owners.
 
 ## Color-disabled guidance
 

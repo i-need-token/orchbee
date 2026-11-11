@@ -200,15 +200,12 @@ does not silently rebind a convention it claims to support.
 - A multiline editor declares separate newline and submit bindings. Its footer shows the effective
   pair; `Enter` never changes meaning because the terminal became narrower.
 - Setting commit policy follows
-  [`settings.md`](settings.md#draft-preview-and-commit) and the feature's common contract; keyboard
-  input never infers apply timing from a control's shape. Within an atomic editor, keyboard and
-  pointer edits update the same draft, and only its explicit `Save` crosses the write boundary.
-  Return is layer-specific: child return restores its recorded parent navigation and draft, retains
-  accepted parent edits, and reverses only the child's unaccepted edit or preview to its entry
-  projection. While the root draft is dirty, its original saved basis is retained for conflict
-  comparison with the newest confirmed effective state. Closing the root before submission discards
-  its draft and preview, then projects that newest state. An immediate control commits on activation
-  only when its owner declares that policy and it is outside an enclosing atomic draft.
+  [`settings.md`](settings.md#commit-and-preview) and the feature's common contract; keyboard input
+  never infers apply timing from a control's shape. Keyboard and pointer routes produce the same
+  change. Activating a toggle or accepting a choice commits it at once; a text or number row commits on
+  `Enter`, and `Esc` keeps the confirmed value. Return is layer-specific: an open editor or picker
+  closes first and reverses its unaccepted edit or preview, a child returns to its recorded parent
+  navigation, and a narrow page steps from rows to categories before leaving.
 - Drafts have a documented maximum length in Unicode scalars. Input beyond it is rejected with a
   visible notice; it is never silently truncated. Paste uses the same limit atomically.
 - An editor that edits an existing value prefills it and places the cursor at its documented
@@ -268,13 +265,13 @@ does not silently rebind a convention it claims to support.
 
 ## Verification
 
-| Change            | Required check                                                                                                                                                                                                                                                                                              |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decoder change    | Tests cover every C0 normalization, uppercase implies `Shift`, `Ctrl+]`, lone `ESC`, split sequences, IME composition, and atomic or malformed paste                                                                                                                                                        |
-| Binding or intent | Tests prove exact-modifier matching, Apple and non-Apple labels, override and shadow resolution, and keyboard/pointer agreement on target, availability, and commit                                                                                                                                         |
-| Ownership change  | A table-driven test proves all four layers, visible focused-chrome admission and fallback, stale-target refusal, disabled focus policy, prefix behavior, pane `Esc`, and ordered passthrough                                                                                                                |
-| Focusable control | Tests cover painted-target order, unconditional hidden-target relocation, both declared disabled-focus policies with reason discovery and no activation, focus versus selection, resize or occlusion fallback, and semantic focus return                                                                    |
-| Editor or draft   | Tests cover editing keys, length and paste bounds, IME, focus and overlay preservation, submit, explicit clear, staged cancel, cursor restoration, and multiline hints                                                                                                                                      |
-| Settings control  | Tests prove the declared policy: key and pointer share one draft; only explicit `Save` writes; child return retains accepted parent edits and restores its entry; root close discards local work and shows the newest confirmed state; immediate controls commit only when declared outside an atomic draft |
-| Return behavior   | Tests derive the hint and handler from the same local step and cover its exact state, draft, work-cancellation, pointer, pane-passthrough, and focus-return effects                                                                                                                                         |
-| Confirmation      | A test proves trailing bytes in the decision packet do not reach the terminal and cancellation performs no destructive effect                                                                                                                                                                               |
+| Change            | Required check                                                                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decoder change    | Tests cover every C0 normalization, uppercase implies `Shift`, `Ctrl+]`, lone `ESC`, split sequences, IME composition, and atomic or malformed paste                                                                                              |
+| Binding or intent | Tests prove exact-modifier matching, Apple and non-Apple labels, override and shadow resolution, and keyboard/pointer agreement on target, availability, and commit                                                                               |
+| Ownership change  | A table-driven test proves all four layers, visible focused-chrome admission and fallback, stale-target refusal, disabled focus policy, prefix behavior, pane `Esc`, and ordered passthrough                                                      |
+| Focusable control | Tests cover painted-target order, unconditional hidden-target relocation, both declared disabled-focus policies with reason discovery and no activation, focus versus selection, resize or occlusion fallback, and semantic focus return          |
+| Editor or draft   | Tests cover editing keys, length and paste bounds, IME, focus and overlay preservation, submit, explicit clear, staged cancel, cursor restoration, and multiline hints                                                                            |
+| Settings control  | Tests prove the declared policy: key and pointer produce the same change; one accepted change sends one request; `Esc` keeps the confirmed value of an open editor; child return restores its entry; closing discards only uncommitted local work |
+| Return behavior   | Tests derive the hint and handler from the same local step and cover its exact state, draft, work-cancellation, pointer, pane-passthrough, and focus-return effects                                                                               |
+| Confirmation      | A test proves trailing bytes in the decision packet do not reach the terminal and cancellation performs no destructive effect                                                                                                                     |

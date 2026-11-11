@@ -290,7 +290,7 @@ final drawing correctness. Never add application-specific text coloring to hide 
 
 The ordered Settings lane observes the Server's pushed settings snapshots in revision order. Only a complete snapshot updates the cached values and their resolved theme; a file the Server cannot parse keeps the last valid values, and a lost reply keeps the last confirmed ones. GUI and TUI edits use this same path without restarting terminals. Renderers read owned state, never files or environment.
 
-[Settings appearance drafts](native-settings.md#apply-timing-and-capability-boundaries) supply a separate reversible palette and locale to the whole-frame compositor, including background chrome and terminal default markers. This projection never publishes runtime policy or replaces the confirmed cache; closing reveals the newest confirmed appearance, and program colors retain their independent authority.
+[Settings appearance previews](native-settings.md#apply-timing-and-capability-boundaries) supply a separate reversible palette and locale to the whole-frame compositor, including background chrome and terminal default markers. This projection never publishes runtime policy or replaces the confirmed cache; ending the preview reveals the newest confirmed appearance, and program colors retain their independent authority.
 
 ## Correctness and evidence
 

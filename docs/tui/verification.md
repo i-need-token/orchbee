@@ -127,13 +127,13 @@ and state, not individual fields.
 
 ## Lifecycle evidence
 
-| Changed contract     | Required cases                                                                                                                                                                                                                                        |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Semantic action      | Keyboard, pointer, and discovery paths resolve the same action and typed target; eligibility is rechecked before effects; repeated invocation follows declared concurrency; each execution has one classified result                                  |
-| Nested surface       | Child return restores query, selection, logical scroll anchor, draft, preview, and valid focus; root close restores the invoker or declared fallback; closing does not silently cancel accepted work                                                  |
-| Preview and settings | Saved, effective, draft, preview, and cursor values stay distinct; preview cancellation restores its entry value; validation/refusal preserves the draft; Save, reset, external updates, and unknown write results follow the owner's commit contract |
-| Async update         | A replaced request, removed target, closed/reopened surface, and stale generation cannot mutate a new view or take focus; valid results settle through the semantic owner                                                                             |
-| Viewport             | Resize, filtering, insertion, removal, and wrapped-content changes preserve the declared identity or logical content anchor; explicit bottom following is distinct from manual reading                                                                |
+| Changed contract     | Required cases                                                                                                                                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Semantic action      | Keyboard, pointer, and discovery paths resolve the same action and typed target; eligibility is rechecked before effects; repeated invocation follows declared concurrency; each execution has one classified result                                      |
+| Nested surface       | Child return restores query, selection, logical scroll anchor, draft, preview, and valid focus; root close restores the invoker or declared fallback; closing does not silently cancel accepted work                                                      |
+| Preview and settings | Confirmed, effective, uncommitted, preview, and cursor values stay distinct; preview cancellation restores its entry value; refusal puts the row back; per-change commit, reset, external updates, and unknown results follow the owner's commit contract |
+| Async update         | A replaced request, removed target, closed/reopened surface, and stale generation cannot mutate a new view or take focus; valid results settle through the semantic owner                                                                                 |
+| Viewport             | Resize, filtering, insertion, removal, and wrapped-content changes preserve the declared identity or logical content anchor; explicit bottom following is distinct from manual reading                                                                    |
 
 Use injected time and controlled completion order. Do not replace stale-result tests with sleeps or
 assertions that only the last rendered label looks correct.

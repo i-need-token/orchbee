@@ -89,16 +89,16 @@ twice. An active release-committed modal control or copy-surface drag bypasses p
 its own owner has processed the exact release; cancelled cleanup never re-hits that target or runs
 its effect.
 
-| Surface                         | Mouse flow                                                                                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Machine/Workspace/Agent search  | Bracketed categories switch views; complete rows select exact identities. Agent filters, search, Clear/Done and X remain local to the picker.           |
-| Workspace navigator             | X closes; each column has its own scroll area. Scrolling changes local focus without activating a context or Tab.                                       |
-| Shortcut help                   | X and previous/next page controls; wheel inside the document changes one page. Closing restores any underlying copy, resize or sidebar mode.            |
-| Native confirmations and rename | X, Cancel and Confirm/Submit share keyboard owners. Destructive confirmation remains unavailable unless the full warning and action row were drawn.     |
-| Workspace/Worktree forms        | Clickable fields, exact choice rows, Cancel/Submit and stage-specific status/hide controls; accepted operations retain their existing completion owner. |
-| Settings                        | Clickable rows, choice arrows, child Confirm/Cancel, page Back and header X; only Save writes.                                                          |
-| Agent board                     | Full-row selection, Open, Refresh and X; Open addresses the selected stable Agent identity.                                                             |
-| Copy and resize modes           | The global action menu enters them; mode toolbars, copy drag/scroll and resize directions use their existing native owners.                             |
+| Surface                         | Mouse flow                                                                                                                                                |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Machine/Workspace/Agent search  | Bracketed categories switch views; complete rows select exact identities. Agent filters, search, Clear/Done and X remain local to the picker.             |
+| Workspace navigator             | X closes; each column has its own scroll area. Scrolling changes local focus without activating a context or Tab.                                         |
+| Shortcut help                   | X and previous/next page controls; wheel inside the document changes one page. Closing restores any underlying copy, resize or sidebar mode.              |
+| Native confirmations and rename | X, Cancel and Confirm/Submit share keyboard owners. Destructive confirmation remains unavailable unless the full warning and action row were drawn.       |
+| Workspace/Worktree forms        | Clickable fields, exact choice rows, Cancel/Submit and stage-specific status/hide controls; accepted operations retain their existing completion owner.   |
+| Settings                        | Clickable categories, rows, controls, steppers and Back; a click that changes a value applies it at once; the wheel scrolls the column under the pointer. |
+| Agent board                     | Full-row selection, Open, Refresh and X; Open addresses the selected stable Agent identity.                                                               |
+| Copy and resize modes           | The global action menu enters them; mode toolbars, copy drag/scroll and resize directions use their existing native owners.                               |
 
 Wheel belongs only to the painted list under the pointer; headings, buttons, frame padding and the backdrop are inert. Lists normalize three rows/choices per notch, bound accumulated work and settle at most one painted viewport per pass; Worktree capacity counts its two-line choices. Reversal drops old-direction work while retaining the first opposite notch. A changed owner/source/geometry cancels backlog. Pending list movement settles before a following keyboard decision, and any resulting native draft token still requires its own successful draw. No scroll path executes a row or changes a setting value.
 

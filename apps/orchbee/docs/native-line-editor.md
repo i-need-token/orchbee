@@ -113,7 +113,7 @@ inside the removed span, narrow windows with cursor motion, ordinary Chinese, em
 marks, and zero-width fields. Draft-level tests cover editing after a prefill, navigation, deletion,
 word-backspace, atomic paste, picker inertness, and fault recovery; renderer and session journeys
 witness the drawn window, the placed cursor, and exact raw submission.
-The [Settings renderer witnesses](../crates/workbench-client/src/tui_render/settings/tests.rs) check control/ANSI removal
-that joins combining marks or emoji variation selectors, normal wide glyphs and cursor-at-end.
+The [Settings renderer witnesses](../crates/workbench-client/src/tui_render/settings/tests.rs) check that the inline field's cursor lands on whole graphemes after control/ANSI removal
+joins combining marks or emoji variation selectors, normal wide glyphs and cursor-at-end.
 The [Settings input trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs) sends literal paste
-and Ctrl+W through the decoder and verifies word deletion without saving or pane forwarding.
+and Ctrl+W through the decoder and verifies word deletion without applying or pane forwarding.
