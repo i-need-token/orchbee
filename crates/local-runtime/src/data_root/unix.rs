@@ -107,6 +107,7 @@ fn open_data_root(env: &impl Fn(&str) -> Option<OsString>) -> io::Result<(PathBu
     if created {
         require_kept_mode(&descriptor, root_path)?;
     } else if status.st_mode & 0o022 != 0 {
+        require_mode_change_kept(&descriptor, status.st_mode, 0o022, root_path)?;
         return Err(AdmissionRefusal::io(
             RefusalReason::OthersCanChange,
             root_path,
@@ -141,6 +142,7 @@ fn private_child(parent: &OwnedFd, name: &OsStr, path: &Path) -> io::Result<Owne
     if created {
         require_kept_mode(&descriptor, path)?;
     } else if status.st_mode & 0o077 != 0 {
+        require_mode_change_kept(&descriptor, status.st_mode, 0o077, path)?;
         return Err(AdmissionRefusal::io(RefusalReason::OthersCanRead, path));
     }
     #[cfg(target_os = "macos")]
@@ -153,6 +155,31 @@ fn private_child(parent: &OwnedFd, name: &OsStr, path: &Path) -> io::Result<Owne
 fn require_kept_mode(descriptor: &OwnedFd, path: &Path) -> io::Result<()> {
     fchmod(descriptor, Mode::from_bits_truncate(0o700))?;
     if permission_bits(fstat(descriptor)?.st_mode) != PRIVATE_MODE {
+        return Err(AdmissionRefusal::io(
+            RefusalReason::PermissionsNotKept,
+            path,
+        ));
+    }
+    Ok(())
+}
+
+/// Asks an existing folder whose mode lets others in whether its file system keeps modes at all,
+/// before that mode is judged: clears `open_bits` on the open folder, reads the mode back and puts
+/// the original mode back, so nothing is repaired. A file system that ignores the change cannot
+/// keep the data private whatever bits it shows, so it is refused as not keeping permissions, not
+/// with `chmod` advice that cannot take effect there.
+fn require_mode_change_kept(
+    descriptor: &OwnedFd,
+    mode: impl Into<u32>,
+    open_bits: u32,
+    path: &Path,
+) -> io::Result<()> {
+    let original = permission_bits(mode);
+    let closed = original & !open_bits;
+    fchmod(descriptor, Mode::from_bits_truncate(closed))?;
+    let read_back = permission_bits(fstat(descriptor)?.st_mode);
+    fchmod(descriptor, Mode::from_bits_truncate(original))?;
+    if read_back != closed {
         return Err(AdmissionRefusal::io(
             RefusalReason::PermissionsNotKept,
             path,

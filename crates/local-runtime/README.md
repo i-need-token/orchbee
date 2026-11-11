@@ -136,7 +136,10 @@ to the effective user and be writable by no one else, and a root Orchbee creates
 read back. A root under the home folder also needs that folder to be the effective user's, so
 `sudo` that keeps the invoking user's `HOME` is refused. `internal/` and every folder below it are
 real folders of the effective user with no access for anyone else. A file system that does not keep
-a mode Orchbee set, or refuses a file lock, is refused; Linux checks no ACL, and macOS refuses an
+a mode Orchbee set, or refuses a file lock, is refused; before an existing folder is refused for
+letting others in, Orchbee clears those bits on it, reads the mode back and restores it, so a file
+system that ignores modes is refused as not keeping permissions rather than with `chmod` advice that
+cannot take effect there. Linux checks no ACL, and macOS refuses an
 extended ACL and a volume mounted to ignore ownership. `prepare_default_runtime_base` creates and
 admits the root, `internal/` and `internal/runtime/`, and returns the runtime base through the
 root's canonical path; `create_private_directory` does the same for a folder whose files a writer in
@@ -461,7 +464,9 @@ are regular, single-link, owned files with mode 0600. Existing invalid paths are
 repaired, followed through symlinks, unlinked, or replaced.
 
 No file system is admitted or refused by type. A folder Orchbee creates is set with `fchmod` and
-read back, and a mode that does not stay refuses the file system; a lock it refuses with `ENOLCK`,
+read back, and a mode that does not stay refuses the file system; an existing data folder whose mode
+lets others in is probed the same way, with its original mode restored, before its bits are judged;
+a lock it refuses with `ENOLCK`,
 `ENOTSUP` or `EOPNOTSUPP` refuses it too. Linux checks no POSIX ACL. macOS rejects every extended
 ACL through descriptor-anchored inspection and every volume mounted to ignore ownership, and strips
 nothing. Other Unix targets are unclaimed.
