@@ -146,13 +146,7 @@
 								"additionalProperties": false,
 								"properties": {
 									"record": {
-										"enum": [
-											"onboarding",
-											"machines",
-											"plugin-registry",
-											"session",
-											"tui-position"
-										]
+										"enum": ["onboarding", "machines", "plugin-registry", "session", "tui-position"]
 									},
 									"problem": {
 										"enum": ["newer-format", "not-updated"]

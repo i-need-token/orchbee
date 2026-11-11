@@ -26,7 +26,7 @@ import {
 	type KeyboardShortcutPersistenceIssue,
 	type KeyboardShortcutStorage,
 } from './keyboard-shortcut-storage';
-import { KeyboardShortcutWriteQueue } from './keyboard-shortcut-write-queue';
+import { KeyboardShortcutWriteQueue } from './KeyboardShortcutWriteQueue';
 
 export interface KeyboardShortcutSettingsSnapshot {
 	readonly bindings: KeyboardShortcutBindings;
