@@ -31,9 +31,11 @@ mod preferences;
 mod reference;
 mod registry;
 mod reset_keys;
+mod snapshot;
 mod terminal_colors;
 mod terminal_defaults;
 mod window_title;
+mod wire;
 use crate::{
     DataRoot,
     user_path::{USER_PATH_LIMIT, normalize_user_path},
@@ -50,7 +52,9 @@ pub use keys::{
 };
 pub(crate) use launch_profiles::launch_command_admitted;
 use orchbee_workbench_protocol::UserPreferencesValues;
-pub use preferences::preference_values;
+pub use preferences::{preference_changes, preference_values, snapshot_preferences};
+pub use snapshot::{configuration_diagnostics, settings_snapshot};
+pub use wire::{setting_changes, settings_refusal};
 pub use reference::{
     DefaultActionBindings, default_user_settings_toml, default_user_settings_toml_with_actions,
 };
@@ -92,11 +96,14 @@ pub struct UserSettings {
     pub manifest_check_source: &'static str,
     pub cwd: Option<(DirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
-    /// The common preferences the file carries. `preferences.json` remains their runtime source
-    /// until the clients read them from here.
+    /// The common preferences the file carries.
     pub preferences: UserPreferencesValues,
     /// Settings only the desktop app applies.
     pub desktop: DesktopTerminalSettings,
+    /// Each scalar key the file sets and the reader took as written, in the file's spelling.
+    pub file_values: std::collections::BTreeMap<String, Scalar>,
+    /// Every registered key the file sets.
+    pub file_keys: std::collections::BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -205,6 +212,8 @@ impl Default for UserSettings {
             worktree_root: None,
             preferences: UserPreferencesValues::default(),
             desktop: DesktopTerminalSettings::default(),
+            file_values: std::collections::BTreeMap::new(),
+            file_keys: std::collections::BTreeSet::new(),
         }
     }
 }
@@ -452,6 +461,7 @@ fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Us
     if let Some(keys) = table.get("keys") {
         settings.keys = KeySettings::parse_lenient(keys, &mut diagnostics);
     }
+    (settings.file_values, settings.file_keys) = snapshot::file_keys(&table, &diagnostics);
     UserSettingsLoad {
         settings,
         diagnostics: diagnostics.finish(),

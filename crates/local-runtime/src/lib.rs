@@ -47,9 +47,11 @@ pub use user_settings::{
     SettingsDiagnostics, SettingsEditError, SettingsError, SettingsSyntaxError, SidebarTokenStyle,
     SpaceSidebarSettings, SpaceSidebarToken, SpaceSidebarTokenKind, UpdateChannel, UserColorThemes,
     UserSettings, UserSettingsLoad, UserTerminalColors, UserTerminalLaunchIntent,
-    WindowTitleTemplate, default_user_settings_toml, default_user_settings_toml_with_actions,
-    edit_settings, find_setting, preference_values, read_user_settings, read_user_settings_at,
-    restore_setting_default, set_setting, trigger_label, user_settings_path,
+    WindowTitleTemplate, configuration_diagnostics, default_user_settings_toml,
+    default_user_settings_toml_with_actions, edit_settings, find_setting, preference_changes,
+    preference_values, read_user_settings, read_user_settings_at, restore_setting_default,
+    set_setting, setting_changes, settings_refusal, settings_snapshot, snapshot_preferences,
+    trigger_label, user_settings_path,
 };
 pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};
 mod directory;

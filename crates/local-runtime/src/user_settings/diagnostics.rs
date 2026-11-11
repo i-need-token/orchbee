@@ -93,6 +93,11 @@ impl DiagnosticsCollector {
         self.push(error.field, error.reason, disposition);
     }
 
+    /// Whether any diagnostic names `field` itself.
+    pub(super) fn reported(&self, field: &str) -> bool {
+        self.entries.keys().any(|(reported, _)| reported == field)
+    }
+
     pub(super) fn finish(self) -> SettingsDiagnostics {
         let omitted_count = self
             .entries
