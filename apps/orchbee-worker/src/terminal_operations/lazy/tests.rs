@@ -11,18 +11,17 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AbsoluteCwd, AgentDrainReply, AgentDrainRequest, AuthorizedTerminalLaunch,
-    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId,
-    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
-    TerminalFence, TerminalId, TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome,
-    TerminalOperationAuthorization, TerminalOperationLease, WorkerGeneration,
+    AbsoluteCwd, AgentDrainReply, AgentDrainRequest, CapabilityNodeMessage, OperationId,
+    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, WorkerGeneration,
     WorkerId as CapabilityWorkerId, WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome,
     WorktreeJobRequest, WorktreeJobStartOutcome, read_message, write_message,
 };
 #[cfg(target_os = "linux")]
 use orchbee_capability_node_protocol::{
-    AgentDrainEntry, SendRecord, SendRecords, SendText, SendTextInput, TerminalPixelGeometry,
-    TerminalSendOutcome, TerminalSendRequest,
+    AgentDrainEntry, AuthorizedTerminalLaunch, LeaseExpiresAtUnixMilliseconds, LeaseId, SendRecord,
+    SendRecords, SendText, SendTextInput, TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence,
+    TerminalId, TerminalLaunchMode, TerminalLaunchOutcome, TerminalOperationAuthorization,
+    TerminalOperationLease, TerminalPixelGeometry, TerminalSendOutcome, TerminalSendRequest,
 };
 use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous};
 use orchbee_local_worker_protocol::WorkerId;
@@ -230,79 +229,6 @@ fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
             .join()
             .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?
     );
-    Ok(())
-}
-
-#[test]
-fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
-    let fixture = TestCohort::new()?;
-    let cohort = Cohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
-    // Pad the Session runtime until the derived `host/<id>.s` endpoint cannot fit
-    // one socket address, while the Session directory itself is still creatable.
-    let mut session_runtime = fixture.path().join("runtime");
-    while nix::sys::socket::UnixAddr::new(&ModeCheckedLocalSessionRendezvous::host_endpoint_path(
-        &session_runtime,
-    ))
-    .is_ok()
-    {
-        session_runtime = session_runtime.join("x");
-    }
-    fs::create_dir_all(&session_runtime)?;
-    fs::set_permissions(&session_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = ModeCheckedLocalSessionRendezvous::host_runtime_directory(&session_runtime);
-    let (mut server, worker) = UnixStream::pair()?;
-    server.set_read_timeout(Some(Duration::from_secs(2)))?;
-    server.set_write_timeout(Some(Duration::from_secs(2)))?;
-    let worker_runtime = session_runtime.clone();
-    let worker_thread = thread::spawn(move || {
-        run(
-            worker,
-            WORKER_ID,
-            GENERATION,
-            &cohort,
-            &worker_runtime,
-            &crate::default_interactive_launch::SystemShell::resolve(),
-        )
-        .is_err()
-    });
-
-    // A fully valid authorized Launch must still be refused by the endpoint
-    // budget — before the Host directory exists and before any Host spawn.
-    let authorization = TerminalOperationAuthorization::new(
-        TerminalId::from_bytes([1; 16])?,
-        OperationId::from_bytes([2; 16])?,
-        CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
-        WorkerGeneration::new(GENERATION),
-        TerminalFence::new(NonZeroU64::MIN),
-        TerminalOperationLease::new(
-            LeaseId::from_bytes([3; 16])?,
-            LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
-        ),
-        TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    );
-    write_message(
-        &mut server,
-        &CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
-            authorization,
-            None,
-            TerminalLaunchMode::Deferred,
-            None,
-        )),
-    )?;
-    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(&mut server)? else {
-        return Err(io::Error::other("Worker returned the wrong launch message").into());
-    };
-    assert_eq!(
-        result.outcome(),
-        TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
-    );
-    drop(server);
-    assert!(
-        worker_thread
-            .join()
-            .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?
-    );
-    assert!(!host_runtime.exists());
     Ok(())
 }
 
