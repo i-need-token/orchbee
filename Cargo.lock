@@ -1172,7 +1172,9 @@ dependencies = [
  "orchbee-local-runtime",
  "orchbee-local-worker-protocol",
  "orchbee-terminal-protocol",
+ "process-wrap",
  "rustix",
+ "windows",
  "winsafe",
 ]
 

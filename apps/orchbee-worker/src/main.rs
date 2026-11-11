@@ -6,6 +6,7 @@
 mod agent_drain;
 #[cfg(any(unix, windows))]
 mod agent_integration_jobs;
+mod agent_probe_jobs;
 #[cfg(any(unix, windows))]
 mod default_interactive_launch;
 #[cfg(any(unix, windows))]

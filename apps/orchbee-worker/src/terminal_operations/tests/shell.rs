@@ -554,6 +554,7 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
                 system_shell: &SystemShell::resolve(),
                 worktree_slot: &worktrees,
                 agent_integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+                agent_probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
                 mutation_slot: &mutations,
                 plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
                 session_runtime: None,

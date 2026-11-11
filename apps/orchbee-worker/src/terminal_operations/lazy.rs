@@ -53,6 +53,7 @@ pub(crate) fn run(
     // owned across the first Launch instead of being orphaned at handoff.
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let agent_integrations = crate::agent_integration_jobs::AgentIntegrationJobs::new();
+    let agent_probes = crate::agent_probe_jobs::AgentProbeJobs::new();
     #[cfg(windows)]
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     #[cfg(windows)]
@@ -158,6 +159,7 @@ pub(crate) fn run(
                     super::background_jobs::BackgroundJobs {
                         discovery: &worktree_slot,
                         integrations: &agent_integrations,
+                        probes: &agent_probes,
                         mutations: &mutation_slot,
                         plugins: &plugin_jobs,
                     },
@@ -198,6 +200,16 @@ pub(crate) fn run(
                     &server,
                     None,
                     &CapabilityNodeMessage::AgentIntegrationJobResult(result),
+                )?;
+                continue;
+            }
+            if let CapabilityNodeMessage::AgentProbeJobRequest(request) = request {
+                // Agent probe jobs need no Host; they answer directly in this loop.
+                let result = agent_probes.execute(request, worker_id, generation);
+                let _no_host = server_transport::send(
+                    &server,
+                    None,
+                    &CapabilityNodeMessage::AgentProbeJobResult(result),
                 )?;
                 continue;
             }
@@ -351,6 +363,7 @@ pub(crate) fn run(
                     system_shell,
                     worktree_slot: &worktree_slot,
                     agent_integrations: &agent_integrations,
+                    agent_probes: &agent_probes,
                     #[cfg(windows)]
                     mutation_slot: &mutation_slot,
                     #[cfg(windows)]
@@ -367,6 +380,7 @@ pub(crate) fn run(
     super::background_jobs::BackgroundJobs {
         discovery: &worktree_slot,
         integrations: &agent_integrations,
+        probes: &agent_probes,
         #[cfg(windows)]
         mutations: &mutation_slot,
         #[cfg(windows)]

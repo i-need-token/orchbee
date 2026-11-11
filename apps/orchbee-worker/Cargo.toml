@@ -24,7 +24,9 @@ orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 nix = { workspace = true, features = ["fs", "poll", "socket", "user"] }
 
 [target.'cfg(windows)'.dependencies]
-winsafe = { workspace = true, features = ["kernel", "shell"] }
+process-wrap.workspace = true
+windows.workspace = true
+winsafe = { workspace = true, features = ["advapi", "kernel", "shell"] }
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 rustix = { workspace = true, features = ["process"] }
 

@@ -15,6 +15,7 @@ const EXIT_SETTLEMENT_BUDGET: Duration = Duration::from_secs(6);
 pub(super) struct BackgroundJobs<'a> {
     pub(super) discovery: &'a WorktreeDiscoverySlot,
     pub(super) integrations: &'a crate::agent_integration_jobs::AgentIntegrationJobs,
+    pub(super) probes: &'a crate::agent_probe_jobs::AgentProbeJobs,
     #[cfg(windows)]
     pub(super) mutations: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     #[cfg(windows)]
@@ -33,6 +34,7 @@ impl BackgroundJobs<'_> {
         }
         self.discovery.request_stop();
         self.integrations.request_stop();
+        self.probes.request_stop();
         #[cfg(windows)]
         let settled = {
             let plugins = self.plugins.stop_before(deadline);
@@ -43,7 +45,8 @@ impl BackgroundJobs<'_> {
         let settled = Ok(());
         let discovery = self.discovery.stop_before(deadline);
         let integrations = self.integrations.stop_before(deadline);
-        settled.and(discovery).and(integrations)
+        let probes = self.probes.stop_before(deadline);
+        settled.and(discovery).and(integrations).and(probes)
     }
 
     /// Fallback settlement when the request loop ends by disconnection, protocol failure or

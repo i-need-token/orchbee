@@ -551,6 +551,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             system_shell: &crate::default_interactive_launch::SystemShell::resolve(),
             worktree_slot: &worktree_slot,
             agent_integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+            agent_probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
             #[cfg(windows)]
             mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_windows::run,

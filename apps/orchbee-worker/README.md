@@ -215,9 +215,31 @@ observes between bounded steps. Poll returns the encoded report; a job that pani
 exceeds the contract bound is `Abandoned`. Eight settled jobs stay pollable, and admission evicts
 the oldest settled one first.
 
+## Agent probe job
+
+`agent_probe_jobs::AgentProbeJobs` answers OBCN kind 37 in both the pre-Host and Host request loops
+and runs the node's one Agent probe, the lookup behind the Server's Agent catalog. Every action is
+fenced to this Worker ID and generation before owner access. Start runs one lookup thread for the
+requested command names; while it runs, another Start answers `Busy`, and a replayed Start with the
+same names answers `Accepted`. Poll returns one result per name in request order; Cancel sets the
+flag every query observes. Eight settled jobs stay pollable, and admission evicts the oldest
+settled one first. POSIX Workers have no lookup and answer every Start `Unsupported`.
+
+On Windows the lookup is the one the Client's empty Agent board runs: the system directory's
+`where.exe /Q $PATH:<name>` with a cleared environment, the fixed `PATHEXT` `.EXE;.COM;.CMD;.BAT;.PS1`,
+no window, and a kill-on-close Job; four threads each run one query at a time, a query gets 900
+milliseconds, and the whole probe six seconds, 0.6 seconds of it reserved for teardown. Exit code 0
+is Found and 1 Missing; any other ending, a deadline, or a cancellation leaves the name
+`Unavailable`. The search path is not this Worker's `PATH`, which was inherited when the Session
+started: the Terminal Host builds every shell's environment from the registry at launch, so the
+probe reads the Machine and User registry environment once and repeats the Host's projection of
+`PATH` (Machine `Path`, then User `Path`, each expanded from registry values and the runtime values
+the Host keeps, joined by `;`). A registry scope it cannot read, or a projection past the Host's
+bounds, leaves every name `Unavailable`, because such a launch fails too.
+
 ## Background job owners and exit
 
-Each Worker generation owns four kinds of background jobs. The request loop borrows them;
+Each Worker generation owns five kinds of background jobs. The request loop borrows them;
 pre-Host to Host handoff and Windows Server handoff keep the same owners, so ownership never
 moves to another thread or connection.
 
@@ -227,6 +249,7 @@ moves to another thread or connection.
 | Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | Windows   | five-second Job settlement                |
 | Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                |
 | Agent integration              | `agent_integration_jobs::AgentIntegrationJobs`  | all       | 0.6-second provider command teardown      |
+| Agent probe                    | `agent_probe_jobs::AgentProbeJobs`              | all       | 0.6-second `where.exe` Job teardown       |
 
 Every owner separates the stop request from task completion. `request_stop` closes new
 admission where the owner has admission, signals every running task and never waits.

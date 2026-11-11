@@ -71,6 +71,7 @@ fn pre_host_stop_delivers_exact_no_host_result_then_ends() {
         BackgroundJobs {
             discovery: &slot,
             integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+            probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
             mutations: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_windows::run,
             ),
@@ -123,6 +124,7 @@ fn wrong_fence_in_stop_mode_preserves_owner_for_next_explicit_request() {
         BackgroundJobs {
             discovery: &WorktreeDiscoverySlot::new(),
             integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+            probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
             mutations: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_windows::run,
             ),
@@ -564,6 +566,7 @@ fn keep_shutdown_releases_the_host_without_a_terminal_request() {
         BackgroundJobs {
             discovery: &WorktreeDiscoverySlot::new(),
             integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+            probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
             mutations: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_windows::run,
             ),
