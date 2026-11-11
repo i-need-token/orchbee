@@ -208,12 +208,6 @@ const VALUE_OVERRIDES: &[ValueOverride] = &[
         closed: true,
     },
     ValueOverride {
-        commands: &[CommandPath::AgentStart],
-        flag: "--provider",
-        values: crate::agent_provider::CANONICAL_IDS,
-        closed: true,
-    },
-    ValueOverride {
         commands: &[
             CommandPath::WorkspaceReportMetadata,
             CommandPath::PanelReportMetadata,

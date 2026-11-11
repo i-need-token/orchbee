@@ -86,6 +86,10 @@ impl Receipt {
         self.revision
     }
 
+    pub(super) fn request_id(&self) -> &str {
+        &self.request_id
+    }
+
     pub(super) fn id_value(&self, name: &str) -> Option<&str> {
         self.ids
             .iter()

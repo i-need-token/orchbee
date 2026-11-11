@@ -224,8 +224,8 @@ impl super::CliText {
                 ("Read an Agent's terminal output.", "读取智能体的终端输出。")
             }
             HelpTopic::Command(CommandPath::AgentStart) => (
-                "Start an Agent with the requested launch settings.",
-                "按指定启动配置运行智能体。",
+                "Start an Agent in a new Tab, a split, or an idle terminal.",
+                "在新标签页、拆分面板或空闲终端中启动智能体。",
             ),
             HelpTopic::Command(CommandPath::AgentPrompt) => {
                 ("Submit a prompt to an Agent.", "向智能体提交提示词。")

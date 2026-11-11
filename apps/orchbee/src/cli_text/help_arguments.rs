@@ -16,7 +16,7 @@ enum Argument {
     Text,
     Keys,
     NewName,
-    Name,
+    Provider,
     Args,
     Client,
     Operation,
@@ -85,7 +85,7 @@ impl super::CliText {
             CommandPath::AgentFocus => &[Argument::Agent],
             CommandPath::AgentAttention => &[Argument::Agent],
             CommandPath::AgentRead => &[Argument::Agent],
-            CommandPath::AgentStart => &[Argument::Name, Argument::Args],
+            CommandPath::AgentStart => &[Argument::Provider, Argument::Args],
             CommandPath::AgentPrompt => &[Argument::Agent, Argument::Text],
             CommandPath::AgentSendKeys => &[Argument::Agent, Argument::Keys],
             CommandPath::AgentExplain => &[Argument::Agent],
@@ -235,8 +235,9 @@ impl super::CliText {
                 Argument::Text => ("<text>", "Prompt text as one argument; quote spaces.", "作为一个参数传入的提示词；包含空格时加引号。"),
                 Argument::Keys => ("<key> ...", "One or more semantic keys, such as enter or ctrl+c.", "一个或多个语义按键，例如 enter 或 ctrl+c。"),
                 Argument::NewName => ("<new-name>", "New session name; omit when using --clear.", "新的会话名称；使用 --clear 时省略。"),
-                Argument::Name => ("<name>", "Name to bind to the Agent after it is ready.", "智能体就绪后要绑定的名称。"),
-                Argument::Args => ("-- <args> ...", "Arguments passed to the Agent; --arg can be repeated instead.", "传给智能体的参数；也可重复使用 --arg。"),
+                // The provider set is long and derived from the catalog; it is filled in below.
+                Argument::Provider => ("<provider>", "", ""),
+                Argument::Args => ("-- <args> ...", "Arguments passed to the Agent after --; --arg can be repeated instead.", "在 -- 之后传给智能体的参数；也可重复使用 --arg。"),
                 Argument::Client => ("<client-id>", "Full client ID returned by orchbee client list.", "orchbee client list 返回的完整客户端 ID。"),
                 Argument::Request => ("<request-id>", "Exact retained request ID returned by the operation.", "操作返回的精确保留请求 ID。"),
                 Argument::SavedAt => ("<saved-at>", "Save time of an earlier layout, as orchbee layout history shows it.", "早先布局的保存时间，即 orchbee layout history 显示的值。"),
@@ -256,6 +257,9 @@ impl super::CliText {
                 Argument::Path => ("<path>", "Local plugin manifest file or plugin directory.", "本地插件清单文件或插件目录。"),
                 Argument::Plugin => ("<plugin-id>", "Registered plugin ID; optional only where usage shows brackets.", "已注册的插件 ID；仅当用法中带方括号时可省略。"),
             };
+            if matches!(role, Argument::Provider) {
+                return (label, self.cli_agent_start_provider_choices());
+            }
             (label, match self.locale { Locale::EnUs => english, Locale::ZhCn => chinese })
         }).collect()
     }

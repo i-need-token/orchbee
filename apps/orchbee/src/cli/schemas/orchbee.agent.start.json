@@ -22,7 +22,9 @@
 				"reservationId",
 				"elapsedMs",
 				"submission",
-				"interactiveReady"
+				"interactiveReady",
+				"place",
+				"panelId"
 			],
 			"additionalProperties": false,
 			"allOf": [
@@ -47,12 +49,11 @@
 					"if": {
 						"properties": {
 							"confirmation": {
-								"const": "sent"
+								"enum": ["sent", "launched"]
 							}
 						}
 					},
 					"then": {
-						"required": ["panelId"],
 						"properties": {
 							"name": {
 								"type": "null"
@@ -66,9 +67,6 @@
 						}
 					},
 					"else": {
-						"not": {
-							"required": ["panelId"]
-						},
 						"properties": {
 							"name": {
 								"$ref": "#/$defs/agentName"
@@ -81,6 +79,32 @@
 							}
 						}
 					}
+				},
+				{
+					"if": {
+						"properties": {
+							"confirmation": {
+								"const": "launched"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"submission": {
+								"type": "null"
+							},
+							"place": {
+								"enum": ["new-tab", "split-right", "split-down"]
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"submission": {
+								"$ref": "#/$defs/sendReceipt"
+							}
+						}
+					}
 				}
 			],
 			"properties": {
@@ -88,7 +112,10 @@
 					"const": "started"
 				},
 				"confirmation": {
-					"enum": ["session", "observed", "sent"]
+					"enum": ["session", "observed", "sent", "launched"]
+				},
+				"place": {
+					"enum": ["new-tab", "here", "split-right", "split-down"]
 				},
 				"sessionId": {
 					"$ref": "#/$defs/opaqueId"
@@ -123,7 +150,14 @@
 					"$ref": "#/$defs/safeInteger"
 				},
 				"submission": {
-					"$ref": "#/$defs/sendReceipt"
+					"oneOf": [
+						{
+							"$ref": "#/$defs/sendReceipt"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"interactiveReady": {
 					"type": "boolean"

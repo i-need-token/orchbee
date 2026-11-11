@@ -2,19 +2,20 @@
 //! typed request and builds the remaining simple requests in place.
 
 use super::{
-    AgentIntegrationCommand, AgentNamesCommand, AgentPromptWait, AgentStartCommand, CommandPath,
-    CompletionShell, ExpectedValue, FailureEnvelope, MAXIMUM_SEND_RECORDS, ManifestCommand,
-    MutationCommand, Options, OutputFormat, OutputTarget, PanelQueryTarget, ParseFailure,
-    QueryCommand, Request, Resource, RuntimeStatusScope, ServerStopCommand, Target,
-    TerminalListFilter, UsageContext, UsageReason, adapter_source_option,
-    agent_after_revision_option, agent_limit_option, agent_name, agent_selector,
-    agent_until_option, agent_view_spec, agent_wait_timeout_option, business_options, check_scope,
-    client_control, close_generation_option, close_request_option, close_wait, configured_commands,
-    creation, diagnostics, doctor_asset_roots_option, doctor_providers_option, events, grammar,
-    label_option, layouts, machines, manifest_operation_id, missing_command, missing_required,
-    mutation, named_sessions, operation, pane_graphics, panel_agent, panel_input, panel_metadata,
-    panel_move_destination, panel_relocation, panel_terminal_creation, parse_send_key, path_option,
-    plugins, profile_name_option, profile_selector, provider_option, query, reject_extras,
+    AgentIntegrationCommand, AgentNamesCommand, AgentPromptWait, AgentStartCommand,
+    AgentStartPlace, CommandPath, CompletionShell, ExpectedValue, FailureEnvelope,
+    MAXIMUM_SEND_RECORDS, ManifestCommand, MutationCommand, Options, OutputFormat, OutputTarget,
+    PanelQueryTarget, ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope,
+    ServerStopCommand, Target, TerminalListFilter, UsageContext, UsageReason,
+    adapter_source_option, agent_after_revision_option, agent_limit_option, agent_name,
+    agent_selector, agent_until_option, agent_view_spec, agent_wait_timeout_option,
+    business_options, check_scope, client_control, close_generation_option, close_request_option,
+    close_wait, configured_commands, creation, diagnostics, doctor_asset_roots_option,
+    doctor_providers_option, events, grammar, label_option, layouts, machines,
+    manifest_operation_id, missing_command, missing_required, mutation, named_sessions, operation,
+    pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
+    panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
+    profile_name_option, profile_selector, provider_option, query, reject_extras,
     reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
     resolve_help_path, schema_export, send_input, stop_command, stop_id, tab_move_command, target,
     terminal_copy, terminal_links, terminal_output, terminal_run, terminal_selection,
@@ -223,20 +224,34 @@ pub(super) fn resolve_words(
                 .as_deref()
                 .map(|name| agent_name(name, context, envelope))
                 .transpose()?;
-            if options.providers.len() != 1 {
-                return Err(missing_required(context, "one --provider", envelope));
+            // The provider is the one operand before `--`; Agent arguments follow `--`. Any other
+            // word before it is refused rather than passed to the Agent, so a stale
+            // `agent start <name>` never becomes the Agent's first argument.
+            let leading = options
+                .separator
+                .map_or(rest.len(), |separator| separator.saturating_sub(2));
+            let Some(provider) = rest.get(..leading).and_then(<[_]>::first) else {
+                return Err(missing_required(context, "<provider>", envelope));
+            };
+            if let Some(word) = rest.get(1..leading).and_then(<[_]>::first) {
+                return Err(unexpected_argument(context, word, envelope));
             }
-            let provider = options
-                .provider
-                .as_deref()
-                .ok_or_else(|| missing_required(context, "'--provider'", envelope))?;
             if crate::agent_provider::executable(provider).is_none() {
                 return Err(invalid(
-                    "--provider",
+                    "<provider>",
                     provider,
                     ExpectedValue::AgentStartProvider,
                 ));
             }
+            let rest = &rest[1..];
+            let place = match options.split.as_deref() {
+                Some("right") => AgentStartPlace::SplitRight,
+                Some("down") => AgentStartPlace::SplitDown,
+                // The grammar's closed value set already refused any other direction.
+                Some(value) => return Err(invalid("--split", value, ExpectedValue::DeclaredValue)),
+                None if options.here => AgentStartPlace::Here,
+                None => AgentStartPlace::NewTab,
+            };
             let timeout_ms = match options.timeout.as_deref() {
                 None => 30000,
                 Some(value) => value
@@ -254,14 +269,6 @@ pub(super) fn resolve_words(
                     },
                     envelope,
                 ));
-            }
-            // Agent arguments follow `--`; a word before it is refused rather than passed to the
-            // Agent, so a stale `agent start <name>` never becomes the Agent's first argument.
-            let leading = options
-                .separator
-                .map_or(rest.len(), |separator| separator.saturating_sub(2));
-            if let Some(word) = rest.get(..leading).and_then(<[_]>::first) {
-                return Err(unexpected_argument(context, word, envelope));
             }
             if !rest.is_empty() && !options.args.is_empty() {
                 return Err(usage_with(
@@ -291,7 +298,8 @@ pub(super) fn resolve_words(
             Ok(Request::AgentStart {
                 command: AgentStartCommand {
                     name,
-                    provider: provider.to_owned(),
+                    provider: (*provider).to_owned(),
+                    place,
                     panel,
                     args,
                     timeout_ms,

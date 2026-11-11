@@ -19,10 +19,27 @@ impl super::CliText {
         path: CommandPath,
         flag: &str,
     ) -> (&'static str, &'static str) {
-        if path == CommandPath::AgentStart && flag == "--provider" {
-            return ("<provider>", self.cli_agent_start_provider_choices());
-        }
         let (value, english, chinese) = match (path, flag) {
+            (CommandPath::AgentStart, "--new-tab") => (
+                "",
+                "Start in a new Tab of the reference Panel's Workspace; the default place.",
+                "在参照面板所在工作区的新标签页中启动；默认位置。",
+            ),
+            (CommandPath::AgentStart, "--here") => (
+                "",
+                "Type the command at the reference Panel's own prompt; refused for the caller's own Panel.",
+                "在参照面板自身的提示符处输入命令；不能用于调用者自己的面板。",
+            ),
+            (CommandPath::AgentStart, "--split") => (
+                "<right|down>",
+                "Start in a new Panel split to the right of or below the reference Panel.",
+                "在参照面板右侧或下方拆分出的新面板中启动。",
+            ),
+            (CommandPath::AgentStart, "--panel") => (
+                "<target>",
+                "Reference Panel by its accepted ID or selector; default: the caller's own Panel.",
+                "通过支持的 ID 或选择器指定参照面板；默认是调用者自己的面板。",
+            ),
             (CommandPath::TerminalRun, "--wait") => (
                 "",
                 "Wait for this command's correlated managed-shell completion.",

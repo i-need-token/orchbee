@@ -613,6 +613,22 @@ const CONFLICTS: &[Conflict] = &[
         flags: &["--current"],
         incompatible: &["--panel"],
     },
+    // One place per start: a new Tab, the reference Panel itself, or a split of it.
+    Conflict {
+        commands: &[CommandPath::AgentStart],
+        flags: &["--new-tab"],
+        incompatible: &["--here", "--split"],
+    },
+    Conflict {
+        commands: &[CommandPath::AgentStart],
+        flags: &["--here"],
+        incompatible: &["--new-tab", "--split"],
+    },
+    Conflict {
+        commands: &[CommandPath::AgentStart],
+        flags: &["--split"],
+        incompatible: &["--new-tab", "--here"],
+    },
     Conflict {
         commands: &[
             CommandPath::PanelCreateTerminal,
@@ -935,6 +951,14 @@ const OPERANDS: &[OperandRule] = &[
         selectors: &["--agent-session", "--name", "--panel", "--terminal"],
         values: super::values::KEY_VALUES,
         value_offset: 1,
+    },
+    // The one operand before `--` is the provider; Agent arguments follow `--`.
+    OperandRule {
+        commands: &[CommandPath::AgentStart],
+        reductions: &[],
+        selectors: &[],
+        values: crate::agent_provider::CANONICAL_IDS,
+        value_offset: 0,
     },
 ];
 const ORDINARY_OPERANDS: OperandRule = OperandRule {

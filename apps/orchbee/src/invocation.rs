@@ -682,10 +682,37 @@ pub(crate) struct AgentPromptWait {
 pub(crate) struct AgentStartCommand {
     /// `--name`: bound only once an integration reports the Agent's session.
     pub(crate) name: Option<AgentName>,
+    /// The `<provider>` positional: a canonical startable provider id.
     pub(crate) provider: String,
+    pub(crate) place: AgentStartPlace,
+    /// `--panel`: the reference Panel; absent, the caller's own Panel.
     pub(crate) panel: Option<Target>,
     pub(crate) args: Vec<String>,
     pub(crate) timeout_ms: u32,
+}
+
+/// Where `agent start` runs the Agent, relative to its reference Panel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AgentStartPlace {
+    /// `--new-tab`, the default: a new Tab in the reference Panel's Workspace.
+    NewTab,
+    /// `--here`: typed at the reference Panel's own prompt.
+    Here,
+    /// `--split right`: a new Panel to the right of the reference Panel.
+    SplitRight,
+    /// `--split down`: a new Panel below the reference Panel.
+    SplitDown,
+}
+
+impl AgentStartPlace {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::NewTab => "new-tab",
+            Self::Here => "here",
+            Self::SplitRight => "split-right",
+            Self::SplitDown => "split-down",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1057,8 +1084,12 @@ struct Options {
     swap_target: Option<String>,
     /// `panel move --into-tab <t>`: the existing-Tab placement target.
     into_tab: Option<String>,
-    /// `panel move --new-tab`: the new-Tab relocation destination flag.
+    /// `panel move --new-tab` and `agent start --new-tab`: the new-Tab destination flag.
     new_tab: bool,
+    /// `agent start --here`: type at the reference Panel's own prompt.
+    here: bool,
+    /// `agent start --split <direction>`.
+    split: Option<String>,
     new_workspace: bool,
     tab_label: Option<String>,
     /// `terminal read --lines <n>`: presentation tail over emitted entries.

@@ -135,9 +135,9 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     let Request::AgentStart { command, format } = parse(&[
         "agent",
         "start",
+        "codex",
         "--name",
         "alpha",
-        "--provider=codex",
         "--timeout=3001",
         "--format=json",
         "--",
@@ -155,60 +155,83 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
         Some("alpha")
     );
     assert_eq!(command.provider, "codex");
+    assert_eq!(command.place, super::AgentStartPlace::NewTab);
     assert_eq!(command.timeout_ms, 3001);
     assert_eq!(format, OutputFormat::Json);
     assert_eq!(command.args, ["", "--format", "中文", "%PATH%", "a&b"]);
-    let Request::AgentStart { command, .. } = parse(&[
-        "agent",
-        "start",
-        "--provider=codex",
-        "--arg=",
-        "--arg=--",
-        "--current",
-    ])
-    .unwrap() else {
+    let Request::AgentStart { command, .. } =
+        parse(&["agent", "start", "codex", "--arg=", "--arg=--", "--current"]).unwrap()
+    else {
         panic!("start");
     };
     assert_eq!(command.timeout_ms, 30000);
     assert_eq!(command.args, ["", "--"]);
     assert_eq!(command.name, None);
+    // Each place flag selects its place; none selects a new Tab.
+    for (flags, place) in [
+        (&[][..], super::AgentStartPlace::NewTab),
+        (&["--new-tab"][..], super::AgentStartPlace::NewTab),
+        (&["--here"][..], super::AgentStartPlace::Here),
+        (
+            &["--split", "right"][..],
+            super::AgentStartPlace::SplitRight,
+        ),
+        (&["--split=down"][..], super::AgentStartPlace::SplitDown),
+    ] {
+        let words = [&["agent", "start", "codex"][..], flags].concat();
+        let Request::AgentStart { command, .. } = parse(&words).unwrap() else {
+            panic!("{words:?}");
+        };
+        assert_eq!(command.place, place, "{words:?}");
+    }
     for words in [
         vec!["agent", "start"],
-        vec!["agent", "start", "--name=INVALID", "--provider=codex"],
-        // A word before `--` is never passed to the Agent.
-        vec!["agent", "start", "alpha", "--provider=codex"],
-        vec!["agent", "start", "--provider=unknown"],
-        vec!["agent", "start", "--provider=claude"],
-        vec!["agent", "start", "--provider=codex", "--timeout=3000"],
-        vec!["agent", "start", "--provider=codex", "--timeout=300001"],
-        vec!["agent", "start", "--provider=codex", "--forever"],
+        vec!["agent", "start", "--", "x"],
+        vec!["agent", "start", "codex", "--name=INVALID"],
+        // Only the provider precedes `--`; any other word is never passed to the Agent.
+        vec!["agent", "start", "codex", "alpha"],
+        vec!["agent", "start", "alpha", "codex"],
+        vec!["agent", "start", "unknown"],
+        vec!["agent", "start", "claude"],
+        // The provider is the positional operand; the option spelling is not declared here.
+        vec!["agent", "start", "--provider=codex"],
+        vec!["agent", "start", "codex", "--provider=codex"],
+        vec!["agent", "start", "codex", "--timeout=3000"],
+        vec!["agent", "start", "codex", "--timeout=300001"],
+        vec!["agent", "start", "codex", "--forever"],
         vec![
             "agent",
             "start",
-            "--provider=codex",
+            "codex",
             "--current",
             "--panel=11111111111111111111111111111111",
         ],
-        vec!["agent", "start", "--provider=codex", "--arg=x", "--", "y"],
-        vec!["agent", "start", "--provider=codex", "--", "a\nb"],
-        vec!["agent", "start", "--provider=codex", "--provider=pi"],
+        vec!["agent", "start", "codex", "--arg=x", "--", "y"],
+        vec!["agent", "start", "codex", "--", "a\nb"],
+        // Place flags are mutually exclusive and `--split` takes a direction.
+        vec!["agent", "start", "codex", "--new-tab", "--here"],
+        vec!["agent", "start", "codex", "--new-tab", "--split=right"],
+        vec!["agent", "start", "codex", "--here", "--split=down"],
+        vec!["agent", "start", "codex", "--split"],
+        vec!["agent", "start", "codex", "--split=left"],
+        vec!["agent", "start", "codex", "--here", "--here"],
         vec!["agent", "names", "--provider=codex"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
     for provider in crate::agent_provider::CANONICAL_IDS {
-        assert!(
-            parse(&["agent", "start", "--provider", provider]).is_ok(),
-            "{provider}"
-        );
+        assert!(parse(&["agent", "start", provider]).is_ok(), "{provider}");
     }
-    // The invalid-value diagnostic and the option help both enumerate the
-    // complete closed `--provider` set from the provider registry.
-    let failure = parse(&["agent", "start", "--provider=claude"]).unwrap_err();
+    // The invalid-value diagnostic and the argument help both enumerate the
+    // complete closed provider set from the provider registry.
+    let failure = parse(&["agent", "start", "claude"]).unwrap_err();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let stderr = crate::cli::parse_failure(failure.clone(), locale).stderr;
-        let (_, help) =
-            CliText::new(locale).cli_help_option(super::CommandPath::AgentStart, "--provider");
+        let arguments = CliText::new(locale).cli_help_arguments(super::CommandPath::AgentStart);
+        let (_, help) = arguments
+            .iter()
+            .find(|(label, _)| *label == "<provider>")
+            .unwrap();
         for provider in crate::agent_provider::CANONICAL_IDS {
             assert!(stderr.contains(provider), "{provider}: {stderr}");
             assert!(help.contains(provider), "{provider}: {help}");

@@ -50,7 +50,9 @@
 						"submission",
 						"reservationState",
 						"lastObservedReservation",
-						"cause"
+						"cause",
+						"place",
+						"createdPanelId"
 					],
 					"if": {
 						"properties": {
@@ -105,7 +107,22 @@
 								"already-named",
 								"not-ready",
 								"read-denied",
-								"manage-denied"
+								"manage-denied",
+								"own-panel",
+								"place-failed"
+							]
+						},
+						"place": {
+							"enum": ["new-tab", "here", "split-right", "split-down"]
+						},
+						"createdPanelId": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/hexId"
+								},
+								{
+									"type": "null"
+								}
 							]
 						},
 						"name": {

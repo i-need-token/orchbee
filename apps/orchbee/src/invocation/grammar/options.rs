@@ -1631,7 +1631,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::PanelMove],
+        commands: &[CommandPath::PanelMove, CommandPath::AgentStart],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
@@ -1639,6 +1639,38 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         help: None,
         apply: |options, _, _| {
             options.new_tab = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
+        spelling: "--here",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::AgentStart],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.here = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
+        spelling: "--split",
+        values: &["right", "down"],
+        closed_values: true,
+        string_rule: None,
+        commands: &[CommandPath::AgentStart],
+        role: OptionRole::Business,
+        value: Some("direction"),
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, value, _| {
+            options.split = Some(value);
             Ok(())
         },
     },
@@ -2253,7 +2285,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         closed_values: true,
         string_rule: None,
         commands: &[
-            CommandPath::AgentStart,
             CommandPath::AgentDoctor,
             CommandPath::AgentIntegrationList,
             CommandPath::AgentIntegrationExplain,

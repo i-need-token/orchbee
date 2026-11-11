@@ -17,7 +17,8 @@ pub(crate) enum Verdict {
     Observed {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
-    /// Without a name, the command was typed in `panel` and passed the early check.
+    /// Without a name, the command was typed in `panel` and passed the early check, or, with no
+    /// submission, `panel`'s new shell runs the Agent as its first command.
     Sent {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
@@ -73,6 +74,34 @@ impl Report {
                 failure,
                 reason,
                 cause,
+            },
+        }
+    }
+
+    /// Present a failed creation of the new Tab or Panel: the reason is `place-failed`, the exit
+    /// follows the creation's own failure kind, and the cause names its operation and the
+    /// Server's reason. Nothing was typed or reserved.
+    pub(crate) fn place_failed(
+        request: Request,
+        started: Instant,
+        failure: Failure,
+        operation: &'static str,
+    ) -> Self {
+        let mut cause = cause(&failure);
+        cause["operation"] = json!(operation);
+        Self {
+            name: request.name,
+            provider: request.provider,
+            reservation: None,
+            last_observed: None,
+            reservation_state: ReservationState::None,
+            submission: None,
+            submission_status: None,
+            elapsed_ms: elapsed_ms(started),
+            verdict: Verdict::Failed {
+                failure,
+                reason: "place-failed".to_owned(),
+                cause: Some(cause),
             },
         }
     }

@@ -2,43 +2,139 @@
 
 use super::Locale;
 use crate::cli_outcome::Failure;
+use crate::invocation::AgentStartPlace;
 use std::sync::LazyLock;
 
 impl super::CliText {
-    pub(crate) fn cli_agent_started(self, name: &str, session: &str) -> String {
+    pub(crate) fn cli_agent_started(
+        self,
+        name: &str,
+        session: &str,
+        place: AgentStartPlace,
+        panel: &str,
+    ) -> String {
+        let at = self.place_phrase(place, panel);
         match self.locale {
             Locale::EnUs => format!(
-                "Agent {name} is ready ({session}).\nNext: orchbee agent prompt --name {name} <text>\n"
+                "Agent {name} is ready {at}, session {session}.\nNext: orchbee agent prompt --name {name} <text>\n"
             ),
             Locale::ZhCn => format!(
-                "智能体 {name} 已就绪（{session}）。\n下一步：orchbee agent prompt --name {name} <text>\n"
+                "智能体 {name} 已在{at}中就绪，会话 {session}。\n下一步：orchbee agent prompt --name {name} <text>\n"
             ),
         }
     }
 
     /// The Agent was seen ready without an integration's Session, so `name` was not bound and the
     /// next step addresses its Panel.
-    pub(crate) fn cli_agent_observed(self, name: &str, panel: &str) -> String {
+    pub(crate) fn cli_agent_observed(
+        self,
+        name: &str,
+        place: AgentStartPlace,
+        panel: &str,
+    ) -> String {
+        let at = self.place_phrase(place, panel);
         match self.locale {
             Locale::EnUs => format!(
-                "The Agent is ready in Panel {panel}. No integration reported its session, so the name {name} was not given to it.\nNext: orchbee agent prompt --panel {panel} <text>\n"
+                "The Agent is ready {at}. No integration reported its session, so the name {name} was not given to it.\nNext: orchbee agent prompt --panel {panel} <text>\n"
             ),
             Locale::ZhCn => format!(
-                "智能体已在面板 {panel} 中就绪。没有集成报告它的会话，因此未把名称 {name} 分配给它。\n下一步：orchbee agent prompt --panel {panel} <text>\n"
+                "智能体已在{at}中就绪。没有集成报告它的会话，因此未把名称 {name} 分配给它。\n下一步：orchbee agent prompt --panel {panel} <text>\n"
             ),
         }
     }
 
-    /// A start without a name typed the command in `panel` and passed the early check; the Agent
-    /// is opening there and nothing waited for it to become ready.
-    pub(crate) fn cli_agent_sent(self, product: &str, panel: &str) -> String {
+    /// A start without a name typed the command in `panel` and passed the early check, or the
+    /// Panel's new shell runs the Agent as its first command; nothing waited for it to become
+    /// ready.
+    pub(crate) fn cli_agent_sent(
+        self,
+        product: &str,
+        place: AgentStartPlace,
+        panel: &str,
+    ) -> String {
+        let at = self.place_phrase(place, panel);
         match self.locale {
             Locale::EnUs => format!(
-                "{product} is opening in Panel {panel}.\nNext: orchbee agent wait --panel {panel} --until idle\n"
+                "Started {product} {at}.\nNext: orchbee agent wait --panel {panel} --until idle\n"
             ),
             Locale::ZhCn => format!(
-                "{product} 正在面板 {panel} 中打开。\n下一步：orchbee agent wait --panel {panel} --until idle\n"
+                "已在{at}中启动 {product}。\n下一步：orchbee agent wait --panel {panel} --until idle\n"
             ),
+        }
+    }
+
+    /// Where a start ran, as its outcome line names it: English reads "in …", Chinese fills
+    /// "在…中".
+    fn place_phrase(self, place: AgentStartPlace, panel: &str) -> String {
+        match (self.locale, place) {
+            (Locale::EnUs, AgentStartPlace::NewTab) => format!("in a new Tab (Panel {panel})"),
+            (Locale::EnUs, AgentStartPlace::SplitRight) => {
+                format!("in a new Panel on the right (Panel {panel})")
+            }
+            (Locale::EnUs, AgentStartPlace::SplitDown) => {
+                format!("in a new Panel below (Panel {panel})")
+            }
+            (Locale::EnUs, AgentStartPlace::Here) => format!("in Panel {panel}"),
+            (Locale::ZhCn, AgentStartPlace::NewTab) => format!("新标签页（面板 {panel}）"),
+            (Locale::ZhCn, AgentStartPlace::SplitRight) => format!("右侧新面板（面板 {panel}）"),
+            (Locale::ZhCn, AgentStartPlace::SplitDown) => format!("下方新面板（面板 {panel}）"),
+            (Locale::ZhCn, AgentStartPlace::Here) => format!("面板 {panel} "),
+        }
+    }
+
+    /// A failed creation of the new Tab or Panel, or of its shell; nothing was typed.
+    fn cli_agent_place_failed(self, failure: &Failure, place: &str, created: bool) -> String {
+        let tab = place == "new-tab";
+        let reason = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("cause"))
+            .and_then(|cause| cause["reason"].as_str());
+        let unknown = failure.kind == crate::cli_outcome::FailureKind::OutcomeUnknown;
+        let message = match (self.locale, tab, created, unknown) {
+            (Locale::EnUs, true, false, true) => {
+                "Whether the new Tab was created is unknown; inspect `orchbee panel list` before retrying."
+            }
+            (Locale::EnUs, false, false, true) => {
+                "Whether the new Panel was created is unknown; inspect `orchbee panel list` before retrying."
+            }
+            (Locale::ZhCn, true, false, true) => {
+                "无法确认新标签页是否已创建；重试前请运行 `orchbee panel list` 查看。"
+            }
+            (Locale::ZhCn, false, false, true) => {
+                "无法确认新面板是否已创建；重试前请运行 `orchbee panel list` 查看。"
+            }
+            (Locale::EnUs, true, false, false) => {
+                "The new Tab could not be created; nothing was started."
+            }
+            (Locale::EnUs, false, false, false) => {
+                "The new Panel could not be created; nothing was started."
+            }
+            (Locale::ZhCn, true, false, false) => "无法创建新标签页，未启动任何内容。",
+            (Locale::ZhCn, false, false, false) => "无法创建新面板，未启动任何内容。",
+            (Locale::EnUs, true, true, _) => {
+                "The new Tab's shell did not start; nothing was started."
+            }
+            (Locale::EnUs, false, true, _) => {
+                "The new Panel's shell did not start; nothing was started."
+            }
+            (Locale::ZhCn, true, true, _) => "新标签页的 shell 未能启动，未启动任何内容。",
+            (Locale::ZhCn, false, true, _) => "新面板的 shell 未能启动，未启动任何内容。",
+        };
+        match (self.locale, reason.filter(|_| !unknown && !created)) {
+            (Locale::EnUs, Some(reason)) => format!("{message} Reason: {reason}."),
+            (Locale::ZhCn, Some(reason)) => format!("{message}原因：{reason}。"),
+            (_, None) => message.to_owned(),
+        }
+    }
+
+    /// The Panel this invocation created stays when a later step fails.
+    fn cli_agent_created_panel(self, place: &str, panel: &str) -> String {
+        match (self.locale, place == "new-tab") {
+            (Locale::EnUs, true) => format!(" The new Tab stays open as Panel {panel}."),
+            (Locale::EnUs, false) => format!(" The new Panel stays open as Panel {panel}."),
+            (Locale::ZhCn, true) => format!(" 新标签页保留为面板 {panel}。"),
+            (Locale::ZhCn, false) => format!(" 新面板保留为面板 {panel}。"),
         }
     }
 
@@ -60,6 +156,14 @@ impl super::CliText {
                 .and_then(|value| value.as_str())
                 .unwrap_or("")
         };
+        let created = match field("createdPanelId") {
+            "" => String::new(),
+            panel => self.cli_agent_created_panel(field("place"), panel),
+        };
+        if field("reason") == "place-failed" {
+            let message = self.cli_agent_place_failed(failure, field("place"), !created.is_empty());
+            return format!("{message}{created}\n");
+        }
         if field("reason") == "startup-failed"
             && let Some(cause) = failure
                 .details
@@ -67,10 +171,15 @@ impl super::CliText {
                 .and_then(|details| details.get("cause"))
             && cause["kind"] == "not-found"
         {
-            return match self.locale {
-                Locale::EnUs => "The target panel was not found. Run `orchbee panel list`, then pass an existing panel ID to --panel.\n",
-                Locale::ZhCn => "未找到目标面板。请运行 `orchbee panel list`，再将现有面板 ID 传给 --panel。\n",
-            }.to_owned();
+            let message = match self.locale {
+                Locale::EnUs => {
+                    "The target panel was not found. Run `orchbee panel list`, then pass an existing panel ID to --panel."
+                }
+                Locale::ZhCn => {
+                    "未找到目标面板。请运行 `orchbee panel list`，再将现有面板 ID 传给 --panel。"
+                }
+            };
+            return format!("{message}{created}\n");
         }
         let cause = failure
             .details
@@ -137,7 +246,7 @@ impl super::CliText {
             (Locale::ZhCn, true) => " 启动输入已尝试提交一次，智能体可能仍在运行；没有终止进程。",
             _ => "",
         };
-        format!("{message}{reservation}{delivery}\n")
+        format!("{message}{reservation}{delivery}{created}\n")
     }
 
     fn cli_agent_start_reason(self, locale: Locale, reason: &str) -> &'static str {
@@ -153,6 +262,12 @@ impl super::CliText {
             }
             (Locale::ZhCn, "name-in-use" | "presentation-busy") => {
                 "智能体名称或终端已被占用。请用 `orchbee agent names` 查看。"
+            }
+            (Locale::EnUs, "own-panel") => {
+                "--here cannot type into the Panel this command runs in. Use --new-tab, or pass --panel <id> for another Panel."
+            }
+            (Locale::ZhCn, "own-panel") => {
+                "--here 不能在运行本命令的面板中输入。请改用 --new-tab，或用 --panel <id> 指定另一个面板。"
             }
             (Locale::EnUs, "command-too-long") => {
                 "The encoded Windows launch command exceeds 8000 characters. Reduce the arguments."

@@ -11,6 +11,19 @@ use orchbee_workbench_client::test_support::agent_start::DeliveryDisposition;
 use orchbee_workbench_client::test_support::agent_start::ReportFixture;
 use serde_json::Value;
 
+fn panel_a() -> WorkbenchPanelId {
+    WorkbenchPanelId::parse(&"a".repeat(32)).unwrap()
+}
+
+/// A start typed at an existing Panel's prompt.
+fn here() -> Placed {
+    Placed {
+        place: AgentStartPlace::Here,
+        panel: Some(panel_a()),
+        created: false,
+    }
+}
+
 fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
     Report {
         name: Some(AgentName::parse("alpha").unwrap()),
@@ -161,7 +174,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
             },
         }));
         assert_eq!(report.failure_kind(), Some(failure_kind));
-        let answer = project(report, OutputFormat::Json, Locale::EnUs, None);
+        let answer = project(report, &here(), OutputFormat::Json, Locale::EnUs, None);
         assert_eq!(answer.status, status);
         let envelope: Value = serde_json::from_slice(&answer.stdout).unwrap();
         assert!(schema.is_valid(&envelope), "{envelope}");
@@ -219,6 +232,7 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
                         cause: None,
                     },
                 ),
+                &here(),
                 OutputFormat::Json,
                 locale,
                 None,
@@ -245,6 +259,7 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
                     session: AgentSessionId::parse("s1").unwrap(),
                 },
             ),
+            &here(),
             OutputFormat::Json,
             locale,
             None,
@@ -264,6 +279,7 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
                         .unwrap(),
                 },
             ),
+            &here(),
             OutputFormat::Json,
             locale,
             None,
@@ -286,7 +302,7 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
         );
         sent.name = None;
         sent.reservation = None;
-        let answer = project(sent, OutputFormat::Json, locale, None);
+        let answer = project(sent, &here(), OutputFormat::Json, locale, None);
         assert_eq!(answer.status, 0);
         let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
         assert!(success_schema.is_valid(&document), "{document}");
@@ -330,4 +346,239 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
         panic!("replacement stays failed")
     };
     assert_eq!(cause, None);
+}
+
+fn command(place: AgentStartPlace, name: Option<&str>, args: &[&str]) -> AgentStartCommand {
+    AgentStartCommand {
+        name: name.map(|name| AgentName::parse(name).unwrap()),
+        provider: "codex".into(),
+        place,
+        panel: None,
+        args: args.iter().map(|arg| (*arg).to_owned()).collect(),
+        timeout_ms: 30000,
+    }
+}
+
+fn schemas() -> (jsonschema::Validator, jsonschema::Validator) {
+    let load =
+        |text: &str| jsonschema::validator_for(&serde_json::from_str(text).unwrap()).unwrap();
+    (
+        load(include_str!("../schemas/orchbee.agent.start.json")),
+        load(include_str!(
+            "../schemas/orchbee.cli.failure.agent-start.json"
+        )),
+    )
+}
+
+#[test]
+fn own_panel_here_is_refused_from_the_caller_context_alone() {
+    let caller = |name: &str| match name {
+        "ORCHBEE_TERMINAL_ID" => Some(std::ffi::OsString::from("1".repeat(32))),
+        "ORCHBEE_WORKER_ID" => Some(std::ffi::OsString::from("2".repeat(32))),
+        _ => None,
+    };
+    // `--here` aimed at the caller's own Panel is decided before any runtime is discovered.
+    let Err(refused) = reference(&command(AgentStartPlace::Here, None, &[]), caller) else {
+        panic!("--here without --panel names the caller's own Panel")
+    };
+    assert_eq!(refused.kind, FailureKind::InvalidUsage);
+    assert_eq!(
+        refused.details.as_ref().unwrap()["reason"],
+        serde_json::json!("own-panel")
+    );
+    // An explicit Panel is compared with the caller's own once the Snapshot resolves both.
+    let mut explicit = command(AgentStartPlace::Here, None, &[]);
+    explicit.panel = Some(crate::invocation::Target::Id("a".repeat(32)));
+    assert!(reference(&explicit, caller).unwrap().caller.is_some());
+    // Every other place takes the caller's own Panel as its reference.
+    for place in [
+        AgentStartPlace::NewTab,
+        AgentStartPlace::SplitRight,
+        AgentStartPlace::SplitDown,
+    ] {
+        assert!(
+            reference(&command(place, None, &[]), caller)
+                .unwrap()
+                .caller
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn only_an_exact_catalog_start_in_a_new_panel_runs_as_the_first_command() {
+    for place in [
+        AgentStartPlace::NewTab,
+        AgentStartPlace::SplitRight,
+        AgentStartPlace::SplitDown,
+        AgentStartPlace::Here,
+    ] {
+        for (name, args) in [
+            (None, &[][..]),
+            (None, &["--model", "o3"][..]),
+            (Some("alpha"), &[][..]),
+        ] {
+            let first = first_command(&command(place, name, args));
+            let expected = place != AgentStartPlace::Here && name.is_none() && args.is_empty();
+            assert_eq!(first.is_some(), expected, "{place:?} {name:?} {args:?}");
+            if let Some(selector) = first {
+                assert_eq!(selector.agent().id(), "codex");
+            }
+        }
+    }
+}
+
+#[test]
+fn new_panel_outcomes_name_their_place_under_both_locales() {
+    let (success_schema, failure_schema) = schemas();
+    let receipt = super::super::send::test_receipt(TerminalSendOutcome::Accepted {
+        progress: SendProgress::complete(2, 10),
+        cleanup: SendCleanupStatus::Confirmed,
+    })
+    .document();
+    let new = |place| Placed {
+        place,
+        panel: Some(panel_a()),
+        created: true,
+    };
+    let unnamed = |submission: Option<Value>, verdict| Report {
+        name: None,
+        provider: AgentProviderId::parse("codex").unwrap(),
+        reservation: None,
+        last_observed: None,
+        reservation_state: ReservationState::None,
+        submission,
+        submission_status: None,
+        elapsed_ms: 1,
+        verdict,
+    };
+    let panel = "a".repeat(32);
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        // The new shell runs the catalog Agent first: nothing was typed.
+        let sent = || Verdict::Sent { panel: panel_a() };
+        let placed = new(AgentStartPlace::NewTab);
+        let answer = project(
+            unnamed(None, sent()),
+            &placed,
+            OutputFormat::Json,
+            locale,
+            None,
+        );
+        assert_eq!(answer.status, 0);
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(success_schema.is_valid(&document), "{document}");
+        assert_eq!(document["result"]["confirmation"], "launched");
+        assert_eq!(document["result"]["place"], "new-tab");
+        assert_eq!(document["result"]["panelId"], panel);
+        assert_eq!(document["result"]["submission"], Value::Null);
+        assert_eq!(document["result"]["interactiveReady"], false);
+        let text = project(
+            unnamed(None, sent()),
+            &placed,
+            OutputFormat::Text,
+            locale,
+            None,
+        );
+        let text = String::from_utf8(text.stdout).unwrap();
+        assert!(
+            text.starts_with(&match locale {
+                Locale::EnUs => format!("Started Codex in a new Tab (Panel {panel}).\n"),
+                Locale::ZhCn => format!("已在新标签页（面板 {panel}）中启动 Codex。\n"),
+            }),
+            "{text}"
+        );
+        assert!(text.contains(&format!("orchbee agent wait --panel {panel} --until idle")));
+
+        // Arguments were typed at the split's first prompt.
+        let placed = new(AgentStartPlace::SplitDown);
+        let answer = project(
+            unnamed(Some(receipt.clone()), sent()),
+            &placed,
+            OutputFormat::Json,
+            locale,
+            None,
+        );
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(success_schema.is_valid(&document), "{document}");
+        assert_eq!(document["result"]["confirmation"], "sent");
+        assert_eq!(document["result"]["place"], "split-down");
+
+        // A later failure keeps the new Panel and says so.
+        let mut failed = report(
+            &receipt,
+            ReservationState::Released,
+            Verdict::Failed {
+                failure: super::failure(FailureKind::Timeout, "start-deadline"),
+                reason: "start-deadline".into(),
+                cause: None,
+            },
+        );
+        failed.submission_status = None;
+        let answer = project(failed, &placed, OutputFormat::Json, locale, None);
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(failure_schema.is_valid(&document), "{document}");
+        assert_eq!(document["failure"]["details"]["createdPanelId"], panel);
+        assert_eq!(document["failure"]["details"]["place"], "split-down");
+        assert!(answer.stderr.contains(&match locale {
+            Locale::EnUs => format!("The new Panel stays open as Panel {panel}."),
+            Locale::ZhCn => format!("新面板保留为面板 {panel}。"),
+        }));
+
+        // A refused split names the Server's reason and keeps the creation's exit.
+        let rejected = Failure::new(FailureKind::Rejected).details(serde_json::Map::from_iter([
+            ("stage".to_owned(), serde_json::json!("command")),
+            ("reason".to_owned(), serde_json::json!("panel-unavailable")),
+            ("revision".to_owned(), serde_json::json!("3")),
+        ]));
+        let refused = Report::place_failed(
+            crate::agent_start::Request::new(
+                None,
+                AgentProviderId::parse("codex").unwrap(),
+                vec![],
+            ),
+            Instant::now(),
+            rejected,
+            "panel.split",
+        );
+        let placed = Placed {
+            place: AgentStartPlace::SplitRight,
+            panel: None,
+            created: false,
+        };
+        let answer = project(refused, &placed, OutputFormat::Json, locale, None);
+        assert_eq!(answer.status, FailureKind::Rejected.exit_code());
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(failure_schema.is_valid(&document), "{document}");
+        let details = &document["failure"]["details"];
+        assert_eq!(details["reason"], "place-failed");
+        assert_eq!(details["createdPanelId"], Value::Null);
+        assert_eq!(details["cause"]["operation"], "panel.split");
+        assert_eq!(details["cause"]["reason"], "panel-unavailable");
+        assert!(
+            answer.stderr.contains("panel-unavailable"),
+            "{}",
+            answer.stderr
+        );
+
+        // The own-Panel refusal is a usage failure that names the new-Tab flag.
+        let own = Report::preflight(
+            crate::agent_start::Request::new(
+                None,
+                AgentProviderId::parse("codex").unwrap(),
+                vec![],
+            ),
+            Instant::now(),
+            super::failure(FailureKind::InvalidUsage, "own-panel"),
+        );
+        let placed = Placed {
+            place: AgentStartPlace::Here,
+            panel: None,
+            created: false,
+        };
+        let answer = project(own, &placed, OutputFormat::Json, locale, None);
+        assert_eq!(answer.status, 2);
+        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(failure_schema.is_valid(&document), "{document}");
+        assert!(answer.stderr.contains("--new-tab"), "{}", answer.stderr);
+    }
 }
