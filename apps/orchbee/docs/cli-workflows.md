@@ -83,7 +83,8 @@ does not establish Agent-board readiness. Managed enable/disable and `agent star
   node scripts/stage-local-runtime.mjs --output /tmp/orchbee-native-dev
   ```
 
-  Then run `/tmp/orchbee-native-dev/orchbee`. The staged cohort is four
+  Then run the Client the script names, `/tmp/orchbee-native-dev/ob-dev-<16 lowercase hex>`
+  for this checkout's development stem. The staged cohort is four
   executables (CLI, Server, Worker, Host) that must come from one build plus
   the observation-adapters payload directory, all pinned by the manifest;
   these prerequisites apply to the Linux examples below; the Windows flow is above.

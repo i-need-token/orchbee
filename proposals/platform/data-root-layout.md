@@ -131,9 +131,11 @@
 - Unix sockets cannot live in that folder: `sun_path` holds 104 bytes on macOS and 108 on Linux,
   which a home path plus a 64-character Session name exceeds. Sockets go to a private per-user
   directory, `/tmp/<stem>-<uid>/` on Linux and `/private/tmp/<stem>-<uid>/` on macOS, as
-  `<endpoint id>-<role>.sock` with the endpoint id that names Windows pipes; with roles of at most
-  eight characters, the longest such path is 95 bytes. The directory is created with mode 0700, and
-  one with another owner or mode is refused, never repaired. Locks and markers stay in
+  `<endpoint id>-<role>.sock`, where the endpoint id is 32 hex digits of a hash of the canonical
+  runtime base and the lowercase Session name; with roles of at most seven characters, the longest
+  such path is 94 bytes. The directory's parent must belong to root and carry the sticky bit; the
+  directory is created with mode 0700, and one with another owner or mode is refused, never
+  repaired. The Server holds a shared lock on it while the Session lives. Locks and markers stay in
   `internal/runtime/<session>/`, out of reach of temporary-directory cleaners.
 - Because that folder then survives a machine restart on macOS and Linux, POSIX activation adopts
   the [Windows crash-recovery contract](../../crates/local-runtime/docs/windows-crash-recovery.md)
@@ -320,8 +322,9 @@ that the real home and the earlier release locations gained nothing.
 | 7. Versions and migration  | Migration module, layout refusal, the newest version kept current in `internal/version.json`, newer-format outcomes, extension objects, backups, retention, and messages in every store                                                                                                                                                                                                                                                                                                                                                                                               | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`                   | Synthetic-step migration with backup, newer-format refusal, failure keeping the original               | 1–3, 6, ORC-391 (`config check`) |
 | 8. Uninstall               | The cleanup command in both modes, integration disable for every integration, `PATH` entry removal, installer hooks                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `orchbee`, `orchbee-agent-integration-writer`                                                      | Uninstalling the test package on Windows in both modes, checking what stays                            | 1, 4, ORC-381 installer, ORC-391 |
 
-ORC-328 adds POSIX environment stems, the socket directory, the runtime folder in the root with the
-Windows recovery model, and file-system admission beyond ext4 and tmpfs for a Linux home.
+ORC-328 has moved POSIX runtimes into the root, named POSIX cohort files by the environment stem,
+added the socket directory, and replaced the ext4 and tmpfs list with admission by behaviour; the
+Windows recovery model follows.
 
 ## Accepted choices
 
@@ -329,9 +332,8 @@ The product owner saw these choices on 2026-11-08 and did not veto them; each st
 the phase that applies it ships.
 
 1. Moving the whole data folder: `ORCHBEE_HOME` moves the whole root, as `CODEX_HOME` does, and
-   `ORCHBEE_CONFIG_FILE` names only another settings file; tests and macOS and Linux Desktop
-   development use `ORCHBEE_HOME` until ORC-328. The rejected alternative made the folder of an
-   explicit `ORCHBEE_CONFIG_FILE` the whole root.
+   `ORCHBEE_CONFIG_FILE` names only another settings file; tests use `ORCHBEE_HOME`. The rejected
+   alternative made the folder of an explicit `ORCHBEE_CONFIG_FILE` the whole root.
 2. Letter case in Session names: `Work` and `work` are one Session on every system, so
    `session attach work` finds `Work`, which keeps the spelling it was created with. The rejected
    alternative kept names case-sensitive and refused creating `work` while `Work` exists.

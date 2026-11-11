@@ -38,9 +38,8 @@ phase 1 of that layout puts it under `internal/`, with the default runtime base 
 - `ORCHBEE_CONFIG_FILE` and an explicitly set `ORCHBEE_RUNTIME_BASE` keep their override meaning in
   every environment; under [accepted choice 1](data-root-layout.md#accepted-choices),
   `ORCHBEE_HOME` moves the whole root and `ORCHBEE_CONFIG_FILE` names only another settings file.
-  Desktop no longer writes `ORCHBEE_CONFIG_FILE`: on Windows the Client derives the same root, and
-  on macOS and Linux, whose natives keep release names until ORC-328, a non-release Desktop passes
-  `ORCHBEE_HOME` instead.
+  Desktop no longer writes `ORCHBEE_CONFIG_FILE`: the Client derives the same root on every
+  platform.
 - Runtime directories differ per environment, so Session scopes and pipe names cannot collide; the
   release `default` Session belongs only to release.
 - Pipe names keep the `orchbee-` prefix in every environment, because each environment's runtime

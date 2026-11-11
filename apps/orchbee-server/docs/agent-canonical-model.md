@@ -582,8 +582,9 @@ registry admission.
 `local_worker_service/agent_observation_endpoint.rs` is the
 production private Unix transport that feeds the managed hook-observation ingress.
 `local_worker_service::managed` binds
-one socket per session (`agent-observation-v1.sock`, mode `0600`) inside the session runtime
-directory, records the bound path's filesystem identity at bind time, and runs a single
+one socket per session (`<endpoint-id>-agent.sock`, mode `0600`) in the Session's socket
+folder, which the [shared runtime contract](../../../crates/local-runtime/README.md#posix-local-session-rendezvous-foundation)
+derives, records the bound path's filesystem identity at bind time, and runs a single
 poll thread multiplexing the listener, a stop pipe, and up to `MAX_ACTIVE_CONNECTIONS`
 accepted nonblocking streams; a stream that fails `set_nonblocking` is dropped, and
 accept draining is bounded per loop iteration by the same private budget so a

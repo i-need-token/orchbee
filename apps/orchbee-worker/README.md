@@ -60,9 +60,9 @@ day keeps its document; the Host removes it when the editor closes, and the age 
 for documents a Host crash left. POSIX Workers launch no scrollback editor, so they pass no folder
 and remove nothing.
 
-## Windows child CLI routing
+## Child CLI routing
 
-Managed Windows launches overlay `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` from the
+Managed launches on every platform overlay `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` from the
 admitted Session runtime directory, plus `ORCHBEE_ENVIRONMENT` set to this build's environment
 stem (`orchbee` for release), alongside the existing terminal and Worker identities. Plugin jobs
 started with a Session route receive the same three variables. A Client whose own stem differs from
@@ -90,7 +90,7 @@ Worker first connects to the supplied Server Unix-domain socket, requires the sa
 operating-system user, submits its bounded cohort handshake, and verifies typed admission. It does
 not contact Terminal Host before Server accepts that Worker connection.
 
-After Server admission, Worker resolves only `<runtime-directory>/<endpoint-id>.s`, connects to the
+After Server admission, Worker resolves only `<runtime-directory>/<endpoint-id>-host.sock`, connects to the
 existing Terminal Host, independently requires the same effective user, and opens with this build's
 `worker-host` [connection handshake](../../schemas/connection/README.md) offer: its package version,
 the commit `ORCHBEE_SOURCE_COMMIT` named at compile time, its compiled environment, and the
@@ -160,9 +160,10 @@ startup. Typed invalid-lease/generation rejection creates no Host. Generation-pi
 and worktree-job requests may complete before that Launch without starting a Host — the discovery
 slot survives the handoff so an admitted job stays owned across it; any other non-Launch traffic
 retires the connection. The admitted dispatch and same kernel survive Host startup, and authorization is
-checked again before handoff. The Host directory is `host` under the runtime, with fixed endpoint ID
-`00000000000000000000000000000001`. The absolute endpoint address under that directory is checked
-against the platform socket-address ABI before the directory or the Host process is created; an
+checked again before handoff. The Host directory is `host` under the runtime and holds the Host's
+lock; the Host receives the Session's endpoint ID and the socket folder as `--endpoint-id` and
+`--endpoint-directory`, and binds `<endpoint-id>-host.sock` there. The absolute endpoint address is
+checked against the platform socket-address ABI before the directory or the Host process is created; an
 address that cannot fit produces the same pre-handoff failure without either side effect. Any pre-existing endpoint immediately requires recovery; only the
 newly spawned Host may be awaited for its final 0600 socket.
 Host startup, its dial, the `worker-host` offer with its `capacity` redials, and the strict OBTP
@@ -172,9 +173,9 @@ uncertain handed-off outcomes are never replayed. Later operations use the same 
 and replay cache.
 
 Every Launch on this managed path also propagates the local Agent observation channel through the
-existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter joins
-the cross-owner file name `agent-observation-v1.sock` onto the verified `--runtime-directory` runtime
-directory and admits the candidate only when `lstat` proves an existing socket owned by this
+existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter derives
+the Session's Agent observation socket, `<endpoint-id>-agent.sock` in the socket folder, from the
+verified `--runtime-directory` runtime directory through the shared runtime crate and admits the candidate only when `lstat` proves an existing socket owned by this
 Worker's effective user. An admitted socket sets
 `ORCHBEE_AGENT_OBSERVATION_SOCKET` to its absolute path inside the existing 16-entry and 4 KiB
 overlay bounds; a missing, non-socket, foreign-owned, or non-UTF-8 candidate emits no variable and

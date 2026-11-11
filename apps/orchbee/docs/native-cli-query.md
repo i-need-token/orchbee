@@ -863,8 +863,9 @@ Selected-Client composition keeps missing/stale Client selection failures in `or
   provider target prefixes on Linux. Windows uses the native user profile and an optional
   non-empty `CODEX_HOME` for Codex configuration. `panel current` in caller mode additionally reads
   `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` as described below. Nothing else is consulted.
-- Filesystem: the resolved runtime base, the Session scope directory
-  `orchbee-native-<euid>`, its `client.sock`/`worker.sock`, the activation marker, and the
+- Filesystem: the resolved runtime base, the Session scope directory (the Session name, `default`
+  unless a managed terminal routes another), its Client and Worker sockets in the socket folder,
+  the activation marker, and the
   current executable's sibling `cohort.json` plus four artifacts are observed but never written.
   The manifest also declares the `agent-observation-adapters` sidecar digest — startup never
   opens or traverses that directory. All directory traversal uses the existing no-follow,
@@ -875,7 +876,7 @@ Selected-Client composition keeps missing/stale Client selection failures in `or
   themselves name, the observation socket path's final component, and each PATH directory's
   candidate executables — all under its own per-file/count/aggregate byte and item caps with
   no-follow `lstat` admission. It never enumerates ambient user directories.
-- Socket peer: `client.sock` may belong to a real Server, a zombie socket, or a scripted peer.
+- Socket peer: the Client socket may belong to a real Server, a zombie socket, or a scripted peer.
   The CLI trusts the typed transport and protocol layers (OBLC admission, OBWP correlation and
   contract validation) and never re-derives verdicts from `Display` text, `ErrorKind` guesses, or
   byte counts.
@@ -1688,7 +1689,8 @@ and is never reset per stage:
    Its typed io kind classifies: `InvalidData` → `incompatible`, `NotFound` →
    `service-unavailable`, `PermissionDenied` → `denied`, `TimedOut` → `timeout`, every other
    kind → `internal-failure` — all with `{stage:"cohort"}`.
-2. **Prepare** — resolve `ORCHBEE_RUNTIME_BASE`/default, derive `orchbee-native-<euid>`, then
+2. **Prepare** — resolve `ORCHBEE_RUNTIME_BASE` or create the default
+   `<data root>/internal/runtime`, select the Session (`default` unless routed), then
    `prepare_mode_checked` in create-if-missing mode: the runtime directory may be created even
    on an invocation that later refuses. Rendezvous errors classify exactly like a query's
    discovery stage.
@@ -1763,14 +1765,15 @@ no older build still uses them. Text prints one `unrecognizedRecords.N` row per 
 never moves, repairs or deletes a record.
 
 `server diagnose` is the read-only counterpart of activation: it reports bounded facts about the
-implicit per-euid local Session runtime without connecting to anything, creating anything, or
-repairing anything. The runtime base resolves exactly like `server start` (`ORCHBEE_RUNTIME_BASE`
-or `/tmp`, scope `orchbee-native-<euid>`), then the command inspects a finite set of known
+selected local Session runtime without connecting to anything, creating anything, or
+repairing anything. The runtime base and Session resolve exactly like `server start`
+(`ORCHBEE_RUNTIME_BASE` or `<data root>/internal/runtime`, Session `default` unless routed), then
+the command inspects a finite set of known
 paths through the rendezvous' own validated directory descriptor — `AT_SYMLINK_NOFOLLOW`
 descriptor-relative `fstatat` plus, for the Session lifetime lock only, an open-existing-file
 probe whose `try_lock` result is immediately released on the same descriptor. The activation
 lock is metadata only (presence/kind/owner/mode/link count) and is never acquired by the
-command. No endpoint is connected — `client.sock` least of all, where a connect would consume
+command. No endpoint is connected — the Client socket least of all, where a connect would consume
 an admission slot — and no process is enumerated, signaled, or hashed.
 
 Every row is a closed-state fact document, never a health verdict: `runtimeBase` and
@@ -2128,7 +2131,7 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
 - `orchbee.server.start` → `{outcome,restoreNotice,scope,runtimeBase}`: `outcome` is `started` or
   `already-running` (the branch this invocation took, not a Session identity receipt),
   `restoreNotice` is what this Session's restore reported, `recovered` from a backup, `empty` when
-  every checkpoint was corrupt, otherwise null, `scope` is `orchbee-native-<euid>`, and
+  every checkpoint was corrupt, otherwise null, `scope` is the Session name, and
   `runtimeBase` carries exactly one of `path` (UTF-8) or `pathBytesHex` (non-UTF-8, never a lossy
   display string).
 - `orchbee.server.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
@@ -2366,7 +2369,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | multiple exact label matches                                                                                                              | `ambiguous`                                                                | 3         | `{resource,target,candidates≤8,totalCount}`                                                             |
 | `Cohort::current` error                                                                                                                   | `check-failed`                                                             | 1         | `{stage:"cohort"}`                                                                                      |
 | base invalid/missing/not-a-directory, unsafe runtime/socket, other validation                                                             | `check-failed`                                                             | 1         | `{stage:"runtime-base"                             \| "runtime-directory"   \| "socket"}`               |
-| valid base with absent scope directory or absent `client.sock`                                                                            | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                                   |
+| valid base with absent scope directory or absent Client socket                                                                            | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                                   |
 | `ConnectClientError::ConnectFailed`                                                                                                       | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                                   |
 | `ConnectClientError::Io`                                                                                                                  | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                                   |
 | OBLC `Rejected(CapacityExceeded)`                                                                                                         | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                                   |

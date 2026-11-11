@@ -305,22 +305,23 @@ node scripts/stage-local-runtime.mjs --wsl Ubuntu --output /tmp/orchbee-native-d
 node scripts/stage-local-runtime.mjs --output /private/tmp/orchbee-native-dev
 ```
 
-Then run the staged `orchbee` in an interactive terminal (`/tmp/orchbee-native-dev/orchbee` on
-Linux, `/private/tmp/orchbee-native-dev/orchbee` on macOS).
+Then run the staged Client, named by the environment stem, in an interactive terminal; the script
+prints its path, for example `/tmp/orchbee-native-dev/ob-dev-<16 lowercase hex>` on Linux.
 The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host from locked inputs,
 copies the canonical observation-adapters capsule as the cohort's lazily validated sidecar,
 and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
 Cargo build cache. This stages a development cohort without installing a system service.
 The binaries compile this checkout's development stem, `ob-dev-<16 lowercase hex>`, as their
-environment, so they keep their state under `~/.ob-dev-<16 lowercase hex>`; `--artifact-stem`
-selects `orchbee` or an `ob-test-` stem as on Windows. File names, sockets, and runtime directories
-keep the `orchbee` names in every environment until ORC-328.
+environment, name their files `ob-dev-<16 lowercase hex>`, `ob-dev-<16 lowercase hex>-server`
+and so on, and keep their state under `~/.ob-dev-<16 lowercase hex>`; `--artifact-stem` selects
+`orchbee` or an `ob-test-` stem as on Windows.
 
-The default Session is `/tmp/orchbee-native-<effective-uid>` on Linux and
-`/private/tmp/orchbee-native-<effective-uid>` on macOS. Development/tests can isolate a Session by
-setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory on an admitted local filesystem.
-The [shared runtime contract](../../crates/local-runtime/README.md) owns the 0700 directory,
+The default Session is `default`, kept in `<data root>/internal/runtime/default/`, with its sockets
+in `/tmp/<stem>-<effective-uid>/` on Linux and `/private/tmp/<stem>-<effective-uid>/` on macOS.
+Development/tests can isolate a Session by setting `ORCHBEE_RUNTIME_BASE` to another existing
+absolute directory. A folder that breaks a privacy rule stops startup with a message naming it and
+how to fix it. The [shared runtime contract](../../crates/local-runtime/README.md) owns the 0700 directory,
 0600 locks/sockets/immutable attempt marker, exact four-executable cohort with its declared
 adapters sidecar, shared 20-second deadline,
 and delayed 500-ms progress notice. Server + Worker readiness and first terminal frame readiness
@@ -344,7 +345,7 @@ geometry is not drawable — including a temporary zero-cell report — the Clie
 drawable geometry inside the original deadline instead of failing admission or inventing one;
 the [native startup wait](docs/native-startup-wait.md) owns that bounded waiting model, its
 cancel/timeout/fault outcomes, and its no-service-work guarantee. Linux startup has public process evidence;
-macOS Apple Silicon staging and TUI startup are verified against APFS/ACL admission; native Windows startup
+macOS Apple Silicon staging and TUI startup were verified before folders were admitted by behaviour; native Windows startup
 and ConPTY workflow evidence are described above. Release performance budgets remain unclaimed.
 
 ## Native Tab interactions
@@ -967,8 +968,7 @@ Before the command runs, every Windows invocation of these three commands that p
 
 A release build removes the entry points of features that are not yet polished and keeps their
 code; development and test builds offer every entry point. `orchbee_local_runtime::is_release()`,
-derived from the compiled environment stem, is the only owner of the decision. POSIX builds keep
-the release stem until ORC-328, so every POSIX build counts as release.
+derived from the compiled environment stem, is the only owner of the decision.
 
 | Surface                       | What a release withholds                                                                                                                                                                                                                                                                                     |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

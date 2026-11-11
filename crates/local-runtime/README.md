@@ -128,6 +128,20 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/runtime/<session>/`                        | A Session's runtime folder in every environment, unless `ORCHBEE_RUNTIME_BASE` names another base                                            |
 | `internal/tmp/`                                      | Scrollback documents the Terminal Host writes for an editor, removed a day after their last write                                            |
 
+On macOS and Linux each folder and file is admitted by how it behaves, never by file system name,
+and nothing is repaired: an item that breaks a rule is refused with an `AdmissionRefusal` that names
+it and the `RefusalReason`, which the TUI turns into a message saying how to fix it. The data root
+is opened through its canonical path, so it and its ancestors may be symbolic links; it must belong
+to the effective user and be writable by no one else, and a root Orchbee creates is set to 0700 and
+read back. A root under the home folder also needs that folder to be the effective user's, so
+`sudo` that keeps the invoking user's `HOME` is refused. `internal/` and every folder below it are
+real folders of the effective user with no access for anyone else. A file system that does not keep
+a mode Orchbee set, or refuses a file lock, is refused; Linux checks no ACL, and macOS refuses an
+extended ACL and a volume mounted to ignore ownership. `prepare_default_runtime_base` creates and
+admits the root, `internal/` and `internal/runtime/`, and returns the runtime base through the
+root's canonical path; `create_private_directory` does the same for a folder whose files a writer in
+another crate places.
+
 Release Orchbee once installed Capsules for every environment in `~/.orchbee/agent-observation-adapters`;
 `legacy_agent_observation_capsules` names that folder for release only.
 `agent_integration_may_have_been_enabled` answers `false` only when neither this environment's
@@ -150,7 +164,8 @@ older version, using Semantic Versioning precedence, so a refusal can name the n
 left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee` (its Session catalogs, checkpoints, TUI
 positions and audit log), `internal/session-catalog/`, `internal/native-sessions/` and
 `internal/tui-position/` of a development or test root, the `%TEMP%\orchbee-native-*` and
-`%TEMP%\orchbee-session-*` runtime folders, the `%TEMP%\orchbee-scrollback-*.txt` editor
+`%TEMP%\orchbee-session-*` runtime folders, the POSIX `/tmp/orchbee-native-<uid>` and
+`/private/tmp/orchbee-native-<uid>` runtime folders, the `%TEMP%\orchbee-scrollback-*.txt` editor
 documents, or the top level of a data root, nor the earlier plugin
 store layout (`internal/plugins/config/p-<digest>`, `state/p-<digest>`, and
 `managed/`); a registry written in that layout reads as invalid until it is deleted, after which
@@ -232,12 +247,13 @@ canonical path, with a lowercase drive letter on Windows, so one checkout's deve
 stems share a digest. The build script hashes the path as the build host's file system reports it;
 Node also applies NFC, which differs only for a path stored in decomposed form.
 
-On Windows, cohort file names derive from the stem, so Cargo's own `orchbee*.exe` outputs are never
-run as they are: tests and staging start a copy named by `CohortArtifact`. macOS and Linux compile
-the same stem, and default staging, `pnpm desktop`, and Desktop packaging pass the environment's
-stem, but cohort files, sockets, and runtime directories keep the `orchbee` names until ORC-328;
-`CohortArtifact::has_release_names` reports the names, while `is_release` reports the
-environment.
+Cohort file names derive from the stem on every platform, `<stem>`, `<stem>-server`,
+`<stem>-worker` and `<stem>-terminal-host`, with `.exe` on Windows, so Cargo's own `orchbee*`
+outputs are never run as they are: tests and staging start a copy named by `CohortArtifact`.
+Default staging, `pnpm desktop`, and Desktop packaging pass the environment's stem. macOS and Linux
+socket folders carry it too, so release, development, and test Sessions of one user never meet.
+`CohortArtifact::has_release_names` answers whether the cohort carries the release names, which
+`is_release` decides.
 
 `environment_stem` exposes the stem, and `environment_name` gives it as the handshake's
 `EnvironmentName`, which every negotiated connection compares with its peer's.
@@ -436,18 +452,19 @@ owns the record fields.
 ## Local startup model
 
 Bare Linux and macOS `orchbee` admit their inherited input/output TTY and validate geometry before
-runtime creation or process launch. The default per-user scope `orchbee-native-<effective-uid>` is
-under `/tmp` on Linux and `/private/tmp` on macOS; `ORCHBEE_RUNTIME_BASE` can select another
-existing absolute base for isolated development. Runtime directories must be owned by the effective user with mode 0700; lock files
+runtime creation or process launch. The Session is the inherited `ORCHBEE_RUNTIME_SCOPE` when this
+environment's managed terminal routes one, otherwise `default`. The runtime base is the routed
+`ORCHBEE_RUNTIME_BASE`, which must already exist, or `<data root>/internal/runtime`, which
+activation creates and admits by the [data root](#data-root) rules and names through the data
+root's canonical path. Runtime directories must be owned by the effective user with mode 0700; lock files
 are regular, single-link, owned files with mode 0600. Existing invalid paths are rejected, never
 repaired, followed through symlinks, unlinked, or replaced.
 
-The managed Linux boundary admits only ext4-family and tmpfs objects. Every opened final directory,
-cohort artifact, marker, and lock must have no access or default POSIX ACL: fd-based filesystem
-inspection and ACL queries reject every result except ENODATA absence. The macOS boundary admits
-only APFS objects and rejects every extended ACL through descriptor-anchored ACL inspection. Neither
-boundary strips ACLs. Overlayfs, XFS, btrfs, DrvFS, network filesystems, and other Unix targets are
-unclaimed.
+No file system is admitted or refused by type. A folder Orchbee creates is set with `fchmod` and
+read back, and a mode that does not stay refuses the file system; a lock it refuses with `ENOLCK`,
+`ENOTSUP` or `EOPNOTSUPP` refuses it too. Linux checks no POSIX ACL. macOS rejects every extended
+ACL through descriptor-anchored inspection and every volume mounted to ignore ownership, and strips
+nothing. Other Unix targets are unclaimed.
 First-creation concurrency assumes an umask that preserves owner bits (for example 0022 or 0077);
 a user-bit-restrictive umask may expose an incomplete directory and fails closed.
 
@@ -489,7 +506,8 @@ process's working directory in use, so an inherited one would block removing a W
 started Orchbee in.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
-and prepares launch facts before spawning one exact cohort Host in a private `host` directory.
+and prepares launch facts before spawning one exact cohort Host, which keeps its lock in a private
+`host` directory and binds its endpoint in the socket folder.
 Invalid authorization produces the existing typed result without a Host. The admitted dispatch
 and kernel survive Host startup; the Host handoff revalidates authorization. The absolute Host
 endpoint address is checked against the platform socket-address ABI before the `host` directory
@@ -508,10 +526,13 @@ SHA-256 payload digest of the observation-adapters capsule staged beside the exe
 value its `capsule.json` carries as `payloadSha256`. A manifest carrying any other `schemaVersion`,
 is incompatible; a `schemaVersion: 1` manifest missing a required member, carrying
 duplicated or unknown members, or declaring a malformed digest is an invalid manifest. Both fail
-closed through the existing typed rejection. The directory is effective-user-owned 0700. Files are
-regular, single-link, owned, and not writable by group/other; executables have an owner execute bit.
-Linux requires no POSIX ACL on the directory or opened files; macOS additionally requires APFS and
-no extended ACL on each opened object. Manifest and executables are opened relative to the verified
+closed through the existing typed rejection. Members name the roles; the staged files carry the
+environment stem (`<stem>`, `<stem>-server`, `<stem>-worker`, `<stem>-terminal-host`). The
+directory and files belong to the effective user or to root and are not writable by group or
+other, so a cohort installed by root is admitted as well as a staged one. Files are regular and
+single-link with no setuid, setgid or sticky bit; executables have an owner execute bit. macOS
+also requires no extended ACL on the directory and each opened file, on a volume that keeps
+ownership. Manifest and executables are opened relative to the verified
 directory with NOFOLLOW and CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all
 four executables, including on warm startup.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
@@ -527,14 +548,15 @@ integration consumer validates that directory privately and answers a typed unav
 result, so an absent or damaged sidecar never blocks Session startup or Agent reads.
 
 The exact cohort identity is lowercase SHA-256 of UTF-8 `orchbee-native-cohort-v1\n` followed,
-in the above fixed order, by each executable name, one NUL byte, its hexadecimal hash, and LF —
+in the above fixed order, by each staged executable name, one NUL byte, its hexadecimal hash, and LF —
 the four executables only; the adapters declaration is deliberately excluded so a payload bump does
 not churn admission identity.
-JSON key order is immaterial. Sibling paths come only from these fixed names. Missing, changed,
+JSON key order is immaterial. Sibling paths come only from `CohortArtifact` names. Missing, changed,
 mixed, malformed, or unsafe artifacts fail admission before activation. Explicit endpoint test
 modes retain their existing version cohort and do not acquire managed startup authority.
 
-The staging script builds and copies all four executables into a new private directory, copies the
+The staging script builds all four executables and copies them under the environment stem's names
+into a new private directory, copies the
 canonical `crates/agent-integration-writer/agent-observation-adapters` capsule verbatim to the
 sidecar directory, verifies its strict `capsule.json` members (`contractVersion` 1, a declared
 `payloadSha256`, the required payload entries, and a recomputed canonical digest equal to the
@@ -568,79 +590,82 @@ outside this contract.
 ## POSIX local Session rendezvous foundation
 
 The crate-private `rendezvous` module exposes mode-checked Unix rendezvous primitives to the
-Client, Server, and Worker. Installation composition
-must supply a stable `SessionScope`; cohort version and digest do not belong in that scope, so an
-update keeps one Session identity while release, local, and checkout-scoped development installations
-can remain distinct. `SessionScope` accepts 1 through 63 ASCII bytes in the canonical form
-`[a-z][a-z0-9]*(?:-[a-z0-9]+)*` and therefore cannot add a path separator, dot component, or
-platform-dependent encoding.
+Client, Server, and Worker. `SessionScope` is the Session name, under the one `SessionName` grammar
+every platform uses; cohort version and digest do not belong in it, so an update keeps one Session
+identity. The environment's stem keeps release, development, and test Sessions apart.
 
-For one trusted, existing, exactly normalized absolute per-user runtime base, the exact derived
-paths are:
+For one trusted, existing, exactly normalized absolute per-user runtime base, the derived paths are:
 
-| Role                  | Stable path                                                           |
-| --------------------- | --------------------------------------------------------------------- |
-| Scope directory       | `<runtime-base>/<site-scope>`                                         |
-| Activation lock       | `<runtime-base>/<site-scope>/activation.lock`                         |
-| Session lifetime lock | `<runtime-base>/<site-scope>/session-lifetime.lock`                   |
-| Client socket         | `<runtime-base>/<site-scope>/client.sock`                             |
-| Client pending name   | `<runtime-base>/<site-scope>/client-pending.sock`                     |
-| Worker socket         | `<runtime-base>/<site-scope>/worker.sock`                             |
-| Host scope            | `<runtime-base>/<site-scope>/host`                                    |
-| Host endpoint         | `<runtime-base>/<site-scope>/host/00000000000000000000000000000001.s` |
+| Role                       | Path                                                                 |
+| -------------------------- | -------------------------------------------------------------------- |
+| Scope directory            | `<runtime-base>/<session>`                                           |
+| Activation lock            | `<runtime-base>/<session>/activation.lock`                           |
+| Session lifetime lock      | `<runtime-base>/<session>/session-lifetime.lock`                     |
+| Host directory             | `<runtime-base>/<session>/host`, which holds the Host's lock         |
+| Socket folder              | `/tmp/<stem>-<euid>` on Linux, `/private/tmp/<stem>-<euid>` on macOS |
+| Client socket              | `<socket-folder>/<id>-client.sock`                                   |
+| Client pending name        | `<socket-folder>/<id>-pending.sock`                                  |
+| Worker socket              | `<socket-folder>/<id>-worker.sock`                                   |
+| Host endpoint              | `<socket-folder>/<id>-host.sock`                                     |
+| Agent observation endpoint | `<socket-folder>/<id>-agent.sock`                                    |
 
-The pending name is the transient pre-publish bind the Server renames to `client.sock`; the Host
-endpoint is the absolute address the Worker dials while the Host binds it relatively inside the
-`host` scope. The pending leaf, `host` scope, and endpoint filename are shared constants, and the
-derived paths are pure joins that answer even when the directories cannot be inspected — so every
-derived socket address can be budget-checked against the platform `sockaddr_un` capacity before any
-directory, marker, or process side effect.
+`<id>` is the first 32 hex digits of SHA-256 over `orchbee-posix-runtime-v1`, a NUL byte, the
+runtime base as activation names it, `/`, and the lowercase Session name. Every socket name thus
+has one length whatever the home folder, base, or Session name; the longest, with a 10-digit user
+ID, is 94 bytes, inside the 103 that macOS allows. The pending name is the transient pre-publish
+bind the Server renames onto the Client socket; the Host receives `<id>` and the socket folder as
+`--endpoint-id` and `--endpoint-directory`. The derived paths are pure joins that answer even when
+the folders cannot be inspected.
+
+The socket folder's parent must belong to root and carry the sticky bit. Preparation creates the
+socket folder as 0700 when it is missing; every open requires a real folder of the effective user
+with exact mode `0700`, and refuses anything else as `UnsafeSocketFolder` without repair. A
+validation finds no folder before an activation has created one. The Server holds a shared lock on
+the folder while the Session lives, so a temporary-file cleaner that honours locks leaves it alone.
+Nothing removes a socket another Session left behind.
 
 `ModeCheckedLocalSessionRendezvous` retains its mode-checked name for other Unix targets. Preparation
-creates only the scope directory when absent. Preparation and validation open `/` as the trusted
-root, then open every runtime-base component and the controlled scope descriptor-relatively with
-`O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC`. They neither canonicalize nor ask the operating system to
-normalize the supplied base. Apart from `/` itself, an accepted base has exactly one leading slash,
-one or more nonempty normal components separated by single slashes, no trailing slash, no `.` or
-`..` component, and no NUL byte. A malformed base is rejected before filesystem access beyond the
-trusted root; a symbolic-link or non-directory component is rejected at that component. The
-retained scope must be a directory owned by the effective UID with exact mode `0700`. A new scope
-is inspected without following its leaf, checked for directory type and effective-UID ownership,
-changed descriptor-relatively to `0700` before a permissions-dependent open, and then admitted only
-when the opened descriptor has the same device and inode. This reaches exact `0700` even when the
-process umask removes every requested permission, without changing the process umask. An existing
-wrong mode is rejected without repair.
+creates only the scope directory and socket folder when absent. Preparation and validation open `/`
+as the trusted root, then open every runtime-base component and the controlled scope
+descriptor-relatively with `O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC`. They neither canonicalize nor ask
+the operating system to normalize the supplied base. Apart from `/` itself, an accepted base has
+exactly one leading slash, one or more nonempty normal components separated by single slashes, no
+trailing slash, no `.` or `..` component, and no NUL byte. A malformed base is rejected before
+filesystem access beyond the trusted root; a symbolic-link or non-directory component is rejected at
+that component. The retained scope must be a directory owned by the effective UID with exact mode
+`0700`. A new scope is inspected without following its leaf, checked for directory type and
+effective-UID ownership, changed descriptor-relatively to `0700` before a permissions-dependent
+open, and then admitted only when the opened descriptor has the same device and inode and the mode
+reads back as set. This reaches exact `0700` even when the process umask removes every requested
+permission, without changing the process umask. An existing wrong mode is rejected without repair.
 
-Linux validates final objects against the admitted local-filesystem and POSIX ACL contract. macOS
-validates APFS and the absence of extended ACLs on its runtime base, scope, lock files, marker,
-cohort directory, and opened cohort artifacts.
+macOS also refuses an extended ACL or a volume that ignores ownership on its runtime base, scope,
+lock files, marker, cohort directory, and opened cohort artifacts.
 
 Each lock operation opens or creates only its fixed leaf through the retained directory descriptor
-with `O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`. The leaf must be a regular file owned by the effective
-UID with exact mode `0600` and exactly one hard link. An existing valid stale file is reused without
-truncation or replacement. `try_acquire_activation_lock` and `try_acquire_site_lifetime_lock` each perform one
-nonblocking exclusive kernel lock attempt and return either an owned guard or `Contended`; they do
-not wait, retry, or infer process health. File creation and advisory-lock acquisition are separate:
-a caller returning `Contended` may have created and normalized a previously missing durable lock
-inode before another descriptor won the lock. A contended attempt never truncates, replaces,
-unlinks, or changes the ownership of an existing inode, and never repairs a pre-existing invalid
-entry. Dropping a guard releases only its advisory lock. The runtime directory, durable lock files,
-socket paths, and any entries at those paths are never removed by this module.
+with `O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`; a file system that refuses the lock is
+refused. The leaf must be a regular file owned by the effective UID with exact mode `0600` and
+exactly one hard link. An existing valid stale file is reused without truncation or replacement.
+`try_acquire_activation_lock` and `try_acquire_session_lifetime_lock` each perform one nonblocking
+exclusive kernel lock attempt and return either an owned guard or `Contended`; they do not wait,
+retry, or infer process health. File creation and advisory-lock acquisition are separate: a caller
+returning `Contended` may have created and normalized a previously missing durable lock inode before
+another descriptor won the lock. A contended attempt never truncates, replaces, unlinks, or changes
+the ownership of an existing inode, and never repairs a pre-existing invalid entry. Dropping a guard
+releases only its advisory lock. The runtime directory, durable lock files, socket paths, and any
+entries at those paths are never removed by this module.
 
 `observe_*` entry probes expose the same finite names to read-only diagnostics: a
 descriptor-relative `fstatat` with `AT_SYMLINK_NOFOLLOW` answers each entry's raw kind,
-ownership, mode, size, and link count — the caller owns every verdict. `observe_host_endpoint`
-traverses into `host/` only after the parent itself validates as an owned directory and refuses
-rather than follows anything else. `observe_site_lifetime_lock` never creates the leaf: only an
-entry already stat-checked as an owned regular `0600` single-link file is opened, probed with one
-`try_lock`, and released on the same descriptor — `Held` is a lock fact at that instant, never a
-process claim. No observation connects, creates, writes, unlinks, repairs, or infers process
-health.
+ownership, mode, size, and link count — the caller owns every verdict. Socket probes look in the
+admitted socket folder and answer `Absent` when none exists. `observe_session_lifetime_lock` never
+creates the leaf: only an entry already stat-checked as an owned regular `0600` single-link file is
+opened, probed with one `try_lock`, and released on the same descriptor — `Held` is a lock fact at
+that instant, never a process claim. No observation connects, creates, writes, unlinks, repairs, or
+infers process health.
 
-The primitive remains mode-checked on other Unix systems. Linux adds the restricted-filesystem
-and ACL-absence boundary above before directory, lock, marker, or cohort admission; socket metadata
-and same-user peer proof are enforced by its managed consumers. Client, Server, and Worker now
-share this crate, and Server owns the lifetime guard. The primitive does not itself select
+Socket metadata and same-user peer proof are enforced by the managed consumers. Client, Server, and
+Worker share this crate, and Server owns the lifetime guard. The primitive does not itself select
 application startup policy, retry, remove stale endpoints, or grant recovery authority.
 
 ### Modeling and evidence
@@ -651,13 +676,13 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 | Inputs       | A trusted existing exactly normalized absolute base, canonical scope, effective UID, and potentially invalid directory, lock, marker or socket entries.                                                                                                                                                                                               |
 | Data         | Stable paths, retained scope descriptor, owned advisory-lock guards, and an immutable empty attempt marker. No PID or process-health inference.                                                                                                                                                                                                       |
 | Outputs      | Validated rendezvous or typed failure; Acquired/Contended lock outcome; marker and socket existence with metadata validation. Path getters perform no I/O.                                                                                                                                                                                            |
-| Invariants   | Descriptor-relative no-follow traversal; exact final type, owner, mode and regular-file link count; new directory identity matches its inspected inode. Linux and macOS final objects pass their respective restricted-filesystem and ACL-absence checks. Existing invalid entries are never repaired or removed. Guard drop only releases its lock.  |
+| Invariants   | Descriptor-relative no-follow traversal; exact final type, owner, mode and regular-file link count; new directory identity matches its inspected inode and its mode reads back. macOS final objects have no extended ACL on a volume that keeps ownership. Existing invalid entries are never repaired or removed. Guard drop only releases its lock. |
 | Decisions    | Normalized path and scope syntax, create-versus-existing metadata, lock kind, one nonblocking lock outcome, and exclusive marker creation determine results.                                                                                                                                                                                          |
 | Model        | Atomic POSIX primitives without application retry or process observation. LocalSessionStartup composes these facts with Client/Server/Worker state; Client implementation tests exercise the connect-first behavior.                                                                                                                                  |
 | Transitions  | Missing scope/lock becomes a validated durable inode. Lock creation and lock acquisition may have different winners. Guard acquisition/drop changes only lock ownership. An absent marker can be committed once and is never cleared.                                                                                                                 |
-| Dependencies | Safe nix/rustix filesystem wrappers and File::try_lock; Linux fd-based filesystem/POSIX ACL queries and macOS APFS/extended ACL inspection. No child-process or service dependency in rendezvous.                                                                                                                                                     |
+| Dependencies | Safe nix filesystem wrappers and File::try_lock; macOS mount-flag and extended ACL inspection. No child-process or service dependency in rendezvous.                                                                                                                                                                                                  |
 | Ownership    | This crate owns derivation and admission. Client chooses the development base/scope and owns the activation guard and marker commit; Server owns the lifetime guard.                                                                                                                                                                                  |
-| Verification | Scope/path partitions, symlink/hardlink/FIFO rejection, wrong owner/mode, restrictive-umask initialization, concurrent owner-preserving creation, stale inode preservation, contention/reacquisition, marker exclusivity and socket impostors. Linux ACL tests retain exact 0700/0600 modes while adding named access ACLs or directory default ACLs. |
+| Verification | Scope/path partitions, symlink/hardlink/FIFO rejection, wrong owner/mode, restrictive-umask initialization, concurrent owner-preserving creation, stale inode preservation, contention/reacquisition, marker exclusivity, socket impostors, and the longest socket name across every legal stem and a 10-digit user ID.                               |
 | Limits       | One effective user; wrong-owner tests inject the expected UID. Kernel metadata and advisory locks are trusted. Concurrent creation requires owner-preserving umask. Durable means no unlink/truncate, not fsync. Cooperative deadlines exclude kernel stalls and process suspension. The model does not prove filesystem or kernel semantics.         |
 
 ## Windows refinement

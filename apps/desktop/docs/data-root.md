@@ -67,12 +67,9 @@ cannot override that profile; `ORCHBEE_HOME` moves only the folder. Main sets El
 controls both disk state and lock identity. The same checkout therefore admits one Dev instance,
 while Dev, Test, Release, and different development checkouts may run concurrently.
 
-On Windows the bundled Client is compiled with the profile's artifact stem and derives the same
-root, and an inherited `ORCHBEE_HOME` names it for both, so Main passes its environment through
-unchanged. On macOS and Linux, which keep the release names until ORC-328, a development or test
-Main runs `orchbee` with `ORCHBEE_HOME` set to its data root, so a Session it starts keeps this
-root's configuration and preferences rather than the installed release's. A release runs `orchbee`
-with the environment unchanged. Main creates no configuration file.
+The bundled Client is compiled with the profile's artifact stem and derives the same root, and an
+inherited `ORCHBEE_HOME` names it for both, so Main passes its environment through unchanged on
+every platform. Main creates no configuration file.
 
 On POSIX, Main creates product-owned data directories with owner-only access. The renderer receives
 no data-root path, enumeration, location override, or generic filesystem capability. Tests use an
