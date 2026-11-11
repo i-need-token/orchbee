@@ -1,9 +1,14 @@
+import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { Button, Switch } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { AgentIntegrationManagementControl } from '../../../agent-integration-management';
-import { SettingsSection } from '../settings-section/SettingsSection';
-import { TerminalSettingsRow } from '../terminal-settings-row/TerminalSettingsRow';
+import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
+import { SettingsGroup } from '../settings-group/SettingsGroup';
+import { SETTINGS_LIST_FILTER_THRESHOLD } from '../../constants/settings-list-filter';
+import { SettingsListFilter } from '../settings-list-filter/SettingsListFilter';
+import { SettingsListFilterEmpty } from '../settings-list-filter-empty/SettingsListFilterEmpty';
+import { SettingsRow } from '../settings-row/SettingsRow';
 import { useAgentIntegrationSettings } from './hooks/useAgentIntegrationSettings';
 import type {
 	AgentIntegrationSettingsRowView,
@@ -13,67 +18,90 @@ import styles from './AgentIntegrationSettings.module.css';
 
 export interface AgentIntegrationSettingsProps {
 	readonly control: AgentIntegrationManagementControl;
+	readonly query: string;
 }
 
+/** Agent integrations as one list card: each Agent's state as its description and a switch. */
 export function AgentIntegrationSettings({
 	control,
+	query,
 }: AgentIntegrationSettingsProps): React.ReactNode {
+	const intl = useOrchbeeIntl();
 	const view = useAgentIntegrationSettings(control);
+	const [filter, setFilter] = React.useState('');
+	const searching = query.trim() !== '';
+	const filterVisible = !searching && view.rows.length > SETTINGS_LIST_FILTER_THRESHOLD;
+	const rows = filterVisible
+		? view.rows.filter((row) =>
+				matchesSettingsQuery(filter, [row.agentName, row.status], intl.locale),
+			)
+		: view.rows;
 	return (
-		<div className={styles['root']} data-slot='agent-integration-settings'>
-			<div className={styles['toolbar']}>
-				<p className={styles['disclosure']}>{view.disclosure}</p>
-				<Button disabled={view.refreshDisabled} variant='outline' onClick={view.onRefresh}>
+		<SettingsGroup
+			action={
+				<Button
+					disabled={view.refreshDisabled}
+					size='xs'
+					type='button'
+					variant='ghost'
+					onClick={view.onRefresh}
+				>
 					{view.refreshLabel}
 				</Button>
-			</div>
-			{view.failure === null ? null : (
-				<p className={styles['failure']} role='alert'>
+			}
+			description={intl.formatMessage(
+				terminalSettingsMessages.pageGroupAgentIntegrationsDescription,
+			)}
+			label={intl.formatMessage(terminalSettingsMessages.pageGroupAgentIntegrations)}
+		>
+			{searching || view.failure === null ? null : (
+				<p className={styles['failure']} data-settings-row role='alert'>
 					{view.failure}
 				</p>
 			)}
-			<SettingsSection title={view.localSection} visible>
-				{view.rows.map((row) => (
-					<React.Fragment key={row.integrationId}>
-						<TerminalSettingsRow
-							description={row.description}
-							label={row.agentName}
-							settingId={row.settingId}
-							status={
-								<span className={styles['status']} data-tone={row.statusTone}>
-									{row.status}
-								</span>
-							}
-							visible
+			{filterVisible ? (
+				<SettingsListFilter
+					placeholder={intl.formatMessage(terminalSettingsMessages.pageFilterAgents)}
+					shown={rows.length}
+					total={view.rows.length}
+					value={filter}
+					onChange={setFilter}
+				/>
+			) : null}
+			{filterVisible && rows.length === 0 ? <SettingsListFilterEmpty /> : null}
+			{rows.map((row) => (
+				<React.Fragment key={row.integrationId}>
+					<SettingsRow
+						description={row.status}
+						descriptionTone={row.statusTone}
+						label={row.agentName}
+						query={query}
+						searchTerms={[row.description]}
+						settingId={row.settingId}
+					>
+						<Button
+							aria-label={row.explainLabel}
+							className={styles['explain']}
+							disabled={row.explainDisabled}
+							size='xs'
+							type='button'
+							variant='ghost'
+							onClick={row.onExplain}
 						>
-							<div className={styles['controls']}>
-								<Button
-									aria-label={row.explainLabel}
-									disabled={row.explainDisabled}
-									size='sm'
-									variant='ghost'
-									onClick={row.onExplain}
-								>
-									{view.explainText}
-								</Button>
-								<Switch
-									aria-busy={row.pending || undefined}
-									aria-label={row.toggleLabel}
-									checked={row.checked}
-									disabled={row.disabled}
-									onCheckedChange={row.onCheckedChange}
-								/>
-							</div>
-						</TerminalSettingsRow>
-						{row.diagnosis === null ? null : <AgentIntegrationDiagnosis row={row} view={view} />}
-					</React.Fragment>
-				))}
-			</SettingsSection>
-			<section className={styles['remote']}>
-				<h2 className={styles['remoteTitle']}>{view.remoteTitle}</h2>
-				<p className={styles['remoteDescription']}>{view.remoteDescription}</p>
-			</section>
-		</div>
+							{view.explainText}
+						</Button>
+						<Switch
+							aria-busy={row.pending || undefined}
+							aria-label={row.toggleLabel}
+							checked={row.checked}
+							disabled={row.disabled}
+							onCheckedChange={row.onCheckedChange}
+						/>
+					</SettingsRow>
+					{row.diagnosis === null ? null : <AgentIntegrationDiagnosis row={row} view={view} />}
+				</React.Fragment>
+			))}
+		</SettingsGroup>
 	);
 }
 
@@ -82,7 +110,7 @@ interface AgentIntegrationDiagnosisProps {
 	readonly view: AgentIntegrationSettingsView;
 }
 
-/** The read-only diagnosis of one Agent, shown under its row until closed. */
+/** The read-only diagnosis of one Agent, shown under its line until closed. */
 function AgentIntegrationDiagnosis({ row, view }: AgentIntegrationDiagnosisProps): React.ReactNode {
 	const { diagnosis } = row;
 	if (diagnosis === null) return null;
@@ -95,7 +123,7 @@ function AgentIntegrationDiagnosis({ row, view }: AgentIntegrationDiagnosisProps
 		>
 			<div className={styles['diagnosisHeader']}>
 				<h3 className={styles['diagnosisTitle']}>{row.diagnosisTitle}</h3>
-				<Button size='sm' variant='ghost' onClick={view.onCloseDiagnosis}>
+				<Button size='xs' type='button' variant='ghost' onClick={view.onCloseDiagnosis}>
 					{view.closeDiagnosisLabel}
 				</Button>
 			</div>

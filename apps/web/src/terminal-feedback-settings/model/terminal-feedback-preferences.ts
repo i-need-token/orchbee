@@ -21,6 +21,3 @@ export interface TerminalFeedbackPreferences {
 	readonly completionReminderMode: TerminalCompletionReminderMode;
 	readonly soundEnabled: boolean;
 }
-
-export const MINIMUM_COMPLETION_REMINDER_SECONDS = 1;
-export const MAXIMUM_COMPLETION_REMINDER_SECONDS = 3600;

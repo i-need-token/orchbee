@@ -1,0 +1,48 @@
+.fontInput {
+	width: var(--ob-ref-container-3xs);
+	height: var(--ob-ref-size-control-sm);
+}
+
+.unitField {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
+}
+
+.numberInput {
+	width: var(--ob-ref-space-16);
+	height: var(--ob-ref-size-control-sm);
+	font-variant-numeric: tabular-nums;
+}
+
+.unit {
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.colorField {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.colorPicker {
+	box-sizing: border-box;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	padding: var(--ob-ref-space-0-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: transparent;
+}
+
+.hexInput {
+	width: calc(var(--ob-ref-space-16) + var(--ob-ref-space-6));
+	height: var(--ob-ref-size-control-sm);
+	font: var(--ob-sys-typography-code-sm);
+}
+
+.error {
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-label-sm);
+}

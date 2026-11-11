@@ -54,7 +54,6 @@ src/locales/
 │   ├── keyboard-shortcuts.ts
 │   ├── messages.ts
 │   ├── projected-terminal.ts
-│   ├── terminal-settings-catalog.ts
 │   ├── terminal-settings.ts
 │   └── workbench.ts
 └── zh-CN/
@@ -64,24 +63,11 @@ src/locales/
 	├── keyboard-shortcuts.ts
 	├── messages.ts
 	├── projected-terminal.ts
-	├── terminal-settings-catalog.ts
 	├── terminal-settings.ts
 	└── workbench.ts
 ```
 
-The application-routing domain owns unavailable-address and navigation-recovery copy. The Workbench domain owns shared navigation and layout copy. The projected-terminal domain owns the transport-independent projected terminal, find, selection, copy, and link experience. The terminal-settings domain owns Settings-overlay behavior, persistence, and Browser-access-entry copy; terminal-settings-catalog owns the stable navigation taxonomy and explicitly noninteractive future-settings preview. The keyboard-shortcuts domain owns shortcut recording, scope, source, conflict, and local-persistence copy. The Desktop-window domain owns native window-state actions and their availability guidance. The Desktop-tray domain owns the Windows notification-area icon's status line, tooltip, menu, and one-time notice. Add each future product domain beneath both locale directories and export the matching descriptors in the same change. Runtime English and Simplified Chinese catalog values never share an authored file. Directory names use the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable parity across every shipped locale.
-
-Large typed catalogs expose descriptors through their domain group without moving translated values
-into feature code:
-
-```ts
-import { terminalSettingsCatalogMessages, useOrchbeeIntl } from '@orchbee/i18n';
-
-const intl = useOrchbeeIntl();
-const label = intl.formatMessage(
-	terminalSettingsCatalogMessages.get('terminal.settings.catalog.categories.general.title'),
-);
-```
+The application-routing domain owns unavailable-address and navigation-recovery copy. The Workbench domain owns shared navigation and layout copy. The projected-terminal domain owns the transport-independent projected terminal, find, selection, copy, and link experience. The terminal-settings domain owns the Settings page's categories, groups, rows, persistence, and Browser-access-entry copy. The keyboard-shortcuts domain owns shortcut recording, scope, source, conflict, and local-persistence copy. The Desktop-window domain owns native window-state actions and their availability guidance. The Desktop-tray domain owns the Windows notification-area icon's status line, tooltip, menu, and one-time notice. Add each future product domain beneath both locale directories and export the matching descriptors in the same change. Runtime English and Simplified Chinese catalog values never share an authored file. Directory names use the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable parity across every shipped locale.
 
 ## Product language
 

@@ -1,17 +1,17 @@
-import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../src/terminal-settings/model/terminal-appearance-preferences';
 import {
 	UserLaunchProfileIdSchema,
 	type UserLaunchProfileCatalog,
 } from '@orchbee/workbench-client-protocol';
+import type * as React from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
-import { TerminalSettingsController } from '../src/terminal-settings';
+import {
+	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	TerminalSettingsController,
+} from '../src/terminal-settings';
 import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
-import {
-	TerminalFeedbackSettingsController,
-	type TerminalNotificationPermission,
-} from '../src/terminal-feedback-settings';
+import { TerminalFeedbackSettingsController } from '../src/terminal-feedback-settings';
 import { TerminalSettingsSurface } from '../src/terminal-settings-surface';
 import {
 	TerminalLaunchProfileSnapshotSchema,
@@ -86,65 +86,91 @@ const meta = {
 export default meta;
 
 type Story = StoryObj<typeof meta>;
+type TerminalSettingsCategory = NonNullable<
+	React.ComponentProps<typeof TerminalSettingsSurface>['initialCategory']
+>;
 
-export const EnglishLight: Story = {
-	args: {
-		agentIntegrationManagementControl: englishAgentIntegrations,
-		applicationLocaleController: englishApplicationLocaleController,
-		controller: englishController,
-		keyboardShortcutController: englishKeyboardController,
-		keyboardShortcutPlatform: 'apple',
-		macosTerminalInputSettingsController: englishMacosInputController,
-		onRequestClose: () => englishController.close(),
+const englishArgs = {
+	agentIntegrationManagementControl: englishAgentIntegrations,
+	applicationLocaleController: englishApplicationLocaleController,
+	controller: englishController,
+	keyboardShortcutController: englishKeyboardController,
+	keyboardShortcutPlatform: 'apple',
+	macosTerminalInputSettingsController: englishMacosInputController,
+	onRequestClose: () => englishController.close(),
+	terminalFeedbackSettingsController: englishFeedbackController,
+	terminalInteractionSettingsController: englishInteractionController,
+	terminalLaunchProfileClient: englishTerminalLaunchProfiles,
+	terminalDefaultSettingsControl: englishTerminalDefaults,
+} satisfies Story['args'];
 
-		terminalFeedbackSettingsController: englishFeedbackController,
-		terminalLaunchProfileClient: englishTerminalLaunchProfiles,
-		terminalInteractionSettingsController: englishInteractionController,
-		terminalDefaultSettingsControl: englishTerminalDefaults,
-	},
+const chineseArgs = {
+	agentIntegrationManagementControl: chineseAgentIntegrations,
+	applicationLocaleController: chineseApplicationLocaleController,
+	controller: chineseController,
+	keyboardShortcutController: chineseKeyboardController,
+	keyboardShortcutPlatform: 'standard',
+	onRequestClose: () => chineseController.close(),
+	terminalFeedbackSettingsController: chineseFeedbackController,
+	terminalInteractionSettingsController: chineseInteractionController,
+	terminalLaunchProfileClient: chineseTerminalLaunchProfiles,
+	terminalDefaultSettingsControl: chineseTerminalDefaults,
+} satisfies Story['args'];
+
+function englishLight(initialCategory: TerminalSettingsCategory): Story {
+	return {
+		args: { ...englishArgs, initialCategory },
+		decorators: [
+			(Story) => (
+				<div data-theme='light' style={{ height: '100vh', position: 'relative' }}>
+					<ApplicationLocaleProvider source={englishApplicationLocaleController}>
+						<Story />
+					</ApplicationLocaleProvider>
+				</div>
+			),
+		],
+	};
+}
+
+function chineseDark(initialCategory: TerminalSettingsCategory): Story {
+	return {
+		args: { ...chineseArgs, initialCategory },
+		decorators: [
+			(Story) => (
+				<div data-theme='dark' style={{ height: '100vh', position: 'relative' }}>
+					<ApplicationLocaleProvider source={chineseApplicationLocaleController}>
+						<Story />
+					</ApplicationLocaleProvider>
+				</div>
+			),
+		],
+	};
+}
+
+export const EnglishGeneral: Story = {
+	...englishLight('general'),
 	parameters: {
 		docs: {
 			description: {
 				story:
-					'Inspect the centered bounded shell, quiet grouped rail with subdued localized labels, neutral selection, compact content measure, direct setting rows with hairline separators, and stable trailing controls. Switch Display language to verify immediate mounted-copy replacement, then inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage local system and Fish launches, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Open Appearance and move through the Light theme and Dark theme pickers with the arrow keys; each lists the shipped themes of its polarity, with a swatch of canvas, text, and ANSI 1-5, and Enter commits while Escape restores. Type language or font to see global General or Text results without blanking the current page, then activate a setting to move focus to its stable destination. Resize below the medium breakpoint to verify one-pane category/content navigation. Open Keyboard shortcuts to search localized action copy or current Apple chords and use Record keys as an exact discovery-only lookup. Capability-backed categories remain visible while roadmap-only categories and controls are absent; Shell integration explains automatic Desktop scope and exact manual fallbacks, and Remote development remains read-only.',
+					'Settings is a full page: Back and Escape return to the workbench, search filters every category, and the seven categories open centered cards of rows with one control each. Change a setting to see its dot and Restore default action; type in search to see matches grouped under category names.',
 			},
 		},
 	},
-	decorators: [
-		(Story) => (
-			<div data-theme='light' style={{ height: '100vh', position: 'relative' }}>
-				<ApplicationLocaleProvider source={englishApplicationLocaleController}>
-					<Story />
-				</ApplicationLocaleProvider>
-			</div>
-		),
-	],
 };
-
-export const ChineseDarkCustom: Story = {
-	args: {
-		agentIntegrationManagementControl: chineseAgentIntegrations,
-		applicationLocaleController: chineseApplicationLocaleController,
-		controller: chineseController,
-		keyboardShortcutController: chineseKeyboardController,
-		keyboardShortcutPlatform: 'standard',
-		onRequestClose: () => chineseController.close(),
-
-		terminalFeedbackSettingsController: chineseFeedbackController,
-		terminalLaunchProfileClient: chineseTerminalLaunchProfiles,
-		terminalInteractionSettingsController: chineseInteractionController,
-		terminalDefaultSettingsControl: chineseTerminalDefaults,
-	},
-	decorators: [
-		(Story) => (
-			<div data-theme='dark' style={{ height: '100vh', position: 'relative' }}>
-				<ApplicationLocaleProvider source={chineseApplicationLocaleController}>
-					<Story />
-				</ApplicationLocaleProvider>
-			</div>
-		),
-	],
-};
+export const EnglishAppearance: Story = englishLight('appearance');
+export const EnglishThemes: Story = englishLight('themes');
+export const EnglishTerminal: Story = englishLight('terminal');
+export const EnglishNotifications: Story = englishLight('notifications');
+export const EnglishKeyboard: Story = englishLight('keyboard');
+export const EnglishAgents: Story = englishLight('agents');
+export const ChineseGeneral: Story = chineseDark('general');
+export const ChineseAppearanceCustomColors: Story = chineseDark('appearance');
+export const ChineseThemes: Story = chineseDark('themes');
+export const ChineseTerminal: Story = chineseDark('terminal');
+export const ChineseNotifications: Story = chineseDark('notifications');
+export const ChineseKeyboard: Story = chineseDark('keyboard');
+export const ChineseAgents: Story = chineseDark('agents');
 
 function createStoryApplicationLocaleController(
 	locale: 'en-US' | 'zh-CN',
@@ -190,8 +216,7 @@ function createFeedbackStoryController(
 		// Stories ask for no notification permission.
 		notificationCapability: {
 			permission: () => 'unsupported',
-			requestPermission: (): Promise<TerminalNotificationPermission> =>
-				Promise.resolve('unsupported'),
+			requestPermission: () => Promise.resolve<'unsupported'>('unsupported'),
 			show: () => false,
 		},
 		userPreferences,

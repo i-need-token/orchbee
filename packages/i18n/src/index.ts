@@ -12,7 +12,6 @@ export {
 	projectedTerminalMessages,
 	sessionConnectionMessages,
 	terminalSettingsMessages,
-	terminalSettingsCatalogMessages,
 	workbenchMessages,
 	workbenchTabMessages,
 } from './descriptors';

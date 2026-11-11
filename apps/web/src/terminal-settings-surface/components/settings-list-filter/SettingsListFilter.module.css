@@ -1,0 +1,19 @@
+.root {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
+}
+
+.input {
+	height: var(--ob-ref-size-control-navigation);
+	flex: 1;
+}
+
+.count {
+	min-width: var(--ob-ref-space-10);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}

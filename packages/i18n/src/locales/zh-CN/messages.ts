@@ -14,7 +14,6 @@ import { zhCNProjectedTerminalMessages } from './projected-terminal';
 import { zhCNSessionConnectionMessages } from './session-connection';
 
 import { zhCNTerminalSettingsMessages } from './terminal-settings';
-import { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { zhCNWorkbenchMessages } from './workbench';
 
 export const zhCNMessages = {
@@ -33,6 +32,5 @@ export const zhCNMessages = {
 	...zhCNSessionConnectionMessages,
 
 	...zhCNTerminalSettingsMessages,
-	...zhCNTerminalSettingsCatalogMessages,
 	...zhCNWorkbenchMessages,
 } as const satisfies Readonly<Record<OrchbeeMessageId, string>>;

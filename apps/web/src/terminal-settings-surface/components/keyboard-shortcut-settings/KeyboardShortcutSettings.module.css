@@ -1,80 +1,31 @@
-.root {
+.filter {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-4);
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
 }
 
-.warning {
-	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
-	border-radius: var(--ob-ref-radius-ui-md);
-	background: var(--ob-sys-color-status-warning-surface);
-	color: var(--ob-sys-color-status-warning-text);
-}
-
-.discovery {
+.filterControls {
 	display: flex;
-	flex-direction: column;
-	gap: var(--ob-ref-space-2);
-}
-
-.searchControls {
-	display: grid;
-	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) auto;
 	align-items: center;
 	gap: var(--ob-ref-space-2);
 }
 
-.searchStatus {
-	margin: var(--ob-ref-space-0);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-label-sm);
-}
-
-.empty {
-	padding: var(--ob-ref-space-8) var(--ob-ref-space-4);
-	border-radius: var(--ob-ref-radius-ui-lg);
-	background: var(--ob-sys-color-surface-subtle);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-body-sm);
-	text-align: center;
-}
-
-.list {
-	overflow: hidden;
-	border-radius: var(--ob-ref-radius-ui-lg);
-	background: var(--ob-sys-color-surface-subtle);
-}
-
-.row {
-	display: grid;
-	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) auto;
-	align-items: center;
-	gap: var(--ob-ref-space-4);
-	min-height: calc(var(--ob-ref-space-12) + var(--ob-ref-space-2));
-	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
-}
-
-.row + .row {
-	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-}
-
-.copy {
-	display: flex;
+.filterInput {
 	min-width: var(--ob-ref-space-0);
-	flex-direction: column;
-	gap: var(--ob-ref-space-1);
+	flex: 1;
 }
 
-.actionName {
-	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-body-sm);
+.count {
+	min-width: var(--ob-ref-space-10);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
 }
 
-.metadata {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--ob-ref-space-1);
+.filterStatus {
+	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
 }
@@ -89,38 +40,24 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 
-.controls {
-	display: flex;
+.recorder {
+	display: inline-flex;
+	min-width: var(--ob-ref-space-16);
+	min-height: var(--ob-ref-size-control-xs);
 	align-items: center;
 	justify-content: flex-end;
-	gap: var(--ob-ref-space-2);
-}
-
-.source {
-	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-2);
-	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-canvas);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-label-xs);
-}
-
-.source[data-source='custom'] {
-	background: var(--ob-sys-color-surface-selected);
-	color: var(--ob-sys-color-text-primary);
-}
-
-.recorder {
-	min-width: calc(var(--ob-ref-space-16) + var(--ob-ref-space-4));
-	min-height: var(--ob-ref-size-control-sm);
-	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-ui-md);
+	/* The key cap, not the hover box around it, lines up with the other rows' controls. */
+	margin-inline-end: calc(-1 * (var(--ob-ref-space-1) + var(--ob-ref-border-width-default)));
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-1);
+	border: var(--ob-ref-border-width-default) solid transparent;
+	border-radius: var(--ob-ref-radius-ui-sm);
 	outline: none;
-	background: var(--ob-sys-color-surface-canvas);
+	background: transparent;
 	color: var(--ob-sys-color-text-primary);
 }
 
 .recorder:hover {
+	border-color: var(--ob-sys-color-border-default);
 	background: var(--ob-sys-color-surface-hovered);
 }
 
@@ -132,22 +69,4 @@
 .recorder[data-recording='true'] {
 	border-color: var(--ob-sys-color-border-focus);
 	box-shadow: 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
-}
-
-@media (width <= 48rem) {
-	.searchControls {
-		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
-	}
-
-	.searchControls > :global([data-slot='button']) {
-		justify-self: start;
-	}
-
-	.row {
-		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
-	}
-
-	.controls {
-		justify-content: flex-start;
-	}
 }

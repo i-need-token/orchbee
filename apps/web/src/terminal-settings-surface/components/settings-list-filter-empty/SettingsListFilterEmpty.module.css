@@ -1,0 +1,5 @@
+.root {
+	padding: var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}

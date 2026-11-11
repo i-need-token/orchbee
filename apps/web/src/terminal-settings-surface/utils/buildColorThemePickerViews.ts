@@ -4,8 +4,8 @@ import { resolveTerminalColorTheme, type TerminalColorTheme } from '@orchbee/ter
 import type { TerminalAppearancePreferences } from '../../terminal-settings';
 import { COLOR_THEME_NAME_MESSAGES } from '../constants/color-theme-names';
 import type {
+	TerminalColorThemeListView,
 	TerminalColorThemeOptionView,
-	TerminalColorThemePickerView,
 } from '../types/terminal-settings-surface';
 
 type Polarity = TerminalColorTheme['polarity'];
@@ -17,46 +17,56 @@ interface BuildColorThemePickerViewsOptions {
 		TerminalAppearancePreferences,
 		'applicationTheme' | 'darkTheme' | 'lightTheme'
 	>;
+	/** Whether the operating system asks for dark appearance now. */
+	readonly systemDark: boolean;
 	readonly onCommit: (polarity: Polarity, themeId: string) => void;
 	readonly onPreview: (polarity: Polarity, themeId: string | null) => void;
 }
 
-const SLOT_MESSAGES = {
+const LIST_MESSAGES = {
 	dark: {
-		description: terminalSettingsMessages.colorThemeDarkDescription,
-		label: terminalSettingsMessages.colorThemeDarkLabel,
-		notice: terminalSettingsMessages.colorThemeDarkSystemNotice,
+		label: terminalSettingsMessages.pageGroupDarkTheme,
+		note: terminalSettingsMessages.pageThemesAppliesDark,
 	},
 	light: {
-		description: terminalSettingsMessages.colorThemeLightDescription,
-		label: terminalSettingsMessages.colorThemeLightLabel,
-		notice: terminalSettingsMessages.colorThemeLightSystemNotice,
+		label: terminalSettingsMessages.pageGroupLightTheme,
+		note: terminalSettingsMessages.pageThemesAppliesLight,
 	},
 } as const;
 
 /**
- * The Light theme and Dark theme pickers. Each lists the themes of its polarity and marks the
- * slot's effective theme, so an id this build does not ship shows the Orchbee theme it resolves to.
+ * The Light theme and Dark theme lists. Each lists the themes of its polarity and marks the slot's
+ * effective theme, so an id this build does not ship shows the Orchbee theme it resolves to. The
+ * list the app appearance shows now is in use; under a fixed appearance the other list explains
+ * when it would apply.
  */
 export function buildColorThemePickerViews({
 	colorThemes,
 	formatMessage,
 	preferences,
+	systemDark,
 	onCommit,
 	onPreview,
-}: BuildColorThemePickerViewsOptions): readonly TerminalColorThemePickerView[] {
+}: BuildColorThemePickerViewsOptions): readonly TerminalColorThemeListView[] {
+	const { applicationTheme } = preferences;
+	const activePolarity: Polarity =
+		applicationTheme === 'system' ? (systemDark ? 'dark' : 'light') : applicationTheme;
 	return (['light', 'dark'] as const).map((polarity) => {
-		const messages = SLOT_MESSAGES[polarity];
+		const messages = LIST_MESSAGES[polarity];
 		const slot = polarity === 'dark' ? preferences.darkTheme : preferences.lightTheme;
 		return {
-			description: formatMessage(messages.description),
+			inUse: polarity === activePolarity,
 			label: formatMessage(messages.label),
-			notice: preferences.applicationTheme === 'system' ? formatMessage(messages.notice) : null,
+			note:
+				applicationTheme !== 'system' && polarity !== activePolarity
+					? formatMessage(messages.note)
+					: null,
 			options: colorThemes
 				.filter((theme) => theme.polarity === polarity)
 				.map((theme) => colorThemeOption(theme, formatMessage)),
+			polarity,
 			selectedId: resolveTerminalColorTheme(polarity, slot, colorThemes).id,
-			settingId: polarity === 'dark' ? 'appearance.dark-theme' : 'appearance.light-theme',
+			settingId: polarity === 'dark' ? 'themes.dark' : 'themes.light',
 			onCommit: (themeId) => onCommit(polarity, themeId),
 			onPreview: (themeId) => onPreview(polarity, themeId),
 		};

@@ -1,0 +1,141 @@
+.root {
+	position: relative;
+	display: flex;
+	min-height: calc(var(--ob-ref-space-10) + var(--ob-ref-space-1));
+	align-items: center;
+	gap: var(--ob-ref-space-4);
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
+	outline: none;
+}
+
+.root[data-two-line] {
+	min-height: calc(var(--ob-ref-space-16) - var(--ob-ref-space-1));
+	padding-block: var(--ob-ref-space-2-5);
+}
+
+.root:focus-visible {
+	border-radius: inherit;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.modified {
+	position: absolute;
+	inset-block-start: calc(50% - var(--ob-ref-space-0-5));
+	inset-inline-start: var(--ob-ref-space-1);
+	width: var(--ob-ref-space-1);
+	height: var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-brand-accent);
+}
+
+.copy {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	flex: 1;
+	flex-direction: column;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.nameLine {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	align-items: baseline;
+	gap: var(--ob-ref-space-2);
+}
+
+.name {
+	flex: none;
+	max-width: 100%;
+	overflow: hidden;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.detail {
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-code-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.effect {
+	flex: none;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	white-space: nowrap;
+}
+
+.description {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.description[data-tone='positive'] {
+	color: var(--ob-sys-color-status-success-text);
+}
+
+.description[data-tone='warning'] {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.description[data-tone='danger'] {
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.control {
+	position: relative;
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--ob-ref-space-2);
+}
+
+.restore {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	align-items: center;
+	justify-content: center;
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	outline: none;
+	background: transparent;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.root:not(:hover, :focus-within) .restore {
+	opacity: 0;
+}
+
+.restore:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.restore:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+@media (width <= 48rem) {
+	.root {
+		flex-wrap: wrap;
+	}
+
+	.copy {
+		flex-basis: 100%;
+	}
+
+	.control {
+		margin-inline-start: auto;
+	}
+}

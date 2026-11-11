@@ -1,0 +1,61 @@
+.root {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-2-5) var(--ob-ref-space-3) var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-xl);
+	background: var(--ob-sys-color-status-info-surface);
+}
+
+.root + .root {
+	margin-block-start: var(--ob-ref-space-2);
+}
+
+.copy {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	flex: 1;
+	flex-direction: column;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.title {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-md);
+}
+
+.description {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.action {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.dismiss {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	outline: none;
+	background: transparent;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.dismiss:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.dismiss:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}

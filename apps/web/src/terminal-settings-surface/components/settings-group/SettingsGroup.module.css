@@ -1,0 +1,109 @@
+.root {
+	display: flex;
+	flex-direction: column;
+}
+
+.root:not(:has([data-settings-row])) {
+	display: none;
+}
+
+.root + .root {
+	margin-block-start: var(--ob-ref-space-6);
+}
+
+.root[data-named] + .root[data-named],
+.root + .root[data-named] {
+	margin-block-start: var(--ob-ref-space-8);
+}
+
+.heading {
+	position: relative;
+	display: flex;
+	min-height: calc(var(--ob-ref-space-5) + var(--ob-ref-space-0-5));
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	margin-block-end: var(--ob-ref-space-2);
+	padding-inline: var(--ob-ref-space-2);
+}
+
+.modified {
+	position: absolute;
+	inset-block-start: calc(50% - var(--ob-ref-space-0-5));
+	inset-inline-start: var(--ob-ref-space-0);
+	width: var(--ob-ref-space-1);
+	height: var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-brand-accent);
+}
+
+.label {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.tag {
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-xs);
+	white-space: nowrap;
+}
+
+.actions {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	margin-inline-start: auto;
+}
+
+.restore {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	align-items: center;
+	justify-content: center;
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	outline: none;
+	background: transparent;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.restore:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.restore:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.description {
+	margin: calc(var(--ob-ref-space-1) * -1) var(--ob-ref-space-2) var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.card {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border-radius: var(--ob-ref-radius-xl);
+	background: var(--ob-sys-color-surface-subtle);
+}
+
+.card > * {
+	position: relative;
+}
+
+.card > * + *::before {
+	position: absolute;
+	inset-block-start: var(--ob-ref-space-0);
+	inset-inline: var(--ob-ref-space-3);
+	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	content: '';
+	pointer-events: none;
+}

@@ -3,11 +3,15 @@ import * as React from 'react';
 
 import type { UserPreferencesControl } from '../../user-preferences';
 
-/** Keep the source captured by the first edit. External observations cannot silently rebase a draft. */
+/**
+ * Keep the source captured by the first edit. External observations cannot silently rebase a draft.
+ * present turns a confirmed stored value into the text the field edits.
+ */
 export function useSharedPreferenceDraft(
 	value: string,
 	key: UserPreferenceKey,
 	control: UserPreferencesControl,
+	present: (stored: unknown) => string = String,
 ): {
 	readonly draft: string;
 	change(next: string): void;
@@ -41,7 +45,7 @@ export function useSharedPreferenceDraft(
 				edit.current.source = response.snapshot.source;
 				if (revision !== edit.current.revision) return;
 				edit.current.dirty = false;
-				setDraft(String(response.snapshot.values[key]));
+				setDraft(present(response.snapshot.values[key]));
 			})
 			.finally(() => {
 				edit.current.pending = false;

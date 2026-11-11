@@ -15,12 +15,20 @@
 	composes: codicon-robot from global;
 }
 
+.appearance {
+	composes: codicon-color-mode from global;
+}
+
 .arrowDown {
 	composes: codicon-arrow-down from global;
 }
 
 .arrowLeft {
 	composes: codicon-arrow-left from global;
+}
+
+.bell {
+	composes: codicon-bell from global;
 }
 
 .clipboard {
@@ -67,6 +75,10 @@
 	composes: codicon-git-branch from global;
 }
 
+.keyboard {
+	composes: codicon-keyboard from global;
+}
+
 .layout {
 	composes: codicon-layout from global;
 }
@@ -89,6 +101,10 @@
 
 .question {
 	composes: codicon-question from global;
+}
+
+.restore {
+	composes: codicon-discard from global;
 }
 
 .search {

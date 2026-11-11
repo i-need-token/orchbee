@@ -35,18 +35,9 @@ afterAll(() => {
 });
 
 describe('TerminalLaunchProfileSettings', () => {
-	it('edits a literal custom launch and explains the future-terminal boundary', async () => {
+	it('edits a literal custom launch', async () => {
 		const harness = await createHarness();
-
-		expect(harness.container.textContent).toContain(
-			'The default profile is captured when a new terminal starts.',
-		);
-		expect(
-			requiredElement<HTMLButtonElement>(
-				harness.container.querySelector('[data-slot="terminal-launch-profile-option"]'),
-			).getAttribute('aria-pressed'),
-		).toBe('true');
-		expect(harness.container.querySelector('[role="listbox"]')).toBeNull();
+		await act(async () => buttonWithText(harness.container, 'Edit').click());
 		expect(
 			requiredElement<HTMLInputElement>(harness.container.querySelector('#terminal-profile-name'))
 				.required,
@@ -84,7 +75,7 @@ describe('TerminalLaunchProfileSettings', () => {
 			setInputValue(secondArgument, 'two words');
 			secondArgument.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		await act(async () => buttonWithText(harness.container, 'Save changes').click());
+		await act(async () => buttonWithText(harness.container, 'Done').click());
 		await vi.waitFor(() =>
 			expect(harness.commands.at(-1)).toMatchObject({
 				profile: {
@@ -103,6 +94,7 @@ describe('TerminalLaunchProfileSettings', () => {
 
 	it('preserves the edited draft when Main cannot commit it', async () => {
 		const harness = await createHarness();
+		await act(async () => buttonWithText(harness.container, 'Edit').click());
 		const command = requiredElement<HTMLSelectElement>(
 			harness.container.querySelector('#terminal-profile-command'),
 		);
@@ -119,7 +111,7 @@ describe('TerminalLaunchProfileSettings', () => {
 		});
 		harness.client.failNextUpdate();
 
-		await act(async () => buttonWithText(harness.container, 'Save changes').click());
+		await act(async () => buttonWithText(harness.container, 'Done').click());
 		await vi.waitFor(() =>
 			expect(harness.container.querySelector('[role="alert"]')?.textContent).toContain(
 				'could not be saved',
@@ -136,6 +128,7 @@ describe('TerminalLaunchProfileSettings', () => {
 
 	it('creates, selects, and explicitly confirms a reset', async () => {
 		const harness = await createHarness();
+		await act(async () => buttonWithText(harness.container, 'Add profile').click());
 		const name = requiredElement<HTMLInputElement>(
 			harness.container.querySelector("input[placeholder='Profile name']"),
 		);
@@ -145,15 +138,27 @@ describe('TerminalLaunchProfileSettings', () => {
 		});
 		await act(async () => buttonWithText(harness.container, 'Add profile').click());
 		await vi.waitFor(() => expect(harness.container.textContent).toContain('Development'));
-		await act(async () => buttonWithText(harness.container, 'Make default').click());
+		await act(async () => buttonWithText(harness.container, 'Use as default').click());
 		await vi.waitFor(() => {
 			expect(harness.commands.at(-1)?.type).toBe(
 				'desktop-terminal-launch-profile-default-requested',
 			);
 		});
+		await vi.waitFor(() => expect(harness.container.textContent).toContain('Default'));
+		await act(async () => {
+			[...harness.container.querySelectorAll<HTMLButtonElement>('button')]
+				.find((button) => button.getAttribute('aria-label') === 'Edit: Development')
+				?.click();
+		});
 		expect(buttonWithText(harness.container, 'Delete').disabled).toBe(true);
 
-		await act(async () => buttonWithText(harness.container, 'Reset profiles').click());
+		await act(async () =>
+			requiredElement(
+				harness.container.querySelector<HTMLButtonElement>(
+					"button[aria-label='Restore default: Launch profiles']",
+				),
+			).click(),
+		);
 		expect(harness.container.textContent).toContain('Reset all profiles');
 		await act(async () => buttonWithText(harness.container, 'Reset all profiles').click());
 		await vi.waitFor(() => expect(harness.container.textContent).not.toContain('Development'));
@@ -173,7 +178,7 @@ async function createHarness() {
 			createElement(
 				OrchbeeI18nProvider,
 				{ locale: 'en-US' },
-				createElement(TerminalLaunchProfileSettings, { client }),
+				createElement(TerminalLaunchProfileSettings, { client, query: '' }),
 			),
 		);
 	});

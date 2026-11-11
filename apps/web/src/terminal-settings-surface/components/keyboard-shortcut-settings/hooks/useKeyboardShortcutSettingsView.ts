@@ -40,7 +40,7 @@ interface KeyboardShortcutSettingsRowView {
 	readonly onBlur: React.FocusEventHandler<HTMLButtonElement>;
 	readonly onChangeClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onKeyDown: React.KeyboardEventHandler<HTMLButtonElement>;
-	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onReset: () => void;
 }
 
 interface KeyboardShortcutSettingsView {

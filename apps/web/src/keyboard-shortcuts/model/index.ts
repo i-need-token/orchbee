@@ -2,10 +2,7 @@ export {
 	KeyboardShortcutSettingsController,
 	keyboardShortcutBindingSource,
 } from './keyboard-shortcut-settings-controller';
-export {
-	KEYBOARD_SHORTCUT_CATALOG,
-	keyboardShortcutDeclaration,
-} from './keyboard-shortcut-catalog';
+export { keyboardShortcutDeclaration } from './keyboard-shortcut-catalog';
 export { formatKeyboardShortcutActionName } from './formatKeyboardShortcutActionName';
 export { keyboardShortcutClaims } from './keyboardShortcutClaims';
 export type { KeyboardShortcutSettingsSnapshot } from './keyboard-shortcut-settings-controller';

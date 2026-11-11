@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, System, English or Simplified-Chinese display-language selection, explicit Desktop Agent-integration, shell-profile and scrollback-default management over the Session's shared preferences, device-shared common preferences with source-bound drafts and confirmed persistence, Light and Dark theme slot pickers with in-place preview, host-local appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, Shell-integration completion-reminder policy, and a read-only remote-shell diagnostic without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns full-page Settings: a navigation column with Back, search and seven categories (General, Appearance, Themes, Terminal, Notifications, Keyboard, Agents) in the app sidebar's place, and a centered column of grouped cards whose rows each carry a name, an always-visible description and one immediately applied control. It covers System, English or Simplified-Chinese display language, application and terminal appearance, Light and Dark theme lists with in-place preview, copy-on-select, terminal history, macOS Option-as-Alt, shell launch profiles, notifications, keyboard shortcuts, restore-after-restart choices and local Agent integrations, with per-setting restore default, dismissible page notices, global search and a pointer to config.toml for the options the page leaves out, without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -19,27 +19,34 @@
 		"configure-macos-terminal-input",
 		"configure-local-shell-profiles",
 		"configure-shell-integration-reminders",
-		"diagnose-remote-terminal-environment",
 		"search-terminal-settings"
 	],
 	"implementation": [
 		"apps/web/src/application-locale/model/ApplicationLocaleController.ts",
 		"apps/web/src/terminal-settings-surface/TerminalSettingsSurface.tsx",
+		"apps/web/src/terminal-settings-surface/hooks/useTerminalSettingsSurface.ts",
+		"apps/web/src/terminal-settings-surface/constants/terminal-settings-categories.ts",
+		"apps/web/src/terminal-settings-surface/components/settings-group/SettingsGroup.tsx",
+		"apps/web/src/terminal-settings-surface/components/settings-row/SettingsRow.tsx",
+		"apps/web/src/terminal-settings-surface/components/settings-list-filter/SettingsListFilter.tsx",
+		"apps/web/src/terminal-settings-surface/components/settings-banner/SettingsBanner.tsx",
+		"apps/web/src/terminal-settings-surface/components/config-file-row/ConfigFileRow.tsx",
+		"apps/web/src/terminal-settings-surface/components/general-settings/GeneralSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/appearance-settings/AppearanceSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/theme-settings/ThemeSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/terminal-behavior-settings/TerminalBehaviorSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/notification-settings/NotificationSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/agent-settings/AgentSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/agent-integration-settings/AgentIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/application-language-settings/ApplicationLanguageSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
-		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
-		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-launch-profile-settings/TerminalLaunchProfileSettings.tsx",
-		"apps/web/src/terminal-settings-surface/components/terminal-settings-sections/TerminalSettingsSections.tsx",
-		"apps/web/src/terminal-settings-surface/components/terminal-settings-sections/components/color-theme-picker/ColorThemePicker.tsx",
-		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
-		"apps/web/src/terminal-settings-surface/constants/terminal-settings-search-catalog.ts",
-		"apps/web/src/terminal-settings-surface/constants/terminal-settings-information-architecture.ts",
+		"apps/web/src/terminal-settings-surface/components/shared-preference-status/SharedPreferenceStatus.tsx",
+		"apps/web/src/terminal-settings-surface/hooks/useSharedPreferenceDefault.ts",
+		"apps/web/src/terminal-settings-surface/hooks/useSharedPreferenceDraft.ts",
 		"apps/web/src/terminal-settings-surface/utils/buildColorThemePickerViews.ts",
-		"apps/web/src/terminal-settings-surface/utils/buildTerminalSettingsSearchCatalog.ts",
-		"apps/web/src/terminal-settings-surface/utils/resolveTerminalSettingsSearch.ts",
+		"apps/web/src/terminal-settings-surface/utils/matchesSettingsQuery.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-search.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
 		"apps/web/src/macos-terminal-input-settings/model/MacosTerminalInputSettingsController.ts",
@@ -49,79 +56,158 @@
 		"apps/web/src/workbench-client/server-workbench/ServerTerminalDefaultSettingsClient.ts",
 		"apps/web/src/terminal-settings/model/isTerminalThemePresentationSource.ts",
 		"apps/web/src/workbench-client/projected-terminal-renderer/createTerminalThemePresentationParticipant.ts",
-		"apps/web/src/terminal-settings-surface/hooks/useSharedPreferenceDraft.ts",
-		"apps/web/src/terminal-settings-surface/components/shared-preference-status/SharedPreferenceStatus.tsx",
 		"apps/web/src/workbench-client/server-workbench/ServerUserPreferencesClient.ts"
 	],
 	"stories": [
 		{
-			"exportName": "EnglishLight",
+			"exportName": "EnglishGeneral",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
-			"id": "applications-web-terminal-settings-surface--english-light",
+			"id": "applications-web-terminal-settings-surface--english-general",
 			"states": [
-				"Inspect the light English Desktop surface with a centered bounded shell, quiet grouped rail with subdued localized labels, neutral selected category, focused search, direct setting rows with hairline separators, stable section rhythm, and compact trailing immediate controls. Switch Display language to Simplified Chinese and back to verify immediate mounted-copy replacement and explicit persistence, then inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type language or font while the current page remains complete, then activate a setting to restore navigation and move focus to its stable destination. Resize below the medium breakpoint to verify one-pane category/content navigation and its Back path.",
-				"Open Appearance to inspect the Light theme and Dark theme pickers: each lists every shipped theme of its polarity, six light and ten dark, with a swatch of canvas, text, and ANSI 1-5 and a check on the effective theme. Arrow keys preview the highlighted theme, Enter or a click commits it, and Escape or leaving the list restores the committed theme.",
-				"Open Keyboard shortcuts to inspect localized text filtering, current Apple chord aliases, a zero-result state, polite result counts, and Record keys as an exact lookup that never edits or persists a binding.",
-				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
-				"Open Shell integration to inspect completion-reminder and Agent-notification policy, explicit notification-permission control, and reset.",
-				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
-				"Inspect System appearance and locale, notification sound, and the shared save/conflict/reload/reset status of the Session's device preferences."
+				"Inspect the light English full page: Back, search and the seven categories with line icons in the navigation column, the filled selected category, and the centered column with the category title, an unnamed card for the language row, the After a restart group and the config.toml row with its copy action.",
+				"Change Language to Simplified Chinese and back to verify immediate mounted-copy replacement, the changed dot and the Restore default action. Type in search to see matches grouped under category names and the plain empty state, and press Escape to clear the search before Escape returns to the workbench."
 			]
 		},
 		{
-			"exportName": "ChineseDarkCustom",
+			"exportName": "EnglishAppearance",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
-			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
+			"id": "applications-web-terminal-settings-surface--english-appearance",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration and Remote-development navigation, the absence of roadmap-only categories or controls.",
-				"Open Appearance to inspect the localized Light theme and Dark theme pickers in the dark appearance.",
-				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor.",
-				"Inspect System appearance and locale, notification sound, and the shared save/conflict/reload/reset status of the Session's device preferences."
+				"Inspect the App appearance, Terminal colors and Terminal text groups. Choose Custom terminal colors to reveal the text and background color rows, and enter an out-of-range font size to see the row error while the applied size stays."
 			]
+		},
+		{
+			"exportName": "EnglishThemes",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-themes",
+			"states": [
+				"Inspect the Light theme and Dark theme cards: one line per theme with its swatch strip and a check on the chosen line, the In use now tag on the group in use, the one-line note on the other group when the app appearance is fixed, and the filter box above a list of more than eight themes. Arrow keys preview, Enter or a click commits, and Escape restores the committed theme."
+			]
+		},
+		{
+			"exportName": "EnglishTerminal",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-terminal",
+			"states": [
+				"Inspect Selection and keys with copy on select and the macOS Option-as-Alt row, Output with terminal history in megabytes and its new-terminals note, and the Launch profiles card: Default label or Use as default per profile, inline editing that saves on Done, Add profile, and the confirmed restore of the default catalog."
+			]
+		},
+		{
+			"exportName": "EnglishNotifications",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-notifications",
+			"states": [
+				"Inspect When to notify with the Agent notification and completion reminder choices, and Sound and delivery with the sound switch."
+			]
+		},
+		{
+			"exportName": "EnglishKeyboard",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-keyboard",
+			"states": [
+				"Inspect the long-list card: the filter row with search, Record keys and the shown count, one shortcut per line with its recorder, custom bindings with the changed dot and Restore default, and conflict notes in the row."
+			]
+		},
+		{
+			"exportName": "EnglishAgents",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-agents",
+			"states": [
+				"Inspect the resume-on-restore switch and the Agent integrations card: one line per Agent with its status description, Explain on hover, an inspected-state switch and the diagnosis panel under its row, the filter box above more than eight entries, and the Refresh action."
+			]
+		},
+		{
+			"exportName": "ChineseGeneral",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-general",
+			"states": [
+				"Inspect Simplified Chinese copy in the dark appearance: unclipped navigation labels, two-line descriptions at most, and controls on one vertical line."
+			]
+		},
+		{
+			"exportName": "ChineseAppearanceCustomColors",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-appearance-custom-colors",
+			"states": [
+				"Inspect retained Custom terminal colors with the text and background rows shown and changed dots on the modified settings."
+			]
+		},
+		{
+			"exportName": "ChineseThemes",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-themes",
+			"states": [
+				"Inspect the localized theme lists with the dark group in use and the note on the light group."
+			]
+		},
+		{
+			"exportName": "ChineseTerminal",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-terminal",
+			"states": [
+				"Inspect localized terminal behavior groups and launch profiles without login-shell support."
+			]
+		},
+		{
+			"exportName": "ChineseNotifications",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-notifications",
+			"states": ["Inspect localized notification groups."]
+		},
+		{
+			"exportName": "ChineseKeyboard",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-keyboard",
+			"states": ["Inspect the localized shortcut list with Standard-platform key labels."]
+		},
+		{
+			"exportName": "ChineseAgents",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-agents",
+			"states": ["Inspect localized Agent integration states."]
 		}
 	],
 	"uses": [],
 	"useWhen": [
 		"A user explicitly chooses English or Simplified Chinese after automatic system or Browser locale resolution.",
-		"A client changes local Orchbee appearance, the Light or Dark color theme, terminal font, font weights, ligatures, padding, copy-on-select, effective default terminal colors, or default-background opacity.",
+		"A client changes local Orchbee appearance, the Light or Dark color theme, terminal font and size, copy-on-select, or effective default terminal colors.",
 		"A user searches all available Settings categories and rows without first knowing their owning category.",
 		"A client searches, records-to-find, reviews, or changes one of the frequent Workbench or focused-terminal shortcuts.",
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
 		"A Desktop client creates, edits, selects, or removes the Session's shared system-shell and custom-executable launch profiles for future terminals.",
-		"A Desktop client changes the Host scrollback default captured only by future terminals.",
+		"A Desktop client changes the terminal history default captured only by future terminals.",
 		"A Desktop user explicitly inspects, enables, or disables Orchbee's exact local observation integration for one supported terminal Agent without granting remote-host mutation authority.",
-		"A user wants to configure device-local long-command completion reminders.",
-		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host."
+		"A user wants to configure Agent notifications, completion reminders, or notification sound."
 	],
 	"avoidWhen": [
 		"A terminal setting must synchronize through the shared Workbench document.",
-		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured."
+		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured.",
+		"An option is rare or advanced; it stays in config.toml and the page only points there."
 	],
 	"invariants": [
-		"Opening Settings presents one centered bounded modal shell, keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert, and uses one-pane category/content navigation below the medium breakpoint.",
-		"Every editable setting keeps a persistent visible label, compact control typography, body-role support and error text, and code-role presentation for exact commands, paths, arguments, or identifiers; a placeholder never replaces the label.",
+		"Opening Settings shows one full page over the Workbench content: the settings navigation takes the app sidebar's place, the Workbench and projected terminal attachments stay mounted, and Back returns exactly where the user was. Escape clears a non-empty search first and otherwise returns, unless a control consumes it. Below the medium breakpoint the navigation stacks above the content.",
+		"Each category shows its title, then groups of a small muted heading and one card; a category with three or fewer settings may use one unnamed card. Each row carries a name, an always-visible description of at most two lines, and exactly one control aligned to the row's end.",
+		"Every change applies at once; the page has no Save, Discard, or footer. A setting that differs from its default shows a dot and a Restore default action that restores only that setting.",
+		"Long lists are one card with one entry per line, and a list of more than eight entries shows a filter box with the shown count.",
+		"Search filters every available category by setting name and description, groups matches under category names, and shows a plain empty state; it changes no preference.",
+		"A page-wide notice is a dismissible banner above the category title; dismissal hides it for the open page only.",
+		"Text and background color rows appear only while terminal colors is set to Custom.",
 		"A missing valid language record uses ordered system or Browser locale resolution without writing a default; either explicit language selection persists and immediately takes precedence for mounted product copy, while user data and existing shared titles remain unchanged.",
-		"An empty search shows the grouped available-category rail; a non-empty search replaces only the rail with globally ranked current category and setting results while the current content page remains complete and preferences remain unchanged.",
-		"Search activation clears the query, restores navigation, selects the owning category, reveals the stable category or setting target, and moves focus to its heading, row, or management target without activating its control; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
-		"Each theme picker lists the themes of its polarity and marks the slot's effective theme. Moving through it previews the theme on the application and every mounted terminal without saving; Enter or a click commits it to its slot, also switching an Appearance fixed to the other polarity, and keeps it shown until the Session answers; Escape, leaving the list, closing Settings, or a refused save restores the committed theme. Under System each picker says when it applies. Each picker stays an expanded list beside the top of its label, never a nested scroller or a popup, so every swatch stays comparable at a glance.",
-		"Font family, size, regular and bold weights, ligatures, terminal padding, and copy-on-select update mounted projected terminals without replacing their attachments; presentation and interaction preferences persist independently.",
-		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
-		"Shortcut discovery filters localized visible text, stable identifiers and current chord aliases; Record keys compares one captured canonical chord exactly, while search, capture, clearing and cancellation never edit or persist a binding.",
+		"Each theme list holds the themes of its polarity, one per line with a swatch strip and a check on the slot's effective theme; the group in use carries an In use now tag and, when the app appearance is fixed, the other group carries a one-line note. Moving through a list previews the theme on the application and every mounted terminal without saving; Enter or a click commits it to its slot, also switching an Appearance fixed to the other polarity; Escape, leaving the list, closing Settings, or a refused save restores the committed theme.",
+		"Font family, size, and copy-on-select update mounted projected terminals without replacing their attachments; presentation and interaction preferences persist independently.",
+		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed. Shortcut discovery filters localized visible text, stable identifiers and current chord aliases; Record keys compares one captured canonical chord exactly and never edits or persists a binding.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles live in the Session's shared preferences, change only executable and literal ordered arguments, and affect only terminals launched after the Server commits the catalog; running and restored terminals retain their captured launch.",
-		"Desktop scrollback defaults commit to the Session's shared preferences, and the Worker gives the value to each terminal it launches after the save, so existing history never changes; a composition without that control omits the row.",
-		"Agent integration inventory is read-only on startup and refresh; Agent-specific details stay behind Desktop adapters while the renderer receives only the ten canonical Agent labels, bounded states, and privacy-safe failures.",
-		"Agent integration mutation begins only from an explicit Settings switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success.",
-		"Disabling removes or disables only Orchbee's exact owned entry, preserves unrelated Agent configuration and any shared local marketplace.",
-		"Remote Agent integration remains manual-only: Settings never copies resources, executes remote commands, writes remote files, or treats an SSH session as local management authority.",
-		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission without the settings-page button.",
-		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
-		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
+		"Terminal history defaults commit to the Session's shared preferences, and the Worker gives the value to each terminal it launches after the save, so existing history never changes; a composition without that control omits the row.",
+		"Agent integration inventory is read-only on startup and refresh, and entering the Agents category is the explicit request to inspect it; Agent-specific details stay behind Desktop adapters while the renderer receives only the canonical Agent labels, bounded states, and privacy-safe failures.",
+		"Agent integration mutation begins only from an explicit switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success. Disabling removes or disables only Orchbee's exact owned entry.",
+		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission except from the notification banner's Allow button.",
+		"The config.toml row shows the configuration path with a copy action; the page opens no file and adds no native capability.",
 		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells through defaultColorOverride, with the selected color theme's canvas for Theme and Host and the custom pair for Custom. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
-		"The complete strict appearance and interaction preference records are local to one browser origin and all product copy ships in English and Simplified Chinese.",
-		"Navigation and search project only currently implemented categories, settings, and management entries whose required composition capabilities are present; roadmap-only categories and controls remain absent."
+		"All product copy ships in English and Simplified Chinese.",
+		"Navigation and search project only categories and settings whose required composition capabilities are present; roadmap-only categories and controls remain absent."
 	],
 	"references": [
 		"apps/web/docs/keyboard-shortcuts.md",

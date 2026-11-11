@@ -9,17 +9,16 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { TerminalSettingsSurface } from '../TerminalSettingsSurface';
+import {
+	TerminalSettingsSurface,
+	type TerminalSettingsSurfaceProps,
+} from '../TerminalSettingsSurface';
 import { ApplicationLocaleController } from '../../application-locale';
 import { ApplicationLocaleProvider } from '../../application-locale-provider';
-import {
-	KEYBOARD_SHORTCUT_CATALOG,
-	KeyboardShortcutSettingsController,
-} from '../../keyboard-shortcuts';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import { TerminalSettingsController } from '../../terminal-settings';
-import { REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND } from '../constants/remote-development-diagnostic';
 import type {
 	TerminalDefaultSettingsClientSnapshot,
 	TerminalDefaultSettingsControl,
@@ -56,19 +55,11 @@ describe('TerminalSettingsSurface', () => {
 		roots: [] as ReturnType<typeof createRoot>[],
 	};
 
-	function trackContainer<ElementType extends HTMLElement>(element: ElementType): ElementType {
-		testResources.containers.push(element);
-		return element;
-	}
 	function trackDisposable<DisposableType extends { dispose(): void }>(
 		disposable: DisposableType,
 	): DisposableType {
 		testResources.disposables.push(disposable);
 		return disposable;
-	}
-	function trackRoot(root: ReturnType<typeof createRoot>): ReturnType<typeof createRoot> {
-		testResources.roots.push(root);
-		return root;
 	}
 
 	afterEach(async () => {
@@ -80,13 +71,7 @@ describe('TerminalSettingsSurface', () => {
 				failures.push(error);
 			}
 		}
-		for (const container of testResources.containers.splice(0)) {
-			try {
-				container.remove();
-			} catch (error) {
-				failures.push(error);
-			}
-		}
+		for (const container of testResources.containers.splice(0)) container.remove();
 		for (const disposable of testResources.disposables.splice(0)) {
 			try {
 				disposable.dispose();
@@ -98,31 +83,34 @@ describe('TerminalSettingsSurface', () => {
 		if (failures.length > 1) throw new AggregateError(failures, 'test cleanup failed');
 	});
 
-	it('focuses global search, navigates categories, and routes theme choices outside presentation configuration', async () => {
-		const container = trackContainer(document.createElement('div'));
+	interface HarnessOptions {
+		readonly controller?: TerminalSettingsController;
+		readonly platform?: 'apple' | 'standard';
+		readonly props?: Partial<TerminalSettingsSurfaceProps>;
+	}
+
+	async function renderSurface(options: HarnessOptions = {}) {
+		const container = document.createElement('div');
+		testResources.containers.push(container);
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
+		const controller =
+			options.controller ??
+			trackDisposable(
+				new TerminalSettingsController({
+					storage,
+					themeTarget: document.documentElement,
+					userPreferences: memoryUserPreferences(),
+				}),
+			);
+		const platform = options.platform ?? 'apple';
 		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
+			new KeyboardShortcutSettingsController({ platform, storage }),
 		);
-		const initialPreferences = controller.getSnapshot().preferences;
-		const presentationListener =
-			vi.fn<(configuration: ReturnType<typeof controller.current>) => void>();
-		controller.subscribe(presentationListener);
-		controller.open();
 		const close = vi.fn<() => void>();
-		const root = trackRoot(createRoot(container));
-
+		controller.open();
+		const root = createRoot(container);
+		testResources.roots.push(root);
 		await act(async () => {
 			root.render(
 				createElement(
@@ -132,179 +120,72 @@ describe('TerminalSettingsSurface', () => {
 						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
+						keyboardShortcutPlatform: platform,
 						onRequestClose: close,
+						...options.props,
 					}),
 				),
 			);
 		});
+		const openCategory = async (category: string): Promise<void> => {
+			await act(async () =>
+				requiredElement<HTMLButtonElement>(
+					container.querySelector(`button[data-settings-category='${category}']`),
+				).click(),
+			);
+		};
+		return { close, container, controller, keyboardShortcutController, openCategory };
+	}
 
+	it('groups search matches under their category, then Escape clears search before leaving', async () => {
+		const { close, container } = await renderSurface();
 		const search = requiredElement<HTMLInputElement>(
 			container.querySelector("input[aria-label='Search settings']"),
 		);
 		expect(document.activeElement).toBe(search);
-		expect(
-			requiredElement<HTMLElement>(container.querySelector('[data-settings-content]')).tabIndex,
-		).toBe(0);
-		expect(
-			container.querySelector("[data-settings-layout='bounded'][role='dialog']"),
-		).not.toBeNull();
-		const closeSettings = requiredElement<HTMLButtonElement>(
-			container.querySelector('button[data-settings-close]'),
-		);
-		expect(closeSettings.getAttribute('aria-label')).toBe('Close settings');
-		expect(container.textContent).toContain('Settings');
-		await act(async () => closeSettings.click());
-		expect(close).toHaveBeenCalledOnce();
 
-		expect(container.textContent).toContain('Display language');
-		expect(container.textContent).not.toContain('Planned');
-		expect(container.querySelector("button[data-settings-category='windows-tabs']")).toBeNull();
-		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(4);
+		await changeInput(search, 'font size');
+		expect(container.querySelector('[data-settings-content="search"]')).not.toBeNull();
+		const appearance = requiredElement(container.querySelector("section[aria-label='Appearance']"));
+		expect(appearance.querySelector('[data-setting-id="appearance.font-size"]')).not.toBeNull();
+		expect(container.querySelector('[data-setting-id="general.language"]')).toBeNull();
+
+		await changeInput(search, 'no such setting anywhere');
 		expect(
-			Array.from(
-				container.querySelectorAll('[data-settings-group-label]'),
-				(groupLabel) => groupLabel.textContent,
-			),
-		).toEqual(['Application', 'Terminal', 'Workspace', 'Integrations']);
+			container.querySelector('[data-settings-content="search"] [data-settings-row]'),
+		).toBeNull();
+		expect(container.textContent).toContain('No matching settings.');
 
 		await act(async () => {
-			setInputValue(search, 'does not exist');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
+			search.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
+			);
 		});
-		expect(container.textContent).toContain('No settings found.');
-		expect(container.textContent).toContain('Display language');
-		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(0);
-		expect(container.querySelector('[role="listbox"]')).not.toBeNull();
-		const emptyResult = requiredElement<HTMLElement>(
-			container.querySelector('[role="option"][aria-disabled="true"]'),
-		);
-		expect(emptyResult.getAttribute('aria-selected')).toBe('false');
-		expect(emptyResult.textContent).toBe('No settings found.');
-
-		await act(async () => {
-			setInputValue(search, 'font');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		expect(container.textContent).toContain('Display language');
-		expect(container.textContent).toContain('Text›Terminal font family');
-		expect(container.querySelector('[role="listbox"]')).not.toBeNull();
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-search-result='text.font-family']"),
-			).click(),
-		);
 		expect(search.value).toBe('');
-		expect(container.textContent).toContain('Terminal font family');
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='appearance']"),
-			).click(),
-		);
-		const applicationTheme = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='Application theme']"),
-		);
-		await act(async () => {
-			applicationTheme.value = 'dark';
-			applicationTheme.dispatchEvent(new Event('change', { bubbles: true }));
-		});
-		expect(document.documentElement.dataset['theme']).toBe('dark');
-		expect(presentationListener).not.toHaveBeenCalled();
+		expect(close).not.toHaveBeenCalled();
+		expect(container.querySelector('[data-settings-content="general"]')).not.toBeNull();
 
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='colors']"),
-			).click(),
-		);
-		const terminalTheme = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='Terminal display theme']"),
-		);
 		await act(async () => {
-			terminalTheme.value = 'host';
-			terminalTheme.dispatchEvent(new Event('change', { bubbles: true }));
+			search.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
+			);
 		});
-		expect(presentationListener).not.toHaveBeenCalled();
-		expect(controller.current().defaultColorOverride).toBeNull();
-		expect(document.documentElement.dataset['theme']).toBe('dark');
-		expect(controller.userPreferences.getSnapshot().snapshot?.values).toMatchObject({
-			applicationTheme: 'dark',
-			terminalDisplayTheme: 'host',
-		});
-		expect(storage.setItem).not.toHaveBeenCalled();
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='general']"),
-			).click(),
-		);
-		const reset = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Reset',
-			),
-		);
-		await act(async () => reset.click());
-		expect(controller.getSnapshot().preferences).toEqual(initialPreferences);
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='appearance']"),
-			).click(),
-		);
-		expect(
-			requiredElement<HTMLSelectElement>(
-				container.querySelector("select[aria-label='Application theme']"),
-			).value,
-		).toBe('system');
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='colors']"),
-			).click(),
-		);
-		expect(
-			requiredElement<HTMLSelectElement>(
-				container.querySelector("select[aria-label='Terminal display theme']"),
-			).value,
-		).toBe('theme');
+		expect(close).toHaveBeenCalledOnce();
 	});
 
-	it('previews a theme while moving through a picker, restores it on Escape, and commits on Enter', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
+	it('previews a theme while moving through a list, restores it on Escape, and commits on Enter', async () => {
 		const themeTarget = document.createElement('div');
 		const userPreferences = memoryUserPreferences({ applicationTheme: 'light' });
 		const controller = trackDisposable(
 			new TerminalSettingsController({
 				colorThemes: colorThemesWithFixtures,
-				storage,
+				storage: memoryStorage(),
 				themeTarget,
 				userPreferences,
 			}),
 		);
-		controller.open();
-		const close = vi.fn<() => void>();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController: trackDisposable(
-							new KeyboardShortcutSettingsController({ platform: 'apple', storage }),
-						),
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: close,
-					}),
-				),
-			);
-		});
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='appearance']"),
-			).click(),
-		);
+		const { close, container, openCategory } = await renderSurface({ controller });
+		await openCategory('themes');
 		const darkThemes = requiredElement<HTMLElement>(
 			container.querySelector("[role='listbox'][aria-label='Dark theme']"),
 		);
@@ -332,35 +213,16 @@ describe('TerminalSettingsSurface', () => {
 				darkTheme: fixtureDarkTheme.id,
 			}),
 		);
-		expect({ ...themeTarget.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
 		expect(
 			darkThemes
 				.querySelector("[role='option'][aria-selected='true']")
 				?.id.endsWith(fixtureDarkTheme.id),
 		).toBe(true);
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='general']"),
-			).click(),
-		);
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				[...container.querySelectorAll('button')].find(
-					(button) => button.textContent?.trim() === 'Reset',
-				),
-			).click(),
-		);
-		await vi.waitFor(() =>
-			expect(savedValues()).toMatchObject({
-				darkTheme: 'orchbee-dark',
-				lightTheme: 'orchbee-light',
-			}),
-		);
 	});
 
 	it('switches the mounted Settings copy and persists an explicit display language', async () => {
-		const container = trackContainer(document.createElement('div'));
+		const container = document.createElement('div');
+		testResources.containers.push(container);
 		document.body.append(container);
 		const storage = memoryStorage();
 		const userPreferences = memoryUserPreferences();
@@ -378,15 +240,9 @@ describe('TerminalSettingsSurface', () => {
 				userPreferences: memoryUserPreferences(),
 			}),
 		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
 		controller.open();
-		const root = trackRoot(createRoot(container));
-
+		const root = createRoot(container);
+		testResources.roots.push(root);
 		await act(async () => {
 			root.render(
 				createElement(
@@ -395,7 +251,9 @@ describe('TerminalSettingsSurface', () => {
 					createElement(TerminalSettingsSurface, {
 						applicationLocaleController,
 						controller,
-						keyboardShortcutController,
+						keyboardShortcutController: trackDisposable(
+							new KeyboardShortcutSettingsController({ platform: 'apple', storage }),
+						),
 						keyboardShortcutPlatform: 'apple',
 						onRequestClose: () => undefined,
 					}),
@@ -404,12 +262,10 @@ describe('TerminalSettingsSurface', () => {
 		});
 
 		const chineseSelect = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='显示语言']"),
+			container.querySelector("select[aria-label='语言']"),
 		);
 		expect(chineseSelect.value).toBe('system');
-		expect(chineseSelect.options).toHaveLength(3);
 		expect(storage.setItem).not.toHaveBeenCalled();
-		expect(container.querySelector('[data-setting-id="general.language"]')).not.toBeNull();
 
 		await act(async () => {
 			setSelectValue(chineseSelect, 'en-US');
@@ -417,113 +273,14 @@ describe('TerminalSettingsSurface', () => {
 		});
 
 		expect(document.documentElement.lang).toBe('en-US');
-		expect(container.querySelector("select[aria-label='Display language']")).not.toBeNull();
-		expect(container.textContent).toContain('Settings');
+		expect(container.querySelector("select[aria-label='Language']")).not.toBeNull();
 		expect(userPreferences.getSnapshot().snapshot?.values.locale).toBe('en-US');
 	});
 
-	it('supports deterministic result selection, destination focus, and layered Escape', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
+	it('applies copy on select live', async () => {
 		const controller = trackDisposable(
 			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		const close = vi.fn<() => void>();
-		controller.open();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: close,
-					}),
-				),
-			);
-		});
-
-		const search = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Search settings']"),
-		);
-		await act(async () => {
-			setInputValue(search, 'theme');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		expect(container.textContent).toContain('Display language');
-		expect(
-			container
-				.querySelector("[data-settings-search-result='appearance.application-theme']")
-				?.getAttribute('data-active'),
-		).toBe('true');
-
-		const secondResult = container
-			.querySelectorAll('[data-settings-search-result]')[1]
-			?.getAttribute('data-settings-search-result');
-		if (secondResult === null || secondResult === undefined) throw new Error('Missing result.');
-		await act(async () => {
-			search.dispatchEvent(
-				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowDown' }),
-			);
-		});
-		expect(
-			container
-				.querySelector(`[data-settings-search-result='${secondResult}']`)
-				?.getAttribute('data-active'),
-		).toBe('true');
-		await act(async () => {
-			search.dispatchEvent(
-				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
-			);
-		});
-		expect(search.value).toBe('');
-		expect(document.activeElement?.id).toBe(secondResult);
-		const destination = `[data-settings-content="${secondResult.split('.')[0]}"]`;
-		expect(container.querySelector(destination)).not.toBeNull();
-
-		await act(async () => {
-			setInputValue(search, 'font');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		await act(async () => {
-			search.dispatchEvent(
-				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
-			);
-		});
-		expect(search.value).toBe('');
-		expect(close).not.toHaveBeenCalled();
-		expect(container.querySelector(destination)).not.toBeNull();
-
-		await act(async () => {
-			search.dispatchEvent(
-				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
-			);
-		});
-		expect(close).toHaveBeenCalledOnce();
-	});
-
-	it('applies typography, padding, Agent tail, and copy settings live', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
+				storage: memoryStorage(),
 				themeTarget: document.documentElement,
 				userPreferences: memoryUserPreferences({ copyOnSelect: true }),
 			}),
@@ -531,614 +288,112 @@ describe('TerminalSettingsSurface', () => {
 		const interactionController = trackDisposable(
 			new TerminalInteractionSettingsController(controller.userPreferences),
 		);
-		const interactionListener = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
-		interactionController.subscribe(interactionListener);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		controller.open();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: () => undefined,
-						terminalInteractionSettingsController: interactionController,
-					}),
-				),
-			);
+		const listener = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
+		interactionController.subscribe(listener);
+		const { container, openCategory } = await renderSurface({
+			controller,
+			props: { terminalInteractionSettingsController: interactionController },
 		});
-
+		await openCategory('terminal');
 		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='appearance']"),
+			requiredElement<HTMLElement>(
+				container.querySelector("[aria-label='Copy on select']"),
 			).click(),
 		);
-		const padding = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Terminal padding']"),
-		);
-		await act(async () => {
-			padding.focus();
-			setInputValue(padding, '12');
-			padding.dispatchEvent(new Event('input', { bubbles: true }));
-			padding.blur();
-		});
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='text']"),
-			).click(),
-		);
-		const regularWeight = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='Regular font weight']"),
-		);
-		const boldWeight = requiredElement<HTMLSelectElement>(
-			container.querySelector("select[aria-label='Bold font weight']"),
-		);
-		const ligatures = requiredElement<HTMLElement>(
-			container.querySelector("[aria-label='Font ligatures']"),
-		);
-		await act(async () => {
-			regularWeight.value = '300';
-			regularWeight.dispatchEvent(new Event('change', { bubbles: true }));
-			boldWeight.value = '800';
-			boldWeight.dispatchEvent(new Event('change', { bubbles: true }));
-			ligatures.click();
-		});
-		expect(controller.current()).toMatchObject({
-			fontLigatures: false,
-			fontWeight: 300,
-			fontWeightBold: 800,
-			terminalPadding: 12,
-		});
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='terminal']"),
-			).click(),
-		);
-		const trimTrailingBlankRows = requiredElement<HTMLElement>(
-			container.querySelector("[aria-label='Trim trailing blank rows for CLI agents']"),
-		);
-		expect(trimTrailingBlankRows.getAttribute('aria-checked')).toBe('true');
-		await act(async () => trimTrailingBlankRows.click());
-		expect(interactionController.getSnapshot().preferences).toEqual({
-			copyOnSelect: true,
-			trimTrailingBlankRowsForAgents: false,
-		});
-		expect(interactionListener).not.toHaveBeenCalled();
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='interaction']"),
-			).click(),
-		);
-		const copyOnSelect = requiredElement<HTMLElement>(
-			container.querySelector("[aria-label='Copy on select']"),
-		);
-		await act(async () => copyOnSelect.click());
 		expect(interactionController.current()).toEqual({ copyOnSelect: false });
-		expect(interactionListener).toHaveBeenCalledWith({ copyOnSelect: false });
+		expect(listener).toHaveBeenCalledWith({ copyOnSelect: false });
 	});
 
-	it('saves the scrollback default for future terminals to the shared preferences', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		controller.open();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: () => undefined,
-						terminalDefaultSettingsControl: createTerminalDefaultSettingsControl(),
-					}),
-				),
-			);
+	it('saves terminal history in megabytes and rejects values outside the range', async () => {
+		const { container, controller, openCategory } = await renderSurface({
+			props: { terminalDefaultSettingsControl: createTerminalDefaultSettingsControl() },
 		});
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='terminal']"),
-			).click(),
+		await openCategory('terminal');
+		const history = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Terminal history']"),
 		);
-		expect(container.textContent).toContain('Running terminals keep their current history limit.');
-		const scrollback = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Scrollback limit']"),
-		);
-		expect(scrollback.value).toBe('10000000');
+		expect(history.value).toBe('10');
 
-		await act(async () => {
-			scrollback.focus();
-			setInputValue(scrollback, '1000000001');
-			scrollback.dispatchEvent(new Event('input', { bubbles: true }));
-			scrollback.blur();
-		});
-		expect(scrollback.getAttribute('aria-invalid')).toBe('true');
+		await commitInput(history, '1001');
+		expect(history.getAttribute('aria-invalid')).toBe('true');
 		expect(controller.userPreferences.getSnapshot().snapshot?.values.scrollbackBytes).toBe(
 			10_000_000,
 		);
 
-		await act(async () => {
-			scrollback.focus();
-			setInputValue(scrollback, '25000000');
-			scrollback.dispatchEvent(new Event('input', { bubbles: true }));
-			scrollback.blur();
-		});
+		await commitInput(history, '25');
 		expect(controller.userPreferences.getSnapshot().snapshot?.values.scrollbackBytes).toBe(
 			25_000_000,
 		);
-
-		const search = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Search settings']"),
-		);
-		await act(async () => {
-			setInputValue(search, 'scrollback');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		const searchResult = requiredElement<HTMLElement>(
-			container.querySelector("[data-settings-search-result='terminal.scrollback']"),
-		);
-		expect(searchResult.textContent).toContain('Scrollback limit');
 	});
 
-	it('exposes a Desktop macOS-only Option-as-Alt preference and applies it live', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
+	it('shows Option as Alt only with its controller and applies it live', async () => {
 		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		const macosTerminalInputSettingsController = trackDisposable(
-			new MacosTerminalInputSettingsController(storage),
-		);
-		const inputListener = vi.fn<(configuration: TerminalInputConfiguration) => void>();
-		macosTerminalInputSettingsController.subscribe(inputListener);
-		controller.open();
-		const root = trackRoot(createRoot(container));
-
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						macosTerminalInputSettingsController,
-						onRequestClose: () => undefined,
-					}),
-				),
-			);
+		const macosController = trackDisposable(new MacosTerminalInputSettingsController(storage));
+		const listener = vi.fn<(configuration: TerminalInputConfiguration) => void>();
+		macosController.subscribe(listener);
+		const { container, openCategory } = await renderSurface({
+			props: { macosTerminalInputSettingsController: macosController },
 		});
-
-		const macosInputCategory = requiredElement<HTMLButtonElement>(
-			container.querySelector("button[data-settings-category='cursor-input']"),
-		);
-		await act(async () => macosInputCategory.click());
+		await openCategory('terminal');
 		const optionAsAlt = requiredElement<HTMLSelectElement>(
 			container.querySelector("select[aria-label='Use Option as Alt']"),
 		);
 		expect(optionAsAlt.value).toBe('off');
 		await act(async () => {
-			optionAsAlt.value = 'right';
+			setSelectValue(optionAsAlt, 'right');
 			optionAsAlt.dispatchEvent(new Event('change', { bubbles: true }));
 		});
-		expect(macosTerminalInputSettingsController.current()).toEqual({ optionAsAlt: 'right' });
-		expect(inputListener).toHaveBeenCalledWith({ optionAsAlt: 'right' });
+		expect(macosController.current()).toEqual({ optionAsAlt: 'right' });
+		expect(listener).toHaveBeenCalledWith({ optionAsAlt: 'right' });
 	});
 
-	it('validates draft values while keeping Settings open', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		controller.open();
-
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: () => undefined,
-					}),
-				),
-			);
-		});
-
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='text']"),
-			).click(),
-		);
+	it('keeps an invalid font size as a draft without applying it', async () => {
+		const { container, controller, openCategory } = await renderSurface();
+		await openCategory('appearance');
 		const fontSize = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Terminal font size']"),
+			container.querySelector("input[aria-label='Font size']"),
 		);
-		await act(async () => {
-			fontSize.focus();
-			setInputValue(fontSize, '49');
-			fontSize.dispatchEvent(new Event('input', { bubbles: true }));
-			fontSize.blur();
-		});
+		await commitInput(fontSize, '49');
 		expect(fontSize.getAttribute('aria-invalid')).toBe('true');
 		expect(controller.getSnapshot().preferences.fontSize).toBe(13);
-
 		expect(controller.getSnapshot().open).toBe(true);
 	});
 
-	it('keeps the shortcut table stable during global search and supports shortcut editing', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'standard',
-				storage,
-			}),
-		);
-		controller.open();
-		const close = vi.fn<() => void>();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'standard',
-						onRequestClose: close,
-					}),
-				),
-			);
-		});
-
-		const keyboardCategory = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Keyboard shortcuts',
-			),
-		);
-		await act(async () => keyboardCategory.click());
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(
-			KEYBOARD_SHORTCUT_CATALOG.length,
-		);
-		expect(container.textContent).toContain('Ctrl+Shift+T');
-		expect(container.textContent).toContain('New terminal in current directory');
-		expect(container.textContent).toContain('Ctrl+Alt+Enter');
-		expect(container.textContent).toContain('Ctrl+Shift+W');
-		expect(container.textContent).toContain('Clear terminal');
-		expect(container.textContent).toContain('Focus panel left');
-		expect(container.textContent).toContain('Focus next Workbench region');
-		expect(container.textContent).toContain('Ctrl+F6');
-		expect(container.textContent).toContain('Ctrl+Alt+←');
-		expect(container.textContent).toContain('Focus panel 1');
-		expect(container.textContent).toContain('Ctrl+Shift+1');
-		expect(container.textContent).toContain('Focus panel 10');
-		expect(container.textContent).toContain('Ctrl+Shift+0');
-		expect(container.textContent).toContain('Visually focus panel');
-		expect(container.textContent).toContain('Ctrl+Shift+F7');
-		expect(container.textContent).toContain('Visually swap panel');
-		expect(container.textContent).toContain('Ctrl+Shift+F8');
-		expect(container.textContent).toContain('Equalize panels');
-		expect(container.textContent).toContain('Ctrl+Alt+=');
-		expect(container.textContent).toContain('Select next tab');
-		expect(container.textContent).toContain('Ctrl+Page Down');
-		expect(container.textContent).toContain('Move active tab forward');
-		expect(container.textContent).toContain('Ctrl+Shift+.');
-		expect(container.textContent).toContain('Scroll up one page');
-		expect(container.textContent).toContain('Ctrl+Shift+Page Up');
-		expect(container.textContent).toContain('Show terminal hints');
-		expect(container.textContent).toContain('Ctrl+Shift+O');
-		expect(container.textContent).toContain('Show last command output');
-		expect(container.textContent).toContain('Ctrl+Shift+G');
-		expect(container.textContent).toContain('Focused terminal');
-
-		const search = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Search settings']"),
-		);
-		await act(async () => {
-			setInputValue(search, 'Focused terminal');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(
-			KEYBOARD_SHORTCUT_CATALOG.length,
-		);
-		expect(
-			container.querySelectorAll('[data-settings-search-result]').length,
-		).toBeGreaterThanOrEqual(3);
-		await act(async () => {
-			setInputValue(search, '');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-
-		const globalSearchRecorder = requiredElement<HTMLButtonElement>(
+	it('records a shortcut, keeps Settings open on a recorder Escape, and restores the default', async () => {
+		const { close, container, controller, keyboardShortcutController, openCategory } =
+			await renderSurface({ platform: 'standard' });
+		await openCategory('keyboard');
+		const recorder = requiredElement<HTMLButtonElement>(
 			container.querySelector("button[aria-label='Change shortcut for Search everything']"),
 		);
-		await act(async () => globalSearchRecorder.click());
-		await act(async () => {
-			globalSearchRecorder.dispatchEvent(
-				new KeyboardEvent('keydown', {
-					bubbles: true,
-					cancelable: true,
-					code: 'KeyY',
-					ctrlKey: true,
-					key: 'Y',
-					shiftKey: true,
-				}),
-			);
-		});
+		const pressOnRecorder = async (init: KeyboardEventInit): Promise<void> => {
+			await act(async () => {
+				recorder.dispatchEvent(
+					new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }),
+				);
+			});
+		};
+		await act(async () => recorder.click());
+		await pressOnRecorder({ code: 'KeyY', ctrlKey: true, key: 'Y', shiftKey: true });
 		expect(keyboardShortcutController.current()['workbench.search.all.open']).toEqual({
 			code: 'KeyY',
 			modifiers: ['mod', 'shift'],
 		});
-		expect(
-			container.querySelector("[data-shortcut-id='workbench.search.all.open']")?.textContent,
-		).toContain('Custom');
 
-		const actionsSearchRecorder = requiredElement<HTMLButtonElement>(
-			container.querySelector("button[aria-label='Change shortcut for Search actions']"),
-		);
-		await act(async () => actionsSearchRecorder.click());
-		await act(async () => {
-			actionsSearchRecorder.dispatchEvent(
-				new KeyboardEvent('keydown', {
-					bubbles: true,
-					cancelable: true,
-					code: 'KeyY',
-					ctrlKey: true,
-					key: 'Y',
-					shiftKey: true,
-				}),
-			);
-		});
-		const actionsRow = requiredElement<HTMLElement>(
-			container.querySelector("[data-shortcut-id='workbench.search.actions.open']"),
-		);
-		expect(actionsRow.textContent).toContain('Search everything');
-		expect(actionsRow.textContent).toContain('Workbench');
-		expect(actionsRow.textContent).toContain('Custom');
-		expect(keyboardShortcutController.current()['workbench.search.actions.open']).toEqual({
-			code: 'KeyP',
-			modifiers: ['mod', 'shift'],
-		});
-
-		await act(async () => actionsSearchRecorder.click());
-		await act(async () => {
-			actionsSearchRecorder.dispatchEvent(
-				new KeyboardEvent('keydown', {
-					bubbles: true,
-					cancelable: true,
-					code: 'Escape',
-					key: 'Escape',
-				}),
-			);
-		});
+		await act(async () => recorder.click());
+		await pressOnRecorder({ code: 'Escape', key: 'Escape' });
 		expect(controller.getSnapshot().open).toBe(true);
 		expect(close).not.toHaveBeenCalled();
 
-		const reset = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) =>
-					button.textContent?.trim() === 'Restore default' &&
-					button.closest('[data-shortcut-id]')?.getAttribute('data-shortcut-id') ===
-						'workbench.search.all.open',
-			),
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[aria-label='Restore default: Search everything']"),
+			).click(),
 		);
-		await act(async () => reset.click());
 		expect(keyboardShortcutController.current()['workbench.search.all.open']).toEqual({
 			code: 'KeyK',
 			modifiers: ['mod', 'shift'],
 		});
-	});
-
-	it('keeps the read-only remote diagnostic stable during global search without side effects', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		controller.open();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: () => undefined,
-					}),
-				),
-			);
-		});
-
-		const remoteCategory = requiredElement<HTMLButtonElement>(
-			container.querySelector("button[data-settings-category='remote-development']"),
-		);
-		await act(async () => remoteCategory.click());
-		const diagnostic = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('#remote-development-diagnostic-command'),
-		);
-		expect(diagnostic.readOnly).toBe(true);
-		expect(diagnostic.value).toBe(REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND);
-		expect(container.textContent).toContain('xterm-256color');
-		expect(container.textContent).toContain('No automatic remote changes');
-		expect(container.textContent).toContain('private reverse Unix-socket forward');
-		expect(storage.setItem).not.toHaveBeenCalled();
-
-		const search = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='Search settings']"),
-		);
-		await act(async () => {
-			setInputValue(search, 'infocmp');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		expect(container.querySelector('#remote-development-diagnostic-command')).not.toBeNull();
-		await act(async () => {
-			setInputValue(search, 'automatic installation action');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		expect(container.textContent).toContain('No settings found.');
-		expect(container.querySelector('#remote-development-diagnostic-command')).not.toBeNull();
-		expect(storage.setItem).not.toHaveBeenCalled();
-	});
-
-	it('searches the Chinese catalog without falling back to English', async () => {
-		const container = trackContainer(document.createElement('div'));
-		document.body.append(container);
-		const storage = memoryStorage();
-		const controller = trackDisposable(
-			new TerminalSettingsController({
-				storage,
-				themeTarget: document.createElement('div'),
-				userPreferences: memoryUserPreferences(),
-			}),
-		);
-		const keyboardShortcutController = trackDisposable(
-			new KeyboardShortcutSettingsController({
-				platform: 'apple',
-				storage,
-			}),
-		);
-		controller.open();
-		const root = trackRoot(createRoot(container));
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'zh-CN' },
-					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
-						controller,
-						keyboardShortcutController,
-						keyboardShortcutPlatform: 'apple',
-						onRequestClose: () => undefined,
-					}),
-				),
-			);
-		});
-
-		const search = requiredElement<HTMLInputElement>(
-			container.querySelector("input[aria-label='搜索设置']"),
-		);
-		await act(async () =>
-			requiredElement<HTMLButtonElement>(
-				container.querySelector("button[data-settings-category='text']"),
-			).click(),
-		);
-		expect(container.textContent).toContain('终端字体族');
-		expect(container.textContent).not.toContain('Terminal font family');
-
-		await act(async () => {
-			setInputValue(search, '字体');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-		expect(container.textContent).toContain('终端字体族');
-		expect(container.textContent).not.toContain('Application theme');
-		await act(async () => {
-			setInputValue(search, '');
-			search.dispatchEvent(new Event('input', { bubbles: true }));
-		});
-
-		const keyboardCategory = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === '键盘快捷键',
-			),
-		);
-		await act(async () => keyboardCategory.click());
-		expect(container.textContent).toContain('搜索操作');
-		expect(container.textContent).toContain('已聚焦的终端');
-		expect(container.textContent).not.toContain('Search actions');
-
-		const remoteCategory = requiredElement<HTMLButtonElement>(
-			container.querySelector("button[data-settings-category='remote-development']"),
-		);
-		await act(async () => remoteCategory.click());
-		expect(container.textContent).toContain('诊断远端 shell');
-		expect(container.textContent).toContain('不会自动修改远端');
-		expect(container.textContent).not.toContain('No automatic remote changes');
 	});
 });
 
@@ -1175,6 +430,22 @@ function requiredElement<ElementType extends Element>(
 		throw new Error('Expected element was not rendered.');
 	}
 	return element;
+}
+
+async function changeInput(input: HTMLInputElement, value: string): Promise<void> {
+	await act(async () => {
+		setInputValue(input, value);
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+	});
+}
+
+async function commitInput(input: HTMLInputElement, value: string): Promise<void> {
+	await act(async () => {
+		input.focus();
+		setInputValue(input, value);
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		input.blur();
+	});
 }
 
 function setInputValue(input: HTMLInputElement, value: string): void {

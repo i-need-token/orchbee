@@ -13,7 +13,6 @@ import { enUSProjectedTerminalMessages } from './projected-terminal';
 import { enUSSessionConnectionMessages } from './session-connection';
 
 import { enUSTerminalSettingsMessages } from './terminal-settings';
-import { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
@@ -32,7 +31,6 @@ export const enUSMessages = {
 	...enUSSessionConnectionMessages,
 
 	...enUSTerminalSettingsMessages,
-	...enUSTerminalSettingsCatalogMessages,
 	...enUSWorkbenchMessages,
 } as const;
 

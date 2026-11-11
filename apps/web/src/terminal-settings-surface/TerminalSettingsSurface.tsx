@@ -1,49 +1,47 @@
-import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
+import {
+	keyboardShortcutMessages,
+	terminalSettingsMessages,
+	useOrchbeeIntl,
+	type MessageDescriptor,
+} from '@orchbee/i18n';
 import { Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { AgentIntegrationManagementControl } from '../agent-integration-management';
-import type { ApplicationLocaleController } from '../application-locale';
-import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
-import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
-
+import {
+	type KeyboardShortcutSettingsController,
+	useKeyboardShortcutSettings,
+} from '../keyboard-shortcuts';
+import {
+	type MacosTerminalInputSettingsController,
+	useMacosTerminalInputSettings,
+} from '../macos-terminal-input-settings';
 import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
-import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
-import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
-import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
-import type { TerminalSettingsController } from '../terminal-settings';
-import { AgentIntegrationSettings } from './components/agent-integration-settings/AgentIntegrationSettings';
-import { ApplicationLanguageSettings } from './components/application-language-settings/ApplicationLanguageSettings';
+import { type TerminalSettingsController, useTerminalSettings } from '../terminal-settings';
+import { AgentSettings } from './components/agent-settings/AgentSettings';
+import { AppearanceSettings } from './components/appearance-settings/AppearanceSettings';
+import { ConfigFileRow } from './components/config-file-row/ConfigFileRow';
+import { GeneralSettings } from './components/general-settings/GeneralSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
-import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
-import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
-import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
-
-import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
-import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
-import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
-import styles from './TerminalSettingsSurface.module.css';
+import { NotificationPermissionBanner } from './components/notification-permission-banner/NotificationPermissionBanner';
+import { NotificationSettings } from './components/notification-settings/NotificationSettings';
+import { SettingsBanner } from './components/settings-banner/SettingsBanner';
 import { SharedPreferenceStatus } from './components/shared-preference-status/SharedPreferenceStatus';
+import { TerminalBehaviorSettings } from './components/terminal-behavior-settings/TerminalBehaviorSettings';
+import { ThemeSettings } from './components/theme-settings/ThemeSettings';
+import { TERMINAL_SETTINGS_CATEGORIES } from './constants/terminal-settings-categories';
+import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
+import type {
+	TerminalSettingsCategory,
+	TerminalSettingsSurfaceProps,
+} from './types/terminal-settings-surface';
+import styles from './TerminalSettingsSurface.module.css';
 
-export interface TerminalSettingsSurfaceProps {
-	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
-	readonly applicationLocaleController: ApplicationLocaleController;
-	readonly controller: TerminalSettingsController;
-	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
-	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
-	/** The configured command holding each default shortcut it took, by shortcut id. */
-	readonly keyboardShortcutsTakenByConfiguredCommands?: ReadonlyMap<string, string> | undefined;
-	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
-	readonly onRequestClose: () => void;
+export type { TerminalSettingsSurfaceProps } from './types/terminal-settings-surface';
 
-	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
-	readonly terminalLaunchProfileClient?: TerminalLaunchProfileControl | undefined;
-	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
-	readonly terminalInteractionSettingsController?:
-		| TerminalInteractionSettingsController
-		| undefined;
-}
-
+/**
+ * Settings as a full page over the workbench content: the settings navigation takes the app
+ * sidebar's place, Back and Escape return to where the user was, and every change applies at once.
+ */
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
 	const control = props.controller.userPreferences;
 	const resetRevision = React.useSyncExternalStore(
@@ -51,263 +49,331 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		() => control.getSnapshot().draftResetRevision,
 		() => control.getSnapshot().draftResetRevision,
 	);
-	return (
-		<TerminalSettingsSurfaceContent
-			key={resetRevision}
-			agentIntegrationManagementControl={props.agentIntegrationManagementControl}
-			applicationLocaleController={props.applicationLocaleController}
-			controller={props.controller}
-			keyboardShortcutController={props.keyboardShortcutController}
-			keyboardShortcutPlatform={props.keyboardShortcutPlatform}
-			keyboardShortcutsTakenByConfiguredCommands={props.keyboardShortcutsTakenByConfiguredCommands}
-			macosTerminalInputSettingsController={props.macosTerminalInputSettingsController}
-			onRequestClose={props.onRequestClose}
-			terminalFeedbackSettingsController={props.terminalFeedbackSettingsController}
-			terminalLaunchProfileClient={props.terminalLaunchProfileClient}
-			terminalDefaultSettingsControl={props.terminalDefaultSettingsControl}
-			terminalInteractionSettingsController={props.terminalInteractionSettingsController}
-		/>
-	);
+	return <TerminalSettingsSurfaceContent key={resetRevision} props={props} />;
 }
 
-function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): React.ReactNode {
-	const view = useTerminalSettingsSurface(props);
-	if (!view.open) return null;
-	const appearancePreferenceCategory =
-		view.category === 'appearance' ||
-		view.category === 'colors' ||
-		view.category === 'general' ||
-		view.category === 'interaction' ||
-		view.category === 'text';
-	const terminalSettingsSectionsCategory =
-		appearancePreferenceCategory || view.category === 'terminal';
-
-	let mainContent: React.ReactNode;
-	if (
-		view.category === 'agent-integrations' &&
-		props.agentIntegrationManagementControl !== undefined
-	) {
-		mainContent = <AgentIntegrationSettings control={props.agentIntegrationManagementControl} />;
-	} else if (view.category === 'keyboard-shortcuts') {
-		mainContent = (
-			<KeyboardShortcutSettings
-				controller={props.keyboardShortcutController}
-				platform={props.keyboardShortcutPlatform}
-				takenByConfiguredCommands={props.keyboardShortcutsTakenByConfiguredCommands}
-			/>
-		);
-	} else if (view.category === 'remote-development') {
-		mainContent = <RemoteDevelopmentSettings messages={view.messages} />;
-	} else if (view.category === 'profiles' && props.terminalLaunchProfileClient !== undefined) {
-		mainContent = <TerminalLaunchProfileSettings client={props.terminalLaunchProfileClient} />;
-	} else if (
-		view.category === 'shell-integration' &&
-		props.terminalFeedbackSettingsController !== undefined
-	) {
-		mainContent = (
-			<ShellIntegrationSettings controller={props.terminalFeedbackSettingsController} />
-		);
-	} else {
-		const actualSettings = (
-			<>
-				{view.category !== 'cursor-input' ||
-				props.macosTerminalInputSettingsController === undefined ||
-				!view.macosInputVisible ? null : (
-					<MacosTerminalInputSettings controller={props.macosTerminalInputSettingsController} />
-				)}
-				{terminalSettingsSectionsCategory ? <TerminalSettingsSections view={view} /> : null}
-			</>
-		);
-		mainContent = (
-			<div className={styles['settingsStack']}>
-				{view.category === 'general' ? (
-					<ApplicationLanguageSettings controller={props.applicationLocaleController} />
-				) : (
-					actualSettings
-				)}
-				{view.category === 'general' ? actualSettings : null}
-			</div>
-		);
-	}
+function TerminalSettingsSurfaceContent({
+	props,
+}: {
+	readonly props: TerminalSettingsSurfaceProps;
+}): React.ReactNode {
+	const intl = useOrchbeeIntl();
+	const page = useTerminalSettingsSurface(props);
+	if (!page.open) return null;
+	const searchLabel = intl.formatMessage(terminalSettingsMessages.searchPlaceholder);
+	const currentCategory = TERMINAL_SETTINGS_CATEGORIES.find(
+		(definition) => definition.id === page.category,
+	);
+	const banner = (id: string): BannerVisibility => ({
+		onDismiss: () => page.dismissBanner(id),
+		visible: !page.searching && !page.isBannerDismissed(id),
+	});
 
 	return (
 		<div
 			className={styles['root']}
-			data-mobile-navigation={view.navigationOpen ? 'navigation' : 'content'}
 			data-slot='terminal-settings-surface'
-			onKeyDown={view.onSurfaceKeyDown}
+			onKeyDown={page.onSurfaceKeyDown}
 		>
 			<div aria-hidden='true' className={styles['windowDragRegion']} />
-			<div
-				aria-labelledby='terminal-settings-title'
-				aria-modal='true'
-				className={styles['panel']}
-				data-settings-layout='bounded'
-				role='dialog'
+			<nav
+				aria-label={intl.formatMessage(terminalSettingsMessages.title)}
+				className={styles['sidebar']}
 			>
-				<aside className={styles['sidebar']}>
-					<div className={styles['sidebarHeader']}>
-						<button
-							aria-label={view.messages.close}
-							className={styles['close']}
-							data-settings-close
-							title={view.messages.close}
-							type='button'
-							onClick={view.onRequestClose}
-						>
-							<ProductIcon name='close' />
-						</button>
-						<span className={styles['sidebarTitle']}>{view.messages.title}</span>
-					</div>
-					<div className={styles['search']}>
-						<ProductIcon name='search' />
-						<Input
-							ref={view.inputReference}
-							aria-activedescendant={view.activeSearchResultId}
-							aria-autocomplete='list'
-							aria-controls={view.searchActive ? view.searchResultsId : undefined}
-							aria-expanded={view.searchActive}
-							aria-label={view.messages.searchPlaceholder}
-							autoComplete='off'
-							className={styles['searchInput']}
-							placeholder={view.messages.searchPlaceholder}
-							role='combobox'
-							value={view.query}
-							onChange={view.onSearchChange}
-							onKeyDown={view.onSearchKeyDown}
-						/>
-					</div>
-					{view.searchActive ? (
-						<div
-							aria-label={view.messages.searchPlaceholder}
-							aria-live={view.searchResults.length === 0 ? 'polite' : undefined}
-							className={styles['searchResults']}
-							id={view.searchResultsId}
-							role='listbox'
-						>
-							{view.searchResults.length === 0 ? (
-								<p
-									aria-disabled='true'
-									aria-selected='false'
-									className={styles['searchEmpty']}
-									role='option'
+				<button
+					className={styles['back']}
+					data-settings-close
+					type='button'
+					onClick={props.onRequestClose}
+				>
+					<ProductIcon name='arrow-left' />
+					<span className={styles['navLabel']}>
+						{intl.formatMessage(terminalSettingsMessages.back)}
+					</span>
+				</button>
+				<label className={styles['search']}>
+					<ProductIcon name='search' />
+					<Input
+						ref={page.searchReference}
+						aria-label={searchLabel}
+						autoComplete='off'
+						className={styles['searchInput']}
+						placeholder={searchLabel}
+						spellCheck={false}
+						type='search'
+						value={page.query}
+						onChange={(event) => page.onQueryChange(event.currentTarget.value)}
+					/>
+				</label>
+				<ul className={styles['categories']}>
+					{page.categories.map((definition) => {
+						const selected = !page.searching && definition.id === page.category;
+						return (
+							<li key={definition.id}>
+								<button
+									aria-current={selected ? 'page' : undefined}
+									className={styles['category']}
+									data-selected={selected}
+									data-settings-category={definition.id}
+									type='button'
+									onClick={() => page.onCategorySelect(definition.id)}
 								>
-									{view.messages.noResults}
-								</p>
-							) : (
-								view.searchResults.map((result) => (
-									<button
-										aria-selected={result.active}
-										className={styles['searchResult']}
-										data-active={result.active}
-										data-settings-search-result={result.id}
-										id={result.elementId}
-										key={result.id}
-										role='option'
-										type='button'
-										onClick={result.onActivate}
-										onFocus={result.onFocus}
-										onMouseEnter={result.onFocus}
-									>
-										<span className={styles['categoryIcon']}>
-											<ProductIcon name={result.icon} />
-										</span>
-										<span className={styles['searchResultLabel']}>
-											{result.kind === 'category' ? null : (
-												<>
-													<span className={styles['searchResultCategory']}>
-														{result.categoryLabel}
-													</span>
-													<span aria-hidden='true' className={styles['searchResultSeparator']}>
-														›
-													</span>
-												</>
-											)}
-											<span className={styles['searchResultSetting']}>{result.label}</span>
-										</span>
-									</button>
-								))
-							)}
+									<ProductIcon name={definition.icon} />
+									<span className={styles['navLabel']}>{intl.formatMessage(definition.label)}</span>
+								</button>
+							</li>
+						);
+					})}
+				</ul>
+			</nav>
+			<main
+				ref={page.contentReference}
+				className={styles['content']}
+				data-settings-content={page.searching ? 'search' : page.category}
+			>
+				<div className={styles['column']}>
+					{page.searching ? null : (
+						<div className={styles['banners']}>
+							<SharedBanner control={props.controller} visibility={banner('shared')} />
+							{page.category === 'appearance' || page.category === 'themes' ? (
+								<AppearancePersistenceBanner
+									controller={props.controller}
+									visibility={banner('appearance-persistence')}
+								/>
+							) : null}
+							{page.category === 'terminal' &&
+							props.terminalDefaultSettingsControl !== undefined ? (
+								<TerminalDefaultsBanner
+									control={props.terminalDefaultSettingsControl}
+									visibility={banner('terminal-defaults')}
+								/>
+							) : null}
+							{page.category === 'terminal' &&
+							props.macosTerminalInputSettingsController !== undefined ? (
+								<MacosPersistenceBanner
+									controller={props.macosTerminalInputSettingsController}
+									visibility={banner('macos-persistence')}
+								/>
+							) : null}
+							{page.category === 'keyboard' ? (
+								<KeyboardPersistenceBanner
+									controller={props.keyboardShortcutController}
+									visibility={banner('keyboard-persistence')}
+								/>
+							) : null}
+							{page.category === 'notifications' &&
+							props.terminalFeedbackSettingsController !== undefined &&
+							banner('notification-permission').visible ? (
+								<NotificationPermissionBanner
+									controller={props.terminalFeedbackSettingsController}
+									onDismiss={banner('notification-permission').onDismiss}
+								/>
+							) : null}
+						</div>
+					)}
+					<h1 className={styles['title']} id='terminal-settings-title' tabIndex={-1}>
+						{page.searching || currentCategory === undefined
+							? intl.formatMessage(terminalSettingsMessages.pageSearchResults)
+							: intl.formatMessage(currentCategory.label)}
+					</h1>
+					{page.searching ? (
+						<div className={styles['searchPage']} data-slot='settings-search-results'>
+							{page.categories.map((definition) => (
+								<section
+									aria-label={intl.formatMessage(definition.label)}
+									className={styles['searchCategory']}
+									key={definition.id}
+								>
+									<h2 className={styles['searchCategoryTitle']}>
+										{intl.formatMessage(definition.label)}
+									</h2>
+									<CategoryContent category={definition.id} props={props} query={page.query} />
+								</section>
+							))}
+							<section className={styles['searchCategory']}>
+								<ConfigFileRow query={page.query} />
+							</section>
+							<p className={styles['noMatches']} role='status'>
+								{intl.formatMessage(terminalSettingsMessages.pageNoMatches)}
+							</p>
 						</div>
 					) : (
-						<nav aria-label={view.messages.title} className={styles['categories']}>
-							{view.navigationGroups.map((group) => (
-								<div
-									aria-label={group.label}
-									className={styles['categoryGroup']}
-									data-settings-group={group.id}
-									key={group.id}
-									role='group'
-								>
-									<div
-										aria-hidden='true'
-										className={styles['categoryGroupLabel']}
-										data-settings-group-label={group.id}
-									>
-										{group.label}
-									</div>
-									{group.items.map((item) => (
-										<button
-											aria-current={view.category === item.id ? 'page' : undefined}
-											className={styles['category']}
-											data-selected={view.category === item.id}
-											data-settings-category={item.id}
-											key={item.id}
-											type='button'
-											onClick={(): void => view.onCategorySelect(item.id)}
-										>
-											<span className={styles['categoryIcon']}>
-												<ProductIcon name={item.icon} />
-											</span>
-											<span className={styles['categoryLabel']}>{item.label}</span>
-										</button>
-									))}
-								</div>
-							))}
-						</nav>
+						<div className={styles['page']}>
+							<CategoryContent category={page.category} props={props} query='' />
+							{currentCategory?.configFile === true ? <ConfigFileRow query='' /> : null}
+						</div>
 					)}
-				</aside>
-
-				<main
-					ref={view.contentReference}
-					className={styles['content']}
-					data-settings-content={view.category}
-					tabIndex={0}
-				>
-					<div className={styles['contentColumn']}>
-						<button
-							aria-label={view.messages.back}
-							className={styles['mobileNavigationBack']}
-							title={view.messages.back}
-							type='button'
-							onClick={view.onNavigationRequest}
-						>
-							<ProductIcon name='arrow-left' />
-							<span>{view.messages.title}</span>
-						</button>
-						<header className={styles['header']}>
-							<h1 className={styles['title']} id='terminal-settings-title' tabIndex={-1}>
-								{view.pageTitle}
-							</h1>
-							<p className={styles['description']}>{view.pageDescription}</p>
-							<SharedPreferenceStatus control={props.controller.userPreferences} />
-						</header>
-
-						{!appearancePreferenceCategory || view.persistenceWarning === null ? null : (
-							<div className={styles['warning']} role='alert'>
-								{view.persistenceWarning}
-							</div>
-						)}
-						{view.category !== 'terminal' || view.terminalDefaultSettingsWarning === null ? null : (
-							<div className={styles['warning']} role='alert'>
-								{view.terminalDefaultSettingsWarning}
-							</div>
-						)}
-
-						{mainContent}
-					</div>
-				</main>
-			</div>
+				</div>
+			</main>
 		</div>
+	);
+}
+
+interface CategoryContentProps {
+	readonly category: TerminalSettingsCategory;
+	readonly props: TerminalSettingsSurfaceProps;
+	readonly query: string;
+}
+
+function CategoryContent({ category, props, query }: CategoryContentProps): React.ReactNode {
+	const userPreferences = props.controller.userPreferences;
+	switch (category) {
+		case 'general':
+			return (
+				<GeneralSettings
+					applicationLocaleController={props.applicationLocaleController}
+					query={query}
+					userPreferences={userPreferences}
+				/>
+			);
+		case 'appearance':
+			return <AppearanceSettings controller={props.controller} query={query} />;
+		case 'themes':
+			return <ThemeSettings controller={props.controller} query={query} />;
+		case 'terminal':
+			return (
+				<TerminalBehaviorSettings
+					defaultSettingsControl={props.terminalDefaultSettingsControl}
+					interactionController={props.terminalInteractionSettingsController}
+					launchProfileClient={props.terminalLaunchProfileClient}
+					macosInputController={props.macosTerminalInputSettingsController}
+					query={query}
+					userPreferences={userPreferences}
+				/>
+			);
+		case 'notifications':
+			return props.terminalFeedbackSettingsController === undefined ? null : (
+				<NotificationSettings controller={props.terminalFeedbackSettingsController} query={query} />
+			);
+		case 'keyboard':
+			return (
+				<KeyboardShortcutSettings
+					controller={props.keyboardShortcutController}
+					platform={props.keyboardShortcutPlatform}
+					query={query}
+					takenByConfiguredCommands={props.keyboardShortcutsTakenByConfiguredCommands}
+				/>
+			);
+		case 'agents':
+			return (
+				<AgentSettings
+					integrationControl={props.agentIntegrationManagementControl}
+					query={query}
+					userPreferences={userPreferences}
+				/>
+			);
+	}
+}
+
+interface BannerVisibility {
+	readonly onDismiss: () => void;
+	readonly visible: boolean;
+}
+
+interface BannerWithVisibility {
+	readonly visibility: BannerVisibility;
+}
+
+function SharedBanner({
+	control,
+	visibility,
+}: {
+	readonly control: TerminalSettingsController;
+	readonly visibility: BannerVisibility;
+}): React.ReactNode {
+	if (!visibility.visible) return null;
+	return (
+		<SharedPreferenceStatus control={control.userPreferences} onDismiss={visibility.onDismiss} />
+	);
+}
+
+const PERSISTENCE_WARNINGS = {
+	'invalid-record': terminalSettingsMessages.persistenceInvalidWarning,
+	'read-failed': terminalSettingsMessages.persistenceReadWarning,
+	'write-failed': terminalSettingsMessages.persistenceWriteWarning,
+} as const satisfies Readonly<Record<string, MessageDescriptor>>;
+
+const KEYBOARD_PERSISTENCE_WARNINGS = {
+	'invalid-record': keyboardShortcutMessages.persistenceInvalidWarning,
+	'read-failed': keyboardShortcutMessages.persistenceReadWarning,
+	'write-failed': keyboardShortcutMessages.persistenceWriteWarning,
+} as const satisfies Readonly<Record<string, MessageDescriptor>>;
+
+function PersistenceBanner({
+	descriptor,
+	visibility,
+}: {
+	readonly descriptor: MessageDescriptor | null;
+	readonly visibility: BannerVisibility;
+}): React.ReactNode {
+	const intl = useOrchbeeIntl();
+	if (!visibility.visible || descriptor === null) return null;
+	return <SettingsBanner title={intl.formatMessage(descriptor)} onDismiss={visibility.onDismiss} />;
+}
+
+function AppearancePersistenceBanner({
+	controller,
+	visibility,
+}: BannerWithVisibility & { readonly controller: TerminalSettingsController }): React.ReactNode {
+	const { persistenceIssue } = useTerminalSettings(controller);
+	return (
+		<PersistenceBanner
+			descriptor={persistenceIssue === null ? null : PERSISTENCE_WARNINGS[persistenceIssue]}
+			visibility={visibility}
+		/>
+	);
+}
+
+function MacosPersistenceBanner({
+	controller,
+	visibility,
+}: BannerWithVisibility & {
+	readonly controller: MacosTerminalInputSettingsController;
+}): React.ReactNode {
+	const { persistenceIssue } = useMacosTerminalInputSettings(controller);
+	return (
+		<PersistenceBanner
+			descriptor={persistenceIssue === null ? null : PERSISTENCE_WARNINGS[persistenceIssue]}
+			visibility={visibility}
+		/>
+	);
+}
+
+function KeyboardPersistenceBanner({
+	controller,
+	visibility,
+}: BannerWithVisibility & {
+	readonly controller: KeyboardShortcutSettingsController;
+}): React.ReactNode {
+	const { persistenceIssue } = useKeyboardShortcutSettings(controller);
+	return (
+		<PersistenceBanner
+			descriptor={
+				persistenceIssue === null ? null : KEYBOARD_PERSISTENCE_WARNINGS[persistenceIssue]
+			}
+			visibility={visibility}
+		/>
+	);
+}
+
+/** Save failures show in the shared banner; only a missing defaults snapshot is reported here. */
+function TerminalDefaultsBanner({
+	control,
+	visibility,
+}: BannerWithVisibility & { readonly control: TerminalDefaultSettingsControl }): React.ReactNode {
+	const snapshot = React.useSyncExternalStore(
+		control.subscribe,
+		control.getSnapshot,
+		control.getSnapshot,
+	);
+	return (
+		<PersistenceBanner
+			descriptor={
+				snapshot.failureCode === 'control-unavailable'
+					? terminalSettingsMessages.scrollbackBytesControlUnavailableWarning
+					: null
+			}
+			visibility={visibility}
+		/>
 	);
 }

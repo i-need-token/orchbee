@@ -8,8 +8,10 @@ export type ProductIconName =
 	| 'action'
 	| 'add'
 	| 'agent'
+	| 'appearance'
 	| 'arrow-down'
 	| 'arrow-left'
+	| 'bell'
 	| 'clipboard'
 	| 'chevron-right'
 	| 'check'
@@ -21,12 +23,14 @@ export type ProductIconName =
 	| 'folder'
 	| 'folder-opened'
 	| 'git-branch'
+	| 'keyboard'
 	| 'layout'
 	| 'more-vertical'
 	| 'new-folder'
 	| 'panels'
 	| 'pin'
 	| 'question'
+	| 'restore'
 	| 'search'
 	| 'screen-full'
 	| 'screen-normal'
@@ -51,8 +55,10 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'action' && styles['action'],
 				name === 'add' && styles['add'],
 				name === 'agent' && styles['agent'],
+				name === 'appearance' && styles['appearance'],
 				name === 'arrow-down' && styles['arrowDown'],
 				name === 'arrow-left' && styles['arrowLeft'],
+				name === 'bell' && styles['bell'],
 				name === 'clipboard' && styles['clipboard'],
 				name === 'chevron-right' && styles['chevronRight'],
 				name === 'check' && styles['check'],
@@ -64,12 +70,14 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'folder' && styles['folder'],
 				name === 'folder-opened' && styles['folderOpened'],
 				name === 'git-branch' && styles['gitBranch'],
+				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
 				name === 'more-vertical' && styles['moreVertical'],
 				name === 'new-folder' && styles['newFolder'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
 				name === 'question' && styles['question'],
+				name === 'restore' && styles['restore'],
 				name === 'search' && styles['search'],
 				name === 'screen-full' && styles['screenFull'],
 				name === 'screen-normal' && styles['screenNormal'],

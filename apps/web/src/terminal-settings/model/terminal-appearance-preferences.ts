@@ -12,7 +12,7 @@ export const MINIMUM_TERMINAL_FONT_SIZE = 8;
 export const MAXIMUM_TERMINAL_FONT_SIZE = 48;
 const TERMINAL_FONT_SIZE_STEP = 2;
 export const TERMINAL_FONT_WEIGHT_OPTIONS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
-export type TerminalFontWeight = (typeof TERMINAL_FONT_WEIGHT_OPTIONS)[number];
+type TerminalFontWeight = (typeof TERMINAL_FONT_WEIGHT_OPTIONS)[number];
 export type TerminalFontSizeChange = 'decrease' | 'increase' | 'reset';
 
 export interface TerminalAppearancePreferences {

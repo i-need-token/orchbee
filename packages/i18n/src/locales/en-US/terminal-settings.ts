@@ -1,9 +1,6 @@
 export const enUSTerminalSettingsMessages = {
-	'terminal.settings.shared.scope':
-		'Shared with the TUI on this device and configuration. Display and interaction changes apply now; launch profiles and scrollback apply to new terminals.',
 	'terminal.settings.shared.unreadable':
 		"Settings file can't be read · using defaults · Reset all in Settings",
-	'terminal.settings.shared.pending': 'Saving settings…',
 	'terminal.settings.shared.unavailable':
 		'Shared settings could not be read. The last confirmed values remain in use.',
 	'terminal.settings.shared.failed': 'Settings were not saved. Your edit has not been applied.',
@@ -14,29 +11,15 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shared.host':
 		'Settings are saved, but the terminal service has not applied them. New terminals may still use the previous defaults.',
 	'terminal.settings.shared.refresh': 'Reload settings and discard drafts',
-	'terminal.settings.shared.reloadDraft': 'Load current values',
 	'terminal.settings.shared.reset': 'Reset all',
 	'terminal.settings.shared.confirmReset': 'Reset all shared settings and launch profiles?',
 	'terminal.settings.shared.system': 'Follow system',
-	'terminal.settings.shared.sound': 'Notification sound',
-	'terminal.settings.shared.soundDescription':
-		'Play a sound with Agent and command completion notifications. System notification permissions still apply.',
 	'terminal.settings.actions.back': 'Back',
 	'terminal.settings.actions.close': 'Close settings',
 	'terminal.settings.actions.reset': 'Reset',
 	'terminal.settings.applicationTheme.dark': 'Dark',
-	'terminal.settings.applicationTheme.description':
-		'Choose a light or dark appearance, or follow the system.',
 	'terminal.settings.applicationTheme.label': 'Application theme',
 	'terminal.settings.applicationTheme.light': 'Light',
-	'terminal.settings.colorTheme.dark.description':
-		'Colors for the interface and terminals when the appearance is dark.',
-	'terminal.settings.colorTheme.dark.label': 'Dark theme',
-	'terminal.settings.colorTheme.dark.systemNotice': 'Used when the system is dark.',
-	'terminal.settings.colorTheme.light.description':
-		'Colors for the interface and terminals when the appearance is light.',
-	'terminal.settings.colorTheme.light.label': 'Light theme',
-	'terminal.settings.colorTheme.light.systemNotice': 'Used when the system is light.',
 	'terminal.settings.colorTheme.names.catppuccinMocha': 'Catppuccin Mocha',
 	'terminal.settings.colorTheme.names.dayfox': 'Dayfox',
 	'terminal.settings.colorTheme.names.dracula': 'Dracula',
@@ -53,56 +36,14 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.names.tangoLight': 'Tango Light',
 	'terminal.settings.colorTheme.names.tokyoNight': 'Tokyo Night',
 	'terminal.settings.colorTheme.names.tomorrowNight': 'Tomorrow Night',
-	'terminal.settings.language.automaticFallbackNotice':
-		'Orchbee uses your system or browser language until you choose here. Your choice is saved on this device.',
 	'terminal.settings.language.english': 'English',
 	'terminal.settings.language.simplifiedChinese': '简体中文',
-	'terminal.settings.appearance.terminalPadding.description':
-		'Add the same amount of space, in CSS pixels, around terminal text. Existing terminals update immediately.',
-	'terminal.settings.appearance.terminalPadding.invalid':
-		'Enter a whole number from {minimum, number} to {maximum, number}.',
-	'terminal.settings.appearance.terminalPadding.label': 'Terminal padding',
 
-	'terminal.settings.categories.macosInput': 'macOS input',
-	'terminal.settings.categories.remoteDevelopment': 'Remote development',
-	'terminal.settings.categories.shellIntegration': 'Shell integration',
 	'terminal.settings.categories.terminal': 'Terminal',
-	'terminal.settings.colors.background.description':
-		'Choose the default color behind terminal text.',
 	'terminal.settings.colors.background.invalid': 'Enter a color in #RRGGBB format.',
-	'terminal.settings.colors.background.label': 'Background color',
-	'terminal.settings.colors.backgroundOpacity.description':
-		'Choose how opaque the terminal background appears.',
-	'terminal.settings.colors.backgroundOpacity.invalid':
-		'Enter a whole number from {minimum, number} to {maximum, number}.',
-	'terminal.settings.colors.backgroundOpacity.label': 'Background opacity',
-	'terminal.settings.colors.backgroundOpacity.percentValue': '{value, number}%',
-	'terminal.settings.colors.displayTheme.currentDeviceOnlyNotice':
-		'Custom colors change how terminal colors are displayed on this device only.',
-	'terminal.settings.colors.displayTheme.custom': 'Custom',
-	'terminal.settings.colors.displayTheme.description':
-		'Choose how terminal foreground and background colors are displayed.',
-	'terminal.settings.colors.displayTheme.host': 'Host',
-	'terminal.settings.colors.displayTheme.label': 'Terminal display theme',
-	'terminal.settings.colors.displayTheme.theme': 'Theme',
-	'terminal.settings.colors.foreground.description': 'Choose the default color for terminal text.',
 	'terminal.settings.colors.foreground.invalid': 'Enter a color in #RRGGBB format.',
-	'terminal.settings.colors.foreground.label': 'Foreground color',
 	'terminal.settings.description': 'Customize the application and terminal appearance.',
-	'terminal.settings.interaction.copyOnSelect.description':
-		'Copy selected terminal text when the selection completes. Existing terminals update immediately.',
 	'terminal.settings.interaction.copyOnSelect.label': 'Copy on select',
-	'terminal.settings.macosInput.description':
-		'Choose how macOS keyboard input is sent to terminal programs on this Mac.',
-	'terminal.settings.macosInput.optionAsAlt.both': 'Both Option keys',
-	'terminal.settings.macosInput.optionAsAlt.description':
-		'For the selected side, Option sends terminal Alt combinations instead of macOS special characters. Existing terminals update immediately.',
-	'terminal.settings.macosInput.optionAsAlt.label': 'Use Option as Alt',
-	'terminal.settings.macosInput.optionAsAlt.left': 'Left Option only',
-	'terminal.settings.macosInput.optionAsAlt.off': 'Off — type macOS special characters',
-	'terminal.settings.macosInput.optionAsAlt.right': 'Right Option only',
-	'terminal.settings.macosInput.sections.optionKey': 'Option key',
-	'terminal.settings.macosInput.title': 'macOS input',
 	'terminal.settings.persistence.invalidWarning':
 		'Saved settings are invalid. Defaults are in use; reset to try saving them.',
 	'terminal.settings.persistence.readWarning':
@@ -114,7 +55,6 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.profiles.actions.confirmDelete': 'Delete this profile',
 	'terminal.settings.profiles.actions.confirmReset': 'Reset all profiles',
 	'terminal.settings.profiles.actions.delete': 'Delete',
-	'terminal.settings.profiles.actions.duplicate': 'Duplicate',
 	'terminal.settings.profiles.actions.makeDefault': 'Make default',
 	'terminal.settings.profiles.actions.reset': 'Reset profiles',
 	'terminal.settings.profiles.actions.save': 'Save changes',
@@ -164,103 +104,127 @@ export const enUSTerminalSettingsMessages = {
 		'The last profile change could not be saved. Your previous profiles remain active.',
 	'terminal.settings.profiles.section': 'Launch profiles',
 	'terminal.settings.profiles.systemShell': 'System shell',
-	'terminal.settings.reset.description': 'Restore the default application and terminal settings.',
-	'terminal.settings.remoteDevelopment.baseline.description':
-		'Orchbee starts local Desktop terminals with this widely available TERM. A standard SSH PTY can carry it to the remote shell.',
-	'terminal.settings.remoteDevelopment.baseline.title': 'Terminal baseline',
-	'terminal.settings.remoteDevelopment.description':
-		'Check the terminal identity visible to a remote shell without changing the remote host.',
-	'terminal.settings.remoteDevelopment.diagnostic.description':
-		'Run this command yourself after connecting with SSH. It only reads three environment values and checks whether infocmp recognizes TERM.',
-	'terminal.settings.remoteDevelopment.diagnostic.label': 'Read-only diagnostic command',
-	'terminal.settings.remoteDevelopment.diagnostic.resultDescription':
-		'TERM_MATCH compares TERM with the Orchbee baseline. Unsafe control-bearing values are not printed. TERMINFO distinguishes an unset or unsafe TERM, an unavailable infocmp program, an available entry, and a missing entry.',
-	'terminal.settings.remoteDevelopment.diagnostic.title': 'Diagnose the remote shell',
-	'terminal.settings.remoteDevelopment.noChanges.description':
-		'Orchbee shell integration augments eligible interactive SSH sessions with one private reverse Unix-socket forward for Agent observation. Other SSH modes remain unchanged; Orchbee installs no remote files and keeps no remote cache. Your explicit arguments and OpenSSH configuration remain authoritative.',
-	'terminal.settings.remoteDevelopment.noChanges.title': 'No automatic remote changes',
-	'terminal.settings.remoteDevelopment.title': 'Remote development',
-	'terminal.settings.shellIntegration.description':
-		'Expose reliable command boundaries for completion reminders and terminal semantics.',
-	'terminal.settings.shellIntegration.notification.description':
-		'System notification permission is requested only from this button. Terminal output never requests permission.',
-	'terminal.settings.shellIntegration.notification.agentMode.hidden':
-		'Notify when the Agent location is hidden',
-	'terminal.settings.shellIntegration.notification.agentMode.label': 'Agent status notifications',
-	'terminal.settings.shellIntegration.notification.agentMode.never': 'Off',
-	'terminal.settings.shellIntegration.notification.request': 'Allow system notifications',
-	'terminal.settings.shellIntegration.notification.status.denied':
-		'Denied. Change notification access in your browser or operating-system settings.',
-	'terminal.settings.shellIntegration.notification.status.granted': 'System notifications allowed.',
-	'terminal.settings.shellIntegration.notification.status.prompt':
-		'Not requested. Orchbee will not ask until you use the button below.',
-	'terminal.settings.shellIntegration.notification.status.unsupported':
-		'System notifications are unavailable in this client.',
-	'terminal.settings.shellIntegration.notification.title': 'System notifications',
-	'terminal.settings.shellIntegration.reminder.always': 'Always',
-	'terminal.settings.shellIntegration.reminder.description':
-		'Remind only after a semantic command completion from an enabled integration. Command text is never included.',
-	'terminal.settings.shellIntegration.reminder.minimum.description':
-		'Commands shorter than this many seconds do not produce a reminder.',
-	'terminal.settings.shellIntegration.reminder.minimum.invalid':
-		'Enter a whole number from {minimum, number} to {maximum, number}.',
-	'terminal.settings.shellIntegration.reminder.minimum.label': 'Minimum command duration',
-	'terminal.settings.shellIntegration.reminder.mode.label': 'Completion reminders',
-	'terminal.settings.shellIntegration.reminder.never': 'Never',
-	'terminal.settings.shellIntegration.reminder.title': 'Command completion reminders',
-	'terminal.settings.shellIntegration.reminder.unfocused': 'When this terminal is unfocused',
-	'terminal.settings.shellIntegration.reset.description':
-		'Restore completion reminders to off and the minimum duration to five seconds.',
-	'terminal.settings.shellIntegration.title': 'Shell integration',
-	'terminal.settings.sections.applicationAppearance': 'Application appearance',
-	'terminal.settings.sections.language': 'Language',
-	'terminal.settings.sections.terminalClipboard': 'Selection and clipboard',
-	'terminal.settings.sections.terminalColors': 'Terminal colors',
-	'terminal.settings.sections.terminalHistory': 'History',
-	'terminal.settings.sections.terminalLayout': 'Terminal layout',
-	'terminal.settings.sections.terminalTextShaping': 'Text shaping',
-	'terminal.settings.sections.terminalTypography': 'Terminal typography',
-	'terminal.settings.terminal.resumeAgentsOnRestore.description':
-		'Resume Claude Code and Codex Agent sessions in their Panels after a restart.',
-	'terminal.settings.terminal.resumeAgentsOnRestore.label': 'Resume Agents after restart',
-	'terminal.settings.terminal.restoreTerminalOutput.description':
-		'Keeps recent output on this computer and shows it after a restart; may hold secrets.',
-	'terminal.settings.terminal.restoreTerminalOutput.label': 'Restore terminal output after restart',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Scrollback settings are unavailable until the Desktop control connection is restored.',
-	'terminal.settings.terminal.scrollbackBytes.description':
-		'Maximum retained terminal history, in bytes. New terminals capture this value.',
-	'terminal.settings.terminal.scrollbackBytes.futureNotice':
-		'Running terminals keep their current history limit.',
-	'terminal.settings.terminal.scrollbackBytes.invalid':
-		'Enter a whole number from {minimum, number} to {maximum, number}.',
-	'terminal.settings.terminal.scrollbackBytes.label': 'Scrollback limit',
-	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description':
-		'Hide unused blank rows at the end of the primary screen for detected CLI agents so their content stays aligned with the bottom. Existing terminals update immediately.',
-	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.label':
-		'Trim trailing blank rows for CLI agents',
 	'terminal.settings.title': 'Settings',
-	'terminal.settings.typography.fontFamily.description': 'Set the font used for terminal text.',
-	'terminal.settings.typography.fontFamily.deviceAvailability':
-		'Font availability depends on this device. A fallback font is used when needed.',
 	'terminal.settings.typography.fontFamily.invalid':
 		'Enter a font family between 1 and 256 characters.',
-	'terminal.settings.typography.fontFamily.label': 'Terminal font family',
-	'terminal.settings.typography.fontLigatures.description':
-		'Use discretionary ligatures provided by the terminal font. Existing terminals update immediately.',
-	'terminal.settings.typography.fontLigatures.label': 'Font ligatures',
-	'terminal.settings.typography.fontSize.description': 'Choose a size for terminal text.',
 	'terminal.settings.typography.fontSize.invalid':
 		'Enter a whole number from {minimum, number} to {maximum, number}.',
 	'terminal.settings.typography.fontSize.label': 'Terminal font size',
-	'terminal.settings.typography.fontWeight.description':
-		'Choose the numeric weight used for regular terminal text.',
-	'terminal.settings.typography.fontWeight.label': 'Regular font weight',
-	'terminal.settings.typography.fontWeightBold.description':
-		'Choose the numeric weight used for bold terminal text.',
-	'terminal.settings.typography.fontWeightBold.label': 'Bold font weight',
 	'terminal.settings.search.noResults': 'No settings found.',
 	'terminal.settings.search.placeholder': 'Search settings',
+	'terminal.settings.page.searchResults': 'Search results',
+	'terminal.settings.page.noMatches': 'No matching settings.',
+	'terminal.settings.page.restoreDefault': 'Restore default',
+	'terminal.settings.page.changedFromDefault': 'Changed from default',
+	'terminal.settings.page.effect.newTerminals': 'new terminals',
+	'terminal.settings.page.effect.nextRestart': 'next restart',
+	'terminal.settings.page.dismiss': 'Dismiss',
+	'terminal.settings.page.selected': 'Selected',
+	'terminal.settings.page.configFile.label': 'More options in config.toml',
+	'terminal.settings.page.configFile.copy': 'Copy path',
+	'terminal.settings.page.configFile.copied': 'Copied',
+	'terminal.settings.page.categories.general': 'General',
+	'terminal.settings.page.categories.appearance': 'Appearance',
+	'terminal.settings.page.categories.themes': 'Themes',
+	'terminal.settings.page.categories.terminal': 'Terminal',
+	'terminal.settings.page.categories.notifications': 'Notifications',
+	'terminal.settings.page.categories.keyboard': 'Keyboard',
+	'terminal.settings.page.categories.agents': 'Agents',
+	'terminal.settings.page.groups.afterRestart': 'After a restart',
+	'terminal.settings.page.groups.appAppearance': 'App appearance',
+	'terminal.settings.page.groups.lightTheme': 'Light theme',
+	'terminal.settings.page.groups.darkTheme': 'Dark theme',
+	'terminal.settings.page.groups.terminalColors': 'Terminal colors',
+	'terminal.settings.page.groups.terminalText': 'Terminal text',
+	'terminal.settings.page.groups.selectionAndKeys': 'Selection and keys',
+	'terminal.settings.page.groups.output': 'Output',
+	'terminal.settings.page.groups.launchProfiles': 'Launch profiles',
+	'terminal.settings.page.groups.launchProfiles.description':
+		'Which shell a new terminal runs, plus your own profiles.',
+	'terminal.settings.page.groups.whenToNotify': 'When to notify',
+	'terminal.settings.page.groups.soundAndDelivery': 'Sound and delivery',
+	'terminal.settings.page.groups.shortcuts': 'Window and panel shortcuts',
+	'terminal.settings.page.groups.agentIntegrations': 'Agent integrations',
+	'terminal.settings.page.groups.agentIntegrations.description':
+		'Lets Orchbee show each Agent’s status. Turning one on changes one file of that Agent.',
+	'terminal.settings.page.filter.count': '{shown, number}/{total, number}',
+	'terminal.settings.page.filter.noMatches': 'Nothing matches the filter.',
+	'terminal.settings.page.filter.profiles': 'Filter profiles',
+	'terminal.settings.page.filter.agents': 'Filter Agents',
+	'terminal.settings.page.filter.lightThemes': 'Filter light themes',
+	'terminal.settings.page.filter.darkThemes': 'Filter dark themes',
+	'terminal.settings.page.themes.inUse': 'In use now',
+	'terminal.settings.page.themes.appliesDark': 'Applies when the app appearance is Dark.',
+	'terminal.settings.page.themes.appliesLight': 'Applies when the app appearance is Light.',
+	'terminal.settings.page.language.label': 'Language',
+	'terminal.settings.page.language.description': 'Language for menus and messages.',
+	'terminal.settings.page.restoreOutput.label': 'Restore terminal output after restart',
+	'terminal.settings.page.restoreOutput.description':
+		'Shows recent output again after a restart. Kept on this computer; may include secrets.',
+	'terminal.settings.page.applicationTheme.label': 'Application theme',
+	'terminal.settings.page.applicationTheme.description':
+		'Light, dark, or follow the system. Pick the light and dark themes under Themes.',
+	'terminal.settings.page.terminalColors.label': 'Terminal colors',
+	'terminal.settings.page.terminalColors.description':
+		'Default text and background colors in terminals; colors a program sets stay as they are.',
+	'terminal.settings.page.terminalColors.theme': 'Match theme',
+	'terminal.settings.page.terminalColors.host': 'Terminal default',
+	'terminal.settings.page.terminalColors.custom': 'Custom',
+	'terminal.settings.page.textColor.label': 'Text color',
+	'terminal.settings.page.textColor.description': 'Terminal text color for Custom.',
+	'terminal.settings.page.backgroundColor.label': 'Background color',
+	'terminal.settings.page.backgroundColor.description': 'Terminal background color for Custom.',
+	'terminal.settings.page.font.label': 'Font',
+	'terminal.settings.page.font.description':
+		'Font for terminal text; another font fills in when it is missing.',
+	'terminal.settings.page.fontSize.label': 'Font size',
+	'terminal.settings.page.fontSize.description': 'Size of terminal text.',
+	'terminal.settings.page.unit.pixels': 'px',
+	'terminal.settings.page.unit.megabytes': 'MB',
+	'terminal.settings.page.copyOnSelect.label': 'Copy on select',
+	'terminal.settings.page.copyOnSelect.description':
+		'Copies text as soon as you finish selecting it.',
+	'terminal.settings.page.terminalHistory.label': 'Terminal history',
+	'terminal.settings.page.terminalHistory.description':
+		'How much output each terminal keeps for scrolling back.',
+	'terminal.settings.page.terminalHistory.invalid':
+		'Enter a number from {minimum, number} to {maximum, number}.',
+	'terminal.settings.page.optionAsAlt.label': 'Use Option as Alt',
+	'terminal.settings.page.optionAsAlt.description':
+		'The chosen Option key sends Alt combinations instead of special characters.',
+	'terminal.settings.page.optionAsAlt.off': 'Off',
+	'terminal.settings.page.optionAsAlt.left': 'Left Option',
+	'terminal.settings.page.optionAsAlt.right': 'Right Option',
+	'terminal.settings.page.optionAsAlt.both': 'Both Option keys',
+	'terminal.settings.page.agentNotifications.label': 'Agent status notifications',
+	'terminal.settings.page.agentNotifications.description':
+		'Tells you when an Agent you can’t see finishes or needs you.',
+	'terminal.settings.page.agentNotifications.never': 'Off',
+	'terminal.settings.page.agentNotifications.hidden': 'When the Agent isn’t visible',
+	'terminal.settings.page.completionReminders.label': 'Command completion reminders',
+	'terminal.settings.page.completionReminders.description':
+		'Reminds you when a long command finishes. Command text is never shown.',
+	'terminal.settings.page.completionReminders.never': 'Off',
+	'terminal.settings.page.completionReminders.unfocused': 'When the terminal isn’t focused',
+	'terminal.settings.page.completionReminders.always': 'Always',
+	'terminal.settings.page.sound.label': 'Notification sound',
+	'terminal.settings.page.sound.description': 'Plays a sound with notifications and reminders.',
+	'terminal.settings.page.permission.askTitle': 'System notifications are not allowed yet',
+	'terminal.settings.page.permission.askDescription':
+		'Until you allow them, Agent and command notifications appear only inside Orchbee.',
+	'terminal.settings.page.permission.deniedTitle': 'The system is blocking Orchbee’s notifications',
+	'terminal.settings.page.permission.deniedDescription':
+		'Allow Orchbee in the system notification settings to see them outside the app.',
+	'terminal.settings.page.permission.allow': 'Allow',
+	'terminal.settings.page.resumeAgents.label': 'Resume Agent conversations after restart',
+	'terminal.settings.page.resumeAgents.description':
+		'Reopens Claude Code and Codex conversations in their panels after a restart.',
+	'terminal.settings.page.profiles.add': 'Add profile',
+	'terminal.settings.page.profiles.edit': 'Edit',
+	'terminal.settings.page.profiles.done': 'Done',
+	'terminal.settings.page.profiles.useAsDefault': 'Use as default',
 } as const;
 
 export type TerminalSettingsMessageId = keyof typeof enUSTerminalSettingsMessages;

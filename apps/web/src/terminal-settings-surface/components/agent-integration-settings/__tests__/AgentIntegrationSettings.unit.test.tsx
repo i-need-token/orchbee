@@ -43,14 +43,13 @@ describe('AgentIntegrationSettings', () => {
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
-					createElement(AgentIntegrationSettings, { control }),
+					createElement(AgentIntegrationSettings, { control, query: '' }),
 				),
 			);
 		});
 
 		expect(control.enableCalls).toEqual([]);
 		expect(control.disableCalls).toEqual([]);
-		expect(container.textContent).toContain('never installs adapters automatically');
 		const integrationSwitch = findSwitch(container, 'Codex integration');
 		expect(integrationSwitch.getAttribute('aria-checked')).toBe('true');
 		expect(findButtonWithExactText(container, 'Disable')).toBeUndefined();
@@ -83,7 +82,7 @@ describe('AgentIntegrationSettings', () => {
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
-					createElement(AgentIntegrationSettings, { control }),
+					createElement(AgentIntegrationSettings, { control, query: '' }),
 				),
 			);
 		});

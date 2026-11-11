@@ -1,5 +1,6 @@
 import {
 	BUILT_IN_USER_LAUNCH_PROFILE_ID,
+	DEFAULT_USER_PREFERENCES,
 	USER_LAUNCH_PROFILE_LIMITS,
 	UserLaunchProfileNameSchema,
 	UserLaunchProfileSchema,
@@ -9,6 +10,7 @@ import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import type { TerminalLaunchProfileControl } from '../../../../terminal-launch-profile-control';
+import { preferenceValuesEqual } from '../../../utils/preferenceValuesEqual';
 
 interface ProfileDraft {
 	readonly arguments: readonly string[];
@@ -20,8 +22,12 @@ interface ProfileDraft {
 
 interface ProfileListItemView {
 	readonly defaultLabel: string | null;
+	/** The program a custom profile runs; null for the system shell. */
+	readonly detail: string | null;
 	readonly id: string;
+	readonly isDefault: boolean;
 	readonly label: string;
+	readonly onMakeDefault: () => void;
 	readonly onSelect: () => void;
 	readonly selected: boolean;
 }
@@ -100,6 +106,13 @@ interface ButtonActionView {
 	readonly onClick: () => void;
 }
 
+interface SaveActionView {
+	readonly disabled: boolean;
+	readonly label: string;
+	/** Resolves whether the edited profile was saved, so an editor closes only on success. */
+	readonly onClick: () => Promise<boolean>;
+}
+
 type ConfirmableActionView =
 	| {
 			readonly cancelLabel: string;
@@ -121,11 +134,13 @@ interface TerminalLaunchProfileSettingsView {
 	readonly commandEditor: CommandEditorView;
 	readonly deleteAction: ConfirmableActionView;
 	readonly makeDefaultAction: ButtonActionView;
+	/** Whether the catalog differs from the product's single system-shell profile. */
+	readonly modified: boolean;
 	readonly nameEditor: NameEditorView;
 	readonly notice: string;
 	readonly profiles: readonly ProfileListItemView[];
 	readonly resetAction: ConfirmableActionView;
-	readonly saveAction: ButtonActionView;
+	readonly saveAction: SaveActionView;
 	readonly sectionLabel: string;
 	readonly warning: string | null;
 }
@@ -326,7 +341,7 @@ export function useTerminalLaunchProfileSettings(
 		if (created !== undefined) setSelectedProfileId(created.id);
 		setNewProfileName('');
 	};
-	const saveProfile = async (): Promise<void> => {
+	const saveProfile = async (): Promise<boolean> => {
 		const trimmedName = draft.name.trim();
 		const name =
 			selectedProfile.id === BUILT_IN_USER_LAUNCH_PROFILE_ID && trimmedName === ''
@@ -346,11 +361,13 @@ export function useTerminalLaunchProfileSettings(
 		});
 		if (!candidate.success) {
 			setLocalError(name === '' ? messages.nameInvalid : messages.failureInvalid);
-			return;
+			return false;
 		}
 		setLocalError(null);
 		const result = await client.updateProfile(candidate.data, draftSource);
-		if (result.kind === 'completed') setDraftSource(result.snapshot.preferencesSource);
+		if (result.kind !== 'completed') return false;
+		setDraftSource(result.snapshot.preferencesSource);
+		return true;
 	};
 	const deleteProfile = async (): Promise<void> => {
 		const result = await client.deleteProfile(selectedProfile.id);
@@ -475,6 +492,7 @@ export function useTerminalLaunchProfileSettings(
 					label: messages.delete,
 					onRequest: (): void => setDeleteConfirmation(true),
 				},
+		modified: !preferenceValuesEqual(snapshot.catalog, DEFAULT_USER_PREFERENCES.launchProfiles),
 		makeDefaultAction: {
 			disabled: disabled || isDefault,
 			label: messages.makeDefault,
@@ -494,8 +512,11 @@ export function useTerminalLaunchProfileSettings(
 		notice: messages.futureTerminalsNotice,
 		profiles: snapshot.catalog.profiles.map((profile) => ({
 			defaultLabel: profile.id === snapshot.catalog.defaultProfileId ? messages.defaultBadge : null,
+			detail: profile.command.kind === 'custom-executable' ? profile.command.executable : null,
 			id: profile.id,
+			isDefault: profile.id === snapshot.catalog.defaultProfileId,
 			label: profileLabel(profile),
+			onMakeDefault: (): void => void client.selectDefault(profile.id),
 			onSelect: (): void => setSelectedProfileId(profile.id),
 			selected: profile.id === selectedProfile.id,
 		})),
@@ -517,7 +538,7 @@ export function useTerminalLaunchProfileSettings(
 		saveAction: {
 			disabled,
 			label: messages.save,
-			onClick: (): void => void saveProfile(),
+			onClick: saveProfile,
 		},
 		sectionLabel: messages.section,
 		warning: localError ?? persistenceWarning ?? operationWarning,
