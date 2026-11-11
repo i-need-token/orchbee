@@ -2817,9 +2817,6 @@ fn rejection_reason_text(
     }
 }
 
-/// What the terminal observation produced: the applied visible frame, or the
-/// validated scrollback window behind it.
-
 #[cfg(not(any(target_os = "linux", windows)))]
 #[cfg(test)]
 pub(crate) fn read_terminal(

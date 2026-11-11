@@ -1,6 +1,6 @@
 use super::*;
 use std::{
-    fs::{self, File},
+    fs,
     os::unix::fs::{PermissionsExt, symlink},
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -261,7 +261,7 @@ fn expired_deadline_and_unsafe_directory_fail_before_artifact_admission() {
 #[test]
 fn exact_artifact_hash_and_mode_do_not_admit_an_extended_acl() {
     let fixture = Fixture::new();
-    let file = File::open(fixture.path.join("orchbee-worker")).unwrap();
+    let file = fs::File::open(fixture.path.join("orchbee-worker")).unwrap();
     rustix::fs::fsetxattr(
         &file,
         "system.posix_acl_access",
