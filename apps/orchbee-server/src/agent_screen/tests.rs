@@ -207,8 +207,8 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
     }
 }
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
-/// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code and deveco
-/// 0.3.0. Busy chrome outranks the composer that stays on screen, a startup question blocks only
+/// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code, deveco
+/// 0.3.0 and gemini 0.67.0. Busy chrome outranks the composer that stays on screen, a startup question blocks only
 /// while its live choices or empty answer row are shown, and stray words stay unknown.
 #[test]
 fn new_provider_rules_follow_redacted_windows_captures() {
@@ -248,8 +248,20 @@ fn new_provider_rules_follow_redacted_windows_captures() {
     let jc_busy = format!(" 1› Count to forty\n⠦ sending context… 2s · https\n2…\n{JC_FOOT}");
     let jc_question =
         "│    [y] Set up   [n] Not now   [d] Don't ask again        │\n└──────────┘\n  >";
+    // Gemini CLI 0.67 folder trust box; the marker moves with the selection.
+    let gemini_trust = |first: &str, last: &str| {
+        format!(
+            " ╭─────────╮\n │                                        │\n │ Do you trust the files in this folder? │\n │                                        │\n │ Trusting a folder allows Gemini CLI to load its local configurations, inc… │\n │ custom commands, hooks, MCP servers, agent skills, and settings. These │\n │                                        │\n │ {first} 1. Trust folder (app)                │\n │   2. Trust parent folder (src)         │\n │ {last} 3. Don't trust                       │\n │                                        │\n ╰─────────╯"
+        )
+    };
+    let gemini_trust_first = gemini_trust("●", " ");
+    let gemini_trust_last = gemini_trust(" ", "●");
+    let gemini_idle = "ℹ Do you trust the files in this folder?\n  1. Trust folder (app)\n\n ╭─────────╮\n │ >   Type your message or @path/to/file │\n ╰─────────╯\n ~\\src\\app      no sandbox      model";
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
+        (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
+        (P::Gemini, &gemini_trust_last, "", Blocked),
+        (P::Gemini, gemini_idle, "", Unknown),
         (P::AtomCode, atom_idle.as_str(), "🟢 atomcode", Idle),
         (P::AtomCode, &atom_idle, "", Idle),
         (P::AtomCode, &atom_busy, "🟡 Summary", Working),
