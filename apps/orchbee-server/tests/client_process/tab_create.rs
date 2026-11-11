@@ -83,7 +83,7 @@ fn read_worker_message(
     deadline: Instant,
 ) -> TestResult<CapabilityNodeMessage> {
     let mut stream = DeadlineStream::new(worker, deadline)?;
-    Ok(read_obcn(&mut stream)?)
+    read_obcn(&mut stream)
 }
 
 fn write_worker_message(
