@@ -253,6 +253,12 @@ fn startup_read_starts_on_any_file_and_refuses_only_an_inadmissible_location() {
             text => std::fs::write(&file, text).unwrap(),
         }
         let load = read_startup_settings(explicit).unwrap();
+        // A Server started at the location its Client froze reads the same start.
+        assert_eq!(
+            read_startup_settings_at(Some(&file), true, |_| None).unwrap(),
+            load,
+            "{expected}"
+        );
         assert_eq!(status(&load), expected);
         assert_eq!(load.path.as_deref(), Some(file.as_path()), "{expected}");
         assert_eq!(load.values, UserSettingsValues::default(), "{expected}");

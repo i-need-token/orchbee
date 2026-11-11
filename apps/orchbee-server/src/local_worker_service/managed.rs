@@ -176,8 +176,8 @@ pub(super) fn run(
     #[cfg(not(windows))]
     terminals.start_title_reads()?;
     // Hosts here cannot sample processes: the observer refuses after installing the startup read
-    // as the Session's configuration. No Client read the file first, so a file that cannot be read
-    // starts the Session with the defaults, published as unreadable.
+    // as the Session's configuration. A file that cannot be read starts the Session with the
+    // defaults, published as unreadable.
     #[cfg(not(windows))]
     match terminals.start_process_observer(
         || {

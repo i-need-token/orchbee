@@ -51,12 +51,12 @@ fn direct_startup_reads_through_the_shared_settings_owner() {
     );
     let error = resolve(
         std::iter::empty(),
-        || Err(SettingsError::new("file", "invalid-toml")),
+        || Err(SettingsError::new("ORCHBEE_CONFIG_FILE", "invalid-path")),
         |_, _| panic!("direct startup resolves its own location"),
     )
     .unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
-    assert!(error.to_string().contains("invalid-toml"));
+    assert!(error.to_string().contains("ORCHBEE_CONFIG_FILE"));
 }
 
 #[test]

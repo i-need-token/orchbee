@@ -85,12 +85,13 @@ pub(crate) fn run(
         let runtime = arguments.next().map(PathBuf::from).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
         })?;
+        // A file the start cannot read never stops the Session; only an inadmissible location does.
         #[cfg(windows)]
         let configuration = configuration_windows::resolve(
             arguments,
-            || orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name)),
+            || orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name)),
             |path, explicit| {
-                orchbee_local_runtime::read_user_settings_at(path, explicit, |name| {
+                orchbee_local_runtime::read_startup_settings_at(path, explicit, |name| {
                     std::env::var_os(name)
                 })
             },
@@ -114,12 +115,9 @@ pub(crate) fn run(
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
-    #[cfg(windows)]
-    let configuration = orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name));
-    // No Client read the file first, so only a location that cannot be admitted stops the Session.
-    #[cfg(not(windows))]
-    let configuration = orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name));
-    let configuration = configuration.map_err(io::Error::other)?;
+    // Only a location that cannot be admitted stops the Session; any file starts it.
+    let configuration = orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
+        .map_err(io::Error::other)?;
     // Hosts here cannot sample processes, so the Session serves its settings without an observer.
     #[cfg(not(windows))]
     terminals.install_configuration(&configuration)?;
