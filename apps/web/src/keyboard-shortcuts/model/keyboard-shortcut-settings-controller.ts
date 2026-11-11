@@ -6,7 +6,6 @@ import {
 } from '@orchbee/keyboard-shortcuts';
 
 import type { ProjectedTerminalShortcutBindingSource } from '../../projected-terminal-keyboard-shortcuts';
-import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
 import {
 	defaultKeyboardShortcutBindings,
 	findKeyboardShortcutConflict,
@@ -27,6 +26,7 @@ import {
 	type KeyboardShortcutPersistenceIssue,
 	type KeyboardShortcutStorage,
 } from './keyboard-shortcut-storage';
+import { KeyboardShortcutWriteQueue } from './keyboard-shortcut-write-queue';
 
 export interface KeyboardShortcutSettingsSnapshot {
 	readonly bindings: KeyboardShortcutBindings;
@@ -62,7 +62,7 @@ export class KeyboardShortcutSettingsController implements ProjectedTerminalShor
 	readonly declarations: readonly KeyboardShortcutDeclaration[];
 	readonly #listeners = new Set<Listener>();
 	readonly #platform: KeyboardShortcutPlatform;
-	readonly #persistence = new PreferenceWriteQueue();
+	readonly #persistence = new KeyboardShortcutWriteQueue();
 	readonly #storage: KeyboardShortcutStorage;
 	#disposed = false;
 	#revision = 0;

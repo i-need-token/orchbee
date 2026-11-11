@@ -1,5 +1,5 @@
-/** Serialize one preference owner's synchronous writes, retaining only its latest pending value. */
-export class PreferenceWriteQueue {
+/** Serialize the shortcut overrides' synchronous writes, retaining only the latest pending value. */
+export class KeyboardShortcutWriteQueue {
 	#disposed = false;
 	#pending: (() => void) | undefined;
 	#writing = false;
