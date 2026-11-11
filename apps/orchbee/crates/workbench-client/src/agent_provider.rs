@@ -25,10 +25,25 @@ pub const CANONICAL_IDS: &[&str] = &[
     "letta",
     "maki",
     "muse",
+    "atomcode",
+    "codebuddy",
+    "command-code",
+    "deveco",
+    "mimo",
+    "reasonix",
+    "snow",
+    "minimax-code",
+    "mothx",
+    "kirocrew",
+    "qwenpaw",
+    "jcode",
+    "openclaw",
+    "penguin",
+    "prime-agent",
 ];
 
-use orchbee_agent_observation_protocol::AgentReportProvider;
 pub use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
+use orchbee_agent_observation_protocol::{AgentAliasClass, AgentReportProvider};
 
 /// Exact canonical provider ID; aliases, report labels, and process names stay absent.
 pub fn provider(canonical: &str) -> Option<&'static str> {
@@ -47,13 +62,33 @@ pub fn executable(canonical: &str) -> Option<&'static str> {
         "github-copilot" => "copilot",
         "kiro" => "kiro-cli",
         "qwen-code" => "qwen",
+        "minimax-code" => "mcode",
         _ => id,
     })
 }
 
-/// A generic command name is not enough evidence to advertise a provider as installed.
+/// The fixed arguments that open a provider's interactive session when its bare command does
+/// not; caller arguments follow them.
+pub fn launch_arguments(canonical: &str) -> &'static [&'static str] {
+    match provider(canonical) {
+        Some("kirocrew" | "openclaw" | "penguin") => &["chat"],
+        Some("qwenpaw") => &["tui"],
+        _ => &[],
+    }
+}
+
+/// A command that the registry classes as generic, such as `agent` or `snow`, is not enough
+/// evidence to advertise a provider as installed.
 pub(crate) fn detection_executable(canonical: &str) -> Option<&'static str> {
-    executable(canonical).filter(|command| *command != "agent")
+    let command = executable(canonical)?;
+    let generic = AgentReportProvider::ALL.iter().any(|provider| {
+        provider
+            .registry_entry()
+            .aliases
+            .iter()
+            .any(|alias| alias.name == command && alias.class == AgentAliasClass::Generic)
+    });
+    (!generic).then_some(command)
 }
 
 /// The `agent integration --provider` identity that manages a canonical

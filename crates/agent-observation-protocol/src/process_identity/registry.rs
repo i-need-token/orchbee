@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 2;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 3;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -120,7 +120,7 @@ const fn entry(
 /// The registry, in `AgentReportProvider::ALL` order. Desktop and IDE application names that
 /// share a provider's report label (`cursor`, `kiro`, `qoder`, `antigravity`) are not process
 /// aliases, so those applications are never candidates.
-pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
+pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 39] = {
     use AgentReportProvider as P;
     [
         AgentProviderEntry {
@@ -267,6 +267,115 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
         entry(
             P::Muse,
             &[unique("muse"), unique("muse-bin-#")],
+            NONE,
+            &grammar::DEFAULT,
+        ),
+        // The npm launcher runs the bundled native `atomcode.exe`.
+        entry(
+            P::AtomCode,
+            &[unique("atomcode")],
+            &["node_modules/@atomgit.com/atomcode/bin/atomcode.js"],
+            &grammar::DEFAULT,
+        ),
+        // `cbc` is also the COIN-OR solver's command.
+        AgentProviderEntry {
+            install_roots: &[AgentInstallRoot(&[
+                "node_modules",
+                "@tencent-ai",
+                "codebuddy-code",
+            ])],
+            ..entry(
+                P::CodeBuddy,
+                &[unique("codebuddy"), unique("codebuddy-code"), shared("cbc")],
+                &["node_modules/@tencent-ai/codebuddy-code/bin/codebuddy"],
+                &grammar::DEFAULT,
+            )
+        },
+        // The package's `cmd` command is never an alias: it names the system command processor.
+        entry(
+            P::CommandCode,
+            &[
+                unique("command-code"),
+                unique("commandcode"),
+                unique("cmdc"),
+            ],
+            &["node_modules/command-code/dist/index.mjs"],
+            &grammar::DEFAULT,
+        ),
+        // The npm launcher runs the bundled native `deveco.exe`.
+        entry(
+            P::DevEco,
+            &[unique("deveco")],
+            &["node_modules/@deveco/deveco-code/bin/deveco"],
+            &grammar::DEFAULT,
+        ),
+        // The npm launcher `mimo.js` runs the bundled `vendor/mimo.exe`; both sit in the root.
+        AgentProviderEntry {
+            install_roots: &[AgentInstallRoot(&["node_modules", "@mimo-ai", "cli"])],
+            ..entry(
+                P::Mimo,
+                &[shared("mimo")],
+                &["node_modules/@mimo-ai/cli/mimo.js"],
+                &grammar::DEFAULT,
+            )
+        },
+        entry(
+            P::Reasonix,
+            &[unique("reasonix")],
+            &["node_modules/reasonix/bin/reasonix.js"],
+            &grammar::DEFAULT,
+        ),
+        AgentProviderEntry {
+            install_roots: &[AgentInstallRoot(&["node_modules", "snow-ai"])],
+            ..entry(
+                P::Snow,
+                &[generic("snow")],
+                &["node_modules/snow-ai/bundle/cli.mjs"],
+                &grammar::DEFAULT,
+            )
+        },
+        AgentProviderEntry {
+            install_roots: &[AgentInstallRoot(&["node_modules", "@minimax-ai", "code"])],
+            ..entry(
+                P::MinimaxCode,
+                &[shared("mcode")],
+                &["node_modules/@minimax-ai/code/cli.js"],
+                &grammar::DEFAULT,
+            )
+        },
+        // The npm launcher runs the bundled native `mothx.exe`.
+        entry(
+            P::Mothx,
+            &[unique("mothx")],
+            &["node_modules/mothx-installer/bin/mothx"],
+            &grammar::DEFAULT,
+        ),
+        // A different product from Kiro CLI; neither name aliases the other.
+        entry(P::KiroCrew, &[unique("kirocrew")], NONE, &grammar::KIROCREW),
+        entry(P::QwenPaw, &[unique("qwenpaw")], NONE, &grammar::QWENPAW),
+        entry(P::Jcode, &[unique("jcode")], NONE, &grammar::DEFAULT),
+        entry(
+            P::OpenClaw,
+            &[unique("openclaw")],
+            &["node_modules/openclaw/openclaw.mjs"],
+            &grammar::OPENCLAW,
+        ),
+        AgentProviderEntry {
+            install_roots: &[AgentInstallRoot(&[
+                "node_modules",
+                "@prismshadow",
+                "penguin-cli",
+            ])],
+            ..entry(
+                P::Penguin,
+                &[generic("penguin")],
+                &["node_modules/@prismshadow/penguin-cli/dist/penguin.js"],
+                &grammar::PENGUIN,
+            )
+        },
+        entry(
+            P::PrimeAgent,
+            &[unique("prime-agent")],
             NONE,
             &grammar::DEFAULT,
         ),

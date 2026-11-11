@@ -113,7 +113,10 @@ reuse it rather than keeping their own tables.
 - Registry: `AGENT_PROVIDER_REGISTRY` holds one entry per `AgentReportProvider`, versioned by
   `AGENT_PROVIDER_REGISTRY_VERSION`. Each alias has a collision class: `Unique` names identify the
   provider alone; `Shared` and `Generic` names need one of the entry's install roots in the path.
-  Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone. Desktop and IDE
+  Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone; `snow` and
+  `penguin` are generic words, and `amp`, `mimo`, `mcode` and CodeBuddy's `cbc` are shared, so each
+  needs its package's install root. Kiro Crew's `kirocrew` and Kiro CLI's `kiro-cli` are separate
+  providers, and Command Code's `cmd` command is never an alias. Desktop and IDE
   application names that share a report label (`cursor`, `kiro`, `qoder`, `antigravity`) are not
   process aliases. Entries also list package entries, bundled runtimes, and allowed Python modules.
   Version ranges enter an entry only after a real corpus verifies them; until then every entry is
@@ -130,12 +133,14 @@ reuse it rather than keeping their own tables.
   argument unless written `--name=value`; interactive optional options are written bare or as
   `--name=value` and never consume the next argument, so `--resume <word>` still leaves `<word>` to
   the positional rule. Each grammar lists the resume option the Server types for its provider and
-  that option's documented short alias.
+  that option's documented short alias. A grammar that requires a command (Kiro Crew and OpenClaw
+  `chat`, QwenPaw `tui`, Penguin `chat`) leaves every invocation without one of its interactive
+  commands unclassified, the bare launch included.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 2: the resume options and Qwen's entries changed recognition
-  meaning.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 3: fifteen start-only providers and the required-command
+  grammar joined the registry after version 2's resume options and Qwen entries.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is

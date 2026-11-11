@@ -189,10 +189,10 @@ impl super::CliText {
     pub(super) fn cli_agent_start_provider_choices(self) -> &'static str {
         match self.locale {
             Locale::EnUs => {
-                "one of pi, claude-code, codex, gemini, cursor, devin, antigravity, cline, omp, mastracode, opencode, github-copilot, kimi, kiro, droid, amp, grok, hermes, kilo, qodercli, qwen-code, letta, maki, muse"
+                "one of pi, claude-code, codex, gemini, cursor, devin, antigravity, cline, omp, mastracode, opencode, github-copilot, kimi, kiro, droid, amp, grok, hermes, kilo, qodercli, qwen-code, letta, maki, muse, atomcode, codebuddy, command-code, deveco, mimo, reasonix, snow, minimax-code, mothx, kirocrew, qwenpaw, jcode, openclaw, penguin, prime-agent"
             }
             Locale::ZhCn => {
-                "以下之一：pi、claude-code、codex、gemini、cursor、devin、antigravity、cline、omp、mastracode、opencode、github-copilot、kimi、kiro、droid、amp、grok、hermes、kilo、qodercli、qwen-code、letta、maki、muse"
+                "以下之一：pi、claude-code、codex、gemini、cursor、devin、antigravity、cline、omp、mastracode、opencode、github-copilot、kimi、kiro、droid、amp、grok、hermes、kilo、qodercli、qwen-code、letta、maki、muse、atomcode、codebuddy、command-code、deveco、mimo、reasonix、snow、minimax-code、mothx、kirocrew、qwenpaw、jcode、openclaw、penguin、prime-agent"
             }
         }
     }

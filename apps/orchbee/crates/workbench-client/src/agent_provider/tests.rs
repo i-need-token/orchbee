@@ -9,6 +9,10 @@ fn reported_identities_preserve_custom_labels_and_use_report_alias_rules() {
         ("Antigravity-CLI.ps1", "agy"),
         ("cursor-agent.js", "cursor"),
         ("muse-bin-1.2.3.exe", "muse"),
+        ("cmdc.cmd", "command-code"),
+        ("mcode", "minimax-code"),
+        ("KiroCrew.exe", "kirocrew"),
+        ("cmd", "cmd"),
         ("/tools/codex/", "codex"),
         ("codex.exe/", "codex.exe/"),
         ("agent", "agent"),
@@ -51,6 +55,8 @@ fn startup_commands_come_only_from_the_canonical_mapping() {
     assert_eq!(executable("amp"), Some("amp"));
     assert_eq!(executable("maki"), Some("maki"));
     assert_eq!(executable("muse"), Some("muse"));
+    assert_eq!(executable("minimax-code"), Some("mcode"));
+    assert_eq!(executable("command-code"), Some("command-code"));
     assert_eq!(executable("agent"), None);
     assert_eq!(executable("unknown"), None);
 }

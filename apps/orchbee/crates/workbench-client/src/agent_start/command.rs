@@ -1,21 +1,35 @@
 //! Literal Windows launch text constructed before runtime admission.
-use crate::agent_provider::executable;
+use crate::agent_provider::{executable, launch_arguments};
 
+/// The provider's fixed launch arguments come first; the caller's arguments follow them.
 pub(super) fn launch(provider: &str, args: &[String]) -> Option<String> {
-    launch_program(executable(provider)?, args)
+    let program = executable(provider)?;
+    let args: Vec<String> = launch_arguments(provider)
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .chain(args.iter().cloned())
+        .collect();
+    launch_program(program, &args)
 }
 
-/// The native form has no arguments. Resolve the fixed provider without aliases,
-/// preserving the caller's console and avoiding a multi-page encoded wrapper.
+/// The native form has no caller arguments. Resolve the fixed provider without aliases,
+/// preserving the caller's console and avoiding a multi-page encoded wrapper; a provider's
+/// fixed launch arguments are plain words that need no quoting.
 pub(super) fn interactive(provider: &str, powershell: bool) -> Option<String> {
     let program = executable(provider)?;
-    Some(if powershell {
+    let command = if powershell {
         format!(
             "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1)"
         )
     } else {
         program.to_owned()
-    })
+    };
+    Some(
+        std::iter::once(command.as_str())
+            .chain(launch_arguments(provider).iter().copied())
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
 }
 
 fn launch_program(program: &str, args: &[String]) -> Option<String> {

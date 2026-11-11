@@ -19,4 +19,12 @@ fn argument_free_interactive_launch_is_short_and_excludes_powershell_aliases() {
     assert!(text.contains("-CommandType Application,ExternalScript"));
     assert!(!text.contains("EncodedCommand"));
     assert!(interactive("unknown", true).is_none());
+    // A provider whose bare command is not a chat starts with its fixed subcommand.
+    assert_eq!(
+        interactive("qwenpaw", false).as_deref(),
+        Some("qwenpaw tui")
+    );
+    let text = interactive("kirocrew", true).unwrap();
+    assert!(text.starts_with("& (Get-Command 'kirocrew' "));
+    assert!(text.ends_with(") chat"));
 }

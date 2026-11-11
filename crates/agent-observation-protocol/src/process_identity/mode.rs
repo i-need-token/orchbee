@@ -23,6 +23,9 @@ pub struct AgentModeGrammar {
     pub noninteractive_commands: &'static [&'static str],
     /// First positional words that select an interactive subcommand.
     pub interactive_commands: &'static [&'static str],
+    /// Whether only an interactive subcommand starts the interactive interface; without one,
+    /// a bare launch and any other invocation stay unclassified.
+    pub requires_command: bool,
     /// Interactive options without a value.
     pub interactive_flags: &'static [&'static str],
     /// Interactive options written bare or as `--name=value`; they never consume the next argument.
@@ -46,6 +49,7 @@ impl AgentModeGrammar {
     pub fn classify(&self, args: &[String]) -> AgentInvocationMode {
         let mut mode = AgentInvocationMode::Interactive;
         let mut first_positional = true;
+        let mut command = false;
         let mut index = 0;
         while let Some(arg) = args.get(index) {
             index += 1;
@@ -88,10 +92,14 @@ impl AgentModeGrammar {
                     return AgentInvocationMode::Noninteractive;
                 }
                 if self.interactive_commands.contains(&arg.as_str()) {
+                    command = true;
                     continue;
                 }
             }
             mode = worse(mode, self.positional);
+        }
+        if self.requires_command && !command {
+            return AgentInvocationMode::Unclassified;
         }
         mode
     }
@@ -116,6 +124,7 @@ pub(super) mod grammar {
             noninteractive_options: &[],
             noninteractive_commands: &[],
             interactive_commands: &[],
+            requires_command: false,
             interactive_flags: &[],
             interactive_optional_options: &[],
             interactive_options: &[],
@@ -397,5 +406,42 @@ pub(super) mod grammar {
     pub const CLINE: AgentModeGrammar = AgentModeGrammar {
         interactive_options: &["--id"],
         ..DEFAULT
+    };
+
+    /// `kirocrew` without a command prints its usage; `chat` alone is the interactive mode.
+    pub const KIROCREW: AgentModeGrammar = AgentModeGrammar {
+        noninteractive_commands: &["config"],
+        interactive_commands: &["chat"],
+        requires_command: true,
+        interactive_flags: &["--no-jail"],
+        interactive_options: &["--agent"],
+        ..base(M::Unclassified)
+    };
+
+    /// `tui [PROJECT]` opens the terminal chat; a bare launch states no interactive default.
+    pub const QWENPAW: AgentModeGrammar = AgentModeGrammar {
+        noninteractive_commands: &["clean", "plugin", "skills", "task"],
+        interactive_commands: &["tui"],
+        requires_command: true,
+        interactive_options: &["--resume"],
+        ..base(M::Interactive)
+    };
+
+    /// `chat` is the local terminal UI (`tui --local`); `tui` attaches it to a Gateway session.
+    pub const OPENCLAW: AgentModeGrammar = AgentModeGrammar {
+        noninteractive_commands: &["attach", "config", "hooks", "mcp", "sessions"],
+        interactive_commands: &["chat", "tui"],
+        requires_command: true,
+        interactive_flags: &["--local"],
+        ..base(M::Unclassified)
+    };
+
+    /// `chat` opens the REPL; `run` executes a single Task.
+    pub const PENGUIN: AgentModeGrammar = AgentModeGrammar {
+        noninteractive_commands: &["config", "plugin", "run"],
+        interactive_commands: &["chat"],
+        requires_command: true,
+        interactive_optional_options: &["--resume"],
+        ..base(M::Unclassified)
     };
 }

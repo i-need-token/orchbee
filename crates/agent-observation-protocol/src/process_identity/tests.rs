@@ -866,6 +866,206 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["node.exe", "--expose-gc", "ordinary.js"]),
             NOT,
         ),
+        // Native images that npm launchers, uv tools and installers run.
+        (
+            "native",
+            r"{npm}\node_modules\@atomgit.com\atomcode\node_modules\@atomgit.com\atomcode-win32-x64\bin\atomcode.exe",
+            Some(vec!["atomcode"]),
+            interactive(P::AtomCode, S::NativeImage),
+        ),
+        (
+            "native",
+            r"{npm}\node_modules\@deveco\deveco-code\bin\deveco.exe",
+            Some(vec!["deveco"]),
+            interactive(P::DevEco, S::NativeImage),
+        ),
+        (
+            "native",
+            r"{npm}\node_modules\reasonix\node_modules\@reasonix\cli-win32-x64\bin\reasonix.exe",
+            Some(vec!["reasonix"]),
+            interactive(P::Reasonix, S::NativeImage),
+        ),
+        (
+            "native",
+            r"{npm}\node_modules\mothx-installer\node_modules\mothx-installer-win32-x64\bin\mothx.exe",
+            Some(vec!["mothx"]),
+            interactive(P::Mothx, S::NativeImage),
+        ),
+        (
+            "native",
+            r"{home}\.local\bin\jcode.exe",
+            Some(vec!["jcode"]),
+            interactive(P::Jcode, S::NativeImage),
+        ),
+        (
+            "native",
+            r"{home}\.local\share\prime-agent\prime-agent.exe",
+            Some(vec!["prime-agent"]),
+            interactive(P::PrimeAgent, S::NativeImage),
+        ),
+        (
+            "native",
+            r"{home}\.local\bin\cmdc.exe",
+            Some(vec!["cmdc"]),
+            interactive(P::CommandCode, S::NativeImage),
+        ),
+        // Command Code's `cmd` command is the system command processor's name, never Command Code.
+        (
+            "command processor",
+            r"{home}\AppData\Local\mise\shims\cmd.exe",
+            Some(vec!["cmd"]),
+            NOT,
+        ),
+        // npm launchers at their package entries.
+        (
+            "package entry",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@tencent-ai\codebuddy-code\bin\codebuddy",
+            ]),
+            interactive(P::CodeBuddy, S::PackageEntry),
+        ),
+        (
+            "package entry",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\command-code\dist\index.mjs",
+            ]),
+            interactive(P::CommandCode, S::PackageEntry),
+        ),
+        (
+            "package entry",
+            "node.exe",
+            Some(vec!["node.exe", r"{npm}\node_modules\@mimo-ai\cli\mimo.js"]),
+            interactive(P::Mimo, S::PackageEntry),
+        ),
+        (
+            "package entry",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\snow-ai\bundle\cli.mjs",
+            ]),
+            interactive(P::Snow, S::PackageEntry),
+        ),
+        (
+            "package entry",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@minimax-ai\code\cli.js",
+            ]),
+            interactive(P::MinimaxCode, S::PackageEntry),
+        ),
+        // Short shared and generic names need their install root.
+        (
+            "shared alias",
+            r"{npm}\node_modules\@mimo-ai\cli\vendor\mimo.exe",
+            Some(vec!["mimo"]),
+            interactive(P::Mimo, S::NativeImage),
+        ),
+        (
+            "shared alias",
+            r"C:\tools\mimo.exe",
+            Some(vec!["mimo"]),
+            unresolved(Some(P::Mimo), U::UnverifiedProvenance),
+        ),
+        (
+            "shared alias",
+            r"{home}\AppData\Local\mise\shims\mcode.exe",
+            Some(vec!["mcode"]),
+            unresolved(Some(P::MinimaxCode), U::UnverifiedProvenance),
+        ),
+        (
+            "shared alias",
+            r"C:\coin-or\bin\cbc.exe",
+            Some(vec!["cbc"]),
+            unresolved(Some(P::CodeBuddy), U::UnverifiedProvenance),
+        ),
+        (
+            "generic name",
+            r"C:\tools\snow.exe",
+            Some(vec!["snow"]),
+            unresolved(Some(P::Snow), U::UnverifiedProvenance),
+        ),
+        (
+            "generic name",
+            "node.exe",
+            Some(vec!["node.exe", r"C:\tools\penguin.js"]),
+            unresolved(Some(P::Penguin), U::UnverifiedProvenance),
+        ),
+        // Kiro Crew is not Kiro CLI.
+        (
+            "distinct product",
+            r"{home}\.local\bin\kirocrew.exe",
+            Some(vec!["kirocrew", "chat"]),
+            interactive(P::KiroCrew, S::NativeImage),
+        ),
+        // Agents whose chat is a subcommand: only that subcommand is interactive.
+        (
+            "required command",
+            r"{home}\.local\bin\kirocrew.exe",
+            Some(vec!["kirocrew"]),
+            unresolved(Some(P::KiroCrew), U::UnclassifiedArguments),
+        ),
+        (
+            "required command",
+            r"{home}\.local\bin\qwenpaw.exe",
+            Some(vec!["qwenpaw", "tui"]),
+            interactive(P::QwenPaw, S::NativeImage),
+        ),
+        (
+            "required command",
+            r"{home}\.local\bin\qwenpaw.exe",
+            Some(vec!["qwenpaw"]),
+            unresolved(Some(P::QwenPaw), U::UnclassifiedArguments),
+        ),
+        (
+            "required command",
+            r"{home}\.local\bin\qwenpaw.exe",
+            Some(vec!["qwenpaw", "task", "x"]),
+            noninteractive(P::QwenPaw, S::NativeImage),
+        ),
+        (
+            "required command",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{home}\AppData\Local\Programs\OrchbeeAgentCLIs\node24\node_modules\openclaw\openclaw.mjs",
+                "chat",
+            ]),
+            interactive(P::OpenClaw, S::PackageEntry),
+        ),
+        (
+            "required command",
+            "openclaw.exe",
+            Some(vec!["openclaw", "--local"]),
+            unresolved(Some(P::OpenClaw), U::UnclassifiedArguments),
+        ),
+        (
+            "required command",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@prismshadow\penguin-cli\dist\penguin.js",
+                "chat",
+                "--resume",
+            ]),
+            interactive(P::Penguin, S::PackageEntry),
+        ),
+        (
+            "required command",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@prismshadow\penguin-cli\dist\penguin.js",
+                "run",
+                "task",
+            ]),
+            noninteractive(P::Penguin, S::PackageEntry),
+        ),
     ];
     // A bare optional option followed by a noninteractive option stays noninteractive.
     for (image, program, option, provider) in [

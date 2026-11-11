@@ -28,11 +28,26 @@ pub enum AgentReportProvider {
     Letta,
     Maki,
     Muse,
+    AtomCode,
+    CodeBuddy,
+    CommandCode,
+    DevEco,
+    Mimo,
+    Reasonix,
+    Snow,
+    MinimaxCode,
+    Mothx,
+    KiroCrew,
+    QwenPaw,
+    Jcode,
+    OpenClaw,
+    Penguin,
+    PrimeAgent,
 }
 
 impl AgentReportProvider {
     /// Every recognized provider, in the native catalog's stable order.
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 39] = [
         Self::Pi,
         Self::Claude,
         Self::Codex,
@@ -57,6 +72,21 @@ impl AgentReportProvider {
         Self::Letta,
         Self::Maki,
         Self::Muse,
+        Self::AtomCode,
+        Self::CodeBuddy,
+        Self::CommandCode,
+        Self::DevEco,
+        Self::Mimo,
+        Self::Reasonix,
+        Self::Snow,
+        Self::MinimaxCode,
+        Self::Mothx,
+        Self::KiroCrew,
+        Self::QwenPaw,
+        Self::Jcode,
+        Self::OpenClaw,
+        Self::Penguin,
+        Self::PrimeAgent,
     ];
 
     /// Exact lookup of an already-preprocessed name; unknown/custom names stay absent.
@@ -86,6 +116,21 @@ impl AgentReportProvider {
             "letta" | "letta-code" | "letta code" => Self::Letta,
             "maki" => Self::Maki,
             "muse" | "muse-code" | "muse-cli" => Self::Muse,
+            "atomcode" => Self::AtomCode,
+            "codebuddy" | "codebuddy-code" | "cbc" => Self::CodeBuddy,
+            "command-code" | "commandcode" | "cmdc" => Self::CommandCode,
+            "deveco" | "deveco-code" => Self::DevEco,
+            "mimo" | "mimocode" | "mimo-code" => Self::Mimo,
+            "reasonix" => Self::Reasonix,
+            "snow" | "snow-cli" => Self::Snow,
+            "minimax-code" | "mcode" => Self::MinimaxCode,
+            "mothx" => Self::Mothx,
+            "kirocrew" | "kiro-crew" => Self::KiroCrew,
+            "qwenpaw" => Self::QwenPaw,
+            "jcode" | "j-code" => Self::Jcode,
+            "openclaw" => Self::OpenClaw,
+            "penguin" | "penguin-cli" => Self::Penguin,
+            "prime-agent" => Self::PrimeAgent,
             value
                 if value
                     .strip_prefix("muse-bin-")
@@ -124,6 +169,21 @@ impl AgentReportProvider {
             Self::Letta => "letta",
             Self::Maki => "maki",
             Self::Muse => "muse",
+            Self::AtomCode => "atomcode",
+            Self::CodeBuddy => "codebuddy",
+            Self::CommandCode => "command-code",
+            Self::DevEco => "deveco",
+            Self::Mimo => "mimo",
+            Self::Reasonix => "reasonix",
+            Self::Snow => "snow",
+            Self::MinimaxCode => "minimax-code",
+            Self::Mothx => "mothx",
+            Self::KiroCrew => "kirocrew",
+            Self::QwenPaw => "qwenpaw",
+            Self::Jcode => "jcode",
+            Self::OpenClaw => "openclaw",
+            Self::Penguin => "penguin",
+            Self::PrimeAgent => "prime-agent",
         }
     }
 
@@ -160,7 +220,22 @@ impl AgentReportProvider {
             | Self::Qoder
             | Self::Letta
             | Self::Maki
-            | Self::Muse => self.report_label(),
+            | Self::Muse
+            | Self::AtomCode
+            | Self::CodeBuddy
+            | Self::CommandCode
+            | Self::DevEco
+            | Self::Mimo
+            | Self::Reasonix
+            | Self::Snow
+            | Self::MinimaxCode
+            | Self::Mothx
+            | Self::KiroCrew
+            | Self::QwenPaw
+            | Self::Jcode
+            | Self::OpenClaw
+            | Self::Penguin
+            | Self::PrimeAgent => self.report_label(),
         }
     }
 }

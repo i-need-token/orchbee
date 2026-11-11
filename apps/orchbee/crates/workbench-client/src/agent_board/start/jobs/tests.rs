@@ -500,7 +500,9 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
         |command| {
             observed.push(command.to_owned());
             match command {
-                "codex" | "agent" | "amp" => client_path::Query::Found,
+                "codex" | "agent" | "amp" | "mcode" | "snow" | "penguin" => {
+                    client_path::Query::Found
+                }
                 "pi" => client_path::Query::Unavailable,
                 _ => client_path::Query::Missing,
             }
@@ -508,8 +510,14 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
         |provider| found.push(provider),
     );
     assert!(!complete);
-    assert_eq!(found, ["codex", "amp"]);
-    assert!(!observed.iter().any(|command| command == "agent"));
+    assert_eq!(found, ["codex", "amp", "minimax-code"]);
+    // A command the registry classes as generic never advertises its provider.
+    for generic in ["agent", "snow", "penguin"] {
+        assert!(
+            !observed.iter().any(|command| command == generic),
+            "{generic}"
+        );
+    }
     let probes = Cell::new(0);
     assert!(!client_path::resolve_candidates(
         crate::agent_provider::CANONICAL_IDS,
