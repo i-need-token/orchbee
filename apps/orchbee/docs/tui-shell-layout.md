@@ -885,7 +885,7 @@ is omitted, while read-only input remains explicit.
 A split Tab that shows only its focused Panel without being maximized, because Minimal and Mobile
 draw no Panel chrome or because a split cannot keep its minimum pane size, names that Panel's
 position among the Tab's Panels as context, such as `Panel 1/2` (`面板 1/2`), followed by the
-effective focus binding toward a neighbor (`switch Panel`, `切换面板`). It leaves when the split
+effective focus binding toward a neighbor (`switch`, `切换`). It leaves when the split
 is drawn again; maximization keeps its own context instead.
 Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel, help and
 `Tab` sidebar; trailing hints drop as whole records. The prefix badge shortens its cancellation hint

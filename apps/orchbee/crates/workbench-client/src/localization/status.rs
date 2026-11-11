@@ -72,7 +72,7 @@ const EN_US: StatusText = StatusText {
     retry_rename: "rename again",
     resize_coarse: "move 5%",
     resize_fine: "move 1%",
-    switch_panel: "switch Panel",
+    switch_panel: "switch",
 };
 
 const ZH_CN: StatusText = StatusText {
@@ -108,7 +108,7 @@ const ZH_CN: StatusText = StatusText {
     retry_rename: "再次重命名",
     resize_coarse: "移动 5%",
     resize_fine: "移动 1%",
-    switch_panel: "切换面板",
+    switch_panel: "切换",
 };
 
 impl Locale {
