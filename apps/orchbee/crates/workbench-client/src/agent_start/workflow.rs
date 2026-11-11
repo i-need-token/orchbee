@@ -27,10 +27,6 @@ const READ_BUDGET: Duration = Duration::from_secs(5);
 /// How long after submission a shell back at its prompt means the command ended: the early check
 /// of a start without a name, and the exit rule of a named start's observation.
 const SETTLE: Duration = Duration::from_millis(3000);
-/// The early check's period for an Agent a new shell runs as its first command, counted from the
-/// start's acceptance: it also covers the shell's own startup, while the root shell has no child
-/// and looks idle before the Agent appears.
-const START_COMMAND_SETTLE: Duration = Duration::from_secs(10);
 /// How long after submission observation waits while an integration may report the canonical
 /// Session, so an enabled hook binds the name before observation confirms without one.
 const CANONICAL_HEAD_START: Duration = Duration::from_secs(10);
@@ -210,21 +206,14 @@ impl Workflow<'_> {
         let sample = self.sample(client, terminal, wake)?;
         // The Host's own launch record, not the root's command line, selects the command format.
         let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
-        if self.request.start_command && powershell {
-            // Managed PowerShell runs the Agent as its first command; nothing is typed and nothing
-            // is reserved.
-            if !self.request.watch_start_command {
+        if self.request.start_command {
+            // The Server delivers and watches the start of a creation that carried one: managed
+            // PowerShell runs it as its first command, a marked cmd gets the line once at its first
+            // confirmed prompt, and any other shell gets nothing. This Client never types it and
+            // reserves nothing.
+            if powershell {
                 return Ok(Confirmed::Sent);
             }
-            if let Some(progress) = self.progress {
-                progress(super::Progress::Observing);
-            }
-            return self.check_early(client, terminal, self.started, START_COMMAND_SETTLE, wake);
-        }
-        if self.request.start_command {
-            // The Server delivers the start of a creation that carried one: it types the line once
-            // at a marked cmd's first confirmed prompt and types nothing into any other shell.
-            // This Client never types it.
             return match root_shell(&sample.info)? {
                 ShellRoot::Interactive => Ok(Confirmed::Sent),
                 ShellRoot::Other | ShellRoot::Unreadable => {
@@ -252,7 +241,7 @@ impl Workflow<'_> {
                 run_token.as_ref(),
                 wake,
             )?;
-            return self.check_early(client, terminal, submitted, SETTLE, wake);
+            return self.check_early(client, terminal, submitted, wake);
         };
         let before = shell.clone();
         let epoch = AgentHostEpoch::parse(&sample.epoch.to_text()).map_err(|_| invalid())?;
@@ -417,18 +406,16 @@ impl Workflow<'_> {
         Ok(submitted)
     }
 
-    /// The early check of a start without a name. The command was typed at `submitted`, or the
-    /// shell was launched with it as its first command; this reads only whether the shell came back
-    /// to its prompt within `settle`: after a process of the requested provider was seen, the
-    /// Agent exited; without one, the command was not found or failed before the Agent appeared.
-    /// A shell still running something at the end, or a Panel this check can no longer read,
-    /// leaves the start sent.
+    /// The early check of a start without a name. The command was typed at `submitted`; this reads
+    /// only whether the shell came back to its prompt within [`SETTLE`]: after a process of the
+    /// requested provider was seen, the Agent exited; without one, the command was not found or
+    /// failed before the Agent appeared. A shell still running something at the end, or a Panel
+    /// this check can no longer read, leaves the start sent.
     fn check_early(
         &mut self,
         client: &mut LocalClient,
         terminal: &PrimaryTerminal,
         submitted: Instant,
-        settle: Duration,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Confirmed, Failure> {
         let request = self.request;
@@ -443,7 +430,7 @@ impl Workflow<'_> {
             seen |= agent_start_runtime::interpret(&process.info)
                 .iter()
                 .any(|process| process.provider == Some(requested));
-            let settled = submitted.elapsed() >= settle;
+            let settled = submitted.elapsed() >= SETTLE;
             if idle_shell(&process.info).is_ok() && (seen || settled) {
                 return Err(Failure::Start(if seen {
                     StartFailure::AgentExited

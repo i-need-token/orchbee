@@ -33,11 +33,6 @@ use orchbee_client_server_protocol::SendPromptState;
 /// Bounds a start in an existing Panel: admission, the one send and the early check. Nothing
 /// waits for the Agent to become ready.
 const START_DEADLINE: Duration = Duration::from_secs(20);
-/// Bounds a start whose Agent a new shell runs as its first command, which also waits for the
-/// Panel's terminal and, for a shell that cannot take a first command, its first prompt.
-const START_COMMAND_DEADLINE: Duration = Duration::from_secs(30);
-/// How long such a start waits before asking again whether its Panel is ready.
-const PROMPT_RETRY: Duration = Duration::from_millis(250);
 const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 
 mod client_path;
@@ -115,9 +110,8 @@ impl Jobs {
     }
 
     /// Accepts one start of `provider` in `panel` and runs its workflow on the current origin.
-    /// Only a workflow still running in the same Panel refuses it. A start in an existing Panel
-    /// moves to a new Tab when its prompt refuses it; a start its new shell runs as its first
-    /// command is watched, and is typed only where that shell could not take it.
+    /// Only a workflow still running in the same Panel refuses it. A start moves to a new Tab when
+    /// its prompt refuses it.
     pub(crate) fn start(
         &mut self,
         state: &mut State,
@@ -125,25 +119,17 @@ impl Jobs {
         place: Place,
         clock: LocalOperationClock,
     ) -> bool {
-        let (panel, start_command) = match place {
-            Place::Panel(panel) => (panel, false),
-            Place::StartCommand(panel) => (panel, true),
-        };
+        let Place::Panel(panel) = place;
         if self.start.iter().any(|task| task.panel == panel) {
             return false;
         }
         let Some(origin) = self.origin.clone() else {
             return false;
         };
-        let budget = if start_command {
-            START_COMMAND_DEADLINE
-        } else {
-            START_DEADLINE
-        };
-        let Some(deadline) = Instant::now().checked_add(budget) else {
+        let Some(deadline) = Instant::now().checked_add(START_DEADLINE) else {
             return false;
         };
-        let Some(operation) = state.begin_start(provider, panel, !start_command, deadline) else {
+        let Some(operation) = state.begin_start(provider, panel, true, deadline) else {
             return false;
         };
         #[cfg(test)]
@@ -156,7 +142,7 @@ impl Jobs {
             origin,
             clock,
             operation.provider,
-            (deadline, start_command),
+            deadline,
         ) {
             Ok(task) => self.start.push(task),
             Err(_) => state.settle_start_spawn_failed(operation.generation),
@@ -338,11 +324,10 @@ fn report_phase(report: &Report) -> Phase {
     }
 }
 
-/// Where one accepted start runs: an existing Panel, where the command is typed, or a new Panel
-/// whose shell the Server launched with the Agent as its first command.
+/// Where one accepted start runs: an existing Panel, where the command is typed. A start in a new
+/// Panel runs no job here: the Server delivers and watches it.
 pub(crate) enum Place {
     Panel(WorkbenchPanelId),
-    StartCommand(WorkbenchPanelId),
 }
 
 /// The prompt refusals that typed nothing. The Host's `busy` and `not-shell` read like the
@@ -443,7 +428,7 @@ impl StartTask {
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
         provider: AgentProviderId,
-        (deadline, start_command): (Instant, bool),
+        deadline: Instant,
     ) -> std::io::Result<Self> {
         let (sender, outcomes) = mpsc::sync_channel(1);
         let (reader, wake) = LocalStream::pair()?;
@@ -452,38 +437,20 @@ impl StartTask {
         let task_progress = Arc::clone(&progress);
         let task_panel = panel.clone();
         let task = BackgroundThread::spawn("orchbee-agent-start", move || {
-            let started = Instant::now();
-            let report = loop {
-                let request = Request::new(None, provider.clone(), Vec::new());
-                let report = crate::agent_start::run_on_origin(
-                    if start_command {
-                        request.started_as_command()
-                    } else {
-                        request
-                    },
-                    started,
-                    deadline,
-                    Some(reader.as_local_io()),
-                    &origin,
-                    clock.clone(),
-                    task_panel.clone(),
-                    &|value| {
-                        if let Ok(mut progress) = task_progress.lock() {
-                            *progress = Some(value);
-                        }
-                    },
-                );
-                // A new Panel needs a moment before its terminal is bound, and a shell that could
-                // not take the Agent as its first command needs one before its first prompt; until
-                // then the workflow refuses without typing anything, so asking again is safe.
-                let retry = start_command
-                    && report.awaits_new_shell()
-                    && deadline.saturating_duration_since(Instant::now()) > PROMPT_RETRY * 8;
-                if !retry {
-                    break report;
-                }
-                std::thread::sleep(PROMPT_RETRY);
-            };
+            let report = crate::agent_start::run_on_origin(
+                Request::new(None, provider, Vec::new()),
+                Instant::now(),
+                deadline,
+                Some(reader.as_local_io()),
+                &origin,
+                clock,
+                task_panel,
+                &|value| {
+                    if let Ok(mut progress) = task_progress.lock() {
+                        *progress = Some(value);
+                    }
+                },
+            );
             let _ = sender.send(Completion {
                 generation,
                 panel: completion_panel,

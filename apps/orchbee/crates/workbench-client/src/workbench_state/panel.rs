@@ -842,12 +842,12 @@ impl WorkbenchClientState {
         PanelDecision::Continue
     }
 
-    /// A committed split whose new shell runs an Agent first is watched like a new Tab's.
+    /// A committed split whose new shell runs an Agent first counts as a start like a new Tab's.
     fn note_started_agent(&mut self, pending: &PendingPanelCommit) {
-        if let (Some(provider), Some(panel)) =
-            (pending.operation.agent_start, pending.commit.new_panel_id())
+        if let Some(provider) = pending.operation.agent_start
+            && pending.commit.new_panel_id().is_some()
         {
-            self.started_agents.push((panel.clone(), provider));
+            self.started_agents.push(provider);
         }
     }
 

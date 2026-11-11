@@ -229,14 +229,13 @@ launch profile, gets nothing typed. A start that did not happen publishes a one-
 `agentStartFailure` on the Presentation: `not-found`, `exited`, `unsupported-shell`,
 `prompt-unconfirmed` or `terminal-too-old`. Such a start reserves nothing and offers no name.
 
-When the Tab's creation or the split commits, or the Worktree create's Opened result reports that
-its first shell started, the Client reads the new Panel's shell. Managed PowerShell
-and a marked cmd count as launched; any other shell answers the not-idle refusal without the
-settling retry, since nothing will be typed into it. The TUI also runs its own early check on
-managed PowerShell: an idle shell after the Agent was seen is `agent-exited`; an idle shell with no
-Agent seen by the end is `command-not-found`. The CLI returns `launched` without it. POSIX shells
-have no managed startup that takes a first command, and the TUI starts no Agent there; the CLI
-parses the same grammar on POSIX and reports its existing unsupported outcome.
+When the Tab's creation or the split commits, the CLI reads the new Panel's shell. Managed
+PowerShell and a marked cmd count as launched; any other shell answers the not-idle refusal without
+the settling retry, since nothing will be typed into it. The TUI reads nothing and runs no early
+check for a new Panel: its start notices come from that `agentStartFailure` fact, shown once as the
+[Agent board](agent-board.md) describes. POSIX shells have no managed startup that takes a first
+command, and the TUI starts no Agent there; the CLI parses the same grammar on POSIX and reports its
+existing unsupported outcome.
 
 ## Workflow and invariants
 

@@ -45,9 +45,9 @@ pub(super) struct Coordinator {
     entry: Option<Entry>,
     /// Absent until the first Server configuration snapshot is applied.
     configured_root: Option<ConfiguredRoot>,
-    /// The last operation whose new Workspace's Agent is watched, so a later read of the same
-    /// receipt starts no second watch.
-    watched: Option<WorkbenchRequestId>,
+    /// The last operation whose new Workspace's Agent counts among this Client's starts, so a
+    /// later read of the same receipt counts it once.
+    counted: Option<WorkbenchRequestId>,
 }
 impl Coordinator {
     /// A hidden Opened result whose terminal entry has finished.
@@ -637,7 +637,7 @@ impl WorkbenchClientUi {
                         } else {
                             self.worktrees.read_at = None;
                             if self.worktrees.launcher.notice() == WorktreeNotice::Opened {
-                                self.watch_worktree_agent(snapshot.as_ref());
+                                self.count_worktree_agent();
                                 self.begin_worktree_entry(snapshot);
                             }
                         }

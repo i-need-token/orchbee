@@ -1368,9 +1368,9 @@ pub(crate) struct WorkbenchClientState {
         orchbee_workbench_protocol::TerminalPresentationId,
         LaunchDescription,
     >,
-    /// Panels whose shell the Server launched with an Agent as its first command, oldest first,
-    /// until the Agent board takes them to watch the start.
-    started_agents: Vec<(orchbee_workbench_protocol::WorkbenchPanelId, &'static str)>,
+    /// Providers of committed creations whose shell the Server launched with the Agent as its
+    /// first command, oldest first, until the Agent board counts them among this Client's starts.
+    started_agents: Vec<&'static str>,
     cache: ClientContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
     retained_contexts: Vec<context_selection::RetainedContext>,
@@ -2993,17 +2993,15 @@ impl WorkbenchClientState {
                 .insert(committed.expectation.presentation_id().clone(), description);
         }
         if let Some(provider) = committed.operation.agent_start {
-            self.started_agents
-                .push((committed.expectation.panel_id().clone(), provider));
+            self.started_agents.push(provider);
         }
         self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
         true
     }
 
-    /// The Panels created with an Agent as their shell's first command since the last call.
-    pub(crate) fn take_started_agents(
-        &mut self,
-    ) -> Vec<(orchbee_workbench_protocol::WorkbenchPanelId, &'static str)> {
+    /// The providers of creations committed with the Agent as their shell's first command since
+    /// the last call.
+    pub(crate) fn take_started_agents(&mut self) -> Vec<&'static str> {
         std::mem::take(&mut self.started_agents)
     }
 

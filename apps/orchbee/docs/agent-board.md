@@ -47,7 +47,7 @@ One action, `agent.start`, opens the Start Agent picker: `Ctrl+B G`, the action 
 in the Board, the empty Workspace hint beside new Tab, and the new-Tab button's More Agents…, which
 opens it with new Tab as its place. That menu's Agent rows start directly instead: they list up to
 four of this picker's Recent then Installed providers, fixed when the menu opens, and start one as
-the new-Tab place does, with the same watch and notices
+the new-Tab place does, with the same notices
 ([action menus](native-action-menus.md)). From the Board the picker replaces the
 Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alone without a Board
 read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
@@ -118,18 +118,22 @@ leaves the picker closed. New Worktree opens the New Worktree form over the pick
 the picker with its query, cursor and place. The submitted create carries the same catalog id and
 closes the picker; the Server launches the new Workspace's first shell with the Agent as its first
 command. A failed create shows the form's own failure, and a reused Workspace starts nothing. The
-Client asks once and never polls; when the creation or split commits, or the create's Opened result
-arrives, it reads the new Panel's shell and watches managed PowerShell the way a typed start is
-watched. The Server [delivers the start](../../orchbee-server/docs/agent-start-delivery.md) into a
-cmd it marks, and the Client counts that as started; a shell that takes no first command, such as a
-custom launch profile, gets nothing typed and shows the not-at-prompt notice at once. A
-Host refusal because the focused Panel is no longer at an idle prompt starts in a new Tab instead
-and says "Panel busy · opened a new Tab". The workflow
+Client asks once, never polls and runs no workflow for a new Panel: the Server
+[delivers the start](../../orchbee-server/docs/agent-start-delivery.md), watches it, and publishes a
+one-shot `agentStartFailure` on the new Presentation when it did not happen. The Client reads that
+fact from the snapshots it already receives, as it reads a resume fact, and shows it whichever Panel
+has focus: once per Presentation and time, only within 60 seconds of it by the Client's clock, and
+never for a fact found before this Client attached, so attaching or reconnecting repeats nothing.
+`not-found` and `exited` show the notices below, `unsupported-shell` — a shell such as a custom
+launch profile that takes no start command — shows "Codex not started · this shell takes no start
+command", and `prompt-unconfirmed` and `terminal-too-old` show the not-at-prompt and older-terminal
+"Nothing was typed" notices. A Host refusal because the focused Panel is no longer at an idle prompt
+starts in a new Tab instead and says "Panel busy · opened a new Tab". The workflow
 never installs a provider, inspects an integration or changes configuration. Success shows no
 notice; the Panel's Agent row shows the Agent opening. A failure is a short status notice, such as
 "Codex not found · Ctrl+B G choose another" or "Codex exited · see its Tab", and a provider not
-found is listed under not found afterwards. See [Windows Agent startup](windows-agent-start.md)
-for readiness and target requirements.
+found, in the focused Panel or in a new one, is listed under not found afterwards. See
+[Windows Agent startup](windows-agent-start.md) for readiness and target requirements.
 
 An empty incomplete read is labeled as partial rather than as proof that no sessions exist.
 

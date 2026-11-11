@@ -34,11 +34,8 @@ pub struct Request {
     pub provider: AgentProviderId,
     pub(crate) args: Box<[String]>,
     /// The Panel's new shell was launched with this Agent as its first command, which the Server
-    /// delivers: the workflow never types it, and watches it from the start on managed PowerShell.
+    /// delivers and watches: the workflow never types it and only reads which shell took it.
     pub(crate) start_command: bool,
-    /// Whether a shell that took the first command is watched through the early check; without
-    /// it the start ends once that shell is seen.
-    pub(crate) watch_start_command: bool,
 }
 
 impl Request {
@@ -48,14 +45,7 @@ impl Request {
             provider,
             args: args.into_boxed_slice(),
             start_command: false,
-            watch_start_command: true,
         }
-    }
-
-    #[must_use]
-    pub(crate) const fn started_as_command(mut self) -> Self {
-        self.start_command = true;
-        self
     }
 
     /// The Panel's new shell was launched with this Agent as its first command and the caller
@@ -65,7 +55,6 @@ impl Request {
     #[must_use]
     pub const fn started_as_command_unwatched(mut self) -> Self {
         self.start_command = true;
-        self.watch_start_command = false;
         self
     }
 }

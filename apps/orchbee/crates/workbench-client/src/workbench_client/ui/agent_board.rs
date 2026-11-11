@@ -28,7 +28,6 @@ use crate::agent_board::{
 use crate::client_view::{KeyCode, KeyEvent, Modifiers, PanelDirection};
 use crate::tui_composition::{WorkbenchCaptureOwner, project_native_capture};
 use crate::workbench_projection::ClientContextLocation;
-use crate::workbench_state::AgentStartNotice;
 use orchbee_agent_observation_protocol::AgentPresentationAttachment;
 use std::time::Instant;
 
@@ -321,8 +320,9 @@ impl WorkbenchClientUi {
         let _disposition = self.structure_action(super::StructureAction::CreateAgentTab(provider));
     }
 
-    /// Moves refused starts to new Tabs, and watches each Agent a created Tab's or split's shell
-    /// runs as its first command, as a typed start is watched.
+    /// Moves refused starts to new Tabs, and counts each Agent a created Tab's or split's shell
+    /// runs as its first command among this Client's starts. The Server watches that start and
+    /// reports one that did not happen on the Presentation.
     fn drive_start_places(&mut self) -> bool {
         let mut changed = false;
         while let Some(provider) = self.board.start_state().take_fallback() {
@@ -334,18 +334,8 @@ impl WorkbenchClientUi {
             .as_mut()
             .map(crate::workbench_state::WorkbenchClientState::take_started_agents)
             .unwrap_or_default();
-        for (panel, provider) in started {
-            let clock = self.clock.clone();
-            if !self.start_jobs.start(
-                self.board.start_state(),
-                provider,
-                Place::StartCommand(panel),
-                clock,
-            ) {
-                self.board
-                    .start_state()
-                    .set_notice(AgentStartNotice::Failed);
-            }
+        for provider in started {
+            self.board.start_state().note_started(provider);
             changed = true;
         }
         changed

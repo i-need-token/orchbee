@@ -331,9 +331,7 @@ impl State {
             fallback,
             held_until: Some(deadline),
         });
-        self.started.retain(|started| *started != provider);
-        self.started.insert(0, provider);
-        self.touch();
+        self.note_started(provider);
         Some(StartOperation {
             generation,
             panel,
@@ -409,6 +407,14 @@ impl State {
             self.notice = Some(notice);
         }
         true
+    }
+
+    /// Counts a start of `provider` among this Client's own starts, newest first: one this Client
+    /// runs, or one the Server runs as a new shell's first command.
+    pub(crate) fn note_started(&mut self, provider: &'static str) {
+        self.started.retain(|started| *started != provider);
+        self.started.insert(0, provider);
+        self.touch();
     }
 
     /// Lists `provider` under not found: its start found no command in the target terminal.
