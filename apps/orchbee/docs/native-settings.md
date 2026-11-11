@@ -395,18 +395,36 @@ The [integration settlement cases](../crates/workbench-client/src/native_setting
 cover unknown results of a change that may have begun, definite refusals before start, unlisted
 Agents after Refresh and the diagnosis split between definite findings and unknown results.
 
-`SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process writers, explicit edit/reset values and one noncooperating external edit. `Acquire` obtains the shared lock; `Write` rechecks the source and preserves other keys. Publication carries an immutable committed snapshot; apply failure and lost replies do not roll back or authorize another write. No-op receipts, absent-record defaults, filesystem primitives, capability discovery and UI geometry remain implementation-test obligations.
+`SettingsCommitPublication.tla/.cfg` bounds two Clients that each edit their own key through
+the Server and one external editor that ignores the lock, changing values or breaking the syntax
+twice. An edit holds the Server's reload admission from its read to its publication, and the
+sampler reloads under the same admission. `Read` records the file's content; `Replace` writes only
+while that content is unchanged; `Redo` reads once more after a change and `RefuseChanged` refuses
+the second one. A file that does not parse refuses the edit, is never written and publishes its
+syntax error over the last valid values.
 
-Shared storage implementation and tests own absent-record defaults and strict current-record admission.
+Checked properties:
 
-Checked properties cover single-writer ownership, unrelated-key preservation,
-committed publication, complete values,
-immutable publication identities and nonreplayed unknown outcomes. Negative
-controls remove the final source comparison and the unknown-receipt preservation guard, and must
-produce overwrite/unknown-receipt replacement counterexamples. Protocol conformance,
-storage/helper tests, GUI/TUI draft tests, field-focused correction and guarded
-outside-click lifetimes, launch capture, terminal presentation
-and input tests cover concrete boundaries. Actual bidirectional GUI/TUI edits,
+| Property                        | What it checks                                                              |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `OneWriter`                     | An edit reads, writes and reloads only while it holds the reload admission. |
+| `OtherKeysPreserved`            | A write changes only its own key of the file it replaces.                   |
+| `UnparsableFileNeverWritten`    | A file that does not parse is never replaced.                               |
+| `SnapshotIsNewest`              | The current snapshot has the highest published revision.                    |
+| `PublicationIdentity`           | A revision names exactly one snapshot.                                      |
+| `RevisionAdvances`              | Each publication advances the revision by one.                              |
+| `PublishedValuesWereFileStates` | Every published value set was once the whole file; no snapshot mixes two.   |
+| `SnapshotShowsLastValid`        | A syntax error keeps the last valid values in the snapshot.                 |
+| `RefusalChangesNothing`         | A refused edit writes nothing and publishes nothing.                        |
+| `ReplyIsCurrent`                | An edit replies with the snapshot its own reload published.                 |
+| `FileEventuallyPublished`       | Once writes stop, the snapshot shows the file's values or its syntax error. |
+
+The negative control removes the content recheck from `Replace` and must produce an
+`OtherKeysPreserved` counterexample. TOML bytes and comments, the cross-process lock, unreadable
+files, live-policy apply failure, absent-file defaults and filesystem primitives remain
+obligations of the editor, snapshot and Server configuration tests. GUI/TUI draft tests,
+field-focused correction and guarded outside-click lifetimes, launch capture, terminal
+presentation and input tests cover the Client boundaries. Actual bidirectional GUI/TUI edits,
 reopen, reset, errors and visible effects remain acceptance requirements.
 
 Run `node scripts/tla/run-models.mjs --models native-settings-save` and the owning

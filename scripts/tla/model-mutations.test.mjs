@@ -36,16 +36,9 @@ const cases = [
 	[
 		'native-settings-save',
 		'stale file overwrite',
-		'/\\ s.phase[c] = "owned" /\\ s.owner = c /\\ Fresh(c)',
-		'/\\ s.phase[c] = "owned" /\\ s.owner = c',
-		/Invariant OtherSettingsPreserved is violated/u,
-	],
-	[
-		'native-settings-save',
-		'saved publication erases an unknown receipt',
-		'!.receipt[c] = IF @ = "unknown" THEN @ ELSE "saved"',
-		'!.receipt[c] = "saved"',
-		/Action property UnknownIsTerminalEvidence is violated/u,
+		'/\\ s.phase[c] = "checking" /\\ Content(s.file) = s.before[c]',
+		'/\\ s.phase[c] = "checking"',
+		/Invariant OtherKeysPreserved is violated/u,
 	],
 	[
 		'connection-viewer-routing',
