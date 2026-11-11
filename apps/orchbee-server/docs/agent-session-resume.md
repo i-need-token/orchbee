@@ -324,8 +324,11 @@ any of them gives none, since the process may hold another conversation than any
   `codex resume <id>` gives that id. An Agent start gives Grok, Gemini, Qwen Code, Copilot and Pi a
   fresh `--session-id <uuid>` unless the caller's arguments already choose a conversation
   ([Windows Agent start](../../orchbee/docs/windows-agent-start.md#launch-time-conversation-ids)),
-  so those runs carry an id from their first sample; Orchbee stores it nowhere else. Claude Code
-  starts without one, because its run table follows the conversation it holds.
+  so those runs carry an id from their first sample; Orchbee stores it nowhere else. An Agent that
+  starts as a new Tab's or split's first command gets the same id from the Server, which composes
+  the arguments from the shared startable Agent catalog; its process tree and command line are a
+  typed start's, so every source reads it the same way. Claude Code starts without one, because its
+  run table follows the conversation it holds.
 - **Optional values.** An option whose value is optional and written with a space, such as
   `grok --resume <id>`, leaves the id where the provider's mode grammar reads a positional
   argument. Grok, Qoder, Kimi, Droid and Copilot classify that as unclassified, so identity stays
@@ -599,7 +602,9 @@ an entry of a reused pid or another process, no published run, and `Unknown`, ot
 alone; a hand-typed resume; Claude Code's own command line without an entry; its run table entry
 over its command line; a hook session over both; two bound ids, one id bound twice, a continue flag,
 another provider's id format, the command line of a reused pid's process, no sampled command line,
-another provider's identity and `Unknown` giving none), the command-line binding table (every typed
+another provider's identity and `Unknown` giving none; the catalog's first-command arguments under
+the run's start marker naming the id for each of the five launch-time providers), the command-line
+binding table (every typed
 resume reading back its own id for every provider, every binding option in each written form, and
 look-alike options, glued short options, foreign ids, repeated bindings, options after `--`,
 dash-led values and voiding flags giving none, with Codex's subcommand and Letta's default key

@@ -452,6 +452,28 @@ fn a_command_line_id_answers_only_for_the_published_agent_run_after_hooks_and_th
         );
         assert_eq!(got, want, "{row}");
     }
+    // A start command's arguments, as the Server composes them from the catalog, name the
+    // conversation for every provider that takes a launch-time id, under the run's start marker.
+    let starts: Vec<_> = orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS
+        .iter()
+        .filter_map(|id| orchbee_agent_observation_protocol::StartableAgent::parse(id))
+        .filter(|start| start.session_option().is_some())
+        .collect();
+    assert_eq!(starts.len(), 5);
+    for start in starts {
+        let provider = AgentResumeProvider::from_provider_id(start.id()).unwrap();
+        let identity = agent(AgentReportProvider::from_native_provider_id(start.id()).unwrap());
+        let arguments = start.start_arguments(Some(LINE_ID));
+        let got = super::select(
+            none,
+            OPEN,
+            &identity,
+            Some(run),
+            &[],
+            Some((run, arguments.as_slice())),
+        );
+        assert_eq!(got, from(provider, LINE_ID), "{}", start.id());
+    }
 }
 
 #[test]
