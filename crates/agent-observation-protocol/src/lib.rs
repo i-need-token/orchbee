@@ -14,6 +14,7 @@ mod model;
 mod names;
 mod read;
 mod report_values;
+mod start_command;
 
 pub use changes::{
     AgentChange, AgentChangeSession, AgentChangeTransition, AgentChangesCursor,
@@ -74,6 +75,7 @@ pub use read::{
 mod tests;
 
 pub use report_values::{AgentReportProvider, AgentReportSequence, normalize_agent_report_label};
+pub use start_command::{STARTABLE_AGENT_PROVIDER_IDS, StartableAgent};
 
 mod process_identity;
 pub use process_identity::{
