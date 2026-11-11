@@ -3,7 +3,7 @@ use super::{ClientActionDisposition, ModalPresentation, WorkbenchClientUi, Workb
 use crate::{
     client_view::KeyEvent,
     native_settings::{
-        Basis, Edit, Editor, JobEnd, Observation, Reconciliation, Row, SettingsDraw,
+        Basis, Edit, Editor, FileState, JobEnd, Observation, Reconciliation, Row, SettingsDraw,
         SettingsInputContext, Submission, Token, View, key_edit, key_edit_for_view,
     },
     tui_presentation::{GeometrySettlement, PresentationPhase},
@@ -103,6 +103,8 @@ impl Coordinator {
         {
             return false;
         }
+        // The file state changes without the values when the file stops or starts parsing.
+        self.editor.observe_file(FileState::of(&snapshot));
         if self.editor.observe(&Basis::of(&snapshot)) == Observation::Conflict
             && self.notice(now) != Some(Notice::Unknown)
         {

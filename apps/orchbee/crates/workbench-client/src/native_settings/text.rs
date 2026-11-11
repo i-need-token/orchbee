@@ -2,11 +2,12 @@
 //! The draft/token/enablement and saved profile owners remain here; text gets only selected facts.
 
 use super::{
-    Choice, Confirmation, DraftView, Page, Reconciliation, Row, SettingCategory, setting_for_row,
+    Choice, Confirmation, DraftView, FileState, Page, Reconciliation, Row, SettingCategory,
+    setting_for_row,
 };
 use crate::localization::{
     SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind, SettingsDraftState,
-    SettingsFieldRequirement, SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsFieldRequirement, SettingsFileFact, SettingsProfileLabel, SettingsRow, SettingsValue,
 };
 use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchField};
 
@@ -110,6 +111,23 @@ impl From<Row> for SettingsCategory {
             | Row::RemoteHosts
             | Row::RefreshIntegrations => Self::AgentIntegrations,
             _ => unreachable!("metadata-backed setting row resolved above"),
+        }
+    }
+}
+
+impl<'a> DraftView<'a> {
+    /// The settings file the page cannot use, which its state line names; `None` while it can.
+    pub(crate) fn file_fact(self) -> Option<SettingsFileFact<'a>> {
+        match self.file {
+            FileState::Usable => None,
+            FileState::SyntaxError { path, line, column } => Some(SettingsFileFact::SyntaxError {
+                path: path.as_deref(),
+                line: *line,
+                column: *column,
+            }),
+            FileState::Unreadable { path } => Some(SettingsFileFact::Unreadable {
+                path: path.as_deref(),
+            }),
         }
     }
 }

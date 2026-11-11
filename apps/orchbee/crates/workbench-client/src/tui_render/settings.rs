@@ -2307,10 +2307,20 @@ fn render_state_facts(
         render_integration_facts(frame, area, draft, locale, theme);
         return;
     }
+    let fits = |text: &str| display_width(text).saturating_add(2) <= usize::from(area.width);
     let mut facts = locale.settings_state_facts(draft);
-    if display_width(&facts).saturating_add(2) > usize::from(area.width) {
+    if !fits(&facts) {
         facts = locale.settings_compact_state(draft).into();
     }
+    // A file the Server cannot use outranks the draft's own state: nothing saves until it is fixed.
+    let file = draft.file_fact().map(|fact| {
+        let full = locale.settings_file_fact(fact);
+        if fits(&full) {
+            full
+        } else {
+            locale.settings_file_fact_compact(fact)
+        }
+    });
     let (glyph, glyph_role, text) = if draft.invalid {
         (
             "!",
@@ -2326,6 +2336,8 @@ fn render_state_facts(
                 facts
             },
         )
+    } else if let Some(file) = file {
+        ("!", Role::StatusWarning, file)
     } else if draft.conflict || draft.reconciliation.is_some() {
         ("!", Role::StatusWarning, facts)
     } else if draft.dirty {

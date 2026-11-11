@@ -33,8 +33,8 @@ pub(crate) use settings::{
     IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,
     IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown, SettingUnit,
     SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
-    SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel, SettingsNotice,
-    SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsDraftState, SettingsFieldRequirement, SettingsFileFact, SettingsHintLabel,
+    SettingsNotice, SettingsProfileLabel, SettingsRow, SettingsValue,
 };
 mod status;
 mod terminal_feedback;

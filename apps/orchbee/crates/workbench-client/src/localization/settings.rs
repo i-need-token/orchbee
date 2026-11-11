@@ -43,8 +43,8 @@ use orchbee_workbench_protocol::{
 };
 pub(crate) use parameters::{
     SettingUnit, SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail,
-    SettingsDetailKind, SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel,
-    SettingsProfileLabel, SettingsRow, SettingsValue,
+    SettingsDetailKind, SettingsDraftState, SettingsFieldRequirement, SettingsFileFact,
+    SettingsHintLabel, SettingsProfileLabel, SettingsRow, SettingsValue,
 };
 use parameters::{
     SettingsCategory as SettingCategory, SettingsChoice as Choice, SettingsRow as Row,
@@ -191,6 +191,56 @@ impl Locale {
             }
             SettingsDraftState::Dirty => self.setting("Unsaved changes", "有未保存的更改"),
             SettingsDraftState::Clean => self.setting("No unsaved changes", "没有未保存的更改"),
+        }
+    }
+
+    /// The state line's fact for a settings file the page cannot use: the file, where a syntax
+    /// error is, and that the page shows the last valid settings. A file the Server could not
+    /// name is "the settings file".
+    pub(crate) fn settings_file_fact(self, fact: SettingsFileFact<'_>) -> String {
+        let named = |path: Option<&str>| {
+            path.map(sanitize_terminal_text).map_or_else(
+                || self.setting("Settings file", "设置文件").to_owned(),
+                std::borrow::Cow::into_owned,
+            )
+        };
+        match (self, fact) {
+            (Self::EnUs, SettingsFileFact::SyntaxError { path, line, column }) => format!(
+                "{}: syntax error at line {line}, column {column} · showing last valid settings",
+                named(path)
+            ),
+            (Self::ZhCn, SettingsFileFact::SyntaxError { path, line, column }) => format!(
+                "{}：第 {line} 行第 {column} 列有语法错误 · 显示上次有效的设置",
+                named(path)
+            ),
+            (Self::EnUs, SettingsFileFact::Unreadable { path }) => {
+                format!(
+                    "{} can't be read · showing last valid settings",
+                    named(path)
+                )
+            }
+            (Self::ZhCn, SettingsFileFact::Unreadable { path: Some(path) }) => format!(
+                "无法读取 {} · 显示上次有效的设置",
+                sanitize_terminal_text(path)
+            ),
+            (Self::ZhCn, SettingsFileFact::Unreadable { path: None }) => {
+                "无法读取设置文件 · 显示上次有效的设置".to_owned()
+            }
+        }
+    }
+
+    /// The fact without the file's path, for a state line too narrow for it.
+    pub(crate) fn settings_file_fact_compact(self, fact: SettingsFileFact<'_>) -> String {
+        match (self, fact) {
+            (Self::EnUs, SettingsFileFact::SyntaxError { line, column, .. }) => {
+                format!("Syntax error at line {line}, column {column}")
+            }
+            (Self::ZhCn, SettingsFileFact::SyntaxError { line, column, .. }) => {
+                format!("第 {line} 行第 {column} 列有语法错误")
+            }
+            (_, SettingsFileFact::Unreadable { .. }) => self
+                .setting("Settings file can't be read", "无法读取设置文件")
+                .to_owned(),
         }
     }
 

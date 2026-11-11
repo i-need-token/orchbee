@@ -4,7 +4,8 @@ use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_agent_integration::IntegrationId;
 use orchbee_local_runtime::UserSettingsField;
 use orchbee_workbench_protocol::{
-    SettingChange, SettingsOperation, SettingsSnapshot, UserLaunchField, UserSettingsValues,
+    SettingChange, SettingsFile, SettingsOperation, SettingsSnapshot, UserLaunchField,
+    UserSettingsValues,
 };
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
@@ -142,6 +143,34 @@ impl Basis {
         }
     }
 }
+/// What the newest snapshot says of the settings file, for the page's state line. The values a
+/// draft starts from stay the last valid ones whatever the file holds.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) enum FileState {
+    /// The file parses, or there is none and the defaults apply.
+    #[default]
+    Usable,
+    /// The file does not parse at `line` and `column`, both from one.
+    SyntaxError {
+        path: Option<String>,
+        line: u32,
+        column: u32,
+    },
+    /// The file exists but cannot be read, or is not a regular file.
+    Unreadable { path: Option<String> },
+}
+impl FileState {
+    pub(crate) fn of(snapshot: &SettingsSnapshot) -> Self {
+        let path = snapshot.file_path.clone();
+        match snapshot.file {
+            SettingsFile::SyntaxError { line, column, .. } => {
+                Self::SyntaxError { path, line, column }
+            }
+            SettingsFile::Unreadable { .. } => Self::Unreadable { path },
+            SettingsFile::Ok {} | SettingsFile::Missing {} => Self::Usable,
+        }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Edit {
     Next,
@@ -207,6 +236,8 @@ pub(crate) struct DraftView<'a> {
     pub(crate) active_task: bool,
     pub(crate) conflict: bool,
     pub(crate) reconciliation: Option<Reconciliation>,
+    /// The newest snapshot's file state; the state line names a file that cannot be used.
+    pub(crate) file: &'a FileState,
     pub(crate) page: Page,
     /// Requested first row. Renderers clamp it for their concrete visible height.
     pub(crate) viewport: usize,
@@ -542,6 +573,7 @@ struct Draft {
     token: Token,
     basis: Basis,
     effective: Basis,
+    file: FileState,
     values: UserSettingsValues,
     row: Row,
     page: Page,
@@ -683,6 +715,7 @@ impl Draft {
             active_task: self.has_active_task() || self.page.is_child(),
             conflict: self.basis.values != self.effective.values,
             reconciliation: self.reconciliation,
+            file: &self.file,
             page: self.page,
             viewport: self.viewport,
             follow_selection: self.follow_selection,
@@ -727,6 +760,8 @@ pub(crate) struct Editor {
     integrations_available: bool,
     /// Survives closing Settings: an accepted job keeps running and settles here.
     integrations: Integrations,
+    /// Followed while Settings is closed, so a page that opens names the file at once.
+    file: FileState,
     next: u64,
     state: State,
     presentation: PresentationPhase,
@@ -803,6 +838,7 @@ impl Editor {
             values: basis.values.clone(),
             effective: basis.clone(),
             basis,
+            file: self.file.clone(),
             row: Row::Language,
             page: Page::General,
             viewport: 0,
@@ -867,6 +903,19 @@ impl Editor {
         draft.invalid_field = None;
         self.redraw();
         Observation::Refreshed
+    }
+    /// Follows the newest snapshot's file state, whose values may not change with it. Returns
+    /// whether a visible page now names a different file state.
+    pub(crate) fn observe_file(&mut self, file: FileState) -> bool {
+        if self.file == file {
+            return false;
+        }
+        if let State::Draft(draft) | State::Saving { draft, .. } = &mut self.state {
+            draft.file = file.clone();
+        }
+        self.file = file;
+        self.redraw();
+        self.visible()
     }
     pub(crate) fn complete(&mut self, token: Token) -> bool {
         let matches = match &self.state {

@@ -1179,6 +1179,54 @@ fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes
     }
 }
 
+/// A file the Server cannot use is named on the state line whether Settings opens in that state
+/// or is open when it starts, and the line returns to the draft's own state once the file is fixed.
+#[test]
+fn state_line_names_a_settings_file_that_cannot_be_used_until_it_can() {
+    use crate::native_settings::FileState;
+    let theme = Theme::orchbee_dark();
+    let path = Some(r"C:\o\config.toml".to_owned());
+    let mut editor = Editor::default();
+    assert!(!editor.observe_file(FileState::SyntaxError {
+        path: path.clone(),
+        line: 3,
+        column: 7,
+    }));
+    let request = editor.open().expect("settings request");
+    assert!(editor.loaded(
+        request,
+        basis(MISSING_SOURCE, UserSettingsValues::default())
+    ));
+    for (locale, expected) in [
+        (
+            Locale::EnUs,
+            r"C:\o\config.toml: syntax error at line 3, column 7 · showing last valid settings",
+        ),
+        (
+            Locale::ZhCn,
+            r"C:\o\config.toml：第 3 行第 7 列有语法错误 · 显示上次有效的设置",
+        ),
+    ] {
+        let (terminal, _, _) = present_once(&mut editor, 120, 40, locale, &theme);
+        assert!(
+            without_cell_padding(&screen_text(&terminal))
+                .contains(without_cell_padding(expected).as_str()),
+            "{locale:?}"
+        );
+    }
+    assert!(editor.observe_file(FileState::Unreadable { path }));
+    let (terminal, _, _) = present_once(&mut editor, 120, 40, Locale::EnUs, &theme);
+    assert!(
+        screen_text(&terminal)
+            .contains(r"C:\o\config.toml can't be read · showing last valid settings")
+    );
+    assert!(editor.observe_file(FileState::Usable));
+    let (terminal, _, _) = present_once(&mut editor, 120, 40, Locale::EnUs, &theme);
+    let text = screen_text(&terminal);
+    assert!(!text.contains("config.toml"), "{text}");
+    assert!(text.contains("No unsaved changes"), "{text}");
+}
+
 #[test]
 fn text_cursor_stays_inside_the_overlay_and_editor_text_is_sanitized() {
     let theme = Theme::orchbee_light();

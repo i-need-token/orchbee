@@ -76,6 +76,19 @@ pub(crate) enum SettingsChoice {
     CompletionReminders(CompletionReminderMode),
 }
 
+/// A settings file the page cannot use, for its state line; the path is the Server's spelling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SettingsFileFact<'a> {
+    SyntaxError {
+        path: Option<&'a str>,
+        line: u32,
+        column: u32,
+    },
+    Unreadable {
+        path: Option<&'a str>,
+    },
+}
+
 /// Shared save-feedback priority selected from the draft owner's reconciliation facts.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsDraftState {
