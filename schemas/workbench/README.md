@@ -3,9 +3,9 @@
 ## Shared user preferences
 
 [`v1/user-preferences.schema.json`](v1/user-preferences.schema.json) owns the closed common
-preference values, patches and bridge receipts. Its conformance corpus is consumed by the independent
-Rust and TypeScript bindings; requests cross no TypeScript boundary, so only Rust checks the request
-cases. The schema's default values are canonical; neither UI invents defaults,
+preference values, patches and bridge receipts. Its conformance corpus is consumed by the Rust
+binding; no TypeScript client uses this contract, since Desktop reads and edits settings through
+`workbench.settings`. The schema's default values are canonical; neither UI invents defaults,
 reset semantics or a second durable writer. The runtime owner is
 [`UserPreferencesStore`](../../crates/local-runtime/README.md#shared-user-preference-storage).
 

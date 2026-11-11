@@ -1,7 +1,7 @@
 # Shared user preferences
 
 This contract owns common device preferences for the Desktop GUI and native TUI.
-Rust `user_preferences` and TypeScript `user-preferences-contract` share the
+Rust `user_preferences` consumes the
 [JSON schema and conformance corpus](../../../schemas/workbench/README.md#shared-user-preferences).
 The native persistence owner is [Local Runtime](../../local-runtime/README.md#shared-user-preference-storage).
 Client presentation, transport, and host capabilities do not create additional authorities.
@@ -134,7 +134,7 @@ the window; automatic following never moves an active selection.
 
 ## Verification ownership
 
-The schema corpus checks Rust/TypeScript vocabulary, bounds and invalid input.
+The schema corpus checks Rust vocabulary, bounds and invalid input.
 Local Runtime checks source conflicts, claims, private storage and
 commit failures; the matched helper tests the real bounded process exchange.
 Desktop and native tests check draft/source ownership, publication, disposal,

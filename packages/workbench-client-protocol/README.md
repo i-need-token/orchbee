@@ -2,7 +2,7 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
-The Workbench bindings live under `src/workbench-protocol/`, are production code consumed by the Server Client path, and stay verified against the shared schemas and corpora by the suites beside them. Product projection, preference and launch schemas remain in `src/`. The package entry exports only what a consumer imports; the rest stays reachable from the suites.
+The Workbench bindings live under `src/workbench-protocol/`, are production code consumed by the Server Client path, and stay verified against the shared schemas and corpora by the suites beside them. Product projection and launch schemas and the setting key table remain in `src/`. The package entry exports only what a consumer imports; the rest stays reachable from the suites.
 
 ## Project and Workspace organization
 
@@ -458,9 +458,11 @@ The pane graphics binding shares the closed image, layer, chunk and producer con
 
 The semantic and command boundaries independently validate canonical split ratios and the identified `layout.set-split-ratio` CAS. Native [shared ratio behavior](../../apps/orchbee-server/docs/shared-split-ratios.md) owns commit, persistence and draw acknowledgement; Client geometry remains viewport-specific.
 
-## Native Settings binding
+## Settings binding
 
-`workbench-settings-contract.ts` adds closed Open/Save request and result schemas to the shared command unions. It reuses the complete `ConfigurationSnapshotSchema`, enforces the canonical content/absence token, required-nullable dirty fields and nonempty patches, and supplies independent 4 KiB/256 KiB encoded limits. The [shared corpus](../../schemas/workbench/v1/workbench-settings-conformance-v1.json) is consumed by strict Zod, Rust and JSON Schema. This binding grants no Desktop command, file-write authority, transport retry or live application; those effects remain with the [native Settings owner](../../apps/orchbee/docs/native-settings.md).
+`workbench-settings-contract.ts` binds the closed `workbench.settings` request and result to the shared command unions: a `read`, or an `edit` of up to 64 changes, each a value or `restore: true` for one dotted key; and the `current`, `edited` and `refused` outcomes. A snapshot carries its decimal revision, the file path, platform, scalar values, the keys the file sets, the launch-profile catalog, bounded diagnostics, and the file state, discriminated on `status`: `ok`, `missing`, `syntax-error` with line and column, or `unreadable`. A refusal names one of fourteen closed reasons. The [shared corpus](../../schemas/workbench/v1/workbench-settings-conformance-v1.json) is consumed by strict Zod, Rust and JSON Schema.
+
+`setting-keys.ts` mirrors the registry's [key table](../../schemas/workbench/v1/setting-keys-v1.json) as an `as const` value, and a unit test keeps the two equal; copy the regenerated file rather than editing the table by hand. Its helpers give each key's default and read a key's value from a snapshot, falling back to the default for a value the table does not admit. The binding grants no file-write authority, transport retry or live application; the [settings file owner](../../crates/local-runtime/README.md#user-settings) validates and writes the file.
 
 ## Retained operation identity
 

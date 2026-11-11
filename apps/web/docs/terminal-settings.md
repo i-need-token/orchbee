@@ -2,15 +2,16 @@
 
 ## Ownership and scope
 
-Web owns Settings, drafts and client presentation sources. Desktop common values come from the
-[device preference authority](../../../crates/workbench-protocol/docs/user-preferences.md) shared
-with TUI through the Session's Server. Common values never write back to browser storage.
-Seven host appearance leaves (fonts, weights, ligatures, pixel padding and opacity) and macOS
-Option-as-Alt remain renderer-local. Every locale, appearance, interaction and feedback controller
-requires the Session's preferences; none keeps a browser record of a common value.
+Web owns Settings, drafts and client presentation sources. Every value the page shows comes from
+the settings file, `config.toml` on the Session's machine, which the
+[settings contract](../../../crates/workbench-protocol/README.md#native-settings-contract) reads and
+edits by key path and the [settings file owner](../../../crates/local-runtime/README.md#user-settings)
+validates and writes. The TUI edits the same file. One `UserSettingsControl` per window holds the
+last snapshot; the locale, appearance, interaction, feedback, macOS input, terminal-default and
+launch-profile controls all read it, and every change is one edit. No setting keeps a browser record.
 
 The Session's Server and Worker own launch adaptation, terminal defaults and Agent integration effects.
-Preferences are not Workbench content and never synchronize to remote devices.
+Settings are not Workbench content and never synchronize to remote devices.
 Host metadata remains authoritative for VT state, palette, cursor and OSC behavior.
 A theme update sets the renderer's source-neutral defaultColorOverride, as the
 [Web README](../README.md) describes. Option-as-Alt crosses only as a semantic input decision.
@@ -26,41 +27,27 @@ General offers System, English and 简体中文. System is a persisted choice fo
 declared locale inputs. Confirmed Desktop snapshots update document lang/dir and product surfaces
 without reload. User data, paths, commands and shared content are never translated.
 
-The locale is the shared `locale` preference. A selection is sent to the Session and applies when
-its confirmed snapshot arrives; save failures appear in the shared status. No browser record holds
-the locale, and no earlier browser record is read or deleted.
+The locale is the `general.language` key. A selection is one edit and applies when its snapshot
+arrives; a refusal shows under the row. No browser record holds the locale.
 
 ## Appearance and interaction preferences
 
-Application theme, the Light and Dark theme slots, terminal display theme and the two custom
-colors are shared preferences. The
-appearance controller writes only the seven host leaves to
-`orchbee:web:terminal-host-appearance:v1`, because fonts, weights, ligatures, padding and opacity
-fit this device's display. Its value is one complete JSON object with no unknown fields:
+Application theme, the Light and Dark theme slots, terminal colors, the two custom colors, and the
+terminal's font family, size, weights, ligatures, padding and background opacity are keys of the
+settings file under `appearance.*` and `terminal.*`. The appearance controller reads them from the
+snapshot, and an update sends one edit of every key it changes. The former browser records
+`orchbee:web:terminal-host-appearance:v1` and `orchbee:web:macos-terminal-input:v1` are no longer
+read or written; a value left in a browser is ignored and never migrated.
 
-```ts
-interface StoredTerminalHostAppearanceV1 {
-	readonly backgroundOpacityPercent: number;
-	readonly fontFamily: string;
-	readonly fontLigatures: boolean;
-	readonly fontSize: number;
-	readonly fontWeight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
-	readonly fontWeightBold: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
-	readonly terminalPadding: number;
-}
-```
-
-The record accepts only that complete shape. Missing data uses defaults; malformed or invalid data
-uses defaults and reports an issue. No other key is read and no historical fields are synthesized.
-
-The font family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
+The page sends only values it admits; the settings file owner decides what it stores. The font
+family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
 Both weights are integer hundreds from 100 through 900. Terminal padding is an integer from 0
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-Copy on select and trimming Agent tail blanks are the shared `copyOnSelect` and
-`trimTrailingBlankRowsForAgents` preferences. Their controller keeps its own subscriptions and
-publishes interaction configuration when a confirmed snapshot changes either value.
+Copy on select and trimming Agent tail blanks are the `terminal.copy_on_select` and
+`terminal.trim_trailing_blank_rows_for_agents` keys. Their controller keeps its own subscriptions
+and publishes interaction configuration when a snapshot changes either value.
 
 The complete product default is:
 
@@ -86,49 +73,49 @@ The complete product default is:
 
 ### CLI Agent trailing-blank-row preference
 
-The shared `trimTrailingBlankRowsForAgents` preference is enabled by default and updates existing
+The `terminal.trim_trailing_blank_rows_for_agents` key is on by default and updates existing
 terminal presentations without recreating their Host attachments. Turning it off immediately
 restores the exact projected VT grid. The GUI Settings page does not show it; the TUI's Settings
 edits it and the window applies the confirmed value.
 
-The application derives one effective presentation policy from the stored preference and the
-Server's Agent observation for that presentation identifier. It is `true` only while the preference
-is enabled and the composition's Workbench Agent source holds an observation for that presentation.
+The application derives one effective presentation policy from the stored value and the
+Server's Agent observation for that presentation identifier. It is `true` only while the key
+is on and the composition's Workbench Agent source holds an observation for that presentation.
 A composition without an Agent source, a source that cannot be observed, and a terminal without an
 observed Agent are all safe `false` results. Detection belongs to the Server; the composition does
 not inspect terminal output or guess process names.
 This provider-neutral decision is passed to `@orchbee/terminal`, which owns the bounded display
 window and its fallback behavior; neither layer changes PTY geometry or retained history.
 
-A change is sent to the Session and reaches installed presentations when its confirmed snapshot
-arrives. Reset restores both interaction defaults. Deterministic controller tests cover default-on
-reset and publication of confirmed changes. Derived-source
-tests cover Agent start, end, replacement, missing capability, preference disablement, and disposal;
+A change is one edit and reaches installed presentations when its snapshot arrives. Reset
+restores both interaction keys. Deterministic controller tests cover default-on reset and
+publication of edited values. Derived-source
+tests cover Agent start, end, replacement, missing capability, the setting turned off, and disposal;
 projected-terminal evidence owns the row-classification and Host-window boundaries.
 
 ### Agent resume preference
 
-The Agents category's After a restart group exposes “Resume Agents after restart”, the shared
-`resumeAgentsOnRestore` preference. The row reads and writes it through the shared user-preference
-client, not the interaction controller, because no installed presentation consumes it. The Server
+The Agents category's After a restart group exposes “Resume Agents after restart”, the
+`agents.resume_on_restore` key. The row reads and edits it through the window's settings control,
+not the interaction controller, because no installed presentation consumes it. The Server
 reads it at its next restart and before each checkpoint capture; the row has no capability gate.
 The [Server contract](../../orchbee-server/docs/agent-session-resume.md) owns what it records and
 resumes.
 
 ### Terminal output replay preference
 
-General's After a restart group exposes “Restore terminal output after restart”, the shared
-`restoreTerminalOutput` preference, off by default. Its description warns that output can contain
-secrets and is stored on this computer. Like Agent resume, the row writes through the shared
-user-preference client and has no capability gate; the Server reads it at each checkpoint capture
+General's After a restart group exposes “Restore terminal output after restart”, the
+`terminal.restore_output` key, off by default. Its description warns that output can contain
+secrets and is stored on this computer. Like Agent resume, the row edits the key through the
+settings control and has no capability gate; the Server reads it at each checkpoint capture
 and at startup. The [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) owns
 what is kept, when it is deleted and how it is replayed.
 
 Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
 Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the
-default `13` font size and preserves every other preference. A changed Action follows the ordinary
-complete-snapshot publication and persistence workflow, while a boundary or already-default
-request is unchanged. The behavior is application-wide rather than per Panel.
+default `13` font size and preserves every other setting. A changed Action is one edit of
+`terminal.font_size`, and Actions repeated before its snapshot arrives step from the last requested
+size, while a boundary or already-default request is unchanged. The behavior is application-wide rather than per Panel.
 
 Terminal display themes derive one complete candidate from the latest reconciled Host state without
 modifying the stored custom pair:
@@ -146,12 +133,11 @@ commits every mounted terminal before updating `data-theme` in the same JavaScri
 
 ## macOS Option-as-Alt preference
 
-The Desktop renderer on macOS additionally owns `orchbee:web:macos-terminal-input:v1`. The strict
-record contains only `optionAsAlt: 'off' | 'left' | 'right' | 'both'`; `off` is the product default.
-Windows and Linux compositions do not expose the Option-as-Alt row and retain the
-default; on macOS the row sits in the Terminal category's Selection and keys group.
-Invalid or unreadable records fail to `off`, while a failed write keeps the accepted session value
-and shows the existing persistence warning.
+The Desktop renderer on macOS reads `terminal.macos_option_as_alt`: `off`, `left`, `right` or
+`both`, with `off` as the product default. Windows and Linux compositions do not expose the
+Option-as-Alt row and retain the default; on macOS the row sits in the Terminal category's
+Selection and keys group. A change is one edit; a refusal keeps the file's value and shows the
+reason under the row.
 
 The client tracks physical `AltLeft` and `AltRight` ownership and resolves the selected side for
 each admitted key event. It does not rewrite committed text or guess from the character produced by
@@ -162,13 +148,12 @@ modifyOtherKeys, and Kitty keyboard encoding.
 
 ## Desktop terminal launch profiles
 
-Only the Desktop composition injects `TerminalLaunchProfileControl`, filled from the
-Session's shared preferences, whose `launchProfiles` value the TUI edits too and the
-[shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns. Its
-snapshot exposes one bounded canonical catalog and the current default identity; it is the built-in
-catalog only until the first read and never carries a persistence issue. A composition without the
-control omits the Launch profiles group. The renderer never receives a store
-path, Node error, filesystem primitive, or launch capability.
+Only the Desktop composition injects `TerminalLaunchProfileControl`, filled from the settings
+file's launch-profile keys for the Server's platform, which the TUI edits too. Its snapshot exposes
+one bounded canonical catalog, the current default identity, whether the file sets the catalog,
+whether the file is read-only, and the last refusal; it is the built-in catalog only until the first
+snapshot. A composition without the control omits the Launch profiles group. The renderer never
+receives a Node error, filesystem primitive, or launch capability.
 
 Each profile has a stable identity, a user-visible name, and exactly one command choice:
 
@@ -190,9 +175,9 @@ commit retains the user's draft so they can correct or retry it instead of recon
 input.
 
 Create, edit, default selection, delete, and reset use explicit controls. They do not alter a
-running terminal. Each change saves the complete catalog under the preference source the window last
-observed, so a change another Client made in between is refused as `source-changed` rather than
-overwritten, and a draft begun on an older source is refused without being sent. A created profile
+running terminal. Each change saves the complete catalog in one edit. A draft begun before the
+catalog last changed is refused as `source-changed` without being sent, so another Client's change
+is not overwritten from a stale draft; the file's refusals show their own reason. A created profile
 follows its source and takes the first free `profile-{n}` identity, as in the TUI. The Server
 decides what this machine can launch and refuses a relative executable as an invalid profile. The
 Worker launches the default profile for each terminal created after the save. The Workbench's New
@@ -204,39 +189,53 @@ connections, and shell startup-file mutation remain outside this feature.
 ## Desktop terminal defaults
 
 Only the Desktop composition injects `TerminalDefaultSettingsControl`, filled from the
-Session's shared `scrollbackBytes` preference. The Terminal category's Output group exposes
+`terminal.scrollback_bytes` key. The Terminal category's Output group exposes
 `terminal.history` as Terminal history in decimal megabytes from `0` through `1000`, stored as
-bytes up to `1_000_000_000`, and notes that it applies to new terminals. The row commits through the
-shared draft, and the TUI shows the same value in megabytes. The Worker gives the value to each terminal it launches after the save, so no Host
-application step can fail, and existing terminal history is unchanged. The control only reads:
-save failures show in the shared status, and the row warns that scrollback is unavailable until the
-first preference snapshot arrives. A composition without the control omits this row. The Terminal category remains visible only when that
+bytes up to `1_000_000_000`, and notes that it applies to new terminals. The row commits one edit,
+and the TUI shows the same value in megabytes. The group's New terminal folder row edits
+`terminal.new_cwd`, the folder a new terminal starts in; clearing the field restores the default.
+The Worker gives both values to each terminal it launches after the save, so no Host
+application step can fail, and existing terminals are unchanged. The control only reads; the page
+warns that scrollback is unavailable until the first snapshot arrives. A composition without the
+control omits this group. The Terminal category remains visible only when that
 composition supplies another current Terminal setting.
 
 ## Read, commit, and recovery model
 
-Desktop common updates use confirmed shared persistence. A draft freezes its source on first edit;
-stale source, invalid storage and write refusal preserve the draft and last confirmed runtime value.
-Reload explicitly discards the draft. Reset sends null, restores defaults and claims the selected
-keys. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
-Enter followed by blur commits at most once.
+`UserSettingsControl` in `src/user-settings/` exposes `getSnapshot`, `subscribe`, `set`, `restore`,
+`edit` and `refresh`. Its state is the last snapshot, whether the Session can be reached, whether an
+edit is pending, and the last failure with the keys it covers. `ServerUserSettingsClient` fills it
+over the window's Session connection: a State stream of `read` carries every later change, whether
+another Client made it or the Server found it in the file, and a snapshot older than the one held,
+by revision, is dropped. `src/__tests__/memoryUserSettings.ts` is the in-memory control for tests
+and Stories.
+
+A commit is one `edit` of every key it changes; restoring a key removes it from the file so its
+default applies. Controls show the file's value and change when the edited snapshot arrives; nothing
+is applied optimistically. Text fields keep a draft while focused, commit on Enter or blur at most
+once, and return to the file's value when the edit is refused. A refusal names one of the wire's
+reasons, and the row shows one short localized sentence for it. An edit whose outcome is unknown is
+never replayed; the row asks the user to check the value first. While the Session cannot be reached,
+the page shows the values last received and one dismissible notice.
+
+A changed setting is one the file sets: its row shows the dot and Restore default, which removes
+that key. While the file has a syntax error or cannot be read, the Server keeps serving the last
+valid values and refuses every edit. The page shows those values with read-only controls, hides
+Restore default, and shows one notice that names the file path, with the line and column of a
+syntax error. The notice cannot be dismissed and clears when a snapshot reports a usable file.
 
 System appearance follows a live prefers-color-scheme subscription. The custom color rows appear
 only for Custom terminal colors. Sound defaults off and selects silent system notification delivery.
 
-The local record algorithm below applies only to the host appearance leaves, keyboard shortcuts and
-macOS input.
-Strict codecs reject unknown fields and accept only the current shape at one v1 key.
-Missing uses defaults; invalid or unreadable sources expose a recoverable issue.
+One appearance update follows this order:
 
-One semantic update follows this order:
-
-1. Validate a complete candidate preference record.
-2. Derive an immutable complete preference snapshot, source-neutral presentation
-   configuration, and, when theme-affecting fields changed, a complete runtime-theme candidate.
-3. Commit the in-memory snapshot. Publish presentation configuration only when those derived values
-   changed, and start one latest-wins runtime-theme barrier when theme-derived values changed.
-4. Attempt one write of the complete preference record.
+1. Validate the complete candidate against the values the page admits; an invalid candidate sends
+   nothing.
+2. Send one edit of the keys that differ.
+3. When the snapshot arrives, derive an immutable preference snapshot, source-neutral presentation
+   configuration, and, when theme-affecting values changed, a complete runtime-theme candidate.
+   Publish presentation configuration only when those derived values changed, and start one
+   latest-wins runtime-theme barrier when theme-derived values changed.
 
 Font family, size, regular and bold weight, ligatures, padding, and opacity update mounted terminal
 renderers live without replacing an attachment.
@@ -252,53 +251,20 @@ Host revision that committed before a peer failed remains quarantined rather tha
 or partially displayed; a later theme request, participant registration change, or disposal
 supersedes that stage. With no mounted participant, `data-theme` applies immediately.
 
-The visual transaction does not include Browser storage or the in-memory preference snapshot. A
-write failure therefore retains the accepted session preference as before, and a presentation
-failure does not rewrite the stored choice even though the previous complete theme remains visible.
+The visual transaction does not include the settings file. A presentation failure does not edit the
+stored choice even though the previous complete theme remains visible.
 
 Synchronous listener reentry is serialized as immutable presentation snapshots in first-in,
-first-out order. A newer committed revision cannot be overwritten by an older revision's later
-storage write. Disposal during publication stops the remaining callbacks and prevents any pending
-publication or persistence work.
+first-out order. Disposal during publication stops the remaining callbacks and prevents any pending
+publication.
 
-Desktop common-write admission can notify subscribers synchronously. Before committing
-the host-only part of a mixed update, the appearance controller rechecks its lifetime
-and local revision. A newer host edit wins. Disposing the local controller does not
-cancel a common write already admitted by the shared client.
+Keyboard shortcuts are the only Settings values with a browser record, as
+[keyboard shortcuts](keyboard-shortcuts.md) describes.
 
-Local-storage writes for keyboard shortcuts, host appearance and macOS input share the
-application-private `PreferenceWriteQueue`. Common device values use their confirmed shared
-persistence path instead.
-Each local-storage owner commits its complete session value before storage, serializes synchronous
-writes, and coalesces pending reentrant writes to the latest value.
-Only the current live revision may publish a write result. A nested update whose write has not
-completed reports `applied-session-only`; disposal drops queued work. Validation, storage keys
-and failure mapping remain with each preference owner. Deterministic controller traces
-cover write ordering, coalescing, failure, and disposal; this mechanism does not synchronize tabs.
-
-An invalid candidate does not change memory, theme, storage, or subscribers. A valid no-op does
-nothing when persistence is healthy. A write exception does not roll back the session value; the
-snapshot reports that the setting is applied for this session but is not saved. The next valid
-update retries a complete write and clears that issue after success. One terminal preparation
-failure retains every mounted terminal and the application surface at their previously committed
-complete presentation without rolling back the preference.
-
-Settings offers no page-wide reset: each changed row restores only its own default, through the
-same algorithm for a host leaf and through a one-key shared reset for a common value. The
-controller's complete Reset restores the host leaves through this algorithm and sends null for the
-six common
-appearance keys, the two interaction keys, `resumeAgentsOnRestore` and `restoreTerminalOutput` in
-one shared reset:
-
-- Different host leaves become the product default, write once, and publish at most one terminal
-  presentation snapshot when terminal-derived values changed.
-- Default host leaves with a persistence issue rewrite the default record once without publishing
-  a terminal presentation snapshot.
-- Default host leaves with healthy persistence are unchanged and perform no write or publication.
-
-Disposal clears subscribers and rejects later semantic updates, including Reset, as disposed.
-No late update can change theme, storage, or a presentation source after disposal. If host-reset
-publication retires the appearance controller, it cannot then start a common Reset.
+Settings offers no page-wide reset: each changed row restores only its own key. The controller's
+terminal reset restores the font, weight, ligature, padding and opacity keys in one edit. Disposal
+clears subscribers and rejects later semantic updates as disposed; no later snapshot can change the
+theme or a presentation source.
 
 ## Color themes
 
@@ -383,24 +349,24 @@ The categories keep a stable product-outcome order instead of exposing implement
 | General       | Language (unnamed card); After a restart: restore terminal output                      |
 | Appearance    | App appearance; Terminal colors, with custom text and background colors; Terminal text |
 | Themes        | Light theme; Dark theme                                                                |
-| Terminal      | Selection and keys; Output: terminal history; Launch profiles                          |
+| Terminal      | Selection and keys; Output: new terminal folder, terminal history; Launch profiles     |
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
 | Agents        | After a restart: resume Agents; Agent integrations                                     |
 
-Every category but Themes ends with a "More options in config.toml" row that shows the
-configuration path, `~/.orchbee/config.toml`, with a copy action. The renderer has no port that
-opens a file, so the row copies the path instead. A development cohort or `ORCHBEE_CONFIG_FILE`
-can place the file elsewhere; the row names the default.
+Every category but Themes ends with a "More options in config.toml" row that shows the path of
+the settings file the Session reads, taken from its snapshot, with a copy action. The renderer has
+no port that opens a file, so the row copies the path instead; Copy is unavailable until the first
+snapshot arrives.
 
 Navigation and search expose only categories and rows whose required capabilities are present: the
 Terminal category needs at least one of its controls, Notifications needs the feedback controller,
 and the Agent integrations group needs the Desktop control. Roadmap-only controls remain absent.
 
-The page leaves out the renderer-local regular and bold font weights, ligatures, terminal padding
-and background opacity, the shared trailing-blank-row trimming and completion-reminder minimum,
-the complete Reset, the reminder reset, and the remote-development diagnostic. Their stored values
-keep applying; the TUI's Settings edits the shared ones.
+The page leaves out the terminal's regular and bold font weights, ligatures, padding and background
+opacity, trailing-blank-row trimming, the completion-reminder minimum, the terminal reset, the
+reminder reset, and the remote-development diagnostic. Their stored values keep applying; the TUI's
+Settings and `config.toml` edit them.
 
 ## Settings discovery and navigation model
 
@@ -462,10 +428,10 @@ Orchbee's PowerShell integration itself; Orchbee ships no Zsh, Bash, or Fish int
 terminals, so those shells emit boundaries only through the user's own configuration. The surface
 never reads, creates, edits, or backs up a shell startup file.
 
-Feedback uses the shared preferences: Agent mode (never/hidden), completion mode
+Feedback reads the `notifications.*` keys: Agent mode (never/hidden), completion mode
 (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never,
 never, 5 and false. The page does not show the minimum; the TUI edits it. Changes and each row's
-Restore default apply when the confirmed snapshot arrives; no browser record holds them.
+Restore default apply when the snapshot arrives; no browser record holds them.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
@@ -499,9 +465,11 @@ fully disconnected SSH delivery remains out of scope.
 
 ## Required evidence
 
-- Host appearance and macOS input storage tests cover missing, malformed, unknown, out-of-range,
-  read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
-- Application-locale controller tests cover System resolution, an explicit shared preference
+- Protocol tests parse the shared settings corpus with the strict contract and keep the key table
+  equal to `schemas/workbench/v1/setting-keys-v1.json`. Settings-surface tests cover a refused
+  change returning to the file's value with its reason, and a syntax-error snapshot showing
+  read-only controls.
+- Application-locale controller tests cover System resolution, an explicit file language
   winning, a confirmed selection applying live, invalid input, and disposal. Component tests cover
   both choices and product-copy updates.
 - Source tests prove complete single presentation publication, independent interaction publication,
@@ -510,13 +478,11 @@ fully disconnected SSH delivery remains out of scope.
   `data-color-theme` boundary, unknown and wrong-polarity fallback, preview without a write,
   cancel and close restoring, commit to the polarity slot with the Appearance switch, and a refused
   save restoring; a component test covers keyboard preview, Escape, and Enter.
-- The Server-path preference client has no unit test of its own; the retired Desktop client's
-  MessageChannel tests left with it. Its current evidence is the Settings runs recorded under step 4
-  of the [native runtime topology proposal](../../../proposals/platform/native-runtime-topology.md):
-  another Client's save arriving live, a window save reaching the TUI, a stale draft refused without
-  a write, values kept across a Server restart, and profile Reset. Unknown write outcomes and
-  subscriber reentry have no current evidence.
-- macOS input tests cover strict storage recovery, all four Option-side values, live source
+- `ServerUserSettingsClient` has no unit test of its own, and no real-window Settings run has yet
+  exercised it against a Session. Unknown edit outcomes and subscriber reentry have no current
+  evidence.
+- macOS input tests cover the default, publication after an edit and disposal; terminal tests cover
+  all four Option-side values, live source
   publication, physical-side resolution, mounted-terminal updates, and Host encoding with the
   semantic flag both disabled and enabled.
 - Renderer tests cover Host and override modes, explicit black/RGB/palette, inverse, underline,
@@ -531,7 +497,7 @@ fully disconnected SSH delivery remains out of scope.
   literal custom executable arguments, a kept draft after a refused save, create and default
   selection, delete constraints, and restore confirmation.
 - Terminal-default-settings component tests cover bounds, capability gating, localized
-  validation, and the save to the shared preferences. The Server-path clients that fill the launch-profile,
+  validation, and the edit of the settings file. The Server-path clients that fill the launch-profile,
   terminal-default and Agent-integration controls have no tests of their own.
 - Terminal-feedback model tests cover default-off behavior, shared updates and Reset, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
@@ -549,5 +515,5 @@ choices identify when they apply. Pickers filter by polarity and show localized 
 canvas/foreground/ANSI swatches. Focus previews locally, Enter/click commits, and Escape restores
 the confirmed selection. Each slot's Restore default restores its Orchbee theme. Preview never publishes controlling
 query colors. Unknown/wrong-polarity ids resolve to that slot's Orchbee theme without rewriting
-the stored id. The [shared preference contract](../../../crates/workbench-protocol/docs/user-preferences.md)
+the stored id. The [settings file owner](../../../crates/local-runtime/README.md#user-settings)
 owns syntax/persistence; the [theme crate](../../../crates/color-themes/README.md) owns data.
