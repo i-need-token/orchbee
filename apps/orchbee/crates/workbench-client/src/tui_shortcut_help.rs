@@ -393,12 +393,12 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
 }
 
 pub(crate) fn shortcut_filter_matches(query: &str, target: &str) -> bool {
-    let words: Vec<_> = target
+    let words: Vec<_> = spell_modifier_glyphs(target)
         .split(|c: char| !c.is_alphanumeric())
         .filter(|s| !s.is_empty())
         .map(str::to_lowercase)
         .collect();
-    query
+    spell_modifier_glyphs(query)
         .split(|c: char| !c.is_alphanumeric())
         .filter(|s| !s.is_empty())
         .all(|term| {
@@ -407,6 +407,22 @@ pub(crate) fn shortcut_filter_matches(query: &str, target: &str) -> bool {
                     || (!term.is_ascii() && word.contains(&term.to_lowercase()))
             })
         })
+}
+
+/// Apple hosts label modifiers with glyphs that are not word characters, so they are spelled as
+/// the modifier names other hosts show; one query then finds the same binding on every host.
+fn spell_modifier_glyphs(text: &str) -> String {
+    let mut spelled = String::with_capacity(text.len());
+    for character in text.chars() {
+        match character {
+            '⌃' => spelled.push_str(" ctrl "),
+            '⌥' => spelled.push_str(" alt "),
+            '⇧' => spelled.push_str(" shift "),
+            '⌘' => spelled.push_str(" super "),
+            other => spelled.push(other),
+        }
+    }
+    spelled
 }
 
 fn common_action(action: &PrefixAction) -> bool {
@@ -918,6 +934,20 @@ mod tests {
         assert!(!shortcut_filter_matches(
             "panel",
             "New Workspace Ctrl+b a workspace"
+        ));
+        // Apple key glyphs answer the same modifier names, typed or pasted as glyphs.
+        assert!(shortcut_filter_matches(
+            "ctrl b",
+            "New Workspace ⌃b a ⌃b ⇧N workspace"
+        ));
+        assert!(shortcut_filter_matches(
+            "shift n",
+            "New Workspace ⌃b a ⌃b ⇧N workspace"
+        ));
+        assert!(shortcut_filter_matches("⌃⌥", "Resize ⌃⌥← panel"));
+        assert!(!shortcut_filter_matches(
+            "alt",
+            "New Workspace ⌃b a ⌃b ⇧N workspace"
         ));
     }
 }
