@@ -57,11 +57,12 @@
 
 /*
  * The hover and focus box is drawn around the key cap without taking layout space, so the cap's
- * end edge sits on the row's inset like every other row's control.
+ * end edge sits on the row's inset like every other row's control. The button isolates its own
+ * stacking context: the box sits on the base layer and the key cap is raised above it.
  */
 .recorder::before {
 	position: absolute;
-	z-index: -1;
+	z-index: var(--ob-ref-layer-base);
 	inset: var(--ob-ref-space-0)
 		calc(-1 * (var(--ob-ref-space-1) + var(--ob-ref-border-width-default)));
 	border: var(--ob-ref-border-width-default) solid transparent;
@@ -75,6 +76,8 @@
 }
 
 .recorder > :global([data-slot='kbd']) {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
 	color: var(--ob-sys-color-text-primary);
 }
 
