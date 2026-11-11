@@ -355,8 +355,8 @@ impl Locale {
             }
             .to_owned(),
             ShortcutLabel::Machines => match self {
-                Self::EnUs => "Search machines, Workspaces and Agents",
-                Self::ZhCn => "搜索机器、工作区和智能体",
+                Self::EnUs => "Browse machines, Workspaces and Agents",
+                Self::ZhCn => "浏览机器、工作区和智能体",
             }
             .to_owned(),
             ShortcutLabel::PreviousAgent => match self {

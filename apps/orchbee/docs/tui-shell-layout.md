@@ -539,7 +539,8 @@ joins the list while a touch-spaced list leaves its lines blank, and the `/` key
 behaves as an unbound sidebar key and leaves F1. Without New workspace either, the toggle keeps the
 first row on its own. The machine picker itself is the remote-machines feature and stays whole:
 `Ctrl+B Shift+M`, its action-menu row and F1 entry open it, with all three modes and Tab switching.
-The GUI withholds its Search too; see the
+Because the picker has no query field, those rows name it Browse machines, Workspaces and Agents
+(`浏览机器、工作区和智能体`) rather than search. The GUI withholds its Search too; see the
 [Web Workbench](../../web/docs/workbench.md#release-withheld-search).
 
 ## Sidebar navigation model
