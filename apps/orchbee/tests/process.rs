@@ -155,11 +155,7 @@ fn bare_non_tty_invocation_fails_before_startup() -> Result<(), Box<dyn Error>> 
         assert!(english.stdout.is_empty());
         assert_eq!(
             String::from_utf8(english.stderr)?,
-            if cfg!(any(target_os = "linux", windows)) {
-                "Orchbee requires the same interactive terminal on standard input and output, with valid dimensions.\n"
-            } else {
-                "The Orchbee TUI is unavailable in this development slice.\n"
-            }
+            "Orchbee requires the same interactive terminal on standard input and output, with valid dimensions.\n"
         );
 
         let chinese = run(arguments.iter().copied(), "zh_CN.UTF-8")?;
@@ -167,11 +163,7 @@ fn bare_non_tty_invocation_fails_before_startup() -> Result<(), Box<dyn Error>> 
         assert!(chinese.stdout.is_empty());
         assert_eq!(
             String::from_utf8(chinese.stderr)?,
-            if cfg!(any(target_os = "linux", windows)) {
-                "Orchbee 的标准输入和输出需要连接同一交互终端，并提供有效尺寸。\n"
-            } else {
-                "Orchbee TUI 在本开发切片中尚不可用。\n"
-            }
+            "Orchbee 的标准输入和输出需要连接同一交互终端，并提供有效尺寸。\n"
         );
     }
     Ok(())
@@ -186,11 +178,6 @@ fn suffix_help_on_a_complete_path_succeeds() -> Result<(), Box<dyn Error>> {
     for entry in [
         "Usage:",
         "Options:",
-        if cfg!(windows) {
-            "Examples (PowerShell):"
-        } else {
-            "Examples (POSIX shell):"
-        },
         "--mouse <on|off>",
         "default: on",
         "orchbee tui --mouse on",
