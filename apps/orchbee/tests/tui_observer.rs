@@ -63,69 +63,77 @@ fn modal_frame(top_edge: &str, rows: &[&str], right_border: &str) -> Screen {
 }
 
 #[test]
-fn native_header_requires_the_top_location_and_current_compact_tab_grammar() {
-    for (top, header, expected) in [
+fn native_header_requires_the_sidebar_location_and_the_current_strip_tab() {
+    for (sidebar, strip, header, expected) in [
         (
-            "+ New workspace             *1 1                 Workspace",
+            "Workspace",
+            "│ sh [x] [+]",
             WorkbenchHeader::active("Workspace", 1, "1"),
             true,
         ),
         (
-            "+ New workspace             *1 1   2 2             Workspace",
+            "Workspace",
+            "│ sh [x]  sh     [+]",
             WorkbenchHeader::active("Workspace", 1, "1"),
             true,
         ),
         (
-            "+ New workspace             *1  current             Workspace",
-            WorkbenchHeader::active("Workspace", 1, " current"),
+            "Workspace",
+            "│ ops [x] [+]",
+            WorkbenchHeader::active("Workspace", 1, "ops"),
             true,
         ),
         (
-            "+ New workspace                                  Setup process / Chosen workspace",
-            WorkbenchHeader::empty("Setup process / Chosen workspace"),
+            "Setup process",
+            "│ [+]",
+            WorkbenchHeader::empty("Setup process / Chosen"),
             true,
         ),
         (
-            "+ 新建工作区                                      设置进程 / 已选择工作区",
-            WorkbenchHeader::empty("设置进程 / 已选择工作区"),
-            true,
+            "Setup process",
+            "│ [+]",
+            WorkbenchHeader::empty("Chosen / Setup process"),
+            false,
         ),
         (
-            "+ New workspace             [*1 1]               Workspace",
+            "Workspace",
+            "│ sh     [+]",
             WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
-            "+ New workspace                                  Workspace",
+            "Workspace",
+            "│ sh [x]  sh [x] [+]",
             WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
-            "+ New workspace             *1 1  *2 2             Workspace",
+            "Workspace",
+            "│ sh      sh [x] [+]",
             WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
-            "+ New workspace             *1  current  *2 2       Workspace",
-            WorkbenchHeader::active("Workspace", 1, " current"),
-            false,
-        ),
-        (
-            "+ New workspace             *1  current             Workspace",
+            "Workspace",
+            "│ sh [x] [+]",
             WorkbenchHeader::empty("Workspace"),
             false,
         ),
         (
-            "+ New workspace             *1 current  2 nested    Workspace",
-            WorkbenchHeader::active("Workspace", 1, "current  2 nested"),
+            "Recents",
+            "│ sh [x] [+]",
+            WorkbenchHeader::active("Workspace", 1, "1"),
             false,
         ),
     ] {
-        let screen = complete_frame(&format!("\x1b[1;1H{top}\x1b[2;1H› * 1 Workspace"));
+        let screen = complete_frame(&format!(
+            "\x1b[1;1H{:<14}{strip}\x1b[2;1H{sidebar:<14}│\x1b[3;1H{:<14}│",
+            "", "Chosen"
+        ));
         assert_eq!(
             screen.latest_frame().unwrap().has_native_header(header),
             expected,
-            "{top:?}"
+            "{sidebar:?} {strip:?}"
         );
     }
 }
@@ -133,8 +141,9 @@ fn native_header_requires_the_top_location_and_current_compact_tab_grammar() {
 #[test]
 fn screen_observer_keeps_raw_boundaries_and_wide_display_cells_distinct() {
     let mut screen = complete_frame(concat!(
-        "\x1b[1;1H *1 1                                      设置进程 / 已选择工作区",
-        "\x1b[2;1HPREFIX Ctrl+b"
+        "\x1b[1;44H设置进程 / 已选择工作区",
+        "\x1b[2;1HPREFIX Ctrl+b",
+        "\x1b[3;1H│ sh [x] [+]"
     ));
     let checkpoint = screen.checkpoint();
     let frame = screen.latest_frame().unwrap();
@@ -156,12 +165,13 @@ fn screen_observer_keeps_raw_boundaries_and_wide_display_cells_distinct() {
 #[test]
 fn ordered_tab_observer_rejects_stale_order_missing_members_and_extra_selection() {
     for (strip, expected) in [
-        ("  1 3  *2 1   3 2 ", true),
-        (" *1 1   2 2   3 3 ", false),
-        ("  1 3  *2 1 ", false),
-        ("  1 3  *2 1   3 2  *4 4 ", false),
-        ("  1 3  *2 1   3 2   4 4 ", false),
-        ("  1 3   2 1  *3 2 ", false),
+        ("│ 3      1 [x]  2     [+]", true),
+        ("│ sh [x]  sh      sh     [+]", false),
+        ("│ 3      1 [x] [+]", false),
+        ("│ 3      1 [x]  2      4 [x] [+]", false),
+        ("│ 3      1 [x]  2      4     [+]", false),
+        ("│ 3      1      2 [x] [+]", false),
+        ("│ 3      1 [x]  2    ", false),
     ] {
         let screen = complete_frame(&format!("\x1b[1;1H{strip}"));
         assert_eq!(
@@ -326,7 +336,7 @@ fn modal_field_observer_requires_brackets_padding_and_cursor_end_suffix() {
 fn fragmented_complete_draw_rejects_a_later_half_draw_hybrid() {
     let mut screen = Screen::new(COLUMNS, ROWS);
     let complete = backend_frame(&[concat!(
-        "\x1b[1;1H  1 1  *2 2 ",
+        "\x1b[1;1H│ sh      sh [x] [+]",
         "\x1b[32;1HTab 2 · Ready · controlling"
     )]);
     for byte in complete.as_bytes() {
@@ -340,10 +350,10 @@ fn fragmented_complete_draw_rejects_a_later_half_draw_hybrid() {
 
     let partial = format!(
         "{SYNCHRONIZED_UPDATE_BEGIN}{DRAW_OPEN}{}",
-        concat!("\x1b[1;1H *1 1   2 2 ", "\x1b[32;5H1")
+        concat!("\x1b[1;1H│ sh [x]  sh     [+]", "\x1b[32;5H1")
     );
     screen.feed_all(partial.as_bytes()).unwrap();
-    assert!(screen.working_text().contains(" *1 1 "));
+    assert!(screen.working_text().contains("│ sh [x]  sh "));
     assert!(
         screen
             .working_text()
@@ -369,12 +379,12 @@ fn fragmented_complete_draw_rejects_a_later_half_draw_hybrid() {
 fn complete_frame_snapshot_ignores_next_partial_draw_in_the_same_batch() {
     let mut screen = Screen::new(COLUMNS, ROWS);
     let complete = backend_frame(&[concat!(
-        "\x1b[1;1H *1 1   2 2 ",
+        "\x1b[1;1H│ sh [x]  sh     [+]",
         "\x1b[32;1HTab 1 · Ready · controlling"
     )]);
     let partial = format!(
         "{SYNCHRONIZED_UPDATE_BEGIN}{DRAW_OPEN}{}",
-        concat!("\x1b[1;1H  1 1  *2 2 ", "\x1b[32;5H2")
+        concat!("\x1b[1;1H│ sh      sh [x] [+]", "\x1b[32;5H2")
     );
     screen
         .feed_all(format!("{complete}{partial}").as_bytes())
@@ -384,7 +394,10 @@ fn complete_frame_snapshot_ignores_next_partial_draw_in_the_same_batch() {
     assert_eq!(frame.marker_offset(), complete.len());
     assert!(frame.has_ordered_tabs(&["1", "2"], 1));
     assert!(frame.text().contains("Tab 1 · Ready · controlling"));
-    assert_eq!(screen.working_text().lines().next(), Some("  1 1  *2 2"));
+    assert_eq!(
+        screen.working_text().lines().next(),
+        Some("│ sh      sh [x] [+]")
+    );
     assert!(
         screen
             .working_text()

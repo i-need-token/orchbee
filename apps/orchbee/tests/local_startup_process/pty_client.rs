@@ -1,6 +1,6 @@
 use super::{
     native_cohort::Fixture,
-    tui_observer::{CompletedFrame, ModalRow, Screen, WorkbenchHeader},
+    tui_observer::{CompletedFrame, ModalRow, Screen, WorkbenchHeader, shown_label},
 };
 use nix::{
     fcntl::{FcntlArg, OFlag, fcntl, open},
@@ -29,13 +29,30 @@ pub(super) enum ReadyMode {
 }
 
 impl ReadyMode {
-    fn footer(self, tab_number: usize) -> String {
-        let mode = match self {
-            Self::Controlling => "controlling",
-            Self::ViewOnly => "view only",
-        };
-        format!("Tab {tab_number} · Ready · {mode}")
+    /// At rest the status omits ordinary control and keeps read-only input explicit, naming the
+    /// current Tab by its label.
+    fn shown_in(self, text: &str, position: usize, label: &str) -> bool {
+        let view_only = format!("{} · Ready · view only", shown_label(position, label));
+        match self {
+            Self::Controlling => !text.contains(" · Ready · view only"),
+            Self::ViewOnly => text.contains(&view_only),
+        }
     }
+}
+
+/// Matches a journey's required status part `Tab {N} · Ready · {mode}`, or its mode-free prefix,
+/// against the resting status; any other part is plain text.
+fn status_part_shown(part: &str, text: &str) -> Option<bool> {
+    let rest = part.strip_prefix("Tab ")?;
+    let (position, mode) = rest.split_once(" · Ready ·")?;
+    let position = position.parse::<usize>().ok()?;
+    let automatic = position.to_string();
+    Some(match mode.trim() {
+        "controlling" => ReadyMode::Controlling.shown_in(text, position, &automatic),
+        "view only" => ReadyMode::ViewOnly.shown_in(text, position, &automatic),
+        "" => true,
+        _ => return None,
+    })
 }
 
 fn ready_status(text: &str) -> bool {
@@ -43,12 +60,12 @@ fn ready_status(text: &str) -> bool {
 }
 
 fn initial_ready_mode(frame: &CompletedFrame) -> Option<ReadyMode> {
-    if !frame.prefix_active() || !frame.has_active_tab(1, "1") {
+    if !frame.has_active_tab(1, "1") {
         return None;
     }
-    [ReadyMode::Controlling, ReadyMode::ViewOnly]
+    [ReadyMode::ViewOnly, ReadyMode::Controlling]
         .into_iter()
-        .find(|mode| frame.text().contains(&mode.footer(1)))
+        .find(|mode| mode.shown_in(&frame.text(), 1, "1"))
 }
 
 pub(super) struct FrameExpectation<'a> {
@@ -341,10 +358,10 @@ impl Client {
             (expectation
                 .header
                 .is_none_or(|header| frame.has_native_header(header))
-                && expectation
-                    .required
-                    .iter()
-                    .all(|part| (!include_status && ready_status(part)) || text.contains(part))
+                && expectation.required.iter().all(|part| {
+                    (!include_status && ready_status(part))
+                        || status_part_shown(part, &text).unwrap_or_else(|| text.contains(part))
+                })
                 && expectation
                     .forbidden
                     .iter()
@@ -370,8 +387,8 @@ impl Client {
         }
     }
 
-    // A status probe owns its prefix episode, including the completed cancellation
-    // draw. Subsequent shell bytes and shortcuts never inherit the probe's capture.
+    // Status is read from the latest resting frame: the status chip shows read-only input and
+    // other states at rest, while prefix hints replace it.
     #[track_caller]
     fn probe_status<T>(
         &mut self,
@@ -379,25 +396,9 @@ impl Client {
         pumped_peers: &mut [&mut Client],
         mut predicate: impl FnMut(&CompletedFrame) -> Option<T>,
     ) -> T {
-        let checkpoint = self.checkpoint();
-        self.send(b"\x02");
-        let result = self.observe_after_pumping(
-            checkpoint,
-            deadline,
-            "requested status overlay",
-            pumped_peers,
-            |frame| frame.prefix_active().then(|| predicate(frame)).flatten(),
-        );
-        let checkpoint = self.checkpoint();
-        self.send(b"\x1b");
-        self.observe_after_pumping(
-            checkpoint,
-            deadline,
-            "dismissed status probe",
-            pumped_peers,
-            |frame| (!frame.prefix_active()).then_some(()),
-        );
-        result
+        self.observe_after_pumping(0, deadline, "resting status", pumped_peers, |frame| {
+            (!frame.prefix_active()).then(|| predicate(frame)).flatten()
+        })
     }
 
     #[track_caller]
@@ -452,13 +453,13 @@ impl Client {
         safe_label: &str,
         mode: ReadyMode,
     ) {
-        let footer = mode.footer(tab_number);
         self.observe_after(checkpoint, deadline, "active native Tab", |frame| {
             frame.has_active_tab(tab_number, safe_label).then_some(())
         });
         self.probe_status(deadline, &mut [], |frame| {
-            (frame.has_active_tab(tab_number, safe_label) && frame.text().contains(&footer))
-                .then_some(())
+            (frame.has_active_tab(tab_number, safe_label)
+                && mode.shown_in(&frame.text(), tab_number, safe_label))
+            .then_some(())
         });
     }
 
@@ -514,15 +515,19 @@ impl Client {
         active_position: usize,
         mode: ReadyMode,
     ) {
-        let footer = mode.footer(active_position);
+        let active_label = labels
+            .get(active_position.wrapping_sub(1))
+            .copied()
+            .unwrap_or_default();
         self.observe_after(checkpoint, deadline, "ordered Tabs", |screen| {
             screen
                 .has_ordered_tabs(labels, active_position)
                 .then_some(())
         });
         self.probe_status(deadline, &mut [], |screen| {
-            (screen.has_ordered_tabs(labels, active_position) && screen.text().contains(&footer))
-                .then_some(())
+            (screen.has_ordered_tabs(labels, active_position)
+                && mode.shown_in(&screen.text(), active_position, active_label))
+            .then_some(())
         });
     }
 
@@ -591,13 +596,15 @@ impl Client {
         rows: u16,
         active_position: usize,
     ) {
-        let footer = ReadyMode::Controlling.footer(active_position);
+        let automatic = active_position.to_string();
         self.observe_after(checkpoint, deadline, "resized frame", |_| Some(()));
         self.probe_status(deadline, &mut [], |screen| {
             screen
                 .rows()
                 .get(usize::from(rows) - 1)
-                .is_some_and(|row| row.contains(&footer))
+                .is_some_and(|row| {
+                    ReadyMode::Controlling.shown_in(row, active_position, &automatic)
+                })
                 .then_some(())
         });
     }
@@ -611,7 +618,6 @@ impl Client {
         safe_label: &str,
         mode: ReadyMode,
     ) {
-        let footer = mode.footer(tab_number);
         self.observe_after(
             checkpoint,
             deadline,
@@ -626,7 +632,7 @@ impl Client {
         self.probe_status(deadline, &mut [], |frame| {
             (frame.has_active_tab(tab_number, safe_label)
                 && !frame.text().contains("Workbench navigator")
-                && frame.text().contains(&footer))
+                && mode.shown_in(&frame.text(), tab_number, safe_label))
             .then_some(())
         });
     }

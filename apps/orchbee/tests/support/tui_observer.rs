@@ -357,24 +357,22 @@ impl CompletedFrame {
         false
     }
 
+    /// The strip shows exactly these Tabs in order, with the current one at `active_position`.
+    /// A label equal to its position names an automatic Tab; see [`shown_label`].
     pub(super) fn has_ordered_tabs(&self, labels: &[&str], active_position: usize) -> bool {
-        if labels.is_empty()
-            || !(1..=labels.len()).contains(&active_position)
-            || labels
-                .iter()
-                .any(|label| !compact_label_is_unambiguous(label))
-        {
+        if labels.is_empty() || !(1..=labels.len()).contains(&active_position) {
             return false;
         }
-        let expected = compact_tabs(labels, active_position);
-        // `displayed_rows` drops only terminal-right padding. The last
-        // token's owned trailing cell is therefore absent when the strip
-        // reaches the row edge, while every inter-token boundary remains
-        // observable and exact.
-        let expected = expected.trim_end();
-        self.displayed_rows().iter().any(|row| {
-            row.match_indices(&expected).count() == 1
-                && compact_token_starts(row).count() == labels.len()
+        self.strip_tokens().is_some_and(|tokens| {
+            tokens.len() == labels.len()
+                && tokens
+                    .iter()
+                    .zip(labels)
+                    .enumerate()
+                    .all(|(index, (token, label))| {
+                        token.label == shown_label(index + 1, label)
+                            && token.active == (index + 1 == active_position)
+                    })
         })
     }
 
@@ -416,38 +414,43 @@ impl CompletedFrame {
         true
     }
 
+    /// The sidebar names every segment of the location in order, and the strip shows the expected
+    /// current Tab, or no Tab at all.
     pub(super) fn has_native_header(&self, expected: WorkbenchHeader<'_>) -> bool {
-        let Some(row) = self.displayed_rows().into_iter().next() else {
-            return false;
-        };
-        let row = row.trim_end();
-        let Some(prefix) = row.strip_suffix(expected.location) else {
-            return false;
-        };
-        if !prefix.is_empty() && !prefix.ends_with(' ') {
-            return false;
+        let sidebar = self
+            .displayed_rows()
+            .iter()
+            .filter_map(|row| row.split_once('│').map(|(sidebar, _)| sidebar.to_owned()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut rest = sidebar.as_str();
+        for segment in expected.location.split(" / ") {
+            let Some(index) = rest.find(segment) else {
+                return false;
+            };
+            rest = &rest[index + segment.len()..];
         }
         match expected.tab {
-            Some((position, label)) => {
-                if !compact_label_is_unambiguous(label) {
-                    return false;
-                }
-                let token = compact_tab(position, label, true);
-                prefix.match_indices(&token).count() == 1
-                    && compact_tokens(prefix).filter(|(_, active)| *active).count() == 1
-            }
-            None => compact_token_starts(prefix).next().is_none(),
+            Some((position, label)) => self.has_active_tab(position, label),
+            None => self.strip_tokens().is_none_or(|tokens| tokens.is_empty()),
         }
     }
 
+    /// The strip's current Tab is the one at `position` and shows this label.
     pub(super) fn has_active_tab(&self, position: usize, label: &str) -> bool {
-        if !compact_label_is_unambiguous(label) {
-            return false;
-        }
-        let token = compact_tab(position, label, true);
+        self.strip_tokens().is_some_and(|tokens| {
+            tokens.iter().filter(|token| token.active).count() == 1
+                && tokens.get(position.wrapping_sub(1)).is_some_and(|token| {
+                    token.active && token.label == shown_label(position, label)
+                })
+        })
+    }
+
+    /// The Tabs of the first row that ends in the New Tab button, in strip order.
+    fn strip_tokens(&self) -> Option<Vec<StripToken>> {
         self.displayed_rows()
             .iter()
-            .any(|row| row.match_indices(&token).count() == 1)
+            .find_map(|row| strip_tokens(row.trim_end()))
     }
 
     pub(super) fn displayed_rows(&self) -> Vec<String> {
@@ -486,61 +489,63 @@ impl CompletedFrame {
     }
 }
 
-fn compact_tabs(labels: &[&str], active_position: usize) -> String {
-    labels
-        .iter()
-        .enumerate()
-        .map(|(index, label)| compact_tab(index + 1, label, index + 1 == active_position))
-        .fold(String::new(), |mut tabs, tab| {
-            tabs.push_str(&tab);
-            tabs
-        })
-}
+/// The name an automatic Tab shows for the fixtures' `/bin/sh` terminal. Journeys name an
+/// automatic Tab by its position, which is what such a Tab showed before Tabs took their
+/// program's name.
+const AUTOMATIC_TAB_LABEL: &str = "sh";
+/// The strip's trailing New Tab button and the pad cell before it.
+const NEW_TAB_BUTTON: &str = " [+]";
+/// The current Tab's pad cell and the close control in its reserved three-cell track.
+const CURRENT_TRACK: &str = " [x]";
+/// Any other Tab's pad cell and its blank close track.
+const BLANK_TRACK: &str = "    ";
 
-fn compact_tab(position: usize, label: &str, active: bool) -> String {
-    let marker = if active { '*' } else { ' ' };
-    format!(" {marker}{position} {label} ")
-}
-
-fn compact_tokens(row: &str) -> impl Iterator<Item = (usize, bool)> + '_ {
-    row.char_indices().filter_map(|(start, character)| {
-        if character != ' ' {
-            return None;
-        }
-        let tail = &row[start + 1..];
-        let (digits, active) = if let Some(tail) = tail.strip_prefix('*') {
-            (tail, true)
-        } else {
-            (tail.strip_prefix(' ')?, false)
-        };
-        let digit_count = digits
-            .bytes()
-            .take_while(|byte| byte.is_ascii_digit())
-            .count();
-        if digit_count == 0 {
-            return None;
-        }
-        let label = digits.get(digit_count..)?.strip_prefix(' ')?;
-        (!label.is_empty()).then_some((start, active))
-    })
-}
-
-fn compact_token_starts(row: &str) -> impl Iterator<Item = usize> + '_ {
-    compact_tokens(row).map(|(start, _)| start)
-}
-
-fn compact_label_is_unambiguous(label: &str) -> bool {
-    if label.is_empty() || label.chars().next_back().is_some_and(char::is_whitespace) {
-        return false;
+/// The label a Tab shows: an automatic Tab, named by its position, shows the fixture shell.
+pub(super) fn shown_label(position: usize, label: &str) -> &str {
+    if label == position.to_string() {
+        AUTOMATIC_TAB_LABEL
+    } else {
+        label
     }
-    // The compact strip has no label delimiter. Prefix one owned separator so
-    // a token-shaped label prefix is tested in the same context as rendered
-    // text; any candidate makes the fixture grammar ambiguous and fails closed.
-    let mut embedded = String::with_capacity(label.len() + 2);
-    embedded.push(' ');
-    embedded.push_str(label);
-    embedded.push(' ');
-    compact_tokens(&embedded).next().is_none()
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct StripToken {
+    label: String,
+    active: bool,
+}
+
+/// Parses one strip row: an optional sidebar ending in `│`, then each Tab as a pad cell, its
+/// label and its track, one gap cell between Tabs, then the New Tab button. A row that does not
+/// parse completely is not a strip.
+fn strip_tokens(row: &str) -> Option<Vec<StripToken>> {
+    let strip = row.strip_suffix(NEW_TAB_BUTTON)?;
+    let mut rest = strip.rsplit_once('│').map_or(strip, |(_, strip)| strip);
+    let mut tokens = Vec::new();
+    while !rest.is_empty() {
+        if !tokens.is_empty() {
+            rest = rest.strip_prefix(' ')?;
+        }
+        rest = rest.strip_prefix(' ')?;
+        let current = rest.find(CURRENT_TRACK);
+        let blank = rest.find(BLANK_TRACK);
+        let (end, active) = match (current, blank) {
+            (Some(current), Some(blank)) if blank < current => (blank, false),
+            (Some(current), _) => (current, true),
+            (None, Some(blank)) => (blank, false),
+            (None, None) => return None,
+        };
+        let label = &rest[..end];
+        if label.is_empty() || label.starts_with(' ') {
+            return None;
+        }
+        tokens.push(StripToken {
+            label: label.to_owned(),
+            active,
+        });
+        rest = &rest[end + CURRENT_TRACK.len()..];
+    }
+    Some(tokens)
 }
 
 fn advance_sequence(prefix: &mut usize, byte: u8, sequence: &[u8]) -> bool {
