@@ -212,6 +212,8 @@ pub(crate) enum AgentStartPhase {
 pub(crate) enum AgentStartNotice {
     NotFound(&'static str),
     Exited(&'static str),
+    /// The new shell takes no start command, so the named product's Agent was not started.
+    UnsupportedShell(&'static str),
     Failed,
     Refused(AgentStartRefusal),
     Unknown,

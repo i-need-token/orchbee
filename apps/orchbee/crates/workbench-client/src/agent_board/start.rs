@@ -402,16 +402,21 @@ impl State {
             self.notice = Some(AgentStartNotice::PanelBusy);
             return true;
         }
-        if let Phase::NotFound(_) = phase
-            && !self.missing.contains(&provider)
-        {
-            self.missing.push(provider);
-            self.touch();
+        if let Phase::NotFound(_) = phase {
+            self.note_not_found(provider);
         }
         if let Some(notice) = phase.notice() {
             self.notice = Some(notice);
         }
         true
+    }
+
+    /// Lists `provider` under not found: its start found no command in the target terminal.
+    pub(crate) fn note_not_found(&mut self, provider: &'static str) {
+        if !self.missing.contains(&provider) {
+            self.missing.push(provider);
+            self.touch();
+        }
     }
 
     /// Ends the hold of every operation whose workflow deadline has passed.

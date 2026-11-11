@@ -10,6 +10,7 @@ pub(crate) enum AgentStartStatus {
     Failed,
     NotFound(&'static str),
     Exited(&'static str),
+    UnsupportedShell(&'static str),
     Refused(AgentStartRefusal),
     Unknown,
     PanelBusy,
@@ -21,6 +22,7 @@ impl From<AgentStartNotice> for AgentStartStatus {
             AgentStartNotice::Failed => Self::Failed,
             AgentStartNotice::NotFound(product) => Self::NotFound(product),
             AgentStartNotice::Exited(product) => Self::Exited(product),
+            AgentStartNotice::UnsupportedShell(product) => Self::UnsupportedShell(product),
             AgentStartNotice::Refused(refusal) => Self::Refused(refusal),
             AgentStartNotice::Unknown => Self::Unknown,
             AgentStartNotice::PanelBusy => Self::PanelBusy,
@@ -57,6 +59,8 @@ pub(crate) struct AgentBoardText {
     /// `{product}` is the provider's product name.
     pub(crate) start_not_found: &'static str,
     pub(crate) start_exited: &'static str,
+    /// The new shell takes no start command, so nothing was typed into it.
+    pub(crate) start_unsupported_shell: &'static str,
     /// Nothing was typed because the shell's prompt could not be confirmed; each ends in what
     /// to do before starting again.
     pub(crate) start_not_at_prompt: &'static str,
@@ -131,6 +135,7 @@ pub(crate) struct AgentStartShortText {
     pub(crate) failed: &'static str,
     pub(crate) not_found: &'static str,
     pub(crate) exited: &'static str,
+    pub(crate) unsupported_shell: &'static str,
     pub(crate) not_at_prompt: &'static str,
     pub(crate) unmarked: &'static str,
     pub(crate) session_too_old: &'static str,
@@ -178,6 +183,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_failed: "Agent did not start. Check its Panel and try again.",
     start_not_found: "{product} not found · Ctrl+B G choose another",
     start_exited: "{product} exited · see its Tab",
+    start_unsupported_shell: "{product} not started · this shell takes no start command",
     start_not_at_prompt: "Nothing was typed: the shell is not at an empty prompt. Finish the running command, or clear the line and press Enter for a new prompt, then try again.",
     start_unmarked: "Nothing was typed: this terminal has not shown a marked prompt. Wait for its prompt, or use a PowerShell or cmd terminal Orchbee started.",
     start_session_too_old: "Nothing was typed: this Session is too old to confirm the prompt. Update Orchbee and restart the Session.",
@@ -188,6 +194,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         failed: "Agent did not start",
         not_found: "{product} not found",
         exited: "{product} exited",
+        unsupported_shell: "{product} not started",
         not_at_prompt: "Nothing was typed: shell not at an empty prompt",
         unmarked: "Nothing was typed: no marked prompt yet",
         session_too_old: "Nothing was typed: Session too old",
@@ -251,6 +258,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_failed: "智能体未启动，请检查其面板后重试。",
     start_not_found: "未找到 {product} · Ctrl+B G 换一个",
     start_exited: "{product} 已退出 · 请查看其标签页",
+    start_unsupported_shell: "{product} 未启动 · 这个 shell 不接受启动命令",
     start_not_at_prompt: "未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令，或清空输入行后按回车获得新的提示符，再重试。",
     start_unmarked: "未输入任何内容：这个终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。",
     start_session_too_old: "未输入任何内容：这个会话版本太旧，无法确认提示符。请更新 Orchbee 并重启会话。",
@@ -261,6 +269,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         failed: "智能体未启动",
         not_found: "未找到 {product}",
         exited: "{product} 已退出",
+        unsupported_shell: "{product} 未启动",
         not_at_prompt: "未输入任何内容：shell 不在空的提示符上",
         unmarked: "未输入任何内容：尚无带标记的提示符",
         session_too_old: "未输入任何内容：会话版本太旧",
@@ -464,6 +473,9 @@ impl Locale {
             Status::Failed => text.start_failed,
             Status::NotFound(product) => return text.start_not_found.replace("{product}", product),
             Status::Exited(product) => return text.start_exited.replace("{product}", product),
+            Status::UnsupportedShell(product) => {
+                return text.start_unsupported_shell.replace("{product}", product);
+            }
             Status::Refused(refusal) => text.start_refusal(refusal),
             Status::Unknown => text.start_unknown,
             Status::PanelBusy => text.start_panel_busy,
@@ -486,6 +498,9 @@ impl Locale {
                 }
                 Status::Exited(product) => {
                     return Some(short.exited.replace("{product}", product));
+                }
+                Status::UnsupportedShell(product) => {
+                    return Some(short.unsupported_shell.replace("{product}", product));
                 }
                 Status::Refused(AgentStartRefusal::NotAtPrompt) => short.not_at_prompt,
                 Status::Refused(AgentStartRefusal::Unmarked) => short.unmarked,

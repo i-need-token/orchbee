@@ -6,12 +6,14 @@
 mod action_menus;
 mod agent_attention;
 mod agent_not_resumed;
+mod agent_start_failure;
 mod captured_actions;
 mod earlier_layouts;
 mod held_restore;
 mod last_panel;
 mod launch_profiles;
 mod pane_graphics;
+mod presentation_facts;
 mod scrollback_editor;
 pub(in crate::workbench_client) mod settings;
 mod sidebar_reorder;
@@ -1515,6 +1517,8 @@ pub(super) struct WorkbenchClientUi {
     held_restore: held_restore::HeldRestore,
     /// The Server's resume facts this Client already decided to show or not.
     agent_not_resumed: agent_not_resumed::AgentNotResumedNotices,
+    /// The Server's start facts this Client already decided to show or not.
+    agent_start_failure: agent_start_failure::AgentStartFailureNotices,
     /// The earlier-layout listing, picker rows and reopen in flight.
     earlier_layouts: earlier_layouts::EarlierLayouts,
     launch_profiles: launch_profiles::Coordinator,
@@ -1686,6 +1690,7 @@ impl WorkbenchClientUi {
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),
             agent_not_resumed: agent_not_resumed::AgentNotResumedNotices::default(),
+            agent_start_failure: agent_start_failure::AgentStartFailureNotices::default(),
             earlier_layouts: earlier_layouts::EarlierLayouts::default(),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
@@ -4165,6 +4170,7 @@ impl WorkbenchClientUi {
             match result {
                 Ok(MutationResult::Applied) => {
                     self.state = installed;
+                    self.attach_agent_start_failures();
                     // The accepted bootstrap seeds the board's index —
                     // only installed canonical state may feed it.
                     let mut index = crate::agent_board::PresentationIndex::default();
@@ -4444,11 +4450,12 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Adopts an accepted canonical snapshot as the Agent board's index, shows the resume facts it
-    /// brings and moves each Presentation's title to its binding: every path that accepts a
-    /// snapshot passes here.
+    /// Adopts an accepted canonical snapshot as the Agent board's index, shows the resume and start
+    /// facts it brings and moves each Presentation's title to its binding: every path that accepts
+    /// a snapshot passes here.
     fn adopt_snapshot_index(&mut self, snapshot: &orchbee_workbench_protocol::Snapshot) {
         self.observe_agent_not_resumed(snapshot);
+        self.observe_agent_start_failure(snapshot);
         self.install_agent_index(crate::agent_board::PresentationIndex::rebuild(snapshot));
     }
 
