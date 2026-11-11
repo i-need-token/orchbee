@@ -4,10 +4,11 @@ use crate::invocation::CreationDirectory;
 #[cfg(test)]
 use orchbee_local_runtime::UserSettings;
 use orchbee_local_runtime::{
-    DirectoryPolicy, SettingsDiagnostics, SettingsError, UserSettingsLoad, read_user_settings,
+    DirectoryPolicy, SettingsDiagnostics, SettingsError, SettingsSyntaxError, UserSettingsLoad,
+    read_user_settings,
 };
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Debug)]
 pub(super) struct Settings {
@@ -25,22 +26,63 @@ pub(super) struct Settings {
     pub(super) diagnostics: SettingsDiagnostics,
 }
 
+/// Why the settings could not be used: `file`, an environment variable or a settings key path, one
+/// closed reason token and, for a file that does not parse, where it stops parsing.
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct Error {
-    pub(super) field: &'static str,
+    pub(super) field: String,
     pub(super) reason: &'static str,
+    /// The one-based line and column of a syntax error; present exactly for `invalid-toml` and
+    /// `invalid-utf8`.
+    pub(super) position: Option<(usize, usize)>,
+    /// The file a syntax error is in. `config check` names it; failure documents leave it out.
+    pub(super) path: Option<PathBuf>,
 }
 impl Error {
-    pub(super) const fn new(field: &'static str, reason: &'static str) -> Self {
-        Self { field, reason }
+    pub(super) fn new(field: impl Into<String>, reason: &'static str) -> Self {
+        Self {
+            field: field.into(),
+            reason,
+            position: None,
+            path: None,
+        }
     }
+
+    pub(super) fn syntax(syntax: SettingsSyntaxError, path: Option<PathBuf>) -> Self {
+        Self {
+            position: Some((syntax.line, syntax.column)),
+            path,
+            ..Self::new("file", syntax.reason)
+        }
+    }
+
+    /// The closed `{field, reason, line?, column?}` detail object.
+    pub(super) fn details(&self) -> serde_json::Map<String, serde_json::Value> {
+        let mut details = serde_json::Map::from_iter([
+            ("field".into(), self.field.clone().into()),
+            ("reason".into(), self.reason.into()),
+        ]);
+        if let Some((line, column)) = self.position {
+            details.insert("line".into(), line.into());
+            details.insert("column".into(), column.into());
+        }
+        details
+    }
+
+    /// The failing `user-config` check's details: the closed detail object and, for a syntax
+    /// error, the file it is in.
+    pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
+        let mut details = self.details();
+        if let Some(path) = self.path.as_deref().and_then(std::path::Path::to_str) {
+            details.insert("path".into(), path.into());
+        }
+        details
+    }
+
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
-            .details(serde_json::Map::from_iter([
-                ("field".into(), self.field.into()),
-                ("reason".into(), self.reason.into()),
-            ]))
+            .details(self.details())
     }
 }
 
@@ -50,11 +92,19 @@ impl From<SettingsError> for Error {
     }
 }
 
+/// The settings a command acts on; a file that does not parse is refused with its position.
+pub(super) fn read_valid(
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<UserSettingsLoad, Error> {
+    let load = read_user_settings(env)?;
+    match load.syntax {
+        Some(syntax) => Err(Error::syntax(syntax, load.settings.path)),
+        None => Ok(load),
+    }
+}
+
 pub(super) fn load() -> Result<Settings, Error> {
-    project(
-        read_user_settings(|name| std::env::var_os(name))
-            .and_then(UserSettingsLoad::require_valid_syntax)?,
-    )
+    project(read_valid(|name| std::env::var_os(name))?)
 }
 
 fn project(load: UserSettingsLoad) -> Result<Settings, Error> {

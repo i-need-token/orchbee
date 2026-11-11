@@ -350,13 +350,51 @@
 							"reason": {
 								"enum": [
 									"invalid-path",
-									"invalid-boolean",
 									"missing",
 									"io-error",
 									"not-file",
 									"too-large",
 									"invalid-utf8",
 									"invalid-toml"
+								]
+							},
+							"path": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 4096
+							},
+							"line": {
+								"type": "integer",
+								"minimum": 1
+							},
+							"column": {
+								"type": "integer",
+								"minimum": 1
+							}
+						},
+						"if": {
+							"properties": {
+								"reason": {
+									"enum": ["invalid-toml", "invalid-utf8"]
+								}
+							},
+							"required": ["reason"]
+						},
+						"then": {
+							"required": ["path", "line", "column"]
+						},
+						"else": {
+							"not": {
+								"anyOf": [
+									{
+										"required": ["path"]
+									},
+									{
+										"required": ["line"]
+									},
+									{
+										"required": ["column"]
+									}
 								]
 							}
 						},

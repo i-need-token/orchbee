@@ -177,13 +177,7 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
                 };
                 status("user-config", settings.check_details())
             }
-            Err(error) => fail(
-                "user-config",
-                Map::from_iter([
-                    ("field".into(), json!(error.field)),
-                    ("reason".into(), json!(error.reason)),
-                ]),
-            ),
+            Err(error) => fail("user-config", error.check_details()),
         });
     }
     checks.push(records_check());

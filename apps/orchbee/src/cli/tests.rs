@@ -1779,6 +1779,44 @@ fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
     }
 }
 
+/// The located syntax line comes from the failing check's own details, so text and JSON name the
+/// same file, line and column.
+#[test]
+fn config_check_text_locates_a_syntax_error_from_its_details() {
+    for (reason, line, column) in [("invalid-toml", 3, 7), ("invalid-utf8", 12, 1)] {
+        let checks = [super::results::local_report::CheckReport {
+            name: "user-config",
+            status: "fail",
+            details: serde_json::Map::from_iter([
+                ("field".into(), serde_json::json!("file")),
+                ("reason".into(), serde_json::json!(reason)),
+                ("path".into(), serde_json::json!("C:/Orchbee/config.toml")),
+                ("line".into(), serde_json::json!(line)),
+                ("column".into(), serde_json::json!(column)),
+            ]),
+        }];
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let text = String::from_utf8(
+                super::output::render_text(|out| {
+                    super::present::config_checks(out, &checks, locale)
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            let located = format!(
+                "{}:{line}:{column}: {}\n",
+                crate::native_path::display("C:/Orchbee/config.toml"),
+                CliText::new(locale).cli_configuration_syntax(reason, line)
+            );
+            assert!(text.contains(&located), "{text}");
+        }
+    }
+    assert_ne!(
+        CliText::new(Locale::EnUs).cli_configuration_syntax("invalid-toml", 3),
+        CliText::new(Locale::EnUs).cli_configuration_syntax("invalid-utf8", 3)
+    );
+}
+
 #[test]
 fn empty_lists_say_how_to_create_their_first_entry() {
     for locale in [Locale::EnUs, Locale::ZhCn] {

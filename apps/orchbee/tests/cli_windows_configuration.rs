@@ -325,7 +325,8 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
     std::fs::create_dir_all(fixture.0.join("runtime")).unwrap();
     let config = fixture.0.join("config.toml");
     let check_schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
-    let check = |reason: &str| {
+    // A file that does not parse names its path, line and column; other file errors carry none.
+    let check = |reason: &str, position: Option<(u64, u64)>| {
         let environment = [("ORCHBEE_CONFIG_FILE", config.as_os_str())];
         let checked = fixture.run_with_env(
             &["config", "check", "--format=json"],
@@ -339,10 +340,13 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
         assert_eq!(checked["version"], 1);
         assert_eq!(checked["result"]["ok"], false);
         assert_eq!(checked["result"]["checks"][5]["status"], "fail");
-        assert_eq!(
-            checked["result"]["checks"][5]["details"],
-            json!({"field": "file", "reason": reason})
-        );
+        let mut expected = json!({"field": "file", "reason": reason});
+        if let Some((line, column)) = position {
+            expected["path"] = config.to_str().unwrap().into();
+            expected["line"] = line.into();
+            expected["column"] = column.into();
+        }
+        assert_eq!(checked["result"]["checks"][5]["details"], expected);
         // Creation never reads the file: it proceeds to the Session, which is absent here.
         for args in [
             vec!["workspace", "create", "--format=json"],
@@ -371,25 +375,27 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
             );
         }
     };
-    for (bytes, reason) in [
+    for (bytes, reason, position) in [
         (
             vec![b'a'; orchbee_local_runtime::MAXIMUM_USER_SETTINGS_BYTES as usize + 1],
             "too-large",
+            None,
         ),
-        (vec![0xff], "invalid-utf8"),
+        (b"[terminal]\n\xff".to_vec(), "invalid-utf8", Some((2, 1))),
         (
             b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
             "invalid-toml",
+            Some((3, 1)),
         ),
     ] {
         std::fs::write(&config, bytes).unwrap();
-        check(reason);
+        check(reason, position);
     }
     std::fs::remove_file(&config).unwrap();
-    check("missing");
+    check("missing", None);
     assert!(!config.exists());
     std::fs::create_dir(&config).unwrap();
-    check("not-file");
+    check("not-file", None);
     std::fs::remove_dir(&config).unwrap();
 }
 

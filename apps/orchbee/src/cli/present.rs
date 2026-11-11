@@ -1445,6 +1445,21 @@ pub(crate) fn config_checks(
             ))?;
         }
     }
+    for check in checks {
+        let details = &check.details;
+        if let (Some(path), Some(line), Some(column), Some(reason)) = (
+            details.get("path").and_then(Value::as_str),
+            details.get("line").and_then(Value::as_u64),
+            details.get("column").and_then(Value::as_u64),
+            details.get("reason").and_then(Value::as_str),
+        ) {
+            out.write(format_args!(
+                "  {}:{line}:{column}: {}\n",
+                crate::native_path::display(path),
+                CliText::new(locale).cli_configuration_syntax(reason, line)
+            ))?;
+        }
+    }
     for record in checks
         .iter()
         .filter_map(|check| check.details.get("records").and_then(Value::as_array))

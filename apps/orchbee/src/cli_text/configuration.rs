@@ -59,6 +59,21 @@ impl super::CliText {
         }
     }
 
+    /// What is wrong with a configuration file that does not parse, and the fix; it follows a
+    /// `<path>:<line>:<column>` prefix.
+    pub(crate) fn cli_configuration_syntax(self, reason: &str, line: u64) -> String {
+        match (self.locale, reason) {
+            (Locale::EnUs, "invalid-utf8") => {
+                format!("not valid UTF-8. Fix line {line}, save the file as UTF-8 and try again.")
+            }
+            (Locale::ZhCn, "invalid-utf8") => {
+                format!("不是有效的 UTF-8。请修正第 {line} 行，以 UTF-8 保存文件后重试。")
+            }
+            (Locale::EnUs, _) => format!("not valid TOML. Fix line {line} and try again."),
+            (Locale::ZhCn, _) => format!("不是有效的 TOML。请修正第 {line} 行后重试。"),
+        }
+    }
+
     pub(crate) fn cli_resolved_executable(self, path: &str) -> String {
         match self.locale {
             Locale::EnUs => format!("Resolved executable: {path}\n"),

@@ -625,10 +625,12 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
             {"name":"cohort","status":"pass","details":{"verified":true}},
             {"name":"locale","status":"pass","details":{"locale":"en-US","source":"LC_ALL"}},
             {"name":"sockets","status":"not-applicable","details":{"client":endpoint,"worker":endpoint,"host":budget,"clientPending":budget}},
-            {"name":"user-config","status":"fail","details":{"field":"file","reason":"invalid-toml"}},
+            {"name":"user-config","status":"fail","details":{"field":"file","reason":"invalid-toml","path":"C:/config.toml","line":3,"column":7}},
             {"name":"records","status":"pass","details":{"records":[]}}
         ]}
     });
+    assert!(full_validator.is_valid(&fatal), "{fatal}");
+    // A syntax error names its file, line and column; no other fatal reason carries them.
     for (field, reason) in [
         ("file", "invalid-path"),
         ("file", "missing"),
@@ -641,13 +643,38 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         ("ORCHBEE_HOME", "invalid-path"),
         ("USERPROFILE", "invalid-path"),
     ] {
-        fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
+        let syntax = matches!(reason, "invalid-utf8" | "invalid-toml");
+        let located =
+            json!({"field":field,"reason":reason,"path":"C:/config.toml","line":1,"column":1});
+        let bare = json!({"field":field,"reason":reason});
+        fatal["result"]["checks"][5]["details"] = if syntax {
+            located.clone()
+        } else {
+            bare.clone()
+        };
         assert!(full_validator.is_valid(&fatal), "{field}: {reason}");
+        fatal["result"]["checks"][5]["details"] = if syntax { bare } else { located };
+        assert!(
+            !full_validator.is_valid(&fatal),
+            "position mismatch: {field}: {reason}"
+        );
     }
+    for position in ["path", "line", "column"] {
+        let mut partial = json!({"field":"file","reason":"invalid-toml","path":"C:/config.toml","line":1,"column":1});
+        partial.as_object_mut().unwrap().remove(position);
+        fatal["result"]["checks"][5]["details"] = partial;
+        assert!(
+            !full_validator.is_valid(&fatal),
+            "syntax error without {position}"
+        );
+    }
+    fatal["result"]["checks"][5]["details"] =
+        json!({"field":"file","reason":"invalid-toml","path":"C:/config.toml","line":0,"column":1});
+    assert!(!full_validator.is_valid(&fatal), "lines count from 1");
     for (field, reason) in [
         ("keys", "invalid-binding"),
-        ("ui.toast", "wrong-type"),
-        ("update.manifest_check", "wrong-type"),
+        ("notifications", "wrong-type"),
+        ("agent_detection.auto_update", "wrong-type"),
         ("file", "invalid-boolean"),
         ("terminal.new_cwd", "invalid-path"),
         ("worktrees.directory", "invalid-path"),
