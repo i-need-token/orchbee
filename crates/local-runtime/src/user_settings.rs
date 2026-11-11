@@ -26,6 +26,7 @@ pub use notifications::{
     MAXIMUM_NOTIFICATION_PROFILE_BYTES, NotificationSettings,
 };
 mod desktop;
+mod editor;
 mod launch_profiles;
 mod preferences;
 mod reference;
@@ -37,6 +38,7 @@ use crate::{
     user_path::{USER_PATH_LIMIT, normalize_user_path},
 };
 pub use desktop::{DesktopTerminalSettings, MacosOptionAsAlt};
+pub use editor::{SettingsEditError, restore_setting_default, set_setting};
 pub use keys::{
     CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry, KeyChord, KeyOverride,
     KeySettings, KeyTrigger, trigger_label,

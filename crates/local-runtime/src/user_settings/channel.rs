@@ -1,15 +1,17 @@
-//! Save-channel capability; downloads and installation remain application-owned.
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-pub use windows::set_update_channel;
-#[cfg(not(windows))]
+//! Release-channel writes; downloads and installation remain application-owned.
+use super::{SettingsError, UpdateChannel, set_setting};
+use std::{ffi::OsString, path::PathBuf};
+
+/// Save only `update.channel` through the settings editor, keeping the rest of the file as it is.
+/// A missing file is created holding just that key.
 pub fn set_update_channel(
-    _channel: super::UpdateChannel,
-    _env: impl Fn(&str) -> Option<std::ffi::OsString>,
-) -> Result<std::path::PathBuf, super::SettingsError> {
-    Err(super::SettingsError::new(
-        "platform",
-        "unsupported-platform",
-    ))
+    channel: UpdateChannel,
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<PathBuf, SettingsError> {
+    set_setting(
+        &["update", "channel"],
+        &toml::Value::String(channel.as_str().into()),
+        env,
+    )
+    .map_err(SettingsError::from)
 }
