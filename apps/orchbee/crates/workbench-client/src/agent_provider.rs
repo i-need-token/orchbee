@@ -77,6 +77,57 @@ pub fn launch_arguments(canonical: &str) -> &'static [&'static str] {
     }
 }
 
+/// The option through which a provider opens a new conversation under an id its caller chose,
+/// for the providers that document one. An Agent start passes it a fresh id after the fixed
+/// arguments unless the caller's own arguments already choose a conversation; the Session reads
+/// that id back from the Agent process's command line, so it is stored nowhere else.
+pub(crate) fn launch_session_option(canonical: &str) -> Option<&'static str> {
+    session_options(canonical).map(|_| "--session-id")
+}
+
+/// Whether the caller's arguments already choose a conversation for a provider with a launch
+/// session option: an id, a resume, a continue of the latest one, a fork, or none at all. Options
+/// match before `=`, and nothing after `--` is an option.
+pub(crate) fn chooses_session(canonical: &str, args: &[String]) -> bool {
+    let Some(options) = session_options(canonical) else {
+        return false;
+    };
+    args.iter()
+        .take_while(|arg| *arg != "--")
+        .filter(|arg| arg.starts_with('-'))
+        .map(|arg| arg.split_once('=').map_or(arg.as_str(), |(name, _)| name))
+        .any(|name| options.contains(&name))
+}
+
+/// Every option through which a provider with a launch session option selects its conversation.
+fn session_options(canonical: &str) -> Option<&'static [&'static str]> {
+    Some(match provider(canonical)? {
+        "grok" => &[
+            "-s",
+            "--session-id",
+            "-r",
+            "--resume",
+            "-c",
+            "--continue",
+            "--load",
+            "--fork-session",
+        ],
+        "gemini" => &["--session-id", "-r", "--resume"],
+        "qwen-code" => &["--session-id", "-r", "--resume", "-c", "--continue"],
+        "github-copilot" => &["--session-id", "-r", "--resume", "--continue"],
+        "pi" => &[
+            "--session-id",
+            "--session",
+            "-r",
+            "--resume",
+            "-c",
+            "--continue",
+            "--no-session",
+        ],
+        _ => return None,
+    })
+}
+
 /// A command that the registry classes as generic, such as `agent` or `snow`, is not enough
 /// evidence to advertise a provider as installed.
 pub(crate) fn detection_executable(canonical: &str) -> Option<&'static str> {

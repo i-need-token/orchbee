@@ -203,7 +203,7 @@ pub(crate) fn run_on_origin(
     )
 }
 pub fn command_valid(request: &Request) -> bool {
-    command::launch(request.provider.as_str(), &request.args).is_some()
+    command::fits(request.provider.as_str(), &request.args)
 }
 
 /// Field-for-field `Report` fixture the application's tests build values from.

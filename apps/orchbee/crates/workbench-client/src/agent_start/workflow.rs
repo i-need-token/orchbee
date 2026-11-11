@@ -43,6 +43,8 @@ struct Workflow<'a> {
     submission: Option<Submission>,
     delivery: DeliveryDisposition,
     last_read_failure: Option<Box<Failure>>,
+    /// The fresh conversation id both launch forms pass, when the provider takes one at launch.
+    session: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -128,11 +130,13 @@ pub(super) fn run_admitted(
         submission: None,
         delivery: DeliveryDisposition::NotApplied,
         last_read_failure: None,
+        session: super::command::launch_session(request.provider.as_str(), &request.args),
     };
     // Only a Session that types the line at a confirmed prompt may receive it; there is no
     // ungated fallback.
     let result = if client.server_serves(orchbee_connection_handshake::PROMPT_GATED_INPUT) {
-        match super::command::launch(request.provider.as_str(), &request.args) {
+        let session = workflow.session.as_deref();
+        match super::command::launch(request.provider.as_str(), &request.args, session) {
             Some(text) => workflow.span(&mut client, &snapshot, &panel, &text, wake),
             None => Err(Failure::Start(StartFailure::CommandTooLong)),
         }
@@ -274,7 +278,10 @@ impl Workflow<'_> {
             .request
             .args
             .is_empty()
-            .then(|| super::command::interactive(self.request.provider.as_str(), powershell))
+            .then(|| {
+                let provider = self.request.provider.as_str();
+                super::command::interactive(provider, powershell, self.session.as_deref())
+            })
             .flatten();
         let text = concise.as_deref().unwrap_or(text);
         // Managed PowerShell strips this exact comment prefix, echoes the run token in its
