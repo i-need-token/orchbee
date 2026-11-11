@@ -361,7 +361,12 @@ fn real_host_executes_the_explicit_selection_and_reports_spawn_failures() -> Tes
     // sh -c <script> <argv0> <argv...>: "$@" is argv[4..] — the transmitted
     // arguments after the consumed `-c` pair and the synthesized argv0 slot.
     assert_eq!(fs::read_to_string(&argv_file)?, "-x\n\n漢字\n");
-    assert_eq!(fs::read_to_string(&cwd_file)?.trim_end(), "/tmp");
+    // The same directory as the authorized cwd: /tmp is a symlink on macOS, and the shell reports
+    // the real path it runs in.
+    assert_eq!(
+        fs::canonicalize(fs::read_to_string(&cwd_file)?.trim_end())?,
+        fs::canonicalize("/tmp")?
+    );
 
     // A real spawn failure publishes the existing failure outcome — no
     // retry and no silent fallback to the default shell.

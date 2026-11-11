@@ -323,7 +323,9 @@ struct TestCohort(PathBuf);
 impl TestCohort {
     fn new() -> io::Result<Self> {
         let identity = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
+        // The product reaches a Session runtime through its canonical data root, and the runtime
+        // rendezvous refuses symlinked components; macOS's temporary folder sits behind /var.
+        let path = std::env::temp_dir().canonicalize()?.join(format!(
             "orchbee-worker-lazy-validation-{}-{identity}",
             std::process::id()
         ));

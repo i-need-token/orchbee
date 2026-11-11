@@ -572,9 +572,10 @@ fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
     )?;
     assert!(!observation(&request));
 
-    // A symlink to a real socket still fails the symlink_metadata type check.
+    // A symlink to a real socket still fails the symlink_metadata type check. The socket is bound
+    // beside the endpoint: a path under the macOS temporary folder can exceed SUN_LEN.
     std::fs::remove_file(&socket_name)?;
-    let target = directory.path().join("elsewhere.sock");
+    let target = directory.symlink_target();
     UnixListener::bind(&target)?;
     std::os::unix::fs::symlink(&target, &socket_name)?;
     let request = map_launch_dispatch(
@@ -618,6 +619,13 @@ impl ObservationSessionDirectory {
         }
         orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(&self.0)
     }
+
+    /// A socket path beside the observation endpoint, removed with this directory.
+    #[cfg(unix)]
+    fn symlink_target(&self) -> PathBuf {
+        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::observation_endpoint_path(&self.0)
+            .with_extension("target")
+    }
 }
 
 impl Drop for ObservationSessionDirectory {
@@ -628,6 +636,8 @@ impl Drop for ObservationSessionDirectory {
                 &self.0,
             ),
         );
+        #[cfg(unix)]
+        let _ = std::fs::remove_file(self.symlink_target());
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }

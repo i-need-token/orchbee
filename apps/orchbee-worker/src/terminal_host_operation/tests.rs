@@ -963,7 +963,13 @@ fn join(peer: thread::JoinHandle<io::Result<()>>) -> TestResult {
 struct Directory(PathBuf);
 impl Directory {
     fn new() -> io::Result<Self> {
-        let path = std::env::temp_dir().join(format!(
+        // A Unix socket path is limited to SUN_LEN (104 bytes on macOS), which the macOS temporary
+        // folder nearly fills; the short real /tmp leaves room for the Host's socket name.
+        #[cfg(unix)]
+        let parent = fs::canonicalize("/tmp")?;
+        #[cfg(windows)]
+        let parent = std::env::temp_dir();
+        let path = parent.join(format!(
             "obex-{}-{}",
             std::process::id(),
             NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)

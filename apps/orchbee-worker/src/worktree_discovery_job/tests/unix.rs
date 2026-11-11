@@ -799,7 +799,10 @@ fn real_git_repository_lists_actual_worktrees() -> TestResult {
     // per-command `-c` identity — no global user configuration is read
     // or written. The slot drives the real fixed argv (probe + list).
     let tag = std::process::id();
-    let root = format!("/tmp/orchbee-worktree-repo-{tag}");
+    // Git reports real paths, and /tmp is a symlink on macOS: name the fixture by its real path.
+    let parent = std::fs::canonicalize(DIR)?;
+    let parent = parent.to_str().ok_or("non-UTF-8 temporary folder")?;
+    let root = format!("{parent}/orchbee-worktree-repo-{tag}");
     let linked = format!("{root}-linked");
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&linked);
