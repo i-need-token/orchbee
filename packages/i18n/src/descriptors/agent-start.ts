@@ -51,8 +51,14 @@ export const agentStartMessages = defineMessages({
 		'agentStart.place.splitRight',
 		'Place choice: the focused Panel is split and the Agent opens to its right.',
 	),
-	search: message('agentStart.search', 'Accessible name and placeholder of the Agent search field.'),
-	start: message('agentStart.start', 'Button that starts the highlighted Agent in the chosen place.'),
+	search: message(
+		'agentStart.search',
+		'Accessible name and placeholder of the Agent search field.',
+	),
+	start: message(
+		'agentStart.start',
+		'Button that starts the highlighted Agent in the chosen place.',
+	),
 	statusCouldntCheck: message(
 		'agentStart.status.couldntCheck',
 		'Status line when the lookup for installed Agents failed or is not supported; every Agent can still be started.',
@@ -61,7 +67,10 @@ export const agentStartMessages = defineMessages({
 		'agentStart.status.looking',
 		'Status line while the Session’s first lookup for installed Agents runs.',
 	),
-	statusNoMatch: message('agentStart.status.noMatch', 'Status line when no Agent matches the search.'),
+	statusNoMatch: message(
+		'agentStart.status.noMatch',
+		'Status line when no Agent matches the search.',
+	),
 	statusUnsupported: message(
 		'agentStart.status.unsupported',
 		'Status line when the Session’s machine cannot start Agents at all.',
