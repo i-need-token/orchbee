@@ -233,7 +233,11 @@ fn admit_candidate(
     expected_cohort: &str,
     agents: Option<&Arc<AgentService>>,
 ) -> Option<thread::JoinHandle<()>> {
-    if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
+    // The handshake waits through these timeouts, which only blocking mode honors. The managed
+    // listener is nonblocking, and macOS hands that flag to every socket it accepts, so a hello
+    // still in flight would otherwise read as a would-block handshake timeout.
+    if stream.set_nonblocking(false).is_err()
+        || stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || require_same_effective_user(&stream).is_err()
     {
