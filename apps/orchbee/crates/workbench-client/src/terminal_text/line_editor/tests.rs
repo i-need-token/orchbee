@@ -390,3 +390,85 @@ fn host_keys_map_only_with_their_exact_modifiers() {
     assert_eq!(press('b', Modifiers::CTRL.with_alt()), None);
     assert_eq!(press('b', Modifiers::NONE), None);
 }
+
+/// A prefilled name opens wholly selected; each key family either replaces, clears or collapses the
+/// selection, and the budget rejection keeps it whole.
+#[test]
+fn a_selected_draft_is_replaced_cleared_or_collapsed_by_each_key_family() {
+    type Step = fn(&mut LineEditor) -> bool;
+    let cases: [(&str, Step, &str, usize); 14] = [
+        ("type", |e| e.insert("x").is_ok(), "x", 1),
+        ("paste", |e| e.insert("new name").is_ok(), "new name", 8),
+        ("backspace", LineEditor::backspace, "", 0),
+        ("delete", LineEditor::delete, "", 0),
+        (
+            "kill to start",
+            |e| e.apply(LineKey::KillToStart).unwrap(),
+            "",
+            0,
+        ),
+        (
+            "kill to end",
+            |e| e.apply(LineKey::KillToEnd).unwrap(),
+            "",
+            0,
+        ),
+        (
+            "kill word back",
+            |e| e.apply(LineKey::KillWordBack).unwrap(),
+            "",
+            0,
+        ),
+        (
+            "kill word forward",
+            |e| e.apply(LineKey::KillWordForward).unwrap(),
+            "",
+            0,
+        ),
+        ("left", LineEditor::left, "build docs", 0),
+        ("home", LineEditor::home, "build docs", 0),
+        (
+            "word left",
+            |e| e.apply(LineKey::WordLeft).unwrap(),
+            "build docs",
+            0,
+        ),
+        ("right", LineEditor::right, "build docs", 10),
+        ("end", LineEditor::end, "build docs", 10),
+        (
+            "word right",
+            |e| e.apply(LineKey::WordRight).unwrap(),
+            "build docs",
+            10,
+        ),
+    ];
+    for (name, step, text, cursor) in cases {
+        let mut editor = labels("build docs").select_all();
+        assert!(editor.selected(), "{name}");
+        assert!(step(&mut editor), "{name}");
+        assert_eq!((editor.text(), editor.cursor()), (text, cursor), "{name}");
+        assert!(!editor.selected(), "{name}");
+        assert_invariants(&editor);
+    }
+
+    // A kill keeps the whole selected value for a yank, which replaces a fresh selection.
+    let mut editor = labels("build docs").select_all();
+    assert!(editor.apply(LineKey::KillToEnd).unwrap());
+    editor.insert("tmp").unwrap();
+    let mut editor = LineEditor {
+        selected: true,
+        ..editor
+    };
+    assert!(editor.apply(LineKey::Yank).unwrap());
+    assert_eq!((editor.text(), editor.selected()), ("build docs", false));
+
+    // The replacement alone counts against the budget; a rejection keeps text and selection.
+    let mut editor = LineEditor::new("abcd".to_owned(), LengthLimit::Scalars(4)).select_all();
+    assert!(editor.insert("wxyz!").is_err());
+    assert_eq!((editor.text(), editor.selected()), ("abcd", true));
+    assert!(editor.insert("wxyz").is_ok());
+    assert_eq!((editor.text(), editor.cursor()), ("wxyz", 4));
+
+    // An empty draft has nothing to select.
+    assert!(!labels("").select_all().selected());
+}

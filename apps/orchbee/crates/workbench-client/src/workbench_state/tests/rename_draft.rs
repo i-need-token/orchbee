@@ -223,9 +223,10 @@ fn rename_draft_edits_graphemes_and_projects_its_cursor_through_the_window() {
     let token = state.open_rename_draft().unwrap();
     state.acknowledge_rename_draw(Some(token));
     let prefill = state.rename_draft().unwrap().text().to_owned();
-    // Prefill lands the cursor at the exact raw end: an append extends the
-    // label, a left step walks back over the whole appended grapheme, delete
-    // removes it.
+    // End leaves the selected prefill with the cursor at the exact raw end: an
+    // append extends the label, a left step walks back over the whole appended
+    // grapheme, delete removes it.
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::End));
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Append("\u{4e2d}")));
     let mut text = format!("{prefill}\u{4e2d}");
     assert_eq!(state.rename_draft().unwrap().text(), text);

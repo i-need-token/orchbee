@@ -1,9 +1,9 @@
 //! Bounded Project choices and text fields publish controls only after a complete draw.
 use super::controls::{self, ActionKind, KeyHint};
 use super::modal::{
-    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, NAME_FIELD_WIDTH,
-    dialog_layout, field_value_area, modal_key_label, paint_dialog, paint_field,
-    pointer_presentation,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, FieldTone, ModalAction,
+    NAME_FIELD_WIDTH, NameForm, dialog_layout, field_value_area, modal_key_label, paint_dialog,
+    paint_field, paint_name_form, pointer_presentation,
 };
 use crate::client_view::{
     Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction,
@@ -219,7 +219,6 @@ fn render_form(
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<SetupToken>) {
     let stage = draft.stage();
-    let class = DialogClass::Narrow;
     let [error, _] = draft.shown_field_errors();
     let tab_group_rename = stage == SetupStage::TabGroupName && draft.renames_tab_group();
     let (title, submit) = if tab_group_rename {
@@ -235,37 +234,27 @@ fn render_form(
         SetupStage::DirectoryPath => Some(locale.setup_directory_help()),
         _ => None,
     };
-    let mut rows = Vec::new();
+    let mut lead = Vec::new();
     // The Workspace the task acts on, when the title does not name it.
     if matches!(
         stage,
         SetupStage::DirectoryPath | SetupStage::WorkspaceProjectName
     ) && let Some(workspace) = draft.workspace_label()
     {
-        rows.push(DialogRow::Target(
+        lead.push(DialogRow::Target(
             locale.workspace_display_label(workspace).to_owned().into(),
         ));
-        rows.push(DialogRow::Blank);
+        lead.push(DialogRow::Blank);
     }
     // A new Project's title does not name the value, so its field keeps the label.
     if stage == SetupStage::WorkspaceProjectName {
-        rows.push(DialogRow::Label(
+        lead.push(DialogRow::Label(
             locale.quick_workspace_name().into(),
             false,
         ));
     }
-    let field = rows.len();
-    rows.push(DialogRow::Field {
-        minimum: if stage == SetupStage::DirectoryPath {
-            class.path_width()
-        } else {
-            NAME_FIELD_WIDTH
-        },
-    });
-    rows.push(help_row(locale, error, draft.touched(false), help));
-    if let Some(status) = status_row(status, locale) {
-        rows.push(status);
-    }
+    let mut trailing = vec![help_row(locale, error, draft.touched(false), help)];
+    trailing.extend(status_row(status, locale));
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let actions = form_actions(
@@ -275,41 +264,39 @@ fn render_form(
         &escape,
         &enter,
     );
-    let dialog = Dialog {
-        title,
-        class,
-        rows,
-        footer: DialogFooter::Actions(&actions),
-    };
-    let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(row) = layout.row(field) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
-    let Some(window) = draft.field_window(usize::from(field_value_area(row, theme).width)) else {
-        return (Rect::default(), ModalPresentation::NotPresented);
-    };
     let target = |control| HitTarget::Setup {
         token: draft.token(),
         control,
     };
-    paint_dialog(
-        frame,
-        &dialog,
-        &layout,
-        &DialogTargets {
-            close: target(ModalControl::Close),
-            actions: &[target(ModalControl::Cancel), target(ModalControl::Submit)],
-            dismiss_outside: !draft.touched(false),
-            scroll: None,
+    let form = NameForm {
+        title,
+        lead,
+        field_minimum: if stage == SetupStage::DirectoryPath {
+            DialogClass::Narrow.path_width()
+        } else {
+            NAME_FIELD_WIDTH
         },
+        trailing,
+        actions: &actions,
+        placeholder: None,
+    };
+    let targets = DialogTargets {
+        close: target(ModalControl::Close),
+        actions: &[target(ModalControl::Cancel), target(ModalControl::Submit)],
+        dismiss_outside: !draft.touched(false),
+        scroll: None,
+    };
+    match paint_name_form(
+        frame,
+        form,
+        |width| draft.field_window(width),
+        &targets,
         theme,
         hits,
-    );
-    paint_field(frame, row, window.display(), false, theme);
-    place_caret(frame, row, window.cursor_column(), theme);
-    (layout.area, ModalPresentation::Presented(draft.token()))
+    ) {
+        Some(area) => (area, ModalPresentation::Presented(draft.token())),
+        None => (Rect::default(), ModalPresentation::NotPresented),
+    }
 }
 
 struct ProjectPicker<'a> {
@@ -632,8 +619,14 @@ fn render_quick(
             ellipsis,
         )
     };
-    paint_field(frame, name_row, &name_value, false, theme);
-    paint_field(frame, directory_row, &directory_value, false, theme);
+    paint_field(frame, name_row, &name_value, FieldTone::Value, theme);
+    paint_field(
+        frame,
+        directory_row,
+        &directory_value,
+        FieldTone::Value,
+        theme,
+    );
     // A press on the other field moves the caret there.
     hits.record_modal_control(
         HitLayer::Overlay,

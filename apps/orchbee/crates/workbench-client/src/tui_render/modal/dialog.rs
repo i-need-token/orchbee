@@ -575,42 +575,65 @@ pub(in crate::tui_render) fn field_value_area(row: Rect, theme: &Theme) -> Rect 
     )
 }
 
+/// How a field row shows its text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::tui_render) enum FieldTone {
+    /// The draft's own text in `text-primary`.
+    Value,
+    /// What an empty field stands for, in `text-secondary`.
+    Placeholder,
+    /// The draft's whole text, selected, on the `surface-selection` fill.
+    Selected,
+}
+
 /// Paints one field row: a `surface-field` band with one padding cell at each end, or the
-/// `[ value ]` fallback with `text-secondary` brackets. A placeholder uses `text-secondary`.
+/// `[ value ]` fallback with `text-secondary` brackets. A placeholder uses `text-secondary`; a
+/// selected value rests on `surface-selection` over its own cells only.
 pub(in crate::tui_render) fn paint_field(
     frame: &mut Frame<'_>,
     row: Rect,
     value: &str,
-    placeholder: bool,
+    tone: FieldTone,
     theme: &Theme,
 ) {
     let value_area = field_value_area(row, theme);
-    let role = if placeholder {
+    let role = if tone == FieldTone::Placeholder {
         Role::TextSecondary
     } else {
         Role::TextPrimary
     };
     let value = truncate_display(value, usize::from(value_area.width), "");
-    let padded = format!(
-        "{value}{}",
-        " ".repeat(usize::from(value_area.width).saturating_sub(display_width(&value)))
-    );
-    let line = if theme.field_band() {
-        let band = theme.style(Role::SurfaceField);
-        let text =
-            theme.content_on_surface(Role::SurfaceField, None, Some(role), theme.style(role));
-        Line::from(vec![
-            Span::styled(" ", band),
-            Span::styled(padded, text),
-            Span::styled(" ", band),
-        ])
+    let rest = " ".repeat(usize::from(value_area.width).saturating_sub(display_width(&value)));
+    let (base, bracket) = if theme.field_band() {
+        (Role::SurfaceField, None)
     } else {
-        let bracket = theme.style(Role::TextSecondary);
-        Line::from(vec![
-            Span::styled("[ ", bracket),
-            Span::styled(padded, theme.style(role)),
-            Span::styled(" ]", bracket),
-        ])
+        (Role::SurfaceOverlay, Some(theme.style(Role::TextSecondary)))
     };
+    // Inside brackets the text keeps the dialog's own surface.
+    let resting = if bracket.is_some() {
+        theme.style(role)
+    } else {
+        theme.content_on_surface(base, None, Some(role), theme.style(role))
+    };
+    let value_style = if tone == FieldTone::Selected {
+        theme.content_on_surface(
+            base,
+            Some(Role::SurfaceSelection),
+            Some(role),
+            theme.style(role),
+        )
+    } else {
+        resting
+    };
+    let (open, close, edge) = match bracket {
+        Some(bracket) => ("[ ", " ]", bracket),
+        None => (" ", " ", theme.style(Role::SurfaceField)),
+    };
+    let line = Line::from(vec![
+        Span::styled(open, edge),
+        Span::styled(value, value_style),
+        Span::styled(rest, resting),
+        Span::styled(close, edge),
+    ]);
     frame.render_widget(Paragraph::new(line), row);
 }

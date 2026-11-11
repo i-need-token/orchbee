@@ -282,11 +282,11 @@ fn open_rename_draft_owns_panel_prefix_bytes_as_draft_text() {
         mailbox.try_recv().unwrap().is_none(),
         "panel prefix keys must not reach the mailbox while the rename draft owns input"
     );
-    // The draft is prefilled with the current label; the captured bytes land
-    // inside it instead of reaching the prefix layer.
+    // The captured bytes land in the draft, replacing its selected prefill, instead of
+    // reaching the prefix layer.
     assert_eq!(
         ui.state.as_ref().unwrap().rename_draft().unwrap().text(),
-        "Tab 0X|"
+        "X|"
     );
 
     // The draft retains its own submit path once drawn; the queued command is

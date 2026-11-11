@@ -545,7 +545,7 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
     assert!(!state.setup_draft().unwrap().faulted());
     state.cancel_setup_draft(token);
 
-    // A rename stage prefills the exact label with the cursor at its end.
+    // A rename stage prefills the exact label.
     let rename = state
         .open_setup_draft(SetupIntent::RenameLocation(
             crate::workbench_state::workspace_setup::LocationLabelTarget::Workspace,
@@ -554,8 +554,6 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
     state.acknowledge_setup_draw(Some(rename));
     assert_eq!(state.setup_draft().unwrap().stage(), Stage::WorkspaceRename);
     assert_eq!(state.setup_draft().unwrap().text(), "Workspace");
-    assert!(state.edit_setup_draft(rename, Edit::Append("2")));
-    assert_eq!(state.setup_draft().unwrap().text(), "Workspace2");
 }
 
 #[test]

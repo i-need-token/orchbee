@@ -331,10 +331,8 @@ fn suspended_setup_submit_is_consumed_until_the_same_surface_is_drawn_again() {
 
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
     assert!(ui.edit_setup_draft(token, SetupEdit::Append(" resumed")));
-    assert_eq!(
-        ui.view().setup_draft().unwrap().text(),
-        "Preserved value resumed"
-    );
+    // The first edit replaced the selected prefill; later ones append.
+    assert_eq!(ui.view().setup_draft().unwrap().text(), " value resumed");
 }
 
 #[test]

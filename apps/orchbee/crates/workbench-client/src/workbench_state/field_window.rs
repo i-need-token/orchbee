@@ -16,6 +16,7 @@ use crate::terminal_text::{display_width, project_terminal_text};
 pub(crate) struct FieldWindow<'a> {
     display: Cow<'a, str>,
     cursor_column: usize,
+    selected: bool,
 }
 
 impl FieldWindow<'_> {
@@ -27,6 +28,11 @@ impl FieldWindow<'_> {
     /// Cursor column inside the displayed window, in display cells.
     pub(crate) const fn cursor_column(&self) -> usize {
         self.cursor_column
+    }
+
+    /// Whether the whole draft is selected, so the field paints its value as a selection.
+    pub(crate) const fn selected(&self) -> bool {
+        self.selected
     }
 }
 
@@ -70,6 +76,7 @@ pub(super) fn field_window(editor: &LineEditor, field_width: usize) -> Option<Fi
     Some(FieldWindow {
         display: window,
         cursor_column: display_width(&display[scroll..visible_cursor]),
+        selected: editor.selected(),
     })
 }
 

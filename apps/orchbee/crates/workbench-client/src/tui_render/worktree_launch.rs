@@ -1,8 +1,8 @@
 //! Draw the complete Worktree decision before arming its input token.
 use super::controls::{self, ActionKind, KeyHint};
 use super::modal::{
-    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, NAME_FIELD_WIDTH,
-    dialog_layout, field_value_area, modal_key_label, paint_dialog, paint_field,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, FieldTone, ModalAction,
+    NAME_FIELD_WIDTH, dialog_layout, field_value_area, modal_key_label, paint_dialog, paint_field,
     pointer_presentation,
 };
 use super::{Frame, Locale, ModalPresentation, Rect, Theme, display_width, truncate_display};
@@ -198,13 +198,15 @@ fn render_form(
         ),
     ] {
         match placeholder.filter(|_| raw.is_empty()) {
-            Some(placeholder) => paint_field(frame, row, placeholder, true, theme),
-            None if active => paint_field(frame, row, window.display(), false, theme),
+            Some(placeholder) => {
+                paint_field(frame, row, placeholder, FieldTone::Placeholder, theme)
+            }
+            None if active => paint_field(frame, row, window.display(), FieldTone::Value, theme),
             None => paint_field(
                 frame,
                 row,
                 &truncate_display(&sanitize_terminal_text(raw), width, ellipsis),
-                false,
+                FieldTone::Value,
                 theme,
             ),
         }

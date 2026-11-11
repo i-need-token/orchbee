@@ -346,9 +346,11 @@ pub(super) fn overlay_block(title: &str, width: u16, theme: &Theme) -> OverlayFr
 
 mod dialog;
 pub(super) use dialog::{
-    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, NAME_FIELD_WIDTH, dialog_layout,
-    field_value_area, paint_dialog, paint_field,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, FieldTone, NAME_FIELD_WIDTH,
+    dialog_layout, field_value_area, paint_dialog, paint_field,
 };
+mod name_form;
+pub(super) use name_form::{NameForm, paint_name_form};
 
 #[cfg(test)]
 mod tests;

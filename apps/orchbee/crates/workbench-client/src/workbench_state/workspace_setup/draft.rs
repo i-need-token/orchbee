@@ -400,7 +400,8 @@ impl WorkbenchClientState {
                 tab_configuration = Some(*operation);
                 (
                     SetupStage::TabGroupName,
-                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+                    // A prefilled name opens wholly selected, so typing replaces it.
+                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)).select_all(),
                 )
             }
             SetupIntent::RenameProject(request) => {
@@ -413,7 +414,8 @@ impl WorkbenchClientState {
                         request.project_id().clone(),
                     ))
                     .unwrap_or_else(|| request.label().to_owned());
-                let editor = LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH));
+                let editor =
+                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)).select_all();
                 project_rename = Some(request);
                 (SetupStage::ProjectRename, editor)
             }
@@ -439,9 +441,9 @@ impl WorkbenchClientState {
                         LocationLabelTarget::Project => SetupStage::ProjectRename,
                         LocationLabelTarget::Workspace => SetupStage::WorkspaceRename,
                     },
-                    // Prefill keeps the protocol-legal label byte-exact with
+                    // Prefill keeps the protocol-legal label byte-exact, wholly selected with
                     // the cursor at its end.
-                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)).select_all(),
                 )
             }
         };

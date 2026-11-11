@@ -1,6 +1,6 @@
 use super::{
-    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, ModalAction, dialog_layout,
-    paint_dialog, paint_field, unwrapped_text_fits,
+    Dialog, DialogClass, DialogFooter, DialogRow, DialogTargets, FieldTone, ModalAction,
+    dialog_layout, paint_dialog, paint_field, unwrapped_text_fits,
 };
 use crate::terminal_text::sanitize_terminal_text;
 use crate::tui_hit_map::{HitMapBuilder, HitTarget};
@@ -175,7 +175,15 @@ fn fields_use_the_band_where_the_theme_has_one_and_brackets_otherwise() {
         assert_eq!(theme.field_band(), band);
         let mut terminal = Terminal::new(TestBackend::new(12, 1)).unwrap();
         terminal
-            .draw(|frame| paint_field(frame, Rect::new(0, 0, 12, 1), "name", false, &theme))
+            .draw(|frame| {
+                paint_field(
+                    frame,
+                    Rect::new(0, 0, 12, 1),
+                    "name",
+                    FieldTone::Value,
+                    &theme,
+                )
+            })
             .unwrap();
         let buffer = terminal.backend().buffer();
         let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();

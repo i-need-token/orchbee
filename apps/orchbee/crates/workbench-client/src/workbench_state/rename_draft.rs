@@ -241,8 +241,9 @@ impl WorkbenchClientState {
             panel,
             // Automatic positions are presentation-only, so keep the editor
             // empty and let the modal show the localized display name as a
-            // placeholder. Fixed labels remain exact and start at the end.
-            editor: LineEditor::new(text, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+            // placeholder. Fixed labels remain exact and open wholly selected, so typing
+            // replaces them.
+            editor: LineEditor::new(text, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)).select_all(),
             presentation: PresentationPhase::Pending,
             shown: false,
             input_fault: false,

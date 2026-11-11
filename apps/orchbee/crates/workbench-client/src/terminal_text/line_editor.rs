@@ -94,6 +94,10 @@ impl LineKey {
 /// - `kill` holds the most recent kill in memory for `Ctrl+Y`. Consecutive kills extend it
 ///   (backward kills prepend, forward kills append), as readline does; any other edit or
 ///   movement ends the chain. It never reaches the system clipboard.
+/// - `selected` marks the whole prefilled value as selected, as a name field opens: an insertion
+///   (typing, paste or yank) replaces it, a deletion or kill clears it, and a movement ends it
+///   with the cursor at the start (left, Home, word left) or the end (right, End, word right).
+///   Only [`Self::select_all`] sets it, so a field that never calls it never selects.
 ///
 /// The editor holds no I/O, clock, or Client state. The horizontal window a
 /// draft field shows is a pure consumer projection over this state measured
@@ -105,6 +109,7 @@ pub(crate) struct LineEditor {
     limit: LengthLimit,
     kill: String,
     kill_chain: bool,
+    selected: bool,
 }
 
 impl LineEditor {
@@ -117,11 +122,26 @@ impl LineEditor {
             limit,
             kill: String::new(),
             kill_chain: false,
+            selected: false,
         }
+    }
+
+    /// Selects the whole draft with the cursor at its end, as a prefilled name opens; an empty
+    /// draft has nothing to select.
+    #[must_use]
+    pub(crate) fn select_all(mut self) -> Self {
+        self.cursor = self.text.len();
+        self.selected = !self.text.is_empty();
+        self
     }
 
     pub(crate) fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Whether the whole draft is selected.
+    pub(crate) const fn selected(&self) -> bool {
+        self.selected
     }
 
     /// Byte index of the cursor; always an extended-grapheme boundary.
@@ -136,14 +156,24 @@ impl LineEditor {
     /// ZWJ joining the neighbors, say) it snaps forward to that cluster's end.
     pub(crate) fn insert(&mut self, inserted: &str) -> Result<(), LengthLimitReached> {
         self.kill_chain = false;
+        // A selected draft is replaced, so only the insertion counts against the budget.
+        let kept = if self.selected {
+            ""
+        } else {
+            self.text.as_str()
+        };
         let fits = match self.limit {
             LengthLimit::Scalars(maximum) => {
-                self.text.chars().count() + inserted.chars().count() <= maximum
+                kept.chars().count() + inserted.chars().count() <= maximum
             }
-            LengthLimit::Bytes(maximum) => self.text.len() + inserted.len() <= maximum,
+            LengthLimit::Bytes(maximum) => kept.len() + inserted.len() <= maximum,
         };
         if !fits {
             return Err(LengthLimitReached);
+        }
+        if std::mem::take(&mut self.selected) {
+            self.text.clear();
+            self.cursor = 0;
         }
         let intent = self.cursor + inserted.len();
         self.text.insert_str(self.cursor, inserted);
@@ -155,6 +185,9 @@ impl LineEditor {
     /// start of the draft.
     pub(crate) fn backspace(&mut self) -> bool {
         self.kill_chain = false;
+        if self.clear_selection() {
+            return true;
+        }
         if self.cursor == 0 {
             return false;
         }
@@ -167,6 +200,9 @@ impl LineEditor {
     /// end of the draft.
     pub(crate) fn delete(&mut self) -> bool {
         self.kill_chain = false;
+        if self.clear_selection() {
+            return true;
+        }
         let end = boundary_after(&self.text, self.cursor);
         if end == self.cursor {
             return false;
@@ -180,11 +216,50 @@ impl LineEditor {
         self.text.clear();
         self.cursor = 0;
         self.kill_chain = false;
+        self.selected = false;
+    }
+
+    /// Clears a selected draft, as a deletion does; returns whether there was a selection.
+    fn clear_selection(&mut self) -> bool {
+        if !std::mem::take(&mut self.selected) {
+            return false;
+        }
+        self.text.clear();
+        self.cursor = 0;
+        true
+    }
+
+    /// Ends a selection with the cursor at the draft's start or end; returns whether there was
+    /// a selection.
+    fn collapse_selection(&mut self, to_end: bool) -> bool {
+        if !std::mem::take(&mut self.selected) {
+            return false;
+        }
+        self.cursor = if to_end { self.text.len() } else { 0 };
+        true
     }
 
     /// Applies one shared readline key. Returns whether text or cursor changed; only `Yank` can
     /// be rejected, atomically, by the length budget.
     pub(crate) fn apply(&mut self, key: LineKey) -> Result<bool, LengthLimitReached> {
+        if self.selected {
+            match key {
+                // A kill takes the whole selected draft, so a yank can bring it back.
+                LineKey::KillToStart
+                | LineKey::KillToEnd
+                | LineKey::KillWordBack
+                | LineKey::KillWordForward => {
+                    self.selected = false;
+                    self.kill_chain = false;
+                    return Ok(self.kill(0..self.text.len(), Direction::Forward));
+                }
+                LineKey::WordLeft | LineKey::WordRight => {
+                    self.kill_chain = false;
+                    return Ok(self.collapse_selection(key == LineKey::WordRight));
+                }
+                LineKey::Yank => {}
+            }
+        }
         Ok(match key {
             LineKey::KillToStart => self.kill(0..self.cursor, Direction::Backward),
             LineKey::KillToEnd => self.kill(self.cursor..self.text.len(), Direction::Forward),
@@ -269,6 +344,9 @@ impl LineEditor {
     /// the draft boundary.
     pub(crate) fn left(&mut self) -> bool {
         self.kill_chain = false;
+        if self.collapse_selection(false) {
+            return true;
+        }
         if self.cursor == 0 {
             return false;
         }
@@ -278,6 +356,9 @@ impl LineEditor {
 
     pub(crate) fn right(&mut self) -> bool {
         self.kill_chain = false;
+        if self.collapse_selection(true) {
+            return true;
+        }
         let next = boundary_after(&self.text, self.cursor);
         if next == self.cursor {
             return false;
@@ -290,6 +371,9 @@ impl LineEditor {
     /// `End`/`Ctrl+E`). Returns `false` when already there.
     pub(crate) fn home(&mut self) -> bool {
         self.kill_chain = false;
+        if self.collapse_selection(false) {
+            return true;
+        }
         if self.cursor == 0 {
             return false;
         }
@@ -299,6 +383,9 @@ impl LineEditor {
 
     pub(crate) fn end(&mut self) -> bool {
         self.kill_chain = false;
+        if self.collapse_selection(true) {
+            return true;
+        }
         if self.cursor == self.text.len() {
             return false;
         }
