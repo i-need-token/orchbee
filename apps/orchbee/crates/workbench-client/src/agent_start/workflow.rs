@@ -210,6 +210,9 @@ impl Workflow<'_> {
         if self.request.start_command && powershell {
             // Managed PowerShell runs the Agent as its first command; nothing is typed and nothing
             // is reserved. Any other shell could not take it and gets the typed line below.
+            if !self.request.watch_start_command {
+                return Ok(Confirmed::Sent);
+            }
             if let Some(progress) = self.progress {
                 progress(super::Progress::Observing);
             }

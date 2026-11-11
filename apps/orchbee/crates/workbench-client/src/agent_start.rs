@@ -36,6 +36,9 @@ pub struct Request {
     /// The Panel's new shell was launched with this Agent as its first command: the workflow
     /// watches it from the start instead of typing it, unless that shell could not take it.
     pub(crate) start_command: bool,
+    /// Whether a shell that took the first command is watched through the early check; without
+    /// it the start ends once that shell is seen.
+    pub(crate) watch_start_command: bool,
 }
 
 impl Request {
@@ -45,12 +48,23 @@ impl Request {
             provider,
             args: args.into_boxed_slice(),
             start_command: false,
+            watch_start_command: true,
         }
     }
 
     #[must_use]
     pub(crate) const fn started_as_command(mut self) -> Self {
         self.start_command = true;
+        self
+    }
+
+    /// The Panel's new shell was launched with this Agent as its first command and the caller
+    /// does not wait for the Agent: once that shell is seen to have taken it, the start ends with
+    /// nothing typed. A shell that could not take it gets the typed line like any other start.
+    #[must_use]
+    pub const fn started_as_command_unwatched(mut self) -> Self {
+        self.start_command = true;
+        self.watch_start_command = false;
         self
     }
 }
@@ -118,7 +132,8 @@ pub enum Verdict {
     },
     /// Without a name, the command was typed at the confirmed prompt of `panel` and the shell did
     /// not come back to that prompt during the early check. Nothing waits for readiness: the
-    /// Server shows the Agent as opening once its process is seen.
+    /// Server shows the Agent as opening once its process is seen. When the Panel's new shell ran
+    /// the Agent as its first command, nothing was typed and the Report holds no submission.
     Sent {
         panel: orchbee_workbench_protocol::WorkbenchPanelId,
     },
@@ -158,6 +173,30 @@ impl Report {
                 read_cause: None,
             },
         }
+    }
+
+    /// Whether the start typed nothing only because its new Panel is not ready yet: the Panel has
+    /// no bound terminal yet, or its shell shows no idle, confirmed prompt yet. Nothing was
+    /// delivered and no reservation is left pending, so starting again on that Panel is safe.
+    #[must_use]
+    pub fn awaits_new_shell(&self) -> bool {
+        let Verdict::Failed { failure, .. } = &self.verdict else {
+            return false;
+        };
+        !failure.unknown()
+            && !failure.cancelled()
+            && !matches!(
+                self.reservation_state,
+                ReservationState::Pending | ReservationState::Unknown
+            )
+            && !self.delivery.possibly_applied()
+            && matches!(
+                failure,
+                Failure::Primary(_)
+                    | Failure::Start(
+                        StartFailure::TerminalNotIdle | StartFailure::PromptUnconfirmed(_)
+                    )
+            )
     }
 }
 fn elapsed_ms(started: Instant) -> u64 {

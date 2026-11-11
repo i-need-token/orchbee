@@ -338,25 +338,6 @@ fn report_phase(report: &Report) -> Phase {
     }
 }
 
-/// Whether a start typed nothing only because its new Panel is not ready yet: the Panel has no
-/// bound terminal yet, or a shell that could not take the Agent as its first command shows no
-/// idle prompt yet.
-fn awaits_prompt(report: &Report) -> bool {
-    match report_phase(report) {
-        Phase::Refused(AgentStartRefusal::NotAtPrompt | AgentStartRefusal::Unmarked) => true,
-        Phase::Failed => {
-            matches!(
-                report.verdict,
-                Verdict::Failed {
-                    failure: Failure::Primary(_),
-                    ..
-                }
-            ) && !report.delivery.possibly_applied()
-        }
-        _ => false,
-    }
-}
-
 /// Where one accepted start runs: an existing Panel, where the command is typed, or a new Panel
 /// whose shell the Server launched with the Agent as its first command.
 pub(crate) enum Place {
@@ -496,7 +477,7 @@ impl StartTask {
                 // not take the Agent as its first command needs one before its first prompt; until
                 // then the workflow refuses without typing anything, so asking again is safe.
                 let retry = start_command
-                    && awaits_prompt(&report)
+                    && report.awaits_new_shell()
                     && deadline.saturating_duration_since(Instant::now()) > PROMPT_RETRY * 8;
                 if !retry {
                     break report;
