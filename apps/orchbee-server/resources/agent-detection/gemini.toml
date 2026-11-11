@@ -1,5 +1,5 @@
 id = "gemini"
-version = "2026.11.11.1"
+version = "2026.11.11.2"
 min_engine_version = 1
 updated_at = "2026-11-11T00:00:00Z"
 
@@ -72,3 +72,38 @@ priority = 100
 region = "whole_recent"
 visible_working = true
 contains = ["esc to cancel"]
+
+# Orchbee extension: Gemini CLI 0.68 draws its composer as a `>` input row between a ▄ row and a ▀
+# row, above a footer whose first row heads the workspace column. Idle needs all four at the bottom
+# of the screen; the placeholder is not matched, because typed text replaces it. The composer stays
+# on screen during a turn, so the cancel hint and the confirmation questions end the match as well
+# as outranking it.
+[[rules]]
+id = "composer_footer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(12)"
+visible_idle = true
+line_regex = [
+	'^\s*▄{3,}\s*$',
+	'^\s*>(?:\s|$)',
+	'^\s*▀{3,}\s*$',
+	'^\s*workspace \(/directory\)(?:\s|$)',
+]
+not = [
+	{ contains = [
+		"esc to cancel",
+	] },
+	{ contains = [
+		"waiting for user confirmation",
+	] },
+	{ contains = [
+		"do you want to proceed",
+	] },
+	{ contains = [
+		"│ Apply this change",
+	] },
+	{ contains = [
+		"│ Allow execution",
+	] },
+]

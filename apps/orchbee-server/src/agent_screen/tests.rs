@@ -208,7 +208,7 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
 }
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
 /// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code, deveco
-/// 0.3.0 and gemini 0.67.0. Busy chrome outranks the composer that stays on screen, a startup question blocks only
+/// 0.3.0 and gemini 0.67.0 and 0.68.0. Busy chrome outranks the composer that stays on screen, a startup question blocks only
 /// while its live choices or empty answer row are shown, and stray words stay unknown.
 #[test]
 fn new_provider_rules_follow_redacted_windows_captures() {
@@ -263,6 +263,22 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         "{gemini_trust_first}\n\n Gemini CLI is restarting to apply the trust changes...\n\n ▝▜▄     Gemini CLI v0.68.0\n ▝▀\n\n{gemini_composer}"
     );
     let gemini_trusted_later = format!("{gemini_trust_first}\n\n ▝▀\n\n{gemini_composer}");
+    // Gemini CLI 0.68 composer and footer; typed text replaces the placeholder and the shortcut hint.
+    let gemini_foot = " workspace (/directory)      sandbox         /model\n ~\\src\\app                  no sandbox      model";
+    let gemini_live = |above: &str, input: &str| {
+        format!(
+            "{above}\n─────────\n Shift+Tab to accept edits      2 skills\n▄▄▄▄▄▄▄▄▄\n > {input}\n▀▀▀▀▀▀▀▀▀\n{gemini_foot}"
+        )
+    };
+    let gemini_ready = gemini_live(
+        "                 ? for shortcuts",
+        "  Type your message or @path/to/file",
+    );
+    let gemini_typed = gemini_live("", "abc");
+    let gemini_ready_after_trust = format!(
+        "{gemini_trust_first}\n\n Gemini CLI is restarting to apply the trust changes...\n\n ▝▜▄     Gemini CLI v0.68.0\n ▝▀\n\n{gemini_ready}"
+    );
+    let gemini_busy = gemini_live(" ⠏ Thinking... (esc to cancel, 3s)", "abc");
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
         (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
@@ -270,6 +286,12 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         (P::Gemini, &gemini_trusted_later, "", Unknown),
         (P::Gemini, &gemini_trust_last, "", Blocked),
         (P::Gemini, gemini_idle, "", Unknown),
+        (P::Gemini, &gemini_ready, "◇  Ready (app)", Idle),
+        (P::Gemini, &gemini_ready_after_trust, "◇  Ready (app)", Idle),
+        (P::Gemini, &gemini_typed, "◇  Ready (app)", Idle),
+        (P::Gemini, &gemini_trust_first, "◇  Ready (app)", Blocked), // The title is Ready while the box waits.
+        (P::Gemini, &gemini_busy, "◇  Ready (app)", Working),
+        (P::Gemini, gemini_foot, "◇  Ready (app)", Unknown), // No composer.
         (P::AtomCode, atom_idle.as_str(), "🟢 atomcode", Idle),
         (P::AtomCode, &atom_idle, "", Idle),
         (P::AtomCode, &atom_busy, "🟡 Summary", Working),
