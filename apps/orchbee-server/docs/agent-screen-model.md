@@ -279,7 +279,7 @@ monotonic time. Busy maintenance defers the due check until the shared slot is f
 uses the same downloader, cache, activation and Stop lifecycle as explicit Update. It has a distinct
 owner and one retained latest result; it never consumes or evicts the manual operation ledger.
 
-Client activation passes only the validated configuration path and explicit-location status. The
+Client activation passes only the admitted configuration path and explicit-location status. The
 Server reads that file once at startup; the check value and provenance come from that read, and the
 observer never rereads configuration. Only a committed configuration publication (`server
 reload-config`) changes the manifest-check setting. Explicit rule Reload never reads `config.toml`:

@@ -905,10 +905,13 @@ The reader is strict per key and tolerant per file:
 
 - A file over 2 MiB (`MAXIMUM_USER_SETTINGS_BYTES`), a directory, an unreadable file, a missing
   explicit file and an invalid location variable are errors; a missing default file is the
-  defaults. `read_startup_settings`, the managed Server's first read on macOS and Linux, starts
-  with the defaults instead and names the file's reason in `UserSettingsLoad::unreadable`, which
-  the snapshot publishes as `unreadable`; only an invalid location variable still refuses, and an
-  edit is refused while the file cannot be read.
+  defaults. A Session start never stops on the file, because the person needs a terminal to
+  repair it: `read_startup_settings`, which Client activation and the Server's first read use on
+  every host, and `read_startup_settings_at`, its form at a location a Windows Client froze, start
+  with the defaults instead and name the file's reason in `UserSettingsLoad::unreadable`, which the
+  snapshot publishes as `unreadable`. Only an invalid location variable still refuses the start.
+  An edit is refused while the file exists but cannot be read; the first edit creates a missing
+  file.
 - A file that is not valid UTF-8 or TOML gives the defaults, or the last valid settings through
   `UserSettingsLoad::or_last_valid`, plus a `file` diagnostic. `UserSettingsLoad::syntax` names the
   reason and the 1-based line and column, counted in characters. Startup paths (Client activation
