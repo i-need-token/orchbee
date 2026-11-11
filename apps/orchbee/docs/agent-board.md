@@ -47,7 +47,7 @@ One action, `agent.start`, opens the Start Agent picker: `Ctrl+B G`, the action 
 in the Board, the empty Workspace hint beside new Tab, and the new-Tab button's More Agents…, which
 opens it with new Tab as its place. That menu's Agent rows start directly instead: they list up to
 four of this picker's Recent then Installed providers, fixed when the menu opens, and start one as
-the new-Tab place does, with the same watch, notices and first-prompt fallback
+the new-Tab place does, with the same watch and notices
 ([action menus](native-action-menus.md)). From the Board the picker replaces the
 Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alone without a Board
 read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
@@ -119,8 +119,10 @@ the picker with its query, cursor and place. The submitted create carries the sa
 closes the picker; the Server launches the new Workspace's first shell with the Agent as its first
 command. A failed create shows the form's own failure, and a reused Workspace starts nothing. The
 Client asks once and never polls; when the creation or split commits, or the create's Opened result
-arrives, it watches the new Panel the way a typed start is watched. A shell that cannot take a first
-command, such as cmd or a custom launch profile, gets the typed start at its first prompt instead. A
+arrives, it reads the new Panel's shell and watches managed PowerShell the way a typed start is
+watched. The Server [delivers the start](../../orchbee-server/docs/agent-start-delivery.md) into a
+cmd it marks, and the Client counts that as started; a shell that takes no first command, such as a
+custom launch profile, gets nothing typed and shows the not-at-prompt notice at once. A
 Host refusal because the focused Panel is no longer at an idle prompt starts in a new Tab instead
 and says "Panel busy · opened a new Tab". The workflow
 never installs a provider, inspects an integration or changes configuration. Success shows no

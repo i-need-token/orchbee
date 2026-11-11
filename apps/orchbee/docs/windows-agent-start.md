@@ -41,8 +41,8 @@ A new Tab or split is created with the TUI's Server operations, `tab.create` or 
 under one stale-view-retried request identity. A start with no arguments and no name is exactly
 the catalog command: the creation carries `options.agentStart` and the new shell runs the Agent
 as its [first command](#start-as-the-shells-first-command); the CLI returns once the Panel exists
-and that shell is confirmed managed PowerShell, and types the start like the TUI on any other
-shell. A start with arguments or a name creates a plain shell and types the workflow once at its
+and that shell is confirmed managed PowerShell or a cmd the Host marks, and answers any other shell
+with the not-idle refusal at once. A start with arguments or a name creates a plain shell and types the workflow once at its
 first confirmed prompt; a named start keeps the reservation and readiness wait. While the new
 terminal is unbound or its shell is not idle, the CLI only reads again, every 250 ms until two
 seconds before the deadline. A submission the [prompt gate](#prompt-gated-input) refused typed
@@ -219,17 +219,24 @@ the Agent exits. A command that is not found ends only the startup script: the s
 stays visible above its first prompt and the shell keeps working.
 
 Every other shell starts without the command; the Worker also removes the variable so a value
-inherited from its environment never runs. When the Tab's creation or the split commits, or the
-Worktree create's Opened result reports that its first shell started, the Client watches the new
-Panel. For managed PowerShell, per the Host's `launchKind`, it only runs the early check, counted
-from the start's acceptance with a 10000 ms settle that also covers the shell's own startup: an idle
-shell after the Agent was seen is `agent-exited`; an idle shell with no Agent seen by the end is
-`command-not-found`. Any other shell, such as cmd or a custom launch profile, gets the typed start at
-its first idle prompt, repeated while the new shell settles within a 30000 ms deadline. Such a start
-reserves nothing and offers no name. The CLI does the same, except that once the new shell is
-confirmed managed PowerShell it returns `launched` without the early check. POSIX shells have no
-managed startup that takes a first command, and the TUI starts no Agent there; the CLI parses the
-same grammar on POSIX and reports its existing unsupported outcome.
+inherited from its environment never runs. The Server
+[delivers the start](../../orchbee-server/docs/agent-start-delivery.md) of every creation that
+carried one, and no Client types it. Per the Host's `launchKind`, managed PowerShell gets nothing
+typed, only an early check counted from the start's acceptance over 10000 ms that also covers the
+shell's own startup. A cmd the Host marks gets the bare line typed once at its first confirmed
+prompt within a 30000 ms deadline, then a 3000 ms early check. Any other shell, such as a custom
+launch profile, gets nothing typed. A start that did not happen publishes a one-shot
+`agentStartFailure` on the Presentation: `not-found`, `exited`, `unsupported-shell`,
+`prompt-unconfirmed` or `terminal-too-old`. Such a start reserves nothing and offers no name.
+
+When the Tab's creation or the split commits, or the Worktree create's Opened result reports that
+its first shell started, the Client reads the new Panel's shell. Managed PowerShell
+and a marked cmd count as launched; any other shell answers the not-idle refusal without the
+settling retry, since nothing will be typed into it. The TUI also runs its own early check on
+managed PowerShell: an idle shell after the Agent was seen is `agent-exited`; an idle shell with no
+Agent seen by the end is `command-not-found`. The CLI returns `launched` without it. POSIX shells
+have no managed startup that takes a first command, and the TUI starts no Agent there; the CLI
+parses the same grammar on POSIX and reports its existing unsupported outcome.
 
 ## Workflow and invariants
 

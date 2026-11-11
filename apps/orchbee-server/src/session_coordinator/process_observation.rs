@@ -82,6 +82,18 @@ fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {
         })
         .collect()
 }
+
+/// Whether a row of one complete Host sample names `provider` on its own, as a Client's Agent start
+/// reads a new terminal.
+#[cfg(windows)]
+pub(crate) fn names_provider(sample: &TerminalProcessInfo, provider: &str) -> bool {
+    rows(sample).iter().any(|row| {
+        row.anchor_provider()
+            .map(AgentReportProvider::native_provider_id)
+            == Some(provider)
+    })
+}
+
 /// Windows sample rows carry FILETIME creation times: 100 ns units since 1601.
 const UNIX_EPOCH_FILETIME: u64 = 116_444_736_000_000_000;
 

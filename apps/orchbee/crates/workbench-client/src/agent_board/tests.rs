@@ -165,6 +165,7 @@ fn one_started_completion_requests_exactly_one_refresh() {
         reservation_state: ReservationState::Completed,
         submission: None,
         delivery: DeliveryDisposition::Applied,
+        shell_refused: false,
         elapsed_ms: 1,
         verdict: Verdict::Started {
             session: AgentSessionId::parse("session-1").unwrap(),

@@ -31,6 +31,8 @@ pub(crate) enum PreparedTerminalPanelCreate {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct CompletedTerminalPanelCreate {
     pub(crate) result: WorkbenchCommandResult,
+    /// The Agent start the Server delivers into the started terminal.
+    pub(crate) agent_start: Option<super::AgentStartLaunch>,
 }
 
 pub(crate) struct PendingTerminalPanelCreate {
@@ -42,6 +44,7 @@ pub(crate) struct PendingTerminalPanelCreate {
     environment: Box<orchbee_client_server_protocol::LaunchEnvironment>,
     launch: Option<orchbee_client_server_protocol::LaunchSelection>,
     plugin_environment: Option<orchbee_client_server_protocol::PluginTerminalEnvironment>,
+    agent_start: Option<orchbee_workbench_protocol::AgentStartSelector>,
 }
 
 impl PendingTerminalPanelCreate {
@@ -310,6 +313,7 @@ impl SessionCoordinator {
             environment: Box::new(environment),
             launch,
             plugin_environment,
+            agent_start: options.agent_start,
         })
     }
 
@@ -340,7 +344,14 @@ impl SessionCoordinator {
             environment: _,
             launch,
             plugin_environment: _,
+            agent_start,
         } = pending;
+        let agent_start = super::agent_start::launch_of(
+            agent_start,
+            terminal.command(),
+            metadata.presentation_id(),
+            metadata.binding(),
+        );
         let terminal = terminals
             .prepare_completion(terminal, completion, current_worker)
             .map_err(|_mismatch| PostcommitCoordinationError)?;
@@ -351,6 +362,12 @@ impl SessionCoordinator {
             .map_err(|_mismatch: WorkbenchPanelCreateSettlementTokenMismatch| {
                 PostcommitCoordinationError
             })?;
+        let agent_start = agent_start.filter(|_| {
+            matches!(
+                terminal_outcome,
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. }
+            )
+        });
         terminal.commit();
         let result = settlement.commit();
         record_launch_failure(
@@ -360,7 +377,10 @@ impl SessionCoordinator {
             metadata.binding(),
             launch.as_ref(),
         );
-        Ok(CompletedTerminalPanelCreate { result })
+        Ok(CompletedTerminalPanelCreate {
+            result,
+            agent_start,
+        })
     }
 }
 

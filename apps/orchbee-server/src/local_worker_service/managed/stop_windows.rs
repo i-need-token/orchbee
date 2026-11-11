@@ -78,6 +78,7 @@ pub(super) fn run(
         owners.terminals.start_close_maintenance()?;
         owners.terminals.start_title_reads()?;
         owners.terminals.start_agent_catalog()?;
+        owners.terminals.start_agent_start_delivery()?;
         let resumes = restored.take_agent_resume();
         // Restored launches read their kept output through the same store.
         let output_store: Arc<dyn crate::terminal_output::TerminalOutputStore> =
@@ -400,6 +401,10 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
     // A resume types through the Worker and reads through the observer, so it stops first; one
     // not yet attempted stays pending for the final capture.
     owners.terminals.stop_agent_resume_before(deadline)?;
+    // A start line types through the Worker and reads through the observer the same way.
+    owners
+        .terminals
+        .stop_agent_start_delivery_before(deadline)?;
     if let Some(saver) = &mut owners.checkpoint_saver {
         saver.stop_before(deadline)?;
     }
@@ -538,6 +543,9 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
         owners.terminals.stop_agent_resume_before(deadline)?;
+        owners
+            .terminals
+            .stop_agent_start_delivery_before(deadline)?;
         if let Some(saver) = &mut owners.checkpoint_saver {
             saver.stop_before(deadline)?;
         }

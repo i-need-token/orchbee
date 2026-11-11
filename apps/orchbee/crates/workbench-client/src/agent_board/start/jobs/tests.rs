@@ -34,6 +34,7 @@ fn report(
         reservation_state,
         submission: submission_status.map(|status| sent(status, delivery)),
         delivery,
+        shell_refused: false,
         elapsed_ms: 1,
         verdict: Verdict::Failed {
             failure,

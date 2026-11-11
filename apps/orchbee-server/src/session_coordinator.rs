@@ -18,6 +18,7 @@ use orchbee_workbench_protocol::{
 };
 
 mod agent_start;
+pub(crate) use agent_start::AgentStartLaunch;
 #[cfg(any(windows, test))]
 mod checkpoint_restore;
 mod configured_command;
@@ -63,6 +64,8 @@ mod process_observation;
 mod semantic_events;
 #[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
+#[cfg(windows)]
+pub(crate) use process_observation::names_provider;
 pub(crate) use process_observation::{
     ProcessObservationTarget, decoded_argv, host_time_as_creation, identify as identify_host_agent,
 };

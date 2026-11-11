@@ -80,6 +80,12 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_poison| PostcommitCoordinationError)?;
         let completed = coordinator.complete_terminal_tab_create(pending, completion, current);
+        // Offered under both locks, so notes about the new terminal precede any Client input.
+        if let Ok(completed) = &completed
+            && let Some(launch) = &completed.agent_start
+        {
+            self.deliver_agent_start(&mut coordinator, current, launch);
+        }
         drop(coordinator);
         drop(workers);
         let completed = completed?;

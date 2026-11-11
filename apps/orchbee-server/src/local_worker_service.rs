@@ -125,6 +125,8 @@ pub(crate) fn run(
     terminals.start_title_reads()?;
     terminals.start_agent_catalog()?;
     #[cfg(windows)]
+    terminals.start_agent_start_delivery()?;
+    #[cfg(windows)]
     terminals.start_process_observer_with_configuration(configuration, false)?;
     let _client_service = endpoints
         .client

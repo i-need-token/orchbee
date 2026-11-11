@@ -32,9 +32,11 @@ impl LocalTerminalService {
     /// frontier preserved.
     pub(crate) fn execute_send(&self, request: &TerminalSendRequest) -> ServerMessage {
         self.deliver_send(request, |_, target| {
-            // A Client's send refutes a pending resume of the terminal it reaches.
+            // A Client's send refutes a pending resume or start line of the terminal it reaches.
             #[cfg(windows)]
             self.note_client_input(*target);
+            #[cfg(windows)]
+            self.note_agent_start_input(*target);
             #[cfg(not(windows))]
             let _ = target;
             true

@@ -1036,6 +1036,18 @@ maintenance stops, without waiting for a Worker job, which the Worker ends at it
 exit. `LocalTerminalService::agent_catalog` reads the catalog and `refresh_agent_catalog` asks for a
 lookup; no Workbench request reaches them yet.
 
+## Agent start delivery
+
+Every Tab, split, Workspace or Worktree creation that carried `agentStart` hands its started
+terminal to one Windows Session thread, which makes sure the start happens without any Client
+typing it: managed PowerShell runs it as its first command, and a cmd the Host marks gets the bare
+line once through the prompt gate. A start that did not happen publishes a one-shot
+`agentStartFailure` on the Presentation; a `not-found` also marks that provider's checked
+[catalog](#agent-catalog) row `not-found` until the next completed lookup answers again. The thread
+reuses resume's readiness rule, process reads and gated send. A POSIX Session ends each start
+`unsupported-shell` at once. The [start delivery contract](docs/agent-start-delivery.md) owns the
+states, guards and outcomes.
+
 ## Workspace Git observations
 
 `workbench.workspace-git` is a read-granted query of a canonical Workspace on the

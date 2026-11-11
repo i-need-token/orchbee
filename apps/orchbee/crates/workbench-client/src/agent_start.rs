@@ -33,8 +33,8 @@ pub struct Request {
     pub name: Option<AgentName>,
     pub provider: AgentProviderId,
     pub(crate) args: Box<[String]>,
-    /// The Panel's new shell was launched with this Agent as its first command: the workflow
-    /// watches it from the start instead of typing it, unless that shell could not take it.
+    /// The Panel's new shell was launched with this Agent as its first command, which the Server
+    /// delivers: the workflow never types it, and watches it from the start on managed PowerShell.
     pub(crate) start_command: bool,
     /// Whether a shell that took the first command is watched through the early check; without
     /// it the start ends once that shell is seen.
@@ -59,8 +59,9 @@ impl Request {
     }
 
     /// The Panel's new shell was launched with this Agent as its first command and the caller
-    /// does not wait for the Agent: once that shell is seen to have taken it, the start ends with
-    /// nothing typed. A shell that could not take it gets the typed line like any other start.
+    /// does not wait for the Agent: once that shell is seen to take it, the start ends with nothing
+    /// typed. The Server types it into a marked cmd; a shell that takes no start command refuses
+    /// at once as not idle.
     #[must_use]
     pub const fn started_as_command_unwatched(mut self) -> Self {
         self.start_command = true;
@@ -153,6 +154,8 @@ pub struct Report {
     pub reservation_state: ReservationState,
     pub submission: Option<Submission>,
     pub(crate) delivery: DeliveryDisposition,
+    /// The new shell takes no start command, so a not-idle refusal there is final.
+    pub(crate) shell_refused: bool,
     pub elapsed_ms: u64,
     pub verdict: Verdict,
 }
@@ -167,6 +170,7 @@ impl Report {
             reservation_state: ReservationState::None,
             submission: None,
             delivery: DeliveryDisposition::NotApplied,
+            shell_refused: false,
             elapsed_ms: elapsed_ms(started),
             verdict: Verdict::Failed {
                 failure,
@@ -177,13 +181,15 @@ impl Report {
 
     /// Whether the start typed nothing only because its new Panel is not ready yet: the Panel has
     /// no bound terminal yet, or its shell shows no idle, confirmed prompt yet. Nothing was
-    /// delivered and no reservation is left pending, so starting again on that Panel is safe.
+    /// delivered and no reservation is left pending, so starting again on that Panel is safe. A
+    /// shell that takes no start command is never ready.
     #[must_use]
     pub fn awaits_new_shell(&self) -> bool {
         let Verdict::Failed { failure, .. } = &self.verdict else {
             return false;
         };
-        !failure.unknown()
+        !self.shell_refused
+            && !failure.unknown()
             && !failure.cancelled()
             && !matches!(
                 self.reservation_state,
@@ -266,7 +272,8 @@ pub fn command_valid(request: &Request) -> bool {
     command::fits(request.provider.as_str(), &request.args)
 }
 
-/// Field-for-field `Report` fixture the application's tests build values from.
+/// Field-for-field `Report` fixture the application's tests build values from, for a start whose
+/// shell took its command.
 #[cfg(any(test, feature = "test-support"))]
 pub struct ReportFixture {
     pub name: Option<AgentName>,
@@ -302,6 +309,7 @@ impl From<ReportFixture> for Report {
             reservation_state,
             submission,
             delivery,
+            shell_refused: false,
             elapsed_ms,
             verdict,
         }

@@ -28,6 +28,8 @@ pub(crate) enum PreparedTerminalTabCreate {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct CompletedTerminalTabCreate {
     pub(crate) result: WorkbenchCommandResult,
+    /// The Agent start the Server delivers into the started terminal.
+    pub(crate) agent_start: Option<super::AgentStartLaunch>,
 }
 
 pub(crate) struct PendingTerminalTabCreate {
@@ -40,6 +42,7 @@ pub(crate) struct PendingTerminalTabCreate {
     environment: orchbee_client_server_protocol::LaunchEnvironment,
     launch: Option<orchbee_client_server_protocol::LaunchSelection>,
     plugin_environment: Option<orchbee_client_server_protocol::PluginTerminalEnvironment>,
+    agent_start: Option<orchbee_workbench_protocol::AgentStartSelector>,
 }
 
 impl PendingTerminalTabCreate {
@@ -382,6 +385,7 @@ impl SessionCoordinator {
             environment,
             launch,
             plugin_environment,
+            agent_start: options.agent_start,
         })
     }
 
@@ -413,7 +417,14 @@ impl SessionCoordinator {
             environment: _,
             launch,
             plugin_environment: _,
+            agent_start,
         } = pending;
+        let agent_start = super::agent_start::launch_of(
+            agent_start,
+            terminal.command(),
+            metadata.presentation_id(),
+            metadata.binding(),
+        );
         let terminal = terminals
             .prepare_completion(terminal, completion, current_worker)
             .map_err(|_mismatch| PostcommitCoordinationError)?;
@@ -422,6 +433,8 @@ impl SessionCoordinator {
         let settlement = workbench
             .prepare_terminal_tab_settlement(workbench_pending, terminal_outcome.clone())
             .map_err(|_mismatch| PostcommitCoordinationError)?;
+        let agent_start = agent_start
+            .filter(|_| matches!(terminal_outcome, WorkbenchTerminalOutcome::Started { .. }));
 
         terminal.commit();
         let result = settlement.commit();
@@ -432,7 +445,10 @@ impl SessionCoordinator {
             metadata.binding(),
             launch.as_ref(),
         );
-        Ok(CompletedTerminalTabCreate { result })
+        Ok(CompletedTerminalTabCreate {
+            result,
+            agent_start,
+        })
     }
 }
 

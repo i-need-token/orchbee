@@ -40,6 +40,7 @@ mod agent_integration;
 mod agent_names;
 #[cfg(windows)]
 mod agent_resume;
+mod agent_start_delivery;
 #[cfg(windows)]
 mod checkpoint;
 #[cfg(windows)]
@@ -106,6 +107,8 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     agent_resume: agent_resume::AgentResume,
     #[cfg(windows)]
+    agent_start_delivery: agent_start_delivery::AgentStartDelivery,
+    #[cfg(windows)]
     plugin_hooks: plugins::PluginHooks,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
@@ -157,6 +160,8 @@ impl LocalTerminalService {
             process_observer: process_observer::ProcessObserver::default(),
             #[cfg(windows)]
             agent_resume: agent_resume::AgentResume::default(),
+            #[cfg(windows)]
+            agent_start_delivery: agent_start_delivery::AgentStartDelivery::default(),
             #[cfg(windows)]
             plugin_hooks: plugins::PluginHooks::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(

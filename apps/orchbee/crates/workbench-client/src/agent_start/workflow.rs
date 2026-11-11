@@ -52,6 +52,8 @@ struct Workflow<'a> {
     last_read_failure: Option<Box<Failure>>,
     /// The fresh conversation id both launch forms pass, when the provider takes one at launch.
     session: Option<String>,
+    /// The new shell takes no start command, so its not-idle refusal is final.
+    shell_refused: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -138,6 +140,7 @@ pub(super) fn run_admitted(
         delivery: DeliveryDisposition::NotApplied,
         last_read_failure: None,
         session: super::command::launch_session(request.provider.as_str(), &request.args),
+        shell_refused: false,
     };
     // Only a Session that types the line at a confirmed prompt may receive it; there is no
     // ungated fallback.
@@ -209,7 +212,7 @@ impl Workflow<'_> {
         let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
         if self.request.start_command && powershell {
             // Managed PowerShell runs the Agent as its first command; nothing is typed and nothing
-            // is reserved. Any other shell could not take it and gets the typed line below.
+            // is reserved.
             if !self.request.watch_start_command {
                 return Ok(Confirmed::Sent);
             }
@@ -217,6 +220,18 @@ impl Workflow<'_> {
                 progress(super::Progress::Observing);
             }
             return self.check_early(client, terminal, self.started, START_COMMAND_SETTLE, wake);
+        }
+        if self.request.start_command {
+            // The Server delivers the start of a creation that carried one: it types the line once
+            // at a marked cmd's first confirmed prompt and types nothing into any other shell.
+            // This Client never types it.
+            return match root_shell(&sample.info)? {
+                ShellRoot::Interactive => Ok(Confirmed::Sent),
+                ShellRoot::Other | ShellRoot::Unreadable => {
+                    self.shell_refused = true;
+                    Err(Failure::Start(StartFailure::TerminalNotIdle))
+                }
+            };
         }
         let shell = idle_shell(&sample.info)?;
         // The idle-shell check above admits only managed PowerShell and marked cmd.
@@ -742,6 +757,7 @@ impl Workflow<'_> {
             reservation_state: self.state,
             submission: self.submission,
             delivery: self.delivery,
+            shell_refused: self.shell_refused,
             elapsed_ms: elapsed_ms(self.started),
             verdict,
         }

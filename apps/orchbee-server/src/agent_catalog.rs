@@ -267,6 +267,26 @@ impl AgentCatalog {
         self.lock().stopped = true;
         self.pump.notify_all();
     }
+
+    /// A start of `agent` found its command missing in a new shell: its row reads `NotFound` until
+    /// the next completed lookup. A row the catalog cannot check, or one no completed lookup has
+    /// answered, stays as it is.
+    #[cfg(windows)]
+    pub(crate) fn mark_not_found(&self, agent: StartableAgent) {
+        self.change(|state| {
+            let index = state
+                .entries
+                .iter()
+                .find(|entry| entry.agent.id() == agent.id())
+                .and_then(|entry| entry.probe);
+            if let Some(answer) = index
+                .zip(state.answers.as_mut())
+                .and_then(|(index, answers)| answers.get_mut(index))
+            {
+                *answer = AgentProbeResult::Missing;
+            }
+        });
+    }
 }
 
 /// One startable provider's fixed catalog facts.

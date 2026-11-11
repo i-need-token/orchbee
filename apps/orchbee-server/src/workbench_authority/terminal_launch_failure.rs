@@ -2,7 +2,8 @@
 //! still bound to that terminal.
 use super::WorkbenchAuthority;
 use orchbee_workbench_protocol::{
-    PanelNode, Presentation, PresentationBinding, PresentationLaunchFailure,
+    AgentStartFailureReason, AgentStartSelector, PanelNode, Presentation,
+    PresentationAgentStartFailure, PresentationBinding, PresentationLaunchFailure,
     TerminalPresentationId, WorkbenchProtocolDocument, WorkbenchRevision, serialize_document,
 };
 
@@ -24,6 +25,29 @@ impl WorkbenchAuthority {
             presentation.launch_failure = Some(Box::new(
                 PresentationLaunchFailure::terminal_create(executable.map(str::to_owned)),
             ));
+            true
+        })
+    }
+
+    /// Publishes, in exactly one revision on the Presentation still bound as `binding`, that the
+    /// Agent start its creation carried did not happen for `reason`, found at `at` Unix
+    /// milliseconds. Returns whether a fact was published; nothing later clears it except a
+    /// rebinding, a removal or the end of this Server lifetime.
+    pub fn record_agent_start_failure(
+        &mut self,
+        presentation_id: &TerminalPresentationId,
+        binding: &PresentationBinding,
+        provider_id: AgentStartSelector,
+        reason: AgentStartFailureReason,
+        at: u64,
+    ) -> bool {
+        let fact = PresentationAgentStartFailure {
+            at,
+            provider_id,
+            reason,
+        };
+        self.commit_presentation_fact(presentation_id, binding, |presentation| {
+            presentation.agent_start_failure = Some(Box::new(fact));
             true
         })
     }

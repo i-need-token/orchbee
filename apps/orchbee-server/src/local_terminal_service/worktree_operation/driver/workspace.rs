@@ -207,8 +207,8 @@ impl Driver<'_> {
                         // Git reports Windows checkouts with `/`; the Workspace records the
                         // spelling Windows reports, as its terminals' directories do.
                         cwd: Some(checkout.path.with_native_separators()),
-                        // The first shell runs the requested Agent first, under the same
-                        // fallback as a new Tab's start; a reused Workspace above starts nothing.
+                        // The first shell runs the requested Agent first, delivered like a new
+                        // Tab's start; a reused Workspace above starts nothing.
                         agent_start,
                         ..LaunchOptions::default()
                     }),
