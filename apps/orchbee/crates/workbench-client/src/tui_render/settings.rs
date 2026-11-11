@@ -10,6 +10,7 @@ use crate::{
     },
     terminal_text::{
         display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
+        truncate_display_start,
     },
     tui_hit_map::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
@@ -41,6 +42,31 @@ const MINIMUM_HEIGHT: u16 = 8;
 const CONTENT_WIDTH: u16 = 76;
 /// Viewports at least this tall keep a blank row above both columns.
 const PADDED_HEIGHT: u16 = 16;
+
+/// A row's text starts this many cells into its group frame and ends this many before its edge.
+const NAME_INSET: u16 = 4;
+const END_INSET: u16 = 2;
+
+/// The category column's width beside the rows of a page `width` cells wide.
+fn nav_width(width: u16) -> u16 {
+    (width.saturating_add(2) / 5).clamp(20, 26)
+}
+
+/// The width of the right column's groups in a region `width` cells wide.
+fn column_width(width: u16, narrow: bool) -> u16 {
+    if narrow {
+        width.saturating_sub(2)
+    } else {
+        CONTENT_WIDTH.min(width.saturating_sub(4))
+    }
+}
+
+/// The cells a row's description line has on a page `width` cells wide that shows two columns.
+#[cfg(test)]
+fn description_width(width: u16) -> usize {
+    let region = width.saturating_sub(nav_width(width) + 1);
+    usize::from(column_width(region, false).saturating_sub(NAME_INSET + END_INSET))
+}
 
 #[expect(clippy::too_many_arguments, reason = "the page's drawing inputs")]
 pub(super) fn render(
@@ -121,7 +147,7 @@ fn render_page(
             (None, Some(body))
         }
     } else {
-        let width = ((u32::from(body.width) + 2) / 5).clamp(20, 26) as u16;
+        let width = nav_width(body.width);
         let nav = Rect::new(body.x, body.y, width, body.height);
         let divider = Rect::new(body.x + width, body.y, 1, body.height);
         let glyph = theme.glyphs.vertical_rule;
@@ -309,11 +335,7 @@ fn render_content(
     hits: &mut HitMapBuilder,
 ) -> usize {
     let token = page.token();
-    let width = if narrow {
-        region.width.saturating_sub(2)
-    } else {
-        CONTENT_WIDTH.min(region.width.saturating_sub(4))
-    };
+    let width = column_width(region.width, narrow);
     let x = region.x + (region.width - width) / 2;
     let mut y = region.y + top;
     // The title: the category, search results, or a child page with its way back.
@@ -571,14 +593,15 @@ fn render_entries(
             }
             Entry::ConfigFile => {
                 if let Some(y) = column.y(line + 1) {
+                    let label = locale.settings_config_file();
                     let text = match page.file_path() {
-                        Some(path) => format!(
-                            "{} {} {}",
-                            locale.settings_config_file(),
-                            theme.glyphs.middle_dot,
-                            sanitize_terminal_text(path)
-                        ),
-                        None => locale.settings_config_file().to_owned(),
+                        Some(path) => {
+                            let lead = format!("{label} {} ", theme.glyphs.middle_dot);
+                            let budget = usize::from(column.area.width.saturating_sub(1))
+                                .saturating_sub(display_width(&lead));
+                            format!("{lead}{}", fit_path(&sanitize_terminal_text(path), budget))
+                        }
+                        None => label.to_owned(),
                     };
                     put(
                         frame,
@@ -756,8 +779,8 @@ fn render_row(
         paint_sides(frame, rect, y, theme);
     }
     fill(frame, inner, base, interaction, theme);
-    let name_x = rect.x + 4;
-    let end = rect.right().saturating_sub(2);
+    let name_x = rect.x + NAME_INSET;
+    let end = rect.right().saturating_sub(END_INSET);
     let pending = page.waits(row);
     let editing = is_focused && page.text().is_some();
     let content_role = if enabled {
@@ -1606,14 +1629,29 @@ fn fill(frame: &mut Frame<'_>, rect: Rect, base: Role, interaction: Option<Role>
     }
 }
 
-/// Writes text clipped to `width` cells.
+/// Writes text in `width` cells. Text that does not fit is cut at a grapheme boundary and ends in
+/// the ellipsis, measured in display cells.
 fn put(frame: &mut Frame<'_>, x: u16, y: u16, width: u16, text: &str, style: Style) {
     let area = frame.area();
     if width == 0 || y >= area.bottom() || x >= area.right() {
         return;
     }
-    let width = width.min(area.right() - x);
-    frame
-        .buffer_mut()
-        .set_stringn(x, y, text, usize::from(width), style);
+    let width = usize::from(width.min(area.right() - x));
+    let text = truncate_display(text, width, ELLIPSIS);
+    frame.buffer_mut().set_stringn(x, y, &text, width, style);
+}
+
+/// The standard ellipsis the presented page's glyph set draws.
+const ELLIPSIS: &str = "\u{2026}";
+
+/// A path in `budget` cells that keeps its file name: leading folders go first, behind the
+/// ellipsis, and only a file name wider than the budget loses its start.
+fn fit_path(path: &str, budget: usize) -> String {
+    if display_width(path) <= budget {
+        return path.to_owned();
+    }
+    path.match_indices(['/', '\\'])
+        .map(|(index, _)| format!("{ELLIPSIS}{}", &path[index..]))
+        .find(|candidate| display_width(candidate) <= budget)
+        .unwrap_or_else(|| truncate_display_start(path, budget, ELLIPSIS))
 }

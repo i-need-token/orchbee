@@ -188,3 +188,30 @@ fn the_text_field_cursor_lands_on_whole_projected_graphemes() {
         }
     }
 }
+
+/// Every always-visible description fits its row at the reference width of 100 columns in both
+/// locales, so the page shortens none of them there.
+#[test]
+fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
+    let budget = super::description_width(100);
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for category in Category::ALL {
+            for group in category.groups() {
+                if let Some(description) = locale.settings_group_description(*group) {
+                    assert!(
+                        crate::terminal_text::display_width(description) <= budget + 2,
+                        "{locale:?} {group:?}: {description}"
+                    );
+                }
+                for row in group.rows() {
+                    let description = locale.settings_description(row);
+                    assert!(
+                        crate::terminal_text::display_width(description) <= budget,
+                        "{locale:?} {row:?} needs {} of {budget} cells: {description}",
+                        crate::terminal_text::display_width(description)
+                    );
+                }
+            }
+        }
+    }
+}

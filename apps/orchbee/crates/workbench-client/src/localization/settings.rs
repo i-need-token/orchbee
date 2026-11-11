@@ -252,7 +252,7 @@ impl Locale {
                 self.setting("Language for menus and messages.", "菜单和提示使用的语言。")
             }
             Row::Theme => self.setting(
-                "Light, dark, or follow the system. Pick the light and dark themes under Themes.",
+                "Light, dark, or follow the system. Pick each theme under Themes.",
                 "浅色、深色或跟随系统。浅色和深色各用哪套主题，在“主题”里选。",
             ),
             Row::LightTheme => self.setting(
@@ -268,7 +268,7 @@ impl Locale {
                 "菜单和面板使用主题配色，或使用终端自己的配色。",
             ),
             Row::TerminalTheme => self.setting(
-                "Default text and background colors in terminals; colors a program sets stay as they are.",
+                "Default text and background in terminals; program colors are kept.",
                 "终端默认的文字和背景颜色；程序自己指定的颜色不变。",
             ),
             Row::Foreground => self.setting(
@@ -288,11 +288,11 @@ impl Locale {
                 "让智能体的最新输出贴住面板底部。",
             ),
             Row::ResumeAgents => self.setting(
-                "Reopens Claude Code and Codex conversations in their panels after a restart.",
+                "Reopens Claude Code and Codex conversations in place after restart.",
                 "重启后在原面板中恢复 Claude Code 和 Codex 的会话。",
             ),
             Row::RestoreOutput => self.setting(
-                "Shows recent output again after a restart. Kept on this computer; may include secrets.",
+                "Shows recent output after a restart. Kept locally; may hold secrets.",
                 "重启后再次显示最近的输出。保存在本机，可能包含密钥等敏感信息。",
             ),
             Row::Scrollback => self.setting(
@@ -304,12 +304,13 @@ impl Locale {
                 "看不到的智能体完成或需要你时通知你。",
             ),
             Row::CompletionReminders => self.setting(
-                "Reminds you when a long command finishes. Command text is never shown.",
+                "Reminds you when a long command ends. Command text is never shown.",
                 "长命令结束时提醒你；不会显示命令内容。",
             ),
-            Row::CompletionThreshold => {
-                self.setting("Shorter commands don’t remind you.", "比这更短的命令不提醒。")
-            }
+            Row::CompletionThreshold => self.setting(
+                "Shorter commands don’t remind you.",
+                "比这更短的命令不提醒。",
+            ),
             Row::Sound => self.setting(
                 "Plays a sound with notifications and reminders.",
                 "通知和提醒时播放声音。",
@@ -319,15 +320,15 @@ impl Locale {
                 "编辑启动配置，并选择新终端使用哪一个。",
             ),
             Row::NewTerminalFolder => self.setting(
-                "Where a new terminal starts: follow, home, current, workspace, or a folder. Leave empty for the default.",
-                "新终端的起始位置：follow、home、current、workspace 或一个文件夹。留空使用默认值。",
+                "A folder, or follow, home, current or workspace. Empty for default.",
+                "起始文件夹：路径，或 follow、home、current、workspace；留空用默认。",
             ),
             Row::PrefixKey => self.setting(
                 "Press it before a command key, as in Ctrl+B c for a new tab.",
                 "先按它再按命令键，例如 Ctrl+B c 新建标签页。",
             ),
             Row::AgentIntegrations => self.setting(
-                "Lets Orchbee show each Agent’s status. Turning one on changes one file of that Agent.",
+                "Shows each Agent’s status. Turning one on changes one of its files.",
                 "让 Orchbee 显示各智能体的状态；开启一项会修改该智能体的一个文件。",
             ),
             Row::RemoteHosts => self.integrations_remote_description(),

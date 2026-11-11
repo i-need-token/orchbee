@@ -70,7 +70,7 @@ pub enum Group {
 
 impl Group {
     /// The rows this group can show, in order; theme lists come from the shipped catalog.
-    pub(super) fn rows(self) -> Vec<Row> {
+    pub(crate) fn rows(self) -> Vec<Row> {
         match self {
             Self::Language => vec![Row::Language],
             Self::AfterRestart => vec![Row::RestoreOutput],

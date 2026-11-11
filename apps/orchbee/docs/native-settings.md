@@ -275,9 +275,11 @@ only its row pending while navigation stays free, refusal and confirmation of an
 change in flight, one restore per changed row (including both launch-profile keys), the narrow
 column steps, one edit for a theme line's slot and appearance, and the unusable-file line. The
 [page render cases](../crates/workbench-client/src/tui_render/settings/tests.rs) cover one column
-below 56 columns and two above, always-visible descriptions in both locales, and refusal below the
-page minimum. The [whole-frame cases](../src/tui_shell/tests/settings.rs) drive the real Shell
-drawing boundary with an existing native terminal, both locales, 120x40 and 50x20, and
+below 56 columns and two above, always-visible descriptions in both locales, every description
+fitting its row at 100 columns, and refusal below the page minimum. The
+[dispatcher Settings cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
+apply every key of one input packet in order. The
+[whole-frame cases](../src/tui_shell/tests/settings.rs) drive the real Shell drawing boundary with an existing native terminal, both locales, 120x40 and 50x20, and
 truecolor/256/16/monochrome capability. They compare a previewed candidate on the page's status row,
 the shell's unchanged confirmed state, an outside change shown at once on the open page, and covering
 Client capture. These deterministic witnesses do not establish clipboard, notification, sound or
