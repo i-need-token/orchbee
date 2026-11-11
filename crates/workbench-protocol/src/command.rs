@@ -179,6 +179,13 @@ pub use agent_integration::{
     MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
     MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES,
 };
+mod agent_catalog;
+pub use agent_catalog::{
+    AgentCatalogAction, AgentCatalogEntry, AgentCatalogEntryState, AgentCatalogFailure,
+    AgentCatalogLookup, AgentCatalogLookupStatus, AgentCatalogOutcome, AgentCatalogRequest,
+    AgentCatalogResult, MAXIMUM_AGENT_CATALOG_ROWS, MAXIMUM_ENCODED_AGENT_CATALOG_BYTES,
+    MAXIMUM_RECENT_AGENTS, WorkbenchAgentCatalog,
+};
 mod current_directory;
 pub use current_directory::{
     CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,
@@ -1123,6 +1130,8 @@ pub enum WorkbenchRequest {
     WorkspaceGit(WorkspaceGitRequest),
     #[serde(rename = "workbench.current-directory")]
     CurrentDirectory(CurrentDirectoryRequest),
+    #[serde(rename = "workbench.agent-catalog")]
+    AgentCatalog(AgentCatalogRequest),
     #[serde(rename = "workbench.client-view")]
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
@@ -1570,6 +1579,8 @@ pub enum WorkbenchResponse {
     WorkspaceGit(WorkspaceGitResult),
     #[serde(rename = "workbench.current-directory.result")]
     CurrentDirectory(CurrentDirectoryResult),
+    #[serde(rename = "workbench.agent-catalog.result")]
+    AgentCatalog(AgentCatalogResult),
     #[serde(rename = "workbench.client-view.result")]
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
@@ -1946,6 +1957,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::CurrentDirectory(_) => {
             enforce_encoded_limit(encoded, MAXIMUM_CURRENT_DIRECTORY_BYTES)
+        }
+        WorkbenchResponse::AgentCatalog(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_AGENT_CATALOG_BYTES)?;
+            result.validate()
         }
         WorkbenchResponse::WorkspaceMetadata(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES)?;

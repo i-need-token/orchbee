@@ -1,0 +1,6304 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "current-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-catalog",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "current"
+				}
+			}
+		},
+		{
+			"name": "refresh",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-catalog",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "refresh"
+				}
+			}
+		},
+		{
+			"name": "complete-catalog",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "first-lookup-running",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "1",
+						"startable": true,
+						"lookup": {
+							"status": "running",
+							"checkedAt": null
+						},
+						"recent": [],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "checking"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "checking"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "checking"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "checking"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "checking"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "checking"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "checking"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "checking"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "checking"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "checking"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "checking"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "checking"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "checking"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "checking"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "checking"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "checking"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "checking"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "checking"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "checking"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "checking"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "checking"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "checking"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "checking"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "checking"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "checking"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "checking"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "checking"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "checking"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "checking"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "checking"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "checking"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "checking"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "checking"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "checking"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "later-lookup-failed-keeps-rows",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "failed",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "unsupported-platform",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "2",
+						"startable": false,
+						"lookup": {
+							"status": "unsupported",
+							"checkedAt": null
+						},
+						"recent": [],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "unknown"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "unknown"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "unknown"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "unknown"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "unknown"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "unknown"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "unknown"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "unknown"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "unknown"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "unknown"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "unknown"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "unknown"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "unknown"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "unknown"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "unknown"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "unknown"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "unknown"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "unknown"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "unknown"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "unknown"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "unknown"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "unknown"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "unknown"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "unknown"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "unknown"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "unknown"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "unknown"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "unknown"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "unknown"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "unknown"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "unknown"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "unknown"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "unknown"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "unknown"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "bounds",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "18446744073709551615",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 9007199254740991
+						},
+						"recent": ["pi", "codex", "cursor", "snow", "openclaw", "amp", "kiro", "mimo"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "項項項項項項項項項項項項項項項項項項項項項x",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc x",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "failed-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "failed-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-catalog",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reload"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "action-with-member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-catalog",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "current",
+					"force": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-catalog",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-failure",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-checked-at",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete"
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "checked-at-zero",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 0
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "checked-at-beyond-binary64",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 9007199254740992
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-lookup-status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "pending",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "revision-zero",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "0",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "revision-not-canonical",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "07",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "nine-recent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["pi", "codex", "cursor", "snow", "openclaw", "amp", "kiro", "mimo", "grok"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-recent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code", "codex"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-recent-provider",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["vim"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-row-state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "installed"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "row-with-member",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found",
+								"version": "1.0.0"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-product-name",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "control-in-product-name",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Co\u0007dex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "tab-in-command",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex\t--yolo",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "long-command",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "sixty-five-rows",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							},
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-row",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "rows-out-of-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate-row",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "Codex",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "product-name-over-64-bytes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-catalog.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"catalog": {
+						"revision": "7",
+						"startable": true,
+						"lookup": {
+							"status": "complete",
+							"checkedAt": 1794300000000
+						},
+						"recent": ["codex", "claude-code"],
+						"agents": [
+							{
+								"providerId": "pi",
+								"productName": "Pi",
+								"command": "pi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "claude-code",
+								"productName": "Claude Code",
+								"command": "claude",
+								"state": "found"
+							},
+							{
+								"providerId": "codex",
+								"productName": "項項項項項項項項項項項項項項項項項項項項項項",
+								"command": "codex",
+								"state": "found"
+							},
+							{
+								"providerId": "gemini",
+								"productName": "Gemini CLI",
+								"command": "gemini",
+								"state": "found"
+							},
+							{
+								"providerId": "cursor",
+								"productName": "Cursor",
+								"command": "agent",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "devin",
+								"productName": "Devin",
+								"command": "devin",
+								"state": "not-found"
+							},
+							{
+								"providerId": "antigravity",
+								"productName": "Antigravity CLI",
+								"command": "agy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "cline",
+								"productName": "Cline",
+								"command": "cline",
+								"state": "not-found"
+							},
+							{
+								"providerId": "omp",
+								"productName": "OMP",
+								"command": "omp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mastracode",
+								"productName": "Mastracode",
+								"command": "mastracode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "opencode",
+								"productName": "OpenCode",
+								"command": "opencode",
+								"state": "found"
+							},
+							{
+								"providerId": "github-copilot",
+								"productName": "GitHub Copilot CLI",
+								"command": "copilot",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kimi",
+								"productName": "Kimi",
+								"command": "kimi",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kiro",
+								"productName": "Kiro CLI",
+								"command": "kiro-cli",
+								"state": "not-found"
+							},
+							{
+								"providerId": "droid",
+								"productName": "Droid",
+								"command": "droid",
+								"state": "not-found"
+							},
+							{
+								"providerId": "amp",
+								"productName": "Amp",
+								"command": "amp",
+								"state": "not-found"
+							},
+							{
+								"providerId": "grok",
+								"productName": "Grok",
+								"command": "grok",
+								"state": "not-found"
+							},
+							{
+								"providerId": "hermes",
+								"productName": "Hermes",
+								"command": "hermes",
+								"state": "not-found"
+							},
+							{
+								"providerId": "kilo",
+								"productName": "Kilo",
+								"command": "kilo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qodercli",
+								"productName": "Qoder CLI",
+								"command": "qoder",
+								"state": "not-found"
+							},
+							{
+								"providerId": "qwen-code",
+								"productName": "Qwen Code",
+								"command": "qwen",
+								"state": "not-found"
+							},
+							{
+								"providerId": "letta",
+								"productName": "Letta",
+								"command": "letta",
+								"state": "not-found"
+							},
+							{
+								"providerId": "maki",
+								"productName": "Maki",
+								"command": "maki",
+								"state": "not-found"
+							},
+							{
+								"providerId": "muse",
+								"productName": "Muse",
+								"command": "muse",
+								"state": "not-found"
+							},
+							{
+								"providerId": "atomcode",
+								"productName": "AtomCode",
+								"command": "atomcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "codebuddy",
+								"productName": "CodeBuddy Code",
+								"command": "codebuddy",
+								"state": "not-found"
+							},
+							{
+								"providerId": "command-code",
+								"productName": "Command Code",
+								"command": "command-code",
+								"state": "not-found"
+							},
+							{
+								"providerId": "deveco",
+								"productName": "DevEco Code",
+								"command": "deveco",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mimo",
+								"productName": "MiMo Code",
+								"command": "mimo",
+								"state": "not-found"
+							},
+							{
+								"providerId": "reasonix",
+								"productName": "Reasonix",
+								"command": "reasonix",
+								"state": "not-found"
+							},
+							{
+								"providerId": "snow",
+								"productName": "Snow CLI",
+								"command": "snow",
+								"state": "cant-check"
+							},
+							{
+								"providerId": "minimax-code",
+								"productName": "MiniMax Code",
+								"command": "mcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "mothx",
+								"productName": "MothX",
+								"command": "mothx",
+								"state": "not-found"
+							},
+							{
+								"providerId": "jcode",
+								"productName": "J-Code",
+								"command": "jcode",
+								"state": "not-found"
+							},
+							{
+								"providerId": "openclaw",
+								"productName": "OpenClaw",
+								"command": "openclaw chat",
+								"state": "found"
+							},
+							{
+								"providerId": "prime-agent",
+								"productName": "Prime Agent",
+								"command": "prime-agent",
+								"state": "not-found"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		}
+	]
+}

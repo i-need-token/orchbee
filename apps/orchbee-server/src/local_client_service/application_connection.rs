@@ -224,6 +224,15 @@ impl ApplicationRequest {
             {
                 false
             }
+            // Each evaluation of a refresh would ask for another lookup; a stream reads `current`.
+            ApplicationRequestKind::Workbench(WorkbenchRequest::AgentCatalog(request))
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::AgentCatalogAction::Refresh {}
+                ) =>
+            {
+                false
+            }
             ApplicationRequestKind::Workbench(request) => {
                 crate::workbench_service::subscription_request(request)
             }
@@ -248,6 +257,10 @@ impl ApplicationRequest {
                 orchbee_workbench_protocol::PanelAgentAction::PresentationTitles { .. }
             )
         )
+    }
+    /// An Agent catalog read, whose value changes only with the catalog's own revisions.
+    pub(super) fn follows_agent_catalog(&self) -> bool {
+        matches!(self.workbench(), Some(WorkbenchRequest::AgentCatalog(_)))
     }
     pub(super) fn requires_sampling(&self) -> bool {
         // Host output and external filesystem/process state currently expose snapshot reads,

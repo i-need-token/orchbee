@@ -826,6 +826,28 @@ directory and 26 KiB result limits. The
 [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads) owns which
 directory answers.
 
+## Session Agent catalog reads
+
+[`workbench-agent-catalog.schema.json`](v1/workbench-agent-catalog.schema.json) owns
+`workbench.agent-catalog` and its `.result`, OBWP kinds 75/76. The request's `action` is `current`
+or `refresh`, which also asks for a new lookup; both answer with the catalog as it stands, and only
+`current` opens a State stream, whose first frame is the current catalog and which sends one frame
+per later revision. An outcome is `current` with a `catalog` or `failed` with `denied` or
+`unavailable`. A catalog carries a nonzero `revision` that advances on any change of its other
+members; `startable`; `lookup` with `status` (`running`, `complete`, `failed`, `unsupported`) and a
+required-nullable `checkedAt` in Unix milliseconds, 1 to 2^53 − 1; `recent`, at most 8 distinct
+provider ids, newest first; and `agents`, one row per startable provider with `providerId`,
+`productName`, `command` and `state` (`found`, `not-found`, `cant-check`, `checking`, `unknown`).
+Provider ids reuse the `agentStartProvider` enum of the
+[command schema](v1/workbench-command.schema.json). A product name is control-free and never
+translated; a command is the start command and its fixed arguments joined by one space, 1 to 128
+visible ASCII bytes and spaces, and no Client sends it back. The
+[shared corpus](v1/workbench-agent-catalog-conformance-v1.json) checks closed shapes, vocabularies
+and bounds; the bindings also enforce exactly one row per startable provider in catalog order,
+product names of at most 64 UTF-8 bytes, and the 32 KiB result limit; the request keeps the 16 KiB
+intent cap. The [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the lookup and
+publication.
+
 ## Agent integration jobs
 
 [`workbench-agent-integration.schema.json`](v1/workbench-agent-integration.schema.json) owns

@@ -45,9 +45,10 @@ use orchbee_capability_node_protocol::{
     WorkerGeneration, WorkerId,
 };
 use orchbee_local_runtime::{LogLevel, LogValue, log_event};
+use orchbee_server::{SessionChangeSignal, SessionChangeSource};
 use std::{
     num::NonZeroU64,
-    sync::{Condvar, Mutex, MutexGuard},
+    sync::{Arc, Condvar, Mutex, MutexGuard},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -84,13 +85,6 @@ pub(crate) enum AgentRowState {
     Unknown,
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the workbench.agent-catalog read returns these fields"
-    )
-)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentCatalogRow {
     pub(crate) provider_id: &'static str,
@@ -100,13 +94,6 @@ pub(crate) struct AgentCatalogRow {
     pub(crate) state: AgentRowState,
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the workbench.agent-catalog read returns these fields"
-    )
-)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentCatalogSnapshot {
     pub(crate) revision: NonZeroU64,
@@ -142,11 +129,13 @@ pub(crate) struct Ticket {
     lookup: u64,
 }
 
-/// Registry and pump wake. Lock order: this is a leaf; no other lock is taken while it is held.
+/// Registry and pump wake. Lock order: this is a leaf; no other lock is taken while it is held,
+/// and watchers are woken after it is released.
 #[derive(Debug)]
 pub(crate) struct AgentCatalog {
     state: Mutex<State>,
     pump: Condvar,
+    watchers: SessionChangeSource,
     prober: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -155,6 +144,7 @@ impl Default for AgentCatalog {
         Self {
             state: Mutex::new(State::new()),
             pump: Condvar::new(),
+            watchers: SessionChangeSource::default(),
             prober: Mutex::new(None),
         }
     }
@@ -168,17 +158,27 @@ impl AgentCatalog {
     }
 
     /// Runs `change` and publishes its effect: the revision advances when the shown catalog
-    /// changed.
+    /// changed, and watchers wake when what [`read`](Self::read) answers changed.
     fn change<T>(&self, change: impl FnOnce(&mut State) -> T) -> T {
         let mut state = self.lock();
+        let before = state.published();
         let value = change(&mut state);
         state.publish();
         let woken = state.woken;
+        let published = state.published() != before;
         drop(state);
         if woken {
             self.pump.notify_all();
         }
+        if published {
+            self.watchers.notify_agent_catalog();
+        }
         value
+    }
+
+    /// Wakes `signal` whenever what [`read`](Self::read) answers changes.
+    pub(crate) fn watch(&self, signal: &Arc<SessionChangeSignal>) {
+        self.watchers.watch(signal);
     }
 
     /// Records a lookup that ended. Only the pump records, so a caller holding the Worker
@@ -207,10 +207,6 @@ impl AgentCatalog {
 
     /// Asks for a new lookup under the schedule's rules and answers with the catalog as it
     /// stands.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the workbench.agent-catalog refresh calls it")
-    )]
     pub(crate) fn refresh(&self, now: Instant) -> Option<AgentCatalogSnapshot> {
         self.change(|state| state.refresh(now));
         self.read()
@@ -264,8 +260,15 @@ impl AgentCatalog {
     /// Only a Windows Session stop joins the pump; elsewhere it lives as long as the process.
     #[cfg(windows)]
     pub(crate) fn stop(&self) {
-        self.lock().stopped = true;
+        let mut state = self.lock();
+        let before = state.published();
+        state.stopped = true;
+        let published = state.published() != before;
+        drop(state);
         self.pump.notify_all();
+        if published {
+            self.watchers.notify_agent_catalog();
+        }
     }
 
     /// A start of `agent` found its command missing in a new shell: its row reads `NotFound` until
@@ -663,6 +666,11 @@ impl State {
             self.shown = shown;
             self.revision = self.revision.saturating_add(1);
         }
+    }
+
+    /// What decides [`AgentCatalog::read`]'s answer: whether there is one, and its revision.
+    const fn published(&self) -> (bool, NonZeroU64) {
+        (self.begun && !self.stopped, self.revision)
     }
 
     fn snapshot(&self) -> Option<AgentCatalogSnapshot> {

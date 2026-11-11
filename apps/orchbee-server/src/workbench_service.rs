@@ -127,7 +127,7 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,
                 orchbee_workbench_protocol::PanelAgentAction::Report { .. } | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. } => self.policy.manage_navigation,
             },
-            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) => self.policy.read,
+            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
@@ -278,6 +278,11 @@ impl WorkbenchService {
             WorkbenchRequest::CurrentDirectory(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::CurrentDirectory(
                     self.terminals.execute_current_directory(request.clone()),
+                ));
+            }
+            WorkbenchRequest::AgentCatalog(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::AgentCatalog(
+                    self.terminals.execute_agent_catalog(request.clone()),
                 ));
             }
             WorkbenchRequest::WorkspaceMetadata(request) => {
@@ -757,6 +762,20 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             },
         ),
+        WorkbenchRequest::AgentCatalog(request) => {
+            WorkbenchResponse::AgentCatalog(orchbee_workbench_protocol::AgentCatalogResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                session_id: request.session_id,
+                outcome: orchbee_workbench_protocol::AgentCatalogOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::AgentCatalogFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::AgentCatalogFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::WorkspaceMetadata(request) => WorkbenchResponse::WorkspaceMetadata(
             orchbee_workbench_protocol::WorkspaceMetadataResult {
                 protocol_version: ProtocolVersion,
@@ -1087,6 +1106,7 @@ impl WorkbenchClientConnection<'_> {
         }
         self.service.terminals.watch_configuration(signal);
         self.service.terminals.watch_titles(signal);
+        self.service.terminals.watch_agent_catalog(signal);
     }
     /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
     pub(crate) fn maintain_subscription_deadline(

@@ -1,0 +1,171 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-agent-catalog.schema.json",
+	"title": "Session Agent catalog read",
+	"$comment": "Rust and TypeScript additionally enforce exactly one row per startable provider in catalog order, the 64-byte UTF-8 product-name limit, and the 32 KiB result budget.",
+	"$defs": {
+		"provider": {
+			"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/agentStartProvider"
+		},
+		"catalog": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["revision", "startable", "lookup", "recent", "agents"],
+			"properties": {
+				"revision": {
+					"$comment": "Starts at 1 and advances on any change of the other members.",
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision",
+					"not": {
+						"const": "0"
+					}
+				},
+				"startable": {
+					"type": "boolean"
+				},
+				"lookup": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["status", "checkedAt"],
+					"properties": {
+						"status": {
+							"enum": ["running", "complete", "failed", "unsupported"]
+						},
+						"checkedAt": {
+							"$comment": "Unix milliseconds of the last completed lookup; null while none has completed.",
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 9007199254740991
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
+				},
+				"recent": {
+					"$comment": "Newest first.",
+					"type": "array",
+					"maxItems": 8,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/provider"
+					}
+				},
+				"agents": {
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"$ref": "#/$defs/entry"
+					}
+				}
+			}
+		},
+		"entry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["providerId", "productName", "command", "state"],
+			"properties": {
+				"providerId": {
+					"$ref": "#/$defs/provider"
+				},
+				"productName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F]*$"
+				},
+				"command": {
+					"$comment": "The command and its fixed arguments joined by one space; display only.",
+					"type": "string",
+					"pattern": "^[ -~]{1,128}$"
+				},
+				"state": {
+					"enum": ["found", "not-found", "cant-check", "checking", "unknown"]
+				}
+			}
+		}
+	},
+	"oneOf": [
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-catalog"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"action": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"enum": ["current", "refresh"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-catalog.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"sessionId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "catalog"],
+							"properties": {
+								"kind": {
+									"const": "current"
+								},
+								"catalog": {
+									"$ref": "#/$defs/catalog"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": ["denied", "unavailable"]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}

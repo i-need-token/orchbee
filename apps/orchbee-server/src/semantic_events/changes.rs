@@ -1,4 +1,4 @@
-//! Commit, output and published-title invalidation fanout. A listener owns its wait; publishers
+//! Commit, output, published-title and Agent catalog invalidation fanout. A listener owns its wait; publishers
 //! never wait for delivery.
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::Duration;
@@ -23,6 +23,9 @@ impl SessionChangeSource {
     pub fn notify_titles(&self) {
         self.each(|listener| listener.notify_titles());
     }
+    pub fn notify_agent_catalog(&self) {
+        self.each(|listener| listener.notify_agent_catalog());
+    }
     fn each(&self, mut signal: impl FnMut(&SessionChangeSignal)) {
         let listeners = self
             .0
@@ -44,6 +47,7 @@ struct SignalState {
     revision: u64,
     commits: u64,
     titles: u64,
+    catalog: u64,
     wake: u64,
 }
 impl SessionChangeSignal {
@@ -79,6 +83,17 @@ impl SessionChangeSignal {
         state.wake = state.wake.wrapping_add(1);
         self.changed.notify_all();
     }
+    /// The Agent catalog published a revision or became readable or unreadable. Like a title, it
+    /// is neither commit nor output, so only the catalog's own streams reevaluate.
+    pub fn notify_agent_catalog(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.catalog = state.catalog.wrapping_add(1);
+        state.wake = state.wake.wrapping_add(1);
+        self.changed.notify_all();
+    }
     /// Carrier mailbox activity is a wakeup, never a semantic publication.
     pub fn wake(&self) {
         let mut state = self
@@ -105,6 +120,12 @@ impl SessionChangeSignal {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .titles
+    }
+    pub fn agent_catalog_revision(&self) -> u64 {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .catalog
     }
     pub fn wake_revision(&self) -> u64 {
         self.state

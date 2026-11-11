@@ -1033,8 +1033,19 @@ cancelled once. A failed later lookup keeps the last completed rows, and a faile
 leaves checkable rows `unknown`, as does a POSIX Worker's `Unsupported`. The module comment holds
 the schedule's states and transitions. A Windows Session stop joins the pump before Close
 maintenance stops, without waiting for a Worker job, which the Worker ends at its own deadline or
-exit. `LocalTerminalService::agent_catalog` reads the catalog and `refresh_agent_catalog` asks for a
-lookup; no Workbench request reaches them yet.
+exit.
+
+`workbench.agent-catalog` (OBWP 75/76) is a read-granted query of the catalog. `current` reads it
+and `refresh` asks for a lookup under the rule above; both answer at once with the catalog as it
+stands. A request naming another Session answers `denied`; before the first Worker registers and
+once the Session stops, it answers `unavailable`. It is not withheld off Windows: a POSIX Session
+answers `startable: false` with status `unsupported`, and a drained Server still answers it,
+`refresh` included. Only `current` opens a State stream, which follows the catalog's own change
+count rather than commits or terminal output. The catalog wakes its watching Client connections,
+held weakly, after each revision and when it becomes readable or stops being readable; each
+connection then reads it once and sends a frame only when the answer changed, so a slow Client gets
+the latest catalog and never a backlog. Publishing never waits on a watcher, and a closed
+connection leaves nothing to release.
 
 ## Agent start delivery
 

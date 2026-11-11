@@ -357,6 +357,20 @@ request/Session/Workspace/Panel correlation is mandatory, and the read changes n
 cover both Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads)
 owns which directory answers.
 
+## Agent catalog reads
+
+`AgentCatalogRequest`/`AgentCatalogResult` add `workbench.agent-catalog` and its `.result`, OBWP
+kinds 75/76. The action is `current` or `refresh`; an outcome is `current` with a
+`WorkbenchAgentCatalog` or `failed` with `denied` or `unavailable`. `AgentCatalogResult::validate`
+holds the rules JSON Schema cannot state: exactly one `AgentCatalogEntry` per
+`STARTABLE_AGENT_PROVIDER_IDS` id in that order, at most `MAXIMUM_AGENT_CATALOG_ROWS`, product names
+of at most 64 UTF-8 bytes, and the 32 KiB result limit (`MAXIMUM_ENCODED_AGENT_CATALOG_BYTES`); the
+request keeps the 16 KiB intent cap. Exact request/Session correlation is mandatory, and the read
+changes no Workbench state. The
+[schema and shared corpus](../../schemas/workbench/README.md#session-agent-catalog-reads) cover both
+Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#agent-catalog) owns the
+catalog.
+
 ## Plugin overlay observation and Client return identity
 
 Read-only `PaneObserve` carries exact `PluginPaneInfo`; `PaneObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.

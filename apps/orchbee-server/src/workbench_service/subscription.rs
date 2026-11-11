@@ -20,6 +20,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         | WorkbenchRequest::WorktreeQuery(_)
         | WorkbenchRequest::WorkspaceGit(_)
         | WorkbenchRequest::CurrentDirectory(_) => true,
+        // A refresh changes only the catalog, which publishes its own revisions.
+        WorkbenchRequest::AgentCatalog(_) => true,
         WorkbenchRequest::Configuration(request) => {
             matches!(request.action, ConfigurationAction::Current)
         }

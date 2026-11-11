@@ -27,6 +27,12 @@ pub use multiplex::{
 };
 mod command;
 pub use command::{
+    AgentCatalogAction, AgentCatalogEntry, AgentCatalogEntryState, AgentCatalogFailure,
+    AgentCatalogLookup, AgentCatalogLookupStatus, AgentCatalogOutcome, AgentCatalogRequest,
+    AgentCatalogResult, MAXIMUM_AGENT_CATALOG_ROWS, MAXIMUM_ENCODED_AGENT_CATALOG_BYTES,
+    MAXIMUM_RECENT_AGENTS, WorkbenchAgentCatalog,
+};
+pub use command::{
     AgentIntegrationAction, AgentIntegrationFailure, AgentIntegrationJob, AgentIntegrationOutcome,
     AgentIntegrationRequest, AgentIntegrationResult,
     MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,

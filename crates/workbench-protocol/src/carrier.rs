@@ -89,6 +89,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::AgentCatalog(_) => 75,
         WorkbenchRequest::SessionStop(_) => 73,
         WorkbenchRequest::LayoutHistory(_) => 71,
         WorkbenchRequest::TabDuplicate(_) => 69,
@@ -144,6 +145,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::AgentCatalog(_) => 76,
         WorkbenchResponse::SessionStop(_) => 74,
         WorkbenchResponse::LayoutHistory(_) => 72,
         WorkbenchResponse::TabDuplicate(_) => 70,
@@ -236,6 +238,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 69
                     | 71
                     | 73
+                    | 75
             ))
         || (!request
             && !matches!(
@@ -275,6 +278,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 70
                     | 72
                     | 74
+                    | 76
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
@@ -337,6 +341,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES
     } else if kind == 70 {
         crate::MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES
+    } else if kind == 76 {
+        crate::MAXIMUM_ENCODED_AGENT_CATALOG_BYTES
     } else if kind == 22 {
         crate::MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES
     } else if kind == 12 {

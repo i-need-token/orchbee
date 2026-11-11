@@ -37,6 +37,11 @@ import {
 	WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES,
 } from './workbench-current-directory-contract';
 import {
+	AgentCatalogRequestSchema,
+	AgentCatalogResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_AGENT_CATALOG_BYTES,
+} from './workbench-agent-catalog-contract';
+import {
 	AgentIntegrationRequestSchema,
 	AgentIntegrationResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES,
@@ -678,6 +683,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceMetadataRequestSchema,
 		WorkspaceGitRequestSchema,
 		CurrentDirectoryRequestSchema,
+		AgentCatalogRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		CloseOperationReadSchema,
@@ -817,6 +823,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceMetadataResultSchema,
 		WorkspaceGitResultSchema,
 		CurrentDirectoryResultSchema,
+		AgentCatalogResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		CloseOperationResultSchema,
@@ -884,6 +891,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES;
 		} else if (value.kind === 'workbench.current-directory.result') {
 			maximum = WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES;
+		} else if (value.kind === 'workbench.agent-catalog.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_CATALOG_BYTES;
 		} else if (value.kind === 'workbench.agent-integration.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES;
 		}
