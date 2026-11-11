@@ -17,6 +17,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Claude Code 2.1.322 writes entries of under 1 KiB; anything larger is not one.
 const MAXIMUM_ENTRY_BYTES: u64 = 64 * 1024;
 

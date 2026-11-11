@@ -10,7 +10,10 @@
 //! the shipped `forward-hook.mjs`, or the shipped module driven as the provider drives it (Kilo
 //! plugin events with one child session, an OpenCode 2.x TUI showing a child session of its root
 //! beside another Panel's root, Cline's plugin setup and a run, Pi and OMP extension events). A
-//! row whose provider stays silent after a resume reports nothing then. Every run records its
+//! row whose provider stays silent after a resume reports nothing then. A second Claude Code row
+//! has no hook: only Claude Code's own run table entry names its session, which the witness writes
+//! for each of its runs with that process's exact creation time, while the hooked Claude Code
+//! row's entry names another session that its hook session must outrank. Every run records its
 //! arguments, directory and session in the fixture root and stays alive like an interactive Agent
 //! until it reads `q`. Every wait reads the Agent list, as a Client showing it does: a hook report
 //! joins its Panel only when a Client's Agent read drains it within 10 s.
@@ -94,13 +97,19 @@ struct Row {
     report: &'static str,
     /// Whether a resumed run reports again; unknown is false, the stricter path.
     reports_on_resume: bool,
+    /// Whether the session reaches the Server as a hook session; otherwise only Claude Code's own
+    /// run table names it.
+    hooked: bool,
 }
 
 const UUID: &str = "crypto.randomUUID()";
 const OPENCODE_ID: &str = "`ses_${hex(12)}${alnum(14)}`";
+/// The session a run table entry names beside a hook session, which the hook session outranks.
+const DECOY: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
-/// The resume table: every resumable provider, with Letta's two forms.
-const TABLE: [Row; 20] = [
+/// The resume table: every resumable provider, with Letta's two forms, and Claude Code once more
+/// without hooks.
+const TABLE: [Row; 21] = [
     Row {
         label: "claude-code",
         provider: "claude-code",
@@ -114,6 +123,21 @@ const TABLE: [Row; 20] = [
                  hook_event_name: 'SessionStart', source: resumed ? 'resume' : 'startup', \
                  cwd: process.cwd() })",
         reports_on_resume: true,
+        hooked: true,
+    },
+    Row {
+        label: "claude-run-table",
+        provider: "claude-code",
+        program: "claude",
+        entry: "node_modules/@anthropic-ai/claude-code/cli.js",
+        relay: None,
+        fresh: UUID,
+        resume: &["--resume={id}"],
+        key: "{id}",
+        // Each run's entry, which Claude Code writes for itself, is written by the witness.
+        report: "async () => {}",
+        reports_on_resume: true,
+        hooked: false,
     },
     Row {
         label: "codex",
@@ -128,6 +152,7 @@ const TABLE: [Row; 20] = [
                  hook_event_name: 'SessionStart', source: resumed ? 'resume' : 'startup', \
                  cwd: process.cwd() })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "grok",
@@ -140,6 +165,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('grok', { sessionId: session, hookEventName: 'SessionStart' })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "opencode",
@@ -160,6 +186,7 @@ const TABLE: [Row; 20] = [
             });
         }",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "kilo",
@@ -176,6 +203,7 @@ const TABLE: [Row; 20] = [
             await hooks.event({ event: { type: 'session.created', properties: { info: { id: `ses_${hex(12)}${alnum(14)}`, parentID: session } } } });
         }",
         reports_on_resume: false,
+        hooked: true,
     },
     Row {
         label: "cursor",
@@ -188,6 +216,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('cursor', { hook_event_name: 'sessionStart', conversation_id: session })",
         reports_on_resume: false,
+        hooked: true,
     },
     Row {
         label: "qodercli",
@@ -200,6 +229,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('qodercli', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "antigravity",
@@ -212,6 +242,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('antigravity-cli', { hook_event_name: 'PreInvocation', conversationId: session })",
         reports_on_resume: false,
+        hooked: true,
     },
     Row {
         label: "droid",
@@ -224,6 +255,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('droid', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "kimi",
@@ -236,6 +268,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('kimi', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "letta-conversation",
@@ -249,6 +282,7 @@ const TABLE: [Row; 20] = [
         report: "async (session, _id, resumed) => hook('letta', { event_type: 'SessionStart', \
                  is_new_session: !resumed, conversation_id: session })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "letta-default",
@@ -262,6 +296,7 @@ const TABLE: [Row; 20] = [
         report: "async (_session, id, resumed) => hook('letta', { event_type: 'SessionStart', \
                  is_new_session: !resumed, conversation_id: 'default', agent_id: id })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "devin",
@@ -274,6 +309,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('devin', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: false,
+        hooked: true,
     },
     Row {
         label: "hermes",
@@ -287,6 +323,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('hermes', { event: 'on_session_start', platform: 'cli', session_id: session })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "pi",
@@ -303,6 +340,7 @@ const TABLE: [Row; 20] = [
             handlers.get('session_start')({}, { sessionManager: { getSessionId: () => session } });
         }",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "omp",
@@ -319,6 +357,7 @@ const TABLE: [Row; 20] = [
             handlers.get('session_start')({}, { sessionManager: { getSessionId: () => session } });
         }",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "gemini",
@@ -331,6 +370,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('gemini', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "github-copilot",
@@ -343,6 +383,7 @@ const TABLE: [Row; 20] = [
         key: "{id}",
         report: "async (session) => hook('github-copilot', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: false,
+        hooked: true,
     },
     Row {
         label: "qwen-code",
@@ -356,6 +397,7 @@ const TABLE: [Row; 20] = [
         report: "async (session, _id, resumed) => hook('qwen-code', { hook_event_name: 'SessionStart', \
                  session_id: session, source: resumed ? 'resume' : 'startup' })",
         reports_on_resume: true,
+        hooked: true,
     },
     Row {
         label: "cline",
@@ -372,6 +414,7 @@ const TABLE: [Row; 20] = [
             plugin.hooks.onEvent({ type: 'run-started', snapshot: { conversationId: `conv_${hex(8)}`, runId: `run_${hex(8)}` } });
         }",
         reports_on_resume: false,
+        hooked: true,
     },
 ];
 
@@ -437,7 +480,7 @@ const STUB: &str = r"
   const session = id === null ? null : KEY.replace('{id}', id);
   const reported = session !== null && (resumed === null || REPORTS_ON_RESUME);
   if (reported) await report(session, id, resumed !== null);
-  appendFileSync(CALLS, JSON.stringify({ label: LABEL, script: process.argv[1], argv, cwd: process.cwd(), id, session, reported }) + '\n');
+  appendFileSync(CALLS, JSON.stringify({ label: LABEL, script: process.argv[1], pid: process.pid, argv, cwd: process.cwd(), id, session, reported }) + '\n');
   process.stdout.write(`${LABEL} stub running\n`);
   process.stdin.on('data', (data) => { if (String(data).trim() === 'q') process.exit(0); });
   setInterval(() => {}, 1 << 30);
@@ -514,10 +557,20 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
         unreachable!()
     };
     let resumable: Vec<&Instance> = rows.iter().collect();
+    witness.write_run_table(rows);
     witness.until_listed(
         &instances
             .iter()
-            .map(|i| (i, Listed::Both))
+            .map(|i| {
+                (
+                    i,
+                    if i.row.hooked {
+                        Listed::Both
+                    } else {
+                        Listed::Process
+                    },
+                )
+            })
             .collect::<Vec<_>>(),
     );
 
@@ -536,6 +589,7 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     touching.input(b"x");
     let viewing = witness.control(&rows[0].panel);
     witness.until_resumed(&resumable, 1);
+    witness.write_run_table(rows);
     witness.quiet();
     witness.assert_runs(&resumable, 1);
     witness.assert_runs(&[gone, touched], 0);
@@ -571,6 +625,7 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     witness.start_session();
     let viewing = witness.control(&rows[0].panel);
     witness.until_resumed(&resumable, 2);
+    witness.write_run_table(rows);
     witness.quiet();
     witness.assert_runs(&resumable, 2);
     witness.assert_runs(&[gone, touched], 0);
@@ -620,8 +675,8 @@ fn every_retained_agent_resumes_once_per_restart_in_its_own_shell_and_never_in_a
     witness.start_session();
 }
 
-/// After a resume, a reporting row is seen through its hook and its processes; a silent row only
-/// in its processes; `exited` in neither.
+/// After a resume, a row reporting through its hook is seen through it and its processes; a silent
+/// or hookless row only in its processes; `exited` in neither.
 fn listed_after_resume<'a>(
     rows: &'a [Instance],
     exited: Option<&Instance>,
@@ -630,7 +685,7 @@ fn listed_after_resume<'a>(
         .map(|instance| {
             let listed = if exited.is_some_and(|exited| exited.label == instance.label) {
                 Listed::Gone
-            } else if instance.row.reports_on_resume {
+            } else if instance.row.hooked && instance.row.reports_on_resume {
                 Listed::Both
             } else {
                 Listed::Process
@@ -1012,6 +1067,45 @@ impl Witness {
         }
     }
 
+    /// Writes Claude Code's run table entry, as Claude Code 2.1.322 writes it for itself, for the
+    /// newest run of each Claude Code row, under the Server's home: the hookless row's entry names
+    /// its own session, and the hooked row's names `DECOY`, which its hook session outranks. The
+    /// stubs cannot read their own creation time, and a reader started inside a Panel would
+    /// disturb its processes, so the witness writes each entry from outside.
+    fn write_run_table(&self, rows: &[Instance]) {
+        let calls = self.calls();
+        let table = PathBuf::from(self.directory("home/.claude/sessions"));
+        fs::create_dir_all(&table).unwrap();
+        for instance in rows
+            .iter()
+            .filter(|instance| instance.row.program == "claude")
+        {
+            let call = calls
+                .iter()
+                .rev()
+                .find(|call| call["label"] == instance.label)
+                .unwrap();
+            let pid = call["pid"].as_u64().unwrap();
+            let session = if instance.row.hooked {
+                DECOY
+            } else {
+                call["session"].as_str().unwrap()
+            };
+            let entry = json!({
+                "pid": pid,
+                "sessionId": session,
+                "cwd": call["cwd"],
+                "startedAt": 0,
+                "procStart": process_start(pid),
+                "version": "2.1.322",
+                "kind": "interactive",
+                "entrypoint": "cli",
+                "status": "idle",
+            });
+            fs::write(table.join(format!("{pid}.json")), entry.to_string()).unwrap();
+        }
+    }
+
     /// Reads the Agent list once, as a Client showing it does. Hook reports join their Panel only
     /// when a Client's Agent read drains the Worker's correlation hints, and an unjoined report
     /// expires after 10 s, so every wait reads it. A read refused because the list changed under
@@ -1171,11 +1265,12 @@ impl Witness {
     }
 
     /// No session id appears in any file the runtime wrote other than checkpoint frames; the stubs'
-    /// own records and scripts and the staged cohort are not the runtime's. The Server writes its
-    /// diagnostic lines to standard error, not to a file here, so they are not read.
+    /// own records and scripts, Claude Code's run table and the staged cohort are not the
+    /// runtime's. The Server writes its diagnostic lines to standard error, not to a file here, so
+    /// they are not read.
     fn assert_ids_only_in_store(&self, instances: &[Instance]) {
         let root = PathBuf::from(self.directory(""));
-        let skipped = ["stubs", "cohort", "host"].map(|name| root.join(name));
+        let skipped = ["stubs", "cohort", "host", r"home\.claude"].map(|name| root.join(name));
         for path in self.files() {
             if skipped.iter().any(|skipped| path.starts_with(skipped))
                 || path == root.join("calls.jsonl")
@@ -1233,6 +1328,28 @@ impl Witness {
             "{response:?}"
         );
     }
+}
+
+/// A live process's creation time as Claude Code's native Windows build writes `procStart`: the
+/// decimal count of 100 ns units since 1601 UTC that `GetProcessTimes` gives.
+fn process_start(pid: u64) -> String {
+    let read = Command::new(system_program(r"WindowsPowerShell\v1.0\powershell.exe"))
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &format!("(Get-Process -Id {pid}).StartTime.ToFileTimeUtc()"),
+        ])
+        .output()
+        .unwrap();
+    let start = String::from_utf8(read.stdout).unwrap().trim().to_owned();
+    assert!(
+        read.status.success()
+            && !start.is_empty()
+            && start.bytes().all(|byte| byte.is_ascii_digit()),
+        "no creation time for process {pid}: {start}"
+    );
+    start
 }
 
 fn sorted<'a>(instances: impl Iterator<Item = &'a Instance>) -> Vec<(String, String)> {

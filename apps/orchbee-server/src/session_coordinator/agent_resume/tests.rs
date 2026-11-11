@@ -1,4 +1,4 @@
-use super::CommandEvidence;
+use super::{CommandEvidence, RunAnchor, RunTableEntry};
 use crate::agent_service::AgentResumeCandidate;
 use orchbee_agent_observation_protocol::{
     AgentIdentityGrade, AgentIdentityUnknownReason, AgentIdentityUnsupportedReason,
@@ -160,6 +160,124 @@ fn only_one_distinct_valid_reference_is_admitted() {
     // An invalid key still makes a valid one ambiguous.
     let invalid = candidate(AgentResumeProvider::ClaudeCode, "session-1", None);
     assert_eq!(select(&[claude(None), invalid], unmarked, &UNKNOWN), None);
+}
+
+#[test]
+fn a_run_table_entry_answers_only_for_the_published_agent_run_and_only_without_a_hook_session() {
+    const ENTRY_ID: &str = "4fd1c9a2-2b5e-4c1e-9f0a-6d3b8e2a7c51";
+    let run = RunAnchor {
+        pid: 40,
+        created: 1_000,
+    };
+    let entry = RunTableEntry {
+        anchor: run,
+        session: reference(AgentResumeProvider::ClaudeCode, ENTRY_ID).unwrap(),
+    };
+    let from_entry = reference(AgentResumeProvider::ClaudeCode, ENTRY_ID);
+    let from_hook = reference(AgentResumeProvider::ClaudeCode, CLAUDE);
+    let as_claude = agent(AgentReportProvider::Claude);
+    let unmarked = CommandEvidence::Unmarked;
+    let stale = candidate(AgentResumeProvider::ClaudeCode, STALE, None);
+    let invalid = candidate(AgentResumeProvider::ClaudeCode, "session-1", None);
+    // A later process that reuses the pid, and another process.
+    let reused = RunAnchor {
+        pid: 40,
+        created: 2_000,
+    };
+    let other = RunAnchor {
+        pid: 41,
+        created: 1_000,
+    };
+    let unsupported = AgentProcessIdentity::Unsupported(AgentIdentityUnsupportedReason::Platform);
+    // One capture of a generation whose published run has `entry` in its run table.
+    let decide = |candidates: &[AgentResumeCandidate],
+                  evidence: CommandEvidence,
+                  identity: AgentProcessIdentity,
+                  published: Option<RunAnchor>| {
+        super::select(
+            candidates,
+            evidence,
+            &identity,
+            published,
+            std::slice::from_ref(&entry),
+        )
+    };
+    let sole = Some(run);
+    assert_eq!(
+        decide(&[], unmarked, as_claude, sole),
+        from_entry,
+        "no hook session: the published run's own entry"
+    );
+    assert_eq!(
+        decide(&[claude(None)], unmarked, as_claude, sole),
+        from_hook,
+        "a hook session of the run wins"
+    );
+    assert_eq!(
+        decide(&[claude(None), stale], unmarked, as_claude, sole),
+        None,
+        "hook ambiguity stays none"
+    );
+    assert_eq!(
+        decide(&[invalid], unmarked, as_claude, sole),
+        None,
+        "a sole invalid hook key stays none"
+    );
+    assert_eq!(
+        decide(&[codex(None)], unmarked, as_claude, sole),
+        from_entry,
+        "another provider's candidate is refuted, leaving the entry"
+    );
+    assert_eq!(
+        decide(
+            &[claude(Some(RUN))],
+            CommandEvidence::Closed,
+            as_claude,
+            sole
+        ),
+        from_entry,
+        "an ended command's candidate is refuted, leaving the entry"
+    );
+    assert_eq!(
+        decide(&[], unmarked, as_claude, Some(reused)),
+        None,
+        "an entry of an earlier process with the reused pid"
+    );
+    assert_eq!(
+        decide(&[], unmarked, as_claude, Some(other)),
+        None,
+        "an entry of another process"
+    );
+    assert_eq!(
+        decide(&[], unmarked, as_claude, None),
+        None,
+        "no published run"
+    );
+    assert_eq!(
+        decide(&[], unmarked, UNKNOWN, sole),
+        None,
+        "an identity still settling"
+    );
+    assert_eq!(
+        decide(&[], unmarked, agent(AgentReportProvider::Codex), sole),
+        None,
+        "an identity of another provider"
+    );
+    assert_eq!(
+        decide(&[], unmarked, AgentProcessIdentity::None, sole),
+        None,
+        "no Agent"
+    );
+    assert_eq!(
+        decide(&[], unmarked, unsupported, sole),
+        None,
+        "an unsupported identity"
+    );
+    // Without an entry, a run with no hook session has no reference.
+    assert_eq!(
+        super::select(&[], unmarked, &as_claude, Some(run), &[]),
+        None
+    );
 }
 
 #[test]
