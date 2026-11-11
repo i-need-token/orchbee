@@ -6,22 +6,22 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[test]
 fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
-    let settings = read("[keys]\nprefix='ctrl+a'\n[ui.toast]\ndelivery='off'\n[ui.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n").unwrap();
+    let settings = read(
+        "[keys]\nprefix='ctrl+a'\n[notifications]\ncli_delivery='off'\n[appearance.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n",
+    );
     assert_eq!(settings.agent_sidebar.row_gap(), 1);
     assert!(
-        read("[ui.sidebar.spaces]\nrows=[]")
-            .unwrap()
+        read("[appearance.sidebar.workspaces]\nrows=[]")
             .space_sidebar
             .rows()
             .is_empty()
     );
     assert_eq!(
-        read("[ui.sidebar.spaces]\nrows=[[\"agent\"]]")
-            .unwrap()
+        read("[appearance.sidebar.workspaces]\nrows=[[\"agent\"]]")
             .diagnostics
             .items()[0]
             .field,
-        "ui.sidebar.spaces"
+        "appearance.sidebar.workspaces"
     );
     assert_eq!(
         settings
@@ -32,13 +32,13 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
         "$summary"
     );
     for text in [
-        "[ui.sidebar]\nother=1",
-        "[ui.sidebar.agents]\nrows=[['typo']]",
-        "[ui]\nsidebar=42",
+        "[appearance.sidebar]\nother=1",
+        "[appearance.sidebar.agents]\nrows=[['typo']]",
+        "[appearance]\nsidebar=42",
     ] {
-        assert!(!read(text).unwrap().diagnostics.is_empty());
+        assert!(!read(text).diagnostics.is_empty());
     }
-    let admitted = read("[ui.sidebar.agents]\nrows=[['agent']]\n[keys]\nhelp='ctrl+c'").unwrap();
+    let admitted = read("[appearance.sidebar.agents]\nrows=[['agent']]\n[keys]\nhelp='ctrl+c'");
     assert_eq!(admitted.keys.overrides[0].action, "help");
     assert!(admitted.keys.overrides[0].triggers.is_empty());
     assert_eq!(admitted.diagnostics.items()[0].field, "keys.help");
@@ -47,16 +47,15 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
 #[test]
 fn update_channel_is_strict_and_independent_of_manifest_checks() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
-    for text in ["", "[update]\nmanifest_check=false"] {
-        let settings = read(text).unwrap();
+    for text in ["", "[agent_detection]\nauto_update=false"] {
+        let settings = read(text);
         assert_eq!(settings.update_channel, UpdateChannel::Stable);
         assert_eq!(settings.update_channel_source, "default");
     }
     for channel in ["stable", "preview"] {
         let settings = read(&format!(
-            "[update]\nchannel='{channel}'\nmanifest_check=false"
-        ))
-        .unwrap();
+            "[update]\nchannel='{channel}'\n[agent_detection]\nauto_update=false"
+        ));
         assert_eq!(settings.update_channel.as_str(), channel);
         assert_eq!(settings.update_channel_source, "file");
         assert!(!settings.manifest_check);
@@ -67,16 +66,16 @@ fn update_channel_is_strict_and_independent_of_manifest_checks() {
         ("'Preview'", "invalid-channel"),
         ("''", "invalid-channel"),
     ] {
-        let admitted = read(&format!("[update]\nchannel={value}")).unwrap();
+        let admitted = read(&format!("[update]\nchannel={value}"));
         assert_eq!(admitted.update_channel, UpdateChannel::Stable);
         assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
             diagnostic.field == "update.channel" && diagnostic.reason == reason
         }));
     }
-    let unknown = read("[update]\nchannel='preview'\nunknown=true").unwrap();
+    let unknown = read("[update]\nchannel='preview'\nunknown=true");
     assert_eq!(unknown.update_channel, UpdateChannel::Preview);
     assert_eq!(unknown.diagnostics.items()[0].field, "update.unknown");
-    let invalid = read("[update]\nchannel='preview'\nmanifest_check='true'").unwrap();
+    let invalid = read("[update]\nchannel='preview'\n[agent_detection]\nauto_update='true'");
     assert_eq!(invalid.update_channel, UpdateChannel::Preview);
     assert!(invalid.manifest_check);
 }
@@ -87,8 +86,7 @@ fn retired_shell_keys_are_ignored_and_keep_directory_settings() {
         "[terminal]\ndefault_shell='pwsh.exe'\nshell_mode='login'\nnew_cwd='home'",
         Path::new(r"C:\config.toml"),
         &|_| None,
-    )
-    .unwrap();
+    );
     assert_eq!(settings.cwd, Some((DirectoryPolicy::Home, None)));
     for field in ["terminal.default_shell", "terminal.shell_mode"] {
         assert!(
@@ -162,7 +160,7 @@ impl Drop for Fixture {
 }
 
 #[test]
-fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fatal() {
+fn parsed_field_failures_warn_without_exposing_values() {
     for (text, field, reason) in [
         ("secret = 'DO-NOT-ECHO'", "secret", "unknown-key"),
         (
@@ -189,7 +187,7 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
         ),
         ("[update]\nunknown = false", "update.unknown", "unknown-key"),
     ] {
-        let admitted = parse(text, Path::new(r"C:\config\config.toml"), &|_| None).unwrap();
+        let admitted = parse(text, Path::new(r"C:\config\config.toml"), &|_| None);
         assert!(
             admitted
                 .diagnostics
@@ -199,13 +197,6 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
         );
         assert!(!format!("{:?}", admitted.diagnostics).contains("DO-NOT-ECHO"));
     }
-    let error = parse(
-        "[update]\nmanifest_check = true\nmanifest_check = false",
-        Path::new(r"C:\config\config.toml"),
-        &|_| None,
-    )
-    .unwrap_err();
-    assert_eq!((error.field, error.reason), ("file", "invalid-toml"));
 }
 
 #[cfg(windows)]
@@ -226,8 +217,6 @@ fn file_bounds_missing_locations_and_no_creation_are_preserved() {
     assert!(fixture.read().is_ok());
     std::fs::write(fixture.file(), vec![b' '; LIMIT as usize + 1]).unwrap();
     assert_eq!(fixture.read().unwrap_err().reason, "too-large");
-    std::fs::write(fixture.file(), [0xff]).unwrap();
-    assert_eq!(fixture.read().unwrap_err().reason, "invalid-utf8");
     std::fs::remove_file(fixture.file()).unwrap();
     std::fs::create_dir(fixture.file()).unwrap();
     assert_eq!(fixture.read().unwrap_err().reason, "not-file");
@@ -248,8 +237,7 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
         "[terminal]\nnew_cwd = '../项目'\n[worktrees]\ndirectory = '~/worktrees'",
         Path::new(r"C:\config\config.toml"),
         &|key| (key == "USERPROFILE").then(|| r"C:\home".into()),
-    )
-    .unwrap();
+    );
     assert_eq!(
         Path::new(settings.cwd.as_ref().unwrap().1.as_ref().unwrap()),
         Path::new(r"C:\项目")
@@ -269,8 +257,7 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
             &format!("[terminal]\nnew_cwd='{value}'"),
             Path::new(r"C:\config.toml"),
             &|_| None,
-        )
-        .unwrap();
+        );
         assert_eq!(settings.cwd, Some((policy, None)));
     }
 }
@@ -279,16 +266,19 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
 #[test]
 fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     let fixture = Fixture::new();
-    std::fs::write(fixture.file(), "[update]\nmanifest_check=false\n").unwrap();
+    std::fs::write(fixture.file(), "[agent_detection]\nauto_update=false\n").unwrap();
     let initial = fixture.read().unwrap();
     assert!(!initial.manifest_check);
     assert_eq!(initial.manifest_check_source, "file");
     assert!(initial.explicit);
-    std::fs::write(fixture.file(), "[update]\nmanifest_check=true\n").unwrap();
+    std::fs::write(fixture.file(), "[agent_detection]\nauto_update=true\n").unwrap();
     let next = read_user_settings_at(initial.path.as_deref(), initial.explicit, |_| None).unwrap();
     assert!(next.manifest_check);
     assert_eq!(next.manifest_check_source, "file");
-    for text in ["[update]\nmanifest_check='false'", "[update]\nunknown=true"] {
+    for text in [
+        "[agent_detection]\nauto_update='false'",
+        "[agent_detection]\nunknown=true",
+    ] {
         std::fs::write(fixture.file(), text).unwrap();
         let admitted = fixture.read().unwrap();
         assert!(admitted.manifest_check);
@@ -314,26 +304,23 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
     );
     for title in ["", "{workspace}/{tab}"] {
         let settings = parse(
-            &format!("[ui]\nwindow_title='{title}'\n[update]\nmanifest_check=false"),
+            &format!("[appearance]\nwindow_title='{title}'\n[agent_detection]\nauto_update=false"),
             Path::new(r"C:\config.toml"),
             &|_| None,
-        )
-        .unwrap();
+        );
         assert_eq!(settings.window_title, title);
         assert!(!settings.manifest_check);
     }
     let invalid = parse(
-        "[ui]\nwindow_title='{unknown}'",
+        "[appearance]\nwindow_title='{unknown}'",
         Path::new(r"C:\config.toml"),
         &|_| None,
-    )
-    .unwrap();
+    );
     assert_eq!(invalid.window_title, DEFAULT_WINDOW_TITLE);
     assert_eq!(invalid.diagnostics.items()[0].reason, "unknown-token");
-    for text in ["[ui]\nwindow_title=2", "[ui]\nunknown='x'"] {
+    for text in ["[appearance]\nwindow_title=2", "[appearance]\nunknown='x'"] {
         assert!(
             !parse(text, Path::new(r"C:\config.toml"), &|_| None)
-                .unwrap()
                 .diagnostics
                 .is_empty()
         );
@@ -343,11 +330,10 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
 #[test]
 fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
     let admitted = parse(
-        "onboarding=false\n[server]\naddress='DO-NOT-ECHO'\n[advanced]\n[experimental]\nenabled=true\n[remote]\nenabled=true\n[theme]\nname='one-light'\ncustom={}\n[terminal]\nkitty_graphics=true\n[update]\nversion_check=false\n[keys]\nhelp=['prefix+?', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[ui]\nsidebar_width=24\nunknown_presentation=true\n[ui.toast]\nenabled=true\nclipboard=true\n[ui.sound]\ndone_path='done.mp3'",
+        "onboarding=false\n[server]\naddress='DO-NOT-ECHO'\n[advanced]\n[experimental]\nenabled=true\n[remote]\nenabled=true\n[theme]\nname='one-light'\ncustom={}\n[terminal]\nkitty_graphics=true\n[update]\nversion_check=false\n[keys]\nhelp=['prefix+?', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[appearance]\nsidebar_width=24\nunknown_presentation=true\n[notifications]\nenabled=true\nclipboard=true\ndone_path='done.mp3'\n[ui]\nwindow_title='{workspace}'",
         Path::new(r"C:\config.toml"),
         &|_| None,
-    )
-    .unwrap();
+    );
     assert!(
         admitted
             .diagnostics
@@ -366,11 +352,12 @@ fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
         "update.version_check",
         "keys.indexed",
         "keys.navigate_pane_left",
-        "ui.sidebar_width",
-        "ui.sound.done_path",
-        "ui.toast.enabled",
-        "ui.toast.clipboard",
-        "ui.unknown_presentation",
+        "appearance.sidebar_width",
+        "notifications.done_path",
+        "notifications.enabled",
+        "notifications.clipboard",
+        "appearance.unknown_presentation",
+        "ui",
     ] {
         assert!(
             admitted.diagnostics.items().iter().any(|diagnostic| {
@@ -405,8 +392,7 @@ fn invalid_explicit_key_action_stays_explicitly_disabled() {
             &format!("[keys]\n{body}\nnew_tab='prefix+n'"),
             Path::new(r"C:\config.toml"),
             &|_| None,
-        )
-        .unwrap();
+        );
         let help = admitted
             .keys
             .overrides
@@ -439,8 +425,7 @@ fn explicit_key_conflicts_use_registry_order_instead_of_toml_order() {
             &format!("[keys]\n{body}"),
             Path::new(r"C:\config.toml"),
             &|_| None,
-        )
-        .unwrap();
+        );
         let help = admitted
             .keys
             .overrides
@@ -473,7 +458,7 @@ fn every_registered_action_can_be_explicitly_disabled() {
             .collect::<Vec<_>>()
             .join("\n")
     );
-    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None);
     assert_eq!(admitted.keys.overrides.len(), keys::ACTIONS.len());
     assert!(
         admitted
@@ -487,14 +472,13 @@ fn every_registered_action_can_be_explicitly_disabled() {
 #[test]
 fn invalid_explicit_notification_delivery_defaults_off() {
     let admitted = parse(
-        "[ui.toast]\ndelivery='invalid'",
+        "[notifications]\ncli_delivery='invalid'",
         Path::new(r"C:\config.toml"),
         &|_| None,
-    )
-    .unwrap();
+    );
     assert_eq!(admitted.notifications.delivery, NotificationDelivery::Off);
     assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
-        diagnostic.field == "ui.toast.delivery"
+        diagnostic.field == "notifications.cli_delivery"
             && diagnostic.disposition == SettingsDiagnosticDisposition::Defaulted
     }));
 }
@@ -504,7 +488,7 @@ fn warning_record_is_sorted_bounded_and_reports_omissions() {
     let text: String = (0..140)
         .map(|index| format!("unknown_{index:03}=true\n"))
         .collect();
-    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None);
     assert_eq!(
         admitted.diagnostics.items().len(),
         MAXIMUM_SETTINGS_DIAGNOSTICS
@@ -521,7 +505,7 @@ fn warning_record_is_sorted_bounded_and_reports_omissions() {
 
 #[test]
 fn empty_unknown_key_has_a_nonempty_canonical_diagnostic_field() {
-    let admitted = parse("\"\" = true", Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let admitted = parse("\"\" = true", Path::new(r"C:\config.toml"), &|_| None);
     assert_eq!(admitted.diagnostics.items().len(), 1);
     assert_eq!(admitted.diagnostics.items()[0].field, "\\u{empty}");
     assert_eq!(admitted.diagnostics.items()[0].reason, "unknown-key");
@@ -532,7 +516,7 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     let text = default_user_settings_toml();
     assert!(text.ends_with('\n'));
     assert!(!text.ends_with("\n\n"));
-    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None);
     let defaults = UserSettings::default();
     assert!(admitted.diagnostics.is_empty());
     assert_eq!(admitted.keys, defaults.keys);
@@ -541,9 +525,7 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     assert_eq!(admitted.space_sidebar, defaults.space_sidebar);
     assert_eq!(admitted.window_title, defaults.window_title);
     assert_eq!(admitted.update_channel, defaults.update_channel);
-    assert_eq!(admitted.update_channel_source, "file");
     assert_eq!(admitted.manifest_check, defaults.manifest_check);
-    assert_eq!(admitted.manifest_check_source, "file");
     assert_eq!(admitted.cwd, None);
     assert_eq!(admitted.worktree_root, None);
     assert_eq!(admitted.path, Some(PathBuf::from(r"C:\config.toml")));
@@ -561,27 +543,49 @@ fn default_configuration_reference_covers_the_setting_and_action_registries() {
         })
         .collect::<Vec<_>>();
     let text = default_user_settings_toml_with_actions(&actions);
-    for option in USER_CONFIG_OPTIONS {
-        let path_line = format!("# {}", option.path);
-        assert!(
-            text.lines().any(|line| line == path_line.as_str()),
-            "{} is missing from the generated reference",
-            option.path
-        );
-        assert!(text.contains(&format!("#   Default: {}", option.default)));
-        let parts = option.path.split('.').collect::<Vec<_>>();
-        for index in 0..parts.len() - 1 {
-            let table = parts[..index + 1].join(".");
-            assert!(user_config_has_child(&table, parts[index + 1]));
+    assert!(
+        text.lines()
+            .all(|line| line.is_empty() || line.starts_with('#')),
+        "the reference holds only comments"
+    );
+    assert!(toml::from_str::<toml::Table>(&text).unwrap().is_empty());
+    for setting in SETTING_KEYS {
+        let described = text.contains(setting.description.split_whitespace().next().unwrap());
+        assert_eq!(described, setting.reference, "{}", setting.path);
+        let leaf = setting.path.rsplit('.').next().unwrap();
+        if setting.reference && !leaf.starts_with(['<', '*']) {
+            assert!(
+                text.lines()
+                    .any(|line| line.starts_with(&format!("# {leaf} = "))
+                        || line.contains(&format!(
+                            "{}]",
+                            setting.path.replace("<platform>", "windows")
+                        ))),
+                "{} has no line in the reference",
+                setting.path
+            );
         }
     }
     for action in KeySettings::registered_actions() {
         let action_line = format!("# {action} = []");
         assert!(text.lines().any(|line| line == action_line.as_str()));
     }
-    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
-    assert!(admitted.diagnostics.is_empty());
-    assert_eq!(admitted.keys, UserSettings::default().keys);
+    let uncommented: String = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("# "))
+        .filter(|line| {
+            line.starts_with('[')
+                || line.split_once(" = ").is_some_and(|(key, _)| {
+                    !key.is_empty()
+                        && key
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || b"_-".contains(&byte))
+                })
+        })
+        .map(|line| format!("{line}\n"))
+        .collect();
+    let admitted = parse(&uncommented, Path::new(r"C:\config.toml"), &|_| None);
+    assert_eq!(admitted.syntax, None, "{uncommented}");
 }
 
 #[test]
@@ -594,8 +598,10 @@ fn default_configuration_quotes_and_roundtrips_binding_strings() {
         .lines()
         .find(|line| line.starts_with("# help = "))
         .unwrap();
-    let config = text.replace(action_line, action_line.strip_prefix("# ").unwrap());
-    let admitted = parse(&config, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let config = text
+        .replace(action_line, action_line.strip_prefix("# ").unwrap())
+        .replace("\n# [keys]\n", "\n[keys]\n");
+    let admitted = parse(&config, Path::new(r"C:\config.toml"), &|_| None);
     assert!(admitted.diagnostics.is_empty());
     let settings = &admitted.keys;
     let help = settings
@@ -626,10 +632,163 @@ fn split_focus_defaults_true_and_admits_only_booleans() {
             &format!("[terminal]\nfocus_new_panel={value}"),
             Path::new(r"C:\config.toml"),
             &|_| None,
-        )
-        .unwrap();
+        );
         assert_eq!(load.focus_new_panel, expected);
         assert_eq!(load.diagnostics.is_empty(), valid);
     }
     assert!(UserSettings::default().focus_new_panel);
+}
+
+// Startup no longer refuses a broken file: the defaults apply and the error names where it is.
+#[test]
+fn syntax_errors_leave_defaults_and_name_the_line_and_column() {
+    let path = Path::new(r"C:\config.toml");
+    let broken = parse(
+        "[terminal]\nfocus_new_panel = false\n[terminal]\nnew_cwd = 'home'\n",
+        path,
+        &|_| None,
+    );
+    let syntax = broken.syntax.unwrap();
+    assert_eq!((syntax.reason, syntax.line), ("invalid-toml", 3));
+    assert!((1..=2).contains(&syntax.column), "{syntax:?}");
+    assert!(broken.focus_new_panel);
+    assert_eq!(broken.cwd, None);
+    assert!(broken.exists);
+    assert!(broken.diagnostics.items().iter().any(|diagnostic| {
+        diagnostic.field == "file"
+            && diagnostic.reason == "invalid-toml"
+            && diagnostic.disposition == SettingsDiagnosticDisposition::Defaulted
+    }));
+    let last_valid = UserSettings {
+        focus_new_panel: false,
+        ..UserSettings::default()
+    };
+    let kept = broken.clone().or_last_valid(&last_valid);
+    assert!(!kept.focus_new_panel);
+    assert_eq!(kept.path.as_deref(), Some(path));
+    assert_eq!(
+        broken.require_valid_syntax().unwrap_err(),
+        SettingsError::new("file", "invalid-toml")
+    );
+    let mut bytes = "[terminal]\n  new_cwd = 'é".as_bytes().to_vec();
+    bytes.push(0xff);
+    let syntax = parse_bytes(&bytes, path, &|_| None).syntax.unwrap();
+    assert_eq!(
+        (syntax.reason, syntax.line, syntax.column),
+        ("invalid-utf8", 2, 15)
+    );
+    let fine = parse("[terminal]\nfocus_new_panel = false\n", path, &|_| None);
+    assert_eq!(
+        fine.clone().or_last_valid(&UserSettings::default()),
+        fine.clone()
+    );
+    assert!(fine.require_valid_syntax().is_ok());
+}
+
+// The common preferences and desktop keys parse into the model under their new names, with the
+// file's spellings, while every old `ui.*` name is just an unknown key.
+#[test]
+fn preference_and_desktop_keys_parse_with_registry_types() {
+    use orchbee_workbench_protocol::{AgentReminderMode, CompletionReminderMode};
+    let load = parse(
+        "[general]\nlanguage = 'zh-CN'\n[appearance]\nmode = 'dark'\ndark_theme = 'dracula'\ncustom_foreground = '#ABCDEF'\n[terminal]\ncopy_on_select = true\nscrollback_bytes = 2000000000\nfont_size = 20\nfont_weight = 450\nmacos_option_as_alt = 'left'\n[notifications]\nagent_reminder = 'when-hidden'\ncompletion_reminder = 'hidden'\ncompletion_minimum_seconds = 30\n[agents]\nresume_on_restore = false\n[ui.toast]\ndelivery = 'system'\n",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    );
+    let preferences = &load.preferences;
+    assert_eq!(
+        serde_json::to_value(preferences.locale).unwrap(),
+        serde_json::json!("zh-CN")
+    );
+    assert_eq!(preferences.dark_theme, "dracula");
+    assert!(preferences.copy_on_select);
+    assert!(!preferences.resume_agents_on_restore);
+    assert_eq!(
+        preferences.agent_notification_mode,
+        AgentReminderMode::Hidden
+    );
+    assert_eq!(
+        preferences.completion_reminder_mode,
+        CompletionReminderMode::Never
+    );
+    assert_eq!(preferences.completion_reminder_minimum_seconds, 30);
+    assert_eq!(preferences.custom_foreground, "#141414");
+    assert_eq!(preferences.scrollback_bytes, 10_000_000);
+    assert_eq!(load.desktop.font_size, 20);
+    assert_eq!(load.desktop.font_weight, 400);
+    assert_eq!(load.desktop.macos_option_as_alt, MacosOptionAsAlt::Left);
+    assert_eq!(load.notifications.delivery, NotificationDelivery::Off);
+    for (field, reason) in [
+        ("appearance.custom_foreground", "invalid-value"),
+        ("terminal.scrollback_bytes", "invalid-value"),
+        ("terminal.font_weight", "invalid-value"),
+        ("notifications.completion_reminder", "invalid-mode"),
+        ("ui", "unknown-key"),
+    ] {
+        assert!(
+            load.diagnostics
+                .items()
+                .iter()
+                .any(|diagnostic| diagnostic.field == field && diagnostic.reason == reason),
+            "{field}: {reason}"
+        );
+    }
+}
+
+// Launch profiles: each platform reads only its own table, the built-in profile stays, and a
+// mistake in another platform's table still shows.
+#[test]
+fn launch_profiles_read_the_current_platform_and_check_every_table() {
+    let platform = registry::current_platform();
+    let other = SETTING_PLATFORMS
+        .into_iter()
+        .find(|candidate| *candidate != platform)
+        .unwrap();
+    let load = parse(
+        &format!(
+            "[terminal.default_profile]\n{platform} = 'pwsh'\n{other} = 'missing'\n[[terminal.profiles.{platform}]]\nid = 'pwsh'\nkind = 'custom-executable'\nexecutable = 'pwsh.exe'\narguments = ['-NoLogo']\nicon = 'x'\n[[terminal.profiles.{other}]]\nid = 'zsh'\nkind = 'system-shell'\nlogin = true\n"
+        ),
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    );
+    let catalog = &load.preferences.launch_profiles;
+    assert_eq!(catalog.default_profile_id, "pwsh");
+    assert_eq!(
+        catalog
+            .profiles
+            .iter()
+            .map(|profile| profile.id.as_str())
+            .collect::<Vec<_>>(),
+        ["system-default", "pwsh"]
+    );
+    assert_eq!(catalog.profiles[1].name.as_deref(), Some("pwsh"));
+    let fields: Vec<_> = load
+        .diagnostics
+        .items()
+        .iter()
+        .map(|diagnostic| (diagnostic.field.as_str(), diagnostic.reason))
+        .collect();
+    assert!(fields.contains(&(
+        format!("terminal.default_profile.{other}").as_str(),
+        "unknown-profile"
+    )));
+    assert!(fields.contains(&(
+        format!("terminal.profiles.{platform}[].icon").as_str(),
+        "unknown-key"
+    )));
+    let broken = parse(
+        &format!(
+            "[[terminal.profiles.{platform}]]\nid = 'x'\nkind = 'system-shell'\nexecutable = 'sh'\n"
+        ),
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    );
+    assert_eq!(
+        broken.preferences.launch_profiles,
+        orchbee_workbench_protocol::UserLaunchProfiles::default()
+    );
+    assert!(broken.diagnostics.items().iter().any(|diagnostic| {
+        diagnostic.field == format!("terminal.profiles.{platform}")
+            && diagnostic.reason == "invalid-value"
+    }));
 }

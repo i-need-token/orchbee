@@ -19,20 +19,13 @@ fn default_config_uses_the_setting_and_client_action_registries() {
     assert!(output.stderr.is_empty());
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.ends_with('\n'));
-    let parsed: toml::Value = toml::from_str(&text).unwrap();
-    let keys = parsed["keys"].as_table().unwrap();
-    assert_eq!(keys.len(), 1, "default action rows must remain comments");
-    assert_eq!(keys["prefix"].as_str(), Some("ctrl+b"));
-
-    for option in orchbee_local_runtime::USER_CONFIG_OPTIONS {
-        let path_line = format!("# {}", option.path);
-        assert!(
-            text.lines().any(|line| line == path_line.as_str()),
-            "{}",
-            option.path
-        );
-        assert!(text.contains(&format!("#   Default: {}", option.default)));
-    }
+    let parsed: toml::Table = toml::from_str(&text).unwrap();
+    assert!(
+        parsed.is_empty(),
+        "every reference line, action rows included, is a comment"
+    );
+    assert!(text.lines().any(|line| line == "# [keys]"));
+    assert!(text.lines().any(|line| line == "# prefix = \"ctrl+b\""));
     let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
     let registered_actions = actions.iter().map(|entry| entry.action).collect::<Vec<_>>();
     assert_eq!(

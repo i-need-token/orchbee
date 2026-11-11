@@ -32,7 +32,7 @@ pub fn set_update_channel(
         .unwrap_or_default();
     let text =
         std::str::from_utf8(&bytes).map_err(|_| SettingsError::new("file", "invalid-utf8"))?;
-    parse(text, &path, &env)?;
+    parse(text, &path, &env).require_valid_syntax()?;
     let mut document = text
         .parse::<toml_edit::DocumentMut>()
         .map_err(|_| SettingsError::new("file", "invalid-toml"))?;
@@ -51,7 +51,7 @@ pub fn set_update_channel(
     if after.len() as u64 > LIMIT {
         return Err(SettingsError::new("file", "too-large"));
     }
-    let settings = parse(&after, &path, &env)?;
+    let settings = parse(&after, &path, &env).require_valid_syntax()?;
     if settings.update_channel != channel {
         return Err(failure());
     }

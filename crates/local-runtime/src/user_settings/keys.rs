@@ -1,7 +1,6 @@
-//! Bounded Windows key configuration. Semantic dispatch stays with the Client.
+//! Bounded key configuration. Semantic dispatch stays with the Client.
 use super::{
-    DiagnosticsCollector, SettingsDiagnosticDisposition, SettingsError, unknown_field,
-    user_config_has_child,
+    DiagnosticsCollector, SettingsDiagnosticDisposition, SettingsError, user_config_has_child,
 };
 mod commands;
 pub use commands::{CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry};
@@ -135,16 +134,7 @@ impl KeySettings {
                 ),
             }
         }
-        for key in table
-            .keys()
-            .filter(|key| !user_config_has_child("keys", key) && !ACTIONS.contains(&key.as_str()))
-        {
-            diagnostics.push(
-                unknown_field("keys", key),
-                "unknown-key",
-                SettingsDiagnosticDisposition::Ignored,
-            );
-        }
+        // The reader's registry walk reports unknown keys in this table.
         for action in ACTIONS {
             let Some(value) = table.get(*action) else {
                 continue;

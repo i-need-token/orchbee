@@ -1,4 +1,5 @@
-//! Shared Windows user settings: fatal source boundaries, field-local admission, and explicit repair.
+//! Shared user settings in `config.toml`: fatal source boundaries, field-local admission, and
+//! single-key edits.
 mod agent_sidebar;
 mod diagnostics;
 mod source;
@@ -24,27 +25,32 @@ pub use notifications::{
     MAXIMUM_AGENT_SOUND_OVERRIDES, MAXIMUM_NOTIFICATION_DELAY_SECONDS,
     MAXIMUM_NOTIFICATION_PROFILE_BYTES, NotificationSettings,
 };
+mod desktop;
+mod launch_profiles;
+mod preferences;
 mod reference;
 mod registry;
-pub use registry::{
-    SETTING_KEYS, SETTING_PLATFORMS, SettingCategory, SettingClients, SettingDefault,
-    SettingEffect, SettingGroup, SettingKey, SettingValue, find_setting,
-};
 mod reset_keys;
 mod window_title;
 use crate::{
     DataRoot,
     user_path::{USER_PATH_LIMIT, normalize_user_path},
 };
+pub use desktop::{DesktopTerminalSettings, MacosOptionAsAlt};
 pub use keys::{
     CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry, KeyChord, KeyOverride,
     KeySettings, KeyTrigger, trigger_label,
 };
-use reference::user_config_has_child;
+use orchbee_workbench_protocol::UserPreferencesValues;
 pub use reference::{
-    DefaultActionBindings, USER_CONFIG_OPTIONS, UserConfigOption, default_user_settings_toml,
-    default_user_settings_toml_with_actions,
+    DefaultActionBindings, default_user_settings_toml, default_user_settings_toml_with_actions,
 };
+pub(crate) use registry::recognized_path;
+pub use registry::{
+    SETTING_KEYS, SETTING_PLATFORMS, SettingCategory, SettingClients, SettingDefault,
+    SettingEffect, SettingGroup, SettingKey, SettingValue, find_setting,
+};
+use registry::{Scalar, user_config_has_child};
 pub use reset_keys::{KeysResetOutcome, KeysResetReport, reset_keybindings};
 use std::{
     ffi::OsString,
@@ -53,7 +59,9 @@ use std::{
 };
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowTitleTemplate};
 
-const LIMIT: u64 = 64 * 1024;
+/// Largest `config.toml` the reader admits: room for every platform's launch profiles.
+pub const MAXIMUM_USER_SETTINGS_BYTES: u64 = 2 * 1024 * 1024;
+const LIMIT: u64 = MAXIMUM_USER_SETTINGS_BYTES;
 mod channel;
 pub use channel::set_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,6 +81,11 @@ pub struct UserSettings {
     pub manifest_check_source: &'static str,
     pub cwd: Option<(DirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
+    /// The common preferences the file carries. `preferences.json` remains their runtime source
+    /// until the clients read them from here.
+    pub preferences: UserPreferencesValues,
+    /// Settings only the desktop app applies.
+    pub desktop: DesktopTerminalSettings,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -82,6 +95,60 @@ pub struct UserSettingsLoad {
     pub settings: UserSettings,
     /// Diagnostics describing every visible fallback, ignored field, or unsupported field.
     pub diagnostics: SettingsDiagnostics,
+    /// Present when the file is not valid UTF-8 or TOML; `settings` then hold the defaults.
+    pub syntax: Option<SettingsSyntaxError>,
+}
+
+/// Where `config.toml` stops being valid UTF-8 or TOML.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SettingsSyntaxError {
+    /// `invalid-utf8` or `invalid-toml`.
+    pub reason: &'static str,
+    /// One-based line of the first error.
+    pub line: usize,
+    /// One-based column, in characters, of the first error.
+    pub column: usize,
+}
+
+impl SettingsSyntaxError {
+    fn at(text: &str, offset: usize, reason: &'static str) -> Self {
+        let offset = (0..=offset.min(text.len()))
+            .rev()
+            .find(|offset| text.is_char_boundary(*offset))
+            .unwrap_or(0);
+        let before = &text[..offset];
+        let line_start = before.rfind('\n').map_or(0, |index| index + 1);
+        Self {
+            reason,
+            line: before.matches('\n').count() + 1,
+            column: before[line_start..].chars().count() + 1,
+        }
+    }
+}
+
+impl UserSettingsLoad {
+    /// Refuse a file that does not parse, for callers that must not act on defaults in its place:
+    /// `config check`, an explicit reload, and update operations.
+    pub fn require_valid_syntax(self) -> Result<Self, SettingsError> {
+        match self.syntax {
+            Some(syntax) => Err(SettingsError::new("file", syntax.reason)),
+            None => Ok(self),
+        }
+    }
+
+    /// Keep `last_valid` in effect when the file no longer parses; the syntax error and its
+    /// diagnostic stay visible.
+    pub fn or_last_valid(mut self, last_valid: &UserSettings) -> Self {
+        if self.syntax.is_some() {
+            self.settings = UserSettings {
+                path: self.settings.path,
+                exists: self.settings.exists,
+                explicit: self.settings.explicit,
+                ..last_valid.clone()
+            };
+        }
+        self
+    }
 }
 
 impl std::ops::Deref for UserSettingsLoad {
@@ -125,11 +192,15 @@ impl Default for UserSettings {
             manifest_check_source: "default",
             cwd: None,
             worktree_root: None,
+            preferences: UserPreferencesValues::default(),
+            desktop: DesktopTerminalSettings::default(),
         }
     }
 }
 
-/// Resolve one complete effective configuration and its diagnostics.
+/// Resolve one complete effective configuration and its diagnostics. A file that is not valid
+/// UTF-8 or TOML yields the defaults with [`UserSettingsLoad::syntax`] set; only an unreadable or
+/// oversized file, or an unusable location, is an error.
 pub fn read_user_settings(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<UserSettingsLoad, SettingsError> {
@@ -149,11 +220,7 @@ impl SettingsError {
 
 impl std::fmt::Display for SettingsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "invalid Windows configuration: {} ({})",
-            self.field, self.reason
-        )
+        write!(f, "invalid configuration: {} ({})", self.field, self.reason)
     }
 }
 impl std::error::Error for SettingsError {}
@@ -247,7 +314,7 @@ fn read_file_at(
                     path: Some(path),
                     ..UserSettings::default()
                 },
-                diagnostics: SettingsDiagnostics::default(),
+                ..UserSettingsLoad::default()
             });
         }
         Err(error) => {
@@ -279,223 +346,251 @@ fn read_file_at(
     if bytes.len() as u64 > LIMIT {
         return Err(SettingsError::new("file", "too-large"));
     }
-    let text =
-        std::str::from_utf8(&bytes).map_err(|_| SettingsError::new("file", "invalid-utf8"))?;
-    let mut load = parse(text, &path, &env)?;
+    let mut load = parse_bytes(&bytes, &path, &env);
     load.settings.explicit = explicit;
     Ok(load)
 }
 
-fn parse(
-    text: &str,
+fn parse_bytes(
+    bytes: &[u8],
     path: &Path,
     env: &impl Fn(&str) -> Option<OsString>,
-) -> Result<UserSettingsLoad, SettingsError> {
-    let table: toml::Table =
-        toml::from_str(text).map_err(|_| SettingsError::new("file", "invalid-toml"))?;
+) -> UserSettingsLoad {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => parse(text, path, env),
+        Err(error) => {
+            let valid = std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap_or_default();
+            unparsed(
+                path,
+                SettingsSyntaxError::at(valid, valid.len(), "invalid-utf8"),
+            )
+        }
+    }
+}
+
+/// The defaults in place of a file that does not parse, with one diagnostic naming the file.
+fn unparsed(path: &Path, syntax: SettingsSyntaxError) -> UserSettingsLoad {
+    let mut diagnostics = DiagnosticsCollector::default();
+    diagnostics.push(
+        "file",
+        syntax.reason,
+        SettingsDiagnosticDisposition::Defaulted,
+    );
+    UserSettingsLoad {
+        settings: UserSettings {
+            path: Some(path.to_owned()),
+            exists: true,
+            ..UserSettings::default()
+        },
+        diagnostics: diagnostics.finish(),
+        syntax: Some(syntax),
+    }
+}
+
+fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> UserSettingsLoad {
+    let table: toml::Table = match toml::from_str(text) {
+        Ok(table) => table,
+        Err(error) => {
+            let offset = error.span().map_or(0, |span| span.start);
+            return unparsed(path, SettingsSyntaxError::at(text, offset, "invalid-toml"));
+        }
+    };
     let mut settings = UserSettings {
         path: Some(path.to_owned()),
         exists: true,
         ..UserSettings::default()
     };
     let mut diagnostics = DiagnosticsCollector::default();
-    for (section, value) in table {
-        if section == "ui" {
-            let Some(table) = value.as_table() else {
-                diagnostics.push("ui", "wrong-type", SettingsDiagnosticDisposition::Defaulted);
-                continue;
-            };
-            for key in table.keys().filter(|key| !user_config_has_child("ui", key)) {
-                diagnostics.push(
-                    unknown_field("ui", key),
-                    "unknown-key",
-                    SettingsDiagnosticDisposition::Ignored,
-                );
-            }
-            if table.contains_key("toast") || table.contains_key("sound") {
-                settings.notifications = NotificationSettings::parse_lenient(
-                    table.get("toast"),
-                    table.get("sound"),
-                    &mut diagnostics,
-                );
-            }
-            if let Some(sidebar) = table.get("sidebar") {
-                if let Some(sidebar) = sidebar.as_table() {
-                    for key in sidebar
-                        .keys()
-                        .filter(|key| !user_config_has_child("ui.sidebar", key))
-                    {
-                        diagnostics.push(
-                            unknown_field("ui.sidebar", key),
-                            "unknown-key",
-                            SettingsDiagnosticDisposition::Ignored,
-                        );
-                    }
-                    if let Some(spaces) = sidebar.get("spaces") {
-                        match parse_space_sidebar(spaces, &mut diagnostics) {
-                            Ok(profile) => settings.space_sidebar = profile,
-                            Err(error) => diagnostics
-                                .push_error(&error, SettingsDiagnosticDisposition::Defaulted),
-                        }
-                    }
-                    if let Some(agents) = sidebar.get("agents") {
-                        match parse_agent_sidebar(agents, &mut diagnostics) {
-                            Ok(profile) => settings.agent_sidebar = profile,
-                            Err(error) => diagnostics
-                                .push_error(&error, SettingsDiagnosticDisposition::Defaulted),
-                        }
-                    }
-                } else {
-                    diagnostics.push(
-                        "ui.sidebar",
-                        "wrong-type",
-                        SettingsDiagnosticDisposition::Defaulted,
-                    );
-                }
-            }
-            if let Some(value) = table.get("window_title") {
-                if let Some(value) = value.as_str() {
-                    match WindowTitleTemplate::parse(value) {
-                        Ok(_) => settings.window_title = value.into(),
-                        Err(reason) => diagnostics.push(
-                            "ui.window_title",
-                            reason,
-                            SettingsDiagnosticDisposition::Defaulted,
-                        ),
-                    }
-                } else {
-                    diagnostics.push(
-                        "ui.window_title",
-                        "wrong-type",
-                        SettingsDiagnosticDisposition::Defaulted,
-                    );
-                }
-            }
-            continue;
-        }
-        if section == "keys" {
-            settings.keys = KeySettings::parse_lenient(&value, &mut diagnostics);
-            continue;
-        }
-        let Some(table) = value.as_table() else {
-            let field = match section.as_str() {
-                "terminal" => "terminal",
-                "update" => "update",
-                "worktrees" => "worktrees",
-                "session" => "session",
-                _ => {
-                    diagnostics.push(
-                        unknown_field("", &section),
-                        "unknown-key",
-                        SettingsDiagnosticDisposition::Ignored,
-                    );
-                    continue;
-                }
-            };
-            diagnostics.push(
-                field,
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            );
-            continue;
-        };
-        match section.as_str() {
-            "terminal" => parse_terminal(table, &mut settings, &mut diagnostics, path, env),
-            "update" => parse_update(table, &mut settings, &mut diagnostics),
-            "worktrees" => parse_worktrees(table, &mut settings, &mut diagnostics, path, env),
-            _ => diagnostics.push(
-                unknown_field("", &section),
-                "unknown-key",
-                SettingsDiagnosticDisposition::Ignored,
-            ),
+    report_unknown(&table, "", &mut diagnostics);
+    let mut fields = Fields {
+        root: &table,
+        diagnostics: &mut diagnostics,
+    };
+    parse_appearance(&mut fields, &mut settings);
+    parse_terminal(&mut fields, &mut settings, path, env);
+    if let Some(value) = fields.value("worktrees.directory") {
+        let candidate = value
+            .as_str()
+            .ok_or(SettingsError::new("worktrees.directory", "wrong-type"))
+            .and_then(|value| normalize(value, path, env, "worktrees.directory"));
+        match candidate {
+            Ok(value) => settings.worktree_root = Some(value),
+            Err(error) => fields.push_error(&error),
         }
     }
-    Ok(UserSettingsLoad {
+    if let Some(value) = fields.value("update.channel") {
+        match value.as_str() {
+            Some("stable") => {
+                settings.update_channel = UpdateChannel::Stable;
+                settings.update_channel_source = "file";
+            }
+            Some("preview") => {
+                settings.update_channel = UpdateChannel::Preview;
+                settings.update_channel_source = "file";
+            }
+            Some(_) => fields.push("update.channel", "invalid-channel"),
+            None => fields.push("update.channel", "wrong-type"),
+        }
+    }
+    if let Some(value) = fields.boolean("agent_detection.auto_update") {
+        settings.manifest_check = value;
+        settings.manifest_check_source = "file";
+    }
+    settings.preferences = preferences::parse(&mut fields);
+    settings.desktop = DesktopTerminalSettings::parse(&mut fields);
+    if let Some(notifications) = table.get("notifications").and_then(toml::Value::as_table) {
+        settings.notifications =
+            NotificationSettings::parse_lenient(notifications, &mut diagnostics);
+    }
+    if let Some(keys) = table.get("keys") {
+        settings.keys = KeySettings::parse_lenient(keys, &mut diagnostics);
+    }
+    UserSettingsLoad {
         settings,
         diagnostics: diagnostics.finish(),
-    })
+        syntax: None,
+    }
 }
 
-fn parse_agent_sidebar(
-    value: &toml::Value,
-    diagnostics: &mut DiagnosticsCollector,
-) -> Result<AgentSidebarSettings, SettingsError> {
-    let Some(table) = value.as_table() else {
-        return AgentSidebarSettings::parse(value);
-    };
-    let mut admitted = table.clone();
-    admitted.retain(|key, _| {
-        let known = user_config_has_child("ui.sidebar.agents", key);
-        if !known {
+/// Report every key the registry does not know, and every registered table holding a value that
+/// is not a table. A registered key's own value is left to its admission.
+fn report_unknown(table: &toml::Table, parent: &str, diagnostics: &mut DiagnosticsCollector) {
+    for (key, value) in table {
+        if !user_config_has_child(parent, key) {
             diagnostics.push(
-                unknown_field("ui.sidebar.agents", key),
+                unknown_field(parent, key),
                 "unknown-key",
                 SettingsDiagnosticDisposition::Ignored,
             );
+            continue;
         }
-        known
-    });
-    AgentSidebarSettings::parse(&toml::Value::Table(admitted))
+        let segments: Vec<&str> = parent
+            .split('.')
+            .filter(|segment| !segment.is_empty())
+            .chain([key.as_str()])
+            .collect();
+        if registry::find_setting(&segments).is_some() {
+            continue;
+        }
+        let path = segments.join(".");
+        match value.as_table() {
+            Some(child) => report_unknown(child, &path, diagnostics),
+            None => diagnostics.push(path, "wrong-type", SettingsDiagnosticDisposition::Defaulted),
+        }
+    }
 }
 
-fn parse_space_sidebar(
-    value: &toml::Value,
-    diagnostics: &mut DiagnosticsCollector,
-) -> Result<SpaceSidebarSettings, SettingsError> {
+/// Registry-typed reads from one parsed file; every refused value leaves its default and a
+/// diagnostic.
+struct Fields<'a> {
+    root: &'a toml::Table,
+    diagnostics: &'a mut DiagnosticsCollector,
+}
+
+impl<'a> Fields<'a> {
+    /// The value at a dotted path whose segments are plain names; absent when any table on the
+    /// way is missing or is not a table.
+    fn value(&self, path: &str) -> Option<&'a toml::Value> {
+        let mut segments = path.split('.');
+        let mut value = self.root.get(segments.next()?)?;
+        for segment in segments {
+            value = value.as_table()?.get(segment)?;
+        }
+        Some(value)
+    }
+
+    fn push(&mut self, field: impl Into<String>, reason: &'static str) {
+        self.diagnostics
+            .push(field, reason, SettingsDiagnosticDisposition::Defaulted);
+    }
+
+    fn push_error(&mut self, error: &SettingsError) {
+        self.diagnostics
+            .push_error(error, SettingsDiagnosticDisposition::Defaulted);
+    }
+
+    /// The admitted value of one registered key, or `None` when it is absent or refused.
+    fn scalar(&mut self, path: &str) -> Option<Scalar> {
+        let segments: Vec<&str> = path.split('.').collect();
+        let setting = registry::find_setting(&segments)?;
+        let value = self.value(path)?;
+        match setting.admit(value) {
+            Ok(scalar) => Some(scalar),
+            Err(reason) => {
+                self.push(path.to_owned(), reason);
+                None
+            }
+        }
+    }
+
+    fn boolean(&mut self, path: &str) -> Option<bool> {
+        match self.scalar(path)? {
+            Scalar::Boolean(value) => Some(value),
+            Scalar::Integer(_) | Scalar::Text(_) => None,
+        }
+    }
+
+    fn integer(&mut self, path: &str) -> Option<i64> {
+        match self.scalar(path)? {
+            Scalar::Integer(value) => Some(value),
+            Scalar::Boolean(_) | Scalar::Text(_) => None,
+        }
+    }
+
+    fn text(&mut self, path: &str) -> Option<String> {
+        match self.scalar(path)? {
+            Scalar::Text(value) => Some(value),
+            Scalar::Boolean(_) | Scalar::Integer(_) => None,
+        }
+    }
+}
+
+fn parse_appearance(fields: &mut Fields<'_>, settings: &mut UserSettings) {
+    if let Some(value) = fields.text("appearance.window_title") {
+        match WindowTitleTemplate::parse(&value) {
+            Ok(_) => settings.window_title = value,
+            Err(reason) => fields.push("appearance.window_title", reason),
+        }
+    }
+    if let Some(value) = fields.value("appearance.sidebar.agents") {
+        match AgentSidebarSettings::parse(&registered_only(value, "appearance.sidebar.agents")) {
+            Ok(profile) => settings.agent_sidebar = profile,
+            Err(error) => fields.push_error(&error),
+        }
+    }
+    if let Some(value) = fields.value("appearance.sidebar.workspaces") {
+        match SpaceSidebarSettings::parse(&registered_only(value, "appearance.sidebar.workspaces"))
+        {
+            Ok(profile) => settings.space_sidebar = profile,
+            Err(error) => fields.push_error(&error),
+        }
+    }
+}
+
+/// A table without the keys the registry does not know; those are reported as unknown already.
+fn registered_only(value: &toml::Value, table_path: &str) -> toml::Value {
     let Some(table) = value.as_table() else {
-        return SpaceSidebarSettings::parse(value);
+        return value.clone();
     };
     let mut admitted = table.clone();
-    admitted.retain(|key, _| {
-        let known = user_config_has_child("ui.sidebar.spaces", key);
-        if !known {
-            diagnostics.push(
-                unknown_field("ui.sidebar.spaces", key),
-                "unknown-key",
-                SettingsDiagnosticDisposition::Ignored,
-            );
-        }
-        known
-    });
-    SpaceSidebarSettings::parse(&toml::Value::Table(admitted))
+    admitted.retain(|key, _| user_config_has_child(table_path, key));
+    toml::Value::Table(admitted)
 }
 
 fn parse_terminal(
-    table: &toml::Table,
+    fields: &mut Fields<'_>,
     settings: &mut UserSettings,
-    diagnostics: &mut DiagnosticsCollector,
     path: &Path,
     env: &impl Fn(&str) -> Option<OsString>,
 ) {
-    for key in table
-        .keys()
-        .filter(|key| !user_config_has_child("terminal", key))
-    {
-        diagnostics.push(
-            unknown_field("terminal", key),
-            "unknown-key",
-            SettingsDiagnosticDisposition::Ignored,
-        );
+    if let Some(value) = fields.boolean("terminal.focus_new_panel") {
+        settings.focus_new_panel = value;
     }
-    if let Some(value) = table.get("focus_new_panel") {
-        match value.as_bool() {
-            Some(value) => settings.focus_new_panel = value,
-            None => diagnostics.push(
-                "terminal.focus_new_panel",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            ),
-        }
-    }
-    let Some(value) = table.get("new_cwd") else {
+    let Some(value) = fields.value("terminal.new_cwd") else {
         return;
     };
     let Some(value) = value.as_str() else {
-        diagnostics.push(
-            "terminal.new_cwd",
-            "wrong-type",
-            SettingsDiagnosticDisposition::Defaulted,
-        );
+        fields.push("terminal.new_cwd", "wrong-type");
         return;
     };
     let candidate = match value.trim() {
@@ -508,89 +603,7 @@ fn parse_terminal(
     };
     match candidate {
         Ok(candidate) => settings.cwd = Some(candidate),
-        Err(error) => diagnostics.push_error(&error, SettingsDiagnosticDisposition::Defaulted),
-    }
-}
-
-fn parse_update(
-    table: &toml::Table,
-    settings: &mut UserSettings,
-    diagnostics: &mut DiagnosticsCollector,
-) {
-    for key in table
-        .keys()
-        .filter(|key| !user_config_has_child("update", key))
-    {
-        diagnostics.push(
-            unknown_field("update", key),
-            "unknown-key",
-            SettingsDiagnosticDisposition::Ignored,
-        );
-    }
-    if let Some(value) = table.get("channel") {
-        match value.as_str() {
-            Some("stable") => {
-                settings.update_channel = UpdateChannel::Stable;
-                settings.update_channel_source = "file";
-            }
-            Some("preview") => {
-                settings.update_channel = UpdateChannel::Preview;
-                settings.update_channel_source = "file";
-            }
-            Some(_) => diagnostics.push(
-                "update.channel",
-                "invalid-channel",
-                SettingsDiagnosticDisposition::Defaulted,
-            ),
-            None => diagnostics.push(
-                "update.channel",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            ),
-        }
-    }
-    if let Some(value) = table.get("manifest_check") {
-        match value.as_bool() {
-            Some(value) => {
-                settings.manifest_check = value;
-                settings.manifest_check_source = "file";
-            }
-            None => diagnostics.push(
-                "update.manifest_check",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            ),
-        }
-    }
-}
-
-fn parse_worktrees(
-    table: &toml::Table,
-    settings: &mut UserSettings,
-    diagnostics: &mut DiagnosticsCollector,
-    path: &Path,
-    env: &impl Fn(&str) -> Option<OsString>,
-) {
-    for key in table
-        .keys()
-        .filter(|key| !user_config_has_child("worktrees", key))
-    {
-        diagnostics.push(
-            unknown_field("worktrees", key),
-            "unknown-key",
-            SettingsDiagnosticDisposition::Ignored,
-        );
-    }
-    let Some(value) = table.get("directory") else {
-        return;
-    };
-    let candidate = value
-        .as_str()
-        .ok_or(SettingsError::new("worktrees.directory", "wrong-type"))
-        .and_then(|value| normalize(value, path, env, "worktrees.directory"));
-    match candidate {
-        Ok(value) => settings.worktree_root = Some(value),
-        Err(error) => diagnostics.push_error(&error, SettingsDiagnosticDisposition::Defaulted),
+        Err(error) => fields.push_error(&error),
     }
 }
 

@@ -9,6 +9,7 @@ fn config_check_projects_file_creation_defaults() {
             ..UserSettings::default()
         },
         diagnostics: SettingsDiagnostics::default(),
+        syntax: None,
     })
     .unwrap();
     let details = settings.check_details();
@@ -40,6 +41,7 @@ fn config_check_details_satisfy_the_closed_schema_without_retired_fields() {
     let load = orchbee_local_runtime::UserSettingsLoad {
         settings: orchbee_local_runtime::UserSettings::default(),
         diagnostics: Default::default(),
+        syntax: None,
     };
     let details = super::project(load).unwrap().check_details();
     let check = json!({"name":"user-config","status":"pass","details":details});

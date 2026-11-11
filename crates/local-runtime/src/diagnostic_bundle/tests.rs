@@ -21,8 +21,8 @@ api_key = "sk-live-unrecognized"
 [terminal]
 new_cwd = 'c:/users/person/work'
 
-[update]
-manifest_check = "https://deploy:pa55@updates.example.com/manifest.json?token=abc123#latest"
+[agent_detection]
+auto_update = "https://deploy:pa55@updates.example.com/manifest.json?token=abc123#latest"
 
 [worktrees]
 directory = 'D:\runtime-base\trees'
@@ -63,7 +63,7 @@ fn settings_keep_their_keys_without_any_private_value() {
     assert_eq!(parsed["api_key"].as_str(), Some("<unrecognized>"));
     assert_eq!(parsed["terminal"]["new_cwd"].as_str(), Some("<home>/work"));
     assert_eq!(
-        parsed["update"]["manifest_check"].as_str(),
+        parsed["agent_detection"]["auto_update"].as_str(),
         Some("https://<credential>@updates.example.com/manifest.json?<query>#latest")
     );
     assert_eq!(

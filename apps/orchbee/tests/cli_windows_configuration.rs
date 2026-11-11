@@ -23,7 +23,8 @@ fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
     assert_eq!(doc["result"]["exists"], false);
     assert!(!config.parent().unwrap().exists());
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let bytes = b"# retained comment\n[update]\nchannel='preview'\nmanifest_check=false\n";
+    let bytes =
+        b"# retained comment\n[update]\nchannel='preview'\n[agent_detection]\nauto_update=false\n";
     std::fs::write(&config, bytes).unwrap();
     let output = run();
     assert!(output.status.success());
@@ -134,7 +135,7 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
     let fixture = Fixture::new();
     let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
+    let content = "[appearance.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[appearance.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
     std::fs::write(&config, content).unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
@@ -156,10 +157,10 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
         ("terminal_title_typo", "invalid-token"),
         ("unknown", "invalid-token"),
     ] {
-        let invalid = format!("[ui.sidebar.agents]\nrows=[['{token}']]");
+        let invalid = format!("[appearance.sidebar.agents]\nrows=[['{token}']]");
         std::fs::write(&config, &invalid).unwrap();
         let checked = config_check_document(&fixture);
-        assert_warning_diagnostic(&checked, "ui.sidebar.agents", reason, "defaulted");
+        assert_warning_diagnostic(&checked, "appearance.sidebar.agents", reason, "defaulted");
         let profile = orchbee_local_runtime::AgentSidebarSettings::from_profile(
             checked["result"]["checks"][5]["details"]["agentSidebarProfile"]
                 .as_str()
@@ -237,7 +238,9 @@ fn generated_default_config_passes_the_offline_config_check() {
         if let Some(action) = action_line.and_then(|line| line.strip_suffix(" = []")) {
             unbound.push(action.to_owned());
         }
-        uncommented.push_str(action_line.unwrap_or(line));
+        // The reference comments out its table headers too; the action rows need theirs.
+        let header = (line == "# [keys]").then_some("[keys]");
+        uncommented.push_str(action_line.or(header).unwrap_or(line));
         uncommented.push('\n');
     }
     std::fs::write(&config, uncommented).unwrap();
@@ -369,7 +372,10 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
         }
     };
     for (bytes, reason) in [
-        (vec![b'a'; 65537], "too-large"),
+        (
+            vec![b'a'; orchbee_local_runtime::MAXIMUM_USER_SETTINGS_BYTES as usize + 1],
+            "too-large",
+        ),
         (vec![0xff], "invalid-utf8"),
         (
             b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
@@ -400,14 +406,14 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             "ignored",
         ),
         (
-            "[ui.toast]\nenabled=true",
-            "ui.toast.enabled",
+            "[notifications]\nenabled=true",
+            "notifications.enabled",
             "unknown-key",
             "ignored",
         ),
         (
-            "[ui.toast]\ndelivery='invalid-provider'",
-            "ui.toast.delivery",
+            "[notifications]\ncli_delivery='invalid-provider'",
+            "notifications.cli_delivery",
             "invalid-mode",
             "defaulted",
         ),
@@ -490,7 +496,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
+        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'\n[agent_detection]\nauto_update=false",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -862,20 +868,25 @@ fn config_check_window_title_diagnostics() {
         ("{unknown}", default, Some("unknown-token")),
         ("{tab", default, Some("unclosed-brace")),
     ] {
-        std::fs::write(&config, format!("[ui]\nwindow_title='{title}'")).unwrap();
+        std::fs::write(&config, format!("[appearance]\nwindow_title='{title}'")).unwrap();
         let doc = config_check_document(&fixture);
         let check = &doc["result"]["checks"][5];
         assert_eq!(check["details"]["windowTitle"], effective);
         assert_eq!(check["details"]["windowTitleDiagnostic"], Value::Null);
         if let Some(diagnostic) = diagnostic {
-            assert_warning_diagnostic(&doc, "ui.window_title", diagnostic, "defaulted");
+            assert_warning_diagnostic(&doc, "appearance.window_title", diagnostic, "defaulted");
         } else {
             assert_eq!(check["status"], "pass");
         }
     }
-    std::fs::write(&config, "[ui]\nwindow_title=false").unwrap();
+    std::fs::write(&config, "[appearance]\nwindow_title=false").unwrap();
     let checked = config_check_document(&fixture);
-    assert_warning_diagnostic(&checked, "ui.window_title", "wrong-type", "defaulted");
+    assert_warning_diagnostic(
+        &checked,
+        "appearance.window_title",
+        "wrong-type",
+        "defaulted",
+    );
     assert_eq!(
         checked["result"]["checks"][5]["details"]["windowTitle"],
         default
@@ -890,7 +901,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[ui.toast]\ndelivery='orchbee'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound.agents]\ncodex='off'\npi='on'",
+        "[notifications]\ncli_delivery='orchbee'\ndelay_seconds=7\nposition='top-left'\n[notifications.sound_by_agent]\ncodex='off'\npi='on'",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -922,15 +933,15 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     );
     for (text, field, reason, detail, expected) in [
         (
-            "[ui.toast]\ndelivery='bad'",
-            "ui.toast.delivery",
+            "[notifications]\ncli_delivery='bad'",
+            "notifications.cli_delivery",
             "invalid-mode",
             "notificationDelivery",
             json!("off"),
         ),
         (
-            "[ui.toast]\ndelay_seconds=3601",
-            "ui.toast.delay_seconds",
+            "[notifications]\ndelay_seconds=3601",
+            "notifications.delay_seconds",
             "invalid-delay",
             "notificationDelaySeconds",
             json!(1),
@@ -949,7 +960,7 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
     let fixture = Fixture::new();
     let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let text = "[ui.sidebar.spaces]\nrows=[['state_icon','workspace'],[{token='branch',fg='#abc',rules=[{starts_with='worktree/',bold=true}]},'git_status','$branch']]\nrow_gap=2\n[ui.sidebar.agents]\nrows=[['agent']]";
+    let text = "[appearance.sidebar.workspaces]\nrows=[['state_icon','workspace'],[{token='branch',fg='#abc',rules=[{starts_with='worktree/',bold=true}]},'git_status','$branch']]\nrow_gap=2\n[appearance.sidebar.agents]\nrows=[['agent']]";
     std::fs::write(&config, text).unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
@@ -967,24 +978,28 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
     for (invalid, field, reason, disposition) in [
         (
             "rows=[['agent']]",
-            "ui.sidebar.spaces",
+            "appearance.sidebar.workspaces",
             "invalid-token",
             "defaulted",
         ),
         (
             "rows=[[{token='git_status',rules=[{gt=0}]}]]",
-            "ui.sidebar.spaces",
+            "appearance.sidebar.workspaces",
             "invalid-rules",
             "defaulted",
         ),
         (
             "rows_by_agent={codex=[]}",
-            "ui.sidebar.spaces.rows_by_agent",
+            "appearance.sidebar.workspaces.rows_by_agent",
             "unknown-key",
             "ignored",
         ),
     ] {
-        std::fs::write(&config, format!("[ui.sidebar.spaces]\n{invalid}")).unwrap();
+        std::fs::write(
+            &config,
+            format!("[appearance.sidebar.workspaces]\n{invalid}"),
+        )
+        .unwrap();
         let checked = config_check_document(&fixture);
         assert_warning_diagnostic(&checked, field, reason, disposition);
         let profile = orchbee_local_runtime::SpaceSidebarSettings::from_profile(

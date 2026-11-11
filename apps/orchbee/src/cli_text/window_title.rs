@@ -14,8 +14,8 @@ impl super::CliText {
             ),
             C::TerminalTitleClear => (
                 "orchbee terminal title clear [--format text|json]",
-                "Restore the configured ui.window_title template; an empty result displays Orchbee. Requires an existing session. With no foreground client, the change applies on a later attachment. An unknown result is never retried automatically.",
-                "恢复配置中的 ui.window_title 模板；结果为空时显示 Orchbee。需要已运行的会话。没有前台客户端时，在后续连接时应用；结果未知时不自动重试。",
+                "Restore the configured appearance.window_title template; an empty result displays Orchbee. Requires an existing session. With no foreground client, the change applies on a later attachment. An unknown result is never retried automatically.",
+                "恢复配置中的 appearance.window_title 模板；结果为空时显示 Orchbee。需要已运行的会话。没有前台客户端时，在后续连接时应用；结果未知时不自动重试。",
             ),
             _ => unreachable!("command help ownership"),
         };

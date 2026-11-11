@@ -51,13 +51,17 @@ impl From<SettingsError> for Error {
 }
 
 pub(super) fn load() -> Result<Settings, Error> {
-    project(read_user_settings(|name| std::env::var_os(name))?)
+    project(
+        read_user_settings(|name| std::env::var_os(name))
+            .and_then(UserSettingsLoad::require_valid_syntax)?,
+    )
 }
 
 fn project(load: UserSettingsLoad) -> Result<Settings, Error> {
     let UserSettingsLoad {
         settings: raw,
         diagnostics,
+        ..
     } = load;
     let path = |value: String, field| {
         WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))

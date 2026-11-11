@@ -5,11 +5,11 @@ impl super::CliText {
         match self.locale {
             Locale::EnUs => crate::cli_text::HelpDetails::new(
                 "orchbee notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request] [--format text|json]",
-                "Send to accepting main-TUI Clients on the running session; no session is started.\nTitle/body are normalized to 80/240 characters. Omitted position follows each Client configuration; no sound by default.\nui.toast.delivery selects off (default), orchbee, terminal or system.\nDelivery confirms queue admission, not display or sound playback. Lost replies are not retried.",
+                "Send to accepting main-TUI Clients on the running session; no session is started.\nTitle/body are normalized to 80/240 characters. Omitted position follows each Client configuration; no sound by default.\nnotifications.cli_delivery selects off (default), orchbee, terminal or system.\nDelivery confirms queue admission, not display or sound playback. Lost replies are not retried.",
             ),
             Locale::ZhCn => crate::cli_text::HelpDetails::new(
                 "orchbee notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request] [--format text|json]",
-                "发送到运行中会话可接收的主 TUI 客户端；不启动会话。标题/正文规范化为 80/240 个字符。省略位置时使用各客户端配置，默认无声音。\nui.toast.delivery 可选 off（默认）、orchbee、terminal 或 system。投递仅确认入队，不保证显示或播放声音。丢失响应不自动重试。",
+                "发送到运行中会话可接收的主 TUI 客户端；不启动会话。标题/正文规范化为 80/240 个字符。省略位置时使用各客户端配置，默认无声音。\nnotifications.cli_delivery 可选 off（默认）、orchbee、terminal 或 system。投递仅确认入队，不保证显示或播放声音。丢失响应不自动重试。",
             ),
         }
     }

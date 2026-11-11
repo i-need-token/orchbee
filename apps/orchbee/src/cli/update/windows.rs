@@ -23,6 +23,7 @@ pub(super) fn selected_channel(
     state: &dyn Fn(&str) -> Option<OsString>,
 ) -> io::Result<UpdateChannel> {
     orchbee_local_runtime::read_user_settings(state)
+        .and_then(orchbee_local_runtime::UserSettingsLoad::require_valid_syntax)
         .map(|settings| settings.update_channel)
         .map_err(io::Error::other)
 }

@@ -167,6 +167,17 @@ pub struct SettingKey {
 /// Platforms with their own launch-profile tables.
 pub const SETTING_PLATFORMS: [&str; 3] = ["windows", "macos", "linux"];
 
+/// The current platform's launch-profile table name.
+pub const fn current_platform() -> &'static str {
+    if cfg!(windows) {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+
 const BOTH: SettingClients = SettingClients::Both;
 
 const fn key(
@@ -782,6 +793,90 @@ pub fn find_setting(segments: &[&str]) -> Option<&'static SettingKey> {
     SETTING_KEYS
         .iter()
         .find(|setting| path_matches(setting.path, segments.iter().copied()))
+}
+
+/// Whether `key` is a registered key under `table_path`, or a table that holds registered keys.
+/// The root table is the empty path.
+pub(super) fn user_config_has_child(table_path: &str, key: &str) -> bool {
+    let candidate: Vec<&str> = table_path
+        .split('.')
+        .filter(|segment| !segment.is_empty())
+        .chain([key])
+        .collect();
+    SETTING_KEYS.iter().any(|setting| {
+        let pattern: Vec<&str> = setting.path.split('.').collect();
+        pattern.len() >= candidate.len()
+            && pattern
+                .iter()
+                .zip(&candidate)
+                .all(|(pattern, segment)| segment_matches(pattern, segment))
+    })
+}
+
+/// Whether a dotted path, with `[]` marking array elements, is a registered key or lies under one.
+pub(crate) fn recognized_path(path: &str) -> bool {
+    let segments: Vec<&str> = path.split('.').collect();
+    SETTING_KEYS.iter().any(|setting| {
+        let pattern: Vec<&str> = setting.path.split('.').collect();
+        pattern.len() <= segments.len()
+            && pattern.iter().zip(&segments).all(|(pattern, segment)| {
+                segment_matches(pattern, segment)
+                    || (!pattern.ends_with("[]")
+                        && segment
+                            .strip_suffix("[]")
+                            .is_some_and(|segment| segment_matches(pattern, segment)))
+            })
+    })
+}
+
+/// One admitted scalar value.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Scalar {
+    Boolean(bool),
+    Integer(i64),
+    Text(String),
+}
+
+impl SettingKey {
+    /// Admit `value` by this key's declared type, or return the diagnostic reason.
+    pub(super) fn admit(&self, value: &toml::Value) -> Result<Scalar, &'static str> {
+        match self.value {
+            V::Boolean => value.as_bool().map(Scalar::Boolean).ok_or("wrong-type"),
+            V::Integer {
+                minimum,
+                maximum,
+                step,
+            } => {
+                let value = value.as_integer().ok_or("wrong-type")?;
+                if (minimum..=maximum).contains(&value) && value % step == 0 {
+                    Ok(Scalar::Integer(value))
+                } else {
+                    Err("invalid-value")
+                }
+            }
+            V::Choice(choices) => {
+                let value = value.as_str().ok_or("wrong-type")?;
+                if choices.contains(&value) {
+                    Ok(Scalar::Text(value.to_owned()))
+                } else {
+                    Err("invalid-mode")
+                }
+            }
+            V::Text { maximum_bytes, .. } => {
+                let value = value.as_str().ok_or("wrong-type")?;
+                if value.len() <= maximum_bytes && !value.contains('\0') {
+                    Ok(Scalar::Text(value.to_owned()))
+                } else {
+                    Err("value-too-long")
+                }
+            }
+            V::Color | V::Theme | V::Path => value
+                .as_str()
+                .map(|value| Scalar::Text(value.to_owned()))
+                .ok_or("wrong-type"),
+            V::Structured(_) => Err("wrong-type"),
+        }
+    }
 }
 
 #[cfg(test)]

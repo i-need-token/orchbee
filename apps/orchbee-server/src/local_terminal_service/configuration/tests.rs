@@ -80,14 +80,14 @@ pub(in crate::local_terminal_service) fn maximum_accepted_source_with_escaped_pr
         .collect::<Vec<_>>()
         .join(",");
     let sidebars = format!(
-        "[ui.sidebar.agents]\nrows=[[{{token='agent',rules=[{rules}]}}]]\n\
-         [ui.sidebar.spaces]\nrows=[[{{token='workspace',rules=[{rules}]}}]]\n"
+        "[appearance.sidebar.agents]\nrows=[[{{token='agent',rules=[{rules}]}}]]\n\
+         [appearance.sidebar.workspaces]\nrows=[[{{token='workspace',rules=[{rules}]}}]]\n"
     );
     let unknown_fields = (0..40)
         .map(|index| format!("'{index:02}'=1\n"))
         .collect::<String>();
-    let source = format!("{commands}[ui]\n{unknown_fields}{sidebars}#x\n");
-    assert_eq!(source.len(), 64 * 1024);
+    let source = format!("{commands}[appearance]\n{unknown_fields}{sidebars}#x\n");
+    assert!(source.len() as u64 <= orchbee_local_runtime::MAXIMUM_USER_SETTINGS_BYTES);
     source
 }
 
@@ -168,7 +168,7 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
 fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() {
     let fixture = Fixture::new();
     fixture.write(
-        "[keys]\nprefix='ctrl+a'\n[ui.sidebar.agents]\nrows=[['state_text','$summary']]\nrow_gap=1\n[ui.sidebar.spaces]\nrows=[['workspace','$summary']]\nrow_gap=3",
+        "[keys]\nprefix='ctrl+a'\n[appearance.sidebar.agents]\nrows=[['state_text','$summary']]\nrow_gap=1\n[appearance.sidebar.workspaces]\nrows=[['workspace','$summary']]\nrow_gap=3",
     );
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
@@ -184,7 +184,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
         layout.rows_for_agent("codex", None).unwrap()[0][1].name(),
         "$summary"
     );
-    fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[['invalid-token']]");
+    fixture.write("[keys]\nprefix='ctrl+x'\n[notifications]\ncli_delivery='terminal'\n[appearance.sidebar.agents]\nrows=[['invalid-token']]");
     let Outcome::Reloaded {
         snapshot: agent_warning,
         changed: true,
@@ -195,7 +195,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     assert!(agent_warning.keys_profile.contains("ctrl+x"));
     assert_eq!(
         agent_warning.diagnostics.items[0].field,
-        "ui.sidebar.agents"
+        "appearance.sidebar.agents"
     );
     assert_eq!(
         orchbee_local_runtime::AgentSidebarSettings::from_profile(
@@ -210,7 +210,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
             .row_gap(),
         3
     );
-    fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[]\n[ui.sidebar.spaces]\nrows=[['agent']]");
+    fixture.write("[keys]\nprefix='ctrl+x'\n[notifications]\ncli_delivery='terminal'\n[appearance.sidebar.agents]\nrows=[]\n[appearance.sidebar.workspaces]\nrows=[['agent']]");
     let Outcome::Reloaded {
         snapshot: spaces_warning,
         changed: true,
@@ -220,10 +220,10 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     };
     assert_eq!(
         spaces_warning.diagnostics.items[0].field,
-        "ui.sidebar.spaces"
+        "appearance.sidebar.workspaces"
     );
     assert_eq!(current(&registry), spaces_warning);
-    fixture.write("[keys]\nprefix='ctrl+x'\n[ui.sidebar.agents]\nrows=[]\nrow_gap=2");
+    fixture.write("[keys]\nprefix='ctrl+x'\n[appearance.sidebar.agents]\nrows=[]\nrow_gap=2");
     let Outcome::Reloaded { snapshot: next, .. } =
         registry.execute(&request(Action::Reload), |_| true)
     else {
@@ -346,7 +346,7 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).revision.value(), 0);
-    fixture.write("[keys]\nprefix='ctrl+d'\n[update]\nmanifest_check=false");
+    fixture.write("[keys]\nprefix='ctrl+d'\n[agent_detection]\nauto_update=false");
     let Outcome::Reloaded {
         snapshot,
         changed: true,
@@ -428,7 +428,7 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
         ));
         lock.as_mut().unwrap().snapshot.revision = WorkbenchRevision::new(u64::MAX);
     }
-    fixture.write("[update]\nmanifest_check=false");
+    fixture.write("[agent_detection]\nauto_update=false");
     assert!(matches!(
         registry.execute(&request(Action::Reload), |_| panic!()),
         Outcome::Failed {
@@ -446,6 +446,7 @@ fn reload_releases_committed_state_while_loading_the_configuration_file() {
     let candidate = orchbee_local_runtime::UserSettingsLoad {
         settings,
         diagnostics: orchbee_local_runtime::SettingsDiagnostics::default(),
+        syntax: None,
     };
     let outcome = registry.execute_with(
         &request(Action::Reload),
@@ -471,18 +472,18 @@ fn reload_releases_committed_state_while_loading_the_configuration_file() {
 #[test]
 fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
     let fixture = Fixture::new();
-    fixture.write("[ui]\nwindow_title='{workspace}'");
+    fixture.write("[appearance]\nwindow_title='{workspace}'");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).window_title, "{workspace}");
-    fixture.write("[ui]\nwindow_title='{tab}/{pane}'");
+    fixture.write("[appearance]\nwindow_title='{tab}/{pane}'");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
     };
     assert_eq!(snapshot.window_title, "{tab}/{pane}");
     assert!(snapshot.diagnostics.items.is_empty());
-    fixture.write("[ui]\nwindow_title='{unknown}'");
+    fixture.write("[appearance]\nwindow_title='{unknown}'");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
@@ -491,15 +492,18 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
         snapshot.window_title,
         orchbee_local_runtime::DEFAULT_WINDOW_TITLE
     );
-    assert_eq!(snapshot.diagnostics.items[0].field, "ui.window_title");
-    fixture.write("[ui]\nwindow_title=''");
+    assert_eq!(
+        snapshot.diagnostics.items[0].field,
+        "appearance.window_title"
+    );
+    fixture.write("[appearance]\nwindow_title=''");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
     };
     assert!(snapshot.window_title.is_empty());
     assert!(snapshot.diagnostics.items.is_empty());
-    fixture.write("[ui]\nwindow_title=2");
+    fixture.write("[appearance]\nwindow_title=2");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
@@ -508,7 +512,10 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
         snapshot.window_title,
         orchbee_local_runtime::DEFAULT_WINDOW_TITLE
     );
-    assert_eq!(snapshot.diagnostics.items[0].field, "ui.window_title");
+    assert_eq!(
+        snapshot.diagnostics.items[0].field,
+        "appearance.window_title"
+    );
     assert_eq!(snapshot.diagnostics.items[0].reason, "wrong-type");
 }
 
@@ -520,7 +527,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     registry.initialize(&fixture.settings(true)).unwrap();
     for delivery in ["orchbee", "terminal", "system", "off"] {
         fixture.write(&format!(
-            "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'"
+            "[notifications]\ncli_delivery='{delivery}'\nagent_reminder='when-hidden'\nsound=true\ndelay_seconds=7\nposition='top-left'\n[notifications.sound_by_agent]\ncodex='off'"
         ));
         let Outcome::Reloaded { snapshot, .. } =
             registry.execute(&request(Action::Reload), |_| true)
@@ -532,8 +539,8 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         )
         .unwrap();
         assert_eq!(parsed.delivery.as_str(), delivery);
-        // Automatic Agent delivery and the global sound switch are shared user preferences;
-        // config.toml cannot select them.
+        // Automatic Agent delivery and the global sound switch are shared user preferences whose
+        // runtime source is still the preference store, so the file's values do not reach here.
         let defaults = orchbee_local_runtime::NotificationSettings::default();
         assert_eq!(
             parsed.agent_delivery.as_str(),
@@ -547,7 +554,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         );
         assert_eq!(parsed.position(), "top-left");
     }
-    fixture.write("[ui.toast]\ndelivery='bad'");
+    fixture.write("[notifications]\ncli_delivery='bad'");
     let Outcome::Reloaded {
         snapshot: delivery_warning,
         ..
@@ -557,7 +564,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     };
     assert_eq!(
         delivery_warning.diagnostics.items[0].field,
-        "ui.toast.delivery"
+        "notifications.cli_delivery"
     );
     assert_eq!(
         orchbee_local_runtime::NotificationSettings::from_profile(
@@ -566,7 +573,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         .unwrap(),
         orchbee_local_runtime::NotificationSettings::default()
     );
-    fixture.write("[ui.sound]\nenabled='yes'");
+    fixture.write("[notifications]\nsound='yes'");
     let Outcome::Reloaded {
         snapshot: sound_warning,
         ..
@@ -574,7 +581,10 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     else {
         panic!()
     };
-    assert_eq!(sound_warning.diagnostics.items[0].field, "ui.sound.enabled");
+    assert_eq!(
+        sound_warning.diagnostics.items[0].field,
+        "notifications.sound"
+    );
     assert_eq!(current(&registry), sound_warning);
 }
 
@@ -669,7 +679,7 @@ fn unreadable_preferences_are_one_retained_session_fact_across_configuration_rel
     );
     registry.note_unreadable_preferences();
     assert_eq!(current(&registry), first);
-    fixture.write("[ui]\nwindow_title = 'changed'\n");
+    fixture.write("[appearance]\nwindow_title = 'changed'\n");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!("reload");

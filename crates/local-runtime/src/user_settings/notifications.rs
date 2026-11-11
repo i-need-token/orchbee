@@ -1,9 +1,9 @@
 //! Manual and automatic notification policy shared by startup, checking and live reload.
+//!
+//! `config.toml` spells these keys under `[notifications]`; the Server-to-Client profile keeps its
+//! own `[ui.toast]` and `[ui.sound]` wire form.
 
-use super::{
-    DiagnosticsCollector, SettingsDiagnosticDisposition, SettingsError, unknown_field,
-    user_config_has_child,
-};
+use super::{DiagnosticsCollector, SettingsDiagnosticDisposition, SettingsError, unknown_field};
 
 pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
 pub const MAXIMUM_AGENT_SOUND_OVERRIDES: usize = 64;
@@ -71,140 +71,70 @@ impl NotificationSettings {
         Ok(settings)
     }
 
+    /// Admit the `[notifications]` keys this policy owns. Unknown keys are reported by the
+    /// reader's registry walk; the common preference keys in the same table belong elsewhere.
     pub(super) fn parse_lenient(
-        toast: Option<&toml::Value>,
-        sound: Option<&toml::Value>,
+        table: &toml::Table,
         diagnostics: &mut DiagnosticsCollector,
     ) -> Self {
         let mut settings = Self::default();
-        if let Some(raw) = toast {
-            settings.parse_toast_lenient(raw, diagnostics);
-        }
-        if let Some(raw) = sound {
-            settings.parse_sound_lenient(raw, diagnostics);
-        }
-        settings
-    }
-
-    fn parse_toast_lenient(&mut self, raw: &toml::Value, diagnostics: &mut DiagnosticsCollector) {
-        let Some(table) = raw.as_table() else {
-            diagnostics.push(
-                "ui.toast",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            );
-            return;
-        };
-        for key in table
-            .keys()
-            .filter(|key| !user_config_has_child("ui.toast", key))
-        {
-            diagnostics.push(
-                unknown_field("ui.toast", key),
-                "unknown-key",
-                SettingsDiagnosticDisposition::Ignored,
-            );
-        }
-        if let Some(delivery) = table.get("delivery") {
+        if let Some(delivery) = table.get("cli_delivery") {
             match parse_delivery(delivery, toast_error) {
-                Ok(value) => self.delivery = value,
-                Err(error) => {
-                    self.delivery = NotificationDelivery::Off;
-                    diagnostics.push(
-                        "ui.toast.delivery",
-                        error.reason,
-                        SettingsDiagnosticDisposition::Defaulted,
-                    );
-                }
+                Ok(value) => settings.delivery = value,
+                Err(error) => diagnostics.push(
+                    "notifications.cli_delivery",
+                    error.reason,
+                    SettingsDiagnosticDisposition::Defaulted,
+                ),
             }
         }
         if let Some(delay) = table.get("delay_seconds") {
-            match delay.as_integer().and_then(|value| value.try_into().ok()) {
-                Some(value) if value <= MAXIMUM_NOTIFICATION_DELAY_SECONDS => {
-                    self.delay_seconds = value;
+            match delay.as_integer().map(u64::try_from) {
+                Some(Ok(value)) if value <= MAXIMUM_NOTIFICATION_DELAY_SECONDS => {
+                    settings.delay_seconds = value;
                 }
                 Some(_) => diagnostics.push(
-                    "ui.toast.delay_seconds",
+                    "notifications.delay_seconds",
                     "invalid-delay",
                     SettingsDiagnosticDisposition::Defaulted,
                 ),
                 None => diagnostics.push(
-                    "ui.toast.delay_seconds",
-                    if delay.as_integer().is_some() {
-                        "invalid-delay"
-                    } else {
-                        "wrong-type"
-                    },
-                    SettingsDiagnosticDisposition::Defaulted,
-                ),
-            }
-        }
-        let Some(overlay) = table.get("overlay") else {
-            return;
-        };
-        let Some(overlay) = overlay.as_table() else {
-            diagnostics.push(
-                "ui.toast.overlay",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            );
-            return;
-        };
-        for key in overlay
-            .keys()
-            .filter(|key| !user_config_has_child("ui.toast.overlay", key))
-        {
-            diagnostics.push(
-                unknown_field("ui.toast.overlay", key),
-                "unknown-key",
-                SettingsDiagnosticDisposition::Ignored,
-            );
-        }
-        if let Some(position) = overlay.get("position") {
-            match position.as_str() {
-                Some("top-left") => self.position = "top-left",
-                Some("top-right") => self.position = "top-right",
-                Some("bottom-left") => self.position = "bottom-left",
-                Some("bottom-right") => self.position = "bottom-right",
-                Some(_) => diagnostics.push(
-                    "ui.toast.overlay.position",
-                    "invalid-mode",
-                    SettingsDiagnosticDisposition::Defaulted,
-                ),
-                None => diagnostics.push(
-                    "ui.toast.overlay.position",
+                    "notifications.delay_seconds",
                     "wrong-type",
                     SettingsDiagnosticDisposition::Defaulted,
                 ),
             }
         }
+        if let Some(position) = table.get("position") {
+            match position.as_str().map(corner) {
+                Some(Some(corner)) => settings.position = corner,
+                Some(None) => diagnostics.push(
+                    "notifications.position",
+                    "invalid-mode",
+                    SettingsDiagnosticDisposition::Defaulted,
+                ),
+                None => diagnostics.push(
+                    "notifications.position",
+                    "wrong-type",
+                    SettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+        if let Some(agents) = table.get("sound_by_agent") {
+            settings.parse_agent_sounds_lenient(agents, diagnostics);
+        }
+        settings
     }
 
-    fn parse_sound_lenient(&mut self, raw: &toml::Value, diagnostics: &mut DiagnosticsCollector) {
-        let Some(table) = raw.as_table() else {
-            diagnostics.push(
-                "ui.sound",
-                "wrong-type",
-                SettingsDiagnosticDisposition::Defaulted,
-            );
-            return;
-        };
-        for key in table
-            .keys()
-            .filter(|key| !user_config_has_child("ui.sound", key))
-        {
-            diagnostics.push(
-                unknown_field("ui.sound", key),
-                "unknown-key",
-                SettingsDiagnosticDisposition::Ignored,
-            );
-        }
-        let Some(agents) = table.get("agents") else {
-            return;
-        };
+    fn parse_agent_sounds_lenient(
+        &mut self,
+        agents: &toml::Value,
+        diagnostics: &mut DiagnosticsCollector,
+    ) {
+        const FIELD: &str = "notifications.sound_by_agent";
         let Some(agents) = agents.as_table() else {
             diagnostics.push(
-                "ui.sound.agents",
+                FIELD,
                 "wrong-type",
                 SettingsDiagnosticDisposition::Defaulted,
             );
@@ -212,14 +142,14 @@ impl NotificationSettings {
         };
         if agents.len() > MAXIMUM_AGENT_SOUND_OVERRIDES {
             diagnostics.push(
-                "ui.sound.agents",
+                FIELD,
                 "too-many-agents",
                 SettingsDiagnosticDisposition::Defaulted,
             );
             return;
         }
         for (agent, value) in agents {
-            let field = unknown_field("ui.sound.agents", agent);
+            let field = unknown_field(FIELD, agent);
             if !valid_agent_id(agent) {
                 diagnostics.push(
                     field,
@@ -281,20 +211,12 @@ impl NotificationSettings {
         }
         if let Some(overlay) = table.get("overlay") {
             let overlay = overlay.as_table().ok_or(toast_error("wrong-type"))?;
-            if overlay
-                .keys()
-                .any(|key| !user_config_has_child("ui.toast.overlay", key))
-            {
+            if overlay.keys().any(|key| key != "position") {
                 return Err(toast_error("unknown-key"));
             }
             if let Some(position) = overlay.get("position") {
-                self.position = match position.as_str().ok_or(toast_error("wrong-type"))? {
-                    "top-left" => "top-left",
-                    "top-right" => "top-right",
-                    "bottom-left" => "bottom-left",
-                    "bottom-right" => "bottom-right",
-                    _ => return Err(toast_error("invalid-mode")),
-                };
+                self.position = corner(position.as_str().ok_or(toast_error("wrong-type"))?)
+                    .ok_or(toast_error("invalid-mode"))?;
             }
         }
         Ok(())
@@ -345,6 +267,12 @@ fn parse_delivery(
         "system" => NotificationDelivery::System,
         _ => return Err(error("invalid-mode")),
     })
+}
+
+fn corner(value: &str) -> Option<&'static str> {
+    ["top-left", "top-right", "bottom-left", "bottom-right"]
+        .into_iter()
+        .find(|corner| *corner == value)
 }
 
 fn valid_agent_id(value: &str) -> bool {

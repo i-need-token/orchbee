@@ -52,7 +52,7 @@ fn text_rules_match_raw_values_and_family_specific_non_text_tokens_reject_rules(
     ] {
         assert_eq!(
             parse(text).unwrap_err().field,
-            "ui.sidebar.spaces",
+            "appearance.sidebar.workspaces",
             "{text}"
         );
     }

@@ -45,19 +45,10 @@ pub fn redact_preferences(bytes: &[u8], redactor: &DiagnosticRedactor) -> Option
     Some(value)
 }
 
-/// A settings path is recognized when it or an ancestor is a documented option, with `*`
-/// standing for one map key and `[]` for an array element.
+/// A settings path is recognized when it or an ancestor is a registered key, with `[]` marking an
+/// array element.
 fn recognized(path: &str) -> bool {
-    let segments: Vec<&str> = path.split('.').collect();
-    crate::USER_CONFIG_OPTIONS.iter().any(|option| {
-        let pattern: Vec<&str> = option.path.split('.').collect();
-        pattern.len() <= segments.len()
-            && pattern.iter().zip(&segments).all(|(pattern, segment)| {
-                *pattern == "*"
-                    || pattern == segment
-                    || segment.strip_suffix("[]") == Some(*pattern)
-            })
-    })
+    crate::user_settings::recognized_path(path)
 }
 
 fn redact(

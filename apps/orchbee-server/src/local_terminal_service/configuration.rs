@@ -99,6 +99,7 @@ impl Registry {
         self.initialize_load(&UserSettingsLoad {
             settings: settings.clone(),
             diagnostics: SettingsDiagnostics::default(),
+            syntax: None,
         })
     }
     #[cfg(all(test, windows))]
@@ -247,8 +248,11 @@ impl Registry {
             registry: self,
             active: true,
         };
-        // File I/O and TOML preparation run without the committed-state mutex.
-        let candidate = match load(frozen.current.path.as_deref(), frozen.current.explicit) {
+        // File I/O and TOML preparation run without the committed-state mutex. A file that is not
+        // valid TOML fails the reload, so the committed settings stay until the file changes.
+        let candidate = match load(frozen.current.path.as_deref(), frozen.current.explicit)
+            .and_then(UserSettingsLoad::require_valid_syntax)
+        {
             Ok(candidate) => candidate,
             Err(error) => {
                 return Outcome::Failed {

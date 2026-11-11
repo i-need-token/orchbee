@@ -33,7 +33,7 @@ struct RawSettings {
     row_gap: u16,
 }
 pub(super) fn error(reason: &'static str) -> SettingsError {
-    SettingsError::new("ui.sidebar.spaces", reason)
+    SettingsError::new("appearance.sidebar.workspaces", reason)
 }
 fn token_kind(name: &str) -> Result<SpaceSidebarTokenKind<'_>, SettingsError> {
     use SpaceSidebarTokenKind::*;

@@ -41,7 +41,7 @@ struct RawSettings {
     row_gap: u16,
 }
 pub(super) fn error(reason: &'static str) -> SettingsError {
-    SettingsError::new("ui.sidebar.agents", reason)
+    SettingsError::new("appearance.sidebar.agents", reason)
 }
 fn token_kind(name: &str) -> Result<AgentSidebarTokenKind<'_>, SettingsError> {
     use AgentSidebarTokenKind::*;

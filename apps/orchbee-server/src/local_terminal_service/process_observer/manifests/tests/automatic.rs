@@ -11,7 +11,7 @@ fn id(n: u64) -> WorkbenchRequestId {
 fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes_policy() {
     let root = Root::new();
     let path = root.0.join("config.toml");
-    std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
+    std::fs::write(&path, "[agent_detection]\nauto_update=true").unwrap();
     let settings =
         orchbee_local_runtime::read_user_settings_at(Some(&path), true, |_| None).unwrap();
     let http = Http::start(vec![
@@ -93,7 +93,7 @@ fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes
     };
     assert!(wake.manifests.apply_configuration(&disabled));
     // Rule reload never reads config.toml, so an edited file cannot bypass configuration publication.
-    std::fs::write(&path, "[update\nmanifest_check=true").unwrap();
+    std::fs::write(&path, "[agent_detection\nauto_update=true").unwrap();
     wake.manifests.execute(&Action::Reload {
         operation_id: id(2),
     });
@@ -123,7 +123,7 @@ fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes
 fn unconfigured_source_reads_no_remote_state_and_admits_no_update() {
     let root = Root::new();
     let path = root.0.join("config.toml");
-    std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
+    std::fs::write(&path, "[agent_detection]\nauto_update=true").unwrap();
     let remote = orchbee_local_runtime::DataRoot::at(root.0.clone()).agent_detection_cache();
     std::fs::create_dir_all(&remote).unwrap();
     // Any read of this unconfirmed status would surface as a cache status error.
