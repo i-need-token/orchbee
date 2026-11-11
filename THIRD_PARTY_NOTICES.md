@@ -39,7 +39,8 @@ imply endorsement by their creators.
   [`apps/orchbee-server/src/agent_screen/regions.rs`](apps/orchbee-server/src/agent_screen/regions.rs)
 - Modifications: Orchbee owns local rule corrections, its parser, and its sampling integration;
   `grok.toml` adds browser-authentication blockers and an uncertain-login guard; region matching
-  uses UTF-8-safe CRLF offsets
+  uses UTF-8-safe CRLF offsets. Rule files that `NOTICE` names as authored by Orchbee are not
+  derived from Herdr
 - License text and notice: [`LICENSE`](apps/orchbee-server/resources/agent-detection/LICENSE) and
   [`NOTICE`](apps/orchbee-server/resources/agent-detection/NOTICE)
 
