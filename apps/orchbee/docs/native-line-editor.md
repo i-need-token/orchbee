@@ -11,8 +11,13 @@ name, the shortcut-help filter, and copy-mode search. It covers the editing voca
 fields: insert (typed input and atomic paste share one path), Backspace, Delete, Left, Right,
 Home/Ctrl+A, End/Ctrl+E, and the shared readline keys `LineKey` names: `Ctrl+U` and `Ctrl+K` kill to
 the start or end, `Ctrl+W` and `Alt+D` kill the word before or after the cursor, `Alt+B` and `Alt+F`
-move by word, and `Ctrl+Y` yanks the most recent kill. Selection, undo history, and Up/Down
-remapping are outside this core; consumers leave unbound keys ignored rather than forwarding them.
+move by word, and `Ctrl+Y` yanks the most recent kill. The only selection is the whole prefilled
+value of a name field, which opens selected: an insertion (typing, paste or yank) replaces it,
+Backspace, Delete or a kill clears it (a kill keeps it for `Ctrl+Y`), and Left, Home or `Alt+B` end
+it with the cursor at the start, Right, End or `Alt+F` at the end. Only Tab, Panel, Tab group,
+Project and Workspace name drafts select their prefill; queries, paths and other fields never do.
+Partial selection, undo history, and Up/Down remapping are outside this core; consumers leave
+unbound keys ignored rather than forwarding them.
 
 `LineKey::for_key` is the one map from a decoded host key to a shared key, on the exact normalized
 modifier set; the modal decoder emits the same keys from legacy bytes (`0x15`, `0x0b`, `0x17`,
@@ -83,8 +88,9 @@ over the _visible_ text by whole grapheme clusters. The returned window is the
 drawable text plus the cursor column strictly inside the field width; a zero-width field yields
 `None` rather than a fake position, and a cluster wider than the remaining space is never split.
 
-The rename and workspace renderers draw that window inside the modal's padded inner area and place
-the terminal cursor at the field row plus the cursor column. Their typed `ModalPresentation`
+The rename and workspace renderers draw that window inside the modal's padded inner area, a
+selected value on the `surface-selection` fill over its own cells, and place the terminal cursor at
+the field row plus the cursor column. Their typed `ModalPresentation`
 receipt attests that the complete surface, field window and exact cursor projection were painted.
 An evaluated geometry block refuses a newly opened draft that has never painted. Once a draft has
 painted, the same block suspends that incarnation while preserving its token, raw text, grapheme
@@ -100,10 +106,11 @@ Deterministic unit tests cover five-scalar family emoji, ZWJ and regional-indica
 combining-mark insertion and deletion, Unicode word deletion over whitespace, punctuation, emoji,
 and mixed Chinese/English, kill chaining and yank, word movement over combining, CJK and emoji
 text, atomic yank rejection, the exact-modifier key map, exact scalar and byte limit boundaries,
-atomic rejection, byte-exact prefill, and cursor-at-end. The modal decoder table covers the
+atomic rejection, byte-exact prefill, cursor-at-end, and how each key family replaces, clears or
+ends a selected prefill. The modal decoder table covers the
 legacy byte forms of the shared keys. Projection witnesses cover whole-sequence stripping with raw cursors
 inside the removed span, narrow windows with cursor motion, ordinary Chinese, emoji, and combining
-marks, and zero-width fields. Draft-level tests cover prefill-at-end editing, navigation, deletion,
+marks, and zero-width fields. Draft-level tests cover editing after a prefill, navigation, deletion,
 word-backspace, atomic paste, picker inertness, and fault recovery; renderer and session journeys
 witness the drawn window, the placed cursor, and exact raw submission.
 The [Settings renderer witnesses](../crates/workbench-client/src/tui_render/settings/tests.rs) check control/ANSI removal

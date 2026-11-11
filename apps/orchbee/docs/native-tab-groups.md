@@ -1,10 +1,12 @@
 # Native Tab groups and capability coverage
 
 The native TUI projects canonical group identities, names, colors, membership and pinned
-state. The compact strip and the Mobile tier's Tab list render each group header with its disclosure
-arrow in both states: `▾` while expanded, `▸` while collapsed, and `v` or `>` in ASCII. An expanded
-group's members carry a rule in the group's color, the tree guide `│` (`|` in ASCII), in their
-leading cell.
+state. The compact strip renders each group header as a solid chip in the group's color with black
+or white text, whichever contrasts more, and its disclosure arrow in both states: `▾` while expanded,
+`▸` while collapsed, and `v` or `>` in ASCII. While expanded, a faint band of the group's color runs
+from the chip under every member and the gaps between them, and stops after the last member; a
+collapsed group is the chip alone. A resting pointer on the chip names the group and up to five
+members, then how many more.
 The Tab menu holds only actions on its Tab: rename, pinning, group membership and close.
 Group headers and the new-Tab button own separate menus; selection and movement use Ctrl+click,
 dragging and the global menu.
@@ -28,7 +30,7 @@ Native entries refer to the shared TUI on all supported platforms. This is a cap
 | Assign/remove group membership                      | Selected set through `moveTabsToGroup`                                                                                                                                                                             | Exact selected set; joining unpins, source empties are removed and surviving groups stay contiguous.                                                                                                                                |
 | Rename/recolor/ungroup                              | Group menu through `updateGroup`/`ungroup`                                                                                                                                                                         | Implemented for the complete canonical group, including all nine colors. Ungroup preserves terminals.                                                                                                                               |
 | Move group                                          | `shiftGroupRelative`, accepted drag arrangement                                                                                                                                                                    | Pointer drag moves the full group as one collection; pinned and unpinned members never mix. The group menu has no movement rows.                                                                                                    |
-| Collapse/expand                                     | Client view `collapsedGroupIds`, projected into `TabModel`                                                                                                                                                         | Header press; identity-keyed Client-local state. Native disclosure is not persisted and is retained for one context at a time.                                                                                                      |
+| Collapse/expand                                     | Client view `collapsedGroupIds`, projected into `TabModel`                                                                                                                                                         | Header press, and the global menu's **Collapse group** while the current Tab's group is expanded; identity-keyed Client-local state. Native disclosure is not persisted and is retained for one context at a time.                  |
 | New Tab in group / new group with Tab               | A Server Client sends the same atomic placement. Local creation routes also honor it; Main-held remote routes refuse grouped placement and disable new-group creation                                              | Implemented through one atomic `tab.create` placement; new Tabs activate after validated creation. The local GUI route uses two model commits.                                                                                      |
 | New Tab to right/below                              | A Server Client sends `after-tab` and disables the entry inside the pinned prefix. The local owner honors target group and index + 1, rejecting incompatible pinned-boundary placement                             | The global menu's **New Tab to right** targets the current Tab. Atomic placement keeps its group and index + 1; insertion inside the pinned prefix refuses before runtime allocation. Group-menu creation stays group-tail.         |
 | Duplicate                                           | Selected invoked target expands to the selected set. A Server Client copies several sources as one Server operation; local creation enables both single and multiple sources, Main-held remote routes disable both | Selected target expands to the initial canonical selected IDs; unselected target stays exact. One Server operation for several Tabs, with bounded partial/unknown results and preserved selection. No live split-tree or PTY clone. |
@@ -84,11 +86,21 @@ The localized wording distinguishes selected members from a whole group without 
 Collapsed state remains Client-local, matching the authority in
 `apps/web/src/workbench/document/workbench-client-view.ts`. Header disclosure does not
 select a member, submit a command, advance a shared revision or hide members from the navigator.
-A group name uses its color as a bold accent over a faint tint; current and pointer surfaces replace
-only the tint through the [theme owner](native-themes.md#selection-and-ownership). Monochrome
-preserves names, disclosure and the current surface's fallback. Names pass through the existing
-terminal-text sanitizer and cell-width clipping. Pointer regions come from the same paint as the
-header and member tokens.
+A resting chip shows its bold name on the solid accent. Pointer, marked and current surfaces replace
+the chip with that surface and paint the name in the accent, and a member's surface replaces the
+band on that member only, through the [theme owner](native-themes.md#selection-and-ownership).
+Color levels without a faint fill (sixteen colors and `terminal-native`) keep the solid chip but no
+band, so a resting member's label takes the group's accent instead. Monochrome and NO_COLOR show a
+reverse-video chip and keep the tree guide `│` (`|` in ASCII) in each expanded member's leading
+cell, the only membership cue left without color. Names pass through the existing terminal-text
+sanitizer and cell-width clipping. Pointer regions come from the same paint as the header and
+member tokens.
+
+The Mobile tier's Tab list fills a resting header row with the group's accent, with its name at the
+row's start and the arrow in the current Tab's close-glyph column. A bar `│` of the group's color
+runs down the column under the name from the first member's line through the last member's,
+including the blank lines between spaced members. Keyboard focus on a header replaces the fill with
+the selection surface and accent text.
 
 ## Pointer arrangement and menu navigation
 
@@ -126,8 +138,7 @@ Escape, outside release, modified pointer input, focus loss, capture release, co
 source or changed painted rectangles cancels without a write. Cancelled gestures consume their
 remaining release. Ordinary clicks activate or disclose on release. As with native marking,
 dragging preserves the current terminal; the GUI may activate a dragged member on press.
-Headers carry no member count or brackets: the tint, adjacency and each expanded member's rule mark
-membership. A collapsed header retains name, color and disclosure, takes the current surface while
+Headers carry no member count or brackets: the chip, the band and adjacency mark membership. A collapsed header retains name, color and disclosure, takes the current surface while
 it hides the active Tab, and carries its members' most urgent Agent state and unread dot.
 
 The pure configuration corpus compares ten drag outcomes with GUI `TabModel.moveTabsByDrag`.

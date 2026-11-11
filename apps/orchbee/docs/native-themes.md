@@ -100,13 +100,15 @@ inner body with its independent terminal defaults and explicit program colors.
 
 Each theme owns one accent per Tab group color. Named themes take the catalog's Tab-group roles;
 terminal-native uses named ANSI colors, except orange, which has no ANSI name and uses RGB
-`[255, 165, 0]`; a host at a lower color level quantizes it. A group header writes its name in
-the bold accent on a resting tint that mixes 20% of the accent into the theme's strip fill.
-Terminal-native has no concrete strip color to mix, and 16-color hosts cannot express a faint fill,
-so their headers rest on the strip with the accent text alone. A current, hover or pressed surface
-replaces only the tint; the accent name stays readable on it, and leaving the header restores the
-tint or current surface. Group color swatches in menus paint the same accent. Monochrome hosts use
-the ordinary role resolver and interaction fallbacks.
+`[255, 165, 0]`; a host at a lower color level quantizes it. A resting group header is a solid
+block of the accent with black or white text, whichever contrasts more with it, chosen in the
+accent's own color space. An expanded group's members and the gaps between them rest on a band
+that mixes 20% of the accent into the theme's strip fill. Terminal-native has no concrete strip
+color to mix, and 16-color hosts cannot express a faint fill, so they paint no band and a resting
+member's label takes the accent instead. A current, hover or pressed surface replaces the block or
+the band on its own token, with the accent name readable on it, and leaving restores the block or
+band. Group color swatches in menus paint the same accent. Monochrome hosts show the header in
+reverse video and otherwise use the ordinary role resolver and interaction fallbacks.
 
 The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. In
 Orchbee Light and Orchbee Dark these roles carry the

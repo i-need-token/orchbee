@@ -60,8 +60,9 @@ bytes. A GUI on a native Session names Tabs and terminals by this rule too, and
 [its README](../../web/README.md) records where it differs.
 
 Automatic rename drafts start empty with the same current display name as an informational
-placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI shows the
-rename draft in its modal Rename Tab dialog, whose target line names the Tab's current label. Enter
+placeholder; only typed text can submit. Fixed names prefill the editor wholly selected, so typing
+replaces them. The native TUI shows the rename draft in its modal Rename Tab dialog, the shared name
+dialog every rename and group name uses: the field holds the name, with no line repeating it. Enter
 submits the name with leading and trailing whitespace trimmed, as the GUI does, and Esc cancels,
 under the same exact shown token and input fences. A trimmed copy of a fixed Tab's current name is
 unchanged, and a whitespace-only name is refused.

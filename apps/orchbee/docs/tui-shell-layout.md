@@ -828,10 +828,12 @@ At 24 rows or more, with column R the window's last and line B its last:
 | B        | the status chip                                                                                 |
 
 - Pinned Tabs come first; the strip's rule falls on the touch line above the first unpinned row.
-- A Tab Group shows as its name in its color, bold, with ` ▸` after a collapsed name; its member
-  Tabs are indented by two cells. A collapsed group's row carries its hidden members' state glyph
-  and dot, as its strip header does, and takes the current fill while it hides the current Tab,
-  which then shows no row and no `[ x ]`, as on the strip.
+- A Tab Group's header row is filled with its color across the row, with its name, bold, at
+  column 1 and `▾` or `▸` in the current Tab's close-glyph column. Its member Tabs are indented by
+  two cells beside a bar `│` of its color at column 1 that runs from the first member's line through
+  the last's, touch lines included. A collapsed group's row carries its hidden members' state glyph
+  and dot after the name, as its strip header does, and takes the current fill while it hides the
+  current Tab, which then shows no row and no `[ x ]`, as on the strip.
 - Row content follows the strip token: state glyph, name cut with `…`, unread dot. The current
   Tab's row has the current fill across the width and ends with `[ x ]` at R-5..R-1, a seven-cell
   target that requests its close as the strip's close button does.
@@ -1026,9 +1028,9 @@ terminal appearance.
 ## Tab metadata annotations
 
 Pinned Tabs use the localized `Pinned` / `固定` annotation in the navigator; the compact
-strip separates them from other Tabs with one vertical rule. It paints separate tinted group headers
-with a disclosure cell and no member count; expanded members retain their ordinary Tab tokens, and a
-collapsed header identifies an active member. The navigator keeps every canonical
+strip separates them from other Tabs with one vertical rule. It paints each group header as a solid
+chip of its color with a disclosure cell and no member count; expanded members keep their ordinary
+Tab tokens on a band of the group's color, and a collapsed header identifies an active member. The navigator keeps every canonical
 Tab available with its group annotation. Text passes the existing sanitizer and cell-width budget;
 painted widths define the exact Tab/group pointer regions. Display annotations never become raw
 names or automatic ordinals. The [Tab group contract](native-tab-groups.md) owns disclosure,
