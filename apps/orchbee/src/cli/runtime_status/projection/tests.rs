@@ -48,6 +48,8 @@ fn cohort_io_kind_uses_closed_stable_tokens() {
     );
 }
 
+// Only a Windows release installation produces this report, and its schema names that platform.
+#[cfg(windows)]
 #[test]
 fn installed_channel_is_bound_to_release_observation_without_widening_v1() {
     let schema: Value =
