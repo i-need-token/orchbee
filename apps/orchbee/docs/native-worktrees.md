@@ -15,6 +15,16 @@ Default creation gives the Workspace a short localized name (Worktree 1, Worktre
 choosing the first unused name across the current snapshot. The generated Git branch retains its
 unique operation identity. Renaming the Workspace later does not rename the branch or move files.
 
+New Worktree in the [Start Agent picker](agent-board.md) opens the same form for one create under
+the same refusals, with the picker left open beneath it. The Branch field is prefilled with
+`agent/<provider id>` and editable; this draft never submits defaults on its first draw and waits
+for the form's own Enter, so the Workspace takes its name from the branch as an explicit create's
+does. Cancelling before submission returns to the picker with its query, cursor and place. The
+submitted create carries the provider's catalog id as `agentStart`, which the Server hands to the
+new Workspace's first shell; the retained operation keeps it in memory only, for exact replay
+correlation and Resume, and no record on disk stores it. A failed create shows the form's own
+failure and starts nothing.
+
 The directory follows the [CLI Worktree policy](windows-worktrees.md). The native Client takes
 `worktrees.directory` from the Session's applied configuration snapshot and never reads
 `config.toml`; before the first snapshot is applied, Worktree launch reports configuration as
@@ -244,6 +254,7 @@ open menu omits the Worktree rows once Git refuses it, and a checkout every Work
 | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | Hidden → prepare                     | Capture current semantic origin; read source and listing without mutation                       |
 | Prepared Create → Start              | Still-current visible intent authorizes one plan using defaults; no second confirmation         |
+| Picker Create → Start                | Prefilled `agent/<provider>` draft waits for Enter; the plan carries the catalog id             |
 | Prepared Open → list                 | Exact source, Session, non-stale revision and stable checkout paths                             |
 | Choose Open                          | A complete current draw token and decoded packet authorize that exact choice                    |
 | Cancel preparation or list           | Drop unsubmitted intent; late discovery cannot start an operation                               |
@@ -282,7 +293,8 @@ has the [existing retention limit](windows-worktrees.md#retained-continuation).
 
 ## Correctness and verification
 
-Maintain witnesses for default one-step creation, checkout selection, current-group attachment,
+Maintain witnesses for default one-step creation, the picker's prefilled create and its Agent
+start, checkout selection, current-group attachment,
 closed/closing source refusal, cancellation, exact draw authority, ambiguous handoff, known partial
 facts, Start/Read separation, target replacement and bounded Viewer release. Removal witnesses cover
 exact linked targets, no automatic submission, full bilingual confirmation, dirty failure, cancelled

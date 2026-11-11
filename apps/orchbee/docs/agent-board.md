@@ -77,7 +77,8 @@ lookup is running. A late result never moves the cursor off the provider it rest
 hints about this Client's PATH, not guarantees about the target terminal.
 
 There is no name field. `Enter` or a row click, against the current successful draw, closes the
-picker on the same frame and starts the provider. A terminal's Enter arrives as a bare CR, the
+picker on the same frame and starts the provider; only new Worktree keeps the picker under the form
+it opens. A terminal's Enter arrives as a bare CR, the
 canonical `Ctrl+M`, and starts the same way. A start the picker cannot make leaves it open and says
 why: the status row on a host that cannot start Agents, otherwise "Agent did not start" in the status
 line.
@@ -85,14 +86,15 @@ line.
 The place row names where the Agent opens before `Enter`. The place is automatic and nothing is
 asked: the focused Panel when its shell is idle — no known Agent holds it and none of this Client's
 starts guards it — else a new Tab. `Tab` moves to the next offered place and `Shift+Tab` to the
-previous one, wrapping, in the order this Panel, new Tab, split right, split down; a click on the
-place row acts like `Tab`. This Panel is offered only when it is the automatic place, and the two
-splits only while a Panel is focused; the offer is fixed when the picker opens. The chosen place
-holds while the picker stays open, also across filtering, and is forgotten when it closes. The place
-row is never removed under height pressure; a row too narrow for the label and the place drops the
+previous one, wrapping, in the order this Panel, new Tab, split right, split down, new Worktree; a
+click on the place row acts like `Tab`. This Panel is offered only when it is the automatic place,
+the two splits only while a Panel is focused, and new Worktree only while the
+[New Worktree form](native-worktrees.md) could open a fresh create for the focused Workspace, under
+the refusals `Ctrl+B W` meets; the offer is fixed when the picker opens. The chosen place holds
+while the picker stays open, also across filtering, and is forgotten when it closes. The place row
+is never removed under height pressure; a row too narrow for the label and the place drops the
 label "Opens in" first, then truncates the place name, and the hint row drops `Tab place` before
-its other hints. New Worktree is not offered yet: the worktree operation launches its Workspace on
-the Server and its request has no field that carries the Agent.
+its other hints.
 
 In the focused Panel the provider is typed through the same single-submission workflow as the CLI,
 which keeps its named start. A new Tab comes from the ordinary Tab creation in the focused
@@ -100,8 +102,13 @@ Workspace with the provider's catalog id: the Server launches the Tab's shell wi
 first command, so nothing is typed, the Panel shows the Agent's own first screen, and the shell
 stays when the Agent exits. A split goes through the split keys' own action on the focused Panel
 with the same catalog id, so their admission, refusals and notices apply unchanged; a refusal
-leaves the picker closed. The Client asks once and never polls; when the creation or split commits
-it watches the new Panel the way a typed start is watched. A shell that cannot take a first
+leaves the picker closed. New Worktree opens the New Worktree form over the picker with the branch
+`agent/<provider id>` prefilled; nothing starts before the form's own `Enter`, and `Esc` returns to
+the picker with its query, cursor and place. The submitted create carries the same catalog id and
+closes the picker; the Server launches the new Workspace's first shell with the Agent as its first
+command. A failed create shows the form's own failure, and a reused Workspace starts nothing. The
+Client asks once and never polls; when the creation or split commits, or the create's Opened result
+arrives, it watches the new Panel the way a typed start is watched. A shell that cannot take a first
 command, such as cmd or a custom launch profile, gets the typed start at its first prompt instead. A
 Host refusal because the focused Panel is no longer at an idle prompt starts in a new Tab instead
 and says "Panel busy · opened a new Tab". The workflow
@@ -207,7 +214,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, picker grouping, order, filtering and `Esc` order, the offered places and their `Tab` cycle, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, picker grouping, order, filtering and `Esc` order, the offered places and their `Tab` cycle, new Worktree's form opening over the picker and `Esc` restoring it through the raw-byte route, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission and both locales.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/agent_board/tests.rs`, `crates/workbench-client/src/agent_board/picker/tests.rs`, `crates/workbench-client/src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

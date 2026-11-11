@@ -164,14 +164,16 @@ after a restart without a hook:
   would not. The other providers document no launch-time id.
 - The command budget check reserves room for an id before admission, so a start that fits never
   fails later for the id it adds.
-- A start in a new Tab or split gets its id from the Server, which composes the first command
-  below; the same rules apply, since such a start has no caller arguments.
+- A start in a new Tab, split or Worktree gets its id from the Server, which composes the first
+  command below; the same rules apply, since such a start has no caller arguments.
 
 ### Start as the shell's first command
 
-A picker start in a new Tab or split types nothing. The Client sends the ordinary `tab.create`, or
-the split keys' `panel.split` of the focused Panel, with `options.agentStart`, the provider's
-canonical id from the closed startable Agent catalog; no request carries command text. The Server resolves the catalog's command name and fixed arguments,
+A picker start in a new Tab, split or Worktree types nothing. The Client sends the ordinary
+`tab.create`, or the split keys' `panel.split` of the focused Panel, with `options.agentStart`, or
+the New Worktree form's create with `agentStart`, the provider's canonical id from the closed
+startable Agent catalog; no request carries command text. A Worktree create hands the id to the
+launch of its new Workspace's first shell; a reused Workspace starts nothing. The Server resolves the catalog's command name and fixed arguments,
 adds a fresh launch-time conversation id where the provider takes one, and attaches the command to
 the authorized launch. The Worker passes it to managed PowerShell through `ORCHBEE_AGENT_START`, and
 the managed startup's last step clears that variable, writes the run's start marker under a fresh run
@@ -187,8 +189,9 @@ the Agent exits. A command that is not found ends only the startup script: the s
 stays visible above its first prompt and the shell keeps working.
 
 Every other shell starts without the command; the Worker also removes the variable so a value
-inherited from its environment never runs. When the Tab's creation or the split commits, the Client
-watches the new Panel. For managed PowerShell, per the Host's `launchKind`, it only runs the early check, counted
+inherited from its environment never runs. When the Tab's creation or the split commits, or the
+Worktree create's Opened result reports that its first shell started, the Client watches the new
+Panel. For managed PowerShell, per the Host's `launchKind`, it only runs the early check, counted
 from the start's acceptance with a 10000 ms settle that also covers the shell's own startup: an idle
 shell after the Agent was seen is `agent-exited`; an idle shell with no Agent seen by the end is
 `command-not-found`. Any other shell, such as cmd or a custom launch profile, gets the typed start at
