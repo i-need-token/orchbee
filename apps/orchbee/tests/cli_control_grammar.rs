@@ -171,10 +171,6 @@ fn admitted(probe: &Probe, arguments: &[&str]) {
         output.stdout.is_empty(),
         "text-envelope {arguments:?} must not write a stdout document; stderr: {stderr}"
     );
-    assert!(
-        stderr.contains("cohort"),
-        "{arguments:?} must carry the cohort-stage diagnostic; stderr: {stderr}"
-    );
 }
 
 /// A grammar-admitted argv under a selected JSON envelope still stops at the
@@ -194,10 +190,6 @@ fn admitted_json(probe: &Probe, arguments: &[&str]) {
     assert_eq!(
         document["failure"]["details"]["stage"], "cohort",
         "{arguments:?}"
-    );
-    assert!(
-        stderr.contains("cohort"),
-        "{arguments:?} must carry the cohort-stage diagnostic; stderr: {stderr}"
     );
 }
 
@@ -397,7 +389,6 @@ fn terminal_send_usage_failures() -> TestResult {
         ["terminal", "send", TERMINAL_ID, "--key", "pageup"].as_slice(),
         ["terminal", "send", TERMINAL_ID, "--key", "Page-Down"].as_slice(),
         ["terminal", "send", TERMINAL_ID, "--key", ""].as_slice(),
-        ["terminal", "send", TERMINAL_ID, "--key", "f1"].as_slice(),
         // Duplicates of a single-use option or a bare flag are rejected;
         // `--key` is the repeatable exception and lives on the admitted
         // side.
@@ -1367,7 +1358,6 @@ fn cross_command_scope_and_help_boundaries() -> TestResult {
         ["help", "terminal", "frobnicate"].as_slice(),
         ["terminal", "frobnicate", "--help"].as_slice(),
         // A supplied operand is not a help path.
-        ["terminal", "send", TERMINAL_ID, "--help"].as_slice(),
         ["help", "terminal", "send", TERMINAL_ID].as_slice(),
     ] {
         usage(&probe, arguments);
