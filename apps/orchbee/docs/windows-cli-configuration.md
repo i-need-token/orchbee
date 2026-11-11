@@ -27,7 +27,7 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ### Default configuration output
 
-`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table headers included: a fixed-English reference generated from the settings registry gives each key's purpose, default, allowed values and when a change applies; English keeps this copyable config artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. Settings manages shared preferences independently of the native configuration file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file. An absent shared preference record returns canonical defaults regardless of the generated configuration file.
+`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table headers included: a fixed-English reference generated from the settings registry gives each key's purpose, default, allowed values and when a change applies; English keeps this copyable config artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The TUI Settings page edits this same file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file.
 
 ## Named chrome themes
 
@@ -38,9 +38,8 @@ terminal-native contrast when no host background is observed. Shared preferences
 appearance. See [native themes](native-themes.md) for polarity, color capabilities, all chrome
 consumers, shared reload and rollback.
 
-`appearance.mode`, `appearance.light_theme` and `appearance.dark_theme` are read into the settings
-model, but the shared preference record remains their runtime source until settings pages move onto
-the file. A `[theme]` table is an unknown section that warns and is ignored, and neither
+`appearance.mode`, `appearance.light_theme` and `appearance.dark_theme` are the Session Server's and
+the TUI's runtime source of application appearance. A `[theme]` table is an unknown section that warns and is ignored, and neither
 `config check` v1 details nor Session configuration v1 snapshots carry a theme field.
 
 ## Creation policy

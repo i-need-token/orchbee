@@ -528,13 +528,14 @@ the revision exactly once and a refusal or a returned reference never does. A Cl
 once, keyed by Presentation and time, and only within 60 seconds of `at` by its own clock, so a
 Client that connects later says nothing.
 
-## Preference
+## Setting
 
-`resumeAgentsOnRestore` defaults to on. The Server reads it before every capture, outside every
-lock, and once at startup to decide resuming. Off writes no row, pending ones included, and at
-startup discards every pending reference and types nothing. A refused preference record reads as
-on, the built-in default; a Session without a preference store reads as off. The
-[preference contract](../../../crates/workbench-protocol/docs/user-preferences.md) owns the key.
+`agents.resume_on_restore` defaults to on. The Server reads it from the Session's last valid
+settings before every capture, outside every lock, and once at startup to decide resuming. Off
+writes no row, pending ones included, and at startup discards every pending reference and types
+nothing. A `config.toml` that stops parsing keeps the last valid value; a Session before startup
+installs its configuration reads as off. The
+[settings registry](../../../crates/local-runtime/README.md#published-key-file) owns the key.
 
 ## Invariants
 

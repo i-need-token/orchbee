@@ -251,8 +251,7 @@ impl ApplicationRequest {
     }
     pub(super) fn requires_sampling(&self) -> bool {
         // Host output and external filesystem/process state currently expose snapshot reads,
-        // not change notifications. Commit-backed state uses notifications; shared-preference
-        // files have the separate deadline below.
+        // not change notifications. Commit-backed state, settings included, uses notifications.
         if let Some(WorkbenchRequest::Events(request)) = self.workbench()
             && let orchbee_workbench_protocol::SemanticEventsAction::Subscribe { filters, .. } =
                 &request.action

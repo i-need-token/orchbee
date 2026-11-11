@@ -13,8 +13,8 @@ category, control kind, availability, integer unit, bounds, steps and effect
 horizon. The editor, localization and renderer currently consume the row,
 category, control, availability and bounded-integer facts. Effect metadata
 documents and tests the feature contract; the existing domain owners still apply
-those effects. Source comparison, atomic commit and reset behavior stay with their
-existing state and protocol owners. Workbench Protocol remains the value, default
+those effects. The batch edit, restoring defaults and snapshot publication stay with the
+settings editor and the Session Server. Workbench Protocol remains the value, default
 and validation owner.
 
 The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles,
@@ -144,17 +144,22 @@ the accepted commit continues. An unknown result withdraws preview until an expl
 matched read. A covering Client surface uses confirmed appearance and restores the
 retained preview when Settings becomes the active capture again.
 Enter, `Ctrl+s` or a click on the successfully drawn Save button consumes its
-authority exactly once. Reset-all requires confirmation and remains a draft until
-Save; resetting claims all common keys even if their values are already defaults.
-The launch-profile page also offers a confirmed catalog-only reset, preserving
-other draft settings. Clean open views follow confirmed external changes; active
+authority exactly once. Save sends one batch `edit` holding only the keys the draft changed.
+Reset-all requires confirmation and remains a draft until Save; it restores every common key to
+its default even if its value already is the default. The launch-profile page also offers a
+confirmed catalog-only reset that restores this platform's profiles and default profile,
+preserving other draft settings. Clean open views follow confirmed external changes; active
 edits, text entry, the launch-profile child and confirmations retain their original
 saved basis while separately exposing the newest confirmed effective snapshot and a
-conflict. A known conflict cannot submit its stale source. Reload confirms discarding
-edits and performs a new read. A definite save failure can retry only from a fresh
-rendered context. A stale-source refusal or unknown outcome disables Save until a
-matched explicit Reload read succeeds; passive observations, redraws, cached snapshots
-and old read completions do not clear that requirement. No request is replayed automatically.
+conflict when its values differ. A snapshot whose revision is not newer than the last one
+observed is dropped. Reload confirms discarding edits and performs a new read. A refused edit
+wrote nothing; it keeps the draft and names its reason: the file was busy, a value or key was
+refused, the file has a syntax error, is read-only or would be too large, its location cannot be
+used, or the write failed. A syntax error points to `orchbee config check` for the position. A
+definite refusal can retry only from a fresh rendered context. A `changed` refusal or unknown
+outcome disables Save until a matched explicit Reload read succeeds; passive observations,
+redraws, cached snapshots and old read completions do not clear that requirement. No request is
+replayed automatically.
 
 After child and search return steps, Esc discards an unsubmitted root draft; after submission it hides the surface while
 the accepted save can continue. Captured packet/paste tails remain owned through
@@ -174,8 +179,9 @@ covering the surface revokes exact draw authority but is not a geometry refusal;
 that covering owner alone holds top capture while Settings remains retained.
 Pending feedback begins after 200 ms. The ordered settings
 lane has a two-second exchange deadline and a state subscription on the shared carrier.
-A save remains a one-shot request; after settlement, a fresh subscription fences out an older
-queued source token. Closing cancels its requests and subscription without a forwarding thread.
+A save remains a one-shot request; snapshot revisions order the subscription's observations and
+the replies, so no fresh subscription follows a write. Closing cancels its requests and
+subscription without a forwarding thread.
 A replacement Session/editor episode cannot inherit an old completion.
 
 ## Agent integrations
@@ -227,23 +233,23 @@ diagnosis clips its facts after the headline and sentence.
 | Record field | Contract                                                                                                                                                                                                      |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                                                                |
-| Inputs       | Frozen data root, complete confirmed snapshot, exact source token, typed dirty patch, painted-row receipt, explicit save/reset intent.                                                                        |
-| Authority    | Workbench Protocol owns values/bounds; Local Runtime owns the private record/lock/commit; the Workbench Client and Desktop windows use that same store.                                                       |
+| Inputs       | Frozen `config.toml` location, complete confirmed snapshot and its revision, the changed keys, painted-row receipt, explicit save/reset intent.                                                               |
+| Authority    | Workbench Protocol owns values/bounds; Local Runtime owns the settings registry and the locked batch edit of `config.toml`; the Session Server serves and publishes it.                                       |
 | State        | Newest effective runtime values, independently frozen draft basis, local changes, viewport/focus anchor and painted activation authority, one admitted exchange, and explicit refusal/unknown reconciliation. |
 | Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
-| Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
+| Refusal      | A syntax error, unknown key, refused value, changed or busy file, unusable location, busy lane or failed write preserves existing data and confirmed behavior.                                                |
 
-The Session freezes its data root at startup. Clients send no paths, raw TOML, alternate device selector or arbitrary file write. Shared values live in the data root's bounded private preference record. An absent record supplies canonical defaults; Clients submit current reads and updates. See [scope and persistence](../../../crates/workbench-protocol/docs/user-preferences.md#scope-and-persistence).
+The Session freezes its `config.toml` location at startup. Clients send no paths, raw TOML, alternate device selector or arbitrary file write; an edit names registered keys only. An absent file supplies every default, and a file that stops parsing keeps the last valid values. See the [settings contract](../../../crates/workbench-protocol/README.md#native-settings-contract).
 
 | Transition           | Required behavior                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Hidden → open        | Read a complete snapshot and freeze its source.                                                                                       |
+| Hidden → open        | Read a complete snapshot and freeze it as the draft basis.                                                                            |
 | Draft → edit / draw  | Keep edits local, project reversible appearance to the whole frame, and revoke old drawing authority.                                 |
-| Draft → save         | Require a current successful draw, freeze a nonempty patch and consume submission before dispatch.                                    |
-| Submit → commit      | Lock the shared record, compare source, validate the complete candidate and atomically publish; preserve omitted keys.                |
+| Draft → save         | Require a current successful draw, freeze a nonempty batch edit and consume submission before dispatch.                               |
+| Submit → commit      | Lock the file, apply every change or none in one replace and publish one snapshot; keep other keys and comments.                      |
 | Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                              |
 | External update      | Publish newest effective values and refresh clean views; preserve active edits or child tasks and their frozen basis with a conflict. |
-| Refused / unknown    | Preserve the visible draft and effective values; require a matched explicit read before another stale-source or unknown Save.         |
+| Refused / unknown    | Preserve the visible draft and effective values; require a matched explicit read before another Save after `changed` or unknown.      |
 | Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                              |
 | Cancel / close       | Discard unsubmitted edits and reveal newest confirmed appearance; hiding after submission cannot roll back a commit.                  |
 
@@ -282,15 +288,15 @@ automatic following cannot move active selection/export work. The
 
 ## Configuration stores and readers
 
-Native configuration has two stores, and each setting lives in exactly one of them. `preferences.json` owns every setting that a TUI or Desktop Settings surface edits; the [shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect) lists them. `config.toml` owns the settings users edit only by hand, described in [Windows CLI configuration](windows-cli-configuration.md). A key that would exist in both stores is deleted, together with its reader, from the store that does not own it: the chrome theme belongs to `applicationTheme`, and the default launch program belongs to `launchProfiles`. Notification policy is split by meaning: Agent notification mode and global sound are shared preferences, while manual delivery, delay, overlay position and per-Agent sound overrides stay in `config.toml`.
+The Session Server and the TUI keep every setting in one store, `config.toml`: the settings a Settings surface edits and the ones users edit only by hand, described in [Windows CLI configuration](windows-cli-configuration.md), live in the same file, and the [settings registry](../../../crates/local-runtime/README.md#published-key-file) lists every key. The chrome theme belongs to `appearance.mode` and the default launch program to `terminal.default_profile.<platform>`; notification policy, from the Agent reminder and global sound to manual delivery and per-Agent sound overrides, sits under `[notifications]`.
 
-| Reader                                  | Reads                                        | Rule                                                                                                                                                                                                                                                                                                                                                                               |
-| --------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session Server                          | Both stores                                  | The runtime authority. It reads `config.toml` at startup, on reload and when its sampler sees a change, and reads `preferences.json` once before it admits each creation and at its sampling deadline. It publishes one effective snapshot per revision over the Client's shared-carrier subscriptions; a refused candidate keeps the previous snapshot and publishes diagnostics. |
-| Worker                                  | Neither store                                | Server dispatch carries the launch intent; the Worker resolves device facts, such as System shell discovery, itself.                                                                                                                                                                                                                                                               |
-| Local Session activation                | The `config.toml` location and file validity | Rejects an unreadable file and freezes the location the Server reads.                                                                                                                                                                                                                                                                                                              |
-| `channel show`, `channel set`, `update` | `update.channel`                             | Release operations run without a Session.                                                                                                                                                                                                                                                                                                                                          |
-| `config check`                          | The whole `config.toml`                      | Validates the file the user edits; applies no runtime policy.                                                                                                                                                                                                                                                                                                                      |
+| Reader                                  | Reads                                        | Rule                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session Server                          | `config.toml`                                | The runtime authority. It reads `config.toml` at startup, on reload, after each committed edit and, on Windows, when its sampler sees a change. Each change publishes a configuration and a settings snapshot over shared-carrier subscriptions; a refused candidate keeps the previous snapshot and publishes diagnostics, and an unparsable file keeps the last valid settings. |
+| Worker                                  | Neither store                                | Server dispatch carries the launch intent; the Worker resolves device facts, such as System shell discovery, itself.                                                                                                                                                                                                                                                              |
+| Local Session activation                | The `config.toml` location and file validity | Rejects an unreadable file and freezes the location the Server reads.                                                                                                                                                                                                                                                                                                             |
+| `channel show`, `channel set`, `update` | `update.channel`                             | Release operations run without a Session.                                                                                                                                                                                                                                                                                                                                         |
+| `config check`                          | The whole `config.toml`                      | Validates the file the user edits; applies no runtime policy.                                                                                                                                                                                                                                                                                                                     |
 
 Every other Client consumer, including the TUI, Desktop windows, and CLI creation defaults, uses the Server's snapshots.
 
@@ -324,15 +330,13 @@ horizons in localized row help:
 
 Native host configuration is a separate admitted surface, not extra shared-editor
 rows. Windows TOML changes publish when the Server's sampler sees the edit, about
-once per second, or immediately through `server reload-config` (default prefix F5). Configuration and shared preferences use separate state subscriptions on the
+once per second, or immediately through `server reload-config` (default prefix F5). Configuration and settings use separate state subscriptions on the
 Client's shared carrier, including while Settings is closed. The UI consumes their snapshots
 on its existing tick, whose input wait is at most 50 ms; neither observer polls the Server.
-Same-Server preference commits invalidate immediately. Other Sessions can write the shared
-preferences file without a Server notification, so the Server retains a separate
-one-second sampling deadline for that snapshot subscription. Unrelated carrier traffic and
-Host sampling neither advance nor postpone that deadline. Existing dispatcher work and scheduling
-can delay the due sample and its delivery; this is not a strict one-second observation guarantee.
-Neither publication is an acknowledgment from every connected Client.
+An edit the Server commits publishes at once. An edit by another Session or by hand reaches the
+Server through the same sampler; existing dispatcher work and scheduling can delay the sample and
+its delivery, so this is not a strict one-second observation guarantee. macOS and Linux Servers do
+not sample yet. Neither publication is an acknowledgment from every connected Client.
 
 | Admitted native configuration or Client state                                                                                                      | Actual application policy                                                                                                                                 |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -371,12 +375,12 @@ same draw receipt, hit geometry, selected setting and draft values; actual host 
 requires separate screenshot review.
 
 The [theme picker cases](../crates/workbench-client/src/native_settings/tests/themes.rs) cover a
-candidate's preview at its polarity, Esc restoration, the Save patch, an unshipped stored id, Reset
+candidate's preview at its polarity, Esc restoration, the keys Save edits, an unshipped stored id, Reset
 all and reduced-color unavailability. The [theme picker render cases](../crates/workbench-client/src/tui_render/settings/tests/themes.rs)
 cover swatches, their absence without truecolor, scrolling and the System notice.
 
 The [editor preview cases](../crates/workbench-client/src/native_settings/tests/appearance.rs) cover every
-admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid
+admitted key's exact one-key Save edit, frozen basis, child return, reset, invalid
 color entry, conflict projection, unknown result and episode retirement. The
 [whole-frame cases](../src/tui_shell/tests/settings.rs) drive
 the real Shell drawing boundary with an existing native terminal, both locales,

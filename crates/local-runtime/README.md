@@ -48,7 +48,7 @@ replacement reports an unknown outcome and never authorizes automatic replay.
 
 Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. A record whose version this build cannot use is never rewritten: reads give the defaults, and updates apply to values the store keeps in memory, with a `memory-` source token, until the Session stops. Resetting every setting is the one update that replaces it, after a copy goes to the `reset-settings` backup folder ([persisted data versions](#persisted-data-versions)). Desktop import fields are outside the current strict record.
 
-An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Session consume this same storage owner, not separate stores.
+An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The desktop helper still consumes this storage owner; the native Session and the TUI read and edit their settings in `config.toml` instead.
 
 An explicit full-null reset with recovery source `unreadable` may replace a safely readable but
 invalid record under the same OS writer lock. A valid/missing record refuses that recovery source,
@@ -901,9 +901,9 @@ every key's purpose, allowed values and default.
 
 The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The
 preference keys (those with a `preference` in the registry) and the launch profiles parse into
-`UserSettings::preferences`, and the Desktop font, padding, opacity and Option keys into
-`UserSettings::desktop`, but their runtime source is still the shared preference record and the
-Desktop's own state until later phases move consumers onto the file. The notification profile the
+`UserSettings::preferences`, the Session Server's and the TUI's runtime source. The Desktop font,
+padding, opacity and Option keys parse into `UserSettings::desktop`, but their runtime source is
+still the Desktop's own state until a later phase moves it onto the file. The notification profile the
 Server publishes keeps its `[ui.toast]` wire spelling.
 
 `preference_values(lookup, launch_profiles)` is the one derivation of the preference values from
@@ -911,6 +911,15 @@ key values: `lookup` returns a key path's `Scalar`, or `None` when the file leav
 value its key does not admit (`SettingKey::admit`) keeps its default. The reader builds
 `UserSettings::preferences` with it over the file, and a Client holding a copy of the file's values
 builds the same values with it.
+
+`settings_snapshot(load, revision)` builds the `workbench.settings` snapshot of a load: each
+concrete scalar key's file value or default, the keys the file sets, the effective launch catalog,
+the bounded diagnostics and the file status, which a load that kept its last valid settings reports
+as `syntax-error`. `snapshot_preferences(snapshot)` derives the preference values from a snapshot
+through `preference_values`. `preference_changes(baseline, values, restored)` goes the other way:
+the edit, in the file's spelling, that turns one set of preference values into another, restoring
+each listed key that did not change. `setting_changes` admits a wire edit's changes, and
+`settings_refusal` maps an edit refusal onto the wire reason and its members.
 
 Each `[[terminal.profiles.<platform>]]` table is admitted by its own platform's launch rules on
 every host: a custom executable must be an absolute path in that platform's form (a drive or

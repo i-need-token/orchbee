@@ -152,20 +152,15 @@ The crate inherits the repository toolchain, lints, and shared dependency versio
 Keep exported modules and items tied to real application consumers and preserve private test
 ownership.
 
-## Refused shared preference recovery
+## Unusable settings file
 
-Opening Settings after an `invalid-source` refusal keeps a populated defaults view and shows the
-dedicated unreadable-file notice in both locales. These are recovery defaults, not confirmed
-storage. Ordinary editing stays disabled; Reload and confirmed Reset all remain available. Reset
-all stages a full-null reset, saved through the ordinary explicit Save boundary with the virtual
-`unreadable` basis. Storage rechecks the current refused record and preserves a concurrent repair.
+When `config.toml` has a syntax error or cannot be read, the Server keeps serving the last valid
+settings and the settings snapshot's file status says so. The main frame then shows a terse notice
+in both locales that the file can't be used and the last valid settings stay in use, pointing to
+`orchbee config check`; it ends when a snapshot reports the file usable again. Settings stays
+editable over the last valid values, and a Save against the broken file is refused without writing
+and names why. Unrelated configuration warnings retain their existing guidance.
 
-The main frame uses the same terse recovery wording and directs the user to Reset all in Settings,
-rather than `orchbee config check`. Once a confirmed Settings snapshot arrives, its source decides
-the notice instead of the Session's historical diagnostic: it stays while the source is unreadable
-and ends when Reset all replaces the record. Unrelated configuration warnings retain their existing
-guidance.
-The [shared preference contract](../../../../crates/workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
-owns token and storage rules. No read silently repairs a record or saves a migration; the
-onboarding, machine and TUI position records persist a migration only when they are next written,
-through the local runtime's `VersionedFile`.
+No read silently repairs a record or saves a migration; the onboarding, machine and TUI position
+records persist a migration only when they are next written, through the local runtime's
+`VersionedFile`.

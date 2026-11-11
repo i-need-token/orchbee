@@ -841,22 +841,18 @@ recomputes the deadline even when only TTL changes and token values remain equal
 Workbench state has no deadline; retirement or maintenance failure closes the carrier rather than
 retrying a past deadline. Pure metadata consumers therefore need no periodic read to drive expiry.
 
-Shared-preferences snapshot subscriptions separately retain an absolute one-second file-sampling
-deadline. Desktop and other Sessions use the shared store's OS lock but expose no cross-process
-change signal. Same-Server commits still notify the dispatcher immediately; ordinary carrier frames and
-Host sampling cannot advance or postpone the file deadline. The dispatcher waits for the earliest
-Host sample, metadata expiry or file sample, and cancellation removes that subscription's deadline.
-The deadline makes a sample due; existing dispatcher work and scheduling can delay the read and
-delivery, so it is not a strict one-second observation guarantee.
-Invalidation mode carries Server commit hints only; external-file sampling belongs to subscriptions
-that deliver semantic snapshots. No Client polling timer or additional connection is involved.
+Settings and configuration subscriptions keep no deadline of their own. The Session's one sampler
+observes `config.toml` on Windows, and a change it sees publishes through the same commit
+notification as an edit or reload, so ordinary carrier frames and Host sampling neither advance nor
+postpone delivery. Invalidation mode carries Server commit hints only. No Client polling timer or
+additional connection is involved.
 
-Each creation reads the same frozen store once before admission, outside the Session locks, and
-its plan attaches that
+Each creation reads the Session's last valid settings once before admission, outside the Session
+locks, and its plan attaches that
 [launch preference capture](../../crates/capability-node-protocol/README.md#launch-preference-capture)
 to the Worker request: scrollback, terminal default colors and, for a default launch, the selected
-profile's command. A missing store, refused read or program beyond the selection budget captures
-`Unavailable`, which refuses only that creation. A launch whose capture would not fit one OBCN frame
+profile's command. Before startup installs configuration, or for a program beyond the selection
+budget, the capture is `Unavailable`, which refuses only that creation. A launch whose capture would not fit one OBCN frame
 fails when its terminal is planned, before any Worker dispatch; a Workbench creation then reports
 runtime-unavailable `ServerBusy`, as an oversized plugin environment does. The Presentation
 publishes the program its binding's launch requests as `launchProgram` in the binding's own
@@ -865,9 +861,8 @@ the admitting Worker generation reported in its hello. The Worker registry attac
 the generation's request handle when its carrier registers, and a creation takes its Worker
 placement and the name from the one handle it plans against, so a launch never names another
 generation's shell. A saved change reaches only later creations, and running terminals keep their
-capture. The Session composition root freezes the store's scope from the Server's single startup
-configuration read before any terminal launches, so terminals restored from a checkpoint capture
-preferences exactly as later creations do, sharing one read.
+capture. Startup installs the configuration before any terminal launches, so terminals restored
+from a checkpoint capture settings exactly as later creations do.
 
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
@@ -897,9 +892,6 @@ capture, an undrained peer alongside a progressing peer, exclusive event cursors
 cleanup preserving a sibling, idle metadata expiry after a same-value earlier-TTL report,
 maintenance failure without a past-deadline retry loop, a terminal output frame waking a value
 stream without an invalidation hint, and a title change waking only the published-title read.
-The preferences carrier trace writes the actual shared store without a commit notification,
-checks that unrelated request traffic neither accelerates nor starves file sampling, and then
-observes a second external write while the peer sends no requests.
 Client transport traces check cancelled late replies, actual event overflow/gap/snapshot delivery
 and aggregate reservation refusal. A controlled idle-probe trace keeps unrelated pushes and an
 old probe reply flowing until the fixed deadline, then verifies subscription-only recovery and no
@@ -1160,17 +1152,20 @@ The accepted model and current implementation boundary are maintained in [Window
 
 Canonical split ratios are shared by native Clients and retained in checkpoint v6, guarded by catalog v5. The [checkpoint contract](docs/workbench-checkpoint.md) owns strict migration from versions 1–5; the [shared ratio contract](docs/shared-split-ratios.md) owns ratio mutation, projection and compatibility.
 
-## Unreadable shared preferences
+## Settings from `config.toml`
 
-A refused shared preference record does not block terminal creation. The Session captures built-in
-system-shell, scrollback and Orchbee theme defaults, including when a custom default program was
-stored. Explicit executable selections still win. Reading never repairs or migrates the record.
+The Session owns one `config.toml` location, frozen at startup, and serves it on
+`workbench.settings`: `read` answers the current snapshot and `edit` writes one batch of changes
+in a single file replace through the settings editor. Every reader the Session runs, including
+terminal creation, launch capture, scrollback, restore-output and Agent resume, takes its values
+from the same last valid settings, so a committed change reaches only later creations.
 
-The first failed launch-preference read retains one historical Session configuration diagnostic:
-`field: sharedPreferences`, `reason: unreadable`, `disposition: defaulted`. Repeated failures do not
-advance its revision; configuration reload retains it and late Clients can read it via Current.
-A successful Settings read or reset supplies current preference values independently of this
-historical diagnostic. Using the existing bounded Session configuration channel and retaining the
-fact until Session end are vetoable decisions.
-
-The proposed preference-specific Unavailable Tab reason is superseded by this fallback; Settings recovery supplies the explanation without guessing old launch causes or migrating failed generations.
+The configuration and settings snapshots take their revisions from one counter, and each keeps
+the revision of its own last change. A committed edit, or an external edit the sampler observes on
+Windows, publishes exactly one settings snapshot with a higher revision; a refused edit publishes
+nothing. A file that stops parsing or cannot be read keeps the last valid settings: terminal
+creation is not blocked, the snapshot reports `syntax-error` with its line and column or
+`unreadable`, and an edit against it is refused without writing. Turning
+`terminal.restore_output` off removes kept output at once on Windows, whichever editor turned it
+off. On macOS and Linux startup installs the initial load and edits are served, but external edits
+are not yet sampled.
