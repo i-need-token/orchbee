@@ -783,6 +783,60 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["cline", "--id", "1730000000000_a1b2c"]),
             interactive(P::Cline, S::NativeImage),
         ),
+        // Each launch-time session option Orchbee starts a provider with is interactive for it;
+        // OMP, which does not document the option, stays unclassified.
+        (
+            "launch session",
+            "grok.exe",
+            Some(vec!["grok", "--session-id", "{id}"]),
+            interactive(P::Grok, S::NativeImage),
+        ),
+        (
+            "launch session",
+            "grok.exe",
+            Some(vec!["grok", "-s", "{id}"]),
+            interactive(P::Grok, S::NativeImage),
+        ),
+        (
+            "launch session",
+            "gemini.exe",
+            Some(vec!["gemini", "--session-id", "{id}"]),
+            interactive(P::Gemini, S::NativeImage),
+        ),
+        (
+            "launch session",
+            "qwen.exe",
+            Some(vec!["qwen", "--session-id", "{id}"]),
+            interactive(P::Qwen, S::NativeImage),
+        ),
+        (
+            "launch session",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@github\copilot\index.js",
+                "--session-id",
+                "{id}",
+            ]),
+            interactive(P::Copilot, S::PackageEntry),
+        ),
+        (
+            "launch session",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@earendil-works\pi-coding-agent\dist\cli.js",
+                "--session-id",
+                "{id}",
+            ]),
+            interactive(P::Pi, S::PackageEntry),
+        ),
+        (
+            "launch session counterexample",
+            "omp.exe",
+            Some(vec!["omp", "--session-id", "{id}"]),
+            unresolved(Some(P::Omp), U::UnclassifiedArguments),
+        ),
         // Bare launches of the providers that gained a grammar are unchanged.
         (
             "bare",
@@ -1108,6 +1162,21 @@ fn recognition_matrix_rows_and_counterexamples() {
             want,
             "{row}: {image:?} {argv:?}"
         );
+        // The arguments a command-line reader gets are those of an interactive row only, and
+        // they are the row's own trailing arguments, which its provider's grammar classified.
+        let arguments = crate::interactive_agent_arguments(image, argv.as_deref());
+        assert_eq!(
+            arguments.as_ref().map(|(provider, _)| *provider),
+            want.interactive_provider(),
+            "{row}: {image:?} {argv:?}"
+        );
+        if let (Some((provider, arguments)), Some(argv)) = (arguments, &argv) {
+            assert!(
+                argv.join(" ").ends_with(&arguments.join(" "))
+                    && provider.classify_invocation(&arguments) == AgentInvocationMode::Interactive,
+                "{row}: {argv:?} gave {arguments:?}"
+            );
+        }
     }
 }
 

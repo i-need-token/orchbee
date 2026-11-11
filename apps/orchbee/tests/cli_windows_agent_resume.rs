@@ -13,7 +13,10 @@
 //! row whose provider stays silent after a resume reports nothing then. A second Claude Code row
 //! has no hook: only Claude Code's own run table entry names its session, which the witness writes
 //! for each of its runs with that process's exact creation time, while the hooked Claude Code
-//! row's entry names another session that its hook session must outrank. Every run records its
+//! row's entry names another session that its hook session must outrank. Two more rows have no
+//! hook and no run table, so only the Agent's own command line names the session: a Grok started
+//! the way an Agent start types it, with a fresh `--session-id`, and a hand-typed `codex resume`
+//! with a leading option. Every run records its
 //! arguments, directory and session in the fixture root and stays alive like an interactive Agent
 //! until it reads `q`. Every wait reads the Agent list, as a Client showing it does: a hook report
 //! joins its Panel only when a Client's Agent read drains it within 10 s.
@@ -98,8 +101,40 @@ struct Row {
     /// Whether a resumed run reports again; unknown is false, the stricter path.
     reports_on_resume: bool,
     /// Whether the session reaches the Server as a hook session; otherwise only Claude Code's own
-    /// run table names it.
+    /// run table or the Agent's own command line names it.
     hooked: bool,
+    /// How the first run is typed.
+    start: Start,
+}
+
+/// How a row's first run is typed after its program.
+#[derive(Clone, Copy)]
+enum Start {
+    /// Bare: the stub takes a fresh id.
+    Bare,
+    /// These tokens, `{id}` standing for this fixed id, which the stub takes as its session.
+    With(&'static [&'static str], &'static str),
+}
+
+impl Row {
+    /// The tokens typed after the program for the first run.
+    fn start_tokens(&self) -> Vec<String> {
+        match self.start {
+            Start::Bare => Vec::new(),
+            Start::With(pattern, id) => pattern
+                .iter()
+                .map(|token| token.replace("{id}", id))
+                .collect(),
+        }
+    }
+
+    /// The line typed for the first run.
+    fn start_line(&self) -> String {
+        std::iter::once(self.program.to_owned())
+            .chain(self.start_tokens())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 }
 
 const UUID: &str = "crypto.randomUUID()";
@@ -107,9 +142,9 @@ const OPENCODE_ID: &str = "`ses_${hex(12)}${alnum(14)}`";
 /// The session a run table entry names beside a hook session, which the hook session outranks.
 const DECOY: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
-/// The resume table: every resumable provider, with Letta's two forms, and Claude Code once more
-/// without hooks.
-const TABLE: [Row; 21] = [
+/// The resume table: every resumable provider, with Letta's two forms, Claude Code once more
+/// without hooks, and Grok and Codex once more without hooks, named only by their command lines.
+const TABLE: [Row; 23] = [
     Row {
         label: "claude-code",
         provider: "claude-code",
@@ -124,6 +159,7 @@ const TABLE: [Row; 21] = [
                  cwd: process.cwd() })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "claude-run-table",
@@ -138,6 +174,7 @@ const TABLE: [Row; 21] = [
         report: "async () => {}",
         reports_on_resume: true,
         hooked: false,
+        start: Start::Bare,
     },
     Row {
         label: "codex",
@@ -153,6 +190,7 @@ const TABLE: [Row; 21] = [
                  cwd: process.cwd() })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "grok",
@@ -166,6 +204,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('grok', { sessionId: session, hookEventName: 'SessionStart' })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "opencode",
@@ -187,6 +226,7 @@ const TABLE: [Row; 21] = [
         }",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "kilo",
@@ -204,6 +244,7 @@ const TABLE: [Row; 21] = [
         }",
         reports_on_resume: false,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "cursor",
@@ -217,6 +258,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('cursor', { hook_event_name: 'sessionStart', conversation_id: session })",
         reports_on_resume: false,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "qodercli",
@@ -230,6 +272,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('qodercli', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "antigravity",
@@ -243,6 +286,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('antigravity-cli', { hook_event_name: 'PreInvocation', conversationId: session })",
         reports_on_resume: false,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "droid",
@@ -256,6 +300,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('droid', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "kimi",
@@ -269,6 +314,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('kimi', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "letta-conversation",
@@ -283,6 +329,7 @@ const TABLE: [Row; 21] = [
                  is_new_session: !resumed, conversation_id: session })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "letta-default",
@@ -297,6 +344,7 @@ const TABLE: [Row; 21] = [
                  is_new_session: !resumed, conversation_id: 'default', agent_id: id })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "devin",
@@ -310,6 +358,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('devin', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: false,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "hermes",
@@ -324,6 +373,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('hermes', { event: 'on_session_start', platform: 'cli', session_id: session })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "pi",
@@ -341,6 +391,7 @@ const TABLE: [Row; 21] = [
         }",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "omp",
@@ -358,6 +409,7 @@ const TABLE: [Row; 21] = [
         }",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "gemini",
@@ -371,6 +423,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('gemini', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "github-copilot",
@@ -384,6 +437,7 @@ const TABLE: [Row; 21] = [
         report: "async (session) => hook('github-copilot', { hook_event_name: 'SessionStart', session_id: session })",
         reports_on_resume: false,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "qwen-code",
@@ -398,6 +452,7 @@ const TABLE: [Row; 21] = [
                  session_id: session, source: resumed ? 'resume' : 'startup' })",
         reports_on_resume: true,
         hooked: true,
+        start: Start::Bare,
     },
     Row {
         label: "cline",
@@ -415,10 +470,46 @@ const TABLE: [Row; 21] = [
         }",
         reports_on_resume: false,
         hooked: true,
+        start: Start::Bare,
+    },
+    Row {
+        label: "grok-launch",
+        provider: "grok",
+        program: "grok",
+        entry: "grok.js",
+        relay: None,
+        fresh: UUID,
+        resume: &["--resume={id}"],
+        key: "{id}",
+        report: "async () => {}",
+        reports_on_resume: true,
+        hooked: false,
+        start: Start::With(
+            &["--session-id", "{id}"],
+            "5f0c3e2a-8b1d-4c6e-9a7f-2d4b6e8c0a13",
+        ),
+    },
+    Row {
+        label: "codex-command-line",
+        provider: "codex",
+        program: "codex",
+        entry: "node_modules/@openai/codex/bin/codex.js",
+        relay: None,
+        fresh: UUID,
+        resume: &["resume", "{id}"],
+        key: "{id}",
+        report: "async () => {}",
+        reports_on_resume: true,
+        hooked: false,
+        start: Start::With(
+            &["--search", "resume", "{id}"],
+            "8d2e4f60-1a3b-4c5d-8e7f-9a0b1c2d3e4f",
+        ),
     },
 ];
 
-/// A fresh run takes a new id and a resumed one keeps its own. A command hook runs as the provider
+/// A fresh run takes a new id, or the fixed one its start tokens carry, and a resumed one keeps its
+/// own. A command hook runs as the provider
 /// runs one: a child with the payload on standard input, inheriting the environment and console. A
 /// module adapter runs in the stub's own process, as in the provider's. An OpenCode-family module's
 /// plugin definition, which the installed bootstrap default-exports, must pass both loader
@@ -461,10 +552,10 @@ const STUB: &str = r"
   const alnum = (length) => pick('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', length);
   const fresh = () => (/*FRESH*/);
   const report = /*REPORT*/;
-  const resumed = (() => {
-    if (argv.length !== RESUME.length) return null;
+  const matched = (patterns) => {
+    if (argv.length !== patterns.length) return null;
     let id = null;
-    for (const [index, pattern] of RESUME.entries()) {
+    for (const [index, pattern] of patterns.entries()) {
       const token = argv[index];
       const [prefix, suffix] = pattern.split('{id}');
       if (suffix === undefined) {
@@ -475,8 +566,9 @@ const STUB: &str = r"
       id = token.slice(prefix.length, token.length - suffix.length);
     }
     return id;
-  })();
-  const id = resumed ?? (argv.length === 0 ? fresh() : null);
+  };
+  const resumed = matched(RESUME);
+  const id = resumed ?? (START.length === 0 ? (argv.length === 0 ? fresh() : null) : matched(START));
   const session = id === null ? null : KEY.replace('{id}', id);
   const reported = session !== null && (resumed === null || REPORTS_ON_RESUME);
   if (reported) await report(session, id, resumed !== null);
@@ -779,11 +871,16 @@ impl Witness {
             fs::create_dir_all(entry.parent().unwrap()).unwrap();
             let stub = format!(
                 "const LABEL = {};\nconst CALLS = {};\nconst BUNDLE = {};\nconst RESUME = {};\n\
-                 const KEY = {};\nconst REPORTS_ON_RESUME = {};\n{}",
+                 const START = {};\nconst KEY = {};\nconst REPORTS_ON_RESUME = {};\n{}",
                 literal(label),
                 literal(&self.directory("calls.jsonl")),
                 literal(bundle),
                 serde_json::to_string(row.resume).unwrap(),
+                serde_json::to_string(&match row.start {
+                    Start::Bare => &[][..],
+                    Start::With(pattern, _) => pattern,
+                })
+                .unwrap(),
                 literal(row.key),
                 row.reports_on_resume,
                 STUB.replace("/*FRESH*/", row.fresh)
@@ -922,8 +1019,8 @@ impl Witness {
         )
     }
 
-    /// Waits for cmd's prompt in each Panel's directory, types its row's command, and returns each
-    /// Panel with the session its run took there.
+    /// Waits for cmd's prompt in each Panel's directory, types its row's start line, and returns
+    /// each Panel with the session its run took there.
     fn start_all(&self, panels: Vec<(&'static Row, &'static str, String)>) -> Vec<Instance> {
         let terminals = self.terminals();
         let deadline = Instant::now() + OBSERVED;
@@ -936,7 +1033,7 @@ impl Witness {
                 );
                 let screen = self.screen(&terminals[panel]);
                 if screen.to_lowercase().contains(&prompt) && !screen.contains("PS ") {
-                    self.send(&terminals[panel], row.program);
+                    self.send(&terminals[panel], &row.start_line());
                     return false;
                 }
                 assert!(
@@ -951,10 +1048,10 @@ impl Witness {
             let calls = self.calls();
             let started: Vec<Option<&Value>> = panels
                 .iter()
-                .map(|(_, label, _)| {
+                .map(|(row, label, _)| {
                     calls.iter().find(|call| {
                         call["label"] == *label
-                            && call["argv"] == json!([])
+                            && call["argv"] == json!(row.start_tokens())
                             && call["reported"] == true
                             && self.same_directory(&call["cwd"], &format!("work/{label}"))
                     })
@@ -1123,9 +1220,9 @@ impl Witness {
         }
     }
 
-    /// Each Panel's stub ran once fresh and then exactly `resumes` times with its own resume
-    /// arguments, each resume in its own directory and its own session, reporting only where its
-    /// provider does.
+    /// Each Panel's stub ran once as its row starts and then exactly `resumes` times with its own
+    /// resume arguments, each resume in its own directory and its own session, reporting only where
+    /// its provider does.
     fn assert_runs(&self, instances: &[&Instance], resumes: usize) {
         let calls = self.calls();
         for instance in instances {
@@ -1133,7 +1230,8 @@ impl Witness {
                 .iter()
                 .filter(|call| call["label"] == instance.label)
                 .collect();
-            let fresh = own.iter().filter(|call| call["argv"] == json!([])).count();
+            let start = json!(instance.row.start_tokens());
+            let fresh = own.iter().filter(|call| call["argv"] == start).count();
             let resumed: Vec<&&Value> = own
                 .iter()
                 .filter(|call| call["argv"] == json!(instance.tokens()))
