@@ -882,6 +882,8 @@ impl CreateOperationKey {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct CreateOperation {
     launch_description: Option<LaunchDescription>,
+    /// The Agent the new Tab's shell runs as its first command.
+    agent_start: Option<&'static str>,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     automatic_label: bool,
     origin: CreateOriginKind,
@@ -906,6 +908,7 @@ impl CreateOperation {
     ) -> Self {
         Self {
             launch_description: None,
+            agent_start: None,
             origin: CreateOriginKind::Ready,
             placement: None,
             automatic_label: false,
@@ -942,6 +945,11 @@ impl CreateOperation {
 
     pub(crate) const fn with_automatic_label(mut self) -> Self {
         self.automatic_label = true;
+        self
+    }
+
+    pub(crate) const fn with_agent_start(mut self, provider: Option<&'static str>) -> Self {
+        self.agent_start = provider;
         self
     }
 
@@ -1353,6 +1361,9 @@ pub(crate) struct WorkbenchClientState {
         orchbee_workbench_protocol::TerminalPresentationId,
         LaunchDescription,
     >,
+    /// Panels whose shell the Server launched with an Agent as its first command, oldest first,
+    /// until the Agent board takes them to watch the start.
+    started_agents: Vec<(orchbee_workbench_protocol::WorkbenchPanelId, &'static str)>,
     cache: ClientContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
     retained_contexts: Vec<context_selection::RetainedContext>,
@@ -1505,6 +1516,7 @@ impl WorkbenchClientState {
     fn initial(cache: ClientContextTabs, geometry: Geometry) -> Self {
         Self {
             launch_descriptions: std::collections::HashMap::new(),
+            started_agents: Vec::new(),
             context_selection: None,
             retained_contexts: Vec::new(),
             navigation_memory: navigation_memory::NavigationMemory::default(),
@@ -2973,8 +2985,19 @@ impl WorkbenchClientState {
             self.launch_descriptions
                 .insert(committed.expectation.presentation_id().clone(), description);
         }
+        if let Some(provider) = committed.operation.agent_start {
+            self.started_agents
+                .push((committed.expectation.panel_id().clone(), provider));
+        }
         self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
         true
+    }
+
+    /// The Panels created with an Agent as their shell's first command since the last call.
+    pub(crate) fn take_started_agents(
+        &mut self,
+    ) -> Vec<(orchbee_workbench_protocol::WorkbenchPanelId, &'static str)> {
+        std::mem::take(&mut self.started_agents)
     }
 
     pub(crate) fn begin_switch(&mut self, target: AttachTarget) -> bool {

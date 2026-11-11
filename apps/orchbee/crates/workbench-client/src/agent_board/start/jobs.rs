@@ -33,9 +33,10 @@ use orchbee_client_server_protocol::SendPromptState;
 /// Bounds a start in an existing Panel: admission, the one send and the early check. Nothing
 /// waits for the Agent to become ready.
 const START_DEADLINE: Duration = Duration::from_secs(20);
-/// Bounds a start in a new Tab, which also waits for the new shell's first prompt.
-const NEW_TAB_START_DEADLINE: Duration = Duration::from_secs(30);
-/// How long a start in a new Tab waits before asking again whether its shell shows a prompt.
+/// Bounds a start whose Agent a new shell runs as its first command, which also waits for the
+/// Panel's terminal and, for a shell that cannot take a first command, its first prompt.
+const START_COMMAND_DEADLINE: Duration = Duration::from_secs(30);
+/// How long such a start waits before asking again whether its Panel is ready.
 const PROMPT_RETRY: Duration = Duration::from_millis(250);
 const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 
@@ -115,8 +116,8 @@ impl Jobs {
 
     /// Accepts one start of `provider` in `panel` and runs its workflow on the current origin.
     /// Only a workflow still running in the same Panel refuses it. A start in an existing Panel
-    /// moves to a new Tab when its prompt refuses it; a start in a new Tab instead waits for
-    /// the new shell's first prompt.
+    /// moves to a new Tab when its prompt refuses it; a start its new shell runs as its first
+    /// command is watched, and is typed only where that shell could not take it.
     pub(crate) fn start(
         &mut self,
         state: &mut State,
@@ -124,9 +125,9 @@ impl Jobs {
         place: Place,
         clock: LocalOperationClock,
     ) -> bool {
-        let (panel, new_tab) = match place {
+        let (panel, start_command) = match place {
             Place::Panel(panel) => (panel, false),
-            Place::NewTab(panel) => (panel, true),
+            Place::StartCommand(panel) => (panel, true),
         };
         if self.start.iter().any(|task| task.panel == panel) {
             return false;
@@ -134,15 +135,15 @@ impl Jobs {
         let Some(origin) = self.origin.clone() else {
             return false;
         };
-        let budget = if new_tab {
-            NEW_TAB_START_DEADLINE
+        let budget = if start_command {
+            START_COMMAND_DEADLINE
         } else {
             START_DEADLINE
         };
         let Some(deadline) = Instant::now().checked_add(budget) else {
             return false;
         };
-        let Some(operation) = state.begin_start(provider, panel, !new_tab, deadline) else {
+        let Some(operation) = state.begin_start(provider, panel, !start_command, deadline) else {
             return false;
         };
         #[cfg(test)]
@@ -155,7 +156,7 @@ impl Jobs {
             origin,
             clock,
             operation.provider,
-            (deadline, new_tab),
+            (deadline, start_command),
         ) {
             Ok(task) => self.start.push(task),
             Err(_) => state.settle_start_spawn_failed(operation.generation),
@@ -337,8 +338,9 @@ fn report_phase(report: &Report) -> Phase {
     }
 }
 
-/// Whether a start typed nothing only because its new Tab is not ready yet: the Panel has no
-/// bound terminal yet, or its shell shows no idle prompt.
+/// Whether a start typed nothing only because its new Panel is not ready yet: the Panel has no
+/// bound terminal yet, or a shell that could not take the Agent as its first command shows no
+/// idle prompt yet.
 fn awaits_prompt(report: &Report) -> bool {
     match report_phase(report) {
         Phase::Refused(AgentStartRefusal::NotAtPrompt | AgentStartRefusal::Unmarked) => true,
@@ -355,11 +357,11 @@ fn awaits_prompt(report: &Report) -> bool {
     }
 }
 
-/// Where one accepted start runs: an existing Panel, or the first Panel of the new Tab it asked
-/// for.
+/// Where one accepted start runs: an existing Panel, where the command is typed, or a new Panel
+/// whose shell the Server launched with the Agent as its first command.
 pub(crate) enum Place {
     Panel(WorkbenchPanelId),
-    NewTab(WorkbenchPanelId),
+    StartCommand(WorkbenchPanelId),
 }
 
 /// The prompt refusals that typed nothing. The Host's `busy` and `not-shell` read like the
@@ -460,7 +462,7 @@ impl StartTask {
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
         provider: AgentProviderId,
-        (deadline, wait_for_prompt): (Instant, bool),
+        (deadline, start_command): (Instant, bool),
     ) -> std::io::Result<Self> {
         let (sender, outcomes) = mpsc::sync_channel(1);
         let (reader, wake) = LocalStream::pair()?;
@@ -471,8 +473,13 @@ impl StartTask {
         let task = BackgroundThread::spawn("orchbee-agent-start", move || {
             let started = Instant::now();
             let report = loop {
+                let request = Request::new(None, provider.clone(), Vec::new());
                 let report = crate::agent_start::run_on_origin(
-                    Request::new(None, provider.clone(), Vec::new()),
+                    if start_command {
+                        request.started_as_command()
+                    } else {
+                        request
+                    },
                     started,
                     deadline,
                     Some(reader.as_local_io()),
@@ -485,9 +492,10 @@ impl StartTask {
                         }
                     },
                 );
-                // A new Tab's shell needs a moment before its first prompt; until then the
-                // workflow refuses without typing anything, so asking again is safe.
-                let retry = wait_for_prompt
+                // A new Panel needs a moment before its terminal is bound, and a shell that could
+                // not take the Agent as its first command needs one before its first prompt; until
+                // then the workflow refuses without typing anything, so asking again is safe.
+                let retry = start_command
                     && awaits_prompt(&report)
                     && deadline.saturating_duration_since(Instant::now()) > PROMPT_RETRY * 8;
                 if !retry {

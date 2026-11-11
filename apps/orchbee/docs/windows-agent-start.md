@@ -67,10 +67,8 @@ Choosing a provider closes the picker and restores terminal input on the same fr
 the TUI cancels an accepted start, and Session teardown wakes and joins every bounded owner. Every
 completion carries its generation and Panel target, so an old result cannot settle another target.
 Each start guards only its own Panel, so a start still running or unknown in another Panel never
-blocks a new one; a guarded focused Panel makes the picker open the Agent in a new Tab. A start
-whose new Tab has no idle marked prompt yet repeats the prompt-gated start while the shell settles,
-within its own deadline; a refusal that typed nothing in an existing Panel starts in a new Tab
-instead. A start guards its Panel while its
+blocks a new one; a guarded focused Panel makes the picker open the Agent in a new Tab. A refusal
+that typed nothing in an existing Panel starts in a new Tab instead. A start guards its Panel while its
 workflow runs and, after an unknown result, until the workflow deadline; observing the shell prompt
 again (`command-not-found`, `agent-exited` or `launch-command-failed`) ends the guard at once.
 Unknown reservation or input effects remain visible as unknown and are never replayed. A named
@@ -166,6 +164,37 @@ after a restart without a hook:
   would not. The other providers document no launch-time id.
 - The command budget check reserves room for an id before admission, so a start that fits never
   fails later for the id it adds.
+- A start in a new Tab gets its id from the Server, which composes the first command below; the
+  same rules apply, since such a start has no caller arguments.
+
+### Start as the shell's first command
+
+A picker start in a new Tab types nothing. The Client sends the ordinary `tab.create` with
+`options.agentStart`, the provider's canonical id from the closed startable Agent catalog; no
+request carries command text. The Server resolves the catalog's command name and fixed arguments,
+adds a fresh launch-time conversation id where the provider takes one, and attaches the command to
+the authorized launch. The Worker passes it to managed PowerShell through `ORCHBEE_AGENT_START`, and
+the managed startup's last step clears that variable, writes the run's start marker under a fresh run
+token, and runs exactly the line a typed start would:
+
+```text
+& (Get-Command '<command>' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1) '<argument>' ...
+```
+
+The shell is the Panel's process and the Agent its first command, so the process tree, command line,
+recognition and resume evidence match a typed start's, and the person is left at the same shell when
+the Agent exits. A command that is not found ends only the startup script: the shell's own error
+stays visible above its first prompt and the shell keeps working.
+
+Every other shell starts without the command; the Worker also removes the variable so a value
+inherited from its environment never runs. When the Tab's creation commits, the Client watches the
+new Panel. For managed PowerShell, per the Host's `launchKind`, it only runs the early check, counted
+from the start's acceptance with a 10000 ms settle that also covers the shell's own startup: an idle
+shell after the Agent was seen is `agent-exited`; an idle shell with no Agent seen by the end is
+`command-not-found`. Any other shell, such as cmd or a custom launch profile, gets the typed start at
+its first idle prompt, repeated while the new shell settles within a 30000 ms deadline. Such a start
+reserves nothing and offers no name. POSIX shells have no managed startup that takes a first command,
+and the TUI starts no Agent there.
 
 ## Workflow and invariants
 

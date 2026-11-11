@@ -33,6 +33,9 @@ pub struct Request {
     pub name: Option<AgentName>,
     pub provider: AgentProviderId,
     pub(crate) args: Box<[String]>,
+    /// The Panel's new shell was launched with this Agent as its first command: the workflow
+    /// watches it from the start instead of typing it, unless that shell could not take it.
+    pub(crate) start_command: bool,
 }
 
 impl Request {
@@ -41,7 +44,14 @@ impl Request {
             name,
             provider,
             args: args.into_boxed_slice(),
+            start_command: false,
         }
+    }
+
+    #[must_use]
+    pub(crate) const fn started_as_command(mut self) -> Self {
+        self.start_command = true;
+        self
     }
 }
 

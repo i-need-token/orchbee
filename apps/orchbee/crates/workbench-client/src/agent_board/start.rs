@@ -10,9 +10,8 @@
 use std::time::Instant;
 
 use orchbee_agent_observation_protocol::AgentProviderId;
-use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
+use orchbee_workbench_protocol::WorkbenchPanelId;
 
-use crate::workbench_projection::ClientContextLocation;
 use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
 
 pub(crate) mod jobs;
@@ -118,16 +117,6 @@ impl Operation {
     }
 }
 
-/// A start waiting for the new Tab it asked for: the Tabs of the Workspace before the request,
-/// so the first Tab that was not there is the new one.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingTab {
-    pub(crate) provider: &'static str,
-    pub(crate) location: ClientContextLocation,
-    pub(crate) before: Vec<WorkbenchTabId>,
-    pub(crate) deadline: Instant,
-}
-
 pub(crate) struct State {
     launch_supported: bool,
     catalog: Catalog,
@@ -149,7 +138,6 @@ pub(crate) struct State {
     notice: Option<AgentStartNotice>,
     /// Starts that must move to a new Tab, oldest first.
     fallbacks: Vec<&'static str>,
-    pending_tab: Option<PendingTab>,
     /// Locality of the current Client origin; `None` until one is set.
     origin_local: Option<bool>,
     #[cfg(test)]
@@ -175,7 +163,6 @@ impl State {
             operations: Vec::new(),
             notice: None,
             fallbacks: Vec::new(),
-            pending_tab: None,
             origin_local: None,
             #[cfg(test)]
             accept_without_task: false,
@@ -301,18 +288,6 @@ impl State {
     /// The next start that must move to a new Tab.
     pub(crate) fn take_fallback(&mut self) -> Option<&'static str> {
         (!self.fallbacks.is_empty()).then(|| self.fallbacks.remove(0))
-    }
-
-    pub(crate) fn wait_for_tab(&mut self, pending: PendingTab) {
-        self.pending_tab = Some(pending);
-    }
-
-    pub(crate) fn pending_tab(&self) -> Option<&PendingTab> {
-        self.pending_tab.as_ref()
-    }
-
-    pub(crate) fn take_pending_tab(&mut self) -> Option<PendingTab> {
-        self.pending_tab.take()
     }
 
     pub(super) const fn launch_supported(&self) -> bool {

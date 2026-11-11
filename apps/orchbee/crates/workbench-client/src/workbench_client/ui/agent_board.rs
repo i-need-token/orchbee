@@ -18,8 +18,8 @@ use super::{
 #[cfg(test)]
 use crate::agent_board::AgentBoardInputContext;
 use crate::agent_board::picker::{PickedStart, PickerOutcome};
+use crate::agent_board::start::StartPlace;
 use crate::agent_board::start::jobs::Place;
-use crate::agent_board::start::{PendingTab, StartPlace};
 use crate::agent_board::{
     AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardKeyAction,
     AgentBoardRowTarget, AgentBoardToken, AgentBoardView, JumpStage, JumpStep, board_key_action,
@@ -34,9 +34,6 @@ use std::time::Instant;
 
 mod reads;
 pub(super) use reads::BoardReads;
-
-/// How long a start in a new Tab waits for the Tab to appear in the projection.
-const NEW_TAB_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn set_agent_board_origin(
@@ -171,7 +168,6 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
         self.start_jobs.close();
         self.board.retire_start_catalog();
-        self.board.start_state().take_pending_tab();
         self.board_reads.release();
         self.settings.close();
         if !self.worktrees.close() {
@@ -268,8 +264,8 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Asks for a new Tab in the current Workspace through the ordinary Tab creation and
-    /// remembers the start until that Tab appears.
+    /// Asks the Server for a new Tab in the current Workspace whose shell runs the Agent as its
+    /// first command, through the ordinary Tab creation; nothing is typed.
     fn start_in_new_tab(&mut self, provider: &'static str) {
         if self.view().no_current_workspace() {
             if let Some(state) = self.state.as_mut() {
@@ -277,79 +273,35 @@ impl WorkbenchClientUi {
             }
             return;
         }
-        let Some(state) = self.state.as_ref() else {
-            return;
-        };
-        let Some(deadline) = self.clock.now().checked_add(NEW_TAB_WAIT) else {
-            return;
-        };
-        let pending = PendingTab {
-            provider,
-            location: state.cache().location().clone(),
-            before: state
-                .cache()
-                .tabs()
-                .iter()
-                .map(|tab| tab.tab_id().clone())
-                .collect(),
-            deadline,
-        };
-        if self.board.start_state().take_pending_tab().is_some() {
-            // One Tab request at a time: the earlier start fails instead of taking this Tab.
-            self.board
-                .start_state()
-                .set_notice(AgentStartNotice::Failed);
-        }
-        self.board.start_state().wait_for_tab(pending);
-        let _disposition = self.structure_action(super::StructureAction::CreateTab);
+        let _disposition = self.structure_action(super::StructureAction::CreateAgentTab(provider));
     }
 
-    /// Moves refused starts to new Tabs and starts a waiting start once its Tab exists.
-    fn drive_start_places(&mut self, now: Instant) -> bool {
+    /// Moves refused starts to new Tabs, and watches each Agent a created Tab's shell runs as its
+    /// first command, as a typed start is watched.
+    fn drive_start_places(&mut self) -> bool {
         let mut changed = false;
         while let Some(provider) = self.board.start_state().take_fallback() {
             self.start_in_new_tab(provider);
             changed = true;
         }
-        let Some(pending) = self.board.start_state().pending_tab().cloned() else {
-            return changed;
-        };
-        let Some(state) = self.state.as_ref() else {
-            return changed;
-        };
-        let panel = if state.cache().location() == &pending.location {
-            state
-                .cache()
-                .tabs()
-                .iter()
-                .find(|tab| !pending.before.contains(tab.tab_id()))
-                .and_then(|tab| tab.panel(0))
-                .map(|panel| panel.panel_id().clone())
-        } else {
-            None
-        };
-        let moved = state.cache().location() != &pending.location;
-        if let Some(panel) = panel {
-            self.board.start_state().take_pending_tab();
+        let started = self
+            .state
+            .as_mut()
+            .map(crate::workbench_state::WorkbenchClientState::take_started_agents)
+            .unwrap_or_default();
+        for (panel, provider) in started {
             let clock = self.clock.clone();
             if !self.start_jobs.start(
                 self.board.start_state(),
-                pending.provider,
-                Place::NewTab(panel),
+                provider,
+                Place::StartCommand(panel),
                 clock,
             ) {
                 self.board
                     .start_state()
                     .set_notice(AgentStartNotice::Failed);
             }
-            return true;
-        }
-        if moved || now >= pending.deadline {
-            self.board.start_state().take_pending_tab();
-            self.board
-                .start_state()
-                .set_notice(AgentStartNotice::Failed);
-            return true;
+            changed = true;
         }
         changed
     }
@@ -541,7 +493,7 @@ impl WorkbenchClientUi {
         changed |= self.board.drain_start(now, |start, admission| {
             self.start_jobs.drain(start, admission)
         });
-        changed |= self.drive_start_places(now);
+        changed |= self.drive_start_places();
         if let Some(notice) = self.board.start_state().take_notice()
             && let Some(state) = self.state.as_mut()
         {

@@ -74,16 +74,20 @@ discards other results, and an incomplete first lookup claims nothing installed.
 hints about this Client's PATH, not guarantees about the target terminal.
 
 There is no name field. `Enter` or a row click, against the current successful draw, closes the
-picker on the same frame and starts the provider through the same typed single-submission workflow
-as the CLI, which keeps its named start. A terminal's Enter arrives as a bare CR, the canonical
-`Ctrl+M`, and starts the same way. A start the picker cannot make leaves it open and says why: the
-status row on a host that cannot start Agents, otherwise "Agent did not start" in the status line.
-The place is automatic: the focused Panel when its shell
-is idle — no known Agent holds it and none of this Client's starts guards it — else a new Tab, and
-the context row says which. A Host refusal because the Panel is no longer at an idle prompt starts
-in a new Tab instead and says "Panel busy · opened a new Tab". A new Tab comes from the ordinary Tab
-creation in the focused Workspace; the start waits up to ten seconds for that Tab to appear at the
-same location and then retries the prompt-gated start while the new shell settles. The workflow
+picker on the same frame and starts the provider. A terminal's Enter arrives as a bare CR, the
+canonical `Ctrl+M`, and starts the same way. A start the picker cannot make leaves it open and says
+why: the status row on a host that cannot start Agents, otherwise "Agent did not start" in the status
+line. The place is automatic: the focused Panel when
+its shell is idle — no known Agent holds it and none of this Client's starts guards it — else a new
+Tab, and the context row says which. In the focused Panel the provider is typed through the same
+single-submission workflow as the CLI, which keeps its named start. A new Tab comes from the
+ordinary Tab creation in the focused Workspace with the provider's catalog id: the Server launches
+the Tab's shell with the Agent as its first command, so nothing is typed, the Panel shows the
+Agent's own first screen, and the shell stays when the Agent exits. The Client asks once and never
+polls for the Tab; when the creation commits it watches the new Panel the way a typed start is
+watched. A shell that cannot take a first command, such as cmd or a custom launch profile, gets
+the typed start at its first prompt instead. A Host refusal because the focused Panel is no longer
+at an idle prompt starts in a new Tab instead and says "Panel busy · opened a new Tab". The workflow
 never installs a provider, inspects an integration or changes configuration. Success shows no
 notice; the Panel's Agent row shows the Agent opening. A failure is a short status notice, such as
 "Codex not found · Ctrl+B G choose another" or "Codex exited · see its Tab", and a provider not
@@ -149,7 +153,7 @@ starts afresh, since there is no retry state.
 | Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
 | Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
 | Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
-| Start Agent    | A current successful picker draw admits one canonical provider and the automatic place: the focused idle Panel unless a running or unknown start guards it, else a new Tab. The workflow submits input once and ends after its early check; a generation/Panel mismatch drops the completion.                                                                     |
+| Start Agent    | A current successful picker draw admits one canonical provider and the automatic place: the focused idle Panel unless a running or unknown start guards it, else a new Tab whose shell runs the Agent as its first command. The workflow submits input at most once and ends after its early check; a generation/Panel mismatch drops the completion.             |
 | Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. Accepted startup tasks remain Session-owned and keep running; only Session teardown wakes them.                                                                                                                                                                |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked

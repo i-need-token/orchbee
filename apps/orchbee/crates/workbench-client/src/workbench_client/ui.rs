@@ -3466,7 +3466,14 @@ impl WorkbenchClientUi {
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     ) -> ClientActionDisposition {
         let (launch, description) = self.default_create_launch();
-        self.create_tab_launch(placement, launch, description)
+        self.create_tab_launch(placement, launch, description, None)
+    }
+
+    /// A new Tab in the current Workspace whose default shell runs `provider` as its first
+    /// command.
+    pub(super) fn create_agent_tab(&mut self, provider: &'static str) -> ClientActionDisposition {
+        let (launch, description) = self.default_create_launch();
+        self.create_tab_launch(None, launch, description, Some(provider))
     }
 
     fn default_create_launch(
@@ -3513,6 +3520,7 @@ impl WorkbenchClientUi {
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
         launch: Option<orchbee_workbench_protocol::LaunchSelection>,
         description: Option<crate::workbench_state::LaunchDescription>,
+        agent_start: Option<&'static str>,
     ) -> ClientActionDisposition {
         if self.view().no_current_workspace() {
             if placement.is_some() {
@@ -3553,8 +3561,8 @@ impl WorkbenchClientUi {
                     request_id,
                     deadlines,
                     placement,
-                    launch,
-                    description,
+                    (launch, description),
+                    agent_start,
                 )
             },
             finish_action,
@@ -5208,9 +5216,20 @@ fn build_create_launch(
     request_id: orchbee_workbench_protocol::WorkbenchRequestId,
     deadlines: OperationDeadlines,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
-    launch: Option<orchbee_workbench_protocol::LaunchSelection>,
-    description: Option<crate::workbench_state::LaunchDescription>,
+    (launch, description): (
+        Option<orchbee_workbench_protocol::LaunchSelection>,
+        Option<crate::workbench_state::LaunchDescription>,
+    ),
+    agent_start: Option<&'static str>,
 ) -> Result<CreateMarker, ActionBuildError> {
+    // The catalog id names the Agent; the Server resolves the command.
+    let agent_selector = match agent_start {
+        Some(provider) => Some(
+            orchbee_workbench_protocol::AgentStartSelector::parse(provider)
+                .ok_or(ActionBuildError::Protocol)?,
+        ),
+        None => None,
+    };
     if !state.invariant_holds() {
         return Err(ActionBuildError::Protocol);
     }
@@ -5268,6 +5287,7 @@ fn build_create_launch(
     )
     .with_placement(placement.clone())
     .with_launch_description(description)
+    .with_agent_start(agent_start)
     .with_origin(if state.phase_kind() == ClientPhaseKind::Empty {
         crate::workbench_state::CreateOriginKind::Empty
     } else if matches!(
@@ -5298,7 +5318,10 @@ fn build_create_launch(
             geometry: workbench_geometry,
             launch,
             profile: None,
-            options: Default::default(),
+            options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                agent_start: agent_selector,
+                ..Default::default()
+            }),
         },
     };
     let request = WorkbenchTabCreateRequest::try_from(command)

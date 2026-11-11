@@ -91,6 +91,8 @@ pub(super) enum StructureAction {
     MoveTab(WorkbenchTabMoveDirection),
     Panel(PanelRequestKind),
     CreateTab,
+    /// A new Tab whose shell runs this Agent as its first command.
+    CreateAgentTab(&'static str),
 }
 
 struct Hold {
@@ -339,7 +341,8 @@ impl WorkbenchClientUi {
             StructureAction::SelectTab(_)
             | StructureAction::MoveTab(_)
             | StructureAction::Panel(_)
-            | StructureAction::CreateTab => ClientActionDisposition::DismissNavigator,
+            | StructureAction::CreateTab
+            | StructureAction::CreateAgentTab(_) => ClientActionDisposition::DismissNavigator,
         };
         self.hold_intent(HeldIntent::Structure(action));
         disposition
@@ -364,6 +367,7 @@ impl WorkbenchClientUi {
             StructureAction::MoveTab(direction) => self.move_tab(direction),
             StructureAction::Panel(kind) => self.panel_operation(kind),
             StructureAction::CreateTab => self.create_tab(),
+            StructureAction::CreateAgentTab(provider) => self.create_agent_tab(provider),
         }
     }
 

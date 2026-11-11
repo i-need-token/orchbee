@@ -63,7 +63,7 @@ impl WorkbenchClientUi {
             profile_name: profile.name.clone(),
             executable: Some(launch.executable().to_owned()),
         };
-        let disposition = self.create_tab_launch(None, Some(launch), Some(description));
+        let disposition = self.create_tab_launch(None, Some(launch), Some(description), None);
         self.command_notice.set(Some((
             if disposition == ClientActionDisposition::DismissNavigator {
                 WorkbenchClientNotice::LaunchProfileSelected
