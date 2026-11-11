@@ -9,8 +9,6 @@ export {
 	AlertDialogTitle,
 } from './alert-dialog';
 
-export { Badge } from './badge';
-
 export { Button } from './button';
 
 export { Checkbox } from './checkbox';
@@ -72,11 +70,7 @@ export {
 	type ResizablePanelHandle,
 } from './resizable';
 
-export { Slider } from './slider';
-
 export { Switch } from './switch';
-
-export { Textarea } from './textarea';
 
 export { Toggle } from './toggle';
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
