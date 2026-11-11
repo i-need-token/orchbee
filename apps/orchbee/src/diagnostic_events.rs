@@ -48,7 +48,7 @@ const fn startup_failure(failure: &StartupFailure) -> &'static str {
         StartupFailure::AlreadyInSession => "already-in-session",
         StartupFailure::Terminal => "terminal",
         StartupFailure::Cohort => "cohort",
-        StartupFailure::Runtime => "runtime",
+        StartupFailure::Runtime | StartupFailure::Refused(_) => "runtime",
         StartupFailure::SocketPathTooLong => "socket-path-too-long",
         StartupFailure::RecoveryRequired => "recovery-required",
         StartupFailure::ClientTooOld(_) => "client-too-old",

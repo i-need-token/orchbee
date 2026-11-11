@@ -2,8 +2,9 @@
 //! This vocabulary is independent of CLI output, TUI selection and localized copy.
 
 /// The single local-startup verdict vocabulary shared below activation and its UI adapters.
-/// The activation core itself only ever emits `Cohort`, `Runtime`, `SocketPathTooLong`,
-/// `RecoveryRequired`, one of the handshake refusals, `Admission`, or `TimedOut`;
+/// The activation core itself only ever emits `Cohort`, `Runtime`, `Refused`,
+/// `SocketPathTooLong`, `RecoveryRequired`, one of the handshake refusals, `Admission`, or
+/// `TimedOut`;
 /// `Terminal`, `TerminalUnavailable`, `OutcomeUnknown`, and `Interface` are
 /// produced exclusively by the TUI adapter's own terminal stages and live
 /// in this one enum so both callers classify the same verdict type.
@@ -13,6 +14,9 @@ pub enum StartupFailure {
     Terminal,
     Cohort,
     Runtime,
+    /// A macOS or Linux data or socket folder failed the ownership, permission, or file-lock
+    /// rules; the refusal names the item at fault.
+    Refused(Box<orchbee_local_runtime::AdmissionRefusal>),
     SocketPathTooLong,
     RecoveryRequired,
     /// The running Session supports only newer Clients.

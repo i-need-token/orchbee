@@ -94,7 +94,64 @@ impl Locale {
             (Self::ZhCn, StartupFailure::DevelopmentBuildMismatch) => {
                 "此开发构建无法加入正在运行的会话。请运行 `orchbee server stop` 停止它，然后重试。\n".into()
             }
+            (locale, StartupFailure::Refused(refusal)) => locale.admission_refusal(refusal).into(),
             (locale, failure) => locale.startup_failure_text(failure).into(),
+        }
+    }
+
+    /// A refused macOS or Linux data or socket folder, naming the item at fault and how to fix it.
+    fn admission_refusal(self, refusal: &orchbee_local_runtime::AdmissionRefusal) -> String {
+        use orchbee_local_runtime::RefusalReason;
+        let path = refusal.path.display();
+        match (self, refusal.reason) {
+            (Self::EnUs, RefusalReason::OtherOwner) => format!(
+                "Orchbee can't use {path}: it belongs to another user. If you started Orchbee with sudo, run it as yourself, or set ORCHBEE_HOME to a folder you own.\n"
+            ),
+            (Self::ZhCn, RefusalReason::OtherOwner) => format!(
+                "Orchbee 无法使用 {path}：它属于其他用户。如果你用 sudo 启动了 Orchbee，请以自己的身份运行，或将 ORCHBEE_HOME 设为你拥有的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::OthersCanChange) => format!(
+                "Orchbee can't use {path}: other users can change it. Run \"chmod go-w {path}\", then start Orchbee again.\n"
+            ),
+            (Self::ZhCn, RefusalReason::OthersCanChange) => format!(
+                "Orchbee 无法使用 {path}：其他用户可以修改它。请运行 \"chmod go-w {path}\"，然后重新启动 Orchbee。\n"
+            ),
+            (Self::EnUs, RefusalReason::OthersCanRead) => format!(
+                "Orchbee can't use {path}: other users can read it. Run \"chmod -R go-rwx {path}\", then start Orchbee again.\n"
+            ),
+            (Self::ZhCn, RefusalReason::OthersCanRead) => format!(
+                "Orchbee 无法使用 {path}：其他用户可以读取它。请运行 \"chmod -R go-rwx {path}\"，然后重新启动 Orchbee。\n"
+            ),
+            (Self::EnUs, RefusalReason::PermissionsNotKept) => format!(
+                "Orchbee can't keep its data in {path}: this file system doesn't keep file permissions. Set ORCHBEE_HOME to a folder on this computer's own disk.\n"
+            ),
+            (Self::ZhCn, RefusalReason::PermissionsNotKept) => format!(
+                "Orchbee 无法把数据保存在 {path}：此文件系统不保留文件权限。请将 ORCHBEE_HOME 设为本机磁盘上的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::LocksUnsupported) => format!(
+                "Orchbee can't keep its data in {path}: this file system doesn't support file locks. Set ORCHBEE_HOME to a folder on this computer's own disk.\n"
+            ),
+            (Self::ZhCn, RefusalReason::LocksUnsupported) => format!(
+                "Orchbee 无法把数据保存在 {path}：此文件系统不支持文件锁。请将 ORCHBEE_HOME 设为本机磁盘上的文件夹。\n"
+            ),
+            (Self::EnUs, RefusalReason::SymbolicLink) => format!(
+                "Orchbee can't use {path}: it is a symbolic link. Only the data folder itself and config.toml may be links.\n"
+            ),
+            (Self::ZhCn, RefusalReason::SymbolicLink) => format!(
+                "Orchbee 无法使用 {path}：它是符号链接。只有数据文件夹本身和 config.toml 可以是链接。\n"
+            ),
+            (Self::EnUs, RefusalReason::AccessControlList) => format!(
+                "Orchbee can't use {path}: it has an access control list that can let other users in. Run \"chmod -RN {path}\", then start Orchbee again.\n"
+            ),
+            (Self::ZhCn, RefusalReason::AccessControlList) => format!(
+                "Orchbee 无法使用 {path}：它的访问控制列表可能允许其他用户访问。请运行 \"chmod -RN {path}\"，然后重新启动 Orchbee。\n"
+            ),
+            (Self::EnUs, RefusalReason::UnsafeSocketFolder) => format!(
+                "Orchbee can't use {path} for its sockets: it belongs to another user or is open to other users. Remove it, then start Orchbee again.\n"
+            ),
+            (Self::ZhCn, RefusalReason::UnsafeSocketFolder) => format!(
+                "Orchbee 无法用 {path} 存放套接字：它属于其他用户或对其他用户开放。请删除它，然后重新启动 Orchbee。\n"
+            ),
         }
     }
 
@@ -151,13 +208,14 @@ impl Locale {
                     "本地会话需要显式恢复。未启动替代进程。\n"
                 }
             }
-            // Rendered with their versions above.
+            // Rendered with their versions or the refused item above.
             (
                 _,
                 StartupFailure::ClientTooOld(_)
                 | StartupFailure::SessionTooOld(_)
                 | StartupFailure::OtherEnvironment
-                | StartupFailure::DevelopmentBuildMismatch,
+                | StartupFailure::DevelopmentBuildMismatch
+                | StartupFailure::Refused(_),
             ) => "",
             (Self::EnUs, StartupFailure::Admission) => {
                 "The local session could not admit this Client connection.\n"
