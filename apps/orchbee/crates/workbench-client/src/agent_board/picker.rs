@@ -376,6 +376,7 @@ impl AgentBoard {
         if self.session_agents != agents {
             self.session_agents = agents;
             self.agents_revision = self.agents_revision.wrapping_add(1);
+            self.follow_shown_agents();
         }
     }
 

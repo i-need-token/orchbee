@@ -4,7 +4,8 @@
 //! Hand-typed Agents count as much as started ones. Nothing is persisted; a later record of past
 //! starts replaces [`recent`] without touching the picker.
 
-use orchbee_workbench_protocol::WorkbenchPanelId;
+use orchbee_agent_observation_protocol::AgentLaunchBinding;
+use orchbee_workbench_protocol::{PanelAgentState, WorkbenchPanelId};
 
 /// At most this many providers lead the picker as recent.
 pub(crate) const RECENT_LIMIT: usize = 3;
@@ -15,6 +16,16 @@ struct Entry {
     panel: WorkbenchPanelId,
     /// The Session's sequence of the Agent's latest state; a larger one is more recent.
     sequence: u64,
+    /// The Agent as the sidebar shows it; absent only in tests that need recency alone.
+    shown: Option<ShownAgent>,
+}
+
+/// One Agent as the sidebar shows it: its report label, the terminal it runs in and its state.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ShownAgent {
+    pub(crate) agent: String,
+    pub(crate) binding: AgentLaunchBinding,
+    pub(crate) state: PanelAgentState,
 }
 
 /// One observation of the Session's Agents.
@@ -34,9 +45,19 @@ impl SessionAgents {
                     provider: crate::agent_provider::canonical_id(&row.target.agent).unwrap_or(""),
                     panel: row.target.panel.clone(),
                     sequence: row.sequence.value(),
+                    shown: Some(ShownAgent {
+                        agent: row.target.agent.clone(),
+                        binding: row.target.physical.clone(),
+                        state: row.state,
+                    }),
                 })
                 .collect(),
         }
+    }
+
+    /// Every Agent the sidebar shows, in its order.
+    pub(crate) fn shown(&self) -> impl Iterator<Item = &ShownAgent> {
+        self.entries.iter().filter_map(|entry| entry.shown.as_ref())
     }
 
     #[cfg(test)]
@@ -48,6 +69,7 @@ impl SessionAgents {
                     provider,
                     panel: panel.clone(),
                     sequence: *sequence,
+                    shown: None,
                 })
                 .collect(),
         }

@@ -170,6 +170,14 @@ starts afresh, since there is no retry state.
 | Start Agent    | A current successful picker draw admits one canonical provider and the shown place: the focused idle Panel unless a running or unknown start guards it (then a new Tab), or a new Tab or split whose shell runs the Agent as its first command. The workflow submits input at most once and ends after its early check; a generation/Panel mismatch drops the completion. |
 | Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. Accepted startup tasks remain Session-owned and keep running; only Session teardown wakes them.                                                                                                                                                                        |
 
+Every Agent the sidebar shows for the Session is a row, whatever started it. An Agent without a
+canonical session — one started without a hook integration, by the picker, the CLI or by hand,
+with or without a name — is listed from the sidebar's report for its Panel: the sidebar's state
+mapped onto the six-state presentation, its Presentation as the only attachment, and an internal
+key derived from that Presentation. Such a row has no session to `Get`, so `Enter` navigates to
+its Panel at once through the same stages. It follows the sidebar while the board is open; a
+canonical session that attaches the same Presentation replaces it at the next read.
+
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked
 stale; without `last_good` it may show only same-revision rows marked incomplete — and preserving
 `last_good` never rewrites its install age, so preserved rows keep their true freshness across

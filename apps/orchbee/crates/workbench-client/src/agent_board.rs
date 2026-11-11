@@ -1,5 +1,6 @@
 //! The Agent board's session-side presentation state: the rows the last
-//! completed OBAP list read returned, the board's own interaction state
+//! completed OBAP list read returned plus every Agent the sidebar shows
+//! without a canonical session, the board's own interaction state
 //! (selection, scroll, notice), the queued read/jump intents, and the
 //! in-flight jump's stage bookkeeping. Canonical Agent state stays
 //! server-owned — this module keeps only what the last completed read
@@ -44,9 +45,10 @@ pub(crate) const AGENT_READ_COOLDOWN: Duration = Duration::from_secs(2);
 /// The 512-session runtime bound at 100 items per page, rounded up.
 const MAXIMUM_ROWS: usize = 600;
 
-/// A canonical Agent row: the summary the last completed list read
-/// returned, kept verbatim — the board renders it, never reinterprets it.
-#[derive(Clone, Debug)]
+/// An Agent row: the canonical summary the last completed list read
+/// returned, kept verbatim — the board renders it, never reinterprets it —
+/// or an Agent the sidebar shows that has no canonical session.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AgentBoardRow {
     session_id: AgentSessionId,
     provider_id: AgentProviderId,
@@ -54,6 +56,10 @@ pub struct AgentBoardRow {
     lifecycle: AgentLifecycle,
     freshness: AgentObservationFreshness,
     attachments: Box<[AgentPresentationAttachment]>,
+    /// The sidebar's report of an Agent without a canonical session — one started without a
+    /// hook integration, by the picker, the CLI or by hand. It has no session to `Get`, so a
+    /// jump goes straight to its Panel.
+    sidebar: bool,
 }
 
 impl AgentBoardRow {
@@ -65,7 +71,56 @@ impl AgentBoardRow {
             lifecycle: summary.lifecycle,
             freshness: summary.observation.freshness,
             attachments: summary.presentation_attachments.into_boxed_slice(),
+            sidebar: false,
         }
+    }
+
+    /// The row for an Agent the sidebar shows, keyed by its Presentation — internal only, like
+    /// every session id — with the sidebar's state.
+    fn from_shown(shown: &session_agents::ShownAgent) -> Option<Self> {
+        use orchbee_workbench_protocol::PanelAgentState;
+        let binding = &shown.binding;
+        let provider =
+            orchbee_agent_observation_protocol::AgentReportProvider::lookup(&shown.agent)
+                .map_or_else(
+                    || shown.agent.to_ascii_lowercase(),
+                    |provider| provider.native_provider_id().to_owned(),
+                );
+        let status = match shown.state {
+            PanelAgentState::Working => AgentSemanticStatus::Working {
+                activity: None,
+                phase: orchbee_agent_observation_protocol::AgentTurnPhase::Working,
+            },
+            PanelAgentState::Blocked => AgentSemanticStatus::NeedsAttention {
+                count: orchbee_agent_observation_protocol::AgentPositiveInteger::new(1)?,
+            },
+            PanelAgentState::Done => AgentSemanticStatus::Succeeded {},
+            PanelAgentState::Error => AgentSemanticStatus::Failed {},
+            PanelAgentState::Idle => AgentSemanticStatus::Idle {},
+            PanelAgentState::Unknown | PanelAgentState::Opening => AgentSemanticStatus::Unknown {
+                activity_hint: None,
+            },
+        };
+        Some(Self {
+            session_id: AgentSessionId::parse(&format!(
+                "terminal:{}",
+                binding.presentation_id.as_str()
+            ))
+            .ok()?,
+            provider_id: AgentProviderId::parse(&provider)
+                .or_else(|_| AgentProviderId::parse("unknown"))
+                .ok()?,
+            status,
+            lifecycle: AgentLifecycle::Live,
+            freshness: AgentObservationFreshness::Fresh,
+            attachments: Box::new([AgentPresentationAttachment {
+                generation: binding.generation.clone(),
+                navigable: true,
+                presentation_id: binding.presentation_id.clone(),
+                visibility: AgentPresentationVisibility::Unknown,
+            }]),
+            sidebar: true,
+        })
     }
 
     pub(crate) const fn session_id(&self) -> &AgentSessionId {
@@ -1430,6 +1485,24 @@ impl AgentBoard {
             self.fail_jump(JumpFailure::Expired);
             return;
         };
+        // A sidebar row has no canonical session to verify: it navigates to its Panel at once,
+        // and the live presentation index still resolves every stage.
+        if let Some(row) = self
+            .rows
+            .iter()
+            .find(|row| row.sidebar && row.session_id == target)
+        {
+            self.jump = Some(BoardJump {
+                serial,
+                stage: JumpStage::Navigating {
+                    candidates: row.attachments.clone(),
+                    index: 0,
+                },
+                deadline,
+            });
+            self.shown = None;
+            return;
+        }
         self.jump = Some(BoardJump {
             serial,
             stage: JumpStage::Checking,
@@ -1494,6 +1567,82 @@ impl AgentBoard {
         }
     }
 
+    /// The rows for every Agent the sidebar shows whose Presentation no canonical row attaches:
+    /// the Board lists each Agent the sidebar shows, whatever started it.
+    fn shown_rows(&self, canonical: &[AgentBoardRow]) -> Vec<AgentBoardRow> {
+        self.session_agents
+            .shown()
+            .filter(|shown| {
+                !canonical.iter().any(|row| {
+                    row.attachments.iter().any(|attachment| {
+                        attachment.presentation_id == shown.binding.presentation_id
+                    })
+                })
+            })
+            .filter_map(AgentBoardRow::from_shown)
+            .collect()
+    }
+
+    /// A changed sidebar updates the rows it contributes once a read installed rows; canonical
+    /// rows wait for the next read.
+    pub(crate) fn follow_shown_agents(&mut self) {
+        if self.rows_at.is_none() {
+            return;
+        }
+        let canonical: Vec<AgentBoardRow> = self
+            .rows
+            .iter()
+            .filter(|row| !row.sidebar)
+            .cloned()
+            .collect();
+        let shown = self.shown_rows(&canonical);
+        if self.rows.iter().filter(|row| row.sidebar).eq(shown.iter()) {
+            return;
+        }
+        let mut rows = canonical;
+        rows.extend(shown);
+        self.install_rows(rows);
+    }
+
+    /// Install a new row set, keeping the selection and the reading position by identity.
+    fn install_rows(&mut self, mut rows: Vec<AgentBoardRow>) {
+        let held = self.selected_row().map(|row| row.session_id.clone());
+        let anchored = self.rows.get(self.scroll).map(|row| row.session_id.clone());
+        let old_scroll = self.scroll;
+        // Needs-attention rows surface first — a stable lift,
+        // never a reorder: the canonical order inside each
+        // group stays exactly what the Server returned.
+        rows.sort_by_key(|row| {
+            usize::from(!matches!(
+                row.status(),
+                AgentSemanticStatus::NeedsAttention { .. }
+            ))
+        });
+        rows.truncate(MAXIMUM_ROWS);
+        self.rows = rows;
+        self.rows_revision = self.rows_revision.wrapping_add(1);
+        self.shown = None;
+        // The selection follows the opaque session identity —
+        // never a stale row index. A vanished selection
+        // repairs deterministically to the first row in the
+        // current display order.
+        if let Some(held) = held {
+            self.selection = self
+                .rows
+                .iter()
+                .position(|row| row.session_id() == &held)
+                .unwrap_or(0);
+        }
+        // A background refresh preserves the manual reading
+        // anchor independently of the logical selection. When
+        // that row vanished, retain the bounded viewport offset;
+        // never snap back to selection merely because data landed.
+        self.scroll = anchored
+            .and_then(|anchor| self.rows.iter().position(|row| row.session_id() == &anchor))
+            .unwrap_or(old_scroll);
+        self.clamp_viewport();
+    }
+
     fn apply_list_outcome(
         &mut self,
         episode: AgentBoardEpisodeToken,
@@ -1515,50 +1664,15 @@ impl AgentBoard {
                 // reported as a full count.
                 let replace = round.complete || !self.rows_from_complete;
                 if replace {
-                    let held = self.selected_row().map(|row| row.session_id.clone());
-                    let anchored = self.rows.get(self.scroll).map(|row| row.session_id.clone());
-                    let old_scroll = self.scroll;
                     let mut rows: Vec<AgentBoardRow> = round
                         .items
                         .into_iter()
                         .map(AgentBoardRow::from_summary)
                         .collect();
-                    // Needs-attention rows surface first — a stable lift,
-                    // never a reorder: the canonical order inside each
-                    // group stays exactly what the Server returned.
-                    rows.sort_by_key(|row| {
-                        usize::from(!matches!(
-                            row.status(),
-                            AgentSemanticStatus::NeedsAttention { .. }
-                        ))
-                    });
-                    rows.truncate(MAXIMUM_ROWS);
-                    self.rows = rows;
-                    self.rows_revision = self.rows_revision.wrapping_add(1);
-                    self.shown = None;
-                    // The selection follows the opaque session identity —
-                    // never a stale row index. A vanished selection
-                    // repairs deterministically to the first row in the
-                    // current display order.
-                    if let Some(held) = held {
-                        self.selection = self
-                            .rows
-                            .iter()
-                            .position(|row| row.session_id() == &held)
-                            .unwrap_or(0);
-                    }
-                    // A background refresh preserves the manual reading
-                    // anchor independently of the logical selection. When
-                    // that row vanished, retain the bounded viewport offset;
-                    // never snap back to selection merely because data landed.
-                    self.scroll = anchored
-                        .and_then(|anchor| {
-                            self.rows.iter().position(|row| row.session_id() == &anchor)
-                        })
-                        .unwrap_or(old_scroll);
+                    rows.extend(self.shown_rows(&rows));
+                    self.install_rows(rows);
                     self.rows_from_complete = round.complete;
                     self.rows_at = Some(now);
-                    self.clamp_viewport();
                 }
                 // When last_good rows are kept, their install time is the
                 // honest freshness — not the moment this partial landed.

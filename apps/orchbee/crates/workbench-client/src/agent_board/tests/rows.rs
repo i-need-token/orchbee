@@ -34,6 +34,53 @@ fn painted_lines(board: &AgentBoard, index: &PresentationIndex, locale: Locale) 
         .collect()
 }
 
+/// The sidebar's row for an Agent that has no canonical session: started by the picker or typed
+/// by hand, without a name, a conversation id or a hook integration.
+fn sidebar_agent() -> crate::machine_agents::checkpoint::Row {
+    let mut row = crate::machine_agents::test_support::row(23);
+    row.state = orchbee_workbench_protocol::PanelAgentState::Idle;
+    row
+}
+
+fn settle_empty_list(board: &mut AgentBoard, now: Instant) {
+    assert!(board.drive_intent(now, accepted));
+    let episode = board.episode();
+    board.settle_read(
+        AgentBoardReadEvent::Answer(AgentBoardReadAnswer::List {
+            episode,
+            result: Ok(AgentListRound {
+                items: Vec::new(),
+                complete: true,
+            }),
+        }),
+        now,
+        &mut no_preference,
+    );
+}
+
+#[test]
+fn every_agent_the_sidebar_shows_is_a_row_without_a_canonical_session() {
+    let mut board = AgentBoard::new(true);
+    board.observe_session_agents(SessionAgents::from_rows(&[sidebar_agent()]));
+    board.open();
+    settle_empty_list(&mut board, Instant::now());
+    let index = PresentationIndex::rebuild(&crate::machine_agents::test_support::fixture());
+    let text = painted_lines(&board, &index, Locale::EnUs).join("\n");
+    assert!(!text.contains("No Agent sessions"), "{text}");
+    assert_eq!(board.rows().len(), 1, "{text}");
+    assert!(text.contains("Codex"), "{text}");
+    // No canonical session exists to Get: the jump goes straight to the sidebar's Presentation.
+    board.request_jump();
+    assert!(board.drive_intent(Instant::now(), |request| {
+        panic!("a sidebar row reads nothing: {request:?}")
+    }));
+    let Some(JumpStage::Navigating { candidates, .. }) = board.jump().map(|jump| &jump.stage)
+    else {
+        panic!("navigating jump");
+    };
+    assert_eq!(candidates[0].presentation_id.as_str(), hex(23));
+}
+
 #[test]
 fn rows_show_title_provider_and_workspace_or_a_placeholder_never_the_session_id() {
     let mut board = AgentBoard::new(true);
