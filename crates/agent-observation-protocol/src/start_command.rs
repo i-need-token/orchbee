@@ -1,9 +1,10 @@
 //! The closed catalog of startable interactive Agents: the command an Agent start runs for each
 //! canonical provider id, its fixed arguments, and the option through which a new conversation
 //! gets an id the starter chose. Clients and the Server read the same entries, so a typed start
-//! and a shell's start command run the same executable with the same arguments.
+//! and a shell's start command run the same executable with the same arguments, and both decide
+//! alike which providers a search-path lookup can check.
 
-use crate::AgentReportProvider;
+use crate::{AgentAliasClass, AgentReportProvider};
 
 /// Every startable provider in the catalog's stable order.
 pub const STARTABLE_AGENT_PROVIDER_IDS: &[&str] = &[
@@ -79,6 +80,22 @@ impl StartableAgent {
             "minimax-code" => "mcode",
             id => id,
         }
+    }
+
+    /// Whether finding [`executable`](Self::executable) on a search path says the provider is
+    /// installed. A command the registry classes as generic for any provider, such as Cursor's
+    /// `agent` or `snow`, may belong to another program, so such a provider can be started but
+    /// not checked, and its command is never looked up.
+    #[must_use]
+    pub fn checkable(self) -> bool {
+        let command = self.executable();
+        !AgentReportProvider::ALL.iter().any(|known| {
+            known
+                .registry_entry()
+                .aliases
+                .iter()
+                .any(|alias| alias.name == command && alias.class == AgentAliasClass::Generic)
+        })
     }
 
     /// The fixed arguments that open the provider's interactive session when its bare command

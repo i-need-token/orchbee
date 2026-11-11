@@ -115,11 +115,13 @@ reuse it rather than keeping their own tables.
   provider alone; `Shared` and `Generic` names need one of the entry's install roots in the path.
   Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone; `snow` is a
   generic word, and `amp`, `mimo`, `mcode` and CodeBuddy's `cbc` are shared, so each needs its
-  package's install root. Command Code's `cmd` command is never an alias. Desktop and IDE
-  application names that share a report label (`cursor`, `kiro`, `qoder`, `antigravity`) are not
-  process aliases. Entries also list package entries, bundled runtimes, and allowed Python modules.
-  Version ranges enter an entry only after a real corpus verifies them; until then every entry is
-  best effort.
+  package's install root. The same classes decide which startable providers a search-path lookup
+  can check: `StartableAgent::checkable` is false when the start command is a generic alias of any
+  provider, so Cursor (`agent`) and Snow are never looked up. Command Code's `cmd` command is never
+  an alias. Desktop and IDE application names that share a report label (`cursor`, `kiro`, `qoder`,
+  `antigravity`) are not process aliases. Entries also list package entries, bundled runtimes, and
+  allowed Python modules. Version ranges enter an entry only after a real corpus verifies them;
+  until then every entry is best effort.
 - Classifier: `classify_agent_process` takes the actual image and decoded arguments and returns
   `AgentProcessRecognition`: not an Agent, interactive or noninteractive with an
   `AgentInstallShape`, unresolved with a reason, or a remote client. Names in arbitrary arguments

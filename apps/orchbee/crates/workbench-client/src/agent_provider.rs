@@ -3,7 +3,7 @@
 
 pub use orchbee_agent_observation_protocol::STARTABLE_AGENT_PROVIDER_IDS as CANONICAL_IDS;
 pub use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
-use orchbee_agent_observation_protocol::{AgentAliasClass, AgentReportProvider, StartableAgent};
+use orchbee_agent_observation_protocol::{AgentReportProvider, StartableAgent};
 
 /// Exact canonical provider ID; aliases, report labels, and process names stay absent.
 pub fn provider(canonical: &str) -> Option<&'static str> {
@@ -44,9 +44,9 @@ pub struct ProviderChoice {
     pub id: &'static str,
     pub product: &'static str,
     pub command: &'static str,
-    /// Whether finding `command` on PATH says the provider is installed. A command the registry
-    /// classes as generic, such as Cursor's `agent` or `snow`, may belong to another program, so
-    /// such a provider can be started but not checked.
+    /// Whether finding `command` on PATH says the provider is installed
+    /// ([`StartableAgent::checkable`]): a generic command such as Cursor's `agent` or `snow` can
+    /// be started but not checked.
     pub checkable: bool,
 }
 
@@ -58,19 +58,12 @@ pub fn choices() -> impl Iterator<Item = ProviderChoice> {
 /// The catalog entry for a canonical id; aliases and report labels stay absent.
 pub fn choice(canonical: &str) -> Option<ProviderChoice> {
     let provider = AgentReportProvider::from_native_provider_id(canonical)?;
-    let command = executable(canonical)?;
-    let generic = AgentReportProvider::ALL.iter().any(|known| {
-        known
-            .registry_entry()
-            .aliases
-            .iter()
-            .any(|alias| alias.name == command && alias.class == AgentAliasClass::Generic)
-    });
+    let agent = StartableAgent::parse(canonical)?;
     Some(ProviderChoice {
         id: provider.native_provider_id(),
         product: provider.product_name(),
-        command,
-        checkable: !generic,
+        command: agent.executable(),
+        checkable: agent.checkable(),
     })
 }
 
