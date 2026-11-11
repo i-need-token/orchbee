@@ -70,6 +70,7 @@ enum StatusAction {
     ShowHelp,
     Exit,
     CreateTab,
+    StartAgent,
     CreateWorkspace,
     Refresh,
     CheckAgain,
@@ -1561,6 +1562,18 @@ fn action_hint(
             PrefixAction::Client(ClientAction::CreateTab),
             copy.create_tab,
         ),
+        // A host without Agent launch never advertises it.
+        StatusAction::StartAgent
+            if !view
+                .capabilities()
+                .supports(crate::tui_capabilities::Capability::AgentLaunch) =>
+        {
+            return None;
+        }
+        StatusAction::StartAgent => (
+            PrefixAction::Client(ClientAction::StartAgent),
+            copy.start_agent,
+        ),
         StatusAction::CreateWorkspace => (
             PrefixAction::Client(ClientAction::CreateTab),
             copy.create_workspace,
@@ -1700,7 +1713,7 @@ fn native_phase_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
         DisplayPhase::Empty if native.no_current_workspace() => {
             vec![StatusAction::CreateWorkspace]
         }
-        DisplayPhase::Empty => vec![StatusAction::CreateTab],
+        DisplayPhase::Empty => vec![StatusAction::CreateTab, StatusAction::StartAgent],
         DisplayPhase::Ready if native.active_position().is_none() => {
             vec![StatusAction::Exit]
         }

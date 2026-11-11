@@ -282,67 +282,70 @@ fn capture_board_frame(
     frame
 }
 
-#[test]
-fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
+/// The picker's index of `provider`'s row.
+fn provider_row(ui: &WorkbenchClientUi, provider: &str) -> usize {
+    ui.agent_board_view()
+        .unwrap()
+        .picker_items()
+        .iter()
+        .position(|item| {
+            matches!(item, crate::agent_board::picker::Item::Provider { id, .. } if *id == provider)
+        })
+        .expect("the provider has a row")
+}
+
+fn press(ui: &mut WorkbenchClientUi, code: crate::client_view::KeyCode) -> bool {
+    let context = ui
+        .agent_board_input_context()
+        .expect("the picker owns input");
+    ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(code, crate::client_view::Modifiers::NONE),
+    )
+}
+
+/// An empty Board with a local origin and a found catalog, closed, so `Ctrl+B G` opens the
+/// picker on its own.
+fn picker_fixture(found: &[&'static str]) -> WorkbenchClientUi {
     let (mut ui, mailbox, clock) = fixture();
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);
     install_capture_empty_read(&mut ui);
-    ui.board
-        .install_start_draft_t(&["codex", "amp", "muse"], "alpha");
+    ui.board.install_start_catalog_t(found);
     ui.board.accept_start_without_task_t();
-    let theme = crate::tui_theme::Theme::terminal_native();
+    ui.board.close();
+    ui.open_agent_picker();
+    ui
+}
 
-    for (locale, width, height, empty_line) in [
-        (
-            crate::localization::Locale::EnUs,
-            120,
-            40,
-            "No Agent sessions",
-        ),
-        (
-            crate::localization::Locale::EnUs,
-            80,
-            24,
-            "No Agent sessions",
-        ),
-        (
-            crate::localization::Locale::EnUs,
-            120,
-            36,
-            "No Agent sessions",
-        ),
-        (crate::localization::Locale::ZhCn, 120, 36, "没有智能体会话"),
-        (crate::localization::Locale::ZhCn, 80, 24, "没有智能体会话"),
+#[test]
+fn picker_lists_found_providers_and_enter_starts_in_the_focused_idle_panel() {
+    let mut ui = picker_fixture(&["codex", "amp", "muse"]);
+    let theme = crate::tui_theme::Theme::terminal_native();
+    for (locale, width, height) in [
+        (crate::localization::Locale::EnUs, 120, 36),
+        (crate::localization::Locale::ZhCn, 120, 36),
+        (crate::localization::Locale::EnUs, 60, 20),
+        (crate::localization::Locale::ZhCn, 60, 20),
     ] {
         ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
         let mut frame = render_board_frame(&ui, width, height, locale, &theme);
         crate::tui_render::test_capture::capture_screen(
             &mut frame.terminal,
-            &format!("empty-board-{width}x{height}-{locale:?}"),
+            &format!("start-agent-picker-{width}x{height}-{locale:?}"),
             locale,
             &theme,
         );
         let text = frame.text();
-        let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
-        let board_text = locale.shell().board;
-        assert!(normalized.contains(empty_line), "{locale:?}: {text:?}");
-        assert!(
-            normalized.contains(board_text.empty_start),
-            "{locale:?}: {text:?}"
-        );
         for provider in ["Codex", "Amp", "Muse"] {
-            assert!(normalized.contains(provider), "{locale:?}: {text:?}");
+            assert!(text.contains(provider), "{locale:?} {width}: {text:?}");
         }
         assert!(
-            normalized.contains("Claude Code"),
-            "manual providers remain available: {text:?}"
+            frame
+                .control_hit(AgentBoardControl::Pick(provider_row(&ui, "codex")))
+                .is_some()
         );
-        assert!(normalized.contains("alpha"), "{locale:?}: {text:?}");
-        assert!(
-            normalized.contains(board_text.start_button),
-            "{locale:?}: {text:?}"
-        );
+        assert!(frame.control_hit(AgentBoardControl::Close).is_some());
         frame.settle(&mut ui);
     }
 
@@ -351,25 +354,16 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
         .as_ref()
         .and_then(|state| state.focus_panel_id().cloned())
         .expect("fixture has one exact focused Panel");
-    let context = ui
-        .agent_board_input_context()
-        .expect("the Board remains the active input owner");
-    assert!(ui.capture_agent_board_key(
-        context.episode(),
-        &crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Enter,
-            crate::client_view::Modifiers::NONE,
-        ),
-    ));
-    assert!(ui.board.start_running());
+    let context = ui.agent_board_input_context().unwrap();
+    assert!(press(&mut ui, crate::client_view::KeyCode::Enter));
     assert_eq!(
         ui.board.start_operation_panel_t(),
         Some(&expected_panel),
-        "keyboard activation injects the exact focused Panel"
+        "an idle focused Panel is the start's place"
     );
     assert!(
         !ui.board.is_open(),
-        "accepted startup restores terminal input immediately"
+        "Enter closes the picker on the same frame"
     );
     assert!(ui.agent_board_input_context().is_none());
     assert!(
@@ -380,165 +374,87 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
                 crate::client_view::Modifiers::NONE
             ),
         ),
-        "the retired Board cannot consume a terminal key"
-    );
-    ui.toggle_agent_board();
-    let context = ui.agent_board_input_context().unwrap();
-    ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
-    let mut cancelling_frame =
-        render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
-    cancelling_frame.settle(&mut ui);
-    assert!(ui.capture_agent_board_key(
-        context.episode(),
-        &crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Char('c'),
-            crate::client_view::Modifiers::NONE,
-        ),
-    ));
-    assert_eq!(
-        ui.agent_board_view().unwrap().start_phase(),
-        Some(crate::agent_board::AgentStartPhase::Cancelling),
-    );
-    assert!(ui.capture_agent_board_key(
-        context.episode(),
-        &crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Esc,
-            crate::client_view::Modifiers::NONE,
-        ),
-    ));
-    assert!(
-        ui.board.start_running(),
-        "closing the Board does not cancel accepted startup"
+        "the retired picker cannot consume a terminal key"
     );
 }
 
 #[test]
-fn narrow_zh_empty_board_suspends_start_without_publishing_a_start_target() {
+fn narrow_picker_suspends_without_publishing_a_start_target() {
     use crate::{localization::RecoveryVerb, tui_presentation::PresentationPhase};
 
-    let (mut ui, mailbox, clock) = fixture();
-    bootstrap(&mut ui, &mailbox, &clock);
-    ready(&mut ui);
-    install_capture_empty_read(&mut ui);
-    ui.board
-        .install_start_draft_t(&["codex", "amp", "muse"], "alpha");
-    ui.board.accept_start_without_task_t();
+    let mut ui = picker_fixture(&["codex", "amp"]);
     let theme = crate::tui_theme::Theme::terminal_native();
     let locale = crate::localization::Locale::ZhCn;
 
     ui.observe_geometry(Geometry::new(80, 24, 8, 16).unwrap());
     let mut admitted = render_board_frame(&ui, 80, 24, locale, &theme);
-    assert!(admitted.control_hit(AgentBoardControl::Start).is_some());
+    assert!(admitted.control_hit(AgentBoardControl::Pick(1)).is_some());
     admitted.settle(&mut ui);
 
-    // This is the exact narrow boundary that exposed the original false
-    // full-form assertion: the admitted Board retains local close ownership,
-    // but no incomplete Start form or effect target may escape.
-    ui.observe_geometry(Geometry::new(58, 12, 8, 16).unwrap());
-    let mut narrow = render_board_frame(&ui, 58, 12, locale, &theme);
+    // The first height that cannot paint the picker's list suspends it in place.
+    let mut narrow = (4..24)
+        .rev()
+        .map(|height| {
+            ui.observe_geometry(Geometry::new(58, height, 8, 16).unwrap());
+            render_board_frame(&ui, 58, height, locale, &theme)
+        })
+        .find(|frame| frame.control_hit(AgentBoardControl::Pick(1)).is_none())
+        .expect("a short enough host cannot paint the list");
     let text = narrow.text();
     assert!(text.contains(locale.presentation_notice(true)), "{text:?}");
     assert!(
         text.contains(locale.recovery_verb(RecoveryVerb::Close)),
         "{text:?}"
     );
-    assert!(text.contains("Esc"), "{text:?}");
-    assert!(narrow.control_hit(AgentBoardControl::Start).is_none());
+    assert!(narrow.control_hit(AgentBoardControl::Pick(1)).is_none());
     narrow.settle(&mut ui);
 
     let context = ui
         .agent_board_input_context()
-        .expect("the admitted Board is retained for local recovery");
+        .expect("the admitted picker is retained for local recovery");
     assert_eq!(context.presentation(), PresentationPhase::Suspended);
     assert!(!context.interactive());
-    assert!(ui.capture_agent_board_key(
-        context.episode(),
-        &crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Esc,
-            crate::client_view::Modifiers::NONE,
-        ),
-    ));
-    assert!(!ui.board.is_open(), "Esc closes the suspended Board");
+    assert!(press(&mut ui, crate::client_view::KeyCode::Enter));
+    assert_eq!(
+        ui.board.start_operation_panel_t(),
+        None,
+        "a suspended picker starts nothing"
+    );
+    assert!(press(&mut ui, crate::client_view::KeyCode::Esc));
+    assert!(!ui.board.is_open(), "Esc closes the suspended picker");
 }
 
 #[test]
-fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_locales() {
-    let (mut ui, mailbox, clock) = fixture();
-    bootstrap(&mut ui, &mailbox, &clock);
-    ready(&mut ui);
-    install_capture_empty_read(&mut ui);
-    ui.board.install_start_draft_t(&[], "manual-1");
-    let theme = crate::tui_theme::Theme::terminal_native();
-
-    for locale in [
-        crate::localization::Locale::EnUs,
-        crate::localization::Locale::ZhCn,
-    ] {
-        ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
-        let mut frame = render_board_frame(&ui, 120, 40, locale, &theme);
-        let normalized = frame
-            .text()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
-        let board_text = locale.shell().board;
-        assert!(normalized.contains(board_text.start_none_found));
-        assert!(normalized.contains("manual-1"));
-        assert!(normalized.contains("Pi"));
-        assert!(!normalized.contains("orchbee agent start"));
-        assert!(
-            frame
-                .control_hit(AgentBoardControl::StartProvider(0))
-                .is_some()
-        );
-        frame.settle(&mut ui);
-        assert!(ui.agent_board_view().unwrap().can_start_agent());
-    }
-}
-
-#[test]
-fn empty_board_mouse_start_requires_the_current_exact_draw() {
-    let (mut ui, mailbox, clock) = fixture();
-    bootstrap(&mut ui, &mailbox, &clock);
-    ready(&mut ui);
-    install_capture_empty_read(&mut ui);
-    ui.board.install_start_draft_t(&["codex", "amp"], "alpha");
-    ui.board.accept_start_without_task_t();
+fn picker_mouse_start_requires_the_current_exact_draw() {
+    let mut ui = picker_fixture(&["codex", "amp"]);
     let theme = crate::tui_theme::Theme::terminal_native();
     ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
 
     let mut stale_frame =
         render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
     stale_frame.settle(&mut ui);
-    let stale_start = stale_frame
-        .control_hit(AgentBoardControl::Start)
-        .expect("enabled Start Agent control is painted");
-    let context = ui.agent_board_input_context().unwrap();
-    assert!(ui.capture_agent_board_key(
-        context.episode(),
-        &crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Char('z'),
-            crate::client_view::Modifiers::NONE,
-        ),
-    ));
+    let stale = stale_frame
+        .control_hit(AgentBoardControl::Pick(provider_row(&ui, "codex")))
+        .expect("the Codex row is painted");
+    assert!(press(&mut ui, crate::client_view::KeyCode::Char('c')));
     assert!(
-        !ui.click_agent_board_control(&stale_start),
-        "a draft change invalidates the old pointer target"
+        !ui.click_agent_board_control(&stale),
+        "a query change invalidates the old pointer target"
     );
-    assert!(!ui.board.start_running());
+    assert_eq!(ui.board.start_operation_panel_t(), None);
 
     let mut current_frame =
         render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
     current_frame.settle(&mut ui);
-    let start = current_frame
-        .control_hit(AgentBoardControl::Start)
-        .expect("Start Agent is repainted for the new draft");
+    let current = current_frame
+        .control_hit(AgentBoardControl::Pick(provider_row(&ui, "codex")))
+        .expect("the Codex row is repainted for the new query");
     let expected_panel = ui
         .state
         .as_ref()
         .and_then(|state| state.focus_panel_id().cloned())
         .unwrap();
-    assert!(ui.click_agent_board_control(&start));
+    assert!(ui.click_agent_board_control(&current));
     assert!(!ui.board.is_open());
     assert!(ui.agent_board_input_context().is_none());
     assert_eq!(ui.board.start_operation_panel_t(), Some(&expected_panel));

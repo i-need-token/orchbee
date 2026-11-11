@@ -76,6 +76,8 @@ pub enum ClientAction {
     CloseWorkbenchNavigator,
     /// `Ctrl+B g` — toggles the Client-owned Agent board overlay.
     ToggleAgentBoard,
+    /// `Ctrl+B G` — opens the Start Agent picker.
+    StartAgent,
     CreateTab,
     SelectNextTab,
     SelectPreviousTab,
@@ -171,6 +173,7 @@ impl ClientAction {
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
             | Self::ToggleAgentBoard
+            | Self::StartAgent
             | Self::TogglePointerCapture
             | Self::EnterHistory
             | Self::ForwardLiteralPrefix
@@ -266,6 +269,7 @@ pub enum MenuAction {
     Sidebar,
     Navigator,
     AgentBoard,
+    StartAgent,
     /// Shown only while an Agent notification card is current.
     OpenNotificationTarget,
     ReleasePointer,
@@ -350,6 +354,7 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::Sidebar => Self::Sidebar,
             MenuAction::Navigator => Self::Navigator,
             MenuAction::AgentBoard => Self::AgentBoard,
+            MenuAction::StartAgent => Self::StartAgent,
             MenuAction::OpenNotificationTarget => Self::OpenNotificationTarget,
             MenuAction::ReleasePointer => Self::ReleasePointer,
             MenuAction::Detach => Self::Detach,
@@ -440,6 +445,7 @@ impl MenuAction {
             Self::Sidebar => ClientAction::ToggleBusinessSidebar,
             Self::Navigator => ClientAction::OpenWorkbenchNavigator,
             Self::AgentBoard => ClientAction::ToggleAgentBoard,
+            Self::StartAgent => ClientAction::StartAgent,
             Self::OpenNotificationTarget => ClientAction::OpenNotificationTarget,
             Self::ReleasePointer => ClientAction::TogglePointerCapture,
             Self::Detach => ClientAction::Exit,

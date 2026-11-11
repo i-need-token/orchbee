@@ -326,6 +326,10 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::BoardToggle,
     },
     PrefixGroup {
+        members: &[member(shift_key('g'), ClientAction::StartAgent)],
+        desc: PrefixDesc::StartAgent,
+    },
+    PrefixGroup {
         members: &[PrefixMember {
             keys: key(KeyCode::Char('?')),
             action: PrefixAction::ShowHelp,

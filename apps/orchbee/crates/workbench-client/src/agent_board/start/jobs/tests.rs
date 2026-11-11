@@ -12,11 +12,10 @@ fn panel(value: u8) -> WorkbenchPanelId {
 fn operation(generation: u64, panel: WorkbenchPanelId, phase: Phase) -> Operation {
     Operation {
         generation,
-        episode: 1,
         panel,
-        name: Some(AgentName::parse("alpha").unwrap()),
-        provider: AgentProviderId::parse("codex").unwrap(),
+        provider: "codex",
         phase,
+        fallback: false,
         held_until: Some(Instant::now() + START_DEADLINE),
     }
 }
@@ -28,7 +27,7 @@ fn report(
     submission_status: Option<u8>,
 ) -> Report {
     Report {
-        name: Some(AgentName::parse("alpha").unwrap()),
+        name: None,
         provider: AgentProviderId::parse("codex").unwrap(),
         reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
         last_observed: None,
@@ -107,29 +106,6 @@ fn sent(status: u8, delivery: DeliveryDisposition) -> Submission {
 }
 
 #[test]
-fn draft_is_bounded_and_every_visible_change_invalidates_the_draw_source() {
-    let mut state = State::new(true);
-    state.install_catalog(&["codex", "amp"]);
-    let first = state.draw_source();
-    assert!(state.edit(KeyEvent::press(
-        KeyCode::Char('A'),
-        Modifiers::NONE.with_shift()
-    )));
-    assert_eq!(state.name(), "a");
-    assert_ne!(state.draw_source(), first);
-    let named = state.draw_source();
-    assert!(state.select_provider(1));
-    assert_ne!(state.draw_source(), named);
-    assert!(!state.select_provider(1));
-    for _ in 1..MAXIMUM_NAME_BYTES {
-        assert!(state.edit(KeyEvent::press(KeyCode::Char('z'), Modifiers::NONE)));
-    }
-    assert_eq!(state.name().len(), MAXIMUM_NAME_BYTES);
-    assert!(!state.edit(KeyEvent::press(KeyCode::Char('z'), Modifiers::NONE)));
-    assert!(!state.edit(KeyEvent::press(KeyCode::Char('.'), Modifiers::NONE)));
-}
-
-#[test]
 fn completion_requires_the_exact_generation_and_panel() {
     let mut state = State::new(true);
     let target = panel(1);
@@ -143,7 +119,7 @@ fn completion_requires_the_exact_generation_and_panel() {
 
 #[test]
 fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
-    // Every refusal that typed nothing is retryable once its reservation is settled.
+    // Every refusal that typed nothing is a settled result once its reservation is settled.
     for failure in [
         StartFailure::TerminalNotIdle,
         StartFailure::PromptUnconfirmed(SendPromptState::Busy),
@@ -156,14 +132,14 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
             (ReservationState::None, None),
             (ReservationState::Released, Some(3)),
         ] {
-            assert!(
+            assert_ne!(
                 report_phase(&report(
                     Failure::Start(failure),
                     reservation,
                     DeliveryDisposition::NotApplied,
                     status,
-                ))
-                .retryable(),
+                )),
+                Phase::Unknown,
                 "{failure:?} typed nothing"
             );
         }
@@ -308,8 +284,8 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
 }
 
 #[test]
-fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
-    for phase in [Phase::Starting, Phase::Cancelling] {
+fn disconnected_start_worker_preserves_recovery() {
+    for phase in [Phase::Starting, Phase::WaitingInput] {
         let mut state = State::new(true);
         let mut jobs = Jobs::default();
         state.operations = vec![operation(7, panel(1), phase)];
@@ -323,7 +299,7 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
             outcomes,
             wake,
             task: crate::background_thread::BackgroundThread::ended(),
-            cancelled: phase == Phase::Cancelling,
+            cancelled: false,
         });
         assert_eq!(
             jobs.drain(&mut state, CatalogAdmission::Closed),
@@ -332,10 +308,11 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
                 started: false
             }
         );
-        assert_eq!(state.phase(1), Some(Phase::Unknown));
-        state.opened(2);
-        assert_eq!(state.phase(2), Some(Phase::Unknown));
-        assert!(!state.draft_editable());
+        assert_eq!(state.phase(7), Some(Phase::Unknown));
+        assert!(
+            state.guards(&panel(1)),
+            "an unknown result still holds its Panel"
+        );
     }
 }
 
@@ -344,7 +321,6 @@ fn catalog_result_survives_empty_then_sender_exit() {
     let mut state = State::new(true);
     let mut jobs = Jobs::default();
     state.catalog = Catalog::Loading;
-    state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
     jobs.catalog = Some(CatalogTask {
         revision: 4,
@@ -355,15 +331,17 @@ fn catalog_result_survives_empty_then_sender_exit() {
     assert!(!jobs.drain_catalog(&mut state));
     sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
     assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.detected(), ["codex"]);
+    assert_eq!(state.installed(), Some(&["codex"][..]));
     assert_eq!(state.catalog_status(), CatalogStatus::Loading);
-    assert_eq!(state.selected_provider(), Some("codex"));
     sender.send((4, CatalogUpdate::Finished(false))).unwrap();
     drop(sender);
     assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.detected(), ["codex"]);
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-    assert!(state.providers().contains(&"cursor"));
+    assert_eq!(
+        state.installed(),
+        None,
+        "an incomplete first lookup cannot say what is installed"
+    );
 }
 
 #[test]
@@ -371,7 +349,6 @@ fn disconnected_catalog_worker_settles_unavailable() {
     let mut state = State::new(true);
     let mut jobs = Jobs::default();
     state.catalog = Catalog::Loading;
-    state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
     drop(sender);
     jobs.catalog = Some(CatalogTask {
@@ -382,95 +359,6 @@ fn disconnected_catalog_worker_settles_unavailable() {
     });
     assert!(jobs.drain_catalog(&mut state));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-    assert_eq!(
-        state.selected_provider(),
-        Some(crate::agent_provider::CANONICAL_IDS[0]),
-        "a settled empty catalog keeps the form startable"
-    );
-}
-
-#[test]
-fn detection_selects_no_undetected_default_and_lists_detected_providers_first() {
-    let mut state = State::new(true);
-    let mut jobs = Jobs::default();
-    state.catalog = Catalog::Loading;
-    state.catalog_revision = 4;
-    let (sender, outcomes) = mpsc::sync_channel(3);
-    jobs.catalog = Some(CatalogTask {
-        revision: 4,
-        outcomes,
-        cancelled: Arc::new(AtomicBool::new(false)),
-        task: crate::background_thread::BackgroundThread::ended(),
-    });
-    assert_eq!(state.selected_provider(), None);
-    assert_eq!(state.name(), "");
-    assert!(!state.can_start());
-
-    sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
-    assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.providers()[0], "codex");
-    assert_eq!(state.selected_provider(), Some("codex"));
-
-    // A later detection reorders the list but never moves the selection to another provider.
-    sender
-        .send((4, CatalogUpdate::Found("claude-code")))
-        .unwrap();
-    sender.send((4, CatalogUpdate::Finished(true))).unwrap();
-    assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.providers()[..2], ["claude-code", "codex"]);
-    assert_eq!(state.selected_provider(), Some("codex"));
-    assert_eq!(
-        state.providers().len(),
-        crate::agent_provider::CANONICAL_IDS.len(),
-        "undetected providers stay manually selectable"
-    );
-
-    assert!(state.move_provider(-1));
-    assert_eq!(state.selected_provider(), Some("claude-code"));
-    state.retire_catalog();
-    assert_eq!(
-        state.providers(),
-        crate::agent_provider::CANONICAL_IDS,
-        "retiring detection restores canonical order"
-    );
-    assert_eq!(state.selected_provider(), Some("claude-code"));
-}
-
-#[test]
-fn only_explicit_cancel_moves_an_accepted_operation_to_cancelling() {
-    let mut state = State::new(true);
-    let target = panel(1);
-    state.operations = vec![operation(3, target, Phase::Starting)];
-    state.opened(2);
-    assert_eq!(state.phase(2), Some(Phase::Starting));
-    assert!(!state.draft_editable());
-    assert!(state.cancel());
-    assert_eq!(state.phase(2), Some(Phase::Cancelling));
-    assert!(!state.cancel());
-}
-
-#[test]
-fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
-    let target = panel(1);
-    for phase in [
-        Phase::Starting,
-        Phase::WaitingInput,
-        Phase::Cancelling,
-        Phase::Unknown,
-    ] {
-        let mut state = State::new(true);
-        state.operations = vec![operation(3, target.clone(), phase)];
-        state.opened(2);
-        assert_eq!(state.phase(2), Some(phase));
-        assert!(!state.draft_editable());
-    }
-    for phase in [Phase::Started, Phase::Failed, Phase::Cancelled] {
-        let mut state = State::new(true);
-        state.operations = vec![operation(3, target.clone(), phase)];
-        state.opened(2);
-        assert_eq!(state.phase(2), None);
-        assert!(state.draft_editable());
-    }
 }
 
 #[test]
@@ -482,8 +370,7 @@ fn remote_origin_never_publishes_the_local_process_path_as_target_availability()
     jobs.set_origin(origin);
     jobs.ensure_catalog(&mut state, std::env::var_os("PATH"));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-    assert!(state.detected().is_empty());
-    assert!(!state.providers().is_empty());
+    assert_eq!(state.installed(), None);
     assert!(jobs.catalog.is_none());
 }
 
@@ -593,49 +480,31 @@ fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
     assert_eq!(lookup("claude"), client_path::Query::Missing);
 }
 
-#[test]
-fn canonical_attention_progress_is_cancellable_without_replacing_the_operation() {
-    let mut state = State::new(true);
-    let mut jobs = Jobs::default();
-    state.operations = vec![operation(1, panel(1), Phase::Starting)];
-    let (_sender, outcomes) = mpsc::sync_channel(1);
-    let (_reader, wake) = LocalStream::pair().unwrap();
-    let progress = Arc::new(Mutex::new(Some(Progress::WaitingInput)));
-    jobs.start.push(StartTask {
-        generation: 1,
-        panel: panel(1),
-        progress: Arc::clone(&progress),
-        outcomes,
-        wake,
-        task: crate::background_thread::BackgroundThread::ended(),
-        cancelled: false,
-    });
-    assert!(jobs.drain(&mut state, CatalogAdmission::Closed).changed);
-    assert_eq!(state.phase(1), Some(Phase::WaitingInput));
-    assert!(state.cancel());
-    *progress.lock().unwrap() = Some(Progress::Observing);
-    jobs.drain(&mut state, CatalogAdmission::Closed);
-    assert_eq!(state.phase(1), Some(Phase::Cancelling));
-}
-
 /// A start guards only its own Panel: another Panel starts while it runs. The same Panel starts
 /// again once observation showed its shell prompt, or once an unknown result reached the
-/// workflow deadline; reopening the Board never ends a hold early.
+/// workflow deadline.
 #[test]
 fn a_start_guards_only_its_own_panel_until_the_prompt_returns_or_the_deadline_passes() {
     let mut state = State::new(true);
     state.set_origin_locality(true);
     state.install_catalog(&["codex"]);
     let deadline = Instant::now() + START_DEADLINE;
-    let first = state.begin_start(1, panel(1), deadline).unwrap();
-    assert!(!state.draft_editable());
-    assert!(state.begin_start(1, panel(1), deadline).is_none());
-    state.set_target(Some(panel(2)));
+    let first = state
+        .begin_start("codex", panel(1), true, deadline)
+        .unwrap();
+    assert!(state.guards(&panel(1)));
     assert!(
-        state.draft_editable(),
+        state
+            .begin_start("codex", panel(1), true, deadline)
+            .is_none()
+    );
+    assert!(
+        !state.guards(&panel(2)),
         "another Panel's start never locks this one"
     );
-    let second = state.begin_start(1, panel(2), deadline).unwrap();
+    let second = state
+        .begin_start("codex", panel(2), true, deadline)
+        .unwrap();
 
     let exited = report_phase(&report(
         Failure::Start(StartFailure::AgentExited),
@@ -644,19 +513,28 @@ fn a_start_guards_only_its_own_panel_until_the_prompt_returns_or_the_deadline_pa
         Some(0),
     ));
     assert!(state.apply_completion(first.generation, &panel(1), exited));
-    state.set_target(Some(panel(1)));
-    assert!(state.draft_editable(), "the shell prompt returned");
-    assert!(state.begin_start(1, panel(1), deadline).is_some());
+    assert!(!state.guards(&panel(1)), "the shell prompt returned");
+    assert!(
+        state
+            .begin_start("codex", panel(1), true, deadline)
+            .is_some()
+    );
 
     assert!(state.apply_completion(second.generation, &panel(2), Phase::Unknown));
-    state.set_target(Some(panel(2)));
-    state.opened(2);
-    assert_eq!(state.phase(2), Some(Phase::Unknown));
+    assert_eq!(state.phase(second.generation), Some(Phase::Unknown));
     assert!(!state.expire(deadline - Duration::from_millis(1)));
-    assert!(state.begin_start(2, panel(2), deadline).is_none());
+    assert!(
+        state
+            .begin_start("codex", panel(2), true, deadline)
+            .is_none()
+    );
     assert!(state.expire(deadline));
-    assert!(state.draft_editable());
-    assert!(state.begin_start(2, panel(2), deadline).is_some());
+    assert!(!state.guards(&panel(2)));
+    assert!(
+        state
+            .begin_start("codex", panel(2), true, deadline)
+            .is_some()
+    );
 }
 
 #[test]
@@ -677,14 +555,14 @@ fn an_observed_start_is_started_and_a_returned_prompt_is_retryable() {
         StartFailure::CommandNotFound,
     ] {
         for reservation in [ReservationState::Released, ReservationState::Unknown] {
-            assert!(
+            assert_ne!(
                 report_phase(&report(
                     Failure::Start(failure),
                     reservation,
                     DeliveryDisposition::Applied,
                     Some(0),
-                ))
-                .retryable(),
+                )),
+                Phase::Unknown,
                 "{failure:?} showed the shell prompt again"
             );
         }

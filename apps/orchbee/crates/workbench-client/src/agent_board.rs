@@ -22,10 +22,13 @@ use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
 mod names;
 pub(crate) use names::{LivePlacementNames, NameFacts};
+pub(crate) mod picker;
+pub(crate) mod session_agents;
 pub(crate) mod start;
 #[cfg(test)]
 mod tests;
-pub(crate) use start::{CatalogStatus as AgentStartCatalogStatus, Phase as AgentStartPhase};
+pub(crate) use session_agents::SessionAgents;
+pub(crate) use start::CatalogStatus as AgentStartCatalogStatus;
 
 /// One bounded read round's absolute deadline — connect admission, the
 /// whole page walk, and the single allowed restart all live inside it.
@@ -123,8 +126,10 @@ struct AgentBoardDrawSource {
     episode: AgentBoardEpisodeToken,
     rows_revision: u64,
     selected: Option<AgentSessionId>,
+    /// Whether the Start Agent row holds the cursor.
+    start_row: bool,
     jumping: bool,
-    start: start::DrawSource,
+    picker: Option<picker::DrawSource>,
 }
 
 /// Exact successful-paint evidence for one Board frame.
@@ -463,25 +468,9 @@ const BOARD_CLOSE_KEY: crate::client_view::Binding = crate::client_view::Binding
     crate::client_view::KeyCode::Esc,
     crate::client_view::Modifiers::NONE,
 );
-const BOARD_START_ACCEPT_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Enter,
-    crate::client_view::Modifiers::NONE,
-);
-const BOARD_START_PREVIOUS_PROVIDER_KEY: crate::client_view::Binding =
-    crate::client_view::Binding::new(
-        crate::client_view::KeyCode::Up,
-        crate::client_view::Modifiers::NONE,
-    );
-const BOARD_START_NEXT_PROVIDER_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Down,
-    crate::client_view::Modifiers::NONE,
-);
-const BOARD_START_EDIT_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Backspace,
-    crate::client_view::Modifiers::NONE,
-);
-const BOARD_START_CANCEL_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
-    crate::client_view::KeyCode::Char('c'),
+/// Opens the Start Agent picker from anywhere in the Board.
+const BOARD_START_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Char('s'),
     crate::client_view::Modifiers::NONE,
 );
 
@@ -492,14 +481,7 @@ pub(crate) enum AgentBoardKeyAction {
     Refresh,
     Jump,
     Close,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentStartKeyAction {
-    Start,
-    PreviousProvider,
-    NextProvider,
-    Cancel,
+    StartAgent,
 }
 
 pub(crate) fn board_key_action(event: crate::client_view::KeyEvent) -> Option<AgentBoardKeyAction> {
@@ -519,23 +501,8 @@ pub(crate) fn board_key_action(event: crate::client_view::KeyEvent) -> Option<Ag
         Some(AgentBoardKeyAction::Jump)
     } else if BOARD_CLOSE_KEY.matches(event) {
         Some(AgentBoardKeyAction::Close)
-    } else {
-        None
-    }
-}
-
-pub(crate) fn agent_start_key_action(
-    event: crate::client_view::KeyEvent,
-    running: bool,
-) -> Option<AgentStartKeyAction> {
-    if running && BOARD_START_CANCEL_KEY.matches(event) {
-        Some(AgentStartKeyAction::Cancel)
-    } else if BOARD_START_ACCEPT_KEY.matches(event) {
-        Some(AgentStartKeyAction::Start)
-    } else if BOARD_START_PREVIOUS_PROVIDER_KEY.matches(event) {
-        Some(AgentStartKeyAction::PreviousProvider)
-    } else if BOARD_START_NEXT_PROVIDER_KEY.matches(event) {
-        Some(AgentStartKeyAction::NextProvider)
+    } else if BOARD_START_KEY.matches(event) {
+        Some(AgentBoardKeyAction::StartAgent)
     } else {
         None
     }
@@ -786,8 +753,9 @@ impl AgentBoardRowTarget {
                     episode,
                     rows_revision: 0,
                     selected: Some(session.clone()),
+                    start_row: false,
                     jumping: false,
-                    start: start::State::new(true).draw_source(),
+                    picker: None,
                 },
                 scroll: 0,
             },
@@ -809,9 +777,10 @@ pub(crate) enum AgentBoardControl {
     Open,
     Refresh,
     Close,
-    Start,
-    CancelStart,
-    StartProvider(usize),
+    /// The Board's Start Agent row.
+    StartRow,
+    /// One picker row, by its index in the drawn picker rows.
+    Pick(usize),
 }
 
 /// Exact Board control painted into one admitted frame.
@@ -869,9 +838,14 @@ pub(crate) struct AgentBoard {
     /// When the last list round finished — success or failure — the
     /// source of the read cooldown `r` never bypasses.
     last_read_end: Option<Instant>,
+    /// Whether the Start Agent row holds the cursor; it always does while no Agent row exists.
+    start_row: bool,
     start: start::State,
     start_catalog_path: Option<std::ffi::OsString>,
-    start_catalog_ready_epoch: Option<u64>,
+    /// The Start Agent picker while it replaces the Board's content.
+    picker: Option<picker::Picker>,
+    session_agents: SessionAgents,
+    agents_revision: u64,
 }
 
 impl AgentBoard {
@@ -884,16 +858,37 @@ impl AgentBoard {
             episode: self.episode(),
             rows_revision: self.rows_revision,
             selected: self.selected_row().map(|row| row.session_id.clone()),
+            start_row: self.start_row_selected(),
             jumping: self.jumping(),
-            start: self.start.draw_source(),
+            picker: self.picker_draw_source(),
         }
     }
 
     fn token(&self) -> AgentBoardToken {
         AgentBoardToken {
             source: self.draw_source(),
-            scroll: self.scroll,
+            scroll: self
+                .picker
+                .as_ref()
+                .map_or(self.scroll, picker::Picker::scroll),
         }
+    }
+
+    /// Whether this host can launch an Agent, so the Board offers its Start Agent row.
+    pub(crate) const fn offers_start(&self) -> bool {
+        self.start.launch_supported()
+    }
+
+    /// Whether the Start Agent row holds the cursor.
+    pub(crate) fn start_row_selected(&self) -> bool {
+        self.offers_start() && (self.start_row || self.rows.is_empty())
+    }
+
+    /// The selected Agent row within the `visible` rows from `first`.
+    fn visible_selection(&self, first: usize, visible: usize) -> Option<&AgentSessionId> {
+        self.selected_row()
+            .filter(|_| self.selection >= first && self.selection < first.saturating_add(visible))
+            .map(AgentBoardRow::session_id)
     }
 
     fn current_draw(&self) -> Option<&AgentBoardActualDraw> {
@@ -925,6 +920,13 @@ impl AgentBoard {
         if !self.open || visible_rows == 0 {
             return None;
         }
+        if self.picker.is_some() {
+            let token = AgentBoardToken {
+                source: self.draw_source(),
+                scroll: self.picker_first_row(visible_rows),
+            };
+            return AgentBoardActualDraw::new(token, visible_rows, None, None);
+        }
         let first_index = self
             .scroll
             .min(self.rows.len().saturating_sub(visible_rows));
@@ -936,14 +938,7 @@ impl AgentBoard {
             .rows
             .get(first_index)
             .map(|row| row.session_id().clone());
-        let selected = self
-            .rows
-            .get(self.selection)
-            .filter(|_| {
-                self.selection >= first_index
-                    && self.selection < first_index.saturating_add(visible_rows)
-            })
-            .map(|row| row.session_id().clone());
+        let selected = self.visible_selection(first_index, visible_rows).cloned();
         AgentBoardActualDraw::new(token, visible_rows, first, selected)
     }
 
@@ -960,16 +955,8 @@ impl AgentBoard {
             AgentBoardControl::Open => return false,
             AgentBoardControl::Refresh => self.request_refresh(now),
             AgentBoardControl::Close => self.close(),
-            AgentBoardControl::Start => return false,
-            AgentBoardControl::CancelStart => return self.start.cancel(),
-            AgentBoardControl::StartProvider(index) => {
-                if !self.rows.is_empty()
-                    || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
-                {
-                    return false;
-                }
-                return self.start.select_provider(index);
-            }
+            // The composition opens the picker and runs a picked start.
+            AgentBoardControl::StartRow | AgentBoardControl::Pick(_) => return false,
         }
         true
     }
@@ -1010,9 +997,12 @@ impl AgentBoard {
             jump_serial: 0,
             notice: None,
             last_read_end: None,
+            start_row: false,
             start: start::State::new(launch_supported),
             start_catalog_path: None,
-            start_catalog_ready_epoch: None,
+            picker: None,
+            session_agents: SessionAgents::default(),
+            agents_revision: 0,
         }
     }
 
@@ -1046,11 +1036,8 @@ impl AgentBoard {
     pub(crate) fn open(&mut self) {
         self.open = true;
         self.epoch += 1;
-        self.start.opened(self.epoch);
-        {
-            self.start_catalog_ready_epoch = None;
-            self.start.retire_catalog();
-        }
+        self.picker = None;
+        self.start_row = false;
         self.presentation = PresentationPhase::Pending;
         self.visible = false;
         self.shown = None;
@@ -1059,20 +1046,6 @@ impl AgentBoard {
         self.jump = None;
         self.notice = None;
         self.clamp_viewport();
-    }
-
-    /// Opens the Board to start in `target`, the focused Panel. The form presents only that
-    /// Panel's operation, so another Panel's running start never locks it.
-    pub(crate) fn open_with_start_catalog(
-        &mut self,
-        path: Option<std::ffi::OsString>,
-        target: Option<orchbee_workbench_protocol::WorkbenchPanelId>,
-    ) {
-        self.start.set_target(target);
-        self.open();
-        // PATH is only captured here. Probe admission waits for this episode's
-        // complete empty List result and is fenced again in `drain_start`.
-        self.start_catalog_path = path;
     }
 
     /// Ends the open episode. The epoch bump invalidates every answer the
@@ -1087,11 +1060,8 @@ impl AgentBoard {
         self.inflight = None;
         self.jump = None;
         self.notice = None;
-        {
-            self.start_catalog_path = None;
-            self.start_catalog_ready_epoch = None;
-            self.start.retire_catalog();
-        }
+        self.picker = None;
+        self.start_catalog_path = None;
     }
 
     /// Settles exact paint evidence. `None` means another composed surface
@@ -1122,17 +1092,21 @@ impl AgentBoard {
             }
             AgentBoardDraw::Presented(actual) => {
                 let visible = actual.visible_rows();
+                if self.picker.is_some() {
+                    let first = self.picker_first_row(visible);
+                    if actual.token.source != self.draw_source() || actual.token.scroll != first {
+                        return None;
+                    }
+                    self.settle_picker_viewport(visible, first);
+                    self.presentation.presented();
+                    self.visible = true;
+                    self.shown = Some(actual);
+                    return None;
+                }
                 let maximum = self.rows.len().saturating_sub(visible);
                 let first_index = self.scroll.min(maximum);
                 let first = self.rows.get(first_index).map(AgentBoardRow::session_id);
-                let selected = self
-                    .rows
-                    .get(self.selection)
-                    .filter(|_| {
-                        self.selection >= first_index
-                            && self.selection < first_index.saturating_add(visible)
-                    })
-                    .map(AgentBoardRow::session_id);
+                let selected = self.visible_selection(first_index, visible);
                 if actual.token.source != self.draw_source()
                     || actual.token.scroll != first_index
                     || actual.first() != first
@@ -1177,6 +1151,9 @@ impl AgentBoard {
     }
 
     fn selected_row(&self) -> Option<&AgentBoardRow> {
+        if self.start_row {
+            return None;
+        }
         self.rows.get(self.selection)
     }
 
@@ -1206,14 +1183,29 @@ impl AgentBoard {
         self.clamp_viewport();
     }
 
+    /// Moves the cursor over the Start Agent row and the Agent rows below it.
     pub(crate) fn move_selection(&mut self, delta: isize) {
         if self.rows.is_empty() {
             return;
         }
-        self.selection = self
-            .selection
-            .saturating_add_signed(delta)
-            .min(self.rows.len() - 1);
+        if self.start_row {
+            if delta > 0 {
+                self.start_row = false;
+                self.selection = 0;
+                self.selection = self
+                    .selection
+                    .saturating_add_signed(delta - 1)
+                    .min(self.rows.len() - 1);
+            }
+        } else if delta < 0 && self.selection == 0 && self.offers_start() {
+            // Moving up from the first row reaches the Start Agent row above it.
+            self.start_row = true;
+        } else {
+            self.selection = self
+                .selection
+                .saturating_add_signed(delta)
+                .min(self.rows.len() - 1);
+        }
         self.shown = None;
         self.reveal_selection();
     }
@@ -1244,6 +1236,7 @@ impl AgentBoard {
             return false;
         };
         self.selection = index;
+        self.start_row = false;
         self.shown = None;
         self.clamp_viewport();
         true
@@ -1257,12 +1250,17 @@ impl AgentBoard {
             return false;
         };
         self.selection = index;
+        self.start_row = false;
         self.shown = None;
         self.reveal_selection();
         true
     }
 
     pub(crate) fn scroll_by(&mut self, delta: isize) {
+        if self.picker.is_some() {
+            self.picker_scroll_by(delta);
+            return;
+        }
         let visible = self.viewport_rows.max(1);
         let maximum = self.rows.len().saturating_sub(visible);
         self.scroll = self.scroll.saturating_add_signed(delta).min(maximum);
@@ -1310,101 +1308,14 @@ impl AgentBoard {
         self.intent = Some(BoardIntent::Jump { target });
     }
 
-    /// Admits a start against the current draw; `jobs` accepts it in the start
-    /// state for this episode and runs its workflow.
-    pub(crate) fn start_agent(
-        &mut self,
-        panel: orchbee_workbench_protocol::WorkbenchPanelId,
-        jobs: impl FnOnce(&mut start::State, u64, orchbee_workbench_protocol::WorkbenchPanelId) -> bool,
-    ) -> bool {
-        if !self.interactive()
-            || !self.rows.is_empty()
-            || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
-            || self.current_draw().is_none()
-        {
-            return false;
-        }
-        jobs(&mut self.start, self.epoch, panel)
-    }
-
-    pub(crate) fn start_agent_drawn(
-        &mut self,
-        target: &AgentBoardControlTarget,
-        panel: orchbee_workbench_protocol::WorkbenchPanelId,
-        jobs: impl FnOnce(&mut start::State, u64, orchbee_workbench_protocol::WorkbenchPanelId) -> bool,
-    ) -> bool {
-        if target.control() != AgentBoardControl::Start
-            || !self.interactive()
-            || self
-                .current_draw()
-                .is_none_or(|draw| draw.token() != target.token())
-        {
-            return false;
-        }
-        self.start_agent(panel, jobs)
-    }
-
-    pub(crate) fn edit_start_draft(&mut self, event: crate::client_view::KeyEvent) -> bool {
-        if !self.interactive()
-            || !self.rows.is_empty()
-            || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
-        {
-            return false;
-        }
-        self.start.edit(event)
-    }
-
-    pub(crate) fn move_start_provider(&mut self, delta: isize) -> bool {
-        if !self.interactive()
-            || !self.rows.is_empty()
-            || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
-        {
-            return false;
-        }
-        self.start.move_provider(delta)
-    }
-
-    pub(crate) fn cancel_start_drawn(&mut self) -> bool {
-        if !self.interactive() || self.current_draw().is_none() {
-            return false;
-        }
-        self.start.cancel()
-    }
-
-    pub(crate) fn start_form_active(&self) -> bool {
-        self.start.catalog_status() != start::CatalogStatus::Unsupported
-            && self.rows.is_empty()
-            && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
-    }
-
-    pub(crate) fn start_phase(&self) -> Option<start::Phase> {
-        self.start.operation_phase()
-    }
-
-    pub(crate) fn start_running(&self) -> bool {
-        self.start
-            .phase(self.epoch)
-            .is_some_and(start::Phase::running)
-    }
-
-    /// The start state the jobs reconcile after an explicit cancellation.
-    pub(crate) const fn start_state(&self) -> &start::State {
-        &self.start
-    }
-
-    /// One start drain: `jobs` settles its outcomes into the start state and may
-    /// begin the catalog only while the empty Board's form admits it.
+    /// One start drain: `jobs` settles its outcomes into the start state and may begin the
+    /// catalog while the picker is open.
     pub(crate) fn drain_start(
         &mut self,
         now: Instant,
         jobs: impl FnOnce(&mut start::State, start::CatalogAdmission) -> start::Drain,
     ) -> bool {
-        let admission = if self.open
-            && self.start_catalog_ready_epoch == Some(self.epoch)
-            && self.rows.is_empty()
-            && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
-            && self.start.catalog_unloaded()
-        {
+        let admission = if self.open && self.picker.is_some() && self.start.catalog_unloaded() {
             start::CatalogAdmission::Open(self.start_catalog_path.clone())
         } else {
             start::CatalogAdmission::Closed
@@ -1417,15 +1328,14 @@ impl AgentBoard {
         drained.changed || expired
     }
 
-    /// The latest phase a start job settled since the last call, for the status notice.
-    pub(crate) fn take_start_notice(&mut self) -> Option<start::Phase> {
-        self.start.take_notice()
+    /// The start state the composition's jobs run against.
+    pub(crate) fn start_state(&mut self) -> &mut start::State {
+        &mut self.start
     }
 
     #[cfg(test)]
-    pub(crate) fn install_start_draft_t(&mut self, providers: &[&'static str], name: &str) {
+    pub(crate) fn install_start_catalog_t(&mut self, providers: &[&'static str]) {
         self.start.install_catalog(providers);
-        self.start.set_name(name);
     }
 
     #[cfg(test)]
@@ -1437,7 +1347,7 @@ impl AgentBoard {
     pub(crate) fn start_operation_panel_t(
         &self,
     ) -> Option<&orchbee_workbench_protocol::WorkbenchPanelId> {
-        self.start.operation_panel()
+        self.start.latest().map(|(_, panel)| panel)
     }
 
     /// Issue the queued intent as a typed read request — one outstanding
@@ -1482,12 +1392,6 @@ impl AgentBoard {
         now: Instant,
         issue: impl FnOnce(AgentBoardReadRequest) -> Result<(), AgentBoardReadRefusal>,
     ) {
-        {
-            // A new canonical read fences both a queued catalog answer and
-            // the previous episode/round's empty-list admission.
-            self.start_catalog_ready_epoch = None;
-            self.start.retire_catalog();
-        }
         let Some(deadline) = now.checked_add(AGENT_READ_DEADLINE) else {
             self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
             return;
@@ -1669,32 +1573,14 @@ impl AgentBoard {
                     at,
                 });
                 self.notice = None;
-                if round.complete && self.rows.is_empty() {
-                    self.start_catalog_ready_epoch = Some(self.epoch);
-                } else {
-                    self.start_catalog_ready_epoch = None;
-                    self.start.retire_catalog();
-                }
             }
             Err(AgentReadFailure::Denied) => {
-                {
-                    self.start_catalog_ready_epoch = None;
-                    self.start.retire_catalog();
-                }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Denied);
             }
             Err(AgentReadFailure::Unavailable) => {
-                {
-                    self.start_catalog_ready_epoch = None;
-                    self.start.retire_catalog();
-                }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
             }
             Err(AgentReadFailure::Transport) => {
-                {
-                    self.start_catalog_ready_epoch = None;
-                    self.start.retire_catalog();
-                }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
             }
         }
@@ -1942,20 +1828,20 @@ impl<'a> AgentBoardView<'a> {
             BOARD_SELECT_UP_KEYS[1],
         ]
     }
-    pub(crate) const fn start_accept_binding(&self) -> crate::client_view::Binding {
-        BOARD_START_ACCEPT_KEY
+    pub(crate) const fn start_binding(&self) -> crate::client_view::Binding {
+        BOARD_START_KEY
     }
-    pub(crate) const fn start_provider_bindings(&self) -> [crate::client_view::Binding; 2] {
-        [
-            BOARD_START_PREVIOUS_PROVIDER_KEY,
-            BOARD_START_NEXT_PROVIDER_KEY,
-        ]
+    pub(crate) const fn offers_start(&self) -> bool {
+        self.board.offers_start()
     }
-    pub(crate) const fn start_edit_binding(&self) -> crate::client_view::Binding {
-        BOARD_START_EDIT_KEY
+    pub(crate) fn start_row_selected(&self) -> bool {
+        self.board.start_row_selected()
     }
-    pub(crate) const fn start_cancel_binding(&self) -> crate::client_view::Binding {
-        BOARD_START_CANCEL_KEY
+    pub(crate) const fn picker(&self) -> Option<&'a picker::Picker> {
+        self.board.picker.as_ref()
+    }
+    pub(crate) fn picker_items(&self) -> Vec<picker::Item> {
+        self.board.picker_items()
     }
     pub(crate) const fn selection(&self) -> usize {
         self.board.selection()
@@ -1972,40 +1858,8 @@ impl<'a> AgentBoardView<'a> {
     pub(crate) fn start_catalog_status(&self) -> start::CatalogStatus {
         self.board.start.catalog_status()
     }
-    pub(crate) fn start_providers(&self) -> &[&'static str] {
-        self.board.start.providers()
-    }
-    pub(crate) fn detected_start_providers(&self) -> &[&'static str] {
-        self.board.start.detected()
-    }
-    pub(crate) fn selected_start_provider(&self) -> Option<&'static str> {
-        self.board.start.selected_provider()
-    }
-    pub(crate) fn start_name(&self) -> &str {
-        self.board.start.name()
-    }
-    pub(crate) fn start_name_cursor(&self) -> usize {
-        self.board.start.cursor()
-    }
-    pub(crate) fn start_phase(&self) -> Option<start::Phase> {
-        self.board.start.phase(self.board.epoch)
-    }
-    pub(crate) fn start_running(&self) -> bool {
-        self.board.start_running()
-    }
-    pub(crate) fn start_operation_identity(
-        &self,
-    ) -> Option<(
-        Option<&orchbee_agent_observation_protocol::AgentName>,
-        &AgentProviderId,
-    )> {
-        self.board.start.operation_identity(self.board.epoch)
-    }
-    pub(crate) fn can_start_agent(&self) -> bool {
-        self.board.start.can_start()
-    }
-    pub(crate) fn start_draft_editable(&self) -> bool {
-        self.board.start.draft_editable()
+    pub(crate) const fn can_start_agent(&self) -> bool {
+        self.board.can_start_agent()
     }
     /// Where one attachment currently resolves in the live Workbench —
     /// `None` when its presentation identity has no painted panel.
@@ -2014,23 +1868,5 @@ impl<'a> AgentBoardView<'a> {
         attachment: &AgentPresentationAttachment,
     ) -> Option<&'a PresentationPlacement> {
         self.index.placement(attachment)
-    }
-}
-
-impl From<AgentStartPhase> for crate::localization::AgentStartStatus {
-    fn from(phase: AgentStartPhase) -> Self {
-        match phase {
-            AgentStartPhase::Starting => Self::Starting,
-            AgentStartPhase::WaitingInput => Self::WaitingInput,
-            AgentStartPhase::Unconfirmed => Self::Unconfirmed,
-            AgentStartPhase::Cancelling => Self::Cancelling,
-            AgentStartPhase::Started => Self::Started,
-            AgentStartPhase::Failed => Self::Failed,
-            AgentStartPhase::NotFound(product) => Self::NotFound(product),
-            AgentStartPhase::Exited(product) => Self::Exited(product),
-            AgentStartPhase::Refused(refusal) => Self::Refused(refusal),
-            AgentStartPhase::Unknown => Self::Unknown,
-            AgentStartPhase::Cancelled => Self::Cancelled,
-        }
     }
 }

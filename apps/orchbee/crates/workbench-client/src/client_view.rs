@@ -1390,7 +1390,7 @@ impl ClientView {
                     (action, ShellCommand::None)
                 }
             }
-            ClientAction::ToggleAgentBoard => {
+            ClientAction::ToggleAgentBoard | ClientAction::StartAgent => {
                 self.replace_overlay(None);
                 (action, ShellCommand::None)
             }

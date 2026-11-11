@@ -3224,7 +3224,10 @@ impl WorkbenchClientUi {
         // action that is not the board's own toggle closes it first —
         // navigator, help, sidebar, modals, and pane operations all take
         // the overlay slot back.
-        if !matches!(action, ClientAction::ToggleAgentBoard) {
+        if !matches!(
+            action,
+            ClientAction::ToggleAgentBoard | ClientAction::StartAgent
+        ) {
             self.board_reads.close_board(&mut self.board);
         }
         if matches!(
@@ -3394,6 +3397,7 @@ impl WorkbenchClientUi {
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
+            ClientAction::StartAgent => self.open_agent_picker(),
             ClientAction::FocusBusinessSidebar | ClientAction::DismissOnboarding => {
                 ClientActionDisposition::KeepNavigator
             }

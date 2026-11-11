@@ -1,37 +1,21 @@
-//! Empty-board Agent startup state.
+//! Agent start state: the Client-PATH catalog, each accepted start, and what its outcome asks
+//! of the composition.
 //!
-//! The Client-PATH catalog and the startup workflows run in [`jobs`], which the
-//! composition owns and which settles each outcome back into this state; the
-//! input thread never waits on either. Each accepted operation keeps its exact
-//! generation and Panel target and guards only that Panel, so another Panel may
-//! start meanwhile; closing the Board retires presentation only. The form
-//! presents the operation of the Panel the Board starts in. Explicit
-//! cancellation marks that operation, and the jobs wake its workflow.
+//! The Client-PATH catalog and the start workflows run in [`jobs`], which the composition owns
+//! and which settles each outcome back into this state; the input thread never waits on either.
+//! Each accepted operation keeps its exact generation and Panel and guards only that Panel. A
+//! failed start leaves one status notice; a start refused because its Panel stopped being an
+//! idle prompt asks the composition to start the same provider in a new Tab instead.
 
 use std::time::Instant;
 
-use orchbee_agent_observation_protocol::{AgentName, AgentProviderId};
-use orchbee_workbench_protocol::WorkbenchPanelId;
+use orchbee_agent_observation_protocol::AgentProviderId;
+use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 
-use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
-use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
-
-const MAXIMUM_NAME_BYTES: usize = 32;
-
-/// The name editor; its ASCII-only admission keeps byte offsets equal to display columns.
-fn name_editor(name: String) -> LineEditor {
-    LineEditor::new(name, LengthLimit::Bytes(MAXIMUM_NAME_BYTES))
-}
+use crate::workbench_projection::ClientContextLocation;
+use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
 
 pub(crate) mod jobs;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct DrawSource {
-    catalog_revision: u64,
-    draft_revision: u64,
-    operation_generation: Option<u64>,
-    operation_phase: Option<Phase>,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CatalogStatus {
@@ -59,32 +43,68 @@ pub(crate) struct Drain {
 
 impl Phase {
     pub(super) const fn running(self) -> bool {
-        matches!(self, Self::Starting | Self::WaitingInput | Self::Cancelling)
+        matches!(self, Self::Starting | Self::WaitingInput)
     }
 
-    /// A settled result after which the draft may start again: it proved no input and no held
-    /// reservation, observation showed the shell prompt again, or its deadline passed.
-    pub(super) const fn retryable(self) -> bool {
-        matches!(
-            self,
-            Self::Failed
-                | Self::NotFound(_)
-                | Self::Exited(_)
-                | Self::Refused(_)
-                | Self::Cancelled
-                | Self::Unconfirmed
-        )
+    /// The outcome's status notice; a start that succeeded or was cancelled by teardown says
+    /// nothing.
+    const fn notice(self) -> Option<AgentStartNotice> {
+        Some(match self {
+            Self::Starting | Self::WaitingInput | Self::Started | Self::Cancelled => return None,
+            Self::Failed => AgentStartNotice::Failed,
+            Self::NotFound(product) => AgentStartNotice::NotFound(product),
+            Self::Exited(product) => AgentStartNotice::Exited(product),
+            Self::Refused(refusal) => AgentStartNotice::Refused(refusal),
+            Self::Unknown => AgentStartNotice::Unknown,
+        })
+    }
+}
+
+/// Where one start runs.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum StartPlace {
+    /// The focused Panel, which looked like an idle shell at an empty prompt.
+    ThisPanel(WorkbenchPanelId),
+    /// A new Tab in the current Workspace.
+    NewTab,
+}
+
+/// The automatic place: the focused Panel while it may be an idle shell at an empty prompt,
+/// otherwise a new Tab. The Client cannot see the prompt itself, so a Panel counts as idle
+/// unless an Agent is known to hold it or one of this Client's starts still guards it; the
+/// Host's prompt gate decides when the command is sent.
+pub(crate) fn automatic_place(
+    focus: Option<&WorkbenchPanelId>,
+    busy: impl Fn(&WorkbenchPanelId) -> bool,
+) -> StartPlace {
+    match focus {
+        Some(panel) if !busy(panel) => StartPlace::ThisPanel(panel.clone()),
+        _ => StartPlace::NewTab,
+    }
+}
+
+/// What a start in its Panel became once its outcome settled: a refusal that typed nothing
+/// because the Panel stopped being an idle prompt moves the start to a new Tab; every other
+/// outcome stands.
+pub(crate) const fn place_after(fallback: bool, phase: Phase) -> Option<StartPlace> {
+    match phase {
+        Phase::Refused(AgentStartRefusal::NotAtPrompt | AgentStartRefusal::Unmarked)
+            if fallback =>
+        {
+            Some(StartPlace::NewTab)
+        }
+        _ => None,
     }
 }
 
 #[derive(Clone, Debug)]
 struct Operation {
     generation: u64,
-    episode: u64,
     panel: WorkbenchPanelId,
-    name: Option<AgentName>,
-    provider: AgentProviderId,
+    provider: &'static str,
     phase: Phase,
+    /// Whether a refusal that typed nothing moves this start to a new Tab.
+    fallback: bool,
     /// The workflow deadline while an Unknown result may still hold the Panel; cleared once it
     /// passes.
     held_until: Option<Instant>,
@@ -96,32 +116,40 @@ impl Operation {
     fn guards(&self) -> bool {
         self.phase.running() || (self.phase == Phase::Unknown && self.held_until.is_some())
     }
+}
 
-    fn retryable(&self) -> bool {
-        self.phase.retryable() || (self.phase == Phase::Unknown && self.held_until.is_none())
-    }
+/// A start waiting for the new Tab it asked for: the Tabs of the Workspace before the request,
+/// so the first Tab that was not there is the new one.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingTab {
+    pub(crate) provider: &'static str,
+    pub(crate) location: ClientContextLocation,
+    pub(crate) before: Vec<WorkbenchTabId>,
+    pub(crate) deadline: Instant,
 }
 
 pub(crate) struct State {
     launch_supported: bool,
     catalog: Catalog,
-    catalog_revision: u64,
-    /// Optional; an empty name starts the Agent without one.
-    name: LineEditor,
-    provider_chosen: bool,
-    providers: Vec<&'static str>,
+    /// Advances whenever anything the picker lists from this state changes.
+    revision: u64,
+    /// The providers the last complete lookup found, or the first lookup's partial findings.
     detected: Vec<&'static str>,
-    /// Unset while local detection may still find an installed provider, so the form never
-    /// presents an undetected default that later jumps.
-    selected_provider: Option<usize>,
-    draft_revision: u64,
+    /// The running lookup's findings; they replace `detected` once it completes.
+    scanned: Vec<&'static str>,
+    catalog_completed: bool,
+    /// Providers whose start found no command in the target terminal.
+    missing: Vec<&'static str>,
+    /// This Client's own starts, newest first, one per provider.
+    started: Vec<&'static str>,
     generation: u64,
     /// At most one operation per Panel.
     operations: Vec<Operation>,
-    /// The Panel the open Board starts in; `None` presents the latest operation.
-    target: Option<WorkbenchPanelId>,
-    /// The latest phase a job settled, for the composition's notice.
-    notice: Option<Phase>,
+    /// The latest notice a job settled, for the composition's status line.
+    notice: Option<AgentStartNotice>,
+    /// Starts that must move to a new Tab, oldest first.
+    fallbacks: Vec<&'static str>,
+    pending_tab: Option<PendingTab>,
     /// Locality of the current Client origin; `None` until one is set.
     origin_local: Option<bool>,
     #[cfg(test)]
@@ -137,21 +165,29 @@ impl State {
             } else {
                 Catalog::Unsupported
             },
-            catalog_revision: 0,
-            name: name_editor(String::new()),
-            provider_chosen: false,
-            providers: crate::agent_provider::CANONICAL_IDS.to_vec(),
+            revision: 0,
             detected: Vec::new(),
-            selected_provider: None,
-            draft_revision: 0,
+            scanned: Vec::new(),
+            catalog_completed: false,
+            missing: Vec::new(),
+            started: Vec::new(),
             generation: 0,
             operations: Vec::new(),
-            target: None,
             notice: None,
+            fallbacks: Vec::new(),
+            pending_tab: None,
             origin_local: None,
             #[cfg(test)]
             accept_without_task: false,
         }
+    }
+
+    fn touch(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    pub(super) const fn revision(&self) -> u64 {
+        self.revision
     }
 
     pub(super) fn set_origin_locality(&mut self, local: bool) {
@@ -167,21 +203,21 @@ impl State {
         if !matches!(self.catalog, Catalog::Unloaded) || retiring {
             return CatalogBegin::Unchanged;
         }
+        self.touch();
         if !self.launch_supported {
             self.catalog = Catalog::Unsupported;
             return CatalogBegin::Settled;
         }
-        self.catalog_revision = self.catalog_revision.wrapping_add(1);
         if self.origin_local != Some(true) {
             // This PATH belongs to the Client process. It is evidence only
             // for a local Session; presenting it for a tunneled target would
             // falsely claim that a command exists in the target terminal.
             self.catalog = Catalog::Unavailable;
-            self.settle_default_provider();
             return CatalogBegin::Settled;
         }
         self.catalog = Catalog::Loading;
-        CatalogBegin::Load(self.catalog_revision)
+        self.scanned.clear();
+        CatalogBegin::Load(self.revision)
     }
 
     const fn catalog_loading(&self) -> bool {
@@ -189,94 +225,30 @@ impl State {
     }
 
     fn settle_catalog_found(&mut self, provider: &'static str) -> bool {
-        if self.detected.contains(&provider) {
+        if self.scanned.contains(&provider) {
             return false;
         }
-        let first = self.detected.is_empty();
-        self.detected.push(provider);
-        self.detected.sort_unstable();
-        self.order_providers();
-        if first
-            && !self.provider_chosen
-            && self.draft_editable()
-            && let Some(index) = self.providers.iter().position(|id| *id == provider)
-        {
-            self.selected_provider = Some(index);
-            self.draft_revision = self.draft_revision.wrapping_add(1);
+        self.scanned.push(provider);
+        // Until one lookup completes, findings show as they arrive; later lookups replace the
+        // listed set only when they complete, so rows never flicker on reopen.
+        if !self.catalog_completed && !self.detected.contains(&provider) {
+            self.detected.push(provider);
+            self.touch();
+            return true;
         }
-        true
+        false
     }
 
-    /// A finished, incomplete, or lost lookup settles the catalog and the default provider.
+    /// A finished, incomplete, or lost lookup settles the catalog.
     fn settle_catalog_finished(&mut self, complete: bool) {
-        self.catalog = if complete {
-            Catalog::Ready
+        if complete {
+            self.detected = std::mem::take(&mut self.scanned);
+            self.catalog_completed = true;
+            self.catalog = Catalog::Ready;
         } else {
-            Catalog::Unavailable
-        };
-        self.settle_default_provider();
-    }
-
-    fn touch_catalog(&mut self) {
-        self.catalog_revision = self.catalog_revision.wrapping_add(1);
-    }
-
-    /// The Board opens to start in `target`, the focused Panel.
-    pub(super) fn set_target(&mut self, target: Option<WorkbenchPanelId>) {
-        self.target = target;
-    }
-
-    pub(super) fn opened(&mut self, episode: u64) {
-        self.operations.retain_mut(|operation| {
-            if operation.episode == episode {
-                return true;
-            }
-            // Closing retires only presentation. Reopening adopts an operation
-            // that still guards its Panel so an in-flight completion stays
-            // visible and an unknown delivery can never become retryable just
-            // because the overlay was toggled. Settled results are presentation
-            // feedback for their accepting episode and retire here.
-            let guards = operation.guards();
-            if guards {
-                operation.episode = episode;
-            }
-            guards
-        });
-    }
-
-    fn presented(&self) -> Option<&Operation> {
-        match &self.target {
-            Some(panel) => self
-                .operations
-                .iter()
-                .find(|operation| &operation.panel == panel),
-            None => self
-                .operations
-                .iter()
-                .max_by_key(|operation| operation.generation),
+            self.catalog = Catalog::Unavailable;
         }
-    }
-
-    fn presented_index(&self) -> Option<usize> {
-        let presented = self.presented()?.generation;
-        self.operations
-            .iter()
-            .position(|operation| operation.generation == presented)
-    }
-
-    fn operation_mut(&mut self, generation: u64) -> Option<&mut Operation> {
-        self.operations
-            .iter_mut()
-            .find(|operation| operation.generation == generation)
-    }
-
-    pub(super) fn draw_source(&self) -> DrawSource {
-        DrawSource {
-            catalog_revision: self.catalog_revision,
-            draft_revision: self.draft_revision,
-            operation_generation: self.presented().map(|operation| operation.generation),
-            operation_phase: self.presented().map(|operation| operation.phase),
-        }
+        self.touch();
     }
 
     pub(super) fn catalog_status(&self) -> CatalogStatus {
@@ -292,212 +264,96 @@ impl State {
         matches!(self.catalog, Catalog::Unloaded)
     }
 
-    pub(super) fn providers(&self) -> &[&'static str] {
-        &self.providers
-    }
-
-    pub(super) fn detected(&self) -> &[&'static str] {
-        &self.detected
-    }
-
-    pub(super) fn selected_provider(&self) -> Option<&'static str> {
-        self.providers().get(self.selected_provider?).copied()
-    }
-
-    /// Without a detected or chosen provider, a settled catalog falls back to the first
-    /// canonical provider so the form stays startable by explicit confirmation.
-    fn settle_default_provider(&mut self) {
-        if self.selected_provider.is_none() && self.draft_editable() && !self.providers.is_empty() {
-            self.selected_provider = Some(0);
-            self.draft_revision = self.draft_revision.wrapping_add(1);
+    /// The providers the picker may call installed, or `None` when nothing on this computer
+    /// says what the target terminal has: a remote Session or an unusable lookup.
+    pub(super) fn installed(&self) -> Option<&[&'static str]> {
+        match self.catalog {
+            Catalog::Unloaded | Catalog::Loading | Catalog::Ready => Some(&self.detected),
+            Catalog::Unavailable if self.catalog_completed => Some(&self.detected),
+            Catalog::Unavailable | Catalog::Unsupported => None,
         }
     }
 
-    /// Detected providers lead, each group in canonical order; the selection follows its
-    /// provider identity rather than its former position.
-    fn order_providers(&mut self) {
-        let selected = self.selected_provider();
-        let canonical = crate::agent_provider::CANONICAL_IDS;
-        self.providers = canonical
+    pub(super) fn missing(&self) -> &[&'static str] {
+        &self.missing
+    }
+
+    pub(super) fn started(&self) -> &[&'static str] {
+        &self.started
+    }
+
+    /// Whether one of this Client's starts still guards `panel`.
+    pub(super) fn guards(&self, panel: &WorkbenchPanelId) -> bool {
+        self.operations
             .iter()
-            .copied()
-            .filter(|provider| self.detected.contains(provider))
-            .chain(
-                canonical
-                    .iter()
-                    .copied()
-                    .filter(|provider| !self.detected.contains(provider)),
-            )
-            .collect();
-        self.selected_provider =
-            selected.and_then(|id| self.providers.iter().position(|provider| *provider == id));
+            .any(|operation| &operation.panel == panel && operation.guards())
     }
 
-    pub(super) fn name(&self) -> &str {
-        self.name.text()
-    }
-
-    pub(super) fn cursor(&self) -> usize {
-        self.name.cursor()
-    }
-
-    pub(super) fn operation_phase(&self) -> Option<Phase> {
-        self.presented().map(|operation| operation.phase)
-    }
-
-    pub(super) fn phase(&self, episode: u64) -> Option<Phase> {
-        self.presented().and_then(|operation| {
-            (operation.phase.running() || operation.episode == episode).then_some(operation.phase)
-        })
-    }
-
-    pub(super) fn operation_identity(
-        &self,
-        episode: u64,
-    ) -> Option<(Option<&AgentName>, &AgentProviderId)> {
-        self.presented().and_then(|operation| {
-            (operation.phase.running() || operation.episode == episode)
-                .then_some((operation.name.as_ref(), &operation.provider))
-        })
-    }
-
-    /// The latest phase a job settled since the last call.
-    pub(super) fn take_notice(&mut self) -> Option<Phase> {
+    /// The latest notice a job settled since the last call.
+    pub(crate) fn take_notice(&mut self) -> Option<AgentStartNotice> {
         self.notice.take()
     }
 
-    pub(super) fn can_start(&self) -> bool {
+    pub(crate) fn set_notice(&mut self, notice: AgentStartNotice) {
+        self.notice = Some(notice);
+    }
+
+    /// The next start that must move to a new Tab.
+    pub(crate) fn take_fallback(&mut self) -> Option<&'static str> {
+        (!self.fallbacks.is_empty()).then(|| self.fallbacks.remove(0))
+    }
+
+    pub(crate) fn wait_for_tab(&mut self, pending: PendingTab) {
+        self.pending_tab = Some(pending);
+    }
+
+    pub(crate) fn pending_tab(&self) -> Option<&PendingTab> {
+        self.pending_tab.as_ref()
+    }
+
+    pub(crate) fn take_pending_tab(&mut self) -> Option<PendingTab> {
+        self.pending_tab.take()
+    }
+
+    pub(super) const fn launch_supported(&self) -> bool {
         self.launch_supported
-            && self.draft_editable()
-            && self.selected_provider().is_some()
-            && self.draft_name().is_ok()
-            && self.origin_local.is_some()
     }
 
-    /// The draft's name: `None` while the field is empty, and an error for a typed name that is
-    /// not a valid Agent name.
-    fn draft_name(&self) -> Result<Option<AgentName>, ()> {
-        let text = self.name.text();
-        if text.is_empty() {
-            return Ok(None);
-        }
-        AgentName::parse(text).map(Some).map_err(|_| ())
+    pub(super) const fn can_start(&self) -> bool {
+        self.launch_supported && self.origin_local.is_some()
     }
 
-    pub(super) fn draft_editable(&self) -> bool {
-        self.presented().is_none_or(Operation::retryable)
-    }
-
-    pub(super) fn select_provider(&mut self, index: usize) -> bool {
-        if !self.draft_editable() || index >= self.providers().len() {
-            return false;
-        }
-        self.provider_chosen = true;
-        if self.selected_provider == Some(index) {
-            return false;
-        }
-        self.selected_provider = Some(index);
-        self.touch_draft();
-        true
-    }
-
-    pub(super) fn move_provider(&mut self, delta: isize) -> bool {
-        let Some(maximum) = self.providers().len().checked_sub(1) else {
-            return false;
-        };
-        let selected = self
-            .selected_provider
-            .map_or(0, |index| index.saturating_add_signed(delta).min(maximum));
-        self.select_provider(selected)
-    }
-
-    pub(super) fn edit(&mut self, event: KeyEvent) -> bool {
-        if event.kind == KeyKind::Release || !self.draft_editable() {
-            return false;
-        }
-        let changed = if let Some(key) = LineKey::for_key(event) {
-            self.name.apply(key) == Ok(true)
-        } else {
-            match (event.code, event.mods) {
-                (KeyCode::Char(character), modifiers)
-                    if !modifiers.ctrl && !modifiers.alt && !modifiers.super_ =>
-                {
-                    let character = character.to_ascii_lowercase();
-                    if character.is_ascii_lowercase()
-                        || character.is_ascii_digit()
-                        || matches!(character, '-' | '_')
-                    {
-                        self.name.insert(&character.to_string()).is_ok()
-                    } else {
-                        false
-                    }
-                }
-                (KeyCode::Backspace, Modifiers::NONE) => self.name.backspace(),
-                (KeyCode::Delete, Modifiers::NONE) => self.name.delete(),
-                (KeyCode::Left, Modifiers::NONE) => self.name.left(),
-                (KeyCode::Right, Modifiers::NONE) => self.name.right(),
-                (KeyCode::Home, Modifiers::NONE) => self.name.home(),
-                (KeyCode::End, Modifiers::NONE) => self.name.end(),
-                _ => false,
-            }
-        };
-        if changed {
-            self.provider_chosen = true;
-            self.touch_draft();
-        }
-        changed
-    }
-
-    fn touch_draft(&mut self) {
-        self.draft_revision = self.draft_revision.wrapping_add(1);
-        if let Some(index) = self.presented_index()
-            && self.operations[index].retryable()
-        {
-            self.operations.remove(index);
-        }
-    }
-
-    /// Accepts one start in `panel` for `episode` and returns what the jobs must run. Only an
+    /// Accepts one start of `provider` in `panel` and returns what the jobs must run. Only an
     /// operation that still guards the same Panel refuses it.
     fn begin_start(
         &mut self,
-        episode: u64,
+        provider: &'static str,
         panel: WorkbenchPanelId,
+        fallback: bool,
         deadline: Instant,
     ) -> Option<StartOperation> {
-        if !self.can_start()
-            || self
-                .operations
-                .iter()
-                .any(|operation| operation.panel == panel && operation.guards())
-        {
+        if !self.can_start() || self.guards(&panel) {
             return None;
         }
-        let (Ok(name), Some(provider)) = (
-            self.draft_name(),
-            self.selected_provider()
-                .and_then(|provider| AgentProviderId::parse(provider).ok()),
-        ) else {
-            return None;
-        };
+        let id = AgentProviderId::parse(provider).ok()?;
         self.generation = self.generation.wrapping_add(1);
         let generation = self.generation;
         self.operations.retain(|operation| operation.panel != panel);
         self.operations.push(Operation {
             generation,
-            episode,
             panel: panel.clone(),
-            name: name.clone(),
-            provider: provider.clone(),
+            provider,
             phase: Phase::Starting,
+            fallback,
             held_until: Some(deadline),
         });
-        self.target = Some(panel.clone());
+        self.started.retain(|started| *started != provider);
+        self.started.insert(0, provider);
+        self.touch();
         Some(StartOperation {
             generation,
             panel,
-            name,
-            provider,
+            provider: id,
             #[cfg(test)]
             without_task: self.accept_without_task,
         })
@@ -506,25 +362,14 @@ impl State {
     fn settle_start_spawn_failed(&mut self, generation: u64) {
         if let Some(operation) = self.operation_mut(generation) {
             operation.phase = Phase::Failed;
+            self.notice = Phase::Failed.notice();
         }
     }
 
-    fn cancelling(&self, generation: u64) -> bool {
-        self.operations.iter().any(|operation| {
-            operation.generation == generation && operation.phase == Phase::Cancelling
-        })
-    }
-
-    pub(super) fn cancel(&mut self) -> bool {
-        let Some(index) = self.presented_index() else {
-            return false;
-        };
-        let operation = &mut self.operations[index];
-        if !matches!(operation.phase, Phase::Starting | Phase::WaitingInput) {
-            return false;
-        }
-        operation.phase = Phase::Cancelling;
-        true
+    fn operation_mut(&mut self, generation: u64) -> Option<&mut Operation> {
+        self.operations
+            .iter_mut()
+            .find(|operation| operation.generation == generation)
     }
 
     /// Progress moves only an operation that is still starting or waiting.
@@ -532,14 +377,11 @@ impl State {
         let Some(operation) = self.operation_mut(generation) else {
             return false;
         };
-        if !matches!(operation.phase, Phase::Starting | Phase::WaitingInput) {
+        if !operation.phase.running() {
             return false;
         }
         let changed = operation.phase != phase;
         operation.phase = phase;
-        if changed {
-            self.notice = Some(phase);
-        }
         changed
     }
 
@@ -552,7 +394,7 @@ impl State {
         let changed = operation.phase != Phase::Unknown;
         operation.phase = Phase::Unknown;
         if changed {
-            self.notice = Some(Phase::Unknown);
+            self.notice = Phase::Unknown.notice();
         }
         changed
     }
@@ -570,7 +412,21 @@ impl State {
             return false;
         }
         operation.phase = phase;
-        self.notice = Some(phase);
+        let provider = operation.provider;
+        if place_after(operation.fallback, phase) == Some(StartPlace::NewTab) {
+            self.fallbacks.push(provider);
+            self.notice = Some(AgentStartNotice::PanelBusy);
+            return true;
+        }
+        if let Phase::NotFound(_) = phase
+            && !self.missing.contains(&provider)
+        {
+            self.missing.push(provider);
+            self.touch();
+        }
+        if let Some(notice) = phase.notice() {
+            self.notice = Some(notice);
+        }
         true
     }
 
@@ -583,18 +439,26 @@ impl State {
                 changed = true;
             }
         }
-        if changed {
-            self.draft_revision = self.draft_revision.wrapping_add(1);
-        }
         changed
     }
 
-    pub(super) fn retire_catalog(&mut self) {
-        if !matches!(self.catalog, Catalog::Unloaded) {
+    /// Forgets the catalog so the next picker opening looks again. The listed providers stay
+    /// until that lookup completes.
+    pub(super) fn refresh_catalog(&mut self) {
+        if matches!(self.catalog, Catalog::Ready | Catalog::Unavailable) {
             self.catalog = Catalog::Unloaded;
-            self.catalog_revision = self.catalog_revision.wrapping_add(1);
+        }
+    }
+
+    /// The origin changed or the connection ended: nothing found for the old origin stays.
+    pub(super) fn retire_catalog(&mut self) {
+        if !matches!(self.catalog, Catalog::Unloaded) || self.catalog_completed {
+            self.catalog = Catalog::Unloaded;
             self.detected.clear();
-            self.order_providers();
+            self.scanned.clear();
+            self.catalog_completed = false;
+            self.missing.clear();
+            self.touch();
         }
     }
 
@@ -602,25 +466,8 @@ impl State {
     pub(super) fn install_catalog(&mut self, providers: &[&'static str]) {
         self.catalog = Catalog::Ready;
         self.detected = providers.to_vec();
-        self.providers = providers
-            .iter()
-            .copied()
-            .chain(
-                crate::agent_provider::CANONICAL_IDS
-                    .iter()
-                    .copied()
-                    .filter(|provider| !providers.contains(provider)),
-            )
-            .collect();
-        self.catalog_revision = self.catalog_revision.wrapping_add(1);
-        self.selected_provider = Some(0);
-        self.draft_revision = self.draft_revision.wrapping_add(1);
-    }
-
-    #[cfg(test)]
-    pub(super) fn set_name(&mut self, name: &str) {
-        self.name = name_editor(name.to_owned());
-        self.touch_draft();
+        self.catalog_completed = true;
+        self.touch();
     }
 
     #[cfg(test)]
@@ -629,8 +476,19 @@ impl State {
     }
 
     #[cfg(test)]
-    pub(super) fn operation_panel(&self) -> Option<&WorkbenchPanelId> {
-        self.presented().map(|operation| &operation.panel)
+    pub(super) fn phase(&self, generation: u64) -> Option<Phase> {
+        self.operations
+            .iter()
+            .find(|operation| operation.generation == generation)
+            .map(|operation| operation.phase)
+    }
+
+    #[cfg(test)]
+    pub(super) fn latest(&self) -> Option<(u64, &WorkbenchPanelId)> {
+        self.operations
+            .iter()
+            .max_by_key(|operation| operation.generation)
+            .map(|operation| (operation.generation, &operation.panel))
     }
 }
 
@@ -650,7 +508,6 @@ enum CatalogBegin {
 struct StartOperation {
     generation: u64,
     panel: WorkbenchPanelId,
-    name: Option<AgentName>,
     provider: AgentProviderId,
     #[cfg(test)]
     without_task: bool,

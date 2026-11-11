@@ -2,7 +2,6 @@
 //! status, freshness, and resolved Workbench location — plus the hit
 //! regions that let pointer presses re-resolve by stable identity.
 
-use ratatui::text::Span;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -14,7 +13,6 @@ use crate::agent_board::{
     AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardRow, AgentBoardView,
     PresentationPlacement,
 };
-use crate::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
 use crate::localization::{Locale, ShellText};
 use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
 use crate::tui_hit_map::{
@@ -33,7 +31,8 @@ const BOARD_CHROME_ROWS: u16 = 3;
 const BOARD_WIDTH: u16 = 92;
 const BOARD_MAX_HEIGHT: u16 = 24;
 const EMPTY_GUIDANCE_HEIGHT: u16 = 10;
-const START_NAME_VALUE_COLUMNS: usize = 32;
+
+mod picker;
 
 /// Paints the open board inside `area` and records its hit regions in the
 /// same pass. Geometry refusal carries the exact open episode; success
@@ -47,20 +46,18 @@ pub(super) fn render(
     (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
+    if board.picker().is_some() {
+        return picker::render(frame, text, board, theme, hits);
+    }
     let rows = board.rows();
     let read = board.read();
     let has_empty_guidance = rows.is_empty() && matches!(read, AgentBoardRead::Ready { .. });
-    let start_supported = board.start_catalog_status() != AgentStartCatalogStatus::Unsupported;
-    let start_mode = start_supported
-        && rows.is_empty()
-        && matches!(read, AgentBoardRead::Ready { complete: true, .. });
 
-    let wanted = if start_mode {
-        BOARD_MAX_HEIGHT
-    } else if has_empty_guidance {
+    // The Start Agent row leads the body above the Agent rows.
+    let wanted = if has_empty_guidance {
         EMPTY_GUIDANCE_HEIGHT
     } else {
-        u16::try_from(rows.len() + usize::from(BOARD_CHROME_ROWS) + 2)
+        u16::try_from(rows.len() + usize::from(BOARD_CHROME_ROWS) + 3)
             .unwrap_or(BOARD_MAX_HEIGHT)
             .min(BOARD_MAX_HEIGHT)
     };
@@ -72,8 +69,14 @@ pub(super) fn render(
     };
     let block = crate::tui_render::overlay_block(text.board.title, area.width, theme);
     let inner = block.inner(area);
-    let [body, footer] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(BOARD_CHROME_ROWS)]).areas(inner);
+    // A host without Agent launch has no Start Agent row and no `s` hint.
+    let offers_start = board.offers_start();
+    let [start_row, body, footer] = Layout::vertical([
+        Constraint::Length(u16::from(offers_start)),
+        Constraint::Min(1),
+        Constraint::Length(BOARD_CHROME_ROWS),
+    ])
+    .areas(inner);
     let [read_row, hint_row, action_row] =
         Layout::vertical([Constraint::Length(1); 3]).areas(footer);
     let key_glyphs = match theme.glyphs.mode() {
@@ -101,43 +104,29 @@ pub(super) fn render(
     let close_key = format_key(board.close_binding());
     let jump_key = format_key(board.jump_binding());
     let refresh_key = format_key(board.refresh_binding());
-    let start_accept_key = format_key(board.start_accept_binding());
-    let start_provider_key = {
-        let bindings = board.start_provider_bindings();
-        crate::client_view::join_key_labels(
-            &[format_key(bindings[0]), format_key(bindings[1])],
-            label_style,
-            "/",
-        )
-    };
-    let start_edit_key = format_key(board.start_edit_binding());
-    let start_cancel_key = format_key(board.start_cancel_binding());
-    let hints = if start_mode {
-        let mut hints = vec![super::controls::KeyHint::new(
+    let start_key = format_key(board.start_binding());
+    let hints = [
+        Some(super::controls::KeyHint::new(
             &close_key,
             text.board.close_hint,
-        )];
-        if board.start_running() {
-            hints.push(super::controls::KeyHint::new(
-                &start_cancel_key,
-                text.board.start_cancel_hint,
-            ));
-        } else {
-            hints.extend([
-                super::controls::KeyHint::new(&start_accept_key, text.board.start_button),
-                super::controls::KeyHint::new(&start_provider_key, text.board.start_provider_hint),
-                super::controls::KeyHint::new(&start_edit_key, text.board.start_edit_hint),
-            ]);
-        }
-        hints
-    } else {
-        vec![
-            super::controls::KeyHint::new(&close_key, text.board.close_hint),
-            super::controls::KeyHint::new(&jump_key, text.board.jump_hint),
-            super::controls::KeyHint::new(&refresh_key, text.board.refresh_hint),
-            super::controls::KeyHint::new(&navigation_key, text.board.select_hint),
-        ]
-    };
+        )),
+        Some(super::controls::KeyHint::new(
+            &jump_key,
+            text.board.jump_hint,
+        )),
+        offers_start.then(|| super::controls::KeyHint::new(&start_key, text.board.start_hint)),
+        Some(super::controls::KeyHint::new(
+            &refresh_key,
+            text.board.refresh_hint,
+        )),
+        Some(super::controls::KeyHint::new(
+            &navigation_key,
+            text.board.select_hint,
+        )),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
 
     if super::controls::measure_overlay_hints(&hints, theme).is_none()
         || super::controls::measure_overlay_hints(&hints[..1], theme)
@@ -145,22 +134,14 @@ pub(super) fn render(
     {
         return AgentBoardDraw::NotPresented(board.episode());
     }
-    if !rows.is_empty() && row_minimum_width(theme).is_none_or(|minimum| minimum > body.width) {
+    if row_minimum_width(theme).is_none_or(|minimum| minimum > body.width) {
         return AgentBoardDraw::NotPresented(board.episode());
     }
     let viewport_rows = usize::from(body.height);
     let Some(draw) = board.actual_draw(viewport_rows) else {
         return AgentBoardDraw::NotPresented(board.episode());
     };
-    let start_layout = if start_mode {
-        let Some(layout) = StartFormLayout::resolve(frame.area(), body, text, board, theme) else {
-            return AgentBoardDraw::NotPresented(board.episode());
-        };
-        Some(layout)
-    } else {
-        None
-    };
-    let default_primary = if draw.selected().is_some() {
+    let (primary_label, primary_enabled, primary_pending) = if draw.selected().is_some() {
         (text.board.open_button, !board.jumping(), board.jumping())
     } else {
         (
@@ -168,16 +149,6 @@ pub(super) fn render(
             true,
             matches!(board.read(), AgentBoardRead::InFlight),
         )
-    };
-    let (primary_label, primary_enabled, primary_pending) = if start_mode {
-        let cancelling = board.start_phase() == Some(AgentStartPhase::Cancelling);
-        if board.start_running() {
-            (text.board.start_cancel_button, !cancelling, cancelling)
-        } else {
-            (text.board.start_button, board.can_start_agent(), false)
-        }
-    } else {
-        default_primary
     };
 
     let primary = super::controls::ActionSpec::new(
@@ -210,10 +181,11 @@ pub(super) fn render(
         )),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    if let Some(layout) = start_layout.as_ref() {
-        render_start_form(frame, text, board, &draw, layout, theme, hits);
-    } else if rows.is_empty() {
-        render_empty_state(frame, body, text, locale, read, start_supported, theme);
+    if offers_start {
+        render_start_row(frame, start_row, text, board, &draw, theme, hits);
+    }
+    if rows.is_empty() {
+        render_empty_state(frame, body, text, locale, read, theme);
     } else {
         render_rows(
             frame,
@@ -248,11 +220,6 @@ pub(super) fn render(
             Role::TextSecondary,
         )
     };
-    let (status, status_role) = if start_mode || board.start_phase().is_some() {
-        start_status(text, locale, board, theme)
-    } else {
-        (status, status_role)
-    };
     frame.render_widget(
         Paragraph::new(truncate_display(
             &status,
@@ -267,11 +234,7 @@ pub(super) fn render(
         hint_rect.is_some(),
         "preflighted exit hint remains paintable"
     );
-    if start_mode {
-        render_start_footer_actions(frame, action_row, text, board, &draw, theme, hits);
-    } else {
-        render_footer_actions(frame, action_row, text, board, &draw, theme, hits);
-    }
+    render_footer_actions(frame, action_row, text, board, &draw, theme, hits);
 
     AgentBoardDraw::Presented(draw)
 }
@@ -282,12 +245,11 @@ fn render_empty_state(
     text: ShellText,
     locale: Locale,
     read: AgentBoardRead,
-    start_supported: bool,
     theme: &Theme,
 ) {
     // No completed-read rows exist — surface the honest read state
     // (unread, in-flight, denied, …) or the "zero sessions" verdict.
-    let mut empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
+    let empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
         vec![Line::from(if complete {
             text.board.empty
         } else {
@@ -296,9 +258,6 @@ fn render_empty_state(
     } else {
         vec![Line::from(locale.agent_board_read_line(read))]
     };
-    if !start_supported && matches!(read, AgentBoardRead::Ready { complete: true, .. }) {
-        empty_lines.push(Line::from(text.board.start_platform_unsupported));
-    }
     frame.render_widget(
         Paragraph::new(crate::terminal_text::wrap_text(
             &Text::from(empty_lines),
@@ -308,6 +267,63 @@ fn render_empty_state(
         .style(theme.style(Role::TextSecondary)),
         body,
     );
+}
+
+/// The Board's first row, always present: `+ Start Agent`, which opens the picker.
+fn render_start_row(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    text: ShellText,
+    board: &AgentBoardView<'_>,
+    draw: &crate::agent_board::AgentBoardActualDraw,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    use super::controls::{ControlSurface, RowFocusCue, RowTracks};
+    let navigation_width =
+        u16::try_from(display_width(theme.glyphs.navigation_marker).max(1)).unwrap_or(u16::MAX);
+    let Some(primary_width) = area
+        .width
+        .checked_sub(navigation_width)
+        .filter(|width| *width > 0)
+    else {
+        return;
+    };
+    let navigation = Rect::new(area.x, area.y, navigation_width, 1);
+    let primary = Rect::new(navigation.right(), area.y, primary_width, 1);
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            &format!("+ {}", text.board.start_row),
+            usize::from(primary.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::TextPrimary)),
+        primary,
+    );
+    let interaction =
+        InteractionTarget::AgentBoardControl(draw.control_target(AgentBoardControl::StartRow));
+    let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+    let pointer = pointer_presentation(hits.projected_pointer(
+        HitLayer::Overlay,
+        area,
+        area,
+        &interaction,
+        spec,
+    ));
+    let Some(painted) = super::controls::paint_row_interaction(
+        frame,
+        area,
+        RowTracks::new(RowFocusCue::EnclosingFrame, primary)
+            .with_primary_role(Role::TextPrimary)
+            .with_provisional(navigation),
+        &[],
+        ControlSurface::Overlay,
+        interaction_state(true, board.start_row_selected(), false, pointer),
+        theme,
+    ) else {
+        return;
+    };
+    hits.record_interaction(HitLayer::Overlay, area, painted, interaction, spec);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -355,433 +371,6 @@ fn pointer_presentation(pointer: ProjectedPointer) -> super::controls::PointerPr
         ProjectedPointer::Rest => super::controls::PointerPresentation::Rest,
         ProjectedPointer::Hovered => super::controls::PointerPresentation::Hovered,
         ProjectedPointer::Pressed => super::controls::PointerPresentation::Pressed,
-    }
-}
-
-struct StartFormLayout {
-    empty: Rect,
-    explanation: Rect,
-    catalog: Rect,
-    name: Option<Rect>,
-    providers: Vec<(usize, Rect, String)>,
-}
-
-impl StartFormLayout {
-    fn resolve(
-        bounds: Rect,
-        body: Rect,
-        text: ShellText,
-        board: &AgentBoardView<'_>,
-        theme: &Theme,
-    ) -> Option<Self> {
-        if body.height < 4 {
-            return None;
-        }
-        let row = |y| (y < body.bottom()).then_some(Rect::new(body.x, y, body.width, 1));
-        let empty = row(body.y)?;
-        let explanation = row(body.y.checked_add(1)?)?;
-        let catalog = row(body.y.checked_add(2)?)?;
-        let name_width = display_width(text.board.start_name)
-            .checked_add(2)?
-            .checked_add(START_NAME_VALUE_COLUMNS.checked_add(4)?)?;
-        let name_fits = name_width <= usize::from(body.width);
-        if !name_fits || body.height < 6 {
-            return None;
-        }
-        let selected = board
-            .start_providers()
-            .iter()
-            .position(|provider| Some(*provider) == board.selected_start_provider())
-            .unwrap_or(0);
-        let mut providers = Vec::new();
-        let mut y = catalog.y + 1;
-        let mut x = body.x;
-        // A bounded moving window keeps the selected provider visible at every
-        // width; Up/Down reaches all canonical providers, including manual choices.
-        for (index, provider) in board
-            .start_providers()
-            .iter()
-            .enumerate()
-            .skip(selected)
-            .take(5)
-        {
-            let label = crate::agent_provider::product_name(provider).to_owned();
-            let remaining = Rect::new(x, y, body.right().saturating_sub(x), 1);
-            let rect = provider_choice_rect(bounds, remaining, &label, theme).or_else(|| {
-                y += 1;
-                x = body.x;
-                provider_choice_rect(bounds, Rect::new(x, y, body.width, 1), &label, theme)
-            })?;
-            if y > catalog.y + 2 {
-                break;
-            }
-            x = rect.right().saturating_add(1);
-            providers.push((index, rect, label));
-        }
-        Some(Self {
-            empty,
-            explanation,
-            catalog,
-            name: Some(row(catalog.y + 3)?),
-            providers,
-        })
-    }
-}
-
-fn provider_choice_rect(bounds: Rect, area: Rect, label: &str, theme: &Theme) -> Option<Rect> {
-    let width = display_width(label)
-        .checked_add(display_width(theme.glyphs.status_bullet))?
-        .checked_add(5)?;
-    let width = u16::try_from(width).ok()?;
-    if area.height == 0 || width > area.width {
-        return None;
-    }
-    let rect = Rect::new(area.x, area.y, width, 1);
-    (bounds.intersection(rect) == rect).then_some(rect)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn render_start_form(
-    frame: &mut Frame<'_>,
-    text: ShellText,
-    board: &AgentBoardView<'_>,
-    draw: &crate::agent_board::AgentBoardActualDraw,
-    layout: &StartFormLayout,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) {
-    let heading = text.board.empty;
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            heading,
-            usize::from(layout.empty.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextPrimary)),
-        layout.empty,
-    );
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            text.board.empty_start,
-            usize::from(layout.explanation.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextSecondary)),
-        layout.explanation,
-    );
-    let detected = board.detected_start_providers();
-    let catalog = if detected.is_empty() {
-        match board.start_catalog_status() {
-            AgentStartCatalogStatus::Loading => text.board.start_checking.to_owned(),
-            AgentStartCatalogStatus::Unavailable => text.board.start_catalog_unavailable.to_owned(),
-            AgentStartCatalogStatus::Ready => text.board.start_none_found.to_owned(),
-            AgentStartCatalogStatus::Unsupported => {
-                text.board.start_platform_unsupported.to_owned()
-            }
-        }
-    } else {
-        let pending = match board.start_catalog_status() {
-            AgentStartCatalogStatus::Loading => format!(" · {}", text.board.start_checking),
-            AgentStartCatalogStatus::Unavailable => {
-                format!(" · {}", text.board.start_catalog_unavailable)
-            }
-            AgentStartCatalogStatus::Ready => String::new(),
-            AgentStartCatalogStatus::Unsupported => {
-                format!(" · {}", text.board.start_platform_unsupported)
-            }
-        };
-        format!(
-            "{}: {}{pending}",
-            text.board.start_providers,
-            detected
-                .iter()
-                .map(|provider| crate::agent_provider::product_name(provider))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    };
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            &catalog,
-            usize::from(layout.catalog.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextSecondary)),
-        layout.catalog,
-    );
-    for (index, rect, label) in &layout.providers {
-        let provider = board.start_providers()[*index];
-        let enabled = board.start_draft_editable();
-        let selected = board.selected_start_provider() == Some(provider);
-        let target = draw.control_target(AgentBoardControl::StartProvider(*index));
-        let interaction = InteractionTarget::AgentBoardControl(target);
-        let spec = if enabled {
-            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
-        } else {
-            InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
-        };
-        let pointer = pointer_presentation(hits.projected_pointer(
-            HitLayer::Overlay,
-            *rect,
-            *rect,
-            &interaction,
-            spec,
-        ));
-        let Some(painted) =
-            render_provider_choice(frame, *rect, label, selected, enabled, pointer, theme)
-        else {
-            continue;
-        };
-        debug_assert_eq!(painted, *rect);
-        hits.record_interaction(HitLayer::Overlay, painted, painted, interaction, spec);
-    }
-    if let Some(name) = layout.name {
-        render_start_name(frame, name, text, board, theme);
-    }
-}
-
-fn render_provider_choice(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    label: &str,
-    selected: bool,
-    enabled: bool,
-    pointer: super::controls::PointerPresentation,
-    theme: &Theme,
-) -> Option<Rect> {
-    use super::controls::{
-        Availability, CheckedState, ControlSurface, CurrentState, FocusState, InteractionState,
-        NavigationState, OperationState, RowFocusCue, RowTracks, paint_row_interaction,
-    };
-    let rect = provider_choice_rect(frame.area(), area, label, theme)?;
-    let checked_width = u16::try_from(display_width(theme.glyphs.status_bullet)).ok()?;
-    let checked = Rect::new(rect.x + 2, rect.y, checked_width, 1);
-    let primary = Rect::new(
-        checked.right() + 1,
-        rect.y,
-        rect.width - checked_width - 5,
-        1,
-    );
-    let role = if !enabled {
-        Role::TextDisabled
-    } else if selected {
-        Role::AccentSelection
-    } else {
-        Role::TextPrimary
-    };
-    frame.render_widget(
-        Paragraph::new(format!(
-            "[ {} {label} ]",
-            " ".repeat(usize::from(checked_width)),
-        ))
-        .style(theme.style(role)),
-        rect,
-    );
-    paint_row_interaction(
-        frame,
-        rect,
-        RowTracks::new(RowFocusCue::EnclosingFrame, primary)
-            .with_primary_role(role)
-            .with_checked(checked, theme.glyphs.status_bullet),
-        &[],
-        ControlSurface::Overlay,
-        InteractionState::new(
-            FocusState::Unfocused,
-            pointer,
-            NavigationState::None,
-            CurrentState::NotCurrent,
-            if selected {
-                CheckedState::Checked
-            } else {
-                CheckedState::Unchecked
-            },
-            if enabled {
-                Availability::Enabled
-            } else {
-                Availability::Disabled
-            },
-            OperationState::Idle,
-        ),
-        theme,
-    )
-}
-
-fn render_start_name(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    text: ShellText,
-    board: &AgentBoardView<'_>,
-    theme: &Theme,
-) {
-    let label = sanitize_terminal_text(text.board.start_name);
-    let value = if board.start_name().is_empty() {
-        text.board.start_name_placeholder
-    } else {
-        board.start_name()
-    };
-    let value = truncate_display(value, START_NAME_VALUE_COLUMNS, theme.glyphs.ellipsis);
-    let padding = START_NAME_VALUE_COLUMNS.saturating_sub(display_width(&value));
-    let value_role = if board.start_name().is_empty() {
-        Role::TextDisabled
-    } else {
-        Role::TextPrimary
-    };
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(label.to_string(), theme.style(Role::TextSecondary)),
-            Span::raw("  "),
-            Span::styled("[ ", theme.style(Role::AccentFocus)),
-            Span::styled(value, theme.style(value_role)),
-            Span::raw(" ".repeat(padding)),
-            Span::styled(" ]", theme.style(Role::AccentFocus)),
-        ])),
-        area,
-    );
-    if board.start_draft_editable() {
-        let x = area
-            .x
-            .saturating_add(u16::try_from(display_width(&label)).unwrap_or(u16::MAX))
-            .saturating_add(4)
-            .saturating_add(u16::try_from(board.start_name_cursor()).unwrap_or(u16::MAX));
-        if x < area.right() {
-            frame.set_cursor_position((x, area.y));
-        }
-    }
-}
-
-fn start_status(
-    text: ShellText,
-    locale: Locale,
-    board: &AgentBoardView<'_>,
-    theme: &Theme,
-) -> (String, Role) {
-    let role = match board.start_phase() {
-        Some(
-            AgentStartPhase::WaitingInput
-            | AgentStartPhase::Unconfirmed
-            | AgentStartPhase::Unknown
-            | AgentStartPhase::Cancelled,
-        ) => Role::StatusWarning,
-        Some(AgentStartPhase::Starting | AgentStartPhase::Cancelling) => Role::StatusPending,
-        Some(AgentStartPhase::Started) => Role::StatusSuccess,
-        Some(
-            AgentStartPhase::Failed
-            | AgentStartPhase::NotFound(_)
-            | AgentStartPhase::Exited(_)
-            | AgentStartPhase::Refused(_),
-        ) => Role::StatusError,
-        None => Role::StatusInfo,
-    };
-    let status = match board.start_phase() {
-        Some(phase) => locale.agent_start_phase(phase),
-        // An empty name starts without one; only a typed name must be valid.
-        None if !board.start_name().is_empty()
-            && orchbee_agent_observation_protocol::AgentName::parse(board.start_name())
-                .is_err() =>
-        {
-            text.board.start_name_invalid.to_owned()
-        }
-        None => return (String::new(), Role::TextSecondary),
-    };
-    let identity = board.start_operation_identity().map(|(name, provider)| {
-        let product = crate::agent_provider::product_name(provider.as_str());
-        match name {
-            Some(name) => format!("  {} {} {product}", name.as_str(), theme.glyphs.middle_dot),
-            None => format!("  {product}"),
-        }
-    });
-    (format!("{status}{}", identity.unwrap_or_default()), role)
-}
-
-fn render_start_footer_actions(
-    frame: &mut Frame<'_>,
-    row: Rect,
-    text: ShellText,
-    board: &AgentBoardView<'_>,
-    draw: &crate::agent_board::AgentBoardActualDraw,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) {
-    use super::controls::{ActionKind, ActionSpec, ControlSurface, PointerPresentation};
-    let cancelling = board.start_phase() == Some(AgentStartPhase::Cancelling);
-    let controls = if board.start_running() {
-        vec![(
-            AgentBoardControl::CancelStart,
-            text.board.start_cancel_button,
-            ActionKind::Secondary,
-            !cancelling,
-            cancelling,
-        )]
-    } else {
-        vec![
-            (
-                AgentBoardControl::Start,
-                text.board.start_button,
-                ActionKind::Primary,
-                board.can_start_agent(),
-                false,
-            ),
-            (
-                AgentBoardControl::Refresh,
-                text.board.refresh_button,
-                ActionKind::Secondary,
-                true,
-                matches!(board.read(), AgentBoardRead::InFlight),
-            ),
-        ]
-    };
-    let control_count = controls.len();
-    let mut remaining = row;
-    for (index, (control, label, kind, enabled, pending)) in controls.into_iter().enumerate() {
-        let rest = ActionSpec::new(
-            label,
-            kind,
-            ControlSurface::Overlay,
-            interaction_state(enabled, false, pending, PointerPresentation::Rest),
-        )
-        .with_pending_label(label);
-        let Some(rect) = super::controls::action_rect(frame.area(), remaining, rest, theme) else {
-            break;
-        };
-        let target = draw.control_target(control);
-        let interaction = InteractionTarget::AgentBoardControl(target);
-        let spec = if enabled {
-            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
-        } else {
-            InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
-        };
-        let pointer = pointer_presentation(hits.projected_pointer(
-            HitLayer::Overlay,
-            rect,
-            rect,
-            &interaction,
-            spec,
-        ));
-        let action = ActionSpec::new(
-            label,
-            kind,
-            ControlSurface::Overlay,
-            interaction_state(enabled, false, pending, pointer),
-        )
-        .with_pending_label(label);
-        let Some(painted) = super::controls::render_action(frame, remaining, action, theme) else {
-            break;
-        };
-        if painted != rect {
-            break;
-        }
-        hits.record_interaction(HitLayer::Overlay, painted, painted, interaction, spec);
-        if index + 1 < control_count {
-            let Some(next_x) = painted.right().checked_add(2) else {
-                break;
-            };
-            remaining = Rect::new(
-                next_x,
-                row.y,
-                row.right().saturating_sub(next_x),
-                row.height,
-            );
-        }
     }
 }
 

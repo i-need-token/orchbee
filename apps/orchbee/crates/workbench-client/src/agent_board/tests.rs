@@ -140,7 +140,7 @@ fn board_with(sessions: &[&str]) -> AgentBoard {
 #[test]
 fn one_started_completion_requests_exactly_one_refresh() {
     use crate::agent_start::{DeliveryDisposition, Report, ReservationState, Verdict};
-    use orchbee_agent_observation_protocol::{AgentName, ObapRequestId};
+    use orchbee_agent_observation_protocol::ObapRequestId;
 
     let mut board = AgentBoard::new(true);
     let mut jobs = start::jobs::Jobs::default();
@@ -149,12 +149,16 @@ fn one_started_completion_requests_exactly_one_refresh() {
     board.set_origin_locality(origin.is_local());
     board.open();
     board.start.install_catalog(&["codex"]);
-    board.start.set_name("alpha");
     board.start.accept_without_task();
     let target = panel_id(1);
-    assert!(jobs.start(&mut board.start, board.epoch, target, clock()));
+    assert!(jobs.start(
+        &mut board.start,
+        "codex",
+        start::jobs::Place::Panel(target),
+        clock()
+    ));
     let report = Report {
-        name: Some(AgentName::parse("alpha").unwrap()),
+        name: None,
         provider: AgentProviderId::parse("codex").unwrap(),
         reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
         last_observed: None,
@@ -978,61 +982,6 @@ mod read_answers {
             Instant::now(),
             &mut no_preference,
         );
-    }
-
-    #[test]
-    fn client_path_catalog_waits_for_the_same_open_episodes_complete_empty_read() {
-        let mut board = AgentBoard::new(true);
-        let mut jobs = start::jobs::Jobs::default();
-        board.set_origin_locality(false);
-        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")), None);
-        assert!(!board.drain_start(Instant::now(), |start, admission| {
-            jobs.drain(start, admission)
-        }));
-        assert_eq!(board.start.catalog_status(), start::CatalogStatus::Loading);
-
-        board.inflight = Some(BoardInflight::ListRound);
-        settle_list(&mut board, vec![], false, Instant::now());
-        assert!(!board.drain_start(Instant::now(), |start, admission| {
-            jobs.drain(start, admission)
-        }));
-        board.inflight = Some(BoardInflight::ListRound);
-        settle_list(
-            &mut board,
-            vec![summary("s-1", vec![])],
-            true,
-            Instant::now(),
-        );
-        assert!(!board.drain_start(Instant::now(), |start, admission| {
-            jobs.drain(start, admission)
-        }));
-
-        board.inflight = Some(BoardInflight::ListRound);
-        settle_list(&mut board, vec![], true, Instant::now());
-        assert!(board.drain_start(Instant::now(), |start, admission| {
-            jobs.drain(start, admission)
-        }));
-        assert_eq!(
-            board.start.catalog_status(),
-            start::CatalogStatus::Unavailable
-        );
-        board.close();
-        assert!(
-            !board.drain_start(Instant::now(), |start, admission| jobs
-                .drain(start, admission)),
-            "close fences deferred probe admission"
-        );
-        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")), None);
-        assert!(matches!(
-            board.read,
-            AgentBoardRead::Ready { complete: true, .. }
-        ));
-        assert!(
-            !board.drain_start(Instant::now(), |start, admission| jobs
-                .drain(start, admission)),
-            "a previous episode's complete-empty result cannot admit a probe"
-        );
-        board.close();
     }
 
     #[test]

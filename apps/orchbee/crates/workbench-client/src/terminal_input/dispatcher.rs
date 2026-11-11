@@ -2349,6 +2349,7 @@ impl InputDispatcher {
                     | ClientAction::RequestRenamePanel
                     | ClientAction::OpenSettings
                     | ClientAction::ToggleAgentBoard
+                    | ClientAction::StartAgent
                     | ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace
                     | ClientAction::RequestWorkspaceAtDirectory

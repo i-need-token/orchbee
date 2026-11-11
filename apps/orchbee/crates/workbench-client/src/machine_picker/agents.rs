@@ -39,6 +39,17 @@ impl Picker {
                 _ => None,
             })
     }
+    /// The current Session's Agent rows as last observed; empty until they are ready.
+    pub(crate) fn current_agent_rows(&self) -> &[crate::machine_agents::checkpoint::Row] {
+        self.agent_observations
+            .iter()
+            .find(|(id, _)| id == &self.current)
+            .and_then(|(_, o)| match o {
+                Agents::Ready(checkpoint) => Some(&checkpoint.rows[..]),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
     pub(super) fn rebuild_agents(&mut self) {
         // A queued wheel packet owns the painted heights, not later metadata/state geometry.
         self.cancel_sidebar_scroll();

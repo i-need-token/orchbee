@@ -189,23 +189,35 @@ impl PaneRef {
     }
 }
 
-/// One Agent start's lifecycle phase as the board and its notice report it.
+/// One Agent start's lifecycle phase as its start operation tracks it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentStartPhase {
     Starting,
     WaitingInput,
-    Unconfirmed,
-    Cancelling,
     Started,
     Failed,
     /// The shell came back to its prompt before the named product's Agent appeared.
     NotFound(&'static str),
     /// The named product's Agent exited during startup; its output stays in the Panel.
     Exited(&'static str),
-    /// Nothing was typed and the name reservation is settled, so starting again is safe.
+    /// Nothing was typed, so starting again is safe.
     Refused(AgentStartRefusal),
     Unknown,
     Cancelled,
+}
+
+/// What the status line says about an Agent start. A start that succeeds says nothing; the
+/// Agent's own row shows it opening.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentStartNotice {
+    NotFound(&'static str),
+    Exited(&'static str),
+    Failed,
+    Refused(AgentStartRefusal),
+    Unknown,
+    /// The Panel stopped being an idle prompt before the command was sent, so the Agent opens
+    /// in a new Tab instead.
+    PanelBusy,
 }
 
 /// Why a start typed nothing because the shell's prompt could not be confirmed.
@@ -739,7 +751,7 @@ pub(crate) enum ClientNotice {
     /// A modal surface or armed confirmation owns the input layer — the
     /// Agent board refused to open rather than fight for capture.
     ModalOwnsInput,
-    AgentStart(AgentStartPhase),
+    AgentStart(AgentStartNotice),
     /// The viewport lost its facts/anchor and is returning to live —
     /// shown while the recovery demand pair is in flight.
     HistoryRecovering,
@@ -769,23 +781,15 @@ pub(crate) enum ClientNotice {
 
 impl ClientNotice {
     pub(crate) const fn transient(self) -> bool {
-        match self {
+        !matches!(
+            self,
             Self::DuplicatePending
-            | Self::DuplicateOutcomeUnknown
-            | Self::CopyUnknown
-            | Self::BellUnknown
-            | Self::RecordUnusable(..) => false,
-            Self::AgentStart(phase) => matches!(
-                phase,
-                AgentStartPhase::Started
-                    | AgentStartPhase::Failed
-                    | AgentStartPhase::NotFound(_)
-                    | AgentStartPhase::Exited(_)
-                    | AgentStartPhase::Refused(_)
-                    | AgentStartPhase::Cancelled
-            ),
-            _ => true,
-        }
+                | Self::DuplicateOutcomeUnknown
+                | Self::CopyUnknown
+                | Self::BellUnknown
+                | Self::RecordUnusable(..)
+                | Self::AgentStart(AgentStartNotice::Unknown)
+        )
     }
 }
 

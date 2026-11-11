@@ -41,7 +41,11 @@ impl Port {
                 self.board.request_jump();
             }
             Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(Instant::now()),
-            Some(AgentBoardKeyAction::Jump | AgentBoardKeyAction::Close) => {}
+            Some(
+                AgentBoardKeyAction::Jump
+                | AgentBoardKeyAction::Close
+                | AgentBoardKeyAction::StartAgent,
+            ) => {}
             None => {}
         }
         true

@@ -539,6 +539,9 @@ impl WorkbenchClient {
                             .configure_worktrees_directory(defaults.worktrees_directory.as_deref());
                     }
                 }
+                native.observe_session_agents(crate::agent_board::SessionAgents::from_rows(
+                    view.machines.current_agent_rows(),
+                ));
                 if self.notifications.is_none()
                     && let Some(origin) = &self.origin
                     && let Some((session, _)) = native.control_observation(false)

@@ -17,20 +17,26 @@ use super::{
 };
 #[cfg(test)]
 use crate::agent_board::AgentBoardInputContext;
+use crate::agent_board::picker::{PickedStart, PickerOutcome};
+use crate::agent_board::start::jobs::Place;
+use crate::agent_board::start::{PendingTab, StartPlace};
 use crate::agent_board::{
     AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardKeyAction,
     AgentBoardRowTarget, AgentBoardToken, AgentBoardView, JumpStage, JumpStep, board_key_action,
     plan_jump_step,
 };
-use crate::agent_board::{AgentStartKeyAction, agent_start_key_action};
-use crate::client_view::KeyEvent;
+use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::tui_composition::{WorkbenchCaptureOwner, project_native_capture};
 use crate::workbench_projection::ClientContextLocation;
+use crate::workbench_state::AgentStartNotice;
 use orchbee_agent_observation_protocol::AgentPresentationAttachment;
 use std::time::Instant;
 
 mod reads;
 pub(super) use reads::BoardReads;
+
+/// How long a start in a new Tab waits for the Tab to appear in the projection.
+const NEW_TAB_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn set_agent_board_origin(
@@ -85,15 +91,50 @@ impl WorkbenchClientUi {
             }
             return ClientActionDisposition::KeepNavigator;
         }
-        let target = self
-            .state
-            .as_ref()
-            .and_then(|state| state.focus_panel_id().cloned());
-        self.board
-            .open_with_start_catalog(std::env::var_os("PATH"), target);
-
+        self.board.open();
         self.enqueue_board_snapshot_refresh();
         ClientActionDisposition::DismissNavigator
+    }
+
+    /// `Ctrl+B G`: the Start Agent picker, opened over whatever the Panel shows. From an open
+    /// Board it replaces the Board's content; a second press closes it.
+    pub(super) fn open_agent_picker(&mut self) -> ClientActionDisposition {
+        if self.retirement_failure.is_some() {
+            return ClientActionDisposition::KeepNavigator;
+        }
+        let focus = self.focused_panel();
+        if self.board.is_open() {
+            if self.board.picker().is_some() {
+                self.board_reads.close_board(&mut self.board);
+            } else {
+                self.board
+                    .enter_picker(std::env::var_os("PATH"), focus.as_ref());
+            }
+            return ClientActionDisposition::KeepNavigator;
+        }
+        if self.modal_owns_input() {
+            if let Some(state) = self.state.as_mut() {
+                state.set_notice(ClientNotice::ModalOwnsInput);
+            }
+            return ClientActionDisposition::KeepNavigator;
+        }
+        self.board
+            .open_picker(std::env::var_os("PATH"), focus.as_ref());
+        ClientActionDisposition::DismissNavigator
+    }
+
+    /// The Session's Agents as the sidebar last observed them.
+    pub(in crate::workbench_client) fn observe_session_agents(
+        &mut self,
+        agents: crate::agent_board::SessionAgents,
+    ) {
+        self.board.observe_session_agents(agents);
+    }
+
+    fn focused_panel(&self) -> Option<orchbee_workbench_protocol::WorkbenchPanelId> {
+        self.state
+            .as_ref()
+            .and_then(|state| state.focus_panel_id().cloned())
     }
 
     /// Whether a modal surface or armed confirmation currently owns the
@@ -130,6 +171,7 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
         self.start_jobs.close();
         self.board.retire_start_catalog();
+        self.board.start_state().take_pending_tab();
         self.board_reads.release();
         self.settings.close();
         if !self.worktrees.close() {
@@ -160,6 +202,22 @@ impl WorkbenchClientUi {
         if event.kind == crate::client_view::KeyKind::Release {
             return true;
         }
+        if self.board.picker().is_some() {
+            // Esc unwinds one level at a time: the query, then the picker, then the owner.
+            if event.code == KeyCode::Esc && event.mods == Modifiers::NONE {
+                self.board.picker_escape();
+                self.board_reads.follow(self.board.open_episode());
+                return true;
+            }
+            if !context.interactive() {
+                return true;
+            }
+            if let PickerOutcome::Start(picked) = self.board.picker_key(*event) {
+                self.board_reads.follow(self.board.open_episode());
+                self.run_picked_start(picked);
+            }
+            return true;
+        }
         if board_key_action(*event) == Some(AgentBoardKeyAction::Close) {
             self.board_reads.close_board(&mut self.board);
             return true;
@@ -167,41 +225,16 @@ impl WorkbenchClientUi {
         if !context.interactive() {
             return true;
         }
-        if self.board.start_form_active() {
-            match agent_start_key_action(*event, self.board.start_running()) {
-                Some(AgentStartKeyAction::Start) => {
-                    let clock = self.clock.clone();
-                    if let Some(panel) = self
-                        .state
-                        .as_ref()
-                        .and_then(|state| state.focus_panel_id().cloned())
-                        && self.board.start_agent(panel, |start, episode, panel| {
-                            self.start_jobs.start(start, episode, panel, clock)
-                        })
-                    {
-                        self.accepted_agent_start();
-                    }
-                }
-                Some(AgentStartKeyAction::PreviousProvider) => {
-                    self.board.move_start_provider(-1);
-                }
-                Some(AgentStartKeyAction::NextProvider) => {
-                    self.board.move_start_provider(1);
-                }
-                Some(AgentStartKeyAction::Cancel) => {
-                    self.board.cancel_start_drawn();
-                    self.start_jobs.reconcile(self.board.start_state());
-                }
-                None => {
-                    self.board.edit_start_draft(*event);
-                }
-            }
-            return true;
-        }
         match board_key_action(*event) {
             Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
             Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
             Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(self.clock.now()),
+            Some(AgentBoardKeyAction::StartAgent) => {
+                self.enter_agent_picker();
+            }
+            Some(AgentBoardKeyAction::Jump) if self.board.start_row_selected() => {
+                self.enter_agent_picker();
+            }
             Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
                 self.board.request_jump();
             }
@@ -209,6 +242,116 @@ impl WorkbenchClientUi {
             None => {}
         }
         true
+    }
+
+    fn enter_agent_picker(&mut self) {
+        let focus = self.focused_panel();
+        self.board
+            .enter_picker(std::env::var_os("PATH"), focus.as_ref());
+    }
+
+    /// Runs a start the picker accepted in the place it showed.
+    fn run_picked_start(&mut self, picked: PickedStart) {
+        match picked.place {
+            StartPlace::ThisPanel(panel) => {
+                let clock = self.clock.clone();
+                if !self.start_jobs.start(
+                    self.board.start_state(),
+                    picked.provider,
+                    Place::Panel(panel),
+                    clock,
+                ) {
+                    self.start_in_new_tab(picked.provider);
+                }
+            }
+            StartPlace::NewTab => self.start_in_new_tab(picked.provider),
+        }
+    }
+
+    /// Asks for a new Tab in the current Workspace through the ordinary Tab creation and
+    /// remembers the start until that Tab appears.
+    fn start_in_new_tab(&mut self, provider: &'static str) {
+        if self.view().no_current_workspace() {
+            if let Some(state) = self.state.as_mut() {
+                state.set_notice(ClientNotice::NoWorkspace);
+            }
+            return;
+        }
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let Some(deadline) = self.clock.now().checked_add(NEW_TAB_WAIT) else {
+            return;
+        };
+        let pending = PendingTab {
+            provider,
+            location: state.cache().location().clone(),
+            before: state
+                .cache()
+                .tabs()
+                .iter()
+                .map(|tab| tab.tab_id().clone())
+                .collect(),
+            deadline,
+        };
+        if self.board.start_state().take_pending_tab().is_some() {
+            // One Tab request at a time: the earlier start fails instead of taking this Tab.
+            self.board
+                .start_state()
+                .set_notice(AgentStartNotice::Failed);
+        }
+        self.board.start_state().wait_for_tab(pending);
+        let _disposition = self.structure_action(super::StructureAction::CreateTab);
+    }
+
+    /// Moves refused starts to new Tabs and starts a waiting start once its Tab exists.
+    fn drive_start_places(&mut self, now: Instant) -> bool {
+        let mut changed = false;
+        while let Some(provider) = self.board.start_state().take_fallback() {
+            self.start_in_new_tab(provider);
+            changed = true;
+        }
+        let Some(pending) = self.board.start_state().pending_tab().cloned() else {
+            return changed;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return changed;
+        };
+        let panel = if state.cache().location() == &pending.location {
+            state
+                .cache()
+                .tabs()
+                .iter()
+                .find(|tab| !pending.before.contains(tab.tab_id()))
+                .and_then(|tab| tab.panel(0))
+                .map(|panel| panel.panel_id().clone())
+        } else {
+            None
+        };
+        let moved = state.cache().location() != &pending.location;
+        if let Some(panel) = panel {
+            self.board.start_state().take_pending_tab();
+            let clock = self.clock.clone();
+            if !self.start_jobs.start(
+                self.board.start_state(),
+                pending.provider,
+                Place::NewTab(panel),
+                clock,
+            ) {
+                self.board
+                    .start_state()
+                    .set_notice(AgentStartNotice::Failed);
+            }
+            return true;
+        }
+        if moved || now >= pending.deadline {
+            self.board.start_state().take_pending_tab();
+            self.board
+                .start_state()
+                .set_notice(AgentStartNotice::Failed);
+            return true;
+        }
+        changed
     }
 
     /// Pointer row selection commits on press against the exact successful
@@ -233,38 +376,27 @@ impl WorkbenchClientUi {
         &mut self,
         target: &AgentBoardControlTarget,
     ) -> bool {
-        if target.control() == crate::agent_board::AgentBoardControl::Start {
-            let Some(panel) = self
-                .state
-                .as_ref()
-                .and_then(|state| state.focus_panel_id().cloned())
-            else {
+        if self.board.picker().is_some() {
+            if !self.board.drawn(target) {
                 return false;
-            };
-            let clock = self.clock.clone();
-            let accepted = self
-                .board
-                .start_agent_drawn(target, panel, |start, episode, panel| {
-                    self.start_jobs.start(start, episode, panel, clock)
-                });
-            if accepted {
-                self.accepted_agent_start();
             }
-            return accepted;
+            let outcome = self.board.picker_control(target);
+            self.board_reads.follow(self.board.open_episode());
+            if let PickerOutcome::Start(picked) = outcome {
+                self.run_picked_start(picked);
+            }
+            return true;
+        }
+        if target.control() == crate::agent_board::AgentBoardControl::StartRow {
+            if !self.board.drawn(target) {
+                return false;
+            }
+            self.enter_agent_picker();
+            return true;
         }
         let changed = self.board.control_drawn(target, self.clock.now());
         self.board_reads.follow(self.board.open_episode());
-        self.start_jobs.reconcile(self.board.start_state());
         changed
-    }
-
-    fn accepted_agent_start(&mut self) {
-        self.board_reads.close_board(&mut self.board);
-        if let Some(phase) = self.board.start_phase()
-            && let Some(state) = self.state.as_mut()
-        {
-            state.set_notice(ClientNotice::AgentStart(phase));
-        }
     }
 
     /// Backdrop dismissal: a press outside the painted board surface.
@@ -409,10 +541,11 @@ impl WorkbenchClientUi {
         changed |= self.board.drain_start(now, |start, admission| {
             self.start_jobs.drain(start, admission)
         });
-        if let Some(phase) = self.board.take_start_notice()
+        changed |= self.drive_start_places(now);
+        if let Some(notice) = self.board.start_state().take_notice()
             && let Some(state) = self.state.as_mut()
         {
-            state.set_notice(ClientNotice::AgentStart(phase));
+            state.set_notice(ClientNotice::AgentStart(notice));
         }
         if allow_jump {
             changed |= self.drive_agent_jump(now);

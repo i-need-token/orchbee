@@ -161,6 +161,24 @@ pub fn choice(canonical: &str) -> Option<ProviderChoice> {
     })
 }
 
+/// The canonical id a report label or alias names, when it is a startable provider.
+pub(crate) fn canonical_id(label: &str) -> Option<&'static str> {
+    let id = AgentReportProvider::lookup(label)?.native_provider_id();
+    CANONICAL_IDS.contains(&id).then_some(id)
+}
+
+/// The line a start types for a canonical id, as a list shows it: the command and its fixed
+/// arguments.
+pub(crate) fn launch_line(canonical: &str) -> Option<String> {
+    let choice = choice(canonical)?;
+    Some(
+        std::iter::once(choice.command)
+            .chain(launch_arguments(canonical).iter().copied())
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
+}
+
 /// The product name of a canonical id or report label, else the text itself, for what a person
 /// reads.
 pub fn product_name(label: &str) -> &str {

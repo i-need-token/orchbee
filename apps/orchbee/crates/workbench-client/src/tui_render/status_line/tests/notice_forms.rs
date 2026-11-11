@@ -122,11 +122,6 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
     );
     all.extend(
         [
-            Start::Starting,
-            Start::WaitingInput,
-            Start::Unconfirmed,
-            Start::Cancelling,
-            Start::Started,
             Start::Failed,
             Start::NotFound("GitHub Copilot CLI"),
             Start::Exited("GitHub Copilot CLI"),
@@ -135,7 +130,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
             Start::Refused(Refusal::SessionTooOld),
             Start::Refused(Refusal::TerminalTooOld),
             Start::Unknown,
-            Start::Cancelled,
+            Start::PanelBusy,
         ]
         .map(N::AgentStart),
     );
@@ -201,12 +196,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                 | Settings::WriteFailed,
             )
             | N::AgentStart(
-                Start::Starting
-                | Start::WaitingInput
-                | Start::Unconfirmed
-                | Start::Cancelling
-                | Start::Started
-                | Start::Failed
+                Start::Failed
                 | Start::NotFound(_)
                 | Start::Exited(_)
                 | Start::Refused(
@@ -216,7 +206,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
                     | Refusal::TerminalTooOld,
                 )
                 | Start::Unknown
-                | Start::Cancelled,
+                | Start::PanelBusy,
             )
             | N::CommandRefused(
                 F::Denied

@@ -54,6 +54,7 @@ pub(crate) enum ShortcutLabel {
     Sidebar,
     Navigator,
     AgentBoard,
+    StartAgent,
     Help,
     TabNumber,
     AgentNumber,
@@ -392,6 +393,11 @@ impl Locale {
             ShortcutLabel::AgentBoard => match self {
                 Self::EnUs => "Agent board",
                 Self::ZhCn => "智能体看板",
+            }
+            .to_owned(),
+            ShortcutLabel::StartAgent => match self {
+                Self::EnUs => "Start Agent",
+                Self::ZhCn => "启动智能体",
             }
             .to_owned(),
             ShortcutLabel::Help => match self {

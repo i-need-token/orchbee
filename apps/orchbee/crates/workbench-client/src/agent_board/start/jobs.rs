@@ -1,4 +1,4 @@
-//! The empty Board's private background jobs: the Client-PATH catalog lookup
+//! The Agent start's private background jobs: the Client-PATH catalog lookup
 //! and one Agent startup workflow per started Panel.
 //!
 //! The composition owns these jobs beside the Board and drives them against
@@ -17,6 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_agent_observation_protocol::AgentProviderId;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
@@ -29,12 +30,13 @@ use crate::{
 };
 use orchbee_client_server_protocol::SendPromptState;
 
-/// Bounds a start without a name: admission, the one send and the early check. Nothing waits for
-/// the Agent to become ready.
+/// Bounds a start in an existing Panel: admission, the one send and the early check. Nothing
+/// waits for the Agent to become ready.
 const START_DEADLINE: Duration = Duration::from_secs(20);
-/// Bounds a named start, which waits until the Agent's integration reports the Session that the
-/// name binds to.
-const NAMED_START_DEADLINE: Duration = Duration::from_secs(300);
+/// Bounds a start in a new Tab, which also waits for the new shell's first prompt.
+const NEW_TAB_START_DEADLINE: Duration = Duration::from_secs(30);
+/// How long a start in a new Tab waits before asking again whether its shell shows a prompt.
+const PROMPT_RETRY: Duration = Duration::from_millis(250);
 const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 
 mod client_path;
@@ -56,15 +58,10 @@ impl Jobs {
     }
 
     /// Applies the state's latest decisions to the owned jobs: a retired catalog
-    /// lookup is cancelled and an explicit cancellation wakes its workflow.
+    /// lookup is cancelled.
     pub(crate) fn reconcile(&mut self, state: &State) {
         if !state.catalog_loading() {
             self.retire_active_catalog();
-        }
-        for task in &mut self.start {
-            if state.cancelling(task.generation) {
-                task.cancel();
-            }
         }
     }
 
@@ -116,44 +113,49 @@ impl Jobs {
         drained
     }
 
-    /// Accepts one start in `state` and runs its workflow on the current origin. Only a workflow
-    /// still running in the same Panel refuses it.
+    /// Accepts one start of `provider` in `panel` and runs its workflow on the current origin.
+    /// Only a workflow still running in the same Panel refuses it. A start in an existing Panel
+    /// moves to a new Tab when its prompt refuses it; a start in a new Tab instead waits for
+    /// the new shell's first prompt.
     pub(crate) fn start(
         &mut self,
         state: &mut State,
-        episode: u64,
-        panel: WorkbenchPanelId,
+        provider: &'static str,
+        place: Place,
         clock: LocalOperationClock,
     ) -> bool {
+        let (panel, new_tab) = match place {
+            Place::Panel(panel) => (panel, false),
+            Place::NewTab(panel) => (panel, true),
+        };
         if self.start.iter().any(|task| task.panel == panel) {
             return false;
         }
         let Some(origin) = self.origin.clone() else {
             return false;
         };
-        let budget = if state.name().is_empty() {
-            START_DEADLINE
+        let budget = if new_tab {
+            NEW_TAB_START_DEADLINE
         } else {
-            NAMED_START_DEADLINE
+            START_DEADLINE
         };
         let Some(deadline) = Instant::now().checked_add(budget) else {
             return false;
         };
-        let Some(operation) = state.begin_start(episode, panel, deadline) else {
+        let Some(operation) = state.begin_start(provider, panel, !new_tab, deadline) else {
             return false;
         };
         #[cfg(test)]
         if operation.without_task {
             return true;
         }
-        let request = Request::new(operation.name, operation.provider, Vec::new());
         match StartTask::spawn(
             operation.generation,
             operation.panel,
             origin,
             clock,
-            request,
-            deadline,
+            operation.provider,
+            (deadline, new_tab),
         ) {
             Ok(task) => self.start.push(task),
             Err(_) => state.settle_start_spawn_failed(operation.generation),
@@ -246,9 +248,6 @@ impl Jobs {
                 Err(TryRecvError::Empty) => break,
             }
         }
-        if changed {
-            state.touch_catalog();
-        }
         changed
     }
 
@@ -265,14 +264,14 @@ impl Jobs {
 
     #[cfg(test)]
     pub(crate) fn queue_completion_t(&mut self, state: &State, report: Report) -> bool {
-        let Some(operation) = state.presented() else {
+        let Some((generation, panel)) = state.latest() else {
             return false;
         };
         let (sender, outcomes) = mpsc::sync_channel(1);
         if sender
             .send(Completion {
-                generation: operation.generation,
-                panel: operation.panel.clone(),
+                generation,
+                panel: panel.clone(),
                 report,
             })
             .is_err()
@@ -284,8 +283,8 @@ impl Jobs {
             return false;
         };
         self.start.push(StartTask {
-            generation: operation.generation,
-            panel: operation.panel.clone(),
+            generation,
+            panel: panel.clone(),
             progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
@@ -310,14 +309,6 @@ fn report_phase(report: &Report) -> Phase {
     };
     match &report.verdict {
         Verdict::Started { .. } | Verdict::Observed { .. } | Verdict::Sent { .. } => Phase::Started,
-        // Only a named start waits for readiness, so only it can run out of time after typing.
-        Verdict::Failed { failure, .. }
-            if report.name.is_some()
-                && failure.timed_out()
-                && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>
-        {
-            Phase::Unconfirmed
-        }
         // Observation showed the Panel back at its shell prompt: no Agent holds it.
         Verdict::Failed {
             failure: Failure::Start(StartFailure::AgentExited),
@@ -344,6 +335,31 @@ fn report_phase(report: &Report) -> Phase {
         Verdict::Failed { failure, .. } if failure.cancelled() => Phase::Cancelled,
         Verdict::Failed { failure, .. } => refusal(failure).map_or(Phase::Failed, Phase::Refused),
     }
+}
+
+/// Whether a start typed nothing only because its new Tab is not ready yet: the Panel has no
+/// bound terminal yet, or its shell shows no idle prompt.
+fn awaits_prompt(report: &Report) -> bool {
+    match report_phase(report) {
+        Phase::Refused(AgentStartRefusal::NotAtPrompt | AgentStartRefusal::Unmarked) => true,
+        Phase::Failed => {
+            matches!(
+                report.verdict,
+                Verdict::Failed {
+                    failure: Failure::Primary(_),
+                    ..
+                }
+            ) && !report.delivery.possibly_applied()
+        }
+        _ => false,
+    }
+}
+
+/// Where one accepted start runs: an existing Panel, or the first Panel of the new Tab it asked
+/// for.
+pub(crate) enum Place {
+    Panel(WorkbenchPanelId),
+    NewTab(WorkbenchPanelId),
 }
 
 /// The prompt refusals that typed nothing. The Host's `busy` and `not-shell` read like the
@@ -443,31 +459,42 @@ impl StartTask {
         panel: WorkbenchPanelId,
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
-        request: Request,
-        deadline: Instant,
+        provider: AgentProviderId,
+        (deadline, wait_for_prompt): (Instant, bool),
     ) -> std::io::Result<Self> {
         let (sender, outcomes) = mpsc::sync_channel(1);
         let (reader, wake) = LocalStream::pair()?;
-        let task_panel = panel.clone();
         let completion_panel = panel.clone();
         let progress = Arc::new(Mutex::new(None));
         let task_progress = Arc::clone(&progress);
+        let task_panel = panel.clone();
         let task = BackgroundThread::spawn("orchbee-agent-start", move || {
             let started = Instant::now();
-            let report = crate::agent_start::run_on_origin(
-                request,
-                started,
-                deadline,
-                Some(reader.as_local_io()),
-                &origin,
-                clock,
-                task_panel,
-                &|value| {
-                    if let Ok(mut progress) = task_progress.lock() {
-                        *progress = Some(value);
-                    }
-                },
-            );
+            let report = loop {
+                let report = crate::agent_start::run_on_origin(
+                    Request::new(None, provider.clone(), Vec::new()),
+                    started,
+                    deadline,
+                    Some(reader.as_local_io()),
+                    &origin,
+                    clock.clone(),
+                    task_panel.clone(),
+                    &|value| {
+                        if let Ok(mut progress) = task_progress.lock() {
+                            *progress = Some(value);
+                        }
+                    },
+                );
+                // A new Tab's shell needs a moment before its first prompt; until then the
+                // workflow refuses without typing anything, so asking again is safe.
+                let retry = wait_for_prompt
+                    && awaits_prompt(&report)
+                    && deadline.saturating_duration_since(Instant::now()) > PROMPT_RETRY * 8;
+                if !retry {
+                    break report;
+                }
+                std::thread::sleep(PROMPT_RETRY);
+            };
             let _ = sender.send(Completion {
                 generation,
                 panel: completion_panel,
