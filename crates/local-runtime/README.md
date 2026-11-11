@@ -904,7 +904,11 @@ preference keys (those with a `preference` in the registry) and the launch profi
 `UserSettings::preferences`, the Session Server's and the TUI's runtime source. The Desktop font,
 padding, opacity and Option keys parse into `UserSettings::desktop`, but their runtime source is
 still the Desktop's own state until a later phase moves it onto the file. The notification profile the
-Server publishes keeps its `[ui.toast]` wire spelling.
+Server publishes uses the file's spelling: one `[notifications]` table with `cli_delivery`,
+`agent_delivery` (profile only), `delay_seconds`, `position` and `sound`, and
+`[notifications.sound_by_agent]`. `NotificationSettings::from_profile` refuses with field
+`notifications` and still reads a profile spelled `[ui.toast]` and `[ui.sound]`, which nothing
+writes any more.
 
 `preference_values(lookup, launch_profiles)` is the one derivation of the preference values from
 key values: `lookup` returns a key path's `Scalar`, or `None` when the file leaves it unset, and a
@@ -937,8 +941,10 @@ The reader is strict per key and tolerant per file:
   `UserSettingsLoad::or_last_valid`, plus a `file` diagnostic. `UserSettingsLoad::syntax` names the
   reason and the 1-based line and column, counted in characters. Startup paths (Client activation
   and the managed Server's first read) continue on that result; `config check`, `channel show`,
-  `channel set`, `update`, `server reload-config` and the Server's sampler call
-  `UserSettingsLoad::require_valid_syntax` and keep what they had.
+  `channel set`, `update`, `server reload-config` and the Server's sampler treat it as fatal and
+  keep what they had. The CLI reads `UserSettingsLoad::syntax` itself so its failures keep the line
+  and column; the Server calls `UserSettingsLoad::require_valid_syntax`, which keeps only the
+  reason.
 - An unknown key is reported as `unknown-key` with disposition `ignored`, left in the file and
   never echoed.
 - A value of the wrong type or outside its allowed values falls back to that key's default and is
@@ -999,8 +1005,9 @@ changes when the file already says what the changes ask for.
 reason }`, `Syntax` (reason, line, column), `ReadOnly`, `InUse`, `Locked`, `Changed`, `TooLarge`,
 `Source` for an unusable location or file, and `Io` for any other write failure. `key` names the
 change a refusal is charged to; `field` can name another key the change affects.
-`set_update_channel` is `set_setting` on `update.channel`; its errors map onto the file failure
-vocabulary `channel set` already publishes.
+`set_update_channel` is `set_setting` on `update.channel` and returns the `SettingsEditError`
+itself; `SettingsEditError` has no conversion into `SettingsError`, so a caller keeps each
+refusal's own reason.
 
 ### Reference
 

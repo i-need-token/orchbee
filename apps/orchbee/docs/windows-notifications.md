@@ -146,4 +146,4 @@ Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 
-The file's position key is `notifications.position`; the Session's bounded notification profile keeps its own `[ui.toast.overlay]` wire spelling; profile publication and rollback require the same cohort.
+The file's position key is `notifications.position`, and the Session's bounded notification profile spells it the same way inside its `[notifications]` table; profile publication and rollback require the same cohort.
