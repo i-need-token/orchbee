@@ -105,6 +105,8 @@ pub(crate) enum MenuLabel {
     Navigator,
     AgentBoard,
     StartAgent,
+    StartAgentInTab,
+    MoreAgents,
     OpenNotificationTarget,
     ReleasePointer,
     Detach,
@@ -115,6 +117,8 @@ pub(crate) enum MenuLabel {
 pub(crate) enum MenuHeading {
     Folders,
     Worktrees,
+    /// The new-Tab menu's Agents, after its shells.
+    Agents,
 }
 
 /// Secondary text that ends a row, such as the default launch profile's mark.
@@ -437,6 +441,8 @@ impl Locale {
             (Self::ZhCn, MenuHeading::Folders) => "文件夹",
             (Self::EnUs, MenuHeading::Worktrees) => "Git Worktrees",
             (Self::ZhCn, MenuHeading::Worktrees) => "Git 工作树",
+            (Self::EnUs, MenuHeading::Agents) => "Agents",
+            (Self::ZhCn, MenuHeading::Agents) => "智能体",
         }
     }
     pub(crate) const fn menu_title(self) -> &'static str {
@@ -628,6 +634,11 @@ impl Locale {
             (Self::ZhCn, AgentBoard) => "智能体看板",
             (Self::EnUs, StartAgent) => "Start Agent…",
             (Self::ZhCn, StartAgent) => "启动智能体…",
+            // A row shows its provider's product name; this names the action itself.
+            (Self::EnUs, StartAgentInTab) => "Start Agent in new Tab",
+            (Self::ZhCn, StartAgentInTab) => "在新标签页中启动智能体",
+            (Self::EnUs, MoreAgents) => "More Agents…",
+            (Self::ZhCn, MoreAgents) => "更多智能体…",
             (Self::EnUs, OpenNotificationTarget) => "Open notification target",
             (Self::ZhCn, OpenNotificationTarget) => "打开通知目标",
             (Self::EnUs, ReleasePointer) => "Release mouse",

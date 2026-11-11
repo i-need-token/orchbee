@@ -953,6 +953,11 @@ impl CreateOperation {
         self
     }
 
+    #[cfg(test)]
+    pub(crate) const fn agent_start(&self) -> Option<&'static str> {
+        self.agent_start
+    }
+
     pub(crate) fn with_placement(
         mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,

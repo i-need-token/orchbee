@@ -899,6 +899,8 @@ pub(crate) struct AgentBoard {
     start_row: bool,
     start: start::State,
     start_catalog_path: Option<std::ffi::OsString>,
+    /// The new-Tab menu asked for the first lookup; it holds until one begins.
+    catalog_wanted: bool,
     /// The Start Agent picker while it replaces the Board's content.
     picker: Option<picker::Picker>,
     session_agents: SessionAgents,
@@ -1059,6 +1061,7 @@ impl AgentBoard {
             start_row: false,
             start: start::State::new(launch_supported),
             start_catalog_path: None,
+            catalog_wanted: false,
             picker: None,
             session_agents: SessionAgents::default(),
             agents_revision: 0,
@@ -1121,6 +1124,7 @@ impl AgentBoard {
         self.notice = None;
         self.picker = None;
         self.start_catalog_path = None;
+        self.catalog_wanted = false;
     }
 
     /// Settles exact paint evidence. `None` means another composed surface
@@ -1368,13 +1372,14 @@ impl AgentBoard {
     }
 
     /// One start drain: `jobs` settles its outcomes into the start state and may begin the
-    /// catalog while the picker is open.
+    /// catalog while the picker is open or after the new-Tab menu asked for it.
     pub(crate) fn drain_start(
         &mut self,
         now: Instant,
         jobs: impl FnOnce(&mut start::State, start::CatalogAdmission) -> start::Drain,
     ) -> bool {
-        let admission = if self.open && self.picker.is_some() && self.start.catalog_unloaded() {
+        let wanted = self.open && self.picker.is_some() || self.catalog_wanted;
+        let admission = if wanted && self.start.catalog_unloaded() {
             start::CatalogAdmission::Open(self.start_catalog_path.clone())
         } else {
             start::CatalogAdmission::Closed
@@ -1382,6 +1387,9 @@ impl AgentBoard {
         let expired = self.start.expire(now);
         self.hold_picker_cursor();
         let drained = jobs(&mut self.start, admission);
+        if !self.start.catalog_unloaded() {
+            self.catalog_wanted = false;
+        }
         if drained.started {
             self.request_refresh(now);
         }
@@ -1396,6 +1404,18 @@ impl AgentBoard {
     #[cfg(test)]
     pub(crate) fn install_start_catalog_t(&mut self, providers: &[&'static str]) {
         self.start.install_catalog(providers);
+    }
+
+    /// The first lookup runs and has found `found` so far.
+    #[cfg(test)]
+    pub(crate) fn begin_start_lookup_t(&mut self, found: &[&'static str]) {
+        self.start.begin_lookup_finding(found);
+    }
+
+    /// One more result of the running lookup arrives.
+    #[cfg(test)]
+    pub(crate) fn find_start_provider_t(&mut self, provider: &'static str) -> bool {
+        self.start.find(provider)
     }
 
     #[cfg(test)]
@@ -1838,6 +1858,7 @@ impl AgentBoard {
     /// can still arrive for this connection.
     pub(crate) fn retire_start_catalog(&mut self) {
         self.start.retire_catalog();
+        self.catalog_wanted = false;
     }
 }
 

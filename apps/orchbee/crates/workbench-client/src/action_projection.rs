@@ -520,7 +520,9 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             NAVIGATOR,
         ),
         A::AgentBoard => built_in("orchbee.native.agent-board.toggle", C::Agent, AGENT),
-        A::StartAgent => built_in("orchbee.native.agent.start", C::Agent, AGENT),
+        A::StartAgent | A::StartAgentInTab(_) | A::MoreAgents => {
+            built_in("orchbee.native.agent.start", C::Agent, AGENT)
+        }
         A::OpenNotificationTarget => {
             built_in("orchbee.native.notification.target.open", C::Agent, AGENT)
         }

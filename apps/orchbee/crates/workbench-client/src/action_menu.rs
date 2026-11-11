@@ -236,6 +236,8 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::ReleasePointer) => PrefixAction::Client(A::TogglePointerCapture),
         (T::Global, M::Detach) => PrefixAction::Client(A::Exit),
         (T::TabCreate(_), M::NewTab) => PrefixAction::Client(A::CreateTab),
+        // The key opens the same picker; only its starting place differs.
+        (T::TabProfiles(_), M::MoreAgents) => PrefixAction::Client(A::StartAgent),
         _ => return None,
     };
     Some(action)
@@ -467,15 +469,27 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
     }
 }
 
+/// The new-Tab menu's Agents section: its provider rows and "More Agents…".
+const fn agent_row(action: &MenuAction) -> bool {
+    matches!(
+        action,
+        MenuAction::StartAgentInTab(_) | MenuAction::MoreAgents
+    )
+}
+
 fn heading_before(
     source: &MenuTarget,
     actions: &[MenuAction],
     index: usize,
 ) -> Option<MenuHeading> {
+    let previous = index.checked_sub(1).map(|index| &actions[index]);
+    if matches!(source, MenuTarget::TabProfiles(_)) {
+        return (agent_row(&actions[index]) && !previous.is_some_and(agent_row))
+            .then_some(MenuHeading::Agents);
+    }
     if !matches!(source, MenuTarget::WorkspaceCreation(_)) {
         return None;
     }
-    let previous = index.checked_sub(1).map(|index| &actions[index]);
     match &actions[index] {
         MenuAction::WorkspaceInFolder(_)
             if !matches!(previous, Some(MenuAction::WorkspaceInFolder(_))) =>
@@ -516,6 +530,8 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
     match action {
         MenuAction::WorkspaceInFolder(_) => !matches!(previous, MenuAction::WorkspaceInFolder(_)),
         MenuAction::OpenWorktreeAt(_) => !matches!(previous, MenuAction::OpenWorktreeAt(_)),
+        // The new-Tab menu's Agents follow its shells as their own section.
+        action if agent_row(action) => !agent_row(previous),
         // The pane's copy row is its own group above the split and close commands.
         MenuAction::SplitPanel(_) => matches!(previous, MenuAction::CopySelection),
         // A Tab menu's close section starts before its first close row.

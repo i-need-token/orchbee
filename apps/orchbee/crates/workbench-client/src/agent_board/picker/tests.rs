@@ -534,3 +534,84 @@ fn recent_puts_own_starts_first_then_the_sessions_agents_newest_first_once_each(
     );
     assert!(!agents.holds(&panel(5)));
 }
+
+/// The new-Tab menu lists what the picker lists first: Recent, then Installed A–Z, at most four,
+/// and never a provider that is still being checked, not found or not checked.
+#[test]
+fn new_tab_menu_lists_the_pickers_found_providers_up_to_four() {
+    struct Case {
+        name: &'static str,
+        recent: &'static [&'static str],
+        installed: Option<&'static [&'static str]>,
+        missing: &'static [&'static str],
+        pending: &'static [&'static str],
+        expect: &'static [&'static str],
+    }
+    let cases = [
+        Case {
+            name: "recent leads, then installed by product name",
+            recent: &["gemini"],
+            installed: Some(&["codex", "gemini", "claude-code"]),
+            missing: &[],
+            pending: &[],
+            expect: &["gemini", "claude-code", "codex"],
+        },
+        Case {
+            name: "installed alone, by product name",
+            recent: &[],
+            installed: Some(&["pi", "amp"]),
+            missing: &[],
+            pending: &[],
+            expect: &["amp", "pi"],
+        },
+        Case {
+            name: "more than four keeps the first four in the picker's order",
+            recent: &["pi"],
+            installed: Some(&["pi", "opencode", "kimi", "codex", "amp", "claude-code"]),
+            missing: &[],
+            pending: &[],
+            expect: &["pi", "amp", "claude-code", "codex"],
+        },
+        Case {
+            name: "a provider still being checked waits; found so far is listed",
+            recent: &["codex"],
+            installed: Some(&["gemini"]),
+            missing: &[],
+            pending: &["codex", "amp"],
+            expect: &["gemini"],
+        },
+        Case {
+            name: "a provider not found is never listed",
+            recent: &["codex"],
+            installed: Some(&["codex", "gemini"]),
+            missing: &["codex"],
+            pending: &[],
+            expect: &["gemini"],
+        },
+        Case {
+            name: "a remote Session lists Recent only",
+            recent: &["codex"],
+            installed: None,
+            missing: &[],
+            pending: &[],
+            expect: &["codex"],
+        },
+        Case {
+            name: "nothing found lists nothing",
+            recent: &[],
+            installed: Some(&[]),
+            missing: &[],
+            pending: &[],
+            expect: &[],
+        },
+    ];
+    for case in cases {
+        let listed = super::menu_agents(Sources {
+            recent: case.recent,
+            installed: case.installed,
+            missing: case.missing,
+            pending: case.pending,
+        });
+        assert_eq!(listed, case.expect, "{}", case.name);
+    }
+}

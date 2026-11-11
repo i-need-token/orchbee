@@ -16,6 +16,8 @@ use std::io::{self, Read, Write};
 use std::num::NonZeroU64;
 use std::time::{Duration, Instant};
 
+mod new_tab_menu;
+
 fn board_summary(
     session: &str,
     provider: &str,
@@ -491,6 +493,13 @@ impl crate::terminal_input::TerminalInputPort for RoutedInput<'_> {
         action: crate::workbench_client::InputAction,
     ) -> Option<ClientActionDisposition> {
         Some(self.ui.apply_client_action(action))
+    }
+
+    fn take_action_menu_action(
+        &mut self,
+        pointer_released: bool,
+    ) -> Option<crate::workbench_client::InputAction> {
+        self.ui.take_action_menu_action(pointer_released)
     }
 
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {

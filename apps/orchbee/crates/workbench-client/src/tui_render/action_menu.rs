@@ -1465,6 +1465,10 @@ fn action_label(
             locale.earlier_layout_summary(entry)
         );
     }
+    if let MenuAction::StartAgentInTab(provider) = action {
+        // Under the Agents heading a row names only its Agent, as the picker does.
+        return crate::agent_provider::product_name(provider).to_owned();
+    }
     if let MenuAction::NewTabWithProfile(profile) = action {
         let name = locale.launch_profile_label(profile.name.as_deref());
         // The new-Tab button's own menu lists only the profile each row opens.

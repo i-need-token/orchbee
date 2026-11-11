@@ -124,9 +124,13 @@ fn action_availability(
     facts: RowFacts,
 ) -> ActionAvailability<MenuUnavailable> {
     use crate::workbench_state::workspace_setup::DirectoryConfigurationUnavailable;
-    // Open Worktree ▸ needs the same host effect as the global Open Worktree….
+    // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the new-Tab
+    // menu's Agent rows the same as Start Agent….
     let effect = match action {
         MenuAction::WorkspaceWorktrees => MenuAction::OpenWorktree.client_action(),
+        MenuAction::StartAgentInTab(_) | MenuAction::MoreAgents => {
+            MenuAction::StartAgent.client_action()
+        }
         _ => action.client_action(),
     };
     if effect
@@ -654,6 +658,12 @@ impl WorkbenchClientUi {
         if creation_only && !live {
             return false;
         }
+        // Fixed now: a lookup result that arrives while the menu is open changes no row.
+        let agents = if tab_profiles {
+            self.new_tab_menu_agents()
+        } else {
+            None
+        };
         let state = self.state.as_ref();
         let group_menu = match &target {
             MenuTarget::TabGroups { colors: true, .. } => Some(super::tab_groups::MenuPage::Colors),
@@ -931,6 +941,10 @@ impl WorkbenchClientUi {
                 .into_iter()
                 .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone())))
                 .collect();
+            if let Some(agents) = agents {
+                actions.extend(agents.into_iter().map(MenuAction::StartAgentInTab));
+                actions.push(MenuAction::MoreAgents);
+            }
         }
         let facts = self.row_facts(&target);
         actions = sidebar::actions(&entry, actions, self.menus.discovery(), |action| {
@@ -945,7 +959,7 @@ impl WorkbenchClientUi {
             )
             .is_hidden()
         });
-        // A single profile is the button's own click, so it opens no menu.
+        // A single profile without Agents is the button's own click, so it opens no menu.
         if tab_profiles && actions.len() < 2 {
             return false;
         }
@@ -1802,6 +1816,19 @@ impl WorkbenchClientUi {
         }
         if let Some(child) = child {
             self.open_child_action_menu(child, action, pointer_released);
+            return None;
+        }
+        // The new-Tab menu's Agents run as the picker's new-Tab place does, without asking.
+        if let MenuAction::StartAgentInTab(provider) = action {
+            self.menus.menu.take()?;
+            self.menus.end();
+            self.start_in_new_tab(provider);
+            return None;
+        }
+        if action == MenuAction::MoreAgents {
+            self.menus.menu.take()?;
+            self.menus.end();
+            self.open_agent_picker_in_new_tab();
             return None;
         }
         // The read settles on its own, and the request captures what it installed.

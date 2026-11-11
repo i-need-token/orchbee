@@ -121,6 +121,34 @@ impl WorkbenchClientUi {
         ClientActionDisposition::DismissNavigator
     }
 
+    /// The new-Tab menu's "More Agents…": the picker as `Ctrl+B G` opens it, with a new Tab as
+    /// its place. The menu closed first, so nothing else owns input.
+    pub(super) fn open_agent_picker_in_new_tab(&mut self) {
+        if self.retirement_failure.is_some() || self.board.is_open() || self.modal_owns_input() {
+            return;
+        }
+        let focus = self.focused_panel();
+        let worktree = self.worktree_place_available();
+        self.board
+            .open_picker_in_new_tab(std::env::var_os("PATH"), focus.as_ref(), worktree);
+    }
+
+    /// The new-Tab menu's Agents, fixed when it opens, or `None` where the picker's new-Tab start
+    /// would be hidden or refused, so the section is absent rather than disabled.
+    pub(super) fn new_tab_menu_agents(&mut self) -> Option<Vec<&'static str>> {
+        if self.retirement_failure.is_some()
+            || !self
+                .capabilities
+                .supports(crate::tui_capabilities::Capability::AgentLaunch)
+            || !self.board.can_start_agent()
+            || self.view().no_current_workspace()
+        {
+            return None;
+        }
+        self.board.want_start_catalog(std::env::var_os("PATH"));
+        Some(self.board.menu_agents())
+    }
+
     /// The Session's Agents as the sidebar last observed them.
     pub(in crate::workbench_client) fn observe_session_agents(
         &mut self,
@@ -283,7 +311,7 @@ impl WorkbenchClientUi {
 
     /// Asks the Server for a new Tab in the current Workspace whose shell runs the Agent as its
     /// first command, through the ordinary Tab creation; nothing is typed.
-    fn start_in_new_tab(&mut self, provider: &'static str) {
+    pub(super) fn start_in_new_tab(&mut self, provider: &'static str) {
         if self.view().no_current_workspace() {
             if let Some(state) = self.state.as_mut() {
                 state.set_notice(ClientNotice::NoWorkspace);

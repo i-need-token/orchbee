@@ -187,6 +187,26 @@ pub(crate) fn items(sources: Sources<'_>, query: &str, expanded: bool) -> Vec<It
     rows
 }
 
+/// How many Agents the new-Tab menu lists before "More Agents…".
+pub(crate) const MENU_LIMIT: usize = 4;
+
+/// The new-Tab menu's Agents: the picker's own Recent then Installed rows, in its order, at most
+/// [`MENU_LIMIT`]. A provider still being checked, not found or not checked is never listed.
+pub(crate) fn menu_agents(sources: Sources<'_>) -> Vec<&'static str> {
+    items(sources, "", false)
+        .into_iter()
+        .filter_map(|item| match item {
+            Item::Provider {
+                id,
+                group: Group::Recent | Group::Installed,
+                ..
+            } => Some(id),
+            _ => None,
+        })
+        .take(MENU_LIMIT)
+        .collect()
+}
+
 /// What Esc does in the picker: it clears a query first, then returns to the board the
 /// picker was opened from, otherwise closes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -394,23 +414,28 @@ impl AgentBoard {
         )
     }
 
+    fn with_sources<T>(&self, list: impl FnOnce(Sources<'_>) -> T) -> T {
+        let (recent, installed) = self.picker_sources();
+        let pending = self.start.pending();
+        list(Sources {
+            recent: &recent,
+            installed: installed.as_deref(),
+            missing: self.start.missing(),
+            pending: &pending,
+        })
+    }
+
     /// The picker's current rows.
     pub(crate) fn picker_items(&self) -> Vec<Item> {
         let Some(picker) = self.picker.as_ref() else {
             return Vec::new();
         };
-        let (recent, installed) = self.picker_sources();
-        let pending = self.start.pending();
-        items(
-            Sources {
-                recent: &recent,
-                installed: installed.as_deref(),
-                missing: self.start.missing(),
-                pending: &pending,
-            },
-            picker.query(),
-            picker.expanded,
-        )
+        self.with_sources(|sources| items(sources, picker.query(), picker.expanded))
+    }
+
+    /// The Agents the new-Tab menu lists now, from what the picker would list.
+    pub(crate) fn menu_agents(&self) -> Vec<&'static str> {
+        self.with_sources(menu_agents)
     }
 
     /// Holds a resting cursor on the provider it rests on, so a late lookup result that lists a
@@ -453,6 +478,28 @@ impl AgentBoard {
         self.open();
         self.intent = None;
         self.start_picker(path, focus, worktree, false);
+    }
+
+    /// The new-Tab menu's "More Agents…": the picker alone, with a new Tab as its place.
+    pub(crate) fn open_picker_in_new_tab(
+        &mut self,
+        path: Option<std::ffi::OsString>,
+        focus: Option<&WorkbenchPanelId>,
+        worktree: bool,
+    ) {
+        self.open_picker(path, focus, worktree);
+        if let Some(picker) = self.picker.as_mut() {
+            picker.place = StartPlace::NewTab;
+        }
+    }
+
+    /// The new-Tab menu lists from the lookup too: opening it begins the first one when none
+    /// has run, as the picker's opening would. Unlike the picker it never repeats a lookup.
+    pub(crate) fn want_start_catalog(&mut self, path: Option<std::ffi::OsString>) {
+        if self.picker.is_none() && self.start.catalog_unloaded() {
+            self.start_catalog_path = path;
+            self.catalog_wanted = true;
+        }
     }
 
     /// The Board's Start Agent row or `s`: the picker replaces the Board's content until Esc.

@@ -270,6 +270,10 @@ pub enum MenuAction {
     Navigator,
     AgentBoard,
     StartAgent,
+    /// A new-Tab menu row: starts this provider in a new Tab of the current Workspace.
+    StartAgentInTab(&'static str),
+    /// The new-Tab menu's last Agent row: the picker, opening in a new Tab.
+    MoreAgents,
     /// Shown only while an Agent notification card is current.
     OpenNotificationTarget,
     ReleasePointer,
@@ -355,6 +359,8 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::Navigator => Self::Navigator,
             MenuAction::AgentBoard => Self::AgentBoard,
             MenuAction::StartAgent => Self::StartAgent,
+            MenuAction::StartAgentInTab(_) => Self::StartAgentInTab,
+            MenuAction::MoreAgents => Self::MoreAgents,
             MenuAction::OpenNotificationTarget => Self::OpenNotificationTarget,
             MenuAction::ReleasePointer => Self::ReleasePointer,
             MenuAction::Detach => Self::Detach,
@@ -459,7 +465,10 @@ impl MenuAction {
             | Self::OpenWorktreeAt(_)
             | Self::RemoveWorktree
             | Self::DeleteWorkspace
-            | Self::DeleteProject => return None,
+            | Self::DeleteProject
+            // The menu's owner runs these through the picker's own new-Tab start.
+            | Self::StartAgentInTab(_)
+            | Self::MoreAgents => return None,
         })
     }
 }
