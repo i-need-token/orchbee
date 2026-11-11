@@ -36,10 +36,9 @@ mod terminal_colors;
 mod terminal_defaults;
 mod window_title;
 mod wire;
-use crate::{
-    DataRoot,
-    user_path::{USER_PATH_LIMIT, normalize_user_path},
-};
+#[cfg(windows)]
+use crate::user_path::normalize_user_path;
+use crate::{DataRoot, user_path::USER_PATH_LIMIT};
 pub use desktop::{DesktopTerminalSettings, MacosOptionAsAlt};
 pub use editor::{
     MAXIMUM_SETTING_CHANGES, MAXIMUM_STRUCTURED_ENTRIES, MAXIMUM_STRUCTURED_VALUE_BYTES,
@@ -53,8 +52,6 @@ pub use keys::{
 pub(crate) use launch_profiles::launch_command_admitted;
 use orchbee_workbench_protocol::UserPreferencesValues;
 pub use preferences::{preference_changes, preference_values, snapshot_preferences};
-pub use snapshot::{configuration_diagnostics, settings_snapshot};
-pub use wire::{setting_changes, settings_refusal};
 pub use reference::{
     DefaultActionBindings, default_user_settings_toml, default_user_settings_toml_with_actions,
 };
@@ -65,6 +62,7 @@ pub use registry::{
 };
 pub(crate) use registry::{current_platform, recognized_path};
 pub use reset_keys::{KeysResetOutcome, KeysResetReport, reset_keybindings};
+pub use snapshot::{configuration_diagnostics, settings_snapshot};
 use std::{
     ffi::OsString,
     io::Read,
@@ -73,6 +71,7 @@ use std::{
 pub use terminal_colors::{UserColorThemes, UserTerminalColors};
 pub use terminal_defaults::UserTerminalLaunchIntent;
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowTitleTemplate};
+pub use wire::{setting_changes, settings_refusal};
 
 /// Largest `config.toml` the reader admits: room for every platform's launch profiles.
 pub const MAXIMUM_USER_SETTINGS_BYTES: u64 = 2 * 1024 * 1024;
@@ -633,6 +632,16 @@ fn normalize(
     if value.trim().is_empty() {
         return Err(SettingsError::new(field, "invalid-path"));
     }
+    host_path(value, file, env)
+        // The Session publishes only paths every creation consumer admits.
+        .filter(|value| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(value).is_ok())
+        .ok_or(SettingsError::new(field, "invalid-path"))
+}
+
+/// Windows takes its own path grammar: a drive-absolute path, `~` under the user's profile, or a
+/// path relative to the settings file's folder.
+#[cfg(windows)]
+fn host_path(value: &str, file: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Option<String> {
     normalize_user_path(value, env, || {
         let file = file.to_str().ok_or(std::io::ErrorKind::InvalidData)?;
         let end = file
@@ -646,9 +655,44 @@ fn normalize(
         Ok(PathBuf::from(parent))
     })
     .ok()
-    // The Session publishes only paths every creation consumer admits.
-    .filter(|value| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(value).is_ok())
-    .ok_or(SettingsError::new(field, "invalid-path"))
+}
+
+/// macOS and Linux take their own path grammar: an absolute path as written, `~` or `~/...` under
+/// `HOME`, or a path relative to the settings file's folder, resolved lexically. A Windows drive
+/// or share path is not one of them.
+#[cfg(not(windows))]
+fn host_path(value: &str, file: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Option<String> {
+    let windows_form = value.starts_with('\\')
+        || matches!(value.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic());
+    if value.len() > USER_PATH_LIMIT || value.contains('\0') || windows_form {
+        return None;
+    }
+    if value.starts_with('/') {
+        return Some(value.to_owned());
+    }
+    let (base, relative) = match value.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') => (
+            PathBuf::from(env("HOME").filter(|home| !home.is_empty())?),
+            rest.trim_start_matches('/'),
+        ),
+        _ => (file.parent()?.to_owned(), value),
+    };
+    if !base.is_absolute() {
+        return None;
+    }
+    let mut resolved = PathBuf::new();
+    for component in base.join(relative).components() {
+        match component {
+            std::path::Component::RootDir => resolved.push("/"),
+            std::path::Component::ParentDir => {
+                resolved.pop();
+            }
+            std::path::Component::Normal(part) => resolved.push(part),
+            std::path::Component::CurDir | std::path::Component::Prefix(_) => {}
+        }
+    }
+    let resolved = resolved.to_str()?.to_owned();
+    (resolved.len() <= USER_PATH_LIMIT).then_some(resolved)
 }
 
 #[cfg(test)]

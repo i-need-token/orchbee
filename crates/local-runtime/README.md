@@ -940,9 +940,10 @@ Diagnostics are deduplicated before display truncation, sorted by field and reas
 entries with an exact omitted count, and never retain source values or commands. See
 [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The reader
 and the editor run on every host and read `config.toml` as a plain file under the data root. Path
-keys (`terminal.new_cwd` folders and `worktrees.directory`) still use the Windows user-path grammar
-on every host, so a POSIX absolute folder there is `invalid-path` until those keys gain a POSIX
-grammar.
+keys (`terminal.new_cwd` folders and `worktrees.directory`) use the host's grammar. Windows takes
+the Windows user-path grammar below. macOS and Linux take an absolute path as written, `~` or
+`~/...` under `HOME`, or a path relative to the settings file's folder, resolved lexically; a
+Windows drive or share path there is `invalid-path`.
 
 The same reader owns `UpdateChannel` (`stable`/`preview`, default stable) with default/file
 provenance; native `channel show` consumes it offline and infers nothing about the installed

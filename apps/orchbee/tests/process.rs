@@ -46,8 +46,11 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
     assert_eq!(english.stdout, chinese.stdout);
     let text = String::from_utf8(english.stdout)?;
     assert!(text.ends_with('\n'));
-    let parsed: toml::Value = toml::from_str(&text)?;
-    assert_eq!(parsed["keys"]["prefix"].as_str(), Some("ctrl+b"));
+    // The reference is all comments, so it parses and names each default as a commented line.
+    let _: toml::Value = toml::from_str(&text)?;
+    let keys = text.split("\n# [keys]\n").nth(1).ok_or("no [keys] table")?;
+    let keys = keys.split("\n# [").next().unwrap_or(keys);
+    assert!(keys.lines().any(|line| line == "# prefix = \"ctrl+b\""));
     for action in orchbee_local_runtime::KeySettings::registered_actions() {
         let prefix = format!("# {action} = ");
         assert!(
