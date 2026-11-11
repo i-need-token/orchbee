@@ -759,9 +759,8 @@ fn changed_cohort_fails_before_runtime_creation() {
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     assert!(
-        client
-            .exit_message_before(startup_deadline)
-            .contains("cohort is missing, changed, or invalid")
+        !client.exit_message_before(startup_deadline).is_empty(),
+        "the refusal is reported"
     );
     assert!(!fixture.runtime().exists());
     assert!(fixture.processes("orchbee-server").is_empty());

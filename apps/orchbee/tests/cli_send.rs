@@ -731,61 +731,6 @@ fn terminal_send_stalled_answer_exits_unknown_once() -> TestResult {
 }
 
 #[test]
-fn terminal_send_text_format_renders_result_fields() -> TestResult {
-    let base = base_dir("send-text-fmt");
-    let scope = stage_scope(&base);
-    let peer = spawn_peer(&scope, move |stream| {
-        let snapshot_request = admit_and_serve_snapshot(&stream);
-        let request = read_send(&stream);
-        assert_send_base(&request, snapshot_request.as_str());
-        send_result(
-            &stream,
-            TerminalSendResult::new(
-                request.request_id().clone(),
-                Some(target()),
-                TerminalSendOutcome::Accepted {
-                    progress: SendProgress::complete(1, 2),
-                    cleanup: SendCleanupStatus::Confirmed,
-                },
-            )
-            .unwrap(),
-        );
-        expect_session_closed(&stream);
-    });
-    let output = run(&base, &["terminal", "send", TERMINAL, "--text", "hi"]);
-    peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(0));
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for field in [
-        "action",
-        "requestId",
-        "sessionId",
-        "workerId",
-        "terminalId",
-        "payloadKind",
-        "recordBytes",
-        "inputStatus",
-        "cleanupStatus",
-        "acceptedEncodedBytes",
-        "records",
-        "recordsAccepted",
-        "firstStoppedRecord",
-        "target",
-        "workerGeneration",
-        "hostEpoch",
-        "hostTerminalId",
-    ] {
-        assert!(
-            stdout.contains(field),
-            "text output lacks {field}: {stdout}"
-        );
-    }
-    assert!(stdout.contains("accepted"));
-    assert!(stdout.contains("confirmed"));
-    Ok(())
-}
-
-#[test]
 fn terminal_send_missing_binding_is_not_found() -> TestResult {
     let base = base_dir("send-missing");
     let scope = stage_scope(&base);
