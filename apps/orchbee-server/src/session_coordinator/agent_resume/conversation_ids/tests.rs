@@ -122,6 +122,15 @@ fn provider_specific_forms() {
         (P::ClaudeCode, "--append-system-prompt {id}", None),
         (P::ClaudeCode, "--model opus --resume {id}", Some(UUID)),
         (P::Grok, "-s {id} --fork-session", None),
+        // MiMo's own options: a flag takes no value, a value-taking option skips its value.
+        (P::Mimo, "--yolo -s {id}", Some(OPENCODE_ID)),
+        (P::Mimo, "--yolo", None),
+        (
+            P::Mimo,
+            "--port 4096 --never-ask --session={id}",
+            Some(OPENCODE_ID),
+        ),
+        (P::Mimo, "--hostname {id}", None),
         // Letta completes a bound default conversation with exactly one agent.
         (
             P::Letta,

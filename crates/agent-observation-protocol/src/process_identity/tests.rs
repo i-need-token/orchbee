@@ -684,6 +684,31 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["mimo", "--session={ses}"]),
             interactive(P::Mimo, S::NativeImage),
         ),
+        // MiMo's own options extend OpenCode's grammar for MiMo only.
+        (
+            "resume",
+            r"{npm}\node_modules\@mimo-ai\cli\vendor\mimo.exe",
+            Some(vec!["mimo", "--yolo", "-s", "{ses}"]),
+            interactive(P::Mimo, S::NativeImage),
+        ),
+        (
+            "resume",
+            r"{npm}\node_modules\@mimo-ai\cli\vendor\mimo.exe",
+            Some(vec!["mimo", "--port", "4096", "--trust", "--session={ses}"]),
+            interactive(P::Mimo, S::NativeImage),
+        ),
+        (
+            "resume",
+            r"{npm}\node_modules\@mimo-ai\cli\vendor\mimo.exe",
+            Some(vec!["mimo", "--cors", "a", "-s", "{ses}"]),
+            unresolved(Some(P::Mimo), U::UnclassifiedArguments),
+        ),
+        (
+            "resume",
+            "opencode.exe",
+            Some(vec!["opencode", "--yolo", "-s", "{ses}"]),
+            unresolved(Some(P::OpenCode), U::UnclassifiedArguments),
+        ),
         (
             "resume",
             r"{cursor}\cursor-agent.exe",

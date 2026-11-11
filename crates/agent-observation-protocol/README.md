@@ -138,8 +138,9 @@ reuse it rather than keeping their own tables.
   the positional rule. Each grammar lists the resume option the Server types for its provider and
   that option's documented short alias, and the launch-time `--session-id` an Agent start passes
   Grok, Gemini, Qwen Code, Copilot and Pi, with Grok's `-s` alias. OMP's grammar is Pi's without
-  that option, which OMP does not document. Kilo and MiMo Code, both built on OpenCode, share
-  OpenCode's grammar. A grammar that requires a command (OpenClaw `chat` and
+  that option, which OMP does not document. Kilo shares OpenCode's grammar; MiMo Code's extends it
+  with MiMo's own flags and value-taking options, joined to OpenCode's lists rather than copied, and
+  leaves out the array option `--cors`. A grammar that requires a command (OpenClaw `chat` and
   `tui`) leaves every invocation without one of its interactive commands unclassified, the bare
   launch included.
 - Runtime entries: the runtime skips its own listed options before the script, including the

@@ -310,14 +310,14 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
             &grammar::DEFAULT,
         ),
         // The npm launcher `mimo.js` runs the bundled `vendor/mimo.exe`; both sit in the root. MiMo
-        // Code is a shell around OpenCode 1.x and takes its grammar.
+        // Code is a shell around OpenCode 1.x, and its grammar extends OpenCode's.
         AgentProviderEntry {
             install_roots: &[AgentInstallRoot(&["node_modules", "@mimo-ai", "cli"])],
             ..entry(
                 P::Mimo,
                 &[shared("mimo")],
                 &["node_modules/@mimo-ai/cli/mimo.js"],
-                &grammar::OPENCODE,
+                &grammar::MIMO,
             )
         },
         entry(

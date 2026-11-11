@@ -300,18 +300,65 @@ pub(super) mod grammar {
             "session",
             "pr",
         ],
-        interactive_flags: &["-c", "--continue", "--print-logs"],
-        interactive_options: &[
-            "-m",
-            "--model",
-            "-s",
-            "--session",
-            "--prompt",
-            "--agent",
-            "--log-level",
-        ],
+        interactive_flags: &OPENCODE_FLAGS,
+        interactive_options: &OPENCODE_OPTIONS,
         ..base(M::Interactive)
     };
+
+    const OPENCODE_FLAGS: [&str; 3] = ["-c", "--continue", "--print-logs"];
+    const OPENCODE_OPTIONS: [&str; 7] = [
+        "-m",
+        "--model",
+        "-s",
+        "--session",
+        "--prompt",
+        "--agent",
+        "--log-level",
+    ];
+
+    /// MiMo Code, a shell around OpenCode 1.x: OpenCode's grammar plus the interactive options
+    /// MiMo's 0.1.16 help adds. `--cors` is left out: it takes an array, which consumes every
+    /// following non-option word, so a run carrying it stays unclassified.
+    pub const MIMO: AgentModeGrammar = AgentModeGrammar {
+        interactive_flags: &MIMO_FLAGS,
+        interactive_options: &MIMO_OPTIONS,
+        ..OPENCODE
+    };
+
+    const MIMO_FLAGS: [&str; 10] = joined(
+        OPENCODE_FLAGS,
+        [
+            "--pure",
+            "--mdns",
+            "--no-auth",
+            "--never-ask",
+            "--trust",
+            "--dangerously-skip-permissions",
+            "--yolo",
+        ],
+    );
+    const MIMO_OPTIONS: [&str; 10] =
+        joined(OPENCODE_OPTIONS, ["--port", "--hostname", "--mdns-domain"]);
+
+    /// `base` followed by `extra`, so a grammar that extends another lists only what it adds.
+    /// `N` must be `A + B`; anything else fails to compile.
+    const fn joined<const A: usize, const B: usize, const N: usize>(
+        base: [&'static str; A],
+        extra: [&'static str; B],
+    ) -> [&'static str; N] {
+        assert!(A + B == N);
+        let mut all = [""; N];
+        let mut index = 0;
+        while index < A {
+            all[index] = base[index];
+            index += 1;
+        }
+        while index < N {
+            all[index] = extra[index - A];
+            index += 1;
+        }
+        all
+    }
 
     pub const COPILOT: AgentModeGrammar = AgentModeGrammar {
         noninteractive_options: &["-v", "-p", "--prompt"],

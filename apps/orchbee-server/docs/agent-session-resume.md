@@ -100,7 +100,8 @@ across every client of the shared session store, which may be another Panel's.
 
 MiMo Code is a shell around OpenCode 1.x and follows its row: its 0.1.16 help documents
 `-s`/`--session <id>` to continue a session, `-c`/`--continue` and `--fork`, and its ids take
-OpenCode's `ses_` form. It has no hook adapter, and none of OpenCode's plugin reporting extends to
+OpenCode's `ses_` form. Its process grammar is OpenCode's plus MiMo's own options
+([unlisted options](#command-line)). It has no hook adapter, and none of OpenCode's plugin reporting extends to
 it, since its plugin directory is unverified. Only a run whose command line binds an id, such as a
 hand-typed `mimo --session <id>` or a delivered resume, is ever captured; a bare `mimo`, which
 documents no launch-time id, names no session and is not resumed. Its directory and wrong-id
@@ -330,9 +331,12 @@ any of them gives none, since the process may hold another conversation than any
   argument. Grok, Qoder, Kimi, Droid and Copilot classify that as unclassified, so identity stays
   `Unknown` and nothing is read. The `=` form, which delivery types, is read.
 - **Unlisted options.** An option outside the provider's mode grammar leaves the run unclassified,
-  so nothing is read. OpenCode's grammar, which Kilo and MiMo Code share, lists no `--fork`, so
-  `--session <id> --fork`, which opens a new fork, gives none; nor does it list MiMo's own flags
-  such as `--yolo`, `--never-ask`, `--trust` and `--pure`, so a MiMo run carrying one gives none.
+  so nothing is read. OpenCode's grammar, which Kilo shares and MiMo Code extends, lists no
+  `--fork`, so `--session <id> --fork`, which opens a new fork, gives none. MiMo's grammar adds its
+  own flags (`--yolo`, `--dangerously-skip-permissions`, `--never-ask`, `--trust`, `--pure`,
+  `--mdns`, `--no-auth`) and value-taking options (`--port`, `--hostname`, `--mdns-domain`), so
+  `mimo --yolo -s <id>` is read; its array option `--cors`, which consumes every following word,
+  stays unlisted, so a run carrying it gives none.
 - **Stale ids.** The command line names the conversation the process started in. When the person
   switches conversation inside the Agent (`/resume`, `/new`, `/clear` and the like) and no hook
   session reports the switch, the next restart reopens the conversation the process started in,
