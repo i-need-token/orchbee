@@ -141,6 +141,34 @@ impl Fixture {
         }))
     }
 }
+/// Writes a record as the store keeps one. A POSIX store reads only a private record, a 0600 file
+/// in a 0700 folder, so a record written with the default umask would be refused.
+fn write_private_record(directory: &std::path::Path, bytes: &[u8]) {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(directory)
+            .unwrap();
+        fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(directory.join(RECORD_NAME))
+            .unwrap()
+            .write_all(bytes)
+            .unwrap();
+    }
+    #[cfg(windows)]
+    {
+        fs::create_dir_all(directory).unwrap();
+        fs::write(directory.join(RECORD_NAME), bytes).unwrap();
+    }
+}
 impl Drop for Fixture {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.root).unwrap();
@@ -262,8 +290,7 @@ fn reading_a_current_record_preserves_values_source_and_bytes() {
     let mut original = serde_json::to_vec_pretty(&record).unwrap();
     original.push(b'\n');
     let path = fixture.store.scope.directory.join(RECORD_NAME);
-    fs::create_dir_all(&fixture.store.scope.directory).unwrap();
-    fs::write(&path, &original).unwrap();
+    write_private_record(&fixture.store.scope.directory, &original);
 
     let observed = fixture.store.read().unwrap();
     assert_eq!(
@@ -300,8 +327,7 @@ fn a_record_without_theme_fields_reads_with_their_defaults() {
     values.remove("tuiColorSource").unwrap();
     let original = serde_json::to_vec_pretty(&document).unwrap();
     let path = fixture.store.scope.directory.join(RECORD_NAME);
-    fs::create_dir_all(&fixture.store.scope.directory).unwrap();
-    fs::write(&path, &original).unwrap();
+    write_private_record(&fixture.store.scope.directory, &original);
 
     let observed = fixture.store.read().unwrap();
     assert!(observed.values.sound_enabled);
@@ -331,8 +357,7 @@ fn explicitly_claimed_application_appearances_are_preserved() {
             claimed: BTreeSet::from([PreferenceKey::ApplicationTheme]),
         };
         let original = serde_json::to_vec(&record).unwrap();
-        fs::create_dir_all(&fixture.store.scope.directory).unwrap();
-        fs::write(fixture.store.scope.directory.join(RECORD_NAME), &original).unwrap();
+        write_private_record(&fixture.store.scope.directory, &original);
 
         let snapshot = fixture.store.read().unwrap();
         assert_eq!(snapshot.values.application_theme, appearance);
@@ -460,9 +485,8 @@ fn only_explicit_reset_all_may_replace_a_refused_record_and_cannot_clobber_a_rep
 fn a_newer_record_keeps_changes_in_memory_until_the_person_resets_every_setting() {
     let fixture = Fixture::new();
     let file = fixture.store.scope().directory().join("preferences.json");
-    fs::create_dir_all(fixture.store.scope().directory()).unwrap();
     let newer = br#"{"version":2,"values":{},"claimed":[],"later":true}"#;
-    fs::write(&file, newer).unwrap();
+    write_private_record(fixture.store.scope().directory(), newer);
     let read = fixture.store.read().unwrap();
     assert_eq!(read.values, UserPreferencesValues::default());
     let changed = fixture.update(&read.source, PreferenceKey::ApplicationTheme, json!("dark"));
