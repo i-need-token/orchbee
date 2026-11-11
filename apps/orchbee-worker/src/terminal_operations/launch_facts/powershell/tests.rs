@@ -223,8 +223,9 @@ fn agent_start_reaches_only_shells_that_run_the_managed_startup() {
         Option<&'a AgentStartCommand>,
         Option<&'a str>,
     );
-    let rows: [Row; 11] = [
-        // Managed PowerShell: Windows PowerShell and PowerShell 7, bare or with plain flags.
+    let rows: [Row; 13] = [
+        // Managed PowerShell: Windows PowerShell and PowerShell 7, bare or with plain flags,
+        // including the login flags the Host completes with the managed startup itself.
         (
             r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
             &[],
@@ -238,6 +239,13 @@ fn agent_start_reaches_only_shells_that_run_the_managed_startup() {
             Some(&openclaw_line),
         ),
         ("PWSH", &["-NoExit"], Some(&codex), Some(&codex_line)),
+        ("pwsh", &["-l"], Some(&codex), Some(&codex_line)),
+        (
+            r"C:\Program Files\PowerShell\7\pwsh.exe",
+            &["-NoLogo", "-NoProfile", "-NoExit", "-Login"],
+            Some(&codex),
+            Some(&codex_line),
+        ),
         // No start command asked.
         ("powershell.exe", &[], None, None),
         // cmd and custom launch profiles that do not run the managed startup.
@@ -263,7 +271,7 @@ fn agent_start_reaches_only_shells_that_run_the_managed_startup() {
                 .collect(),
         );
         assert_eq!(
-            agent_start(&prepared, command).as_deref(),
+            agent_start(executable, &prepared, command).as_deref(),
             expected,
             "{executable} {arguments:?}"
         );

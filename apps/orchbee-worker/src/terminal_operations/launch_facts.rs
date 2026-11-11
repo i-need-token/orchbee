@@ -78,7 +78,7 @@ pub(super) fn resolve(
         powershell::interactive_arguments(&executable, arguments)
     };
     #[cfg(windows)]
-    let agent_start = powershell::agent_start(&arguments, launch.agent_start());
+    let agent_start = powershell::agent_start(&executable, &arguments, launch.agent_start());
     // POSIX shells have no managed startup that takes a first command yet; the launch starts
     // without it and the Client types the Agent instead.
     #[cfg(not(windows))]

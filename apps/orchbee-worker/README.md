@@ -1079,8 +1079,11 @@ this integration; no current-directory accuracy claim is made for their private 
 
 ## Agent start command
 
-A launch's `AgentStartCommand` reaches the shell only when its prepared argument list ends in the
-managed startup above, which is the only startup that reads it: the Worker sets
+A launch's `AgentStartCommand` reaches the shell only when the Host runs it as managed PowerShell:
+PowerShell with only plain flags (`-NoLogo`, `-NoProfile`, `-NoExit`, `-Login`, `-l`), which the
+Worker or the Host completes with the managed startup above, or with that exact startup already
+prepared. That startup is the only one that reads it, so the Worker mirrors the Host's
+classification and sets
 `ORCHBEE_AGENT_START` to the line `windows_agent_start_command` composes from the catalog program
 and arguments, each single-quoted after `Get-Command` resolution. Every other Windows launch,
 including cmd, custom launch profiles and PowerShell with unadmitted flags, removes the variable,
