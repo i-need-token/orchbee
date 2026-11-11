@@ -770,9 +770,7 @@ fn respond(
             request.creation_id,
             host_identity().map_err(io_error)?.creation_id
         );
-        #[cfg(not(windows))]
-        assert!(request.environment_overlay.is_empty());
-        #[cfg(windows)]
+        // Without a Session runtime, a launch carries only its terminal and Worker identities.
         assert_eq!(
             request
                 .environment_overlay

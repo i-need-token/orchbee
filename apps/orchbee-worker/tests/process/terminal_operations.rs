@@ -193,7 +193,6 @@ fn worker_resolves_only_admitted_launches_and_replays_without_another_command() 
             );
             assert_eq!(request.launch.executable, "/bin/sh");
             assert!(request.launch.arguments.is_empty());
-            assert!(request.environment_overlay.is_empty());
             assert!(request.launch.configuration.is_none());
             let environment: Vec<_> = request
                 .launch
@@ -437,7 +436,6 @@ fn explicit_launch_selection_reaches_the_host_verbatim() -> TestResult {
                 request.launch.current_directory.as_deref(),
                 Some(expected_cwd.as_str())
             );
-            assert!(request.environment_overlay.is_empty());
             let epoch = HostEpoch::from_bytes([0x44; 16]).map_err(protocol_io)?;
             let response = encode_terminal_creation_control(
                 &TerminalCreationControl::TerminalCreated(TerminalIdentity {
