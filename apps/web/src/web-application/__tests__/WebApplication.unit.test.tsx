@@ -7,8 +7,6 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
-import type { UserPreferencesControl, UserPreferencesState } from '../../user-preferences';
 
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
@@ -19,7 +17,7 @@ import {
 } from '../../__tests__/server-workbench-snapshot';
 import { WebApplication } from '../WebApplication';
 import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
-import { memoryUserPreferences } from '../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../__tests__/memoryUserSettings';
 
 describe('WebApplication', () => {
 	it('renders the Workbench before the Server holds any Workspace', () => {
@@ -28,9 +26,8 @@ describe('WebApplication', () => {
 			workbenchSnapshot(1, { workspaces: [] }, []),
 		);
 		const terminalSettingsController = new TerminalSettingsController({
-			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: { dataset: {} },
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'apple',
@@ -80,13 +77,13 @@ function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: { dir: '', lang: '' },
 		preferredLocales: ['en-US'],
-		userPreferences: memoryUserPreferences(),
+		userSettings: memoryUserSettings(),
 	});
 }
 
-// Covers the live application boundary: recovery notice -> Settings -> confirmed reset.
+// Covers the live application boundary: file notice -> Settings -> the file is fixed.
 it.each(['en-US', 'zh-CN'] as const)(
-	'opens recovery from the main window and clears it after Reset all in %s',
+	'opens recovery from the main window and clears it once the file is fixed in %s',
 	async (locale) => {
 		class TestResizeObserver {
 			public disconnect(): void {}
@@ -98,35 +95,13 @@ it.each(['en-US', 'zh-CN'] as const)(
 			configurable: true,
 			value: true,
 		});
-		let state: UserPreferencesState = {
-			available: false,
-			pending: false,
-			failure: 'invalid-source',
-			applicationIssue: null,
-			draftResetRevision: 0,
-			snapshot: { source: 'unreadable', values: DEFAULT_USER_PREFERENCES, claimed: [] },
-		};
-		const listeners = new Set<() => void>();
-		const control: UserPreferencesControl = {
-			getSnapshot: () => state,
-			subscribe: (listener) => {
-				listeners.add(listener);
-				return () => listeners.delete(listener);
-			},
-			refresh: async () => ({ kind: 'refused', reason: 'invalid-source' }),
-			update: async () => ({ kind: 'refused', reason: 'invalid-source' }),
-			reset: async () => {
-				const snapshot = { source: 'missing', values: DEFAULT_USER_PREFERENCES, claimed: [] };
-				state = { ...state, available: true, failure: null, snapshot };
-				for (const listener of listeners) listener();
-				return { kind: 'snapshot', changed: true, snapshot };
-			},
-		};
+		const control = memoryUserSettings({
+			file: { column: 3, line: 7, reason: 'invalid-toml', status: 'syntax-error' },
+		});
 		const actionRuntime = new ActionRuntime();
 		const terminalSettingsController = new TerminalSettingsController({
-			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: { dataset: {} },
-			userPreferences: control,
+			userSettings: control,
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'standard',
@@ -185,12 +160,7 @@ it.each(['en-US', 'zh-CN'] as const)(
 		expect(returnedNotice).not.toBeNull();
 		await React.act(async () => returnedNotice?.click());
 
-		const resetLabel = locale === 'en-US' ? 'Reset all' : '全部重置';
-		const resetButton = () =>
-			[...container.querySelectorAll('button')].find((button) => button.textContent === resetLabel);
-		await React.act(async () => resetButton()?.click());
-		await React.act(async () => resetButton()?.click());
-		expect(state.available).toBe(true);
+		await React.act(async () => control.setFile({ status: 'ok' }));
 		await React.act(async () =>
 			container.querySelector<HTMLButtonElement>('[data-settings-close]')?.click(),
 		);

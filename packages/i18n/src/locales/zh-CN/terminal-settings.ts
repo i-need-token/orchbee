@@ -1,15 +1,10 @@
 import type { TerminalSettingsMessageId } from '../en-US';
 
 export const zhCNTerminalSettingsMessages = {
-	'terminal.settings.shared.unreadable': '无法读取设置文件 · 正在使用默认值 · 请在设置中全部重置',
-	'terminal.settings.shared.unavailable': '无法读取共享设置，继续使用上次确认的值。',
-	'terminal.settings.shared.failed': '设置未保存，此次编辑尚未生效。',
-	'terminal.settings.shared.conflict': '设置已在别处更改，草稿已保留。请先载入当前值，再继续编辑。',
-	'terminal.settings.shared.unknown': '保存结果未知。请先读取当前设置，再判断是否需要另一次编辑。',
-	'terminal.settings.shared.host': '设置已保存，但终端服务尚未应用；新终端可能仍使用之前的默认值。',
-	'terminal.settings.shared.refresh': '重载设置并放弃草稿',
-	'terminal.settings.shared.reset': '全部重置',
-	'terminal.settings.shared.confirmReset': '重置所有共享设置和启动配置？',
+	'terminal.settings.shared.unreadable': '设置文件有问题 · 打开设置查看',
+	'terminal.settings.shared.unavailable': '暂时无法访问设置 · 显示的值可能已过时',
+	'terminal.settings.shared.conflict': '设置已在别处更改 · 草稿已保留 · 请核对当前启动配置后再保存',
+	'terminal.settings.shared.unknown': '更改可能未保存 · 再次更改前请核对当前值',
 	'terminal.settings.shared.system': '跟随系统',
 	'terminal.settings.actions.back': '返回',
 	'terminal.settings.actions.close': '关闭设置',
@@ -41,11 +36,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colors.foreground.invalid': '请输入 #RRGGBB 格式的颜色。',
 	'terminal.settings.description': '自定义应用和终端的外观。',
 	'terminal.settings.interaction.copyOnSelect.label': '选中时复制',
-	'terminal.settings.persistence.invalidWarning':
-		'已保存的设置无效，当前正在使用默认设置；重置可尝试保存默认设置。',
-	'terminal.settings.persistence.readWarning':
-		'无法读取已保存的设置，当前正在使用默认设置；重置可尝试保存默认设置。',
-	'terminal.settings.persistence.writeWarning': '更改已应用于当前会话，但未能保存。',
 	'terminal.settings.profiles.actions.add': '添加 Profile',
 	'terminal.settings.profiles.actions.cancel': '取消',
 	'terminal.settings.profiles.actions.confirmDelete': '确认删除此 Profile',
@@ -78,7 +68,8 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.profiles.failures.protectedDelete':
 		'请先选择另一个默认 Profile，再删除此 Profile。',
 	'terminal.settings.profiles.failures.unsupported': '此启动选项不受当前操作系统支持。',
-	'terminal.settings.profiles.failures.write': '更改未能保存；之前的 Profile 仍然有效。',
+	'terminal.settings.profiles.failures.write':
+		'上一次 Profile 更改未能保存；之前的 Profile 仍然有效。',
 	'terminal.settings.profiles.futureTerminalsNotice':
 		'新终端启动时会记住当时的默认 Profile；正在运行和恢复的终端会保留原来的命令。',
 	'terminal.settings.profiles.login.description':
@@ -87,12 +78,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.profiles.login.unsupported': '当前操作系统不支持登录 Shell 模式。',
 	'terminal.settings.profiles.name.invalid': '请输入 Profile 名称。',
 	'terminal.settings.profiles.name.label': 'Profile 名称',
-	'terminal.settings.profiles.persistence.invalid':
-		'已保存的 Profile 文件无效；保存或重置前将使用内置 Profile。',
-	'terminal.settings.profiles.persistence.read':
-		'无法读取已保存的 Profile 文件；保存或重置前将使用内置 Profile。',
-	'terminal.settings.profiles.persistence.write':
-		'上一次 Profile 更改未能保存；之前的 Profile 仍然有效。',
 	'terminal.settings.profiles.section': '启动配置',
 	'terminal.settings.profiles.systemShell': '系统 Shell',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
@@ -211,4 +196,24 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.profiles.edit': '编辑',
 	'terminal.settings.page.profiles.done': '完成',
 	'terminal.settings.page.profiles.useAsDefault': '设为默认',
+	'terminal.settings.refused.denied': '此窗口无权更改设置',
+	'terminal.settings.refused.unavailable': '暂时无法访问设置 · 请稍后重试',
+	'terminal.settings.refused.sessionMismatch': '此窗口的会话已结束 · 请重新打开 Orchbee',
+	'terminal.settings.refused.busy': '设置正忙 · 请稍后重试',
+	'terminal.settings.refused.readOnly': '设置文件为只读 · 改为可写后重试',
+	'terminal.settings.refused.fileInUse': '设置文件被其他程序占用 · 关闭后重试',
+	'terminal.settings.refused.locked': '另一次编辑正在写入设置文件 · 请稍后重试',
+	'terminal.settings.refused.changed': '设置文件在此期间已更改 · 请核对后重试',
+	'terminal.settings.refused.tooLarge': '设置文件将超出大小上限 · 请删除不再需要的条目',
+	'terminal.settings.refused.writeFailed': '无法写入设置文件 · 请检查磁盘空间和权限',
+	'terminal.settings.refused.unknownKey': '此版本的 Orchbee 不认识这项设置 · 请更新 Orchbee',
+	'terminal.settings.refused.invalidValue': '不允许此值 · 请换一个',
+	'terminal.settings.refused.syntaxError': '设置文件有语法错误 · 请先修正',
+	'terminal.settings.refused.unusableFile': '无法使用设置文件所在位置 · 请检查其指向',
+	'terminal.settings.file.syntaxError':
+		'{path} 第 {line} 行第 {column} 列有语法错误 · 修正前以只读方式显示上次有效的设置',
+	'terminal.settings.file.unreadable': '无法读取 {path} · 恢复前以只读方式显示上次有效的设置',
+	'terminal.settings.page.newTerminalFolder.label': '新终端文件夹',
+	'terminal.settings.page.newTerminalFolder.description':
+		'新终端的起始位置：follow、home、current、workspace 或一个文件夹。留空使用默认值。',
 } as const satisfies Readonly<Record<TerminalSettingsMessageId, string>>;

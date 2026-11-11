@@ -1,6 +1,7 @@
 import type { ActionRuntime } from '@orchbee/actions';
 import {
 	Workbench,
+	findActiveTerminalFocusTarget,
 	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
@@ -35,6 +36,7 @@ import type { TerminalInteractionSettingsController } from '../terminal-interact
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
+import { isSettingsFileReadOnly } from '../user-settings';
 import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import type { TerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 
@@ -96,12 +98,15 @@ export function WebApplication({
 	terminalSurface,
 	workspaceLocationSource,
 }: WebApplicationProps): React.ReactNode {
-	const view = useWebApplication({ terminalSettingsController });
+	const view = useWebApplication({
+		findActiveTerminal: () => findActiveTerminalFocusTarget(projectWorkspaceRuntime),
+		terminalSettingsController,
+	});
 	const intl = useOrchbeeIntl();
-	const preferences = React.useSyncExternalStore(
-		terminalSettingsController.userPreferences.subscribe,
-		terminalSettingsController.userPreferences.getSnapshot,
-		terminalSettingsController.userPreferences.getSnapshot,
+	const settingsFile = React.useSyncExternalStore(
+		terminalSettingsController.userSettings.subscribe,
+		terminalSettingsController.userSettings.getSnapshot,
+		terminalSettingsController.userSettings.getSnapshot,
 	);
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
 	const shortcutClaims: readonly WorkbenchShortcutClaim[] = React.useMemo(
@@ -162,7 +167,7 @@ export function WebApplication({
 					onShortcuts={view.onShortcuts}
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					preferencesUnreadable={
-						!view.settingsOpen && preferences.snapshot?.source === 'unreadable'
+						!view.settingsOpen && isSettingsFileReadOnly(settingsFile.snapshot)
 					}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}

@@ -41,8 +41,3 @@
 	height: var(--ob-ref-size-control-sm);
 	font: var(--ob-sys-typography-code-sm);
 }
-
-.error {
-	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-label-sm);
-}

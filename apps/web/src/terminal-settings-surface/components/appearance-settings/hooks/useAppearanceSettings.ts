@@ -1,26 +1,28 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import type { SettingKey } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
 import {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	normalizeTerminalHexColor,
 	useTerminalSettings,
 	type TerminalAppearancePreferences,
 	type TerminalSettingsController,
 } from '../../../../terminal-settings';
 import { TERMINAL_FONT_SIZE_RANGE } from '../../../constants/terminal-font-size-range';
-import { useSharedPreferenceDraft } from '../../../hooks/useSharedPreferenceDraft';
-
-/** The terminal font sizes the appearance model admits. */
+import { useSetting, type SettingView } from '../../../hooks/useSetting';
+import { useSettingDraft } from '../../../hooks/useSettingDraft';
 
 interface TextDraftView {
 	readonly draft: string;
+	/** A draft that was not admitted, or why the file did not take the last change. */
 	readonly error: string | null;
 	readonly modified: boolean;
 	readonly onBlur: () => void;
 	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
-	readonly onRestore: () => void;
+	/** Undefined while the file is read-only, which hides the row's Restore default. */
+	readonly onRestore: (() => void) | undefined;
+	readonly readOnly: boolean;
 }
 
 interface ColorDraftView extends TextDraftView {
@@ -28,6 +30,9 @@ interface ColorDraftView extends TextDraftView {
 	readonly color: string;
 	readonly onPick: React.ChangeEventHandler<HTMLInputElement>;
 }
+
+/** What a draft needs of its setting; the draft commits through the controller, not set. */
+type DraftSetting = Omit<SettingView<SettingKey>, 'set' | 'value'>;
 
 interface AppearanceSettingsView {
 	readonly background: ColorDraftView;
@@ -39,73 +44,71 @@ interface AppearanceSettingsView {
 
 /**
  * Drafts for the typed appearance values. A draft commits on Enter or when its field loses focus;
- * an invalid draft stays visible with its message and changes nothing.
+ * an invalid draft stays visible with its message and changes nothing, and a change the file refuses
+ * puts the field back on the file's value with the reason.
  */
 export function useAppearanceSettings(
 	controller: TerminalSettingsController,
 ): AppearanceSettingsView {
 	const intl = useOrchbeeIntl();
 	const { preferences } = useTerminalSettings(controller);
-	const [fontFamilyDraft, setFontFamilyDraft] = React.useState(preferences.fontFamily);
-	const [fontFamilyInvalid, setFontFamilyInvalid] = React.useState(false);
-	const [fontSizeDraft, setFontSizeDraft] = React.useState(String(preferences.fontSize));
-	const [fontSizeInvalid, setFontSizeInvalid] = React.useState(false);
-	const foreground = useSharedPreferenceDraft(
-		preferences.customForeground,
-		'customForeground',
-		controller.userPreferences,
-	);
-	const [foregroundInvalid, setForegroundInvalid] = React.useState(false);
-	const background = useSharedPreferenceDraft(
-		preferences.customBackground,
-		'customBackground',
-		controller.userPreferences,
-	);
-	const [backgroundInvalid, setBackgroundInvalid] = React.useState(false);
+	const settings = controller.userSettings;
+	const fontFamily = useSetting(settings, 'terminal.font_family');
+	const fontSize = useSetting(settings, 'terminal.font_size');
+	const foreground = useSetting(settings, 'appearance.custom_foreground');
+	const background = useSetting(settings, 'appearance.custom_background');
+	const fontFamilyDraft = useSettingDraft(preferences.fontFamily, fontFamily.failure);
+	const fontSizeDraft = useSettingDraft(String(preferences.fontSize), fontSize.failure);
+	const foregroundDraft = useSettingDraft(preferences.customForeground, foreground.failure);
+	const backgroundDraft = useSettingDraft(preferences.customBackground, background.failure);
+	const [invalid, setInvalid] = React.useState<ReadonlySet<string>>(new Set());
 
 	React.useEffect(() => {
-		setFontFamilyDraft(preferences.fontFamily);
-		setFontFamilyInvalid(false);
-		setFontSizeDraft(String(preferences.fontSize));
-		setFontSizeInvalid(false);
-		setForegroundInvalid(false);
-		setBackgroundInvalid(false);
+		setInvalid(new Set());
 	}, [preferences]);
 
-	const commitFontFamily = (): void => {
-		const result = controller.update({ fontFamily: fontFamilyDraft });
-		setFontFamilyInvalid(result.kind === 'invalid');
+	const markInvalid = (key: string, value: boolean): void => {
+		setInvalid((current) => {
+			if (current.has(key) === value) return current;
+			const next = new Set(current);
+			if (value) next.add(key);
+			else next.delete(key);
+			return next;
+		});
 	};
-	const commitFontSize = (): void => {
-		const result = controller.update({ fontSize: Number(fontSizeDraft) });
-		setFontSizeInvalid(result.kind === 'invalid');
-	};
+	const textDraft = (
+		setting: DraftSetting,
+		key: string,
+		draft: ReturnType<typeof useSettingDraft>,
+		invalidMessage: string,
+		commit: (draft: string) => void,
+	): TextDraftView => ({
+		draft: draft.draft,
+		error: invalid.has(key) ? invalidMessage : setting.failureMessage,
+		modified: setting.modified,
+		onBlur: () => commit(draft.draft),
+		onChange: (event) => draft.change(event.currentTarget.value),
+		onKeyDown: commitOnEnter(() => commit(draft.draft)),
+		onRestore: setting.readOnly ? undefined : setting.restore,
+		readOnly: setting.readOnly,
+	});
 	const colorDraft = (
-		draft: ReturnType<typeof useSharedPreferenceDraft>,
+		setting: DraftSetting,
 		key: 'customBackground' | 'customForeground',
-		invalid: boolean,
-		setInvalid: (invalid: boolean) => void,
+		draft: ReturnType<typeof useSettingDraft>,
 		invalidMessage: string,
 	): ColorDraftView => {
 		const submit = (value: string): void => {
 			const normalized = normalizeTerminalHexColor(value);
-			setInvalid(normalized === null);
-			if (normalized !== null) draft.submit({ [key]: normalized });
+			markInvalid(key, normalized === null);
+			if (normalized !== null) controller.update({ [key]: normalized });
 		};
 		return {
+			...textDraft(setting, key, draft, invalidMessage, submit),
 			color: preferences[key],
-			draft: draft.draft,
-			error: invalid ? invalidMessage : null,
-			modified: preferences[key] !== DEFAULT_TERMINAL_APPEARANCE_PREFERENCES[key],
-			onBlur: () => submit(draft.draft),
-			onChange: (event) => draft.change(event.currentTarget.value),
-			onKeyDown: commitOnEnter(() => submit(draft.draft)),
 			onPick: (event) => {
 				draft.change(event.currentTarget.value);
 				submit(event.currentTarget.value);
-			},
-			onRestore: () => {
-				void controller.userPreferences.reset([key]);
 			},
 		};
 	};
@@ -114,44 +117,37 @@ export function useAppearanceSettings(
 		background: colorDraft(
 			background,
 			'customBackground',
-			backgroundInvalid,
-			setBackgroundInvalid,
+			backgroundDraft,
 			intl.formatMessage(terminalSettingsMessages.backgroundInvalid),
 		),
-		fontFamily: {
-			draft: fontFamilyDraft,
-			error: fontFamilyInvalid
-				? intl.formatMessage(terminalSettingsMessages.fontFamilyInvalid)
-				: null,
-			modified: preferences.fontFamily !== DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontFamily,
-			onBlur: commitFontFamily,
-			onChange: (event) => setFontFamilyDraft(event.currentTarget.value),
-			onKeyDown: commitOnEnter(commitFontFamily),
-			onRestore: () => {
-				controller.update({ fontFamily: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontFamily });
+		fontFamily: textDraft(
+			fontFamily,
+			'terminal.font_family',
+			fontFamilyDraft,
+			intl.formatMessage(terminalSettingsMessages.fontFamilyInvalid),
+			(draft) => {
+				markInvalid(
+					'terminal.font_family',
+					controller.update({ fontFamily: draft }).kind === 'invalid',
+				);
 			},
-		},
-		fontSize: {
-			draft: fontSizeDraft,
-			error: fontSizeInvalid
-				? intl.formatMessage(
-						terminalSettingsMessages.fontSizeRangeInvalid,
-						TERMINAL_FONT_SIZE_RANGE,
-					)
-				: null,
-			modified: preferences.fontSize !== DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize,
-			onBlur: commitFontSize,
-			onChange: (event) => setFontSizeDraft(event.currentTarget.value),
-			onKeyDown: commitOnEnter(commitFontSize),
-			onRestore: () => {
-				controller.update({ fontSize: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize });
+		),
+		fontSize: textDraft(
+			fontSize,
+			'terminal.font_size',
+			fontSizeDraft,
+			intl.formatMessage(terminalSettingsMessages.fontSizeRangeInvalid, TERMINAL_FONT_SIZE_RANGE),
+			(draft) => {
+				markInvalid(
+					'terminal.font_size',
+					controller.update({ fontSize: Number(draft) }).kind === 'invalid',
+				);
 			},
-		},
+		),
 		foreground: colorDraft(
 			foreground,
 			'customForeground',
-			foregroundInvalid,
-			setForegroundInvalid,
+			foregroundDraft,
 			intl.formatMessage(terminalSettingsMessages.foregroundInvalid),
 		),
 		preferences,

@@ -12,6 +12,8 @@ import {
 } from '../../terminal-settings';
 
 interface UseWebApplicationOptions {
+	/** The active terminal's input, which leaving Settings returns to when the Workbench has one. */
+	readonly findActiveTerminal?: () => HTMLElement | null;
 	readonly terminalSettingsController: TerminalSettingsController;
 }
 
@@ -26,6 +28,7 @@ interface WebApplicationView {
 }
 
 export function useWebApplication({
+	findActiveTerminal,
 	terminalSettingsController,
 }: UseWebApplicationOptions): WebApplicationView {
 	const settings = useTerminalSettings(terminalSettingsController);
@@ -50,6 +53,11 @@ export function useWebApplication({
 		const captured = returnFocusReference.current;
 		returnFocusReference.current = null;
 		queueMicrotask(() => {
+			const terminal = findActiveTerminal?.() ?? null;
+			if (terminal?.isConnected === true) {
+				terminal.focus();
+				return;
+			}
 			if (captured?.isConnected === true) {
 				captured.focus();
 				return;
@@ -101,14 +109,13 @@ export function useWebApplication({
 			if (context.signal.aborted) return { kind: 'cancelled' };
 			const result = terminalSettingsController.changeFontSize(change);
 			switch (result.kind) {
-				case 'applied-and-saved':
-				case 'applied-session-only':
+				// The settings file applies the size; every terminal follows its answer.
+				case 'pending':
 					context.markCommitted();
 					return { kind: 'completed' };
 				case 'unchanged':
 					return { kind: 'unchanged' };
 				case 'disposed':
-				case 'pending':
 					return { code: 'terminal-settings-unavailable', kind: 'blocked' };
 				case 'invalid':
 					return {

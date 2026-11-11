@@ -15,7 +15,8 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 
-.error {
-	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-label-sm);
+.pathInput {
+	width: var(--ob-ref-container-3xs);
+	height: var(--ob-ref-size-control-sm);
+	font: var(--ob-sys-typography-code-sm);
 }

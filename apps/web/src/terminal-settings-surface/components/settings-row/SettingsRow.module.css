@@ -138,4 +138,17 @@
 	.control {
 		margin-inline-start: auto;
 	}
+
+	/*
+	 * The control wraps below the copy, so the dot marks the name's first line, not the row's middle;
+	 * the name's type sets `lh` here.
+	 */
+	.modified {
+		inset-block-start: calc(var(--ob-ref-space-2) + 0.5lh - var(--ob-ref-space-0-5));
+		font: var(--ob-sys-typography-body-sm);
+	}
+
+	.root[data-two-line] .modified {
+		inset-block-start: calc(var(--ob-ref-space-2-5) + 0.5lh - var(--ob-ref-space-0-5));
+	}
 }

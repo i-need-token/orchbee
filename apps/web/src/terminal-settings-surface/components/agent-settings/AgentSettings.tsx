@@ -3,8 +3,9 @@ import { Switch } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import type { AgentIntegrationManagementControl } from '../../../agent-integration-management';
-import type { UserPreferencesControl } from '../../../user-preferences';
-import { useSharedPreferenceDefault } from '../../hooks/useSharedPreferenceDefault';
+import type { UserSettingsControl } from '../../../user-settings';
+import { useSetting } from '../../hooks/useSetting';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { AgentIntegrationSettings } from '../agent-integration-settings/AgentIntegrationSettings';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
@@ -12,17 +13,17 @@ import { SettingsRow } from '../settings-row/SettingsRow';
 interface AgentSettingsProps {
 	readonly integrationControl?: AgentIntegrationManagementControl | undefined;
 	readonly query: string;
-	readonly userPreferences: UserPreferencesControl;
+	readonly userSettings: UserSettingsControl;
 }
 
 /** Whether Agent conversations resume after a restart, and each Agent's integration. */
 export function AgentSettings({
 	integrationControl,
 	query,
-	userPreferences,
+	userSettings,
 }: AgentSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
-	const resume = useSharedPreferenceDefault(userPreferences, 'resumeAgentsOnRestore');
+	const resume = useSetting(userSettings, 'agents.resume_on_restore');
 	const resumeLabel = intl.formatMessage(terminalSettingsMessages.pageResumeAgentsLabel);
 	return (
 		<>
@@ -34,14 +35,14 @@ export function AgentSettings({
 					modified={resume.modified}
 					query={query}
 					settingId='agents.resume-on-restore'
-					onRestore={resume.restore}
+					status={<SettingFailure message={resume.failureMessage} />}
+					onRestore={resume.readOnly ? undefined : resume.restore}
 				>
 					<Switch
 						aria-label={resumeLabel}
 						checked={resume.value}
-						onCheckedChange={(checked): void => {
-							void userPreferences.update({ resumeAgentsOnRestore: checked });
-						}}
+						disabled={resume.readOnly}
+						onCheckedChange={resume.set}
 					/>
 				</SettingsRow>
 			</SettingsGroup>

@@ -4,7 +4,8 @@ import type * as React from 'react';
 
 import type { TerminalSettingsController } from '../../../terminal-settings';
 import { TERMINAL_FONT_SIZE_RANGE } from '../../constants/terminal-font-size-range';
-import { useSharedPreferenceDefault } from '../../hooks/useSharedPreferenceDefault';
+import { useSetting } from '../../hooks/useSetting';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
@@ -22,14 +23,8 @@ export function AppearanceSettings({
 }: AppearanceSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const view = useAppearanceSettings(controller);
-	const applicationTheme = useSharedPreferenceDefault(
-		controller.userPreferences,
-		'applicationTheme',
-	);
-	const displayTheme = useSharedPreferenceDefault(
-		controller.userPreferences,
-		'terminalDisplayTheme',
-	);
+	const applicationTheme = useSetting(controller.userSettings, 'appearance.mode');
+	const displayTheme = useSetting(controller.userSettings, 'appearance.terminal_colors');
 	const { preferences } = view;
 	const applicationThemeLabel = intl.formatMessage(
 		terminalSettingsMessages.pageApplicationThemeLabel,
@@ -47,10 +42,12 @@ export function AppearanceSettings({
 					modified={applicationTheme.modified}
 					query={query}
 					settingId='appearance.application-theme'
-					onRestore={applicationTheme.restore}
+					status={<SettingFailure message={applicationTheme.failureMessage} />}
+					onRestore={applicationTheme.readOnly ? undefined : applicationTheme.restore}
 				>
 					<NativeSelect
 						aria-label={applicationThemeLabel}
+						disabled={applicationTheme.readOnly}
 						size='sm'
 						value={preferences.applicationTheme}
 						onChange={(event): void => {
@@ -79,10 +76,12 @@ export function AppearanceSettings({
 					modified={displayTheme.modified}
 					query={query}
 					settingId='appearance.terminal-colors'
-					onRestore={displayTheme.restore}
+					status={<SettingFailure message={displayTheme.failureMessage} />}
+					onRestore={displayTheme.readOnly ? undefined : displayTheme.restore}
 				>
 					<NativeSelect
 						aria-label={terminalColorsLabel}
+						disabled={displayTheme.readOnly}
 						size='sm'
 						value={preferences.terminalDisplayTheme}
 						onChange={(event): void => {
@@ -131,13 +130,14 @@ export function AppearanceSettings({
 					modified={view.fontFamily.modified}
 					query={query}
 					settingId='appearance.font'
-					status={<FieldError message={view.fontFamily.error} />}
+					status={<SettingFailure message={view.fontFamily.error} />}
 					onRestore={view.fontFamily.onRestore}
 				>
 					<Input
 						aria-invalid={view.fontFamily.error !== null}
 						aria-label={fontLabel}
 						className={styles['fontInput']}
+						readOnly={view.fontFamily.readOnly}
 						spellCheck={false}
 						value={view.fontFamily.draft}
 						onBlur={view.fontFamily.onBlur}
@@ -151,7 +151,7 @@ export function AppearanceSettings({
 					modified={view.fontSize.modified}
 					query={query}
 					settingId='appearance.font-size'
-					status={<FieldError message={view.fontSize.error} />}
+					status={<SettingFailure message={view.fontSize.error} />}
 					onRestore={view.fontSize.onRestore}
 				>
 					<span className={styles['unitField']}>
@@ -161,6 +161,7 @@ export function AppearanceSettings({
 							className={styles['numberInput']}
 							max={TERMINAL_FONT_SIZE_RANGE.maximum}
 							min={TERMINAL_FONT_SIZE_RANGE.minimum}
+							readOnly={view.fontSize.readOnly}
 							type='number'
 							value={view.fontSize.draft}
 							onBlur={view.fontSize.onBlur}
@@ -194,13 +195,14 @@ function ColorRow({ description, draft, label, query, settingId }: ColorRowProps
 			modified={draft.modified}
 			query={query}
 			settingId={settingId}
-			status={<FieldError message={draft.error} />}
+			status={<SettingFailure message={draft.error} />}
 			onRestore={draft.onRestore}
 		>
 			<span className={styles['colorField']}>
 				<input
 					aria-label={label}
 					className={styles['colorPicker']}
+					disabled={draft.readOnly}
 					type='color'
 					value={draft.color}
 					onChange={draft.onPick}
@@ -209,6 +211,7 @@ function ColorRow({ description, draft, label, query, settingId }: ColorRowProps
 					aria-invalid={draft.error !== null}
 					aria-label={label}
 					className={styles['hexInput']}
+					readOnly={draft.readOnly}
 					spellCheck={false}
 					value={draft.draft}
 					onBlur={draft.onBlur}
@@ -217,14 +220,5 @@ function ColorRow({ description, draft, label, query, settingId }: ColorRowProps
 				/>
 			</span>
 		</SettingsRow>
-	);
-}
-
-function FieldError({ message }: { readonly message: string | null }): React.ReactNode {
-	if (message === null) return null;
-	return (
-		<div className={styles['error']} role='alert'>
-			{message}
-		</div>
 	);
 }

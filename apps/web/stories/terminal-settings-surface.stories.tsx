@@ -5,10 +5,7 @@ import {
 import type * as React from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
-import {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-	TerminalSettingsController,
-} from '../src/terminal-settings';
+import { TerminalSettingsController } from '../src/terminal-settings';
 import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
 import { TerminalFeedbackSettingsController } from '../src/terminal-feedback-settings';
@@ -29,53 +26,56 @@ import {
 } from '../src/agent-integration-management';
 import { ApplicationLocaleController } from '../src/application-locale';
 import { ApplicationLocaleProvider } from '../src/application-locale-provider';
-import type { UserPreferencesControl } from '../src/user-preferences';
-import { memoryUserPreferences } from '../src/__tests__/memoryUserPreferences';
+import type { UserSettingsControl } from '../src/user-settings';
+import { memoryUserSettings } from '../src/__tests__/memoryUserSettings';
 
-const englishPreferences = memoryUserPreferences({ locale: 'en-US' });
+const englishSettings = memoryUserSettings({
+	filePath: '/Users/person/.orchbee/config.toml',
+	values: { 'general.language': 'en-US' },
+});
 const englishApplicationLocaleController = createStoryApplicationLocaleController(
 	'en-US',
-	englishPreferences,
+	englishSettings,
 );
-const englishController = createStoryController(englishPreferences);
+const englishController = createStoryController(englishSettings);
 const englishKeyboardController = createKeyboardStoryController('apple');
-const englishMacosInputController = createMacosInputStoryController();
-const englishFeedbackController = createFeedbackStoryController(englishPreferences);
+const englishMacosInputController = new MacosTerminalInputSettingsController(englishSettings);
+const englishFeedbackController = createFeedbackStoryController(englishSettings);
 const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(true);
-const englishInteractionController = new TerminalInteractionSettingsController(englishPreferences);
+const englishInteractionController = new TerminalInteractionSettingsController(englishSettings);
 const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
 const englishAgentIntegrations = createAgentIntegrationStoryControl();
 
-const chinesePreferences = memoryUserPreferences({
-	applicationTheme: 'dark',
-	customBackground: '#14161b',
-	customForeground: '#e6e8ef',
-	locale: 'zh-CN',
-	terminalDisplayTheme: 'custom',
+const chineseSettings = memoryUserSettings({
+	values: {
+		'appearance.custom_background': '#14161b',
+		'appearance.custom_foreground': '#e6e8ef',
+		'appearance.mode': 'dark',
+		'appearance.terminal_colors': 'custom',
+		'general.language': 'zh-CN',
+		'terminal.background_opacity': 72,
+		'terminal.font_size': 15,
+	},
 });
 const chineseApplicationLocaleController = createStoryApplicationLocaleController(
 	'zh-CN',
-	chinesePreferences,
+	chineseSettings,
 );
 
-const chineseController = createStoryController(
-	chinesePreferences,
-	JSON.stringify({
-		backgroundOpacityPercent: 72,
-		fontFamily: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontFamily,
-		fontLigatures: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontLigatures,
-		fontSize: 15,
-		fontWeight: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontWeight,
-		fontWeightBold: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontWeightBold,
-		terminalPadding: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.terminalPadding,
-	}),
-);
+const chineseController = createStoryController(chineseSettings);
 const chineseKeyboardController = createKeyboardStoryController('standard');
-const chineseFeedbackController = createFeedbackStoryController(chinesePreferences);
+const chineseFeedbackController = createFeedbackStoryController(chineseSettings);
 const chineseTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(false);
-const chineseInteractionController = new TerminalInteractionSettingsController(chinesePreferences);
+const chineseInteractionController = new TerminalInteractionSettingsController(chineseSettings);
 const chineseTerminalDefaults = createTerminalDefaultSettingsStoryControl(24_000_000);
 const chineseAgentIntegrations = createAgentIntegrationStoryControl();
+
+const brokenFileSettings = memoryUserSettings({
+	file: { column: 14, line: 9, reason: 'invalid-toml', status: 'syntax-error' },
+	filePath: '/Users/person/.orchbee/config.toml',
+	values: { 'general.language': 'en-US', 'terminal.font_size': 15 },
+});
+const brokenFileController = createStoryController(brokenFileSettings);
 
 const meta = {
 	title: 'Terminal Settings Surface',
@@ -164,6 +164,17 @@ export const EnglishTerminal: Story = englishLight('terminal');
 export const EnglishNotifications: Story = englishLight('notifications');
 export const EnglishKeyboard: Story = englishLight('keyboard');
 export const EnglishAgents: Story = englishLight('agents');
+export const EnglishSettingsFileError: Story = {
+	...englishLight('appearance'),
+	args: {
+		applicationLocaleController: englishApplicationLocaleController,
+		controller: brokenFileController,
+		initialCategory: 'appearance',
+		keyboardShortcutController: createKeyboardStoryController('apple'),
+		keyboardShortcutPlatform: 'apple',
+		onRequestClose: () => brokenFileController.close(),
+	},
+};
 export const ChineseGeneral: Story = chineseDark('general');
 export const ChineseAppearanceCustomColors: Story = chineseDark('appearance');
 export const ChineseThemes: Story = chineseDark('themes');
@@ -174,27 +185,19 @@ export const ChineseAgents: Story = chineseDark('agents');
 
 function createStoryApplicationLocaleController(
 	locale: 'en-US' | 'zh-CN',
-	userPreferences: UserPreferencesControl,
+	userSettings: UserSettingsControl,
 ): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: { dir: '', lang: '' },
 		preferredLocales: [locale],
-		userPreferences,
+		userSettings,
 	});
 }
 
-/** The host record holds the appearance this device keeps; the shared preferences hold the rest. */
-function createStoryController(
-	userPreferences: UserPreferencesControl,
-	hostRecord: string | null = null,
-): TerminalSettingsController {
+function createStoryController(userSettings: UserSettingsControl): TerminalSettingsController {
 	const controller = new TerminalSettingsController({
-		storage: {
-			getItem: () => hostRecord,
-			setItem: () => undefined,
-		},
 		themeTarget: { dataset: {} },
-		userPreferences,
+		userSettings,
 	});
 	controller.open();
 	return controller;
@@ -210,7 +213,7 @@ function createKeyboardStoryController(
 }
 
 function createFeedbackStoryController(
-	userPreferences: UserPreferencesControl,
+	userSettings: UserSettingsControl,
 ): TerminalFeedbackSettingsController {
 	return new TerminalFeedbackSettingsController({
 		// Stories ask for no notification permission.
@@ -219,14 +222,7 @@ function createFeedbackStoryController(
 			requestPermission: () => Promise.resolve<'unsupported'>('unsupported'),
 			show: () => false,
 		},
-		userPreferences,
-	});
-}
-
-function createMacosInputStoryController(): MacosTerminalInputSettingsController {
-	return new MacosTerminalInputSettingsController({
-		getItem: () => null,
-		setItem: () => undefined,
+		userSettings,
 	});
 }
 
@@ -265,11 +261,12 @@ function createTerminalLaunchProfileStoryControl(
 				],
 				version: 1,
 			},
-			persistenceIssue: null,
 			source: 'stored',
 		}),
 		failureCode: null,
 		pending: false,
+		readOnly: false,
+		refusal: null,
 	};
 	const listeners = new Set<() => void>();
 	const commit = (catalog: UserLaunchProfileCatalog) => {

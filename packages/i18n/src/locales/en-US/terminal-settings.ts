@@ -1,18 +1,12 @@
 export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shared.unreadable':
-		"Settings file can't be read · using defaults · Reset all in Settings",
+		'The settings file has a problem · open Settings to see it',
 	'terminal.settings.shared.unavailable':
-		'Shared settings could not be read. The last confirmed values remain in use.',
-	'terminal.settings.shared.failed': 'Settings were not saved. Your edit has not been applied.',
+		"Settings can't be reached · the values shown may be out of date",
 	'terminal.settings.shared.conflict':
-		'Settings changed elsewhere. Your draft is preserved. Load current values before editing again.',
+		'Settings changed elsewhere · your draft is kept · check the current profiles, then save again',
 	'terminal.settings.shared.unknown':
-		'The save result is unknown. Read current settings before deciding whether another edit is needed.',
-	'terminal.settings.shared.host':
-		'Settings are saved, but the terminal service has not applied them. New terminals may still use the previous defaults.',
-	'terminal.settings.shared.refresh': 'Reload settings and discard drafts',
-	'terminal.settings.shared.reset': 'Reset all',
-	'terminal.settings.shared.confirmReset': 'Reset all shared settings and launch profiles?',
+		'The change may not have been saved · check the value before changing it again',
 	'terminal.settings.shared.system': 'Follow system',
 	'terminal.settings.actions.back': 'Back',
 	'terminal.settings.actions.close': 'Close settings',
@@ -44,12 +38,6 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colors.foreground.invalid': 'Enter a color in #RRGGBB format.',
 	'terminal.settings.description': 'Customize the application and terminal appearance.',
 	'terminal.settings.interaction.copyOnSelect.label': 'Copy on select',
-	'terminal.settings.persistence.invalidWarning':
-		'Saved settings are invalid. Defaults are in use; reset to try saving them.',
-	'terminal.settings.persistence.readWarning':
-		'Saved settings could not be read. Defaults are in use; reset to try saving them.',
-	'terminal.settings.persistence.writeWarning':
-		'Your changes are applied for this session but could not be saved.',
 	'terminal.settings.profiles.actions.add': 'Add profile',
 	'terminal.settings.profiles.actions.cancel': 'Cancel',
 	'terminal.settings.profiles.actions.confirmDelete': 'Delete this profile',
@@ -86,7 +74,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.profiles.failures.unsupported':
 		'This launch option is not supported on this operating system.',
 	'terminal.settings.profiles.failures.write':
-		'The change was not saved. Your previous profiles are still active.',
+		'The last profile change could not be saved. Your previous profiles remain active.',
 	'terminal.settings.profiles.futureTerminalsNotice':
 		'The default profile is captured when a new terminal starts. Running and restored terminals keep their original command.',
 	'terminal.settings.profiles.login.description':
@@ -96,12 +84,6 @@ export const enUSTerminalSettingsMessages = {
 		'Login-shell mode is unavailable on this operating system.',
 	'terminal.settings.profiles.name.invalid': 'Enter a profile name.',
 	'terminal.settings.profiles.name.label': 'Profile name',
-	'terminal.settings.profiles.persistence.invalid':
-		'The saved profile file is invalid. The built-in profile is active until you save or reset.',
-	'terminal.settings.profiles.persistence.read':
-		'The saved profile file could not be read. The built-in profile is active until you save or reset.',
-	'terminal.settings.profiles.persistence.write':
-		'The last profile change could not be saved. Your previous profiles remain active.',
 	'terminal.settings.profiles.section': 'Launch profiles',
 	'terminal.settings.profiles.systemShell': 'System shell',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
@@ -225,6 +207,35 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.profiles.edit': 'Edit',
 	'terminal.settings.page.profiles.done': 'Done',
 	'terminal.settings.page.profiles.useAsDefault': 'Use as default',
+	'terminal.settings.refused.denied': "This window can't change settings",
+	'terminal.settings.refused.unavailable':
+		"Settings can't be reached right now · try again shortly",
+	'terminal.settings.refused.sessionMismatch': "This window's session has ended · reopen Orchbee",
+	'terminal.settings.refused.busy': 'Settings are busy · try again shortly',
+	'terminal.settings.refused.readOnly':
+		'The settings file is read-only · make it writable and try again',
+	'terminal.settings.refused.fileInUse':
+		'Another program has the settings file open · close it and try again',
+	'terminal.settings.refused.locked':
+		'Another edit is writing the settings file · try again shortly',
+	'terminal.settings.refused.changed':
+		'The settings file changed meanwhile · check the value and try again',
+	'terminal.settings.refused.tooLarge':
+		'The settings file would get too large · remove entries you no longer need',
+	'terminal.settings.refused.writeFailed':
+		"The settings file couldn't be written · check disk space and permissions",
+	'terminal.settings.refused.unknownKey': "This Orchbee doesn't know this setting · update Orchbee",
+	'terminal.settings.refused.invalidValue': "This value isn't allowed · choose another",
+	'terminal.settings.refused.syntaxError': 'The settings file has a syntax error · fix it first',
+	'terminal.settings.refused.unusableFile':
+		"The settings file's location can't be used · check where it points",
+	'terminal.settings.file.syntaxError':
+		"{path} has a syntax error at line {line}, column {column} · showing the last valid settings, read-only, until it's fixed",
+	'terminal.settings.file.unreadable':
+		"{path} can't be read · showing the last valid settings, read-only, until it can",
+	'terminal.settings.page.newTerminalFolder.label': 'New terminal folder',
+	'terminal.settings.page.newTerminalFolder.description':
+		'Where a new terminal starts: follow, home, current, workspace, or a folder. Leave empty for the default.',
 } as const;
 
 export type TerminalSettingsMessageId = keyof typeof enUSTerminalSettingsMessages;

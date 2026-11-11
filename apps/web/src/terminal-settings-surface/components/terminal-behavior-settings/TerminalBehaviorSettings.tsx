@@ -9,15 +9,16 @@ import {
 	type TerminalInteractionSettingsController,
 } from '../../../terminal-interaction-settings';
 import type { TerminalLaunchProfileControl } from '../../../terminal-launch-profile-control';
-import type { UserPreferencesControl } from '../../../user-preferences';
-import { useSharedPreferenceDefault } from '../../hooks/useSharedPreferenceDefault';
-import { useSharedPreferenceDraft } from '../../hooks/useSharedPreferenceDraft';
+import type { UserSettingsControl } from '../../../user-settings';
+import { useSetting } from '../../hooks/useSetting';
+import { useSettingDraft } from '../../hooks/useSettingDraft';
 import {
 	formatScrollbackMegabytes,
 	parseScrollbackMegabytes,
 	SCROLLBACK_MEGABYTE_RANGE,
 } from '../../utils/terminal-settings-draft-parsing';
 import { MacosTerminalInputSettings } from '../macos-terminal-input-settings/MacosTerminalInputSettings';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
 import { TerminalLaunchProfileSettings } from '../terminal-launch-profile-settings/TerminalLaunchProfileSettings';
@@ -29,21 +30,21 @@ interface TerminalBehaviorSettingsProps {
 	readonly launchProfileClient?: TerminalLaunchProfileControl | undefined;
 	readonly macosInputController?: MacosTerminalInputSettingsController | undefined;
 	readonly query: string;
-	readonly userPreferences: UserPreferencesControl;
+	readonly userSettings: UserSettingsControl;
 }
 
-/** Selection and keys, terminal output, and launch profiles; each part needs its host control. */
+/** Selection and keys, new terminals, and launch profiles; each part needs its host control. */
 export function TerminalBehaviorSettings({
 	defaultSettingsControl,
 	interactionController,
 	launchProfileClient,
 	macosInputController,
 	query,
-	userPreferences,
+	userSettings,
 }: TerminalBehaviorSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const interaction = useTerminalInteractionSettings(interactionController);
-	const copyOnSelect = useSharedPreferenceDefault(userPreferences, 'copyOnSelect');
+	const copyOnSelect = useSetting(userSettings, 'terminal.copy_on_select');
 	const copyOnSelectLabel = intl.formatMessage(terminalSettingsMessages.pageCopyOnSelectLabel);
 	return (
 		<>
@@ -58,11 +59,13 @@ export function TerminalBehaviorSettings({
 							modified={copyOnSelect.modified}
 							query={query}
 							settingId='terminal.copy-on-select'
-							onRestore={copyOnSelect.restore}
+							status={<SettingFailure message={copyOnSelect.failureMessage} />}
+							onRestore={copyOnSelect.readOnly ? undefined : copyOnSelect.restore}
 						>
 							<Switch
 								aria-label={copyOnSelectLabel}
 								checked={interaction.preferences.copyOnSelect}
+								disabled={copyOnSelect.readOnly}
 								onCheckedChange={(checked): void => {
 									interactionController.update({ copyOnSelect: checked });
 								}}
@@ -70,16 +73,21 @@ export function TerminalBehaviorSettings({
 						</SettingsRow>
 					)}
 					{macosInputController === undefined ? null : (
-						<MacosTerminalInputSettings controller={macosInputController} query={query} />
+						<MacosTerminalInputSettings
+							controller={macosInputController}
+							query={query}
+							userSettings={userSettings}
+						/>
 					)}
 				</SettingsGroup>
 			)}
 			{defaultSettingsControl === undefined ? null : (
 				<SettingsGroup label={intl.formatMessage(terminalSettingsMessages.pageGroupOutput)}>
+					<NewTerminalFolderRow query={query} userSettings={userSettings} />
 					<TerminalHistoryRow
 						control={defaultSettingsControl}
 						query={query}
-						userPreferences={userPreferences}
+						userSettings={userSettings}
 					/>
 				</SettingsGroup>
 			)}
@@ -90,17 +98,58 @@ export function TerminalBehaviorSettings({
 	);
 }
 
-interface TerminalHistoryRowProps {
-	readonly control: TerminalDefaultSettingsControl;
+interface SettingRowProps {
 	readonly query: string;
-	readonly userPreferences: UserPreferencesControl;
+	readonly userSettings: UserSettingsControl;
+}
+
+/** Where a new terminal starts; an empty field restores the default. */
+function NewTerminalFolderRow({ query, userSettings }: SettingRowProps): React.ReactNode {
+	const intl = useOrchbeeIntl();
+	const setting = useSetting(userSettings, 'terminal.new_cwd');
+	const draft = useSettingDraft(setting.value ?? '', setting.failure);
+	const commit = (): void => {
+		const value = draft.draft.trim();
+		if (value === (setting.value ?? '')) return;
+		if (value === '') setting.restore();
+		else setting.set(value);
+	};
+	const label = intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderLabel);
+	return (
+		<SettingsRow
+			description={intl.formatMessage(terminalSettingsMessages.pageNewTerminalFolderDescription)}
+			effect='new-terminals'
+			label={label}
+			modified={setting.modified}
+			query={query}
+			searchTerms={['new_cwd', 'cwd', 'folder', 'directory']}
+			settingId='terminal.new-cwd'
+			status={<SettingFailure message={setting.failureMessage} />}
+			onRestore={setting.readOnly ? undefined : setting.restore}
+		>
+			<Input
+				aria-label={label}
+				className={styles['pathInput']}
+				readOnly={setting.readOnly}
+				spellCheck={false}
+				value={draft.draft}
+				onBlur={commit}
+				onChange={(event) => draft.change(event.currentTarget.value)}
+				onKeyDown={commitOnEnter(commit)}
+			/>
+		</SettingsRow>
+	);
+}
+
+interface TerminalHistoryRowProps extends SettingRowProps {
+	readonly control: TerminalDefaultSettingsControl;
 }
 
 /** How much output a new terminal keeps, edited in megabytes. */
 function TerminalHistoryRow({
 	control,
 	query,
-	userPreferences,
+	userSettings,
 }: TerminalHistoryRowProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const snapshot = React.useSyncExternalStore(
@@ -109,13 +158,8 @@ function TerminalHistoryRow({
 		control.getSnapshot,
 	);
 	const bytes = snapshot.configuration.scrollbackBytes;
-	const scrollback = useSharedPreferenceDraft(
-		formatScrollbackMegabytes(bytes),
-		'scrollbackBytes',
-		userPreferences,
-		(stored) => (typeof stored === 'number' ? formatScrollbackMegabytes(stored) : String(stored)),
-	);
-	const restore = useSharedPreferenceDefault(userPreferences, 'scrollbackBytes');
+	const setting = useSetting(userSettings, 'terminal.scrollback_bytes');
+	const scrollback = useSettingDraft(formatScrollbackMegabytes(bytes), setting.failure);
 	const [invalid, setInvalid] = React.useState(false);
 	React.useEffect(() => {
 		setInvalid(false);
@@ -123,7 +167,7 @@ function TerminalHistoryRow({
 	const commit = (): void => {
 		const scrollbackBytes = parseScrollbackMegabytes(scrollback.draft);
 		setInvalid(scrollbackBytes === null);
-		if (scrollbackBytes !== null) scrollback.submit({ scrollbackBytes });
+		if (scrollbackBytes !== null && scrollbackBytes !== bytes) setting.set(scrollbackBytes);
 	};
 	const label = intl.formatMessage(terminalSettingsMessages.pageTerminalHistoryLabel);
 	return (
@@ -131,20 +175,22 @@ function TerminalHistoryRow({
 			description={intl.formatMessage(terminalSettingsMessages.pageTerminalHistoryDescription)}
 			effect='new-terminals'
 			label={label}
-			modified={restore.modified}
+			modified={setting.modified}
 			query={query}
 			settingId='terminal.history'
 			status={
-				invalid ? (
-					<div className={styles['error']} role='alert'>
-						{intl.formatMessage(
-							terminalSettingsMessages.pageTerminalHistoryInvalid,
-							SCROLLBACK_MEGABYTE_RANGE,
-						)}
-					</div>
-				) : null
+				<SettingFailure
+					message={
+						invalid
+							? intl.formatMessage(
+									terminalSettingsMessages.pageTerminalHistoryInvalid,
+									SCROLLBACK_MEGABYTE_RANGE,
+								)
+							: setting.failureMessage
+					}
+				/>
 			}
-			onRestore={restore.restore}
+			onRestore={setting.readOnly ? undefined : setting.restore}
 		>
 			<span className={styles['unitField']}>
 				<Input
@@ -152,15 +198,11 @@ function TerminalHistoryRow({
 					aria-label={label}
 					className={styles['numberInput']}
 					inputMode='decimal'
+					readOnly={setting.readOnly}
 					value={scrollback.draft}
 					onBlur={commit}
 					onChange={(event) => scrollback.change(event.currentTarget.value)}
-					onKeyDown={(event) => {
-						if (event.key !== 'Enter') return;
-						event.preventDefault();
-						commit();
-						event.currentTarget.blur();
-					}}
+					onKeyDown={commitOnEnter(commit)}
 				/>
 				<span className={styles['unit']}>
 					{intl.formatMessage(terminalSettingsMessages.pageUnitMegabytes)}
@@ -168,4 +210,13 @@ function TerminalHistoryRow({
 			</span>
 		</SettingsRow>
 	);
+}
+
+function commitOnEnter(commit: () => void): React.KeyboardEventHandler<HTMLInputElement> {
+	return (event) => {
+		if (event.key !== 'Enter') return;
+		event.preventDefault();
+		commit();
+		event.currentTarget.blur();
+	};
 }

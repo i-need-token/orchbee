@@ -3,6 +3,7 @@ export { useWorkbenchConfiguredCommandKeys } from './hooks/useWorkbenchConfigure
 
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
+export { findActiveTerminalFocusTarget } from './utils/findActiveTerminalFocusTarget';
 export { resolveActiveTerminalPresentationId } from './utils/resolveActiveTerminalPresentationId';
 export {
 	readWorkbenchClientSelection,

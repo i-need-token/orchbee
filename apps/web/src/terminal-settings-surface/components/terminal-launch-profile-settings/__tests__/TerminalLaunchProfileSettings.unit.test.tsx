@@ -226,7 +226,8 @@ class TestTerminalLaunchProfileControl implements TerminalLaunchProfileControl {
 		catalog: builtInCatalog(),
 		failureCode: null,
 		pending: false,
-		persistenceIssue: null,
+		readOnly: false,
+		refusal: null,
 		source: 'stored',
 	};
 
@@ -294,7 +295,6 @@ class TestTerminalLaunchProfileControl implements TerminalLaunchProfileControl {
 					JSON.parse(JSON.stringify(this.#snapshot.catalog)),
 				),
 				failureCode: 'write-failed',
-				persistenceIssue: 'write-failed',
 			};
 			for (const listener of this.#listeners) listener();
 			return { code: 'write-failed', kind: 'failed', snapshot: this.#snapshot };

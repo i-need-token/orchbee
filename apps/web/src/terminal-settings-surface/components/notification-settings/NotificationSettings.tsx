@@ -1,13 +1,14 @@
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { NativeSelect, NativeSelectOption, Switch } from '@orchbee/ui/components';
-import * as React from 'react';
+import type * as React from 'react';
 
 import {
 	AgentNotificationMode,
 	TerminalCompletionReminderMode,
 	type TerminalFeedbackSettingsController,
 } from '../../../terminal-feedback-settings';
-import { useSharedPreferenceDefault } from '../../hooks/useSharedPreferenceDefault';
+import { useSetting } from '../../hooks/useSetting';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
 import styles from './NotificationSettings.module.css';
@@ -23,13 +24,9 @@ export function NotificationSettings({
 	query,
 }: NotificationSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
-	const snapshot = useFeedbackSnapshot(controller);
-	const agentMode = useSharedPreferenceDefault(controller.userPreferences, 'agentNotificationMode');
-	const reminderMode = useSharedPreferenceDefault(
-		controller.userPreferences,
-		'completionReminderMode',
-	);
-	const sound = useSharedPreferenceDefault(controller.userPreferences, 'soundEnabled');
+	const agentMode = useSetting(controller.userSettings, 'notifications.agent_reminder');
+	const reminderMode = useSetting(controller.userSettings, 'notifications.completion_reminder');
+	const sound = useSetting(controller.userSettings, 'notifications.sound');
 	const agentLabel = intl.formatMessage(terminalSettingsMessages.pageAgentNotificationsLabel);
 	const reminderLabel = intl.formatMessage(terminalSettingsMessages.pageCompletionRemindersLabel);
 	const soundLabel = intl.formatMessage(terminalSettingsMessages.pageSoundLabel);
@@ -44,17 +41,19 @@ export function NotificationSettings({
 					modified={agentMode.modified}
 					query={query}
 					settingId='notifications.agent-mode'
-					onRestore={agentMode.restore}
+					status={<SettingFailure message={agentMode.failureMessage} />}
+					onRestore={agentMode.readOnly ? undefined : agentMode.restore}
 				>
 					<NativeSelect
 						aria-label={agentLabel}
 						className={styles['select']}
+						disabled={agentMode.readOnly}
 						size='sm'
-						value={snapshot.preferences.agentNotificationMode}
+						value={agentMode.value}
 						onChange={(event): void => {
 							const value = event.currentTarget.value;
 							if (value === AgentNotificationMode.hidden || value === AgentNotificationMode.never) {
-								controller.update({ agentNotificationMode: value });
+								agentMode.set(value);
 							}
 						}}
 					>
@@ -74,20 +73,22 @@ export function NotificationSettings({
 					modified={reminderMode.modified}
 					query={query}
 					settingId='notifications.completion-reminders'
-					onRestore={reminderMode.restore}
+					status={<SettingFailure message={reminderMode.failureMessage} />}
+					onRestore={reminderMode.readOnly ? undefined : reminderMode.restore}
 				>
 					<NativeSelect
 						aria-label={reminderLabel}
 						className={styles['select']}
+						disabled={reminderMode.readOnly}
 						size='sm'
-						value={snapshot.preferences.completionReminderMode}
+						value={reminderMode.value}
 						onChange={(event): void => {
 							const value = event.currentTarget.value;
 							switch (value) {
 								case TerminalCompletionReminderMode.always:
 								case TerminalCompletionReminderMode.never:
 								case TerminalCompletionReminderMode.unfocused:
-									controller.update({ completionReminderMode: value });
+									reminderMode.set(value);
 							}
 						}}
 					>
@@ -110,27 +111,17 @@ export function NotificationSettings({
 					modified={sound.modified}
 					query={query}
 					settingId='notifications.sound'
-					onRestore={sound.restore}
+					status={<SettingFailure message={sound.failureMessage} />}
+					onRestore={sound.readOnly ? undefined : sound.restore}
 				>
 					<Switch
 						aria-label={soundLabel}
-						checked={snapshot.preferences.soundEnabled}
-						onCheckedChange={(checked): void => {
-							controller.update({ soundEnabled: checked });
-						}}
+						checked={sound.value}
+						disabled={sound.readOnly}
+						onCheckedChange={sound.set}
 					/>
 				</SettingsRow>
 			</SettingsGroup>
 		</>
-	);
-}
-
-function useFeedbackSnapshot(
-	controller: TerminalFeedbackSettingsController,
-): ReturnType<TerminalFeedbackSettingsController['getSnapshot']> {
-	return React.useSyncExternalStore(
-		controller.subscribe,
-		controller.getSnapshot,
-		controller.getSnapshot,
 	);
 }

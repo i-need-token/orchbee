@@ -33,11 +33,12 @@ describe('useTerminalLaunchProfileSettings', () => {
 					],
 					version: 1,
 				},
-				persistenceIssue: null,
 				source: 'built-in',
 			}),
 			failureCode: null,
 			pending: false,
+			readOnly: false,
+			refusal: null,
 		};
 		const unavailable = async (): Promise<{ readonly kind: 'unavailable' }> => ({
 			kind: 'unavailable',

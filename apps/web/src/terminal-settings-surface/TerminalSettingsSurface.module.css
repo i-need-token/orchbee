@@ -212,9 +212,15 @@
 		border-inline-end: none;
 	}
 
+	/* The strip still scrolls sideways; it shows no scrollbar track under the categories. */
 	.categories {
 		flex-direction: row;
 		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.categories::-webkit-scrollbar {
+		display: none;
 	}
 
 	.category {

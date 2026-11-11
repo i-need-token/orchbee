@@ -41,22 +41,35 @@
 }
 
 .recorder {
+	position: relative;
 	display: inline-flex;
 	min-width: var(--ob-ref-space-16);
 	min-height: var(--ob-ref-size-control-xs);
 	align-items: center;
 	justify-content: flex-end;
-	/* The key cap, not the hover box around it, lines up with the other rows' controls. */
-	margin-inline-end: calc(-1 * (var(--ob-ref-space-1) + var(--ob-ref-border-width-default)));
-	padding: var(--ob-ref-space-0) var(--ob-ref-space-1);
-	border: var(--ob-ref-border-width-default) solid transparent;
-	border-radius: var(--ob-ref-radius-ui-sm);
+	padding: var(--ob-ref-space-0);
+	border: none;
 	outline: none;
 	background: transparent;
 	color: var(--ob-sys-color-text-primary);
+	isolation: isolate;
 }
 
-.recorder:hover {
+/*
+ * The hover and focus box is drawn around the key cap without taking layout space, so the cap's
+ * end edge sits on the row's inset like every other row's control.
+ */
+.recorder::before {
+	position: absolute;
+	z-index: -1;
+	inset: var(--ob-ref-space-0)
+		calc(-1 * (var(--ob-ref-space-1) + var(--ob-ref-border-width-default)));
+	border: var(--ob-ref-border-width-default) solid transparent;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	content: '';
+}
+
+.recorder:hover::before {
 	border-color: var(--ob-sys-color-border-default);
 	background: var(--ob-sys-color-surface-hovered);
 }
@@ -65,8 +78,8 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-.recorder:focus-visible,
-.recorder[data-recording='true'] {
+.recorder:focus-visible::before,
+.recorder[data-recording='true']::before {
 	border-color: var(--ob-sys-color-border-focus);
 	box-shadow: 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }

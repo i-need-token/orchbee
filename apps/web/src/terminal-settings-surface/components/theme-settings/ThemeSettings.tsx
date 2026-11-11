@@ -3,7 +3,7 @@ import { ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import { useTerminalSettings, type TerminalSettingsController } from '../../../terminal-settings';
-import { useSharedPreferenceDefault } from '../../hooks/useSharedPreferenceDefault';
+import { useSetting } from '../../hooks/useSetting';
 import { useSystemPrefersDark } from '../../hooks/useSystemPrefersDark';
 import type { TerminalColorThemeListView } from '../../types/terminal-settings-surface';
 import { buildColorThemePickerViews } from '../../utils/buildColorThemePickerViews';
@@ -24,14 +24,17 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 	const intl = useOrchbeeIntl();
 	const snapshot = useTerminalSettings(controller);
 	const systemDark = useSystemPrefersDark();
-	const light = useSharedPreferenceDefault(controller.userPreferences, 'lightTheme');
-	const dark = useSharedPreferenceDefault(controller.userPreferences, 'darkTheme');
+	const light = useSetting(controller.userSettings, 'appearance.light_theme');
+	const dark = useSetting(controller.userSettings, 'appearance.dark_theme');
+	const readOnly = light.readOnly;
 	const lists = buildColorThemePickerViews({
 		colorThemes: controller.colorThemes,
 		formatMessage: (descriptor) => intl.formatMessage(descriptor),
 		preferences: snapshot.preferences,
 		systemDark,
-		onCommit: (polarity, themeId) => controller.selectColorTheme(polarity, themeId),
+		onCommit: (polarity, themeId) => {
+			if (!readOnly) controller.selectColorTheme(polarity, themeId);
+		},
 		onPreview: (polarity, themeId) =>
 			controller.previewColorTheme(themeId === null ? null : { polarity, themeId }),
 	});
@@ -39,12 +42,12 @@ export function ThemeSettings({ controller, query }: ThemeSettingsProps): React.
 		const slot = list.polarity === 'dark' ? dark : light;
 		return (
 			<SettingsGroup
-				description={list.note}
+				description={slot.failureMessage ?? list.note}
 				key={list.settingId}
 				label={list.label}
 				modified={slot.modified}
 				tag={list.inUse ? intl.formatMessage(terminalSettingsMessages.pageThemesInUse) : null}
-				onRestore={slot.restore}
+				onRestore={readOnly ? undefined : slot.restore}
 			>
 				<ColorThemeList list={list} query={query} />
 			</SettingsGroup>

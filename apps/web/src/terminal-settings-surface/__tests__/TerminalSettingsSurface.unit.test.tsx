@@ -24,11 +24,12 @@ import type {
 	TerminalDefaultSettingsControl,
 } from '../../terminal-default-settings-control';
 import { colorThemesWithFixtures, fixtureDarkTheme } from '../../__tests__/color-theme-fixtures';
-import { memoryUserPreferences } from '../../__tests__/memoryUserPreferences';
+import { memoryUserSettings, type MemoryUserSettings } from '../../__tests__/memoryUserSettings';
 
-type TerminalAppearanceStorage = ConstructorParameters<
-	typeof TerminalSettingsController
->[0]['storage'];
+interface PreferenceStorage {
+	getItem(key: string): string | null;
+	setItem(key: string, value: string): void;
+}
 
 beforeAll(() => {
 	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
@@ -87,6 +88,7 @@ describe('TerminalSettingsSurface', () => {
 		readonly controller?: TerminalSettingsController;
 		readonly platform?: 'apple' | 'standard';
 		readonly props?: Partial<TerminalSettingsSurfaceProps>;
+		readonly settings?: MemoryUserSettings;
 	}
 
 	async function renderSurface(options: HarnessOptions = {}) {
@@ -98,9 +100,8 @@ describe('TerminalSettingsSurface', () => {
 			options.controller ??
 			trackDisposable(
 				new TerminalSettingsController({
-					storage,
 					themeTarget: document.documentElement,
-					userPreferences: memoryUserPreferences(),
+					userSettings: options.settings ?? memoryUserSettings(),
 				}),
 			);
 		const platform = options.platform ?? 'apple';
@@ -175,13 +176,12 @@ describe('TerminalSettingsSurface', () => {
 
 	it('previews a theme while moving through a list, restores it on Escape, and commits on Enter', async () => {
 		const themeTarget = document.createElement('div');
-		const userPreferences = memoryUserPreferences({ applicationTheme: 'light' });
+		const userSettings = memoryUserSettings({ values: { 'appearance.mode': 'light' } });
 		const controller = trackDisposable(
 			new TerminalSettingsController({
 				colorThemes: colorThemesWithFixtures,
-				storage: memoryStorage(),
 				themeTarget,
-				userPreferences,
+				userSettings,
 			}),
 		);
 		const { close, container, openCategory } = await renderSurface({ controller });
@@ -194,12 +194,15 @@ describe('TerminalSettingsSurface', () => {
 				darkThemes.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }));
 			});
 		};
-		const savedValues = () => userPreferences.getSnapshot().snapshot?.values;
+		const savedValues = () => userSettings.getSnapshot().snapshot?.values;
 		await act(async () => darkThemes.focus());
 
 		await press('ArrowDown');
 		expect({ ...themeTarget.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
-		expect(savedValues()).toMatchObject({ applicationTheme: 'light', darkTheme: 'orchbee-dark' });
+		expect(savedValues()).toMatchObject({
+			'appearance.dark_theme': 'orchbee-dark',
+			'appearance.mode': 'light',
+		});
 
 		await press('Escape');
 		expect({ ...themeTarget.dataset }).toEqual({ theme: 'light' });
@@ -209,8 +212,8 @@ describe('TerminalSettingsSurface', () => {
 		await press('Enter');
 		await vi.waitFor(() =>
 			expect(savedValues()).toMatchObject({
-				applicationTheme: 'dark',
-				darkTheme: fixtureDarkTheme.id,
+				'appearance.dark_theme': fixtureDarkTheme.id,
+				'appearance.mode': 'dark',
 			}),
 		);
 		expect(
@@ -225,19 +228,19 @@ describe('TerminalSettingsSurface', () => {
 		testResources.containers.push(container);
 		document.body.append(container);
 		const storage = memoryStorage();
-		const userPreferences = memoryUserPreferences();
+		const userSettings = memoryUserSettings();
+		const edit = vi.spyOn(userSettings, 'edit');
 		const applicationLocaleController = trackDisposable(
 			new ApplicationLocaleController({
 				documentElement: document.documentElement,
 				preferredLocales: ['zh-CN'],
-				userPreferences,
+				userSettings,
 			}),
 		);
 		const controller = trackDisposable(
 			new TerminalSettingsController({
-				storage,
 				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
+				userSettings,
 			}),
 		);
 		controller.open();
@@ -265,7 +268,7 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("select[aria-label='语言']"),
 		);
 		expect(chineseSelect.value).toBe('system');
-		expect(storage.setItem).not.toHaveBeenCalled();
+		expect(edit).not.toHaveBeenCalled();
 
 		await act(async () => {
 			setSelectValue(chineseSelect, 'en-US');
@@ -274,19 +277,18 @@ describe('TerminalSettingsSurface', () => {
 
 		expect(document.documentElement.lang).toBe('en-US');
 		expect(container.querySelector("select[aria-label='Language']")).not.toBeNull();
-		expect(userPreferences.getSnapshot().snapshot?.values.locale).toBe('en-US');
+		expect(userSettings.getSnapshot().snapshot?.values['general.language']).toBe('en-US');
 	});
 
 	it('applies copy on select live', async () => {
 		const controller = trackDisposable(
 			new TerminalSettingsController({
-				storage: memoryStorage(),
 				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences({ copyOnSelect: true }),
+				userSettings: memoryUserSettings({ values: { 'terminal.copy_on_select': true } }),
 			}),
 		);
 		const interactionController = trackDisposable(
-			new TerminalInteractionSettingsController(controller.userPreferences),
+			new TerminalInteractionSettingsController(controller.userSettings),
 		);
 		const listener = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
 		interactionController.subscribe(listener);
@@ -316,23 +318,24 @@ describe('TerminalSettingsSurface', () => {
 
 		await commitInput(history, '1001');
 		expect(history.getAttribute('aria-invalid')).toBe('true');
-		expect(controller.userPreferences.getSnapshot().snapshot?.values.scrollbackBytes).toBe(
-			10_000_000,
-		);
+		expect(
+			controller.userSettings.getSnapshot().snapshot?.values['terminal.scrollback_bytes'],
+		).toBe(10_000_000);
 
 		await commitInput(history, '25');
-		expect(controller.userPreferences.getSnapshot().snapshot?.values.scrollbackBytes).toBe(
-			25_000_000,
-		);
+		expect(
+			controller.userSettings.getSnapshot().snapshot?.values['terminal.scrollback_bytes'],
+		).toBe(25_000_000);
 	});
 
 	it('shows Option as Alt only with its controller and applies it live', async () => {
-		const storage = memoryStorage();
-		const macosController = trackDisposable(new MacosTerminalInputSettingsController(storage));
+		const settings = memoryUserSettings();
+		const macosController = trackDisposable(new MacosTerminalInputSettingsController(settings));
 		const listener = vi.fn<(configuration: TerminalInputConfiguration) => void>();
 		macosController.subscribe(listener);
 		const { container, openCategory } = await renderSurface({
 			props: { macosTerminalInputSettingsController: macosController },
+			settings,
 		});
 		await openCategory('terminal');
 		const optionAsAlt = requiredElement<HTMLSelectElement>(
@@ -357,6 +360,48 @@ describe('TerminalSettingsSurface', () => {
 		expect(fontSize.getAttribute('aria-invalid')).toBe('true');
 		expect(controller.getSnapshot().preferences.fontSize).toBe(13);
 		expect(controller.getSnapshot().open).toBe(true);
+	});
+
+	it('puts a refused change back on the file value and says why', async () => {
+		const settings = memoryUserSettings();
+		settings.refuseEdits({ outcome: 'refused', reason: 'read-only' });
+		const { container, openCategory } = await renderSurface({ settings });
+		await openCategory('appearance');
+		const fontSize = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Font size']"),
+		);
+		await commitInput(fontSize, '15');
+		await vi.waitFor(() => expect(fontSize.value).toBe('13'));
+		const row = requiredElement(
+			container.querySelector('[data-setting-id="appearance.font-size"]'),
+		);
+		expect(row.querySelector('[role="alert"]')?.textContent).toBe(
+			'The settings file is read-only · make it writable and try again',
+		);
+		expect(settings.getSnapshot().snapshot?.values['terminal.font_size']).toBe(13);
+	});
+
+	it('shows the last valid values read-only while the file has a syntax error', async () => {
+		const settings = memoryUserSettings({
+			file: { column: 3, line: 7, reason: 'invalid-toml', status: 'syntax-error' },
+			filePath: '/home/person/.orchbee/config.toml',
+			values: { 'terminal.font_size': 17 },
+		});
+		const { container, openCategory } = await renderSurface({ settings });
+		expect(container.querySelector('[data-slot="settings-banner"]')?.textContent).toContain(
+			'/home/person/.orchbee/config.toml has a syntax error at line 7, column 3',
+		);
+		await openCategory('appearance');
+		const fontSize = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Font size']"),
+		);
+		expect(fontSize.value).toBe('17');
+		expect(fontSize.readOnly).toBe(true);
+		expect(container.querySelector("button[aria-label='Restore default: Font size']")).toBeNull();
+		const theme = requiredElement<HTMLSelectElement>(
+			container.querySelector("select[aria-label='Application theme']"),
+		);
+		expect(theme.disabled).toBe(true);
 	});
 
 	it('records a shortcut, keeps Settings open on a recorder Escape, and restores the default', async () => {
@@ -401,18 +446,12 @@ function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: document.documentElement,
 		preferredLocales: ['en-US'],
-		userPreferences: memoryUserPreferences(),
+		userSettings: memoryUserSettings(),
 	});
 }
 
-function memoryStorage(): {
-	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
-	readonly setItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['setItem']>>;
-} {
-	return {
-		getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => null),
-		setItem: vi.fn<TerminalAppearanceStorage['setItem']>(() => undefined),
-	};
+function memoryStorage(): PreferenceStorage {
+	return { getItem: () => null, setItem: () => undefined };
 }
 
 function createTerminalDefaultSettingsControl(): TerminalDefaultSettingsControl {

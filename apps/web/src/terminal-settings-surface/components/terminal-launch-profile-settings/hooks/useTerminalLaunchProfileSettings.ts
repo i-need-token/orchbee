@@ -1,6 +1,5 @@
 import {
 	BUILT_IN_USER_LAUNCH_PROFILE_ID,
-	DEFAULT_USER_PREFERENCES,
 	USER_LAUNCH_PROFILE_LIMITS,
 	UserLaunchProfileNameSchema,
 	UserLaunchProfileSchema,
@@ -10,7 +9,7 @@ import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import type { TerminalLaunchProfileControl } from '../../../../terminal-launch-profile-control';
-import { preferenceValuesEqual } from '../../../utils/preferenceValuesEqual';
+import { settingsRefusalMessage } from '../../../utils/settings-failure-message';
 
 interface ProfileDraft {
 	readonly arguments: readonly string[];
@@ -184,7 +183,7 @@ export function useTerminalLaunchProfileSettings(
 		[selectedProfile],
 	);
 	const [draft, setDraft] = React.useState<ProfileDraft>(selectedProfileDraft);
-	const [draftSource, setDraftSource] = React.useState(snapshot.preferencesSource);
+	const [draftSource, setDraftSource] = React.useState(snapshot.catalogRevision);
 	const [newProfileName, setNewProfileName] = React.useState('');
 	const [localError, setLocalError] = React.useState<string | null>(null);
 	const [deleteConfirmation, setDeleteConfirmation] = React.useState(false);
@@ -208,7 +207,7 @@ export function useTerminalLaunchProfileSettings(
 			JSON.stringify(draft) === JSON.stringify(previous.draft)
 		) {
 			setDraft(selectedProfileDraft);
-			setDraftSource(snapshot.preferencesSource);
+			setDraftSource(snapshot.catalogRevision);
 			setDeleteConfirmation(false);
 			setLocalError(null);
 		}
@@ -217,7 +216,7 @@ export function useTerminalLaunchProfileSettings(
 		selectedProfileDraft,
 		selectedProfileId,
 		selectedProfileRevision,
-		snapshot.preferencesSource,
+		snapshot.catalogRevision,
 		draft,
 	]);
 
@@ -264,9 +263,6 @@ export function useTerminalLaunchProfileSettings(
 		makeDefault: intl.formatMessage(terminalSettingsMessages.profilesMakeDefault),
 		nameInvalid: intl.formatMessage(terminalSettingsMessages.profilesNameInvalid),
 		nameLabel: intl.formatMessage(terminalSettingsMessages.profilesNameLabel),
-		persistenceInvalid: intl.formatMessage(terminalSettingsMessages.profilesPersistenceInvalid),
-		persistenceRead: intl.formatMessage(terminalSettingsMessages.profilesPersistenceRead),
-		persistenceWrite: intl.formatMessage(terminalSettingsMessages.profilesPersistenceWrite),
 		reset: intl.formatMessage(terminalSettingsMessages.profilesReset),
 		save: intl.formatMessage(terminalSettingsMessages.profilesSave),
 		section: intl.formatMessage(terminalSettingsMessages.profilesSection),
@@ -309,20 +305,14 @@ export function useTerminalLaunchProfileSettings(
 		case 'invalid-profile':
 			operationWarning = messages.failureInvalid;
 			break;
-	}
-	let persistenceWarning: string | null = null;
-	switch (snapshot.persistenceIssue) {
-		case 'invalid-record':
-			persistenceWarning = messages.persistenceInvalid;
-			break;
-		case 'read-failed':
-			persistenceWarning = messages.persistenceRead;
-			break;
-		case 'write-failed':
-			persistenceWarning = messages.persistenceWrite;
+		case 'refused':
+			operationWarning =
+				snapshot.refusal === null
+					? messages.failureWrite
+					: intl.formatMessage(settingsRefusalMessage(snapshot.refusal.reason));
 			break;
 	}
-	const disabled = snapshot.pending;
+	const disabled = snapshot.pending || snapshot.readOnly;
 	const isDefault = selectedProfile.id === snapshot.catalog.defaultProfileId;
 	const canDelete = snapshot.catalog.profiles.length > 1 && !isDefault;
 	const addProfile = async (): Promise<void> => {
@@ -366,7 +356,7 @@ export function useTerminalLaunchProfileSettings(
 		setLocalError(null);
 		const result = await client.updateProfile(candidate.data, draftSource);
 		if (result.kind !== 'completed') return false;
-		setDraftSource(result.snapshot.preferencesSource);
+		setDraftSource(result.snapshot.catalogRevision);
 		return true;
 	};
 	const deleteProfile = async (): Promise<void> => {
@@ -492,7 +482,7 @@ export function useTerminalLaunchProfileSettings(
 					label: messages.delete,
 					onRequest: (): void => setDeleteConfirmation(true),
 				},
-		modified: !preferenceValuesEqual(snapshot.catalog, DEFAULT_USER_PREFERENCES.launchProfiles),
+		modified: snapshot.source === 'stored',
 		makeDefaultAction: {
 			disabled: disabled || isDefault,
 			label: messages.makeDefault,
@@ -541,6 +531,6 @@ export function useTerminalLaunchProfileSettings(
 			onClick: saveProfile,
 		},
 		sectionLabel: messages.section,
-		warning: localError ?? persistenceWarning ?? operationWarning,
+		warning: localError ?? operationWarning,
 	};
 }

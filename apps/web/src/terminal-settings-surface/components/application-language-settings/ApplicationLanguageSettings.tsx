@@ -6,25 +6,26 @@ import {
 	type ApplicationLocaleController,
 	useApplicationLocale,
 } from '../../../application-locale';
-import type { UserPreferencesControl } from '../../../user-preferences';
-import { useSharedPreferenceDefault } from '../../hooks/useSharedPreferenceDefault';
+import type { UserSettingsControl } from '../../../user-settings';
+import { useSetting } from '../../hooks/useSetting';
+import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsRow } from '../settings-row/SettingsRow';
 
 interface ApplicationLanguageSettingsProps {
 	readonly controller: ApplicationLocaleController;
 	readonly query: string;
-	readonly userPreferences: UserPreferencesControl;
+	readonly userSettings: UserSettingsControl;
 }
 
 /** The language row: follow the system, or pin English or Simplified Chinese. */
 export function ApplicationLanguageSettings({
 	controller,
 	query,
-	userPreferences,
+	userSettings,
 }: ApplicationLanguageSettingsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const snapshot = useApplicationLocale(controller);
-	const locale = useSharedPreferenceDefault(userPreferences, 'locale');
+	const locale = useSetting(userSettings, 'general.language');
 	const label = intl.formatMessage(terminalSettingsMessages.pageLanguageLabel);
 	return (
 		<SettingsRow
@@ -34,10 +35,12 @@ export function ApplicationLanguageSettings({
 			query={query}
 			searchTerms={['English', '中文', 'language', '语言']}
 			settingId='general.language'
-			onRestore={locale.restore}
+			status={<SettingFailure message={locale.failureMessage} />}
+			onRestore={locale.readOnly ? undefined : locale.restore}
 		>
 			<NativeSelect
 				aria-label={label}
+				disabled={locale.readOnly}
 				size='sm'
 				value={snapshot.preference ?? 'system'}
 				onChange={(event): void => {

@@ -19,7 +19,7 @@ import {
 } from '../../../__tests__/server-workbench-snapshot';
 import { WebApplication } from '../../WebApplication';
 import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
-import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
+import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 
 class TestResizeObserver {
 	public disconnect(): void {}
@@ -52,9 +52,8 @@ describe('useWebApplication', () => {
 			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
 		);
 		const terminalSettingsController = new TerminalSettingsController({
-			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const initialFontSize = terminalSettingsController.getSnapshot().preferences.fontSize;
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
@@ -143,9 +142,8 @@ describe('useWebApplication', () => {
 			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
 		);
 		const terminalSettingsController = new TerminalSettingsController({
-			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'apple',
@@ -205,7 +203,6 @@ describe('useWebApplication', () => {
 			surface.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
 		});
 		await vi.waitFor(() => expect(terminalSettingsController.getSnapshot().open).toBe(false));
-		await vi.waitFor(() => expect(document.activeElement).toBe(settingsAction));
 		expect(workbench.inert).toBe(false);
 		expect(workbench.hasAttribute('aria-hidden')).toBe(false);
 		expect(container.querySelector("[data-test-terminal-surface='true']")).toBe(terminalBefore);
@@ -225,9 +222,8 @@ describe('useWebApplication', () => {
 			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
 		);
 		const terminalSettingsController = new TerminalSettingsController({
-			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
-			userPreferences: memoryUserPreferences(),
+			userSettings: memoryUserSettings(),
 		});
 		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 			platform: 'apple',
@@ -398,7 +394,7 @@ function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: document.documentElement,
 		preferredLocales: ['en-US'],
-		userPreferences: memoryUserPreferences(),
+		userSettings: memoryUserSettings(),
 	});
 }
 
