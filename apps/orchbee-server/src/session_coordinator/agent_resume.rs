@@ -1,17 +1,23 @@
-//! Selects the live Agent session reference each checkpoint retains for a Presentation: Agent
+//! Selects the live Agent session reference each checkpoint retains for a Presentation: a
+//! delivered reference carried forward while the process its delivery started lives; else Agent
 //! candidates joined to the exact Terminal generation, refuted by that generation's command and
-//! process evidence, and admitted only when exactly one remains, or else a delivered reference
-//! carried forward while the process its delivery started lives. Reports, process names and screen
-//! detection never grant a reference. It does not persist, deduplicate across Presentations or
-//! deliver a resume.
+//! process evidence, and admitted only when exactly one remains; else, when none remains, the
+//! session the published run's own process registered in its Agent's run table. Reports, process
+//! names and screen detection never grant a reference. It does not persist, deduplicate across
+//! Presentations or deliver a resume.
 
 use crate::agent_service::AgentResumeCandidate;
 use orchbee_agent_observation_protocol::AgentProcessIdentity;
 use orchbee_server::RetainedAgentSession;
 use std::collections::BTreeSet;
 
+#[cfg(windows)]
+mod claude_run_table;
 #[cfg(test)]
 mod tests;
+
+#[cfg(windows)]
+pub(crate) use claude_run_table::read as read_run_table;
 
 /// The shell command evidence of one exact Terminal generation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -36,15 +42,29 @@ impl CommandEvidence {
     }
 }
 
-/// One Presentation's reference, if any. An open command keeps the candidates its run token names,
-/// else the tokenless ones; a completed command keeps only tokenless ones; an unmarked shell keeps
-/// all. An Agent process identity keeps its own provider, `None` drops every candidate, and
-/// `Unknown` or `Unsupported` refutes nothing. Exactly one distinct `(provider, native key)` that
-/// is also a valid id gives the reference; zero or several give none.
+/// The session one Agent process registered in its Agent's own run table, read outside every lock
+/// before a capture, and the process it was read for. Only an entry whose process id and creation
+/// time are that process's is ever built.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RunTableEntry {
+    pub(crate) anchor: RunAnchor,
+    pub(crate) session: RetainedAgentSession,
+}
+
+/// One Presentation's reference without a carried one, if any. An open command keeps the
+/// candidates its run token names, else the tokenless ones; a completed command keeps only
+/// tokenless ones; an unmarked shell keeps all. An Agent process identity keeps its own provider,
+/// `None` drops every candidate, and `Unknown` or `Unsupported` refutes nothing. Exactly one
+/// distinct `(provider, native key)` that is also a valid id gives the reference; several give
+/// none. When none remains, the process source decides: the entry read for the generation's
+/// published `run`, while the identity is `Agent` of that entry's provider, gives its session;
+/// anything else gives none.
 pub(crate) fn select(
     candidates: &[AgentResumeCandidate],
     evidence: CommandEvidence,
     identity: &AgentProcessIdentity,
+    run: Option<RunAnchor>,
+    entries: &[RunTableEntry],
 ) -> Option<RetainedAgentSession> {
     let tokenless = || candidates.iter().filter(|c| c.run_token.is_none());
     let kept: Vec<&AgentResumeCandidate> = match evidence {
@@ -74,11 +94,20 @@ pub(crate) fn select(
         .map(|c| (c.provider, c.native_key.as_str()))
         .collect::<BTreeSet<_>>()
         .into_iter();
-    let (provider, key) = distinct.next()?;
-    if distinct.next().is_some() {
-        return None;
+    match (distinct.next(), distinct.next()) {
+        (Some((provider, key)), None) => RetainedAgentSession::new(provider, key),
+        (Some(_), Some(_)) => None,
+        // No hook session of this run remains: only its own process can name one.
+        (None, _) => {
+            let (provider, run) = (provider?, run?);
+            entries
+                .iter()
+                .find(|entry| {
+                    entry.anchor == run && entry.session.provider().provider_id() == provider
+                })
+                .map(|entry| entry.session.clone())
+        }
     }
-    RetainedAgentSession::new(provider, key)
 }
 
 /// The process a delivery started: its pid and its creation time in sample row units, which
@@ -251,12 +280,14 @@ impl super::SessionCoordinator {
             .retain(|_, (physical, _)| registered.contains(physical));
     }
 
-    /// Applies one capture to `physical`'s carried reference and returns it when it is written.
+    /// Applies one capture to `physical`'s carried reference. `None` when no carried reference
+    /// decides, because there is none or it drops; otherwise what it decides: itself when written,
+    /// nothing while it waits unbound.
     fn capture_carried_agent_session(
         &mut self,
         physical: &orchbee_server::TerminalAgentBinding,
         candidate: bool,
-    ) -> Option<RetainedAgentSession> {
+    ) -> Option<Option<RetainedAgentSession>> {
         let key = super::process_observation::key(&physical.binding);
         let outcome = match self.carried_agent_sessions.get(&key)? {
             (carried_physical, _) if carried_physical != physical => CarriedOutcome::Drop,
@@ -276,8 +307,8 @@ impl super::SessionCoordinator {
             CarriedOutcome::Write => self
                 .carried_agent_sessions
                 .get(&key)
-                .map(|(_, carried)| carried.session.clone()),
-            CarriedOutcome::Keep => None,
+                .map(|(_, carried)| Some(carried.session.clone())),
+            CarriedOutcome::Keep => Some(None),
             CarriedOutcome::Drop | CarriedOutcome::Bind(_) => {
                 self.carried_agent_sessions.remove(&key);
                 None
@@ -285,15 +316,36 @@ impl super::SessionCoordinator {
         }
     }
 
+    /// The published run of every tracked generation whose identity is `Agent` of a provider with
+    /// a run table, Claude Code alone, for the run table read that precedes a capture. Capture
+    /// checks each entry against the generation's published run again, so a run that changed
+    /// after this read gains nothing.
+    pub(crate) fn run_table_anchors(&self) -> Vec<RunAnchor> {
+        use orchbee_agent_observation_protocol::AgentReportProvider;
+        self.published_runs()
+            .filter(|(run, identity)| {
+                matches!(identity, AgentProcessIdentity::Agent { provider, .. }
+                    if *provider == AgentReportProvider::Claude && run.provider == *provider)
+            })
+            .map(|(run, _)| RunAnchor {
+                pid: run.pid(),
+                created: run.created(),
+            })
+            .collect()
+    }
+
     /// The live reference of every checkpoint target that has one, keyed by its binding. Targets
     /// join their Presentation through current registration at the exact generation they name;
     /// a stale target, an unreadable registration or an unavailable Agent cell contributes
     /// nothing, so pending restart references still carry over. A target with any hook candidate
     /// drops its carried reference and takes the live rule; otherwise its carried reference
-    /// decides. Capture owns cross-Presentation deduplication in its own order.
+    /// decides. Without one, the live rule decides, and `entries`, the run table read for
+    /// published runs before this capture, answer only where no hook candidate remains.
+    /// Capture owns cross-Presentation deduplication in its own order.
     pub(crate) fn checkpoint_agent_sessions(
         &mut self,
         targets: &[super::ProcessObservationTarget],
+        entries: &[RunTableEntry],
     ) -> Vec<(
         orchbee_workbench_protocol::PresentationBinding,
         RetainedAgentSession,
@@ -340,10 +392,20 @@ impl super::SessionCoordinator {
                 .cloned()
                 .collect();
             let session = match self.capture_carried_agent_session(&terminal, !own.is_empty()) {
-                Some(carried) => Some(carried),
+                Some(decided) => decided,
                 None => {
                     let evidence = CommandEvidence::of(self.latest_command(&terminal));
-                    select(&own, evidence, &self.process_identity(&terminal))
+                    let run = self.published_run(&terminal).map(|run| RunAnchor {
+                        pid: run.pid(),
+                        created: run.created(),
+                    });
+                    select(
+                        &own,
+                        evidence,
+                        &self.process_identity(&terminal),
+                        run,
+                        entries,
+                    )
                 }
             };
             if let Some(session) = session {

@@ -49,6 +49,21 @@ impl LocalTerminalService {
             .checkpoint_revision()
     }
 
+    /// What Claude Code's run table names for each published Claude Code run, read while no lock
+    /// is held. Capture admits an entry only for a run still published as that exact process, so
+    /// any change in between gains nothing. Resuming off, or an unreadable coordinator, reads
+    /// nothing.
+    fn run_table_entries(&self, resume: bool) -> Vec<crate::session_coordinator::RunTableEntry> {
+        if !resume {
+            return Vec::new();
+        }
+        let anchors = match self.coordinator.lock() {
+            Ok(coordinator) => coordinator.run_table_anchors(),
+            Err(_) => return Vec::new(),
+        };
+        crate::session_coordinator::read_run_table(&anchors)
+    }
+
     /// Build a bounded configuration from committed state and cached observations. The caller
     /// performs disk publication only after every Session/Worker gate below has been released.
     #[cfg(windows)]
@@ -58,6 +73,7 @@ impl LocalTerminalService {
     ) -> io::Result<(orchbee_workbench_protocol::WorkbenchRevision, Vec<u8>)> {
         let resume = self.agent_resume_enabled();
         let replay = self.output_replay_enabled();
+        let entries = self.run_table_entries(resume);
         let workers = self
             .workers
             .lock()
@@ -75,7 +91,7 @@ impl LocalTerminalService {
             return Err(io::Error::other("checkpoint Worker changed"));
         }
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
+        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets, &entries));
         let outputs = self.checkpoint_outputs(replay, &targets);
         let bytes = coordinator.checkpoint_with_observations(
             worker,
@@ -292,6 +308,7 @@ impl LocalTerminalService {
                 self.settle_checkpoint_viewer(pending)?;
             }
         }
+        let entries = self.run_table_entries(resume);
         let workers = self
             .workers
             .lock()
@@ -308,7 +325,7 @@ impl LocalTerminalService {
         if coordinator.checkpoint_observation_targets()? != (revision, targets.clone()) {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
-        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
+        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets, &entries));
         let outputs = self.checkpoint_outputs(replay, &targets);
         coordinator.checkpoint_with_observations(
             worker,
@@ -326,6 +343,7 @@ impl LocalTerminalService {
     pub(crate) fn checkpoint_without_worker(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
         let resume = self.agent_resume_enabled();
         let replay = self.output_replay_enabled();
+        let entries = self.run_table_entries(resume);
         let mut coordinator = self
             .coordinator
             .lock()
@@ -335,7 +353,7 @@ impl LocalTerminalService {
             .map(|(_, targets)| targets)
             .unwrap_or_default();
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
+        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets, &entries));
         // Output kept from earlier saves still names the exited terminals' files.
         let outputs = self.checkpoint_outputs(replay, &targets);
         coordinator.checkpoint_with_observations(

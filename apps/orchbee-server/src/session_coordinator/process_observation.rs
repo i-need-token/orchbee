@@ -362,6 +362,21 @@ impl SessionCoordinator {
             .and_then(Sample::published)
     }
 
+    /// The published run of every tracked generation, with that generation's identity result.
+    #[cfg(windows)]
+    pub(crate) fn published_runs(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Selected,
+            orchbee_agent_observation_protocol::AgentProcessIdentity,
+        ),
+    > + '_ {
+        self.process_samples
+            .values()
+            .filter_map(|sample| Some((sample.published()?, sample.identity.result())))
+    }
+
     /// The anchor of the run Panel reports attribute to the exact physical generation, if any.
     /// Read under the same lock as [Self::process_identity], so an `agent` result names it.
     pub(crate) fn process_anchor(

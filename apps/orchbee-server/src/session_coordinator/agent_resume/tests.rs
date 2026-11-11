@@ -1,4 +1,4 @@
-use super::{CommandEvidence, select};
+use super::CommandEvidence;
 use crate::agent_service::AgentResumeCandidate;
 use orchbee_agent_observation_protocol::{
     AgentIdentityGrade, AgentIdentityUnknownReason, AgentIdentityUnsupportedReason,
@@ -48,6 +48,15 @@ fn agent(provider: AgentReportProvider) -> AgentProcessIdentity {
 const OPEN: CommandEvidence = CommandEvidence::Open(RUN.to_be_bytes());
 const UNKNOWN: AgentProcessIdentity =
     AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling);
+
+/// The hook rule alone: a generation with no published run and no run table entry.
+fn select(
+    candidates: &[AgentResumeCandidate],
+    evidence: CommandEvidence,
+    identity: &AgentProcessIdentity,
+) -> Option<RetainedAgentSession> {
+    super::select(candidates, evidence, identity, None, &[])
+}
 
 #[test]
 fn command_evidence_keeps_the_open_run_else_tokenless_and_refutes_ended_runs() {
