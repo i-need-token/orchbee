@@ -1,13 +1,14 @@
 use super::{
     FIRST_WORKER, PROCESS_TIMEOUT, RunningServer, TestResult, connect_bounded_client,
-    connect_worker,
+    connect_worker, read_obcn,
 };
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, CapabilityNodeMessage, HostCreationId, HostEpoch as WorkerHostEpoch,
-    HostLaunchAccepted, HostLaunchState, HostTerminalId, HostTerminalIdentity, TerminalLaunchMode,
+    HostLaunchAccepted, HostLaunchState, HostTerminalId, HostTerminalIdentity,
+    TerminalCwdValidationOutcome, TerminalCwdValidationResult, TerminalLaunchMode,
     TerminalLaunchOutcome, TerminalLaunchResult, TerminalViewerAction as WorkerViewerAction,
     TerminalViewerOutcome as WorkerViewerOutcome, TerminalViewerResult as WorkerViewerResult,
-    read_message as read_obcn, write_message as write_obcn,
+    write_message as write_obcn,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, RequestId, ServerMessage, SessionId as ObcsSessionId,
@@ -185,8 +186,11 @@ fn command(
     })
 }
 
+/// Creates a Workspace with `path` as its primary directory. The Server asks the Worker to
+/// validate the directory before it accepts it, so the fake Worker answers that one read.
 pub(super) fn create_workspace(
     client: &mut UnixStream,
+    worker: &mut UnixStream,
     request_base: u128,
     path: &str,
     limit: Instant,
@@ -211,7 +215,7 @@ pub(super) fn create_workspace(
     };
     let created = read_snapshot(client, request_base + 2, limit)?;
     let directory_id = workbench_id(request_base + 3)?;
-    let accepted = exchange_command(
+    write_obwp(
         client,
         &command(
             directory_id.clone(),
@@ -221,9 +225,23 @@ pub(super) fn create_workspace(
                 path: orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(path)?,
             },
         ),
-        &directory_id,
         limit,
     )?;
+    let CapabilityNodeMessage::TerminalCwdValidationRequest(validation) =
+        read_worker_message(worker, limit)?
+    else {
+        return Err(io::Error::other("missing Worker directory validation").into());
+    };
+    assert_eq!(validation.cwd.as_str(), path);
+    write_worker_message(
+        worker,
+        &CapabilityNodeMessage::TerminalCwdValidationResult(TerminalCwdValidationResult {
+            request: validation,
+            outcome: TerminalCwdValidationOutcome::DirectoryAvailable,
+        }),
+        limit,
+    )?;
+    let accepted = read_command_result(client, &directory_id, limit)?;
     assert!(matches!(
         accepted.outcome,
         WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
@@ -231,8 +249,12 @@ pub(super) fn create_workspace(
     read_snapshot(client, request_base + 4, limit)
 }
 
-fn begin_fixture_tab(client: &mut UnixStream, limit: Instant) -> TestResult<WorkbenchRequestId> {
-    let initial = create_workspace(client, 0x100_000, "/tmp", limit)?;
+fn begin_fixture_tab(
+    client: &mut UnixStream,
+    worker: &mut UnixStream,
+    limit: Instant,
+) -> TestResult<WorkbenchRequestId> {
+    let initial = create_workspace(client, worker, 0x100_000, "/tmp", limit)?;
     let request_id = workbench_id(0x100_005)?;
     let request = command(
         request_id.clone(),
@@ -377,7 +399,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     let (mut workbench_b, _) = connect_bounded_client(server.client_endpoint())?;
 
     let setup_deadline = deadline();
-    let create_request_id = begin_fixture_tab(&mut viewer, setup_deadline)?;
+    let create_request_id = begin_fixture_tab(&mut viewer, &mut worker, setup_deadline)?;
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(first_launch) =
         read_worker_message(&mut worker, setup_deadline)?
     else {
@@ -515,7 +537,6 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
         return Err(io::Error::other("missing tab.create Launch").into());
     };
     assert_launch_geometry(&second_launch, tab_geometry)?;
-    assert!(second_launch.cwd().is_none());
     assert_eq!(
         second_launch.authorization().worker_id(),
         first_launch.authorization().worker_id()

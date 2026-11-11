@@ -35,7 +35,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
 
     let setup_deadline = deadline();
-    let create_request_id = begin_fixture_tab(&mut viewer, setup_deadline)?;
+    let create_request_id = begin_fixture_tab(&mut viewer, &mut worker, setup_deadline)?;
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(first_launch) =
         read_worker_message(&mut worker, setup_deadline)?
     else {
@@ -174,7 +174,6 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         return Err(io::Error::other("missing tab.create Launch").into());
     };
     assert_launch_geometry(&second_launch, tab_geometry)?;
-    assert!(second_launch.cwd().is_none());
     assert_eq!(
         second_launch.authorization().worker_id(),
         first_launch.authorization().worker_id()

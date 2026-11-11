@@ -37,7 +37,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
     // Snapshot reads are FIFO behind each connection's parked command response, so a
     // dedicated observer connection watches commits.
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = create_workspace(&mut observer, 0x100_000, "/tmp", deadline())?;
+    let initial = create_workspace(&mut observer, &mut worker, 0x100_000, "/tmp", deadline())?;
     let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
 
     let first_id = workbench_id(301)?;
@@ -242,7 +242,7 @@ fn never_split_fixture() -> TestResult<(
     let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut first_client, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = create_workspace(&mut observer, 0x100_000, "/tmp", deadline())?;
+    let initial = create_workspace(&mut observer, &mut worker, 0x100_000, "/tmp", deadline())?;
     let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
 
     let first_id = workbench_id(312)?;

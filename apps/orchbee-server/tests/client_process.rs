@@ -16,6 +16,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, TerminalTitleChangePage, TerminalTitleChangesOutcome,
+    TerminalTitleChangesResult, read_message as read_capability_message,
+    write_message as write_capability_message,
+};
 use orchbee_connection_handshake::{AcceptorMessage, RejectionReason as Refusal};
 use orchbee_local_client_protocol::{
     ClientConnection, ConnectClientError, LocalClientMessage,
@@ -333,6 +338,34 @@ fn connect_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<UnixStream
             "expected Worker admission, received {response:?}"
         ))
         .into()),
+    }
+}
+
+/// Reads the next capability-node message the Server sends to a fake Worker. The Server's title
+/// pump sends title change reads on the carrier's idle lane whenever nothing else is queued, and
+/// the carrier serializes every exchange, so an unanswered read would hold every later request.
+/// These witnesses own no titles: the fake Worker answers each read with an empty complete page,
+/// as a Worker without title changes does, and reads past it.
+fn read_obcn(stream: &mut (impl Read + Write)) -> TestResult<CapabilityNodeMessage> {
+    loop {
+        match read_capability_message(stream)? {
+            CapabilityNodeMessage::TerminalTitleChangesRequest(request) => {
+                write_capability_message(
+                    stream,
+                    &CapabilityNodeMessage::TerminalTitleChangesResult(
+                        TerminalTitleChangesResult {
+                            request,
+                            outcome: TerminalTitleChangesOutcome::Page(TerminalTitleChangePage {
+                                rows: Vec::new(),
+                                next: request.after,
+                                complete: true,
+                            }),
+                        },
+                    ),
+                )?;
+            }
+            message => return Ok(message),
+        }
     }
 }
 

@@ -125,7 +125,7 @@ fn two_clients_modify_the_same_navigation_without_a_worker_and_reconcile_after_d
         exchange(&mut second, &workspace)?.outcome,
         WorkbenchCommandOutcome::WorkspaceCreated { .. }
     ));
-    assert_eq!(read(&mut first)?.terminal_contexts.len(), 2);
+    assert_eq!(read(&mut first)?, read(&mut second)?);
     drop(first);
     let (mut replacement, _) = connect_bounded_client(server.client_endpoint())?;
     assert_eq!(exchange(&mut replacement, &request)?, created);

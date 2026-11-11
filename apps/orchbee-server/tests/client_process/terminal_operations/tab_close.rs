@@ -71,6 +71,44 @@ fn command(
     Ok(result)
 }
 
+/// Creates the Workspace whose Terminal Context these witnesses open Tabs in, because a fresh
+/// Session has none, gives it the primary directory a Workspace Tab launches in, and returns the
+/// snapshot that includes both.
+fn open_workspace(client: &mut UnixStream, value: u128) -> TestResult<Snapshot> {
+    let before = snapshot(client, value)?;
+    let created = command(
+        client,
+        &before,
+        value + 1,
+        WorkbenchAction::WorkspaceCreate {
+            project_id: None,
+            label: WorkbenchLabel::parse("Workspace")?,
+        },
+    )?;
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = created.outcome else {
+        return Err(format!("Workspace create: {:?}", created.outcome).into());
+    };
+    let created = snapshot(client, value + 2)?;
+    let accepted = command(
+        client,
+        &created,
+        value + 3,
+        WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            workspace_id,
+            path: orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("/tmp")?,
+        },
+    )?;
+    assert!(
+        matches!(
+            accepted.outcome,
+            WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+        ),
+        "Workspace directory: {:?}",
+        accepted.outcome
+    );
+    snapshot(client, value + 4)
+}
+
 fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab)> {
     let before = snapshot(client, value)?;
     let created = command(
@@ -302,6 +340,9 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     let mut originals = Vec::new();
     for index in 0..8_u128 {
         let (mut client, _) = connect_bounded_client(server.client_endpoint())?;
+        if index == 0 {
+            open_workspace(&mut client, 0x200_000)?;
+        }
         let (current, tab) = create_tab(&mut client, 100 + index * 10)?;
         let attachment = attach(&mut client, &current, &tab, 1000 + index)?;
         controllers.push(acquire(&mut client, &attachment, 1100 + index)?);
@@ -385,7 +426,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
         "workbench client connect",
         connect_bounded_client(server.client_endpoint())
     );
-    let initial = stage!("initial snapshot", snapshot(&mut client, 1));
+    let initial = stage!("initial Workspace", open_workspace(&mut client, 0x200_000));
     let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
     let created = stage!(
@@ -607,7 +648,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
         "workbench client connect",
         connect_bounded_client(server.client_endpoint())
     );
-    let initial = stage!("initial snapshot", snapshot(&mut client, 1));
+    let initial = stage!("initial Workspace", open_workspace(&mut client, 0x200_000));
     let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
     let created = stage!(
@@ -1052,7 +1093,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
         "second client connect",
         connect_bounded_client(server.client_endpoint())
     );
-    let initial = stage!("initial snapshot", snapshot(&mut first, 1));
+    let initial = stage!("initial Workspace", open_workspace(&mut first, 0x200_000));
     let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
 

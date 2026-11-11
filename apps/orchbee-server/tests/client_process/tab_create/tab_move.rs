@@ -50,7 +50,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
     let (mut second_client, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut lost_response, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = create_workspace(&mut observer, 0x100_000, "/tmp", deadline())?;
+    let initial = create_workspace(&mut observer, &mut worker, 0x100_000, "/tmp", deadline())?;
     let first_id = workbench_id(101)?;
     let first_request = command(
         first_id.clone(),
@@ -120,7 +120,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         moved = read_snapshot(&mut observer, 105, parked_deadline)?;
     }
     let mut expected = two.clone();
-    expected.revision = WorkbenchRevision::new(3);
+    expected.revision = WorkbenchRevision::new(two.revision.value() + 1);
     expected.terminal_contexts[0].tabs.reverse();
     assert_eq!(moved, expected);
     drop(lost_response);
@@ -128,7 +128,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
     assert_eq!(
         replay.outcome,
         WorkbenchCommandOutcome::TabMoved {
-            revision: WorkbenchRevision::new(3),
+            revision: moved.revision,
             terminal_context_id: first_tuple.terminal_context_id.clone(),
             tab_id: first_tuple.tab_id.clone(),
         }
@@ -236,7 +236,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             },
         );
         let result = exchange_command(&mut second_client, &request, &request_id, deadline())?;
-        let revision = WorkbenchRevision::new(5 + index as u64);
+        let revision = WorkbenchRevision::new(three.revision.value() + 1 + index as u64);
         assert_eq!(
             result.outcome,
             WorkbenchCommandOutcome::TabMoved {

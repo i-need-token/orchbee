@@ -1,13 +1,12 @@
 use super::{
     FIRST_WORKER, PROCESS_TIMEOUT, RunningServer, TestResult, connect_bounded_client,
-    connect_worker,
+    connect_worker, read_obcn,
 };
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
     HostStartAccepted, HostTerminalId, HostTerminalIdentity,
     StartTransition as WorkerStartTransition, TerminalLaunchOutcome, TerminalLaunchResult,
-    TerminalStartOutcome, TerminalStartResult, read_message as read_obcn,
-    write_message as write_obcn,
+    TerminalStartOutcome, TerminalStartResult, write_message as write_obcn,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, CreateAcceptedState, CreateOutcome, Geometry, RequestId, ServerMessage,

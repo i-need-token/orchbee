@@ -248,6 +248,7 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
 
     let initial = super::super::tab_create::create_workspace(
         &mut first,
+        &mut worker,
         0x100_000,
         "/tmp",
         Instant::now() + PROCESS_TIMEOUT,

@@ -190,6 +190,7 @@ fn workspace_tab_commits_membership_before_launch_and_preserves_it_through_navig
     assert!(empty.terminal_contexts.is_empty());
     let initial = super::super::tab_create::create_workspace(
         &mut observer,
+        &mut worker,
         0x100_000,
         "/tmp",
         Instant::now() + PROCESS_TIMEOUT,
@@ -293,6 +294,7 @@ fn workspace_tab_unknown_after_worker_loss_retains_membership_across_worker_gene
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
     let initial = super::super::tab_create::create_workspace(
         &mut observer,
+        &mut worker,
         0x100_000,
         "/tmp",
         Instant::now() + PROCESS_TIMEOUT,
@@ -348,10 +350,19 @@ fn workspace_tab_unknown_after_worker_loss_retains_membership_across_worker_gene
     ));
     let after_reopen = read_snapshot(&mut observer, 304)?;
     assert_eq!(workspace_binding(&after_reopen)?, binding);
+    // The replacement answers the Server's background title reads; nothing else may reach it.
     replacement.set_read_timeout(Some(Duration::from_millis(40)))?;
-    let mut byte = [0];
+    let observed = read_obcn(&mut replacement);
     assert!(
-        matches!(replacement.read(&mut byte), Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut))
+        matches!(
+            &observed,
+            Err(error) if matches!(
+                error.downcast_ref::<orchbee_capability_node_protocol::ReadMessageError>(),
+                Some(orchbee_capability_node_protocol::ReadMessageError::Io(error))
+                    if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut)
+            )
+        ),
+        "the replacement Worker received {observed:?}"
     );
     Ok(())
 }
