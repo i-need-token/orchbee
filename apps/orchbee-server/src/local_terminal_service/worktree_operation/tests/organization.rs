@@ -35,12 +35,14 @@ fn opened() -> Completion {
     )
 }
 
-fn complete_one_shell(fixture: &mut Fixture) {
+/// Starts the one shell the Server launches and returns the program it runs first, if any.
+fn complete_one_shell(fixture: &mut Fixture) -> Option<String> {
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) =
         read_message(&mut fixture.peer).unwrap()
     else {
         panic!("one terminal launch")
     };
+    let first_command = launch.agent_start().map(|start| start.program().to_owned());
     let TerminalLaunchMode::Immediate(geometry) = launch.mode() else {
         panic!("shell geometry")
     };
@@ -59,6 +61,64 @@ fn complete_one_shell(fixture: &mut Fixture) {
         ),
     )
     .unwrap();
+    first_command
+}
+
+/// The new Workspace's first shell runs the catalog Agent only when the Create named one.
+#[test]
+fn create_hands_its_agent_start_to_the_new_workspaces_first_shell_only_when_named() {
+    let codex = orchbee_workbench_protocol::AgentStartSelector::parse("codex").unwrap();
+    for (name, agent_start, expected) in [
+        ("no Agent named", None, None),
+        (
+            "an Agent named",
+            Some(codex),
+            Some(codex.agent().executable()),
+        ),
+    ] {
+        let mut fixture = Fixture::new();
+        let source = fixture.workspace.clone();
+        assert!(
+            matches!(
+                fixture.start(WorktreeIntent::Create {
+                    source: WorktreeSource::Workspace {
+                        workspace_id: source
+                    },
+                    branch: Some(
+                        orchbee_workbench_protocol::WorktreeReference::parse("topic").unwrap()
+                    ),
+                    base: None,
+                    path: Some(WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap()),
+                    label: None,
+                    geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                    trust_repository: false,
+                    agent_start,
+                }),
+                Outcome::Available { .. }
+            ),
+            "{name}"
+        );
+        fixture.finish_job(checkout(false));
+        fixture.finish_job(opened());
+        assert_eq!(
+            complete_one_shell(&mut fixture).as_deref(),
+            expected,
+            "{name}"
+        );
+        assert!(
+            matches!(
+                fixture.settled(),
+                Status::Opened {
+                    reused: false,
+                    terminal_outcome: Some(
+                        orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. }
+                    ),
+                    ..
+                }
+            ),
+            "{name}"
+        );
+    }
 }
 
 #[test]

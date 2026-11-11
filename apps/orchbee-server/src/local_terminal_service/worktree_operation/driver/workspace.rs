@@ -79,13 +79,16 @@ impl Driver<'_> {
             .checkout
             .clone()
             .ok_or(Failure::Internal {})?;
-        let (label, geometry) = match &self.plan.intent {
+        let (label, geometry, agent_start) = match &self.plan.intent {
             WorktreeIntent::Create {
+                label,
+                geometry,
+                agent_start,
+                ..
+            } => (label.clone(), *geometry, *agent_start),
+            WorktreeIntent::Open {
                 label, geometry, ..
-            }
-            | WorktreeIntent::Open {
-                label, geometry, ..
-            } => (label.clone(), *geometry),
+            } => (label.clone(), *geometry, None),
             WorktreeIntent::Remove { .. } => return Err(Failure::Internal {}),
         };
         let request_id = identity()?;
@@ -204,6 +207,9 @@ impl Driver<'_> {
                         // Git reports Windows checkouts with `/`; the Workspace records the
                         // spelling Windows reports, as its terminals' directories do.
                         cwd: Some(checkout.path.with_native_separators()),
+                        // The first shell runs the requested Agent first, under the same
+                        // fallback as a new Tab's start; a reused Workspace above starts nothing.
+                        agent_start,
                         ..LaunchOptions::default()
                     }),
                 },
