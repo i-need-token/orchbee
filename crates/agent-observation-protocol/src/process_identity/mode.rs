@@ -250,6 +250,7 @@ pub(super) mod grammar {
             "--extensions",
             "-r",
             "--resume",
+            "--session-id",
         ],
         ..base(M::Noninteractive)
     };
@@ -333,11 +334,24 @@ pub(super) mod grammar {
             "--deny-tool",
             "--log-level",
             "--log-dir",
+            "--session-id",
         ],
         ..base(M::Unclassified)
     };
 
     pub const PI: AgentModeGrammar = AgentModeGrammar {
+        interactive_options: &[
+            "--model",
+            "--provider",
+            "--thinking",
+            "--session",
+            "--session-id",
+        ],
+        ..OMP
+    };
+
+    /// Pi's grammar without the launch-time `--session-id`, which OMP does not document.
+    pub const OMP: AgentModeGrammar = AgentModeGrammar {
         noninteractive_options: &["-v", "-p", "--print", "--mode"],
         interactive_flags: &["-c", "--continue", "-r", "--resume"],
         interactive_options: &["--model", "--provider", "--thinking", "--session"],
@@ -380,6 +394,7 @@ pub(super) mod grammar {
 
     pub const GROK: AgentModeGrammar = AgentModeGrammar {
         interactive_optional_options: &["-r", "--resume"],
+        interactive_options: &["-s", "--session-id"],
         ..DEFAULT
     };
 

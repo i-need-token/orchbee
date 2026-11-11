@@ -40,6 +40,10 @@ pub(super) struct Sample {
     screen: Stability,
     screen_input_revision: u64,
     directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    /// The published run and the arguments after its program, read from that run's own row when
+    /// it is interactive for the run's provider: the only command line a resume source reads.
+    #[cfg(windows)]
+    command_line: Option<(Selected, Vec<String>)>,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
 pub(super) fn key(binding: &PresentationBinding) -> (String, String) {
@@ -250,6 +254,8 @@ impl SessionCoordinator {
             |p| p.screen.clone(),
         );
         let mut screen_input_revision = same.map_or(0, |p| p.screen_input_revision);
+        #[cfg(windows)]
+        let command_line = published_command_line(sample, retained, same);
         let mut fallback = None;
         if departed.is_none()
             && selected.is_some()
@@ -319,10 +325,38 @@ impl SessionCoordinator {
                 screen,
                 screen_input_revision,
                 directory,
+                #[cfg(windows)]
+                command_line,
             },
         );
         true
     }
+}
+
+/// The published run's arguments after its program: kept from the same run's earlier sample once
+/// read, else read from this sample's row with the run's pid and creation time, and only when that
+/// row is interactive for the run's provider.
+#[cfg(windows)]
+fn published_command_line(
+    sample: &TerminalProcessInfo,
+    run: Option<Selected>,
+    same: Option<&Sample>,
+) -> Option<(Selected, Vec<String>)> {
+    let run = run?;
+    if let Some(kept) = same.and_then(|p| p.command_line.clone()) {
+        return Some(kept);
+    }
+    let row = sample
+        .processes
+        .iter()
+        .find(|p| p.pid == run.pid && p.creation_time == run.created)?;
+    let argv = decoded_argv(row.command_line.as_deref());
+    orchbee_agent_observation_protocol::interactive_agent_arguments(
+        row.image.as_deref(),
+        argv.as_deref(),
+    )
+    .filter(|(provider, _)| *provider == run.provider)
+    .map(|(_, arguments)| (run, arguments))
 }
 
 /// A committed target captured before sampling; admission must still match this exact physical identity.
@@ -375,6 +409,21 @@ impl SessionCoordinator {
         self.process_samples
             .values()
             .filter_map(|sample| Some((sample.published()?, sample.identity.result())))
+    }
+
+    /// The exact physical generation's published run with the arguments after its program, as
+    /// that run's own sample row gave them, if any.
+    #[cfg(windows)]
+    pub(crate) fn published_command_line(
+        &self,
+        physical: &TerminalAgentBinding,
+    ) -> Option<(Selected, &[String])> {
+        let sample = self
+            .process_samples
+            .get(&key(&physical.binding))
+            .filter(|sample| sample.target == *physical)?;
+        let (run, arguments) = sample.command_line.as_ref()?;
+        (sample.published() == Some(*run)).then_some((*run, arguments.as_slice()))
     }
 
     /// The anchor of the run Panel reports attribute to the exact physical generation, if any.

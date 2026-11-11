@@ -49,13 +49,13 @@ const OPEN: CommandEvidence = CommandEvidence::Open(RUN.to_be_bytes());
 const UNKNOWN: AgentProcessIdentity =
     AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling);
 
-/// The hook rule alone: a generation with no published run and no run table entry.
+/// The hook rule alone: a generation with no published run, run table entry or command line.
 fn select(
     candidates: &[AgentResumeCandidate],
     evidence: CommandEvidence,
     identity: &AgentProcessIdentity,
 ) -> Option<RetainedAgentSession> {
-    super::select(candidates, evidence, identity, None, &[])
+    super::select(candidates, evidence, identity, None, &[], None)
 }
 
 #[test]
@@ -200,6 +200,7 @@ fn a_run_table_entry_answers_only_for_the_published_agent_run_and_only_without_a
             &identity,
             published,
             std::slice::from_ref(&entry),
+            None,
         )
     };
     let sole = Some(run);
@@ -275,9 +276,182 @@ fn a_run_table_entry_answers_only_for_the_published_agent_run_and_only_without_a
     );
     // Without an entry, a run with no hook session has no reference.
     assert_eq!(
-        super::select(&[], unmarked, &as_claude, Some(run), &[]),
+        super::select(&[], unmarked, &as_claude, Some(run), &[], None),
         None
     );
+}
+
+#[test]
+fn a_command_line_id_answers_only_for_the_published_agent_run_after_hooks_and_the_run_table() {
+    const TABLE_ID: &str = "4fd1c9a2-2b5e-4c1e-9f0a-6d3b8e2a7c51";
+    const LINE_ID: &str = "9b2f6c1e-5d3a-4e8b-a7c4-1f0e2d3c4b5a";
+    const OTHER_ID: &str = "c56a4180-65aa-42ec-a945-5fd21dec0538";
+    let run = RunAnchor {
+        pid: 40,
+        created: 1_000,
+    };
+    let reused = RunAnchor {
+        pid: 40,
+        created: 2_000,
+    };
+    let table = [RunTableEntry {
+        anchor: run,
+        session: reference(AgentResumeProvider::ClaudeCode, TABLE_ID).unwrap(),
+    }];
+    let args = |line: &str| -> Vec<String> {
+        line.split(' ')
+            .filter(|token| !token.is_empty())
+            .map(|token| {
+                token
+                    .replace("{line}", LINE_ID)
+                    .replace("{other}", OTHER_ID)
+            })
+            .collect()
+    };
+    let grok = agent(AgentReportProvider::Grok);
+    let claude_agent = agent(AgentReportProvider::Claude);
+    let hook = candidate(AgentResumeProvider::Grok, CLAUDE, None);
+    let claude_hook = claude(None);
+    let none: &[AgentResumeCandidate] = &[];
+    let from = |provider, id| reference(provider, id);
+    // (row, hook candidates, identity, run table, sampled run and its command line, expected)
+    type Row<'a> = (
+        &'a str,
+        &'a [AgentResumeCandidate],
+        &'a AgentProcessIdentity,
+        &'a [RunTableEntry],
+        Option<(RunAnchor, &'a str)>,
+        Option<RetainedAgentSession>,
+    );
+    let rows: &[Row<'_>] = &[
+        (
+            "a command-line id alone",
+            none,
+            &grok,
+            &[],
+            Some((run, "--session-id {line}")),
+            from(AgentResumeProvider::Grok, LINE_ID),
+        ),
+        (
+            "a hand-typed resume of the same provider",
+            none,
+            &grok,
+            &[],
+            Some((run, "--resume={line}")),
+            from(AgentResumeProvider::Grok, LINE_ID),
+        ),
+        (
+            "Claude Code without a run table entry reads its command line",
+            none,
+            &claude_agent,
+            &[],
+            Some((run, "--resume {line}")),
+            from(AgentResumeProvider::ClaudeCode, LINE_ID),
+        ),
+        (
+            "the run table beats the command line for Claude Code",
+            none,
+            &claude_agent,
+            &table,
+            Some((run, "--resume {line}")),
+            from(AgentResumeProvider::ClaudeCode, TABLE_ID),
+        ),
+        (
+            "a hook candidate beats the command line",
+            std::slice::from_ref(&hook),
+            &grok,
+            &[],
+            Some((run, "--session-id {line}")),
+            from(AgentResumeProvider::Grok, CLAUDE),
+        ),
+        (
+            "a hook candidate beats the run table and the command line",
+            std::slice::from_ref(&claude_hook),
+            &claude_agent,
+            &table,
+            Some((run, "--resume {line}")),
+            from(AgentResumeProvider::ClaudeCode, CLAUDE),
+        ),
+        (
+            "two bound ids give none",
+            none,
+            &grok,
+            &[],
+            Some((run, "--session-id {line} --resume={other}")),
+            None,
+        ),
+        (
+            "one id bound twice is still two bindings",
+            none,
+            &grok,
+            &[],
+            Some((run, "-s {line} --session-id {line}")),
+            None,
+        ),
+        (
+            "a continue flag gives none",
+            none,
+            &grok,
+            &[],
+            Some((run, "--continue --session-id {line}")),
+            None,
+        ),
+        (
+            "another provider's id format gives none",
+            none,
+            &grok,
+            &[],
+            Some((run, "--resume=ses_0123456789abCdEfGhIjKlMnOp")),
+            None,
+        ),
+        (
+            "a command line of another process with the reused pid gives none",
+            none,
+            &grok,
+            &[],
+            Some((reused, "--session-id {line}")),
+            None,
+        ),
+        (
+            "no sampled command line gives none",
+            none,
+            &grok,
+            &[],
+            None,
+            None,
+        ),
+        (
+            "an identity of another provider reads by its own table",
+            none,
+            &agent(AgentReportProvider::Codex),
+            &[],
+            Some((run, "--session-id {line}")),
+            None,
+        ),
+        (
+            "an identity still settling gives none",
+            none,
+            &UNKNOWN,
+            &[],
+            Some((run, "--session-id {line}")),
+            None,
+        ),
+    ];
+    for (row, candidates, identity, entries, sampled, want) in rows {
+        let sampled = sampled.map(|(anchor, line)| (anchor, args(line)));
+        let want = want.clone();
+        let got = super::select(
+            candidates,
+            CommandEvidence::Unmarked,
+            identity,
+            Some(run),
+            entries,
+            sampled
+                .as_ref()
+                .map(|(anchor, args)| (*anchor, args.as_slice())),
+        );
+        assert_eq!(got, want, "{row}");
+    }
 }
 
 #[test]

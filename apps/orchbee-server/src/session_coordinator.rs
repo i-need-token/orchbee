@@ -54,7 +54,7 @@ mod agent_registration;
 #[cfg(any(windows, test))]
 mod agent_resume;
 #[cfg(windows)]
-pub(crate) use agent_resume::{ResumeTarget, RunTableEntry, read_run_table};
+pub(crate) use agent_resume::{ResumeTarget, RunTableEntry, read_run_table, resume_arguments};
 mod directory_label;
 mod pane_graphics;
 mod presentation_titles;

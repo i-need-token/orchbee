@@ -7,6 +7,7 @@ use super::registry::{
 };
 use super::{AgentIdentityUnknownReason, AgentInvocationMode};
 use crate::AgentReportProvider;
+use std::borrow::Cow;
 
 /// What one sampled process proves on its own. Selection and settling belong to the identity state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,41 +67,97 @@ pub fn classify_agent_process(
     image: Option<&str>,
     argv: Option<&[String]>,
 ) -> AgentProcessRecognition {
+    match resolve(image, argv) {
+        Resolved::Provider {
+            provider,
+            shape,
+            args,
+        } => with_mode(provider, shape, args.as_deref()),
+        Resolved::Done(recognition) => recognition,
+    }
+}
+
+/// The provider and the arguments after its program, exactly as [classify_agent_process] reads
+/// them, when it finds the process interactive; anything else gives none. A reader of a
+/// provider's own command line uses it, so it reads only arguments the mode grammar classified.
+pub fn interactive_agent_arguments(
+    image: Option<&str>,
+    argv: Option<&[String]>,
+) -> Option<(AgentReportProvider, Vec<String>)> {
+    match resolve(image, argv) {
+        Resolved::Provider {
+            provider,
+            args: Some(args),
+            ..
+        } if provider.classify_invocation(&args) == AgentInvocationMode::Interactive => {
+            Some((provider, args.into_owned()))
+        }
+        _ => None,
+    }
+}
+
+/// What a process resolves to before its provider's mode grammar applies.
+enum Resolved<'a> {
+    /// A provider shape with the arguments after its program; `None` when they are unreadable.
+    Provider {
+        provider: AgentReportProvider,
+        shape: AgentInstallShape,
+        args: Option<Cow<'a, [String]>>,
+    },
+    /// A recognition that needs no grammar.
+    Done(AgentProcessRecognition),
+}
+
+impl<'a> Resolved<'a> {
+    fn provider(
+        provider: AgentReportProvider,
+        shape: AgentInstallShape,
+        args: Option<Cow<'a, [String]>>,
+    ) -> Self {
+        Self::Provider {
+            provider,
+            shape,
+            args,
+        }
+    }
+}
+
+fn resolve<'a>(image: Option<&str>, argv: Option<&'a [String]>) -> Resolved<'a> {
     use AgentProcessRecognition as R;
     let Some(image) = image else {
-        return R::NotAgent;
+        return Resolved::Done(R::NotAgent);
     };
     match resolve_name(image) {
         Name::Provider(provider) => {
-            return with_mode(
+            return Resolved::provider(
                 provider,
                 AgentInstallShape::NativeImage,
-                argv.map(|argv| argv.get(1..).unwrap_or_default()),
+                argv.map(|argv| Cow::Borrowed(argv.get(1..).unwrap_or_default())),
             );
         }
-        Name::Unproven(provider) => return unproven(provider),
+        Name::Unproven(provider) => return Resolved::Done(unproven(provider)),
         Name::Absent => {}
     }
     let stem = basename(image);
     let Some(host) = Host::of(&stem) else {
-        return R::NotAgent;
+        return Resolved::Done(R::NotAgent);
     };
     let Some(argv) = argv else {
-        return match host {
+        return Resolved::Done(match host {
             Host::Node | Host::Bun | Host::Python => R::Unresolved {
                 provider: None,
                 reason: AgentUnresolvedProcess::CommandLineUnreadable,
             },
             Host::Remote(_) => remote(&stem, &[]),
             _ => R::NotAgent,
-        };
+        });
     };
     // A forged argv[0] must not change the actual executable's identity.
     if argv.first().is_none_or(|first| basename(first) != stem) {
-        return R::NotAgent;
+        return Resolved::Done(R::NotAgent);
     }
     match host {
-        Host::Remote(_) => remote(&stem, &argv[1..]),
+        Host::Remote(_) => Resolved::Done(remote(&stem, &argv[1..])),
         Host::Cmd => cmd(argv),
         Host::PowerShell => powershell(argv),
         Host::Node | Host::Bun | Host::Python | Host::PosixShell => runtime(host, image, argv),
@@ -222,7 +279,7 @@ fn with_mode(
 }
 
 /// Resolves a launched command token and its arguments; a script suffix makes it a shim.
-fn launched(token: &str, args: &[String], wrapper: AgentInstallShape) -> AgentProcessRecognition {
+fn launched<'a>(token: &str, args: Cow<'a, [String]>, wrapper: AgentInstallShape) -> Resolved<'a> {
     let lower = token.to_ascii_lowercase();
     let shape = if [".cmd", ".bat", ".ps1"].iter().any(|s| lower.ends_with(s)) {
         AgentInstallShape::Shim
@@ -230,9 +287,9 @@ fn launched(token: &str, args: &[String], wrapper: AgentInstallShape) -> AgentPr
         wrapper
     };
     match resolve_name(token) {
-        Name::Provider(provider) => with_mode(provider, shape, Some(args)),
-        Name::Unproven(provider) => unproven(provider),
-        Name::Absent => AgentProcessRecognition::NotAgent,
+        Name::Provider(provider) => Resolved::provider(provider, shape, Some(args)),
+        Name::Unproven(provider) => Resolved::Done(unproven(provider)),
+        Name::Absent => Resolved::Done(AgentProcessRecognition::NotAgent),
     }
 }
 
@@ -247,14 +304,18 @@ fn command_tokens(rest: &[String], syntax: &[char]) -> Option<Vec<String>> {
     }
 }
 
-fn wrapped(rest: &[String], syntax: &[char]) -> AgentProcessRecognition {
+fn wrapped(rest: &[String], syntax: &[char]) -> Resolved<'static> {
     match command_tokens(rest, syntax).as_deref() {
-        Some([token, args @ ..]) => launched(token, args, AgentInstallShape::LauncherWrapper),
-        _ => AgentProcessRecognition::NotAgent,
+        Some([token, args @ ..]) => launched(
+            token,
+            Cow::Owned(args.to_vec()),
+            AgentInstallShape::LauncherWrapper,
+        ),
+        _ => Resolved::Done(AgentProcessRecognition::NotAgent),
     }
 }
 
-fn cmd(argv: &[String]) -> AgentProcessRecognition {
+fn cmd(argv: &[String]) -> Resolved<'static> {
     for (index, arg) in argv.iter().enumerate().skip(1) {
         match arg.to_ascii_lowercase().as_str() {
             "/c" | "/k" => {
@@ -267,17 +328,21 @@ fn cmd(argv: &[String]) -> AgentProcessRecognition {
             _ => break,
         }
     }
-    AgentProcessRecognition::NotAgent
+    Resolved::Done(AgentProcessRecognition::NotAgent)
 }
 
-fn powershell(argv: &[String]) -> AgentProcessRecognition {
+fn powershell(argv: &[String]) -> Resolved<'_> {
     let mut index = 1;
     while let Some(arg) = argv.get(index) {
         match arg.to_ascii_lowercase().as_str() {
             "-file" | "-f" => {
                 return match argv.get(index + 1) {
-                    Some(script) => launched(script, &argv[index + 2..], AgentInstallShape::Shim),
-                    None => AgentProcessRecognition::NotAgent,
+                    Some(script) => launched(
+                        script,
+                        Cow::Borrowed(&argv[index + 2..]),
+                        AgentInstallShape::Shim,
+                    ),
+                    None => Resolved::Done(AgentProcessRecognition::NotAgent),
                 };
             }
             "-command" | "-c" => {
@@ -296,13 +361,13 @@ fn powershell(argv: &[String]) -> AgentProcessRecognition {
         }
         index += 1;
     }
-    AgentProcessRecognition::NotAgent
+    Resolved::Done(AgentProcessRecognition::NotAgent)
 }
 
 /// `node`, `bun`, Python, and POSIX shells: bundled runtime, package entry, alias-named script, or Python module.
-fn runtime(host: Host, image: &str, argv: &[String]) -> AgentProcessRecognition {
+fn runtime<'a>(host: Host, image: &str, argv: &'a [String]) -> Resolved<'a> {
     let Some(entry) = entrypoint(host, argv) else {
-        return AgentProcessRecognition::NotAgent;
+        return Resolved::Done(AgentProcessRecognition::NotAgent);
     };
     let (target, args) = match entry {
         Entry::Script(index) => (&argv[index], &argv[index + 1..]),
@@ -311,11 +376,11 @@ fn runtime(host: Host, image: &str, argv: &[String]) -> AgentProcessRecognition 
             return AGENT_PROVIDER_REGISTRY
                 .iter()
                 .find(|entry| entry.python_modules.contains(&module))
-                .map_or(AgentProcessRecognition::NotAgent, |entry| {
-                    with_mode(
+                .map_or(Resolved::Done(AgentProcessRecognition::NotAgent), |entry| {
+                    Resolved::provider(
                         entry.provider,
                         AgentInstallShape::PackageEntry,
-                        Some(&argv[index + 1..]),
+                        Some(Cow::Borrowed(&argv[index + 1..])),
                     )
                 });
         }
@@ -328,10 +393,10 @@ fn runtime(host: Host, image: &str, argv: &[String]) -> AgentProcessRecognition 
                 && basename_with_suffix(target) == bundled.entry
         });
         if bundled {
-            return with_mode(
+            return Resolved::provider(
                 entry.provider,
                 AgentInstallShape::BundledRuntime,
-                Some(args),
+                Some(Cow::Borrowed(args)),
             );
         }
         if host != Host::PosixShell
@@ -340,7 +405,11 @@ fn runtime(host: Host, image: &str, argv: &[String]) -> AgentProcessRecognition 
                 .iter()
                 .any(|suffix| ends_with_entry(target, suffix))
         {
-            return with_mode(entry.provider, AgentInstallShape::PackageEntry, Some(args));
+            return Resolved::provider(
+                entry.provider,
+                AgentInstallShape::PackageEntry,
+                Some(Cow::Borrowed(args)),
+            );
         }
     }
     let shape = if host == Host::PosixShell {
@@ -348,7 +417,7 @@ fn runtime(host: Host, image: &str, argv: &[String]) -> AgentProcessRecognition 
     } else {
         AgentInstallShape::PackageEntry
     };
-    launched(target, args, shape)
+    launched(target, Cow::Borrowed(args), shape)
 }
 
 fn basename_with_suffix(path: &str) -> String {

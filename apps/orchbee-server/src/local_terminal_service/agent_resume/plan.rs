@@ -1,5 +1,7 @@
-//! The closed provider table and the exact text and records one resume types into a restored
-//! shell. It builds input only; deciding whether to type it belongs to admission and the driver.
+//! Each provider's program and the exact text and records one resume types into a restored shell.
+//! It builds input only; deciding whether to type it belongs to admission and the driver, and the
+//! argument tokens come from the Session's closed conversation id table.
+use crate::session_coordinator::resume_arguments;
 use orchbee_client_server_protocol::{
     SendKey, SendKeyStroke, SendPasteContent, SendRecord, SendRecords, SendStrokeKey,
 };
@@ -48,44 +50,11 @@ const fn resume_program(provider: AgentResumeProvider) -> &'static str {
     }
 }
 
-/// The argument tokens that resume `session`, the only builder of them. The id is bound to a
-/// value-taking option or a resume subcommand, so no grammar reads it as a prompt. An option whose
-/// value is optional takes `--name=<id>`; a required-value option or a subcommand takes a separate
-/// token. Every token uses only `[A-Za-z0-9_=-]`; Letta's stored `default:<agent>` key is split
-/// into its own options first.
-pub(super) fn resume_arguments(session: &RetainedAgentSession) -> Vec<String> {
-    use AgentResumeProvider as P;
-    let id = session.session_id();
-    let separate = |option: &str| vec![option.to_owned(), id.to_owned()];
-    match session.provider() {
-        P::Codex => separate("resume"),
-        P::ClaudeCode
-        | P::Grok
-        | P::Cursor
-        | P::QoderCli
-        | P::Droid
-        | P::Gemini
-        | P::GitHubCopilot
-        | P::QwenCode => {
-            vec![format!("--resume={id}")]
-        }
-        P::OpenCode | P::Kilo | P::Kimi => vec![format!("--session={id}")],
-        P::Antigravity => separate("--conversation"),
-        P::Letta => match id.strip_prefix("default:") {
-            Some(agent) => ["--conversation", "default", "--agent", agent]
-                .map(str::to_owned)
-                .to_vec(),
-            None => separate("--conversation"),
-        },
-        P::Devin | P::Hermes | P::Omp => separate("--resume"),
-        P::Pi => separate("--session"),
-        P::Cline => separate("--id"),
-    }
-}
-
-/// The line typed for `session`. PowerShell resolves the program as an application or script, so
-/// no alias, function or cmdlet of that name runs, and single-quotes every argument token, so each
-/// reaches the program verbatim and none is read as a parameter. cmd takes the tokens bare: each
+/// The line typed for `session`, with the argument tokens of [`resume_arguments`], which shares
+/// one closed table with the reader of a running Agent's command line. PowerShell resolves the
+/// program as an application or script, so no alias, function or cmdlet of that name runs, and
+/// single-quotes every argument token, so each reaches the program verbatim and none is read as a
+/// parameter. cmd takes the tokens bare: each
 /// is inert there. `token` is the run prefix's token and is given only for managed PowerShell.
 pub(super) fn text(
     session: &RetainedAgentSession,

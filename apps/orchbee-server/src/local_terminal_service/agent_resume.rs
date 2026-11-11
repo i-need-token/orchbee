@@ -606,7 +606,8 @@ impl LocalTerminalService {
             }
             None => match coordinator.take_pending_agent_session(&candidate.presentation) {
                 Some(taken) if taken == *session => {
-                    coordinator.carry_agent_session(target, taken, plan::resume_arguments(session));
+                    let typed = crate::session_coordinator::resume_arguments(session);
+                    coordinator.carry_agent_session(target, taken, typed);
                     None
                 }
                 _ => Some(Outcome::Skipped(Reason::Gone)),

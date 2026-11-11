@@ -8,7 +8,10 @@ mod registry;
 mod result;
 mod sample;
 mod shell;
-pub use executable::{AgentProcessRecognition, AgentUnresolvedProcess, classify_agent_process};
+pub use executable::{
+    AgentProcessRecognition, AgentUnresolvedProcess, classify_agent_process,
+    interactive_agent_arguments,
+};
 pub use mode::{AgentInvocationMode, AgentModeGrammar};
 pub use registry::{
     AGENT_PROVIDER_REGISTRY, AGENT_PROVIDER_REGISTRY_VERSION, AgentAlias, AgentAliasClass,

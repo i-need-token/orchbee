@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 3;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 4;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,7 +178,7 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 39] = {
             &grammar::ANTIGRAVITY,
         ),
         entry(P::Cline, &[unique("cline")], NONE, &grammar::CLINE),
-        entry(P::Omp, &[unique("omp")], NONE, &grammar::PI),
+        entry(P::Omp, &[unique("omp")], NONE, &grammar::OMP),
         entry(
             P::Mastracode,
             &[unique("mastracode")],

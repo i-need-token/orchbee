@@ -83,6 +83,6 @@ pub use process_identity::{
     AgentInstallShape, AgentInvocationMode, AgentModeGrammar, AgentProcessAnchor,
     AgentProcessIdentity, AgentProcessRecognition, AgentProcessRow, AgentProviderEntry,
     AgentSampleVerdict, AgentUnresolvedProcess, ShellRoot, classify_agent_process,
-    classify_shell_root, descends_from, evaluate_agent_sample, idle_shell_only, is_console_host,
-    native_agent_basename,
+    classify_shell_root, descends_from, evaluate_agent_sample, idle_shell_only,
+    interactive_agent_arguments, is_console_host, native_agent_basename,
 };

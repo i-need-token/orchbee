@@ -2,22 +2,25 @@
 //! delivered reference carried forward while the process its delivery started lives; else Agent
 //! candidates joined to the exact Terminal generation, refuted by that generation's command and
 //! process evidence, and admitted only when exactly one remains; else, when none remains, the
-//! session the published run's own process registered in its Agent's run table. Reports, process
-//! names and screen detection never grant a reference. It does not persist, deduplicate across
-//! Presentations or deliver a resume.
+//! session the published run's own process names: the one it registered in its Agent's run table,
+//! else the one its command line binds. Reports, process names and screen detection never grant a
+//! reference. It does not persist, deduplicate across Presentations or deliver a resume.
 
 use crate::agent_service::AgentResumeCandidate;
 use orchbee_agent_observation_protocol::AgentProcessIdentity;
-use orchbee_server::RetainedAgentSession;
+use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 use std::collections::BTreeSet;
 
 #[cfg(windows)]
 mod claude_run_table;
+mod conversation_ids;
 #[cfg(test)]
 mod tests;
 
 #[cfg(windows)]
 pub(crate) use claude_run_table::read as read_run_table;
+#[cfg(windows)]
+pub(crate) use conversation_ids::resume_arguments;
 
 /// The shell command evidence of one exact Terminal generation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -56,15 +59,19 @@ pub(crate) struct RunTableEntry {
 /// tokenless ones; an unmarked shell keeps all. An Agent process identity keeps its own provider,
 /// `None` drops every candidate, and `Unknown` or `Unsupported` refutes nothing. Exactly one
 /// distinct `(provider, native key)` that is also a valid id gives the reference; several give
-/// none. When none remains, the process source decides: the entry read for the generation's
-/// published `run`, while the identity is `Agent` of that entry's provider, gives its session;
-/// anything else gives none.
+/// none. When none remains, the process source decides while the identity is `Agent`: the run
+/// table entry read for the generation's published `run` of that provider gives its session; else
+/// the `command_line` sampled from that same run, the arguments after its program, gives the one
+/// id it binds for that provider. The run table wins because it follows the conversation the
+/// process holds now, while the command line names the one it started in. Anything else gives
+/// none.
 pub(crate) fn select(
     candidates: &[AgentResumeCandidate],
     evidence: CommandEvidence,
     identity: &AgentProcessIdentity,
     run: Option<RunAnchor>,
     entries: &[RunTableEntry],
+    command_line: Option<(RunAnchor, &[String])>,
 ) -> Option<RetainedAgentSession> {
     let tokenless = || candidates.iter().filter(|c| c.run_token.is_none());
     let kept: Vec<&AgentResumeCandidate> = match evidence {
@@ -100,12 +107,19 @@ pub(crate) fn select(
         // No hook session of this run remains: only its own process can name one.
         (None, _) => {
             let (provider, run) = (provider?, run?);
-            entries
+            let table = entries
                 .iter()
                 .find(|entry| {
                     entry.anchor == run && entry.session.provider().provider_id() == provider
                 })
-                .map(|entry| entry.session.clone())
+                .map(|entry| entry.session.clone());
+            table.or_else(|| {
+                let (_, arguments) = command_line.filter(|(sampled, _)| *sampled == run)?;
+                conversation_ids::command_line_session(
+                    AgentResumeProvider::from_provider_id(provider)?,
+                    arguments,
+                )
+            })
         }
     }
 }
@@ -340,7 +354,8 @@ impl super::SessionCoordinator {
     /// nothing, so pending restart references still carry over. A target with any hook candidate
     /// drops its carried reference and takes the live rule; otherwise its carried reference
     /// decides. Without one, the live rule decides, and `entries`, the run table read for
-    /// published runs before this capture, answer only where no hook candidate remains.
+    /// published runs before this capture, then each published run's sampled command line answer
+    /// only where no hook candidate remains.
     /// Capture owns cross-Presentation deduplication in its own order.
     pub(crate) fn checkpoint_agent_sessions(
         &mut self,
@@ -399,12 +414,20 @@ impl super::SessionCoordinator {
                         pid: run.pid(),
                         created: run.created(),
                     });
+                    let command_line = self.published_command_line(&terminal).map(|(run, args)| {
+                        let anchor = RunAnchor {
+                            pid: run.pid(),
+                            created: run.created(),
+                        };
+                        (anchor, args)
+                    });
                     select(
                         &own,
                         evidence,
                         &self.process_identity(&terminal),
                         run,
                         entries,
+                        command_line,
                     )
                 }
             };
