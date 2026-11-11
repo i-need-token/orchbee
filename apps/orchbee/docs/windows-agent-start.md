@@ -1,30 +1,36 @@
 # Windows Agent startup
 
-`agent start` composes the Server's bounded name reservation with existing terminal input,
-process inspection and canonical Agent observations, or the Panel's observed Agent while no
-canonical Session has reported. It operates on a running Windows Session. It does not activate a Session, install
-providers, inspect or require an Agent integration, or infer readiness from process creation.
+`agent start` types one provider command at the confirmed prompt of a Panel's idle shell on a
+running Windows Session. Without a name that is the whole start: after a short
+[early check](#workflow-and-invariants) the Agent is observed exactly like one the person typed by
+hand, and its row shows it [opening](../../orchbee-server/docs/agent-screen-model.md#opening) until
+its screen is recognised. With a name, the start also composes the Server's bounded name
+reservation with process inspection and canonical Agent observations, or the Panel's observed
+Agent while no canonical Session has reported. It does not activate a Session, install providers,
+inspect or require an Agent integration, or infer readiness from process creation.
 
 ## Invocation and prerequisites
 
 ```text
-orchbee agent start alpha --provider codex --panel <id> --timeout 30000 --format json -- <args>...
+orchbee agent start --provider codex [--name alpha] --panel <id> --timeout 30000 --format json -- <args>...
 ```
 
-The name uses `[a-z][a-z0-9_-]{0,31}`. `--provider` selects a canonical provider ID from the
-runtime recognition registry; executable aliases do not become additional kinds. The target
+The optional name uses `[a-z][a-z0-9_-]{0,31}`. `--provider` selects a canonical provider ID from
+the runtime recognition registry; executable aliases do not become additional kinds. The target
 is the Panel's primary terminal. Omitting `--panel`, or using `--current`, requires valid
-caller context. `--panel` and `--current` conflict. Repeated `--arg=<value>` is an alternative
+caller context. `--panel` and `--current` conflict. Agent arguments follow `--`; a word before
+`--` is refused, so it never reaches the Agent. Repeated `--arg=<value>` is an alternative
 to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
 characters are refused, and the encoded command must fit 8000 ASCII characters. Help and the
 invalid-value diagnostic list the complete `--provider` set.
 
 Agent integrations are opt-in, so starting never inspects one and never refuses because one is
 missing: neither the CLI nor the board runs a provider command or reads provider configuration
-before it reserves. Without an integration the start is confirmed by
-[observation](#workflow-and-invariants) and binds no name. On success the text result names the
-next step: `agent prompt --name <name>` after a canonical confirmation, or
-`agent prompt --panel <panel>` after an observed one, whose name was not bound.
+before it types. A start without a name reserves nothing. A named start without an integration is
+confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
+names the next step: `agent wait --panel <panel> --until idle` after a start without a name,
+`agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
+after an observed one, whose name was not bound.
 
 After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`
 queries through `agent_provider::detection_executable()`. Up to four scoped workers publish individual
@@ -40,9 +46,10 @@ detection: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation),
 can install the same basename, and Snow CLI's `snow` is a common word that unrelated programs
 also use. These providers stay manually selectable using their existing launch
 mapping. Shared names such as `amp` and `mcode` are still advertised, as before. A remote origin performs no Client-PATH lookup and also offers manual selection.
-The form supplies an editable automatic name and injects the exact focused Panel ID after current-draw
-admission. Manual choices use the same reserve, single-submit and readiness owners. No caller
-context environment variable or subprocess adapter is introduced.
+The form lists each provider by its product name, leaves the name field empty and optional, and
+injects the exact focused Panel ID after current-draw admission. Manual choices use the same
+single-submit owner, and a typed name the same reserve and readiness owners. No caller context
+environment variable or subprocess adapter is introduced.
 
 Fixed local System32 process creation and suspended Job assignment are synchronous Windows ownership
 primitives which application cancellation cannot interrupt. After the owned child is returned, every
@@ -53,20 +60,22 @@ and joins only owners whose worker has exited. Session teardown owns the final j
 wait for an initial process-creation or Job-assignment call already in progress; after ownership, the
 deadline and teardown slot bound it.
 
-The board's background task calls the app-private typed workflow directly under one 300000 ms
-deadline, including time for interactive trust and sign-in prompts. Accepting Start closes the board
+The board's background task calls the app-private typed workflow directly. A start without a name
+runs under one 20000 ms deadline covering admission, the single send and the early check; a named
+start runs under one 300000 ms deadline, including time for interactive trust and sign-in prompts.
+Accepting Start closes the board
 and restores terminal input immediately. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
 Session teardown wakes and joins every bounded owner. Every completion carries its generation and
 Panel target, so an old result cannot settle a replacement draft or target. Each start guards only
 its own Panel: the board opens on the focused Panel and presents that Panel's start, so a start
 still running or unknown in another Panel never locks the form. A start guards its Panel while its
 workflow runs and, after an unknown result, until the workflow deadline; observing the shell prompt
-again (`agent-exited` or `launch-command-failed`) ends the guard at once. Unknown reservation or
-input effects remain visible as unknown and are never replayed. A fully accepted command whose readiness
-wait expires is labeled unconfirmed, with instructions to check the terminal; its deadline has
-passed, so the Panel may start again, and [prompt-gated input](#prompt-gated-input) types nothing
-into an Agent that is still running.
-Pinned canonical attention requests update a non-capturing notice and the reopened board while the
+again (`command-not-found`, `agent-exited` or `launch-command-failed`) ends the guard at once.
+Unknown reservation or input effects remain visible as unknown and are never replayed. A named
+start whose fully accepted command's readiness wait expires is labeled unconfirmed, with
+instructions to check the terminal; its deadline has passed, so the Panel may start again, and
+[prompt-gated input](#prompt-gated-input) types nothing into an Agent that is still running.
+For a named start, pinned canonical attention requests update a non-capturing notice and the reopened board while the
 background workflow keeps observing within its original deadline. Clearing attention can complete the
 same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The board does not install Agents or
 change integration/default configuration. When discovery finds nothing, manual selection remains
@@ -93,7 +102,7 @@ establish hook coverage or verify a provider's own interactive UI.
 
 The start line is an idle-prompt send: the terminal's Host types it only while the root shell
 waits at a fresh, empty, marked prompt, and otherwise refuses with `prompt-unconfirmed`, having
-typed nothing. The workflow then releases the name, so starting again is safe. A prompt younger
+typed nothing. A named start then releases its name, so starting again is safe. A prompt younger
 than the Host's 100 ms quiet period refuses as `settling`; the workflow waits that period on its
 own thread, which holds no shared channel and wakes on cancellation, and asks once more. A second
 `settling` is final. The Client sends the line only when the Session's handshake listed
@@ -159,18 +168,26 @@ after a restart without a hook:
 
 ## Workflow and invariants
 
-1. Validate and quote all arguments before admission. Resolve and pin the primary terminal,
-   observe its shell identity, and reserve the name against its exact native binding.
-2. Recheck the physical terminal, Host epoch and shell PID/creation identity. Submit one
-   literal paste plus Enter as one [prompt-gated](#prompt-gated-input) line; PowerShell adds
-   Right before Enter to flush paste handling.
-3. Inspect the same reservation and terminal. The Server excludes unchanged preexisting
+1. Validate and quote all arguments before admission. Resolve and pin the primary terminal and
+   observe its shell identity. A named start reserves the name against its exact native binding,
+   then rechecks the physical terminal, Host epoch and shell PID/creation identity.
+2. Submit one literal paste plus Enter as one [prompt-gated](#prompt-gated-input) line;
+   PowerShell adds Right before Enter to flush paste handling.
+3. A start without a name ends with its early check, sampling the terminal's processes for up to
+   3000 ms after submission. A shell back at its idle prompt after a process of the requested
+   provider appeared reports `agent-exited`; a shell back at its prompt at 3000 ms without one
+   reports `command-not-found`. Otherwise the shell still runs something, or the sample can no
+   longer be read, and the start is sent: from then on the Server observes the Agent like one
+   typed by hand. An Agent that exits before the first sample, about 100 ms after submission,
+   reports `command-not-found`; the Panel's output tells the two apart. Steps 4 to 6 apply only
+   to a named start.
+4. Inspect the same reservation and terminal. The Server excludes unchanged preexisting
    observations and ambiguous candidates. The CLI also requires the expected running provider,
    which the [launch receipt](#launch-receipt) and the Server identity result can refute early.
-4. Complete only for the pinned live session with fresh idle/completed state and no pending
+5. Complete only for the pinned live session with fresh idle/completed state and no pending
    attention, at least 3000 ms after submission and the Server's reservation settling period.
    The Server rechecks and atomically binds the name while removing the reservation.
-5. Observation also confirms, whichever comes first: while no canonical candidate exists, the
+6. Observation also confirms, whichever comes first: while no canonical candidate exists, the
    Server's published run names the requested provider and the Panel's published Agent state for
    the reserved Terminal generation is idle or blocked and names the same provider. It waits
    3000 ms after submission when no integration was ever enabled, meaning this environment's
@@ -204,9 +221,11 @@ authentication of a provider or a newly launched session.
 
 ## Launch receipt
 
-Reserve also returns a Server-minted run token: a nonzero, never-reused 32-digit lowercase
-hexadecimal value. When the Host's launch kind is managed PowerShell, Agent
-start prefixes its one submitted line with `<#orchbee-run:<token>#> `. The verified reader
+A named start's Reserve also returns a Server-minted run token: a nonzero, never-reused 32-digit
+lowercase hexadecimal value. When the Host's launch kind is managed PowerShell, Agent
+start prefixes its one submitted line with `<#orchbee-run:<token>#> `. A start without a name has
+no reservation, so its line carries no prefix and its early check reads the shell's prompt instead
+of a receipt. The verified reader
 wrapper strips that prefix, exports the token as `ORCHBEE_RUN_TOKEN` to that command only, and
 echoes it in the start and finish markers; the prompt removes the variable when the command
 returns. The prefixed line enters neither PSReadLine history (memory, saved file or Up-arrow
@@ -264,6 +283,8 @@ for any further interpretation it performs internally.
 
 Success is `orchbee.agent.start` v1 with `confirmation`, the requested name, provider,
 reservation identity, elapsed time and the original terminal-send receipt. `confirmation` is
+`sent` after a start without a name: `name` and `reservationId` are null, `panelId` names the
+Panel and `interactiveReady` is false, because nothing waited for readiness. It is
 `session` when the canonical Session confirmed readiness; `sessionId` then names it and holds the
 name. It is `observed` when observation confirmed readiness; `sessionId` is absent and the name is
 not bound, so later commands address the Agent by `--panel` or `--terminal`. Failure is `orchbee.cli.failure.agent-start` v1
@@ -323,7 +344,7 @@ is not required for this Windows slice.
 
 Windows Agent Get v1 (v1 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Managed names are transient and are not restored from checkpoints.
 
-Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path reports input as needed from screen text, though the board's observed confirmation accepts a published blocked state as started and the
+Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady to its existing completion and send evidence: true after a named start's confirmation and false after a start without a name. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path reports input as needed from screen text, though the board's observed confirmation accepts a published blocked state as started and the
 CLI refuses it as `agent-blocked`.
 
-The native form leaves provider and automatic name unset while detection has no result. Found providers precede manual choices; an explicit choice stays pinned by provider identity across catalog updates. Without an explicit choice, the first found provider becomes the default; a completed empty catalog selects the first manual provider. Startup feedback appears once in the board status row and directs unconfirmed outcomes to the terminal. Only a pinned canonical attention observation declares that input is needed; process presence alone never proves readiness.
+The native form leaves the provider unset while detection has no result; its name field starts empty and stays optional. Found providers precede manual choices; an explicit choice stays pinned by provider identity across catalog updates. Without an explicit choice, the first found provider becomes the default; a completed empty catalog selects the first manual provider. Startup feedback appears once in the board status row and directs unconfirmed outcomes to the terminal. Only a pinned canonical attention observation declares that input is needed; process presence alone never proves readiness.

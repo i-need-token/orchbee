@@ -67,7 +67,7 @@ orchbee panel split <panel-id> --direction right
 
 Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，否则为原生用户目录中的 `.codex`。无效覆盖值拒绝且不回退。提供方退出成功不证明安装成功；应读取修改回执中的观察状态。
 
-`agent start review --provider codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端启动，并等待其就绪。已启用提供方集成时，`confirmation` 为 `session`：`sessionId` 指向规范会话，名称已绑定。否则就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，名称不绑定，请用 `--panel` 指定该智能体。智能体处于阻塞状态时以 `agent-blocked` 拒绝。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
+`agent start --provider codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端已确认的提示符处输入一次提供方命令，并在 3 秒检查后返回：`confirmation` 为 `sent`，`interactiveReady` 为 false，`panelId` 指向该面板；发送提示前先用 `agent wait --panel <panel-id> --until idle` 等待。shell 回到提示符时以 `command-not-found` 或 `agent-exited` 失败。加上 `--name review` 会等待其就绪并绑定名称。已启用提供方集成时，`confirmation` 为 `session`：`sessionId` 指向规范会话，名称已绑定。否则就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，名称不绑定，请用 `--panel` 指定该智能体。带名称的启动处于阻塞状态时以 `agent-blocked` 拒绝。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
 
 `agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 会话、来源修订、筛选条件和 Client 选择。畸形游标在读取实时来源前作为用法错误拒绝；判断游标是否过期需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
 
