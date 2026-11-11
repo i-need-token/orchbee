@@ -214,6 +214,18 @@ export const workbenchTabMessages = defineMessages({
 		description:
 			"New Tab menu row for a saved launch profile without a name that runs the system's shell; matches the name Settings lists.",
 	},
+	newTabAgentsHeading: {
+		id: 'workbench.tabs.agents.heading',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.agents.heading'],
+		description:
+			'Heading of the New Tab menu section whose rows start an Agent in a new Tab; not a command.',
+	},
+	newTabMoreAgents: {
+		id: 'workbench.tabs.agents.more',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.agents.more'],
+		description:
+			'Last row of the New Tab menu’s Agents section, which opens Start Agent to choose any Agent for a new Tab.',
+	},
 	loadingTabTitle: {
 		id: 'workbench.tabs.titles.loading',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titles.loading'],

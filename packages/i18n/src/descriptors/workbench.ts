@@ -1125,6 +1125,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.empty.noDirectory'],
 		description: 'Shown in place of terminals when a Workspace without Tabs has no directory.',
 	},
+	workspaceEmptyStartAgent: {
+		id: 'workbench.workspaces.empty.startAgent',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.empty.startAgent'],
+		description:
+			'Hint beside its shortcut, in place of terminals when a Workspace has no Tabs, that opens Start Agent.',
+	},
 	workspaceGitAhead: {
 		id: 'workbench.workspaces.git.ahead',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.git.ahead'],
@@ -1904,6 +1910,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.expired'],
 		description: 'Agent board notice when showing the session took longer than allowed.',
 	},
+	agentBoardStartRow: {
+		id: 'workbench.agentBoard.startRow',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.startRow'],
+		description: 'The Agent board’s first row, above its sessions, which opens Start Agent.',
+	},
 	heldRestoreDirectoryUnavailable: {
 		id: 'workbench.heldRestore.directoryUnavailable',
 		defaultMessage: enUSWorkbenchMessages['workbench.heldRestore.directoryUnavailable'],
@@ -1927,6 +1938,42 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.agentResume.terminalTooOld'],
 		description:
 			'Status notice when the Server gave up resuming an Agent conversation after a restart because the terminal was started by an Orchbee that cannot confirm a prompt. {agent} is the Agent product name.',
+	},
+	agentStartNotFound: {
+		id: 'workbench.agentStart.notFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentStart.notFound'],
+		description:
+			'Status notice when the shell of a new terminal did not find the Agent it was to start. {product} is the Agent product name; {key} is the shortcut that opens Start Agent.',
+	},
+	agentStartNotFoundUnbound: {
+		id: 'workbench.agentStart.notFoundUnbound',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentStart.notFoundUnbound'],
+		description:
+			'Status notice when the shell of a new terminal did not find the Agent it was to start, while Start Agent has no shortcut. {product} is the Agent product name.',
+	},
+	agentStartExited: {
+		id: 'workbench.agentStart.exited',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentStart.exited'],
+		description:
+			'Status notice when an Agent started in a new terminal quit soon after it started. {product} is the Agent product name.',
+	},
+	agentStartUnsupportedShell: {
+		id: 'workbench.agentStart.unsupportedShell',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentStart.unsupportedShell'],
+		description:
+			'Status notice when the shell of a new terminal takes no start command, so the Agent was not started and nothing was typed. {product} is the Agent product name.',
+	},
+	agentStartNotAtPrompt: {
+		id: 'workbench.agentStart.notAtPrompt',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentStart.notAtPrompt'],
+		description:
+			'Status notice when an Agent start typed nothing because the shell of the new terminal never confirmed an empty prompt.',
+	},
+	agentStartTerminalTooOld: {
+		id: 'workbench.agentStart.terminalTooOld',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentStart.terminalTooOld'],
+		description:
+			'Status notice when an Agent start typed nothing because the new terminal was started by an Orchbee that cannot confirm a prompt.',
 	},
 	heldRestoreNotStarted: {
 		id: 'workbench.heldRestore.notStarted',

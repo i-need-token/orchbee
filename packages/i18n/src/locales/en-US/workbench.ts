@@ -154,6 +154,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
 	'workbench.workspaces.empty.directory': 'Directory: {path}',
 	'workbench.workspaces.empty.noDirectory': 'No directory configured.',
+	'workbench.workspaces.empty.startAgent': 'Start Agent',
 	'workbench.workspaces.git.ahead':
 		'{count, plural, one {# commit to push} other {# commits to push}}',
 	'workbench.workspaces.git.behind':
@@ -412,6 +413,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.profiles.customExecutable': 'Custom executable',
 	'workbench.tabs.profiles.default': 'Default',
 	'workbench.tabs.profiles.systemShell': 'System shell',
+	'workbench.tabs.agents.heading': 'Agents',
+	'workbench.tabs.agents.more': 'More Agents…',
 	'workbench.tabs.menus.search': 'Search tabs menu',
 	'workbench.tabs.menus.strip': 'Tab strip menu',
 	'workbench.tabs.menus.vertical': 'Vertical tab strip menu',
@@ -555,6 +558,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.agentBoard.jump.ended': 'Session has ended',
 	'workbench.agentBoard.jump.noPlacement': 'Session has no navigable Panel',
 	'workbench.agentBoard.jump.expired': 'Jump timed out',
+	'workbench.agentBoard.startRow': 'Start Agent',
 	'workbench.heldRestore.directoryUnavailable': 'Directory still unavailable',
 	'workbench.heldRestore.agentNotResumed': 'Agent conversation not resumed',
 	'workbench.heldRestore.notStarted': 'Terminal not started',
@@ -562,6 +566,15 @@ export const enUSWorkbenchMessages = {
 		'{agent} conversation not resumed: the shell was not at its prompt, so nothing was typed.',
 	'workbench.agentResume.terminalTooOld':
 		'{agent} conversation not resumed: this terminal was started by an older Orchbee, so nothing was typed.',
+	'workbench.agentStart.notFound': '{product} not found · {key} choose another',
+	'workbench.agentStart.notFoundUnbound': '{product} not found',
+	'workbench.agentStart.exited': '{product} exited · see its Tab',
+	'workbench.agentStart.unsupportedShell':
+		'{product} not started · this shell takes no start command',
+	'workbench.agentStart.notAtPrompt':
+		'Nothing was typed: the shell is not at an empty prompt. Finish the running command, or clear the line and press Enter for a new prompt, then try again.',
+	'workbench.agentStart.terminalTooOld':
+		'Nothing was typed: this terminal was started by an older Orchbee. Open a new terminal.',
 	'workbench.earlierLayouts.action': 'Earlier layouts…',
 	'workbench.earlierLayouts.reading': 'Reading earlier layouts…',
 	'workbench.earlierLayouts.empty': 'No earlier layouts yet',
