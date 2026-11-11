@@ -52,7 +52,8 @@ the new-Tab place does, with the same notices
 Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alone without a Board
 read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
 opens, a search field, a divider, the grouped list, a status row only while there is something to
-report (the lookup running, no match, or a host that cannot start Agents) and the hint row
+report (the lookup running, a lookup that could not check, no match, or a host or Session that
+cannot start Agents) and the hint row
 `Esc close │ Enter start │ ↑↓ select │ Tab place`. Typing filters at once by product name, command
 or provider id. `Esc` first clears a query, then returns to the Board when the picker came from it,
 else closes; the close control acts like `Esc` with an empty query, and an outside press closes the
@@ -64,35 +65,45 @@ places as flags beside a reference Panel — `--new-tab`, its default, `--split 
 start in a new Panel types nothing; it adds the named start the picker does not offer. See
 [Windows Agent startup](windows-agent-start.md#invocation-and-prerequisites).
 
-Groups follow the list order: **Recent** holds at most three installed providers, most recent
-first; **Installed** follows A–Z; the rest fold into one row, "N more not found on this computer",
-that expands on `Enter` or a click and scrolls the N providers into view with the cursor on the
-first. Any query also searches the folded providers. Each row shows the
-product name and, in secondary text, its command, "not found", or "can't check" for a command the
-process-identity registry classes as generic (`agent` for Cursor, `snow` for Snow CLI); generic
-commands are never advertised as found and sit with the not-found providers. The cursor starts on
-the most recent provider, else the first installed one. Recent is computed in the Client from this
-Client's own starts, newest first, then the Session's Agents by their latest state sequence, one
-entry per provider; nothing is persisted. A remote Session performs no local PATH detection and
-lists Recent, then every provider under "Not checked on this machine" A–Z.
+The list comes from the Session's [Agent catalog](../../orchbee-server/README.md#agent-catalog),
+which the Server keeps for the machine the Session runs on; the TUI looks at no `PATH` of its own.
+While connected the Client holds one State stream of that catalog, which the Server pushes on every
+change, so nothing is polled. Each opening of the picker asks the Server to look again, and the
+list updates when the new lookup's results arrive; opening the new-Tab button's menu never asks.
+Before the first catalog arrives the picker lists nothing and says the lookup is running. A stream
+that fails keeps the last catalog and opens again five seconds later. When the stream fails or is
+refused before any catalog arrived, or the Session cannot start Agents, the picker says starting is
+not supported, the Board hides its Start Agent row and the new-Tab menu has no Agent rows.
 
-On Windows each opening repeats the lookup of mapped commands on the Client's inherited `PATH`
-using fixed System32 `where.exe` helpers, keeping the previous list until it completes. Opening the
-new-Tab button's menu begins the first lookup when none has run, and never repeats one. At most
-four owned workers run concurrently, with a six-second shared deadline, a 900 ms lookup slot and
-bounded Job termination. Results publish one at a time; a missing, failed or timed-out lookup never
-discards other results, and an incomplete first lookup claims nothing installed. Until the first
-lookup completes, a provider it has not found yet is still being checked: it is listed nowhere and
-never counted as not found, the folded row waits for every check, and the status row says the
-lookup is running. A late result never moves the cursor off the provider it rests on. Found commands are
-hints about this Client's PATH, not guarantees about the target terminal.
+Groups follow the list order, by the display rule both Clients share
+([rows corpus](../../../schemas/workbench/README.md)): **Recent** holds the first three of the
+catalog's recent providers that were found; **Installed** holds every other found provider, A–Z by
+product name; the rest fold into one row, "N more not found on this computer", that expands on
+`Enter` or a click and scrolls the N providers into view with the cursor on the first. A provider in
+Recent never repeats in another group. Any query also searches the folded providers. Each row shows
+the product name and, in secondary text, its command, "not found", or "can't check" for a command
+the Server cannot check, such as a generic one (`agent` for Cursor, `snow` for Snow CLI), or one a
+completed lookup could not settle. The cursor starts on the most recent provider, else the first
+installed one, and a later catalog never moves it off the provider it rests on. While a lookup
+runs, a provider it is still checking is listed nowhere: there is no folded row, a query or an
+opened fold lists the providers already known, and the status row says the lookup is running. A
+later lookup keeps the last rows while it runs or if it fails. When no lookup has ever completed on
+the Session's machine and the last one failed or cannot run there, the status row says "Couldn't
+check installed Agents" and every provider not known to be missing is listed under "Not checked on
+this machine" A–Z, after Recent.
+
+Installed is a hint, not a promise. The lookup searches the `PATH` a new shell on that machine
+starts with, before its profile runs: a version manager's shim directory stored in the system or
+user `PATH` is seen, but a directory that only a shell profile adds is not. An Agent listed as not
+found can still be started from its row, and once it runs, the Server corrects its row to found
+([Worker probe](../../orchbee-worker/README.md#agent-probe-job)).
 
 There is no name field. `Enter` or a row click, against the current successful draw, closes the
 picker on the same frame and starts the provider; only new Worktree keeps the picker under the form
 it opens. A terminal's Enter arrives as a bare CR, the
 canonical `Ctrl+M`, and starts the same way. A start the picker cannot make leaves it open and says
-why: the status row on a host that cannot start Agents, otherwise "Agent did not start" in the status
-line.
+why: the status row on a host or Session that cannot start Agents, otherwise "Agent did not start"
+in the status line.
 
 The place row names where the Agent opens before `Enter`. The place is automatic and nothing is
 asked: the focused Panel when its shell is idle — no known Agent holds it and none of this Client's
@@ -132,14 +143,16 @@ starts in a new Tab instead and says "Panel busy · opened a new Tab". The workf
 never installs a provider, inspects an integration or changes configuration. Success shows no
 notice; the Panel's Agent row shows the Agent opening. A failure is a short status notice, such as
 "Codex not found · Ctrl+B G choose another" or "Codex exited · see its Tab", and a provider not
-found, in the focused Panel or in a new one, is listed under not found afterwards. See
+found is listed under not found afterwards: the Server marks its catalog row for a new Panel, and
+the Client marks it for the focused Panel until the connection ends. Recent follows the catalog,
+which moves a provider to the front when one of its runs starts, typed or not. See
 [Windows Agent startup](windows-agent-start.md) for readiness and target requirements.
 
 An empty incomplete read is labeled as partial rather than as proof that no sessions exist.
 
-Closing or superseding a catalog cancels its owner and moves it to a retirement queue. The input
-thread reaps that owner only after it has exited. Session teardown owns the final join; application
-cancellation cannot shorten the initial Windows process-creation and Job-assignment calls.
+The catalog stream belongs to the UI loop, like the terminal title stream, and runs no thread of
+its own. A new origin or Session drops the held catalog and the stream follows the new one;
+connection release closes the stream and drops the catalog.
 
 The successful surface frame grants a same-episode visibility lease for owner-local navigation and
 refresh. Therefore consecutive arrow or `j`/`k` keys can advance the cursor in one input packet even
@@ -173,8 +186,7 @@ queued and still matches applies first; a request whose outcome can never arrive
 credit honestly — a jump fails `Unavailable`, a List settles as a failed round — and the board
 never hangs in flight.
 
-The startup owner is separate from that read lane. It keeps one catalog task and at most one
-startup task per Panel. An accepted task pins its generation and exact Panel, continues when the
+The startup owner is separate from that read lane. It keeps at most one startup task per Panel. An accepted task pins its generation and exact Panel, continues when the
 overlay closes, and settles only a matching completion; another Panel's start never blocks this
 one. Session teardown wakes and joins every bounded task before releasing its origin. A
 disconnected accepted worker, a pending or unknown reservation, accepted or partially accepted
@@ -231,7 +243,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, picker grouping, order, filtering and `Esc` order, the offered places and their `Tab` cycle, new Worktree's form opening over the picker and `Esc` restoring it through the raw-byte route, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, every case of the shared Agent start rows corpus, the cursor held across catalogs, the new-Tab menu's rows, `Esc` order, the offered places and their `Tab` cycle, new Worktree's form opening over the picker and `Esc` restoring it through the raw-byte route, keyboard and pointer startup against the current draw, lost-worker recovery, the Panel-scoped start guard, observed-readiness admission and both locales.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/agent_board/tests.rs`, `crates/workbench-client/src/agent_board/picker/tests.rs`, `crates/workbench-client/src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

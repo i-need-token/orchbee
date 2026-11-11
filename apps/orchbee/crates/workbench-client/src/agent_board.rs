@@ -29,7 +29,7 @@ pub(crate) mod start;
 #[cfg(test)]
 mod tests;
 pub(crate) use session_agents::SessionAgents;
-pub(crate) use start::CatalogStatus as AgentStartCatalogStatus;
+pub(crate) use start::CatalogEvent as AgentCatalogEvent;
 
 /// One bounded read round's absolute deadline — connect admission, the
 /// whole page walk, and the single allowed restart all live inside it.
@@ -898,13 +898,11 @@ pub(crate) struct AgentBoard {
     /// Whether the Start Agent row holds the cursor; it always does while no Agent row exists.
     start_row: bool,
     start: start::State,
-    start_catalog_path: Option<std::ffi::OsString>,
-    /// The new-Tab menu asked for the first lookup; it holds until one begins.
-    catalog_wanted: bool,
+    /// An opened picker asked for a new lookup; it holds until the composition sends it.
+    catalog_refresh: bool,
     /// The Start Agent picker while it replaces the Board's content.
     picker: Option<picker::Picker>,
     session_agents: SessionAgents,
-    agents_revision: u64,
 }
 
 impl AgentBoard {
@@ -933,9 +931,10 @@ impl AgentBoard {
         }
     }
 
-    /// Whether this host can launch an Agent, so the Board offers its Start Agent row.
+    /// Whether this host and the Session's machine can start an Agent, as far as the Session's
+    /// catalog says, so the Board offers its Start Agent row.
     pub(crate) const fn offers_start(&self) -> bool {
-        self.start.launch_supported()
+        self.start.startable()
     }
 
     /// Whether the Start Agent row holds the cursor.
@@ -1060,18 +1059,10 @@ impl AgentBoard {
             last_read_end: None,
             start_row: false,
             start: start::State::new(launch_supported),
-            start_catalog_path: None,
-            catalog_wanted: false,
+            catalog_refresh: false,
             picker: None,
             session_agents: SessionAgents::default(),
-            agents_revision: 0,
         }
-    }
-
-    /// Whether the Client Connection's origin is this machine; only then is
-    /// the Client's own PATH evidence for the start catalog.
-    pub(crate) fn set_origin_locality(&mut self, local: bool) {
-        self.start.set_origin_locality(local);
     }
 
     pub(crate) const fn is_open(&self) -> bool {
@@ -1123,8 +1114,6 @@ impl AgentBoard {
         self.jump = None;
         self.notice = None;
         self.picker = None;
-        self.start_catalog_path = None;
-        self.catalog_wanted = false;
     }
 
     /// Settles exact paint evidence. `None` means another composed surface
@@ -1371,29 +1360,26 @@ impl AgentBoard {
         self.intent = Some(BoardIntent::Jump { target });
     }
 
-    /// One start drain: `jobs` settles its outcomes into the start state and may begin the
-    /// catalog while the picker is open or after the new-Tab menu asked for it.
+    /// One start drain: `jobs` settles its outcomes into the start state.
     pub(crate) fn drain_start(
         &mut self,
         now: Instant,
-        jobs: impl FnOnce(&mut start::State, start::CatalogAdmission) -> start::Drain,
+        jobs: impl FnOnce(&mut start::State) -> start::Drain,
     ) -> bool {
-        let wanted = self.open && self.picker.is_some() || self.catalog_wanted;
-        let admission = if wanted && self.start.catalog_unloaded() {
-            start::CatalogAdmission::Open(self.start_catalog_path.clone())
-        } else {
-            start::CatalogAdmission::Closed
-        };
         let expired = self.start.expire(now);
         self.hold_picker_cursor();
-        let drained = jobs(&mut self.start, admission);
-        if !self.start.catalog_unloaded() {
-            self.catalog_wanted = false;
-        }
+        let drained = jobs(&mut self.start);
         if drained.started {
             self.request_refresh(now);
         }
         drained.changed || expired
+    }
+
+    /// One report of the Session's catalog stream. Returns whether anything listed changed; a
+    /// resting picker cursor stays on its provider.
+    pub(crate) fn receive_agent_catalog(&mut self, event: AgentCatalogEvent) -> bool {
+        self.hold_picker_cursor();
+        self.start.receive_catalog(event)
     }
 
     /// The start state the composition's jobs run against.
@@ -1401,21 +1387,11 @@ impl AgentBoard {
         &mut self.start
     }
 
+    /// A startable Session's catalog after a completed lookup that found `found`.
     #[cfg(test)]
-    pub(crate) fn install_start_catalog_t(&mut self, providers: &[&'static str]) {
-        self.start.install_catalog(providers);
-    }
-
-    /// The first lookup runs and has found `found` so far.
-    #[cfg(test)]
-    pub(crate) fn begin_start_lookup_t(&mut self, found: &[&'static str]) {
-        self.start.begin_lookup_finding(found);
-    }
-
-    /// One more result of the running lookup arrives.
-    #[cfg(test)]
-    pub(crate) fn find_start_provider_t(&mut self, provider: &'static str) -> bool {
-        self.start.find(provider)
+    pub(crate) fn install_start_catalog_t(&mut self, found: &[&'static str]) {
+        self.hold_picker_cursor();
+        self.start.install_catalog(found);
     }
 
     #[cfg(test)]
@@ -1854,11 +1830,11 @@ impl AgentBoard {
         self.shown = None;
     }
 
-    /// Connection release: the start jobs are closed, so no catalog answer
-    /// can still arrive for this connection.
+    /// Connection release: the catalog stream is closed, so nothing held belongs to a connection
+    /// any more.
     pub(crate) fn retire_start_catalog(&mut self) {
-        self.start.retire_catalog();
-        self.catalog_wanted = false;
+        self.start.receive_catalog(AgentCatalogEvent::Reset);
+        self.catalog_refresh = false;
     }
 }
 
@@ -1974,6 +1950,13 @@ impl<'a> AgentBoardView<'a> {
     pub(crate) const fn offers_start(&self) -> bool {
         self.board.offers_start()
     }
+    pub(crate) fn picker_status(&self) -> Option<picker::Status> {
+        self.board.picker_status()
+    }
+    /// The product name and command line the Session's catalog gives `id`.
+    pub(crate) fn start_agent_text(&self, id: &str) -> Option<(&'a str, &'a str)> {
+        self.board.start_agent_text(id)
+    }
     pub(crate) fn start_row_selected(&self) -> bool {
         self.board.start_row_selected()
     }
@@ -1994,9 +1977,6 @@ impl<'a> AgentBoardView<'a> {
     }
     pub(crate) const fn jumping(&self) -> bool {
         self.board.jumping()
-    }
-    pub(crate) fn start_catalog_status(&self) -> start::CatalogStatus {
-        self.board.start.catalog_status()
     }
     pub(crate) const fn can_start_agent(&self) -> bool {
         self.board.can_start_agent()

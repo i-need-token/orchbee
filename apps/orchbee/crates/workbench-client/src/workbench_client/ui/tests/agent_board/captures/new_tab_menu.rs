@@ -108,23 +108,21 @@ fn terminal_enter_on_more_agents_opens_the_picker_at_a_new_tab() {
     assert!(route.forwarded.is_empty(), "no key reached the Panel");
 }
 
-/// The rows are fixed when the menu opens: a lookup result that arrives while it is open neither
+/// The rows are fixed when the menu opens: a catalog that arrives while it is open neither
 /// inserts a row nor moves the candidate, and Enter starts the provider it rests on.
 #[test]
 fn a_late_lookup_result_leaves_the_open_menu_unchanged() {
-    let (mut ui, mut route) = TerminalRoute::ready(&[]);
-    ui.board.retire_start_catalog();
-    ui.board.begin_start_lookup_t(&["codex"]);
+    let (mut ui, mut route) = TerminalRoute::ready(&["codex"]);
     let opened = open_menu(&mut ui, &route);
     assert_eq!(
         agent_rows(&opened),
         [MenuAction::StartAgentInTab("codex"), MenuAction::MoreAgents],
-        "the first lookup's findings so far, and always More Agents…"
+        "the catalog's found providers, and always More Agents…"
     );
     select(&mut ui, &mut route, &MenuAction::StartAgentInTab("codex"));
 
     // Amp sorts before Codex, so the picker would now list it first.
-    assert!(ui.board.find_start_provider_t("amp"));
+    ui.board.install_start_catalog_t(&["amp", "codex"]);
     assert_eq!(ui.board.menu_agents(), ["amp", "codex"]);
     route.send(&mut ui, b"");
     assert_eq!(menu_actions(&ui), opened, "the open menu keeps its rows");

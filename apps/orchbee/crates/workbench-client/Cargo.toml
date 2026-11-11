@@ -48,8 +48,6 @@ clipboard-win = { version = "5.4.1", default-features = false, features = ["std"
 orchbee-windows-console-host = { path = "../../../../crates/windows-console-host" }
 # Original console-title capture/restoration through safe UTF-16 Windows wrappers.
 win32console.workspace = true
-# Suspended Job Object assignment and bounded process-tree cancellation.
-process-wrap.workspace = true
 windows.workspace = true
 # System-directory lookup, file replacement, and bounded CommandLineToArgv process projection.
 # The GUI feature also owns the hidden, joined system-notification window.
@@ -64,6 +62,10 @@ orchbee-local-client = { path = "../local-client", features = ["test-support"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+# A Job Object owns the real Windows programs the argument-boundary test runs.
+process-wrap.workspace = true
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 rustix = { workspace = true, features = ["process"] }

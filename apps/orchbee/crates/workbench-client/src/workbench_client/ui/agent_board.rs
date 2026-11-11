@@ -64,7 +64,7 @@ impl WorkbenchClientUi {
         self.held_restore.set_origin(origin.clone());
         self.earlier_layouts.set_origin(origin.clone());
         self.start_jobs.set_origin(origin.clone());
-        self.board.set_origin_locality(origin.is_local());
+        self.agent_catalog.set_origin(origin.clone());
         self.board_reads.set_origin(origin);
     }
 
@@ -104,8 +104,7 @@ impl WorkbenchClientUi {
             if self.board.picker().is_some() {
                 self.board_reads.close_board(&mut self.board);
             } else {
-                self.board
-                    .enter_picker(std::env::var_os("PATH"), focus.as_ref(), worktree);
+                self.board.enter_picker(focus.as_ref(), worktree);
             }
             return ClientActionDisposition::KeepNavigator;
         }
@@ -115,8 +114,7 @@ impl WorkbenchClientUi {
             }
             return ClientActionDisposition::KeepNavigator;
         }
-        self.board
-            .open_picker(std::env::var_os("PATH"), focus.as_ref(), worktree);
+        self.board.open_picker(focus.as_ref(), worktree);
         ClientActionDisposition::DismissNavigator
     }
 
@@ -128,13 +126,13 @@ impl WorkbenchClientUi {
         }
         let focus = self.focused_panel();
         let worktree = self.worktree_place_available();
-        self.board
-            .open_picker_in_new_tab(std::env::var_os("PATH"), focus.as_ref(), worktree);
+        self.board.open_picker_in_new_tab(focus.as_ref(), worktree);
     }
 
-    /// The new-Tab menu's Agents, fixed when it opens, or `None` where the picker's new-Tab start
-    /// would be hidden or refused, so the section is absent rather than disabled.
-    pub(super) fn new_tab_menu_agents(&mut self) -> Option<Vec<&'static str>> {
+    /// The new-Tab menu's Agents from the catalog already held, fixed when it opens, or `None`
+    /// where the picker's new-Tab start would be hidden or refused, so the section is absent
+    /// rather than disabled. Opening the menu never asks for a new lookup.
+    pub(super) fn new_tab_menu_agents(&self) -> Option<Vec<&'static str>> {
         if self.retirement_failure.is_some()
             || !self
                 .capabilities
@@ -144,7 +142,6 @@ impl WorkbenchClientUi {
         {
             return None;
         }
-        self.board.want_start_catalog(std::env::var_os("PATH"));
         Some(self.board.menu_agents())
     }
 
@@ -195,6 +192,7 @@ impl WorkbenchClientUi {
     /// write interrupts any in-flight exchange so each join stays bounded.
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
         self.start_jobs.close();
+        self.agent_catalog.close();
         self.board.retire_start_catalog();
         self.board_reads.release();
         self.settings.close();
@@ -271,8 +269,7 @@ impl WorkbenchClientUi {
     fn enter_agent_picker(&mut self) {
         let focus = self.focused_panel();
         let worktree = self.worktree_place_available();
-        self.board
-            .enter_picker(std::env::var_os("PATH"), focus.as_ref(), worktree);
+        self.board.enter_picker(focus.as_ref(), worktree);
     }
 
     /// Runs a start the picker accepted in the place it showed.
@@ -328,6 +325,23 @@ impl WorkbenchClientUi {
         while let Some(provider) = self.board.start_state().take_fallback() {
             self.start_in_new_tab(provider);
             changed = true;
+        }
+        changed
+    }
+
+    /// Settles the Session's catalog stream into the start state, then sends the new lookup an
+    /// opened picker asked for. Nothing is polled: the stream pushes every change.
+    fn drive_agent_catalog(&mut self) -> bool {
+        let session = self
+            .state
+            .as_ref()
+            .map(|state| state.cache().session_id().clone());
+        let mut changed = false;
+        for event in self.agent_catalog.poll(session.as_ref(), &self.clock) {
+            changed |= self.board.receive_agent_catalog(event);
+        }
+        if self.board.take_catalog_refresh() {
+            self.agent_catalog.refresh(&self.clock);
         }
         changed
     }
@@ -516,9 +530,10 @@ impl WorkbenchClientUi {
         changed |= self
             .board
             .drive_intent(now, |request| self.board_reads.issue(request));
-        changed |= self.board.drain_start(now, |start, admission| {
-            self.start_jobs.drain(start, admission)
-        });
+        changed |= self.drive_agent_catalog();
+        changed |= self
+            .board
+            .drain_start(now, |start| self.start_jobs.drain(start));
         changed |= self.drive_start_places();
         if let Some(notice) = self.board.start_state().take_notice()
             && let Some(state) = self.state.as_mut()

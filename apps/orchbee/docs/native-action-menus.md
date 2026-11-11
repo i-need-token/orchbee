@@ -84,11 +84,12 @@ default first and marked Default, then a separated Agents section under its head
 Agents by product name, the picker's Recent then Installed rows in its order, and More Agents… with
 the `Ctrl+B G` key. An Agent row starts that Agent in a new Tab of the current Workspace without a
 question, through the [Start Agent picker](agent-board.md)'s new-Tab place; More Agents… opens the
-picker with new Tab as its place. The rows are fixed when the menu opens, so a lookup result that
-arrives later reorders nothing; before the first lookup completes the section lists what is known,
-and a provider still being checked or not found is never listed. Where the picker could not start
-an Agent in a new Tab — no Agent launch on this host or origin, or no current Workspace — the
-section is absent and the profiles stand alone. With a single profile and no section it opens no
+picker with new Tab as its place. The rows come from the Session's Agent catalog as already held:
+opening the menu never asks the Server to look again, and the rows are fixed when the menu opens,
+so a catalog that arrives later reorders nothing. While a lookup runs the section lists what is
+known, and a provider still being checked or not found is never listed. Where the picker could not
+start an Agent in a new Tab — no Agent launch on this host, a Session that cannot start Agents, no
+catalog, or no current Workspace — the section is absent and the profiles stand alone. With a single profile and no section it opens no
 menu, because a click already creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds

@@ -1,35 +1,44 @@
-//! Agent start state: the Client-PATH catalog, each accepted start, and what its outcome asks
-//! of the composition.
+//! Agent start state: the Session's Agent catalog as the Server last sent it, each accepted
+//! start, and what its outcome asks of the composition.
 //!
-//! The Client-PATH catalog and the start workflows run in [`jobs`], which the composition owns
-//! and which settles each outcome back into this state; the input thread never waits on either.
-//! Each accepted operation keeps its exact generation and Panel and guards only that Panel. A
-//! failed start leaves one status notice; a start refused because its Panel stopped being an
-//! idle prompt asks the composition to start the same provider in a new Tab instead.
+//! The catalog arrives on the composition's catalog stream, and the start workflows run in
+//! [`jobs`], which the composition owns and which settles each outcome back into this state; the
+//! input thread never waits on either. Each accepted operation keeps its exact generation and
+//! Panel and guards only that Panel. A failed start leaves one status notice; a start refused
+//! because its Panel stopped being an idle prompt asks the composition to start the same provider
+//! in a new Tab instead.
 
 use std::time::Instant;
 
 use orchbee_agent_observation_protocol::AgentProviderId;
-use orchbee_workbench_protocol::WorkbenchPanelId;
+use orchbee_workbench_protocol::{WorkbenchAgentCatalog, WorkbenchPanelId};
 
 use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
 
 pub(crate) mod jobs;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CatalogStatus {
-    Unsupported,
-    Loading,
-    Ready,
+/// What the Session's catalog stream reported.
+#[derive(Clone, Debug)]
+pub(crate) enum CatalogEvent {
+    /// The catalog as it stands; every frame of the current stream replaces the last.
+    Catalog(WorkbenchAgentCatalog),
+    /// The Session has no Worker yet or its Server is stopping; a catalog may follow.
     Unavailable,
+    /// The Server refused this Session's catalog, or the stream could not open or ended.
+    Refused,
+    /// The stream now follows another origin or Session: nothing held belongs to it.
+    Reset,
 }
 
-enum Catalog {
-    Unsupported,
-    Unloaded,
-    Loading,
-    Ready,
-    Unavailable,
+/// The Session's catalog as this Client holds it.
+#[derive(Clone, Debug)]
+enum Feed {
+    /// No catalog yet: the stream is opening, or the Session has no Worker yet.
+    Awaited,
+    /// No catalog came, and the Server refused it or the stream ended: nothing starts here.
+    Refused,
+    /// The catalog the stream sent last; a later failure keeps it.
+    Held(WorkbenchAgentCatalog),
 }
 
 pub(crate) use crate::workbench_state::AgentStartPhase as Phase;
@@ -111,18 +120,12 @@ impl Operation {
 
 pub(crate) struct State {
     launch_supported: bool,
-    catalog: Catalog,
+    feed: Feed,
     /// Advances whenever anything the picker lists from this state changes.
     revision: u64,
-    /// The providers the last complete lookup found, or the first lookup's partial findings.
-    detected: Vec<&'static str>,
-    /// The running lookup's findings; they replace `detected` once it completes.
-    scanned: Vec<&'static str>,
-    catalog_completed: bool,
-    /// Providers whose start found no command in the target terminal.
+    /// Providers whose start in an existing Panel found no command there; the Server marks only
+    /// the starts it delivers itself.
     missing: Vec<&'static str>,
-    /// This Client's own starts, newest first, one per provider.
-    started: Vec<&'static str>,
     generation: u64,
     /// At most one operation per Panel.
     operations: Vec<Operation>,
@@ -130,8 +133,6 @@ pub(crate) struct State {
     notice: Option<AgentStartNotice>,
     /// Starts that must move to a new Tab, oldest first.
     fallbacks: Vec<&'static str>,
-    /// Locality of the current Client origin; `None` until one is set.
-    origin_local: Option<bool>,
     #[cfg(test)]
     accept_without_task: bool,
 }
@@ -140,22 +141,13 @@ impl State {
     pub(super) fn new(launch_supported: bool) -> Self {
         Self {
             launch_supported,
-            catalog: if launch_supported {
-                Catalog::Unloaded
-            } else {
-                Catalog::Unsupported
-            },
+            feed: Feed::Awaited,
             revision: 0,
-            detected: Vec::new(),
-            scanned: Vec::new(),
-            catalog_completed: false,
             missing: Vec::new(),
-            started: Vec::new(),
             generation: 0,
             operations: Vec::new(),
             notice: None,
             fallbacks: Vec::new(),
-            origin_local: None,
             #[cfg(test)]
             accept_without_task: false,
         }
@@ -169,113 +161,46 @@ impl State {
         self.revision
     }
 
-    pub(super) fn set_origin_locality(&mut self, local: bool) {
-        if self.origin_local.is_some_and(|current| current != local) {
-            self.retire_catalog();
-        }
-        self.origin_local = Some(local);
-    }
-
-    /// Admits the next catalog load. The jobs report whether a retired lookup
-    /// still runs and begin a lookup only for `CatalogBegin::Load`.
-    fn begin_catalog(&mut self, retiring: bool) -> CatalogBegin {
-        if !matches!(self.catalog, Catalog::Unloaded) || retiring {
-            return CatalogBegin::Unchanged;
-        }
+    /// Takes one report of the catalog stream and returns whether anything listed changed. A
+    /// refusal or a missing Worker keeps a catalog already held; only a new origin or Session, or
+    /// the end of the connection, forgets it.
+    pub(super) fn receive_catalog(&mut self, event: CatalogEvent) -> bool {
+        let next = match (event, &self.feed) {
+            (CatalogEvent::Catalog(catalog), _) => Feed::Held(catalog),
+            (CatalogEvent::Unavailable, Feed::Refused) => Feed::Awaited,
+            (CatalogEvent::Refused, Feed::Awaited) => Feed::Refused,
+            (CatalogEvent::Unavailable | CatalogEvent::Refused, _) => return false,
+            (CatalogEvent::Reset, _) => {
+                self.missing.clear();
+                Feed::Awaited
+            }
+        };
+        self.feed = next;
         self.touch();
-        if !self.launch_supported {
-            self.catalog = Catalog::Unsupported;
-            return CatalogBegin::Settled;
-        }
-        if self.origin_local != Some(true) {
-            // This PATH belongs to the Client process. It is evidence only
-            // for a local Session; presenting it for a tunneled target would
-            // falsely claim that a command exists in the target terminal.
-            self.catalog = Catalog::Unavailable;
-            return CatalogBegin::Settled;
-        }
-        self.catalog = Catalog::Loading;
-        self.scanned.clear();
-        CatalogBegin::Load(self.revision)
+        true
     }
 
-    const fn catalog_loading(&self) -> bool {
-        matches!(self.catalog, Catalog::Loading)
-    }
-
-    fn settle_catalog_found(&mut self, provider: &'static str) -> bool {
-        if self.scanned.contains(&provider) {
-            return false;
-        }
-        self.scanned.push(provider);
-        // Until one lookup completes, findings show as they arrive; later lookups replace the
-        // listed set only when they complete, so rows never flicker on reopen.
-        if !self.catalog_completed && !self.detected.contains(&provider) {
-            self.detected.push(provider);
-            self.touch();
-            return true;
-        }
-        false
-    }
-
-    /// A finished, incomplete, or lost lookup settles the catalog.
-    fn settle_catalog_finished(&mut self, complete: bool) {
-        if complete {
-            self.detected = std::mem::take(&mut self.scanned);
-            self.catalog_completed = true;
-            self.catalog = Catalog::Ready;
-        } else {
-            self.catalog = Catalog::Unavailable;
-        }
-        self.touch();
-    }
-
-    pub(super) fn catalog_status(&self) -> CatalogStatus {
-        match self.catalog {
-            Catalog::Unloaded | Catalog::Loading => CatalogStatus::Loading,
-            Catalog::Ready => CatalogStatus::Ready,
-            Catalog::Unavailable => CatalogStatus::Unavailable,
-            Catalog::Unsupported => CatalogStatus::Unsupported,
+    /// The catalog the stream sent last, whatever happened to the stream since.
+    pub(super) const fn catalog(&self) -> Option<&WorkbenchAgentCatalog> {
+        match &self.feed {
+            Feed::Held(catalog) => Some(catalog),
+            Feed::Awaited | Feed::Refused => None,
         }
     }
 
-    pub(super) fn catalog_unloaded(&self) -> bool {
-        matches!(self.catalog, Catalog::Unloaded)
-    }
-
-    /// The providers the picker may call installed, or `None` when nothing on this computer
-    /// says what the target terminal has: a remote Session or an unusable lookup.
-    pub(super) fn installed(&self) -> Option<&[&'static str]> {
-        match self.catalog {
-            Catalog::Unloaded | Catalog::Loading | Catalog::Ready => Some(&self.detected),
-            Catalog::Unavailable if self.catalog_completed => Some(&self.detected),
-            Catalog::Unavailable | Catalog::Unsupported => None,
-        }
-    }
-
-    /// The providers whose check has not completed: until the first lookup completes, every
-    /// checkable provider it has not found yet. They are neither installed nor not found; a later
-    /// lookup keeps the completed list instead.
-    pub(super) fn pending(&self) -> Vec<&'static str> {
-        if self.catalog_completed || !matches!(self.catalog, Catalog::Unloaded | Catalog::Loading) {
-            return Vec::new();
-        }
-        crate::agent_provider::CANONICAL_IDS
-            .iter()
-            .copied()
-            .filter(|id| {
-                crate::agent_provider::detection_executable(id).is_some()
-                    && !self.detected.contains(id)
-            })
-            .collect()
+    /// Whether this host and the Session's machine may start Agents, as far as this Client knows:
+    /// until a catalog or a refusal says otherwise, they may.
+    pub(super) const fn startable(&self) -> bool {
+        self.launch_supported
+            && match &self.feed {
+                Feed::Awaited => true,
+                Feed::Refused => false,
+                Feed::Held(catalog) => catalog.startable,
+            }
     }
 
     pub(super) fn missing(&self) -> &[&'static str] {
         &self.missing
-    }
-
-    pub(super) fn started(&self) -> &[&'static str] {
-        &self.started
     }
 
     /// Whether one of this Client's starts still guards `panel`.
@@ -299,12 +224,10 @@ impl State {
         (!self.fallbacks.is_empty()).then(|| self.fallbacks.remove(0))
     }
 
-    pub(super) const fn launch_supported(&self) -> bool {
-        self.launch_supported
-    }
-
+    /// Whether a start may be accepted now: the Session's catalog says its machine can start
+    /// Agents.
     pub(super) const fn can_start(&self) -> bool {
-        self.launch_supported && self.origin_local.is_some()
+        self.launch_supported && matches!(&self.feed, Feed::Held(catalog) if catalog.startable)
     }
 
     /// Accepts one start of `provider` in `panel` and returns what the jobs must run. Only an
@@ -331,7 +254,6 @@ impl State {
             fallback,
             held_until: Some(deadline),
         });
-        self.note_started(provider);
         Some(StartOperation {
             generation,
             panel,
@@ -409,16 +331,8 @@ impl State {
         true
     }
 
-    /// Counts a start of `provider` among this Client's own starts, newest first: one this Client
-    /// runs, or one the Server runs as a new shell's first command.
-    pub(crate) fn note_started(&mut self, provider: &'static str) {
-        self.started.retain(|started| *started != provider);
-        self.started.insert(0, provider);
-        self.touch();
-    }
-
-    /// Lists `provider` under not found: its start found no command in the target terminal.
-    pub(crate) fn note_not_found(&mut self, provider: &'static str) {
+    /// Lists `provider` under not found: its start in an existing Panel found no command there.
+    fn note_not_found(&mut self, provider: &'static str) {
         if !self.missing.contains(&provider) {
             self.missing.push(provider);
             self.touch();
@@ -437,48 +351,13 @@ impl State {
         changed
     }
 
-    /// Forgets the catalog so the next picker opening looks again. The listed providers stay
-    /// until that lookup completes.
-    pub(super) fn refresh_catalog(&mut self) {
-        if matches!(self.catalog, Catalog::Ready | Catalog::Unavailable) {
-            self.catalog = Catalog::Unloaded;
-        }
-    }
-
-    /// The origin changed or the connection ended: nothing found for the old origin stays.
-    pub(super) fn retire_catalog(&mut self) {
-        if !matches!(self.catalog, Catalog::Unloaded) || self.catalog_completed {
-            self.catalog = Catalog::Unloaded;
-            self.detected.clear();
-            self.scanned.clear();
-            self.catalog_completed = false;
-            self.missing.clear();
-            self.touch();
-        }
-    }
-
+    /// Test seam: the next frame of [`test_catalog`] with nothing recent.
     #[cfg(test)]
-    pub(super) fn install_catalog(&mut self, providers: &[&'static str]) {
-        self.catalog = Catalog::Ready;
-        self.detected = providers.to_vec();
-        self.catalog_completed = true;
-        self.touch();
-    }
-
-    /// Test seam: the first local lookup begins and reports `found` as its results arrive.
-    #[cfg(test)]
-    pub(super) fn begin_lookup_finding(&mut self, found: &[&'static str]) {
-        self.origin_local = Some(true);
-        let _begun = self.begin_catalog(false);
-        for provider in found {
-            self.settle_catalog_found(provider);
-        }
-    }
-
-    /// Test seam: one more result of the running lookup arrives.
-    #[cfg(test)]
-    pub(super) fn find(&mut self, provider: &'static str) -> bool {
-        self.settle_catalog_found(provider)
+    pub(super) fn install_catalog(&mut self, found: &[&'static str]) {
+        let revision = self.catalog().map_or(0, |catalog| catalog.revision.value()) + 1;
+        let mut catalog = test_catalog(found, &[]);
+        catalog.revision = orchbee_workbench_protocol::WorkbenchRevision::new(revision);
+        self.receive_catalog(CatalogEvent::Catalog(catalog));
     }
 
     #[cfg(test)]
@@ -503,18 +382,6 @@ impl State {
     }
 }
 
-/// Whether a drain may begin the Client-PATH catalog, and the PATH it reads.
-pub(crate) enum CatalogAdmission {
-    Closed,
-    Open(Option<std::ffi::OsString>),
-}
-
-enum CatalogBegin {
-    Unchanged,
-    Settled,
-    Load(u64),
-}
-
 /// The accepted start that the jobs run for one generation and Panel.
 struct StartOperation {
     generation: u64,
@@ -522,4 +389,50 @@ struct StartOperation {
     provider: AgentProviderId,
     #[cfg(test)]
     without_task: bool,
+}
+
+/// Test seam: a startable Session's catalog after a completed lookup that found `found`, listing
+/// `recent` as its recent providers; every other provider reads not found, or can't check for a
+/// generic command.
+#[cfg(test)]
+pub(super) fn test_catalog(
+    found: &[&'static str],
+    recent: &[&'static str],
+) -> WorkbenchAgentCatalog {
+    use orchbee_workbench_protocol::{
+        AgentCatalogEntry, AgentCatalogEntryState, AgentCatalogLookup, AgentCatalogLookupStatus,
+        AgentStartSelector, WorkbenchRevision,
+    };
+    let selector = |id: &str| AgentStartSelector::parse(id).expect("a startable provider");
+    let agents = crate::agent_provider::choices()
+        .map(|choice| AgentCatalogEntry {
+            provider_id: selector(choice.id),
+            product_name: choice.product.to_owned(),
+            command: std::iter::once(choice.command)
+                .chain(
+                    crate::agent_provider::launch_arguments(choice.id)
+                        .iter()
+                        .copied(),
+                )
+                .collect::<Vec<_>>()
+                .join(" "),
+            state: if found.contains(&choice.id) {
+                AgentCatalogEntryState::Found
+            } else if choice.checkable {
+                AgentCatalogEntryState::NotFound
+            } else {
+                AgentCatalogEntryState::CantCheck
+            },
+        })
+        .collect();
+    WorkbenchAgentCatalog {
+        revision: WorkbenchRevision::new(1),
+        startable: true,
+        lookup: AgentCatalogLookup {
+            status: AgentCatalogLookupStatus::Complete,
+            checked_at: Some(1),
+        },
+        recent: recent.iter().map(|id| selector(id)).collect(),
+        agents,
+    }
 }

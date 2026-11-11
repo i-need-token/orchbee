@@ -30,9 +30,9 @@ source files are retained unmodified; they are not newly admitted runtime featur
 The standard wrapper keeps upstream-compatible default behavior: `JobObject` alone
 does not enable `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The explicit
 `KillOnJobClose` marker opts one command into that policy, in either registration
-order with `JobObject`. Orchbee's owned Client-PATH helper uses this opt-in so
-dropping its final owned wrapper is a process-tree termination guard after normal
-termination cannot be confirmed.
+order with `JobObject`. The Worker's Agent probe uses this opt-in so dropping its
+final owned wrapper is a process-tree termination guard after normal termination
+cannot be confirmed.
 
 ## Maintenance and evidence
 

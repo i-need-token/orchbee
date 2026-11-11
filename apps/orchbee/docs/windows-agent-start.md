@@ -61,33 +61,20 @@ is one outcome line that names the place and Panel, such as
 `agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
 after an observed one, whose name was not bound.
 
-Each time the [Start Agent picker](agent-board.md) opens, it runs fixed System32 `where.exe`
-queries through `agent_provider::detection_executable()`. Up to four scoped workers publish individual
-candidates into a mailbox bounded by the provider count plus one final verdict. Queries have a 900 ms
-run slot and 600 ms teardown allowance inside one six-second catalog deadline. A partial or failed
-round retains its found candidates, and an incomplete first round claims nothing installed. Each helper owns no output pipe and runs in
-a kill-on-close Windows Job after fixed local process creation and suspended assignment. All workers
-join before the catalog owner exits; UI retirement only reaps exited owners.
-
-The `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` matches are Client-PATH hints, never target availability
-proof. A command that the process-identity registry classes as generic is excluded from automatic
-detection: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation), but other providers
-can install the same basename, and Snow CLI's `snow` is a common word that unrelated programs
-also use. The picker lists these providers as "can't check" and still starts them using their
-existing launch mapping. Shared names such as `amp` and `mcode` are still advertised, as before. A
-remote origin performs no Client-PATH lookup and lists every provider as not checked. The picker
-lists each provider by its product name, has no name field, and after current-draw admission
-passes the focused Panel ID, or the first Panel of a Tab it created, to the same single-submit
-owner. No caller context environment variable or subprocess adapter is introduced.
-
-Fixed local System32 process creation and suspended Job assignment are synchronous Windows ownership
-primitives which application cancellation cannot interrupt. After the owned child is returned, every
-wait polls cancellation and the absolute deadline; Job termination plus kill-on-close covers the
-process tree, and the owner joins only after confirmed exit or the fixed teardown slot expires.
-Closing or superseding the catalog cancels its owner into a retirement queue. The input thread drops
-and joins only owners whose worker has exited. Session teardown owns the final join, which can still
-wait for an initial process-creation or Job-assignment call already in progress; after ownership, the
-deadline and teardown slot bound it.
+The [Start Agent picker](agent-board.md) lists from the Session's
+[Agent catalog](../../orchbee-server/README.md#agent-catalog), which the Server keeps from its
+Worker's [Agent probe](../../orchbee-worker/README.md#agent-probe-job); the Client looks at no
+`PATH` of its own and runs no lookup process. Each opening of the picker asks the Server to look
+again. Found means found on the `PATH` a new shell on the Session's machine starts with, before its
+profile runs, which is a hint, never proof: a provider listed as not found still starts, and once
+it runs the Server lists it as found. A command that the process-identity registry classes as
+generic is never checked: [Cursor uses `agent`](https://prod.cursor.com/docs/cli/installation), but
+other providers can install the same basename, and Snow CLI's `snow` is a common word that
+unrelated programs also use. The picker lists these providers as "can't check" and still starts
+them using their existing launch mapping. The picker lists each provider by its product name, has
+no name field, and after current-draw admission passes the focused Panel ID, or the first Panel of
+a Tab it created, to the same single-submit owner. No caller context environment variable or
+subprocess adapter is introduced.
 
 The picker's background task calls the app-private typed workflow directly. A start without a name
 runs under one 20000 ms deadline covering admission, the single send and the early check; a named
@@ -107,11 +94,10 @@ instructions to check the terminal; its deadline has passed, so the Panel may st
 For a named start, pinned canonical attention requests update a non-capturing notice while the
 background workflow keeps observing within its original deadline. Clearing attention can complete the
 same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The picker does not install Agents or
-change integration/default configuration. When discovery finds nothing, every provider remains
-startable from the not-found group without claiming that any was detected. Cancellation wakes process sampling and
-the single send exchange, but an in-progress Windows process-creation/Job-assignment call and a
-best-effort reservation release of at most one second can still delay teardown; cancellation is not
-instantaneous.
+change integration/default configuration. When the lookup finds nothing, every provider remains
+startable from the not-found group without claiming that any was detected. Cancellation wakes
+process sampling and the single send exchange, but a best-effort reservation release of at most one
+second can still delay teardown; cancellation is not instantaneous.
 
 The terminal's root must be a shell the Host itself launched with prompt marks: managed
 PowerShell or pwsh, or interactive cmd, as the `launchKind` of the Host's process sample records.

@@ -524,6 +524,12 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                     operation: SettingsOperation::Read {},
                     ..
                 }) => assert_eq!(session_id, snapshot.session_id),
+                // The Start Agent picker follows the destination Session's Agent catalog.
+                WorkbenchRequest::AgentCatalog(AgentCatalogRequest {
+                    session_id,
+                    action: AgentCatalogAction::Current {},
+                    ..
+                }) => assert_eq!(session_id, snapshot.session_id),
                 WorkbenchRequest::PanelMetadata(PanelMetadataRequest {
                     action:
                         PanelMetadataAction::Read { .. } | PanelMetadataAction::ReadPresentations { .. },

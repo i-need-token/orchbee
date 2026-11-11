@@ -3,6 +3,7 @@
 //! and Worker retains physical execution; retiring this Client does not terminate its retained
 //! terminals.
 
+mod agent_catalog;
 mod client_control;
 mod command_notice;
 mod completion_reminders;

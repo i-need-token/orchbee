@@ -1,5 +1,5 @@
-//! The Agent start's private background jobs: the Client-PATH catalog lookup
-//! and one Agent startup workflow per started Panel.
+//! The Agent start's private background jobs: one Agent startup workflow per
+//! started Panel.
 //!
 //! The composition owns these jobs beside the Board and drives them against
 //! the start state. Each job settles its own outcome into that state, and the
@@ -8,10 +8,8 @@
 //! contract.
 
 use std::{
-    ffi::OsString,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, TryRecvError},
     },
     time::{Duration, Instant},
@@ -21,7 +19,7 @@ use orchbee_agent_observation_protocol::AgentProviderId;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
-use super::{CatalogAdmission, CatalogBegin, Drain, Phase, State};
+use super::{Drain, Phase, State};
 use crate::{
     agent_start::{Failure, Progress, Report, Request, ReservationState, StartFailure, Verdict},
     background_thread::BackgroundThread,
@@ -33,17 +31,13 @@ use orchbee_client_server_protocol::SendPromptState;
 /// Bounds a start in an existing Panel: admission, the one send and the early check. Nothing
 /// waits for the Agent to become ready.
 const START_DEADLINE: Duration = Duration::from_secs(20);
-const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 
-mod client_path;
 #[cfg(test)]
 mod tests;
 
 #[derive(Default)]
 pub(crate) struct Jobs {
     origin: Option<LocalClientOrigin>,
-    catalog: Option<CatalogTask>,
-    retiring_catalogs: Vec<CatalogTask>,
     /// At most one workflow per Panel.
     start: Vec<StartTask>,
 }
@@ -53,27 +47,9 @@ impl Jobs {
         self.origin = Some(origin);
     }
 
-    /// Applies the state's latest decisions to the owned jobs: a retired catalog
-    /// lookup is cancelled.
-    pub(crate) fn reconcile(&mut self, state: &State) {
-        if !state.catalog_loading() {
-            self.retire_active_catalog();
-        }
-    }
-
-    /// One drain: reconcile, admit the catalog when the Board allows it, then
-    /// settle catalog updates, each workflow's progress, and its completion.
-    pub(crate) fn drain(&mut self, state: &mut State, admission: CatalogAdmission) -> Drain {
-        self.reconcile(state);
-        let admitted = match admission {
-            CatalogAdmission::Open(path) => self.ensure_catalog(state, path),
-            CatalogAdmission::Closed => false,
-        };
-        self.reap_catalogs();
-        let mut drained = Drain {
-            changed: self.drain_catalog(state),
-            started: false,
-        };
+    /// One drain: settle each workflow's progress and its completion.
+    pub(crate) fn drain(&mut self, state: &mut State) -> Drain {
+        let mut drained = Drain::default();
         self.start.retain(|task| {
             if let Some(progress) = task
                 .progress
@@ -105,7 +81,6 @@ impl Jobs {
                 Err(TryRecvError::Empty) => true,
             }
         });
-        drained.changed |= admitted;
         drained
     }
 
@@ -150,7 +125,7 @@ impl Jobs {
         true
     }
 
-    /// Session teardown: wake and join every workflow, then cancel and join every lookup.
+    /// Session teardown: wake and join every workflow.
     pub(crate) fn close(&mut self) {
         for task in &mut self.start {
             task.cancel();
@@ -158,95 +133,23 @@ impl Jobs {
         for mut task in self.start.drain(..) {
             let _ = task.task.join();
         }
-        self.retire_active_catalog();
-        for mut task in self.retiring_catalogs.drain(..) {
-            task.cancel();
-            let _ = task.task.join();
-        }
     }
 
-    /// Process exit: wakes every workflow and cancels every lookup without waiting. An in-flight
-    /// start still cancels and releases its reservation on its own thread.
+    /// Process exit: wakes every workflow without waiting. An in-flight start still cancels and
+    /// releases its reservation on its own thread.
     pub(crate) fn request_stop(&mut self) {
         for task in &mut self.start {
             task.cancel();
         }
-        self.retire_active_catalog();
-        for task in &mut self.retiring_catalogs {
-            task.cancel();
-        }
     }
 
-    /// Process exit: observes every workflow and lookup against the shared deadline.
+    /// Process exit: observes every workflow against the shared deadline.
     pub(crate) fn stop_before(&mut self, deadline: Instant) -> std::io::Result<()> {
         self.request_stop();
         self.start
             .iter_mut()
             .map(|task| task.task.join_before(deadline))
-            .chain(
-                self.retiring_catalogs
-                    .iter_mut()
-                    .map(|task| task.task.join_before(deadline)),
-            )
             .fold(Ok(()), std::io::Result::and)
-    }
-
-    fn ensure_catalog(&mut self, state: &mut State, path: Option<OsString>) -> bool {
-        self.reap_catalogs();
-        match state.begin_catalog(!self.retiring_catalogs.is_empty()) {
-            CatalogBegin::Unchanged => false,
-            CatalogBegin::Settled => true,
-            CatalogBegin::Load(revision) => {
-                match CatalogTask::spawn(revision, path) {
-                    Ok(task) => self.catalog = Some(task),
-                    Err(_) => state.settle_catalog_finished(false),
-                }
-                true
-            }
-        }
-    }
-
-    fn drain_catalog(&mut self, state: &mut State) -> bool {
-        let mut changed = false;
-        // One candidate per canonical provider plus one final verdict is the
-        // complete bounded mailbox. Input never waits for a lookup or a join.
-        for _ in 0..=crate::agent_provider::CANONICAL_IDS.len() {
-            let Some(task) = self.catalog.as_ref() else {
-                break;
-            };
-            let expected = task.revision;
-            match task.take() {
-                Ok((revision, _)) if revision != expected => continue,
-                Ok((_, CatalogUpdate::Found(provider))) => {
-                    changed |= state.settle_catalog_found(provider);
-                }
-                Ok((_, CatalogUpdate::Finished(complete))) => {
-                    self.retire_active_catalog();
-                    state.settle_catalog_finished(complete);
-                    changed = true;
-                    break;
-                }
-                Err(TryRecvError::Disconnected) => {
-                    self.retire_active_catalog();
-                    state.settle_catalog_finished(false);
-                    changed = true;
-                    break;
-                }
-                Err(TryRecvError::Empty) => break,
-            }
-        }
-        changed
-    }
-
-    fn retire_active_catalog(&mut self) {
-        if let Some(mut task) = self.catalog.take() {
-            task.cancel();
-            self.retiring_catalogs.push(task);
-        }
-    }
-
-    fn reap_catalogs(&mut self) {
-        self.retiring_catalogs.retain(|task| !task.finished());
     }
 
     #[cfg(test)]
@@ -345,64 +248,6 @@ fn refusal(failure: &Failure) -> Option<AgentStartRefusal> {
         StartFailure::TerminalTooOld => AgentStartRefusal::TerminalTooOld,
         _ => return None,
     })
-}
-
-enum CatalogUpdate {
-    Found(&'static str),
-    Finished(bool),
-}
-
-struct CatalogTask {
-    revision: u64,
-    outcomes: Receiver<(u64, CatalogUpdate)>,
-    cancelled: Arc<AtomicBool>,
-    task: BackgroundThread,
-}
-
-impl CatalogTask {
-    fn spawn(revision: u64, path: Option<OsString>) -> std::io::Result<Self> {
-        let deadline = Instant::now()
-            .checked_add(CATALOG_DEADLINE)
-            .ok_or_else(|| std::io::Error::other("Agent catalog deadline overflow"))?;
-        let (sender, outcomes) = mpsc::sync_channel(crate::agent_provider::CANONICAL_IDS.len() + 1);
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let task_cancelled = Arc::clone(&cancelled);
-        let task = BackgroundThread::spawn("orchbee-agent-start-catalog", move || {
-            let complete = client_path::client_path_candidates(
-                path.as_deref(),
-                task_cancelled.as_ref(),
-                deadline,
-                |provider| {
-                    let _ = sender.send((revision, CatalogUpdate::Found(provider)));
-                },
-            );
-            let _ = sender.send((revision, CatalogUpdate::Finished(complete)));
-        })?;
-        Ok(Self {
-            revision,
-            outcomes,
-            cancelled,
-            task,
-        })
-    }
-
-    fn take(&self) -> Result<(u64, CatalogUpdate), TryRecvError> {
-        self.outcomes.try_recv()
-    }
-
-    fn cancel(&mut self) {
-        self.cancelled.store(true, Ordering::Release);
-    }
-
-    fn finished(&self) -> bool {
-        self.task.is_finished()
-    }
-}
-
-impl Drop for CatalogTask {
-    fn drop(&mut self) {
-        self.cancel();
-    }
 }
 
 struct Completion {

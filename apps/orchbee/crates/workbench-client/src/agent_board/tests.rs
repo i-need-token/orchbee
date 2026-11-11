@@ -145,8 +145,7 @@ fn one_started_completion_requests_exactly_one_refresh() {
     let mut board = AgentBoard::new(true);
     let mut jobs = start::jobs::Jobs::default();
     let origin = crate::local_client::test_support::server::disconnected_origin();
-    jobs.set_origin(origin.clone());
-    board.set_origin_locality(origin.is_local());
+    jobs.set_origin(origin);
     board.open();
     board.start.install_catalog(&["codex"]);
     board.start.accept_without_task();
@@ -173,14 +172,10 @@ fn one_started_completion_requests_exactly_one_refresh() {
     };
     assert!(jobs.queue_completion_t(&board.start, report));
     board.intent = None;
-    assert!(board.drain_start(Instant::now(), |start, admission| {
-        jobs.drain(start, admission)
-    }));
+    assert!(board.drain_start(Instant::now(), |start| jobs.drain(start)));
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
     board.intent = None;
-    assert!(!board.drain_start(Instant::now(), |start, admission| {
-        jobs.drain(start, admission)
-    }));
+    assert!(!board.drain_start(Instant::now(), |start| jobs.drain(start)));
     assert!(board.intent.is_none());
 }
 

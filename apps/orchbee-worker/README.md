@@ -225,7 +225,7 @@ same names answers `Accepted`. Poll returns one result per name in request order
 flag every query observes. Eight settled jobs stay pollable, and admission evicts the oldest
 settled one first. POSIX Workers have no lookup and answer every Start `Unsupported`.
 
-On Windows the lookup is the one the Client's empty Agent board runs: the system directory's
+On Windows the lookup, which no Client runs on its own, uses the system directory's
 `where.exe /Q $PATH:<name>` with a cleared environment, the fixed `PATHEXT` `.EXE;.COM;.CMD;.BAT;.PS1`,
 no window, and a kill-on-close Job; four threads each run one query at a time, a query gets 900
 milliseconds, and the whole probe six seconds, 0.6 seconds of it reserved for teardown. Exit code 0

@@ -18,11 +18,9 @@ use super::super::modal::{
     paint_dialog,
 };
 use super::{interaction_state, pointer_presentation, render_header_close};
-use crate::agent_board::picker::{Group, Item, Meta};
+use crate::agent_board::picker::{Group, Item, Meta, Status};
 use crate::agent_board::start::StartPlace;
-use crate::agent_board::{
-    AgentBoardControl, AgentBoardDraw, AgentBoardView, AgentStartCatalogStatus,
-};
+use crate::agent_board::{AgentBoardControl, AgentBoardDraw, AgentBoardView};
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::localization::ShellText;
 use crate::terminal_text::{display_width, truncate_display};
@@ -59,17 +57,20 @@ pub(super) fn render(
         StartPlace::NewWorktree => copy.new_worktree,
     };
     let context = copy.opens_in.replace("{place}", place);
-    let status = match board.start_catalog_status() {
-        AgentStartCatalogStatus::Unsupported => Some(DialogRow::Status(
+    let status = match board.picker_status() {
+        Some(Status::Unsupported) => Some(DialogRow::Status(
             copy.unsupported.into(),
             Role::StatusWarning,
         )),
         // A provider still being checked is listed nowhere yet, so an empty list while checking
         // is not "no match".
-        AgentStartCatalogStatus::Loading if board.can_start_agent() => {
-            Some(DialogRow::Status(copy.checking.into(), Role::StatusPending))
-        }
-        _ if !items
+        Some(Status::Looking) => Some(DialogRow::Status(copy.checking.into(), Role::StatusPending)),
+        // The rows below still list every Agent, under not checked.
+        Some(Status::CouldntCheck) => Some(DialogRow::Status(
+            copy.couldnt_check.into(),
+            Role::StatusWarning,
+        )),
+        None if !items
             .iter()
             .any(|item| matches!(item, Item::Provider { .. } | Item::Fold(_))) =>
         {
@@ -173,7 +174,7 @@ pub(super) fn render(
             text,
             *item,
             (offset, cursor == Some(offset)),
-            board.can_start_agent(),
+            board,
             &draw,
             theme,
             hits,
@@ -229,7 +230,7 @@ fn paint_item(
     text: ShellText,
     item: Item,
     (index, selected): (usize, bool),
-    can_start: bool,
+    board: &AgentBoardView<'_>,
     draw: &crate::agent_board::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -251,15 +252,21 @@ fn paint_item(
             );
             return;
         }
-        Item::Provider { id, meta, .. } => (
-            crate::agent_provider::product_name(id).to_owned(),
-            match meta {
-                Meta::Command => crate::agent_provider::launch_line(id).unwrap_or_default(),
-                Meta::Missing => copy.meta_missing.to_owned(),
-                Meta::Generic => copy.meta_generic.to_owned(),
-            },
-            can_start,
-        ),
+        Item::Provider { id, meta, .. } => {
+            // The Session's catalog names the provider and the line a start runs.
+            let (product, command) = board
+                .start_agent_text(id)
+                .unwrap_or((crate::agent_provider::product_name(id), ""));
+            (
+                product.to_owned(),
+                match meta {
+                    Meta::Command => command.to_owned(),
+                    Meta::NotFound => copy.meta_not_found.to_owned(),
+                    Meta::CantCheck => copy.meta_cant_check.to_owned(),
+                },
+                board.can_start_agent(),
+            )
+        }
         Item::Fold(count) => (
             format!(
                 "{} {}",

@@ -1,8 +1,8 @@
 //! Shows the Server's one-shot fact that the Agent start a new Tab, split or Worktree carried did
 //! not happen, as the start notice its reason names, whichever Panel has focus. Each fact shows
 //! once and only while fresh, as a resume fact does; a fact found before this Client attached is
-//! old, so attaching or reconnecting never repeats one. A not-found fact also lists its provider
-//! under not found in the Start Agent picker.
+//! old, so attaching or reconnecting never repeats one. The Server marks a not-found provider's
+//! catalog row itself, which lists it under not found in the Start Agent picker.
 
 use super::{WorkbenchClientUi, presentation_facts};
 use crate::workbench_state::{AgentStartNotice, AgentStartRefusal};
@@ -60,8 +60,7 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Shows the newest new start fact `snapshot` brings as the start notice, and lists a
-    /// provider whose command was not found under not found.
+    /// Shows the newest new start fact `snapshot` brings as the start notice.
     pub(super) fn observe_agent_start_failure(&mut self, snapshot: &Snapshot) {
         let Some(now) = presentation_facts::unix_now() else {
             return;
@@ -71,11 +70,7 @@ impl WorkbenchClientUi {
         };
         let product =
             crate::agent_provider::choice(provider).map_or("Agent", |choice| choice.product);
-        let start = self.board.start_state();
-        if reason == AgentStartFailureReason::NotFound {
-            start.note_not_found(provider);
-        }
-        start.set_notice(notice(reason, product));
+        self.board.start_state().set_notice(notice(reason, product));
     }
 }
 

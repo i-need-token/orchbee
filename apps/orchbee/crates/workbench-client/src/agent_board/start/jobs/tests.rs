@@ -250,10 +250,7 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
 
     // Empty is not worker loss. The sender may publish immediately after this
     // observation, including after its worker handle has become finished.
-    assert_eq!(
-        jobs.drain(&mut state, CatalogAdmission::Closed),
-        Drain::default()
-    );
+    assert_eq!(jobs.drain(&mut state), Drain::default());
     let mut completed = report(
         Failure::Start(StartFailure::TerminalNotIdle),
         ReservationState::Completed,
@@ -272,16 +269,13 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
         .unwrap();
     drop(sender);
     assert_eq!(
-        jobs.drain(&mut state, CatalogAdmission::Closed),
+        jobs.drain(&mut state),
         Drain {
             changed: true,
             started: true
         }
     );
-    assert_eq!(
-        jobs.drain(&mut state, CatalogAdmission::Closed),
-        Drain::default()
-    );
+    assert_eq!(jobs.drain(&mut state), Drain::default());
 }
 
 #[test]
@@ -303,7 +297,7 @@ fn disconnected_start_worker_preserves_recovery() {
             cancelled: false,
         });
         assert_eq!(
-            jobs.drain(&mut state, CatalogAdmission::Closed),
+            jobs.drain(&mut state),
             Drain {
                 changed: true,
                 started: false
@@ -317,177 +311,12 @@ fn disconnected_start_worker_preserves_recovery() {
     }
 }
 
-#[test]
-fn catalog_result_survives_empty_then_sender_exit() {
-    let mut state = State::new(true);
-    let mut jobs = Jobs::default();
-    state.catalog = Catalog::Loading;
-    let (sender, outcomes) = mpsc::sync_channel(1);
-    jobs.catalog = Some(CatalogTask {
-        revision: 4,
-        outcomes,
-        cancelled: Arc::new(AtomicBool::new(false)),
-        task: crate::background_thread::BackgroundThread::ended(),
-    });
-    assert!(!jobs.drain_catalog(&mut state));
-    sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
-    assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.installed(), Some(&["codex"][..]));
-    assert_eq!(state.catalog_status(), CatalogStatus::Loading);
-    sender.send((4, CatalogUpdate::Finished(false))).unwrap();
-    drop(sender);
-    assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-    assert_eq!(
-        state.installed(),
-        None,
-        "an incomplete first lookup cannot say what is installed"
-    );
-}
-
-#[test]
-fn disconnected_catalog_worker_settles_unavailable() {
-    let mut state = State::new(true);
-    let mut jobs = Jobs::default();
-    state.catalog = Catalog::Loading;
-    let (sender, outcomes) = mpsc::sync_channel(1);
-    drop(sender);
-    jobs.catalog = Some(CatalogTask {
-        revision: 4,
-        outcomes,
-        cancelled: Arc::new(AtomicBool::new(false)),
-        task: crate::background_thread::BackgroundThread::ended(),
-    });
-    assert!(jobs.drain_catalog(&mut state));
-    assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-}
-
-#[test]
-fn remote_origin_never_publishes_the_local_process_path_as_target_availability() {
-    let mut state = State::new(true);
-    let mut jobs = Jobs::default();
-    let origin = crate::local_client::test_support::server::disconnected_remote_origin();
-    state.set_origin_locality(origin.is_local());
-    jobs.set_origin(origin);
-    jobs.ensure_catalog(&mut state, std::env::var_os("PATH"));
-    assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-    assert_eq!(state.installed(), None);
-    assert!(jobs.catalog.is_none());
-}
-
-#[test]
-fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
-    use std::cell::Cell;
-    let mut observed = Vec::new();
-    let mut found = Vec::new();
-    let complete = client_path::resolve_candidates(
-        crate::agent_provider::CANONICAL_IDS,
-        || false,
-        |command| {
-            observed.push(command.to_owned());
-            match command {
-                "codex" | "agent" | "amp" | "mcode" | "snow" => client_path::Query::Found,
-                "pi" => client_path::Query::Unavailable,
-                _ => client_path::Query::Missing,
-            }
-        },
-        |provider| found.push(provider),
-    );
-    assert!(!complete);
-    assert_eq!(found, ["codex", "amp", "minimax-code"]);
-    // A command the registry classes as generic never advertises its provider.
-    for generic in ["agent", "snow"] {
-        assert!(
-            !observed.iter().any(|command| command == generic),
-            "{generic}"
-        );
-    }
-    let probes = Cell::new(0);
-    assert!(!client_path::resolve_candidates(
-        crate::agent_provider::CANONICAL_IDS,
-        || probes.get() == 2,
-        |_| {
-            probes.set(probes.get() + 1);
-            client_path::Query::Missing
-        },
-        |_| {}
-    ));
-    assert_eq!(probes.get(), 2);
-    let cancelled = AtomicBool::new(true);
-    assert!(!client_path::client_path_candidates(
-        None,
-        &cancelled,
-        Instant::now() + CATALOG_DEADLINE,
-        |_| panic!("cancelled lookup")
-    ));
-    assert!(!client_path::client_path_candidates(
-        None,
-        &AtomicBool::new(false),
-        Instant::now(),
-        |_| panic!("expired lookup")
-    ));
-}
-
-#[cfg(windows)]
-#[test]
-fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
-    use std::{fs, path::PathBuf, time::SystemTime};
-
-    struct Fixture(PathBuf);
-    impl Drop for Fixture {
-        fn drop(&mut self) {
-            for command in ["codex.cmd", "amp.ps1"] {
-                let _ = fs::remove_file(self.0.join(command));
-            }
-            let _ = fs::remove_dir(self.0.join("claude.exe"));
-            let _ = fs::remove_dir(&self.0);
-        }
-    }
-
-    let root = std::env::temp_dir().join(format!(
-        "orchbee-agent-start-catalog-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    fs::create_dir(&root).unwrap();
-    let fixture = Fixture(root);
-    for command in ["codex.cmd", "amp.ps1"] {
-        fs::write(fixture.0.join(command), []).unwrap();
-    }
-    fs::create_dir(fixture.0.join("claude.exe")).unwrap();
-    let system = PathBuf::from(winsafe::GetSystemDirectory().unwrap());
-    let executable = system.join("where.exe");
-    let cancelled = AtomicBool::new(false);
-    let lookup = |command| {
-        // This guard exists only to reclaim a stuck owned Job. The semantic
-        // witness does not make the product's whole-catalog deadline a claim
-        // about completion time under parallel test-process contention.
-        let deadline = Instant::now() + Duration::from_secs(15);
-        client_path::query(
-            &executable,
-            &system,
-            Some(fixture.0.as_os_str()),
-            command,
-            &cancelled,
-            deadline,
-            deadline,
-        )
-    };
-    assert_eq!(lookup("codex"), client_path::Query::Found);
-    assert_eq!(lookup("amp"), client_path::Query::Found);
-    assert_eq!(lookup("claude"), client_path::Query::Missing);
-}
-
 /// A start guards only its own Panel: another Panel starts while it runs. The same Panel starts
 /// again once observation showed its shell prompt, or once an unknown result reached the
 /// workflow deadline.
 #[test]
 fn a_start_guards_only_its_own_panel_until_the_prompt_returns_or_the_deadline_passes() {
     let mut state = State::new(true);
-    state.set_origin_locality(true);
     state.install_catalog(&["codex"]);
     let deadline = Instant::now() + START_DEADLINE;
     let first = state

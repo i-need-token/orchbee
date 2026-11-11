@@ -1,14 +1,16 @@
 //! The Start Agent picker: one nested task inside the Agent board's modal owner.
 //!
-//! The picker lists every startable provider in groups — recent, installed, then one folded
-//! row for the providers this computer did not find — filters them as the query changes, and
-//! hands the chosen provider and its place to the composition. It never starts anything itself
-//! and keeps no record: recency comes from [`super::session_agents`], installation from the
-//! start state's catalog.
+//! The picker lists the Session's Agent catalog in groups — recent, installed, then one folded
+//! row for the providers its machine did not find — filters them as the query changes, and hands
+//! the chosen provider and its place to the composition. It never starts anything itself and
+//! keeps no record: rows, their state and recency come from the catalog the Server sends.
 
-use orchbee_workbench_protocol::WorkbenchPanelId;
+use orchbee_workbench_protocol::{
+    AgentCatalogEntryState, AgentCatalogLookup, AgentCatalogLookupStatus, WorkbenchAgentCatalog,
+    WorkbenchPanelId,
+};
 
-use super::session_agents::{RECENT_LIMIT, SessionAgents, recent};
+use super::session_agents::SessionAgents;
 use super::start::StartPlace;
 use super::{AgentBoard, AgentBoardControl, AgentBoardControlTarget};
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
@@ -23,25 +25,28 @@ mod tests;
 
 const MAXIMUM_QUERY_BYTES: usize = 64;
 
+/// At most this many providers lead the picker as recent.
+const RECENT_LIMIT: usize = 3;
+
 /// One listed group, in display order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Group {
     Recent,
     Installed,
     NotFound,
-    /// A remote Session: this computer cannot say what the target terminal has.
+    /// No lookup completed on the Session's machine, so nothing says what it has.
     NotChecked,
 }
 
 /// What a provider row shows on its right.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Meta {
-    /// The line a start types, such as `openclaw chat`.
+    /// The line a start runs, such as `openclaw chat`.
     Command,
-    /// This computer, or an earlier start, found no command.
-    Missing,
-    /// The command is generic, so finding it would not prove the provider is installed.
-    Generic,
+    /// The lookup, or an earlier start, found no command.
+    NotFound,
+    /// The command is generic or its check failed, so nothing says whether it is installed.
+    CantCheck,
 }
 
 /// One list row.
@@ -71,6 +76,17 @@ impl Item {
     }
 }
 
+/// What the status row reports about the catalog.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Status {
+    /// The host or the Session's machine cannot start Agents.
+    Unsupported,
+    /// No catalog yet, or the first lookup is still running.
+    Looking,
+    /// No lookup completed and the last one failed or cannot run on that machine.
+    CouldntCheck,
+}
+
 /// The cursor's identity, so it follows its row while the list changes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Target {
@@ -78,113 +94,171 @@ enum Target {
     Fold,
 }
 
-/// What the picker lists from.
+/// One catalog row as the picker lists it.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Sources<'a> {
-    /// Recent providers, most recent first.
-    pub(crate) recent: &'a [&'static str],
-    /// The providers this computer found, or `None` when it cannot check the target terminal.
-    pub(crate) installed: Option<&'a [&'static str]>,
-    /// Providers whose start found no command.
-    pub(crate) missing: &'a [&'static str],
-    /// Providers whose check has not completed: listed nowhere and never counted as not found.
-    pub(crate) pending: &'a [&'static str],
+struct Row<'a> {
+    id: &'static str,
+    product: &'a str,
+    command: &'a str,
+    state: AgentCatalogEntryState,
 }
 
-/// Whether `id` matches the query by its product name, its command line or its id.
-fn matches(id: &'static str, query: &str) -> bool {
-    if query.is_empty() {
-        return true;
+impl Row<'_> {
+    /// Whether the query, already trimmed and lowercase, keeps this row: its product name, its
+    /// command or its id contains it.
+    fn matches(&self, query: &str) -> bool {
+        query.is_empty()
+            || self.product.to_lowercase().contains(query)
+            || self.command.to_lowercase().contains(query)
+            || self.id.contains(query)
     }
-    let query = query.to_lowercase();
-    let product = crate::agent_provider::product_name(id).to_lowercase();
-    let line = crate::agent_provider::launch_line(id)
-        .unwrap_or_default()
-        .to_lowercase();
-    product.contains(&query) || line.contains(&query) || id.contains(&query)
 }
 
-fn by_product(ids: &mut [&'static str]) {
-    ids.sort_by_key(|id| crate::agent_provider::product_name(id).to_lowercase());
+/// What the picker lists from: the Session's catalog, with each provider this Client's own start
+/// found missing read as not found.
+pub(crate) struct Sources<'a> {
+    rows: Vec<Row<'a>>,
+    /// Providers started most recently, newest first.
+    recent: Vec<&'static str>,
+    lookup: AgentCatalogLookup,
 }
 
-/// The picker's rows: Recent (at most three, still available, most recent first), then the
-/// rest. Locally the rest is Installed A–Z and a Not found group that stays folded into one row
-/// until it is opened or a query searches it; for a remote Session it is one Not checked group.
-/// A provider whose start found no command is listed as not found in both. A provider whose
-/// check is still running is not listed until it completes, and the fold waits for every check.
-pub(crate) fn items(sources: Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
-    let query = query.trim();
-    let all: Vec<_> = crate::agent_provider::choices().collect();
-    let missing = |id: &str| sources.missing.contains(&id);
-    let pending = |id: &str| !missing(id) && sources.pending.contains(&id);
-    let available = |id: &str| {
-        !missing(id)
-            && !pending(id)
-            && sources
-                .installed
-                .is_none_or(|installed| installed.contains(&id))
+impl<'a> Sources<'a> {
+    pub(crate) fn new(catalog: &'a WorkbenchAgentCatalog, missing: &[&'static str]) -> Self {
+        Self {
+            rows: catalog
+                .agents
+                .iter()
+                .map(|entry| {
+                    let id = entry.provider_id.agent().id();
+                    Row {
+                        id,
+                        product: &entry.product_name,
+                        command: &entry.command,
+                        state: if missing.contains(&id) {
+                            AgentCatalogEntryState::NotFound
+                        } else {
+                            entry.state
+                        },
+                    }
+                })
+                .collect(),
+            recent: catalog
+                .recent
+                .iter()
+                .map(|provider| provider.agent().id())
+                .collect(),
+            lookup: catalog.lookup,
+        }
+    }
+
+    /// Whether no lookup has completed and the last one failed or cannot run: nothing says what
+    /// the Session's machine has.
+    fn unchecked(&self) -> bool {
+        self.lookup.checked_at.is_none()
+            && matches!(
+                self.lookup.status,
+                AgentCatalogLookupStatus::Failed | AgentCatalogLookupStatus::Unsupported
+            )
+    }
+
+    fn checking(&self) -> bool {
+        self.rows
+            .iter()
+            .any(|row| row.state == AgentCatalogEntryState::Checking)
+    }
+}
+
+fn by_product(rows: &mut [Row<'_>]) {
+    rows.sort_by_key(|row| row.product.to_lowercase());
+}
+
+/// The picker's rows: Recent (at most three that may start, most recent first), then the rest.
+/// After a completed lookup the rest is Installed A–Z and a Not found group that stays folded into
+/// one row until it is opened or a query searches it. While no lookup has completed and the last
+/// one failed or cannot run, it is one Not checked group, then Not found. A provider whose check
+/// is still running is never listed, and the fold waits for every check.
+pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
+    use AgentCatalogEntryState as State;
+    let query = query.trim().to_lowercase();
+    let unchecked = sources.unchecked();
+    let startable = |row: &Row<'_>| {
+        if unchecked {
+            !matches!(row.state, State::NotFound | State::Checking)
+        } else {
+            row.state == State::Found
+        }
     };
-    let recent: Vec<&'static str> = sources
+    let recent: Vec<Row<'_>> = sources
         .recent
         .iter()
+        .filter_map(|id| sources.rows.iter().find(|row| row.id == *id))
         .copied()
-        .filter(|id| all.iter().any(|choice| choice.id == *id) && available(id))
+        .filter(startable)
         .take(RECENT_LIMIT)
         .collect();
-    let mut rest: Vec<&'static str> = all
+    let mut rest: Vec<Row<'_>> = sources
+        .rows
         .iter()
-        .map(|choice| choice.id)
-        .filter(|id| available(id) && !recent.contains(id))
+        .copied()
+        .filter(|row| startable(row) && !recent.iter().any(|listed| listed.id == row.id))
         .collect();
     by_product(&mut rest);
-    let mut unavailable: Vec<&'static str> = all
+    let mut unavailable: Vec<Row<'_>> = sources
+        .rows
         .iter()
-        .map(|choice| choice.id)
-        .filter(|id| !available(id) && !pending(id))
+        .copied()
+        .filter(|row| !startable(row) && row.state != State::Checking)
         .collect();
     by_product(&mut unavailable);
-    let checking = all.iter().any(|choice| pending(choice.id));
 
     let mut rows = Vec::new();
-    let group = |rows: &mut Vec<Item>, group: Group, ids: &[&'static str]| {
+    let group = |rows: &mut Vec<Item>, group: Group, listed: &[Row<'_>]| {
         let mut heading = false;
-        for id in ids.iter().copied().filter(|id| matches(id, query)) {
+        for row in listed.iter().filter(|row| row.matches(&query)) {
             if !heading {
                 rows.push(Item::Heading(group));
                 heading = true;
             }
-            let meta = if missing(id) || group == Group::NotFound && sources.installed.is_some() {
-                let generic = all
-                    .iter()
-                    .any(|choice| choice.id == id && !choice.checkable);
-                if generic && !missing(id) {
-                    Meta::Generic
-                } else {
-                    Meta::Missing
-                }
-            } else {
-                Meta::Command
+            let meta = match (group, row.state) {
+                (Group::NotFound, State::NotFound) => Meta::NotFound,
+                (Group::NotFound, _) => Meta::CantCheck,
+                _ => Meta::Command,
             };
-            rows.push(Item::Provider { id, group, meta });
+            rows.push(Item::Provider {
+                id: row.id,
+                group,
+                meta,
+            });
         }
     };
     group(&mut rows, Group::Recent, &recent);
-    if sources.installed.is_some() {
+    if unchecked {
+        group(&mut rows, Group::NotChecked, &rest);
+        group(&mut rows, Group::NotFound, &unavailable);
+    } else {
         group(&mut rows, Group::Installed, &rest);
         if query.is_empty() && !expanded {
             // While a check runs the count is not known; the status row says so instead.
-            if !unavailable.is_empty() && !checking {
+            if !unavailable.is_empty() && !sources.checking() {
                 rows.push(Item::Fold(unavailable.len()));
             }
         } else {
             group(&mut rows, Group::NotFound, &unavailable);
         }
-    } else {
-        group(&mut rows, Group::NotChecked, &rest);
-        group(&mut rows, Group::NotFound, &unavailable);
     }
     rows
+}
+
+/// What the status row says about a held catalog, if anything.
+pub(crate) fn status(sources: &Sources<'_>) -> Option<Status> {
+    if sources.unchecked() {
+        Some(Status::CouldntCheck)
+    } else if sources.checking() {
+        Some(Status::Looking)
+    } else {
+        None
+    }
 }
 
 /// How many Agents the new-Tab menu lists before "More Agents…".
@@ -192,7 +266,7 @@ pub(crate) const MENU_LIMIT: usize = 4;
 
 /// The new-Tab menu's Agents: the picker's own Recent then Installed rows, in its order, at most
 /// [`MENU_LIMIT`]. A provider still being checked, not found or not checked is never listed.
-pub(crate) fn menu_agents(sources: Sources<'_>) -> Vec<&'static str> {
+pub(crate) fn menu_agents(sources: &Sources<'_>) -> Vec<&'static str> {
     items(sources, "", false)
         .into_iter()
         .filter_map(|item| match item {
@@ -375,7 +449,6 @@ impl Picker {
 pub(super) struct DrawSource {
     revision: u64,
     start: u64,
-    agents: u64,
 }
 
 /// What a key or click inside the picker did.
@@ -394,51 +467,61 @@ impl AgentBoard {
         self.picker.as_ref().map(|picker| DrawSource {
             revision: picker.revision,
             start: self.start.revision(),
-            agents: self.agents_revision,
         })
     }
 
-    /// The Session's Agents as last observed; a change redraws an open picker.
+    /// The Session's Agents as last observed.
     pub(crate) fn observe_session_agents(&mut self, agents: SessionAgents) {
         if self.session_agents != agents {
             self.session_agents = agents;
-            self.agents_revision = self.agents_revision.wrapping_add(1);
             self.follow_shown_agents();
         }
     }
 
-    pub(crate) fn picker_sources(&self) -> (Vec<&'static str>, Option<Vec<&'static str>>) {
-        (
-            recent(self.start.started(), &self.session_agents),
-            self.start.installed().map(<[_]>::to_vec),
-        )
+    /// What the picker lists from, while a catalog is held.
+    fn sources(&self) -> Option<Sources<'_>> {
+        self.start
+            .catalog()
+            .map(|catalog| Sources::new(catalog, self.start.missing()))
     }
 
-    fn with_sources<T>(&self, list: impl FnOnce(Sources<'_>) -> T) -> T {
-        let (recent, installed) = self.picker_sources();
-        let pending = self.start.pending();
-        list(Sources {
-            recent: &recent,
-            installed: installed.as_deref(),
-            missing: self.start.missing(),
-            pending: &pending,
-        })
-    }
-
-    /// The picker's current rows.
+    /// The picker's current rows; none until the Session's catalog arrives.
     pub(crate) fn picker_items(&self) -> Vec<Item> {
         let Some(picker) = self.picker.as_ref() else {
             return Vec::new();
         };
-        self.with_sources(|sources| items(sources, picker.query(), picker.expanded))
+        self.sources().map_or_else(Vec::new, |sources| {
+            items(&sources, picker.query(), picker.expanded)
+        })
+    }
+
+    /// What the picker's status row reports, if anything.
+    pub(crate) fn picker_status(&self) -> Option<Status> {
+        if !self.start.startable() {
+            return Some(Status::Unsupported);
+        }
+        self.sources()
+            .map_or(Some(Status::Looking), |sources| status(&sources))
+    }
+
+    /// The product name and command line the catalog gives `id`.
+    pub(crate) fn start_agent_text(&self, id: &str) -> Option<(&str, &str)> {
+        self.start.catalog().and_then(|catalog| {
+            catalog
+                .agents
+                .iter()
+                .find(|entry| entry.provider_id.agent().id() == id)
+                .map(|entry| (entry.product_name.as_str(), entry.command.as_str()))
+        })
     }
 
     /// The Agents the new-Tab menu lists now, from what the picker would list.
     pub(crate) fn menu_agents(&self) -> Vec<&'static str> {
-        self.with_sources(menu_agents)
+        self.sources()
+            .map_or_else(Vec::new, |sources| menu_agents(&sources))
     }
 
-    /// Holds a resting cursor on the provider it rests on, so a late lookup result that lists a
+    /// Holds a resting cursor on the provider it rests on, so a later catalog that lists a
     /// provider above it never moves the cursor.
     pub(super) fn hold_picker_cursor(&mut self) {
         if self
@@ -469,70 +552,53 @@ impl AgentBoard {
 
     /// `Ctrl+B G`: opens the Board's owner straight into the picker, without reading the
     /// Board's rows. `worktree` offers New Worktree.
-    pub(crate) fn open_picker(
-        &mut self,
-        path: Option<std::ffi::OsString>,
-        focus: Option<&WorkbenchPanelId>,
-        worktree: bool,
-    ) {
+    pub(crate) fn open_picker(&mut self, focus: Option<&WorkbenchPanelId>, worktree: bool) {
         self.open();
         self.intent = None;
-        self.start_picker(path, focus, worktree, false);
+        self.start_picker(focus, worktree, false);
     }
 
     /// The new-Tab menu's "More Agents…": the picker alone, with a new Tab as its place.
     pub(crate) fn open_picker_in_new_tab(
         &mut self,
-        path: Option<std::ffi::OsString>,
         focus: Option<&WorkbenchPanelId>,
         worktree: bool,
     ) {
-        self.open_picker(path, focus, worktree);
+        self.open_picker(focus, worktree);
         if let Some(picker) = self.picker.as_mut() {
             picker.place = StartPlace::NewTab;
-        }
-    }
-
-    /// The new-Tab menu lists from the lookup too: opening it begins the first one when none
-    /// has run, as the picker's opening would. Unlike the picker it never repeats a lookup.
-    pub(crate) fn want_start_catalog(&mut self, path: Option<std::ffi::OsString>) {
-        if self.picker.is_none() && self.start.catalog_unloaded() {
-            self.start_catalog_path = path;
-            self.catalog_wanted = true;
         }
     }
 
     /// The Board's Start Agent row or `s`: the picker replaces the Board's content until Esc.
     pub(crate) fn enter_picker(
         &mut self,
-        path: Option<std::ffi::OsString>,
         focus: Option<&WorkbenchPanelId>,
         worktree: bool,
     ) -> bool {
         if !self.open || self.picker.is_some() || !self.offers_start() {
             return false;
         }
-        self.start_picker(path, focus, worktree, true);
+        self.start_picker(focus, worktree, true);
         true
     }
 
-    fn start_picker(
-        &mut self,
-        path: Option<std::ffi::OsString>,
-        focus: Option<&WorkbenchPanelId>,
-        worktree: bool,
-        from_board: bool,
-    ) {
+    /// Opens the picker and asks the composition to have the Server look for installed Agents
+    /// again; the new-Tab menu never asks.
+    fn start_picker(&mut self, focus: Option<&WorkbenchPanelId>, worktree: bool, from_board: bool) {
         let places = self.places(focus, worktree);
         self.picker = Some(Picker::new(from_board, places));
-        self.start_catalog_path = path;
-        self.start.refresh_catalog();
+        self.catalog_refresh = true;
         self.shown = None;
+    }
+
+    /// Whether an opened picker asked for a new lookup since the last call.
+    pub(crate) fn take_catalog_refresh(&mut self) -> bool {
+        std::mem::replace(&mut self.catalog_refresh, false)
     }
 
     fn leave_picker(&mut self) {
         self.picker = None;
-        self.start_catalog_path = None;
         self.shown = None;
     }
 
@@ -659,8 +725,9 @@ impl AgentBoard {
                 })
             }
             Some(Item::Provider { .. }) => {
-                // An unsupported host says why in the status row; any other refusal says it here.
-                if self.start.launch_supported() {
+                // A host or Session that cannot start Agents says why in the status row; any
+                // other refusal says it here.
+                if self.start.startable() {
                     self.start.set_notice(AgentStartNotice::Failed);
                 }
                 PickerOutcome::Handled

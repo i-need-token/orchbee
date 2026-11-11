@@ -1537,8 +1537,10 @@ pub(super) struct WorkbenchClientUi {
     board: crate::agent_board::AgentBoard,
     /// The Board's read lane; its answers settle into `board`.
     board_reads: agent_board::BoardReads,
-    /// The Board's catalog and startup jobs; they settle into `board`'s start state.
+    /// The Board's startup jobs; they settle into `board`'s start state.
     start_jobs: crate::agent_board::start::jobs::Jobs,
+    /// The Session's Agent catalog stream; its reports settle into `board`'s start state.
+    agent_catalog: super::agent_catalog::Lane,
     worktrees: worktree_launch::Coordinator,
     attention: super::agent_attention::AgentAttention,
     reports: super::panel_reports::PanelReports,
@@ -1684,6 +1686,7 @@ impl WorkbenchClientUi {
             ),
             board_reads: agent_board::BoardReads::new(clock.clone()),
             start_jobs: Default::default(),
+            agent_catalog: Default::default(),
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::MenuEpisode::default(),
             settings: settings::Coordinator::new(capabilities.login_shell),
@@ -2008,6 +2011,7 @@ impl WorkbenchClientUi {
             let _closed = mailbox.close(CarrierFailure::Closed);
         }
         self.start_jobs.request_stop();
+        self.agent_catalog.close();
         self.board_reads.request_stop();
         self.attention.request_stop();
         self.reports.request_stop();
