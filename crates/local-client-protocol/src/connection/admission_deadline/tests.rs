@@ -20,12 +20,16 @@ use crate::{ConnectClientError, LocalClientMessage, RejectionReason, write_messa
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-/// The Client phase over the deadline transport, as admission runs it after the answer.
+/// The Client phase over the deadline transport, as admission runs it after the answer: a decoded
+/// acceptance still counts only before the deadline.
 fn exchange_hello(
     stream: &mut (impl Read + Write + AsFd),
     deadline: Deadline<'_>,
 ) -> Result<NonZeroU64, ConnectClientError> {
-    super::super::handshake::enter_client_phase(&mut DeadlineIo { stream, deadline })
+    let generation =
+        super::super::handshake::enter_client_phase(&mut DeadlineIo { stream, deadline })?;
+    deadline.remaining()?;
+    Ok(generation)
 }
 
 #[test]
