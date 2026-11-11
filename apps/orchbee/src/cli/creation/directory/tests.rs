@@ -14,17 +14,20 @@ fn root_directory_never_guesses_a_child_or_relative_path() {
         command_line: None,
         current_directory: Some(value.to_owned()),
     };
+    // Absolute directories in this platform's own spelling.
+    let (child, root) = if cfg!(windows) {
+        (r"C:\child", r"C:\项目 with spaces")
+    } else {
+        ("/child", "/项目 with spaces")
+    };
     let mut info = TerminalProcessInfo {
         attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
         terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 20,
-        processes: vec![row(30, r"C:\child"), row(20, r"C:\项目 with spaces")],
+        processes: vec![row(30, child), row(20, root)],
         launch_kind: None,
     };
-    assert_eq!(
-        root_directory(&info).unwrap().as_str(),
-        r"C:\项目 with spaces"
-    );
+    assert_eq!(root_directory(&info).unwrap().as_str(), root);
     for value in ["relative", r"C:relative", "", "bad\0path"] {
         info.processes[1].current_directory = Some(value.to_owned());
         assert!(root_directory(&info).is_none(), "{value:?}");
