@@ -64,7 +64,7 @@ fn real_worker_relays_independent_viewers_and_snapshot_feedback_then_retains_ter
             &mut server,
             &CapabilityNodeMessage::TerminalViewerRequest(request),
         )?;
-        let CapabilityNodeMessage::TerminalViewerResult(result) = read_obcn(&mut server)? else {
+        let CapabilityNodeMessage::TerminalViewerResult(result) = read_answer(&mut server)? else {
             return Err("missing viewer rejection".into());
         };
         assert_eq!(result.request_id, request.request_id);
@@ -83,7 +83,7 @@ fn real_worker_relays_independent_viewers_and_snapshot_feedback_then_retains_ter
             geometry()?,
         )),
     )?;
-    let CapabilityNodeMessage::TerminalStartResult(started) = read_obcn(&mut server)? else {
+    let CapabilityNodeMessage::TerminalStartResult(started) = read_answer(&mut server)? else {
         return Err("missing concurrent viewer Start result".into());
     };
     assert!(
@@ -225,7 +225,7 @@ fn viewer(
         server,
         &CapabilityNodeMessage::TerminalViewerRequest(request),
     )?;
-    let CapabilityNodeMessage::TerminalViewerResult(result) = read_obcn(server)? else {
+    let CapabilityNodeMessage::TerminalViewerResult(result) = read_answer(server)? else {
         return Err("missing viewer result".into());
     };
     assert_eq!(result.request_id, request.request_id);

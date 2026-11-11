@@ -637,6 +637,19 @@ fn a_partial_idle_host_event_has_a_deadline_and_closes_both_peers() -> TestResul
     Ok(())
 }
 
+/// Reads the Worker's next answer to the Server. The Worker also sends unsolicited notes when a
+/// viewer has a record to Poll or terminal titles changed; these witnesses Poll explicitly and own
+/// no titles, so they read past the notes.
+fn read_answer(server: &mut UnixStream) -> TestResult<CapabilityNodeMessage> {
+    loop {
+        match read_obcn(server)? {
+            CapabilityNodeMessage::TerminalViewerRecordReady(_)
+            | CapabilityNodeMessage::TerminalTitlesChanged(_) => {}
+            message => return Ok(message),
+        }
+    }
+}
+
 fn admit_host(listener: &UnixListener) -> io::Result<UnixStream> {
     let mut stream = accept_with_deadline(listener)?;
     configure_peer_stream(&stream)?;

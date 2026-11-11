@@ -41,7 +41,7 @@ fn step(
         server,
         &CapabilityNodeMessage::TerminalLifecycleRequest(request),
     )?;
-    let CapabilityNodeMessage::TerminalLifecycleResult(result) = read_obcn(server)? else {
+    let CapabilityNodeMessage::TerminalLifecycleResult(result) = read_answer(server)? else {
         return Err("missing lifecycle result".into());
     };
     assert_eq!(result.request(), request);
@@ -63,7 +63,7 @@ fn viewer(
         server,
         &CapabilityNodeMessage::TerminalViewerRequest(request),
     )?;
-    let CapabilityNodeMessage::TerminalViewerResult(result) = read_obcn(server)? else {
+    let CapabilityNodeMessage::TerminalViewerResult(result) = read_answer(server)? else {
         return Err("missing viewer result".into());
     };
     assert_eq!(result.request_id, request.request_id);

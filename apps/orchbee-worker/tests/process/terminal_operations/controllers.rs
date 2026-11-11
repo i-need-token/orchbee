@@ -4,11 +4,68 @@ use orchbee_capability_node_protocol::{
     TerminalViewerAction, TerminalViewerRequest,
 };
 use orchbee_terminal_protocol::{
-    AttachmentCapabilities, AttachmentControl, InputAccepted, InputMessage,
-    ProjectionDemandAccepted, ProjectionDemandControl, TypedFailure, decode_attachment_control,
-    decode_input_message, decode_projection_demand_control, encode_attachment_control,
-    encode_input_message, encode_projection_demand_control,
+    AttachmentCapabilities, AttachmentControl, ColorScheme, CreationId, InputAccepted,
+    InputMessage, ProjectionDemandAccepted, ProjectionDemandControl, TerminalConfiguration,
+    TerminalList, TerminalSummaryCore, TerminalTheme, TerminalThemeState, TypedFailure,
+    decode_attachment_control, decode_input_message, decode_projection_demand_control,
+    encode_attachment_control, encode_input_message, encode_projection_demand_control,
 };
+
+/// Reads the next record this fake Host handles. A viewer Attach reads the attached terminal's
+/// lifecycle from the Host inventory, so the fake Host answers each inventory read with its one
+/// terminal, `[33; 16]`, still awaiting start: no lifecycle event to seed.
+fn read_past_inventory(host: &mut UnixStream) -> io::Result<Vec<u8>> {
+    loop {
+        let record = read_terminal_record(host)?;
+        let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
+        let Ok(InventoryControl::ListTerminals(_)) =
+            decode_inventory_control(envelope.kind, envelope.role, envelope.payload)
+        else {
+            return Ok(record);
+        };
+        let core = TerminalSummaryCore {
+            configuration: TerminalConfiguration {
+                scrollback_bytes: 0,
+            },
+            configuration_revision: 0,
+            identity: TerminalIdentity {
+                creation_id: CreationId::from_bytes([33; 16]).map_err(protocol_io)?,
+                host_epoch: HostEpoch::from_bytes([0x44; 16]).map_err(protocol_io)?,
+                terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([33; 16])
+                    .map_err(protocol_io)?,
+            },
+            revision: 1,
+            theme: TerminalThemeState {
+                operation_id: None,
+                revision: 0,
+                terminal: TerminalTheme {
+                    color_scheme: ColorScheme::Dark,
+                    default_background_rgb: 0,
+                    default_cursor_rgb: None,
+                    default_foreground_rgb: 0x00ff_ffff,
+                    palette: vec![0; 256],
+                },
+            },
+        };
+        let page = encode_inventory_control(&InventoryControl::TerminalList(TerminalList {
+            inventory_generation: NonZeroU64::MIN,
+            next_cursor: None,
+            terminals: vec![TerminalSummary::AwaitingStart { core }],
+        }))
+        .map_err(protocol_io)?;
+        let response = host_record(
+            page.kind,
+            MessageRole::Response,
+            &page.payload,
+            HostEpoch::from_bytes([0x44; 16]).map_err(protocol_io)?,
+            envelope
+                .correlation_id
+                .ok_or_else(|| io::Error::other("missing correlation"))?,
+        )
+        .map_err(protocol_io)?;
+        host.write_all(&response)?;
+    }
+}
 
 #[test]
 fn silent_or_contradictory_host_input_result_retires_worker_without_replay() -> TestResult {
@@ -19,7 +76,7 @@ fn silent_or_contradictory_host_input_result_retires_worker_without_replay() -> 
             let mut host = admit_host(&listener)?;
             // Viewer Attach and its demand, then a distinct control Attach and its demand.
             for expected in [20, 47, 20, 47] {
-                let record = read_terminal_record(&mut host)?;
+                let record = read_past_inventory(&mut host)?;
                 let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
                 assert_eq!(envelope.kind, expected);
                 let (kind, payload) = if expected == 20 {
@@ -78,7 +135,7 @@ fn silent_or_contradictory_host_input_result_retires_worker_without_replay() -> 
                 .map_err(protocol_io)?;
                 host.write_all(&response)?;
             }
-            let record = read_terminal_record(&mut host)?;
+            let record = read_past_inventory(&mut host)?;
             let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
             assert_eq!(envelope.payload_encoding, PayloadEncoding::RawBytes);
             let InputMessage::WriteInput(input) =
@@ -136,7 +193,7 @@ fn silent_or_contradictory_host_input_result_retires_worker_without_replay() -> 
             }),
         )?;
         assert!(
-            matches!(read_obcn(&mut server)?,CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==orchbee_capability_node_protocol::TerminalViewerOutcome::Attached)
+            matches!(read_answer(&mut server)?,CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==orchbee_capability_node_protocol::TerminalViewerOutcome::Attached)
         );
         let request = TerminalControlRequest {
             request_id: OperationId::from_bytes([2; 16])?,
@@ -151,7 +208,7 @@ fn silent_or_contradictory_host_input_result_retires_worker_without_replay() -> 
             &CapabilityNodeMessage::TerminalControlRequest(request.clone()),
         )?;
         assert!(
-            matches!(read_obcn(&mut server)?,CapabilityNodeMessage::TerminalControlResult(result) if result.outcome==TerminalControlOutcome::Acquired)
+            matches!(read_answer(&mut server)?,CapabilityNodeMessage::TerminalControlResult(result) if result.outcome==TerminalControlOutcome::Acquired)
         );
         write_obcn(
             &mut server,
@@ -179,7 +236,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
     let host = thread::spawn(move || -> io::Result<()> {
         let mut host = admit_host(&listener)?;
         for expected in [20, 47, 20, 47] {
-            let record = read_terminal_record(&mut host)?;
+            let record = read_past_inventory(&mut host)?;
             let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
             assert_eq!(envelope.kind, expected);
             let (kind, payload) = if expected == 20 {
@@ -235,7 +292,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
         }
         let mut pastes = 0_u8;
         loop {
-            let record = read_terminal_record(&mut host)?;
+            let record = read_past_inventory(&mut host)?;
             let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
             assert_eq!(envelope.payload_encoding, PayloadEncoding::RawBytes);
             let InputMessage::PasteAutoInput(paste) =
@@ -332,7 +389,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
         }),
     )?;
     assert!(
-        matches!(read_obcn(&mut server).map_err(|e| format!("attach: {e}"))?,CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==orchbee_capability_node_protocol::TerminalViewerOutcome::Attached)
+        matches!(read_answer(&mut server).map_err(|e| format!("attach: {e}"))?,CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==orchbee_capability_node_protocol::TerminalViewerOutcome::Attached)
     );
     let request = TerminalControlRequest {
         request_id: OperationId::from_bytes([2; 16])?,
@@ -347,7 +404,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
         &CapabilityNodeMessage::TerminalControlRequest(request.clone()),
     )?;
     assert!(
-        matches!(read_obcn(&mut server).map_err(|e| format!("acquire: {e}"))?,CapabilityNodeMessage::TerminalControlResult(result) if result.outcome==TerminalControlOutcome::Acquired)
+        matches!(read_answer(&mut server).map_err(|e| format!("acquire: {e}"))?,CapabilityNodeMessage::TerminalControlResult(result) if result.outcome==TerminalControlOutcome::Acquired)
     );
     let expected = [
         TerminalControlOutcome::Pasted {
@@ -384,7 +441,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
             }),
         )?;
         assert!(
-            matches!(read_obcn(&mut server).map_err(|e| format!("paste{index}: {e}"))?,CapabilityNodeMessage::TerminalControlResult(result) if &result.outcome==outcome)
+            matches!(read_answer(&mut server).map_err(|e| format!("paste{index}: {e}"))?,CapabilityNodeMessage::TerminalControlResult(result) if &result.outcome==outcome)
         );
     }
     // The contradictory acknowledgement consumes its sequence and retires the Worker.
