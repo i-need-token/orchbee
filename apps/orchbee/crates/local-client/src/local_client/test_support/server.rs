@@ -29,7 +29,7 @@ pub struct FakeServer {
 fn accept_bounded(listener: &UnixListener, deadline: Instant) -> io::Result<UnixStream> {
     loop {
         match listener.accept() {
-            Ok((stream, _)) => return Ok(stream),
+            Ok((stream, _)) => return blocking_peer(stream),
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 if Instant::now() >= deadline {
@@ -43,6 +43,14 @@ fn accept_bounded(listener: &UnixListener, deadline: Instant) -> io::Result<Unix
             Err(error) => return Err(error),
         }
     }
+}
+
+/// Handlers read and write with per-call timeouts, which only blocking mode honors. A socket
+/// accepted from the nonblocking listener inherits that flag on macOS (Linux and the Windows
+/// transport start it blocking), so the peer is switched back before any handler sees it.
+fn blocking_peer(stream: UnixStream) -> io::Result<UnixStream> {
+    stream.set_nonblocking(false)?;
+    Ok(stream)
 }
 
 impl FakeServer {
@@ -110,7 +118,8 @@ impl FakeServer {
                     match listener.accept() {
                         Ok((stream, _)) => {
                             if let Err(error) = stream
-                                .set_read_timeout(Some(SERVER_GUARD_TIMEOUT))
+                                .set_nonblocking(false)
+                                .and_then(|()| stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT)))
                                 .and_then(|()| stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT)))
                             {
                                 first_error = Some(error);
@@ -271,8 +280,14 @@ impl super::super::LocalClient {
         io_chunk_limits: super::super::IoChunkLimits,
     ) -> Result<Self, super::super::LocalClientConnectError> {
         let offer = super::handshake::offer();
-        let connection = super::super::ClientConnection::connect(endpoint, &offer)
-            .map_err(super::super::LocalClientConnectError::Admission)?;
+        // The product's deadline-bound admission: a fake peer may close right after admitting,
+        // and macOS refuses the socket options the undeadlined Unix `connect` resets afterwards.
+        let connection = super::super::ClientConnection::connect_before(
+            endpoint,
+            &offer,
+            Instant::now() + orchbee_connection_handshake::CANDIDATE_DEADLINE,
+        )
+        .map_err(super::super::LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
             super::super::LocalClientOrigin {

@@ -142,7 +142,13 @@ fn serves_only_the_capabilities_the_session_answered() -> TestResult {
             match orchbee_local_client_protocol::read_message(&mut stream)
                 .map_err(io::Error::other)?
             {
-                LocalClientMessage::ClientHello => admit(&mut stream, 7),
+                LocalClientMessage::ClientHello => {
+                    admit(&mut stream, 7)?;
+                    // Stay connected until the Client drops: macOS refuses socket options on a
+                    // stream whose peer has already closed, which would end admission early.
+                    let mut sink = [0_u8; 8];
+                    stream.read(&mut sink).map(|_| ())
+                }
                 other => Err(io::Error::other(format!("expected ClientHello: {other:?}"))),
             }
         })?;
