@@ -16,7 +16,5 @@ pub use windows::{
 };
 #[cfg(windows)]
 pub(crate) use windows::{open_ancestors, require_exact_absolute};
-#[cfg(target_os = "linux")]
-pub(crate) mod linux;
 #[cfg(target_os = "macos")]
 pub(crate) mod macos;

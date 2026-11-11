@@ -353,7 +353,8 @@ int ob_posix_open_lock_at(
     if (lock_fd == NULL) return OB_POSIX_SECURITY_SYSTEM_ERROR;
     *lock_fd = -1;
 
-    const int base_flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK;
+    /* Read-write, because Linux NFS refuses an exclusive lock on a read-only descriptor. */
+    const int base_flags = O_RDWR | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK;
     int created = 1;
     int descriptor = openat(
         directory_fd,

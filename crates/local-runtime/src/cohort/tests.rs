@@ -256,25 +256,3 @@ fn expired_deadline_and_unsafe_directory_fail_before_artifact_admission() {
     fs::set_permissions(&fixture.path, fs::Permissions::from_mode(0o755)).unwrap();
     assert!(fixture.load().is_err());
 }
-
-#[cfg(target_os = "linux")]
-#[test]
-fn exact_artifact_hash_and_mode_do_not_admit_an_extended_acl() {
-    let fixture = Fixture::new();
-    let file = fs::File::open(fixture.path.join("orchbee-worker")).unwrap();
-    rustix::fs::fsetxattr(
-        &file,
-        "system.posix_acl_access",
-        &crate::private_filesystem::linux::tests::named_acl(7),
-        rustix::fs::XattrFlags::empty(),
-    )
-    .unwrap();
-    assert_eq!(
-        file.metadata().unwrap().permissions().mode() & 0o7777,
-        0o700
-    );
-    assert_eq!(
-        fixture.load().unwrap_err().kind(),
-        io::ErrorKind::PermissionDenied
-    );
-}

@@ -1,19 +1,26 @@
-//! Admits APFS objects only without extended ACLs, checking pathname identity against the
-//! retained descriptor around the native ACL lookup. It does not repair permissions or provide
-//! path stability after the admission call.
+//! Admits macOS objects only on volumes that enforce file ownership and only without extended
+//! ACLs, checking pathname identity against the retained descriptor around the native ACL lookup.
+//! It does not repair permissions or provide path stability after the admission call.
 
-use nix::sys::{stat::fstat, statfs::fstatfs};
+use nix::{
+    mount::MntFlags,
+    sys::{stat::fstat, statfs::fstatfs},
+};
 use std::{fs, io, os::fd::AsFd, os::unix::fs::MetadataExt, path::Path};
 
-/// macOS ACL entries can grant access beyond the POSIX mode bits. The local
-/// development boundary therefore admits only APFS objects without an
-/// extended ACL. The native ACL API is pathname-only, so the path is checked
-/// against the descriptor identity both before and after the lookup.
+/// A volume mounted with "ignore ownership" reports every file as the caller's, so neither the
+/// owner nor the mode bits keep other users out. macOS ACL entries can grant access beyond the
+/// POSIX mode bits, so only objects without an extended ACL are admitted. The native ACL API is
+/// pathname-only, so the path is checked against the descriptor identity both before and after
+/// the lookup.
 pub(crate) fn require_private(fd: &impl AsFd, path: &Path) -> io::Result<()> {
-    if fstatfs(fd.as_fd())?.filesystem_type_name() != "apfs" {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "native development runtime requires APFS",
+    if fstatfs(fd.as_fd())?
+        .flags()
+        .contains(MntFlags::MNT_IGNORE_OWNERSHIP)
+    {
+        return Err(crate::AdmissionRefusal::io(
+            crate::RefusalReason::PermissionsNotKept,
+            path,
         ));
     }
     let descriptor_status = fstat(fd.as_fd())?;
@@ -27,9 +34,9 @@ pub(crate) fn require_private(fd: &impl AsFd, path: &Path) -> io::Result<()> {
         return Err(changed_path());
     }
     if !acl.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "native development runtime rejects extended ACLs",
+        return Err(crate::AdmissionRefusal::io(
+            crate::RefusalReason::AccessControlList,
+            path,
         ));
     }
     Ok(())
@@ -80,7 +87,7 @@ mod tests {
     }
 
     #[test]
-    fn descriptor_acl_probe_accepts_acl_free_apfs_objects() {
+    fn descriptor_acl_probe_accepts_acl_free_objects() {
         let fixture = Fixture::new();
         let file_path = fixture.0.join("artifact");
         OpenOptions::new()

@@ -3,6 +3,8 @@
 //! application startup policy or own Workbench state; the Server retains the meaning of opaque
 //! Session checkpoint payloads.
 
+mod admission_refusal;
+pub use admission_refusal::{AdmissionRefusal, RefusalReason};
 mod notification_policy;
 pub use notification_policy::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
 mod user_preferences;

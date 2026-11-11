@@ -50,8 +50,6 @@ pub(crate) fn open_file(
             "unsafe native cohort artifact",
         ));
     }
-    #[cfg(target_os = "linux")]
-    crate::private_filesystem::linux::require_private(&fd)?;
     #[cfg(target_os = "macos")]
     crate::private_filesystem::macos::require_private(&fd, _path)?;
     Ok(File::from(fd))

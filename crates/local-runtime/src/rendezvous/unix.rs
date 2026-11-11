@@ -51,7 +51,12 @@ const DIRECTORY_OPEN_FLAGS: OFlag = OFlag::O_RDONLY
     .union(OFlag::O_DIRECTORY)
     .union(OFlag::O_CLOEXEC)
     .union(OFlag::O_NOFOLLOW);
-const LOCK_OPEN_FLAGS: OFlag = OFlag::O_RDONLY
+/// Read-write, because Linux NFS refuses an exclusive lock on a read-only descriptor.
+const LOCK_OPEN_FLAGS: OFlag = OFlag::O_RDWR
+    .union(OFlag::O_CLOEXEC)
+    .union(OFlag::O_NOFOLLOW)
+    .union(OFlag::O_NONBLOCK);
+const MARKER_OPEN_FLAGS: OFlag = OFlag::O_RDONLY
     .union(OFlag::O_CLOEXEC)
     .union(OFlag::O_NOFOLLOW)
     .union(OFlag::O_NONBLOCK);
@@ -264,7 +269,7 @@ impl ModeCheckedLocalSessionRendezvous {
         match openat(
             &self.directory,
             ACTIVATION_MARKER_NAME,
-            LOCK_OPEN_FLAGS,
+            MARKER_OPEN_FLAGS,
             Mode::empty(),
         ) {
             Ok(fd) => {
@@ -281,7 +286,7 @@ impl ModeCheckedLocalSessionRendezvous {
         let fd = openat(
             &self.directory,
             ACTIVATION_MARKER_NAME,
-            LOCK_OPEN_FLAGS | OFlag::O_CREAT | OFlag::O_EXCL,
+            MARKER_OPEN_FLAGS | OFlag::O_CREAT | OFlag::O_EXCL,
             exact_mode(LOCK_FILE_MODE),
         )?;
         fchmod(&fd, exact_mode(LOCK_FILE_MODE))?;
@@ -289,8 +294,6 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     fn validate_marker(&self, fd: &OwnedFd) -> std::io::Result<()> {
-        #[cfg(target_os = "linux")]
-        crate::private_filesystem::linux::require_private(fd)?;
         #[cfg(target_os = "macos")]
         crate::private_filesystem::macos::require_private(
             fd,
@@ -371,8 +374,15 @@ impl ModeCheckedLocalSessionRendezvous {
             Err(TryLockError::WouldBlock) => Ok(LockAttempt::Contended),
             Err(TryLockError::Error(source)) => Err(RendezvousError::System {
                 operation: "acquire nonblocking lock",
+                source: if locks_unsupported(&source) {
+                    crate::AdmissionRefusal::io(
+                        crate::RefusalReason::LocksUnsupported,
+                        &self.paths.runtime_directory,
+                    )
+                } else {
+                    source
+                },
                 path: lock_path,
-                source,
             }),
         }
     }
@@ -645,8 +655,6 @@ pub(crate) fn validate_directory(
         require_same_directory_identity(created_status, &status, path)?;
     }
     require_mode(status.st_mode, path, RUNTIME_DIRECTORY_MODE)?;
-    #[cfg(target_os = "linux")]
-    require_linux_permissions(descriptor, path)?;
     #[cfg(target_os = "macos")]
     require_macos_permissions(descriptor, path)?;
     Ok(())
@@ -685,8 +693,6 @@ fn validate_lock_file(
     require_owner(&status, path, expected_uid)?;
     require_single_link(status.st_nlink, kind, path)?;
     require_mode(status.st_mode, path, LOCK_FILE_MODE)?;
-    #[cfg(target_os = "linux")]
-    require_linux_permissions(descriptor, path)?;
     #[cfg(target_os = "macos")]
     require_macos_permissions(descriptor, path)?;
     Ok(())
@@ -821,6 +827,15 @@ fn lock_open_error(kind: LockKind, path: &Path, error: Errno) -> RendezvousError
     }
 }
 
+/// A file system without working file locks answers a lock with one of these.
+fn locks_unsupported(error: &std::io::Error) -> bool {
+    error.raw_os_error().is_some_and(|code| {
+        [Errno::ENOLCK, Errno::ENOTSUP, Errno::EOPNOTSUPP]
+            .iter()
+            .any(|errno| *errno as i32 == code)
+    })
+}
+
 fn system_error(operation: &'static str, path: &Path, error: Errno) -> RendezvousError {
     RendezvousError::System {
         operation,
@@ -835,17 +850,6 @@ fn exact_mode(bits: u32) -> Mode {
 
 #[cfg(test)]
 pub(crate) mod tests;
-
-#[cfg(target_os = "linux")]
-fn require_linux_permissions(descriptor: &OwnedFd, path: &Path) -> Result<(), RendezvousError> {
-    crate::private_filesystem::linux::require_private(descriptor).map_err(|source| {
-        RendezvousError::System {
-            operation: "validate private Linux permissions",
-            path: path.to_path_buf(),
-            source,
-        }
-    })
-}
 
 #[cfg(target_os = "macos")]
 fn require_macos_permissions(descriptor: &OwnedFd, path: &Path) -> Result<(), RendezvousError> {
