@@ -65,10 +65,18 @@ pub(crate) enum BoundaryAction {
     Sigint,
     /// Advance the test clock — the pack's `setup.clock` states become a
     /// real skew every `now()` consults.
+    #[cfg_attr(
+        not(feature = "test-support"),
+        expect(dead_code, reason = "only the provider packs queue it")
+    )]
     AdvanceClock(Duration),
     /// Run a harness interposition (occupant pre-creation, mid-walk swap).
     /// `true` consumes the action; `false` keeps it queued for the next
     /// arrival at the same step.
+    #[cfg_attr(
+        not(feature = "test-support"),
+        expect(dead_code, reason = "only the provider packs queue it")
+    )]
     Act(Box<dyn FnMut(&Path) -> bool>),
 }
 
@@ -107,6 +115,7 @@ thread_local! {
 }
 
 impl Plan {
+    #[cfg(feature = "test-support")]
     pub(crate) fn prim_fault(&mut self, prim: Prim, errno: i32, times: usize) {
         self.prims
             .entry(prim)
@@ -121,6 +130,7 @@ impl Plan {
     /// Fault `prim` `times` times, but only once `step` has fired — the
     /// pack's `inject.atStep` lands on the step's own primitive call, not
     /// an earlier caller sharing the primitive.
+    #[cfg(feature = "test-support")]
     pub(crate) fn prim_fault_at(
         &mut self,
         step: &'static str,
@@ -402,6 +412,7 @@ pub(crate) fn argv_log() -> Vec<Vec<String>> {
 }
 
 /// The ordered step witnesses this invocation crossed.
+#[cfg(feature = "test-support")]
 pub(crate) fn witnessed() -> Vec<&'static str> {
     WITNESSED.with(|log| log.borrow().clone())
 }
