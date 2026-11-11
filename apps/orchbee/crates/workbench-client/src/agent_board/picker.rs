@@ -577,6 +577,9 @@ impl AgentBoard {
                                 )
                             })
                             .and_then(|item| item.target());
+                        // The group the fold held closes the list: show all of it that fits,
+                        // then keep the cursor in view.
+                        picker.scroll = items.len().saturating_sub(picker.viewport.max(1));
                         picker.reveal(&items);
                     }
                 }

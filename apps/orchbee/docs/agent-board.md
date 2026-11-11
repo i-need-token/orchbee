@@ -47,7 +47,8 @@ One action, `agent.start`, opens the Start Agent picker: `Ctrl+B G`, the action 
 in the Board, and the empty Workspace hint beside new Tab. From the Board the picker replaces the
 Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alone without a Board
 read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
-opens, a search field, a divider, the grouped list, one status row and the hint row
+opens, a search field, a divider, the grouped list, a status row only while there is something to
+report (the lookup running, no match, or a host that cannot start Agents) and the hint row
 `Esc close │ Enter start │ ↑↓ select`. Typing filters at once by product name, command or provider
 id. `Esc` first clears a query, then returns to the Board when the picker came from it, else
 closes; the close control acts like `Esc` with an empty query, and an outside press closes the
@@ -55,7 +56,8 @@ whole owner. No key reaches the Panel.
 
 Groups follow the list order: **Recent** holds at most three installed providers, most recent
 first; **Installed** follows A–Z; the rest fold into one row, "N more not found on this computer",
-that expands on activation. Any query also searches the folded providers. Each row shows the
+that expands on `Enter` or a click and scrolls the N providers into view with the cursor on the
+first. Any query also searches the folded providers. Each row shows the
 product name and, in secondary text, its command, "not found", or "can't check" for a command the
 process-identity registry classes as generic (`agent` for Cursor, `snow` for Snow CLI); generic
 commands are never advertised as found and sit with the not-found providers. The cursor starts on

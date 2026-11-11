@@ -51,19 +51,22 @@ pub(super) fn render(
     };
     let context = copy.opens_in.replace("{place}", place);
     let status = match board.start_catalog_status() {
-        AgentStartCatalogStatus::Unsupported => {
-            DialogRow::Status(copy.unsupported.into(), Role::StatusWarning)
-        }
+        AgentStartCatalogStatus::Unsupported => Some(DialogRow::Status(
+            copy.unsupported.into(),
+            Role::StatusWarning,
+        )),
         _ if !items
             .iter()
             .any(|item| matches!(item, Item::Provider { .. } | Item::Fold(_))) =>
         {
-            DialogRow::Item(copy.no_match.into(), Role::TextSecondary)
+            Some(DialogRow::Item(copy.no_match.into(), Role::TextSecondary))
         }
         AgentStartCatalogStatus::Loading if board.can_start_agent() => {
-            DialogRow::Status(copy.checking.into(), Role::StatusPending)
+            Some(DialogRow::Status(copy.checking.into(), Role::StatusPending))
         }
-        _ => DialogRow::Blank,
+        // With nothing to report the list takes the row, so no blank row sits under a list
+        // that has more rows below.
+        _ => None,
     };
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
@@ -75,20 +78,21 @@ pub(super) fn render(
         KeyHint::new(&enter, copy.start_hint),
         KeyHint::new(&vertical, text.board.select_hint),
     ];
+    // The dialog pads below its title and above its footer itself.
+    let mut rows = vec![
+        DialogRow::Context(context.into()),
+        DialogRow::Blank,
+        DialogRow::Field {
+            minimum: QUERY_WIDTH,
+        },
+        DialogRow::Blank,
+        DialogRow::List { len: items.len() },
+    ];
+    rows.extend(status);
     let dialog = Dialog {
         title: copy.title,
         class: DialogClass::Medium,
-        // The dialog pads below its title and above its footer itself.
-        rows: vec![
-            DialogRow::Context(context.into()),
-            DialogRow::Blank,
-            DialogRow::Field {
-                minimum: QUERY_WIDTH,
-            },
-            DialogRow::Blank,
-            DialogRow::List { len: items.len() },
-            status,
-        ],
+        rows,
         footer: DialogFooter::Hints(&hints),
     };
     let Some(layout) = dialog_layout(frame.area(), &dialog, theme) else {

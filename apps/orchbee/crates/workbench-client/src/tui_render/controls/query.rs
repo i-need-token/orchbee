@@ -25,6 +25,16 @@ pub(crate) fn render_divider(frame: &mut Frame<'_>, area: Rect, theme: &Theme) {
     );
 }
 
+/// The colon after a query label, in the label's own punctuation: a label that ends in a wide
+/// character, as zh-CN copy does, takes the full-width colon, which carries its own spacing.
+fn label_colon(label: &str) -> &'static str {
+    let wide = label
+        .chars()
+        .next_back()
+        .is_some_and(|last| display_width(last.encode_utf8(&mut [0; 4])) > 1);
+    if wide { "：" } else { ": " }
+}
+
 /// The owner's current query presentation; the component never parses either text field.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QueryField<'a> {
@@ -75,9 +85,10 @@ pub(crate) fn render_query_field(
             );
         }
         QueryField::Retained { label, query } => {
+            let label = sanitize_terminal_text(label);
             let text = format!(
-                "{}: {}",
-                sanitize_terminal_text(label),
+                "{label}{}{}",
+                label_colon(&label),
                 sanitize_terminal_text(query)
             );
             frame.render_widget(
@@ -92,12 +103,14 @@ pub(crate) fn render_query_field(
             cursor,
         } => {
             // The label yields only what the draft needs to stay legible beside it.
+            let label = sanitize_terminal_text(label);
+            let colon = label_colon(&label);
             let label = truncate_display(
-                &sanitize_terminal_text(label),
+                &label,
                 width.saturating_sub(MIN_DRAFT_WIDTH + 2).max(1),
                 theme.glyphs.ellipsis,
             );
-            let prefix = format!("{label}: ");
+            let prefix = format!("{label}{colon}");
             let prefix_width = display_width(&prefix);
             // The draft keeps at least one cell, which also hosts the cursor at its end.
             let value_width = width.checked_sub(prefix_width).filter(|width| *width > 0)?;
