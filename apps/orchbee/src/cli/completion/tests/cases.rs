@@ -297,7 +297,7 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
     (
         "orchbee terminal wait-output target --lines 3 --f",
         "--forever",
-        cfg!(windows),
+        true,
     ),
     (
         "orchbee terminal wait-output target --forever --l",

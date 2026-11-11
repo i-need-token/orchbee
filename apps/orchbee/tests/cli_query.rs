@@ -1119,8 +1119,8 @@ fn query_writes_nothing_to_the_scope() -> TestResult {
     let entries: Vec<_> = scope.read_dir()?.collect();
     assert_eq!(
         entries.len(),
-        1,
-        "only the peer's client.sock may exist afterward"
+        0,
+        "query leaves the Session scope empty; the client socket lives in the socket folder"
     );
     Ok(())
 }
@@ -2239,7 +2239,7 @@ fn visible_read(tag: &str, frame: Vec<u8>, options: &[&str]) -> Output {
     peer.join().expect("peer finished");
     assert_eq!(
         scope.read_dir().expect("scope").count(),
-        1,
+        0,
         "read must not write the scope"
     );
     output
@@ -3306,7 +3306,11 @@ fn terminal_read_recent_returns_the_bounded_window() -> TestResult {
         "firstRow":"3", "lastRow":"4", "startsMidLine":false, "endsMidLine":false})
     );
     assert!(compiled_schema(&base, "orchbee.terminal.output").is_valid(&document));
-    assert_eq!(scope.read_dir()?.count(), 1);
+    assert_eq!(
+        scope.read_dir()?.count(),
+        0,
+        "read must not write the scope"
+    );
     Ok(())
 }
 
