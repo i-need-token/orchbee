@@ -276,11 +276,12 @@ and it refuses with `Unsupported` before reading settings because these Hosts ca
 processes, so Agent manifest requests answer `Unavailable`. Startup also configures Panel graphics
 file frames, whose private frame directory refuses reservation with `Unsupported`. Agent names
 resolve through the same guarded path as on Windows; terminal name owners come only from Agent
-reports and process observation, so none exist here. Terminal editor, Client view, Panel Agent,
-configured command, Panel graphics, semantic event, Agent view, Workspace and Panel metadata, window
-title and notification requests keep their earlier refusal at admission until their behavior off
-Windows is decided. Checkpoint, stop and handoff remain Windows-only because only the Windows startup
-constructs their owners.
+reports and process observation, so none exist here. Client view, semantic event and window title
+requests are admitted as on Windows: their state lives in Server memory for the connection or its
+subscription, and nothing of it is saved. Terminal editor, Panel Agent, configured command, Panel
+graphics, Agent view, Workspace and Panel metadata and notification requests keep their earlier
+refusal at admission until their behavior off Windows is decided. Checkpoint, stop and handoff
+remain Windows-only because only the Windows startup constructs their owners.
 
 ## Local Worker service
 

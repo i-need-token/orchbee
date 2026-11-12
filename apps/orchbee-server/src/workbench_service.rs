@@ -50,15 +50,12 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
         && matches!(
             request,
             WorkbenchRequest::TerminalEditor(_)
-                | WorkbenchRequest::ClientView(_)
                 | WorkbenchRequest::PanelAgent(_)
                 | WorkbenchRequest::ConfiguredCommand(_)
                 | WorkbenchRequest::PaneGraphics(_)
-                | WorkbenchRequest::Events(_)
                 | WorkbenchRequest::AgentView(_)
                 | WorkbenchRequest::WorkspaceMetadata(_)
                 | WorkbenchRequest::PanelMetadata(_)
-                | WorkbenchRequest::WindowTitle(_)
                 | WorkbenchRequest::Notification(_)
         )
 }

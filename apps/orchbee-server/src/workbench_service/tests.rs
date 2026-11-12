@@ -517,7 +517,6 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
     }
 }
 
-#[cfg(windows)]
 mod client_view;
 
 #[cfg(windows)]
@@ -574,7 +573,6 @@ fn layout_structure_uses_navigation_only_without_a_worker() {
     ));
 }
 
-#[cfg(windows)]
 mod window_title;
 
 #[cfg(all(test, windows))]
