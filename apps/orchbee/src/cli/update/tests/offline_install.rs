@@ -5,12 +5,12 @@
 use super::super::{
     Error, Report, complete, engine,
     install::Completion,
-    pointer::Entry,
     signature::{TEST_TABLE, TrustedKey},
 };
 use super::install_fixture::{Fixture, context, in_process_completion, pointer, print_probe};
 use super::{entry, sign, signed_bytes, stranger};
 use orchbee_local_runtime::{Cohort, CohortArtifact};
+use orchbee_release_records::Entry;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{

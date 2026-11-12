@@ -2,22 +2,25 @@
 //! optionally, the rollback target, each bound to the lowercase SHA-256 of its `release.json`.
 //! `version` is the record's format and `extensions` the only open slot, which every rewrite keeps.
 //! Bytes that are not such a record mean no active version.
-use super::{manifest, strict_json};
+use crate::{
+    strict_json::{check_extensions, closed_object, parse_object},
+    tokens::{lowercase_sha256, valid_version},
+};
 use serde_json::{Map, Value};
 
 /// One version directory and the digest of the manifest verified when it was installed.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Entry {
-    pub(super) product: String,
-    pub(super) manifest: String,
+pub struct Entry {
+    pub product: String,
+    pub manifest: String,
 }
 
 impl Entry {
     fn parse(value: &Value) -> Option<Self> {
-        let object = strict_json::closed(value, &["product", "manifest"], &[])?;
+        let object = closed_object(value, &["product", "manifest"], &[])?;
         let product = object.get("product")?.as_str()?;
         let manifest = object.get("manifest")?.as_str()?;
-        (manifest::valid_version(product) && manifest::lowercase_sha256(manifest)).then(|| Self {
+        (valid_version(product) && lowercase_sha256(manifest)).then(|| Self {
             product: product.to_owned(),
             manifest: manifest.to_owned(),
         })
@@ -33,19 +36,18 @@ impl Entry {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Pointer {
-    pub(super) active: Entry,
-    pub(super) previous: Option<Entry>,
+pub struct Pointer {
+    pub active: Entry,
+    pub previous: Option<Entry>,
     extensions: Option<Map<String, Value>>,
 }
 
 impl Pointer {
     /// The format-1 pointer in `bytes`, or `None` when they hold anything else.
-    pub(super) fn parse(bytes: &[u8]) -> Option<Self> {
-        let root = Value::Object(strict_json::parse_object(bytes)?);
-        let object =
-            strict_json::closed(&root, &["version", "active"], &["previous", "extensions"])?;
-        strict_json::extensions(object)?;
+    pub fn parse(bytes: &[u8]) -> Option<Self> {
+        let root = Value::Object(parse_object(bytes)?);
+        let object = closed_object(&root, &["version", "active"], &["previous", "extensions"])?;
+        check_extensions(object)?;
         if object.get("version")?.as_u64()? != 1 {
             return None;
         }
@@ -62,7 +64,7 @@ impl Pointer {
 
     /// The pointer after `entry` becomes active. The version it replaces becomes the rollback
     /// target; activating the active version again keeps the target it had.
-    pub(super) fn activate(current: Option<Self>, entry: Entry) -> Self {
+    pub fn activate(current: Option<Self>, entry: Entry) -> Self {
         match current {
             None => Self {
                 active: entry,
@@ -82,12 +84,12 @@ impl Pointer {
     }
 
     /// Whether `entry` is the active version or the rollback target.
-    pub(super) fn names(&self, entry: &Entry) -> bool {
+    pub fn names(&self, entry: &Entry) -> bool {
         self.active == *entry || self.previous.as_ref() == Some(entry)
     }
 
     /// The record in its written member order, ending in a newline.
-    pub(super) fn encode(&self) -> Vec<u8> {
+    pub fn encode(&self) -> Vec<u8> {
         let mut text = format!(
             "{{\n  \"version\": 1,\n  \"active\": {}",
             self.active.encode()

@@ -1,9 +1,9 @@
 //! Release manifest trust: the compiled public key tables, the detached signature document, and
 //! Ed25519 verification over the domain-separated manifest bytes. A manifest is parsed only through
 //! the [`TrustedManifest`] this module returns. No I/O; acquisition and installation live elsewhere.
-use super::strict_json;
 use base64::Engine;
 use ed25519_dalek::{Signature, VerifyingKey};
+use orchbee_release_records::{check_extensions, closed_object, parse_object};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -149,10 +149,10 @@ fn parse_document(document: &[u8]) -> Option<Vec<(String, Signature)>> {
     if document.len() > DOCUMENT_LIMIT {
         return None;
     }
-    let object = strict_json::parse_object(document)?;
+    let object = parse_object(document)?;
     let root = Value::Object(object);
-    let object = strict_json::closed(&root, &["signatures"], &["extensions"])?;
-    strict_json::extensions(object)?;
+    let object = closed_object(&root, &["signatures"], &["extensions"])?;
+    check_extensions(object)?;
     let signatures = object.get("signatures")?.as_array()?;
     if signatures.is_empty() || signatures.len() > MAXIMUM_SIGNATURES {
         return None;
@@ -160,7 +160,7 @@ fn parse_document(document: &[u8]) -> Option<Vec<(String, Signature)>> {
     signatures
         .iter()
         .map(|entry| {
-            let entry = strict_json::closed(entry, &["keyId", "algorithm", "signature"], &[])?;
+            let entry = closed_object(entry, &["keyId", "algorithm", "signature"], &[])?;
             if entry.get("algorithm")?.as_str()? != "ed25519" {
                 return None;
             }

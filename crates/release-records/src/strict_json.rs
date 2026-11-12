@@ -1,4 +1,4 @@
-//! Strict JSON reading for release documents: one object, no repeated member at any depth, bounded
+//! Strict JSON reading for release records: one object, no repeated member at any depth, bounded
 //! nesting, and closed member sets. `serde_json` supplies RFC 8259 syntax, UTF-8 and finite
 //! numbers. Callers own every value rule; this module never defaults a member.
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
@@ -9,7 +9,7 @@ use std::fmt;
 const MAXIMUM_DEPTH: usize = 32;
 
 /// Parses `bytes` as one strict JSON object, or `None` for any other document.
-pub(super) fn parse_object(bytes: &[u8]) -> Option<Map<String, Value>> {
+pub fn parse_object(bytes: &[u8]) -> Option<Map<String, Value>> {
     let text = std::str::from_utf8(bytes).ok()?;
     let mut deserializer = serde_json::Deserializer::from_str(text);
     let value = StrictValue { depth: 1 }
@@ -24,7 +24,7 @@ pub(super) fn parse_object(bytes: &[u8]) -> Option<Map<String, Value>> {
 
 /// The object when `value` is one whose members are exactly every `required` name plus any of the
 /// `optional` names.
-pub(super) fn closed<'a>(
+pub fn closed_object<'a>(
     value: &'a Value,
     required: &[&str],
     optional: &[&str],
@@ -38,7 +38,7 @@ pub(super) fn closed<'a>(
 }
 
 /// An absent `extensions` member, or one holding any JSON object, which readers ignore.
-pub(super) fn extensions(object: &Map<String, Value>) -> Option<()> {
+pub fn check_extensions(object: &Map<String, Value>) -> Option<()> {
     match object.get("extensions") {
         None | Some(Value::Object(_)) => Some(()),
         Some(_) => None,

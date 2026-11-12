@@ -909,6 +909,7 @@ dependencies = [
  "orchbee-local-runtime",
  "orchbee-local-worker-protocol",
  "orchbee-machine-protocol",
+ "orchbee-release-records",
  "orchbee-terminal-protocol",
  "orchbee-workbench-client",
  "orchbee-workbench-protocol",
@@ -1073,6 +1074,14 @@ name = "orchbee-machine-protocol"
 version = "0.1.0"
 dependencies = [
  "orchbee-connection-handshake",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "orchbee-release-records"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
 ]

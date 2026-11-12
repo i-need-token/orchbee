@@ -16,10 +16,8 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "update/unix.rs"]
 mod platform;
-mod pointer;
 mod signature;
 mod source_path;
-mod strict_json;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish},

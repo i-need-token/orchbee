@@ -6,11 +6,11 @@ use super::{
     acquire::Source,
     manifest::{Artifact, Release, own_platform},
     platform,
-    pointer::{Entry, Pointer},
     signature::MANIFEST_LIMIT,
 };
 use crate::release_store::{ReleaseStore, open_release_file, read_pointer};
 use orchbee_local_runtime::{Cohort, CohortArtifact, CommandFailure, compare_product_versions};
+use orchbee_release_records::{Entry, Pointer};
 use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,

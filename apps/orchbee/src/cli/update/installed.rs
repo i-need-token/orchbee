@@ -2,11 +2,11 @@
 //! native cohort.
 use super::{
     manifest::{Release, own_platform},
-    pointer::{Entry, Pointer},
     signature::{MANIFEST_LIMIT, TrustedManifest},
 };
 use crate::release_store::{open_release_file, read_pointer, version_directory_parts};
 use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
+use orchbee_release_records::{Entry, Pointer};
 use sha2::{Digest, Sha256};
 use std::{
     io::{self, Read},

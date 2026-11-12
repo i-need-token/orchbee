@@ -7,7 +7,6 @@ use super::{
     Error, Output,
     install::Completion,
     manifest::{Release, own_platform},
-    pointer::{Entry, Pointer},
     signature::{self, DOCUMENT_LIMIT, MANIFEST_LIMIT, Refusal},
 };
 use crate::{
@@ -16,6 +15,7 @@ use crate::{
     release_store::{ReleaseStore, open_release_file, version_directory_parts},
 };
 use orchbee_local_runtime::{EnvironmentKind, compare_product_versions, environment_kind};
+use orchbee_release_records::{Entry, Pointer};
 use std::{cmp::Ordering, io::Read, path::Path};
 
 /// Whether this build performs the PATH step. While it does not, `install` behaves as if

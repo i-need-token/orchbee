@@ -23,6 +23,8 @@ orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-pr
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
+# Release manifests, signature documents and the store pointer share one strict grammar.
+orchbee-release-records = { path = "../../crates/release-records" }
 # Handshake refusals and Session process queries the CLI reports.
 orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
 # The `machine-link` connection the remote helper `--machine-link-v1` accepts.

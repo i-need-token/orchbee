@@ -1,13 +1,10 @@
 //! Engine fixtures shared by the Windows install and channel tests: a private temporary root, a
 //! console-interrupt context, a probe command, and an in-process completion that never touches a
 //! user PATH.
-use super::super::{
-    Context, Error, complete,
-    install::Completion,
-    pointer::{Entry, Pointer},
-};
+use super::super::{Context, Error, complete, install::Completion};
 use crate::{cli::console_interrupt::ArmedSignals, release_store::read_pointer};
 use orchbee_local_runtime::PrivateCache;
+use orchbee_release_records::{Entry, Pointer};
 use sha2::{Digest, Sha256};
 use std::{
     fs,

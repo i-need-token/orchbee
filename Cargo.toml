@@ -19,6 +19,7 @@ members = [
 	"crates/local-worker-protocol",
 	"crates/local-runtime",
 	"crates/machine-protocol",
+	"crates/release-records",
 	"crates/terminal-protocol",
 	"crates/windows-console-host",
 	"crates/workbench-protocol",

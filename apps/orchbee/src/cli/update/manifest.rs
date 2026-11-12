@@ -1,8 +1,11 @@
 //! Admission of signed release manifests, version 2; no download or installation effects. Only
 //! bytes a compiled key verified, or an earlier verified installation stored, reach this parser.
-use super::{signature::TrustedManifest, strict_json};
+use super::signature::TrustedManifest;
 use crate::release_store::valid_release_path;
 use orchbee_local_runtime::UpdateChannel;
+use orchbee_release_records::{
+    check_extensions, closed_object, lowercase_sha256, parse_object, valid_version,
+};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -49,8 +52,8 @@ impl Release {
     /// inside `extensions` and unknown component entries, which are ignored.
     pub fn parse(manifest: TrustedManifest<'_>, platform: &str) -> Option<Self> {
         let bytes = manifest.bytes();
-        let root = Value::Object(strict_json::parse_object(bytes)?);
-        let object = strict_json::closed(
+        let root = Value::Object(parse_object(bytes)?);
+        let object = closed_object(
             &root,
             &[
                 "schemaVersion",
@@ -64,7 +67,7 @@ impl Release {
             ],
             &["extensions"],
         )?;
-        strict_json::extensions(object)?;
+        check_extensions(object)?;
         if object.get("schemaVersion")?.as_u64()? != 2
             || object.get("product")?.as_str()? != "orchbee"
         {
@@ -102,7 +105,7 @@ fn files(value: &Value) -> Option<Vec<Artifact>> {
     let mut files = Vec::with_capacity(array.len());
     let mut total = 0_u64;
     for value in array {
-        let entry = strict_json::closed(value, &["path", "url", "sha256", "size"], &[])?;
+        let entry = closed_object(value, &["path", "url", "sha256", "size"], &[])?;
         let path = entry.get("path")?.as_str()?;
         if !valid_release_path(path)
             || RESERVED_PATHS
@@ -172,12 +175,12 @@ fn components(value: &Value, files: &[Artifact]) -> Option<()> {
 }
 
 fn component(value: &Value, files: &[Artifact]) -> Option<()> {
-    let object = strict_json::closed(
+    let object = closed_object(
         value,
         &["id", "version", "files", "connections"],
         &["securityFloor", "recommendedFloor", "extensions"],
     )?;
-    strict_json::extensions(object)?;
+    check_extensions(object)?;
     semantic_version(object.get("version")?)?;
     for floor in ["securityFloor", "recommendedFloor"] {
         if let Some(value) = object.get(floor) {
@@ -206,8 +209,8 @@ fn connections(object: &Map<String, Value>) -> Option<()> {
     }
     for (kind, value) in object {
         name(kind, 64, false)?;
-        let entry = strict_json::closed(value, &["generations"], &[])?;
-        let range = strict_json::closed(entry.get("generations")?, &["lowest", "highest"], &[])?;
+        let entry = closed_object(value, &["generations"], &[])?;
+        let range = closed_object(entry.get("generations")?, &["lowest", "highest"], &[])?;
         let lowest = generation(range.get("lowest")?)?;
         let highest = generation(range.get("highest")?)?;
         if lowest > highest {
@@ -239,43 +242,12 @@ fn name(text: &str, limit: usize, underscore: bool) -> Option<()> {
     .then_some(())
 }
 
-/// Whether `text` is a version a manifest admits, so it may name a store version directory.
-pub(super) fn valid_version(text: &str) -> bool {
-    semantic_version(&Value::String(text.to_owned())).is_some()
-}
-
 /// A SemVer 2.0.0 version of at most 64 bytes, without build metadata.
 fn semantic_version(value: &Value) -> Option<String> {
-    let text = value.as_str()?;
-    if text.is_empty() || text.len() > 64 {
-        return None;
-    }
-    let (core, prerelease) = match text.split_once('-') {
-        Some((core, prerelease)) => (core, Some(prerelease)),
-        None => (text, None),
-    };
-    let core: Vec<&str> = core.split('.').collect();
-    if core.len() != 3 || !core.iter().all(|part| numeric_identifier(part)) {
-        return None;
-    }
-    if let Some(prerelease) = prerelease {
-        let admitted = prerelease.split('.').all(|part| {
-            !part.is_empty()
-                && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-                && (!part.bytes().all(|b| b.is_ascii_digit()) || numeric_identifier(part))
-        });
-        if !admitted {
-            return None;
-        }
-    }
-    Some(text.to_owned())
-}
-
-/// Digits without a leading zero, except `0` itself.
-fn numeric_identifier(part: &str) -> bool {
-    !part.is_empty()
-        && part.bytes().all(|b| b.is_ascii_digit())
-        && (part == "0" || !part.starts_with('0'))
+    value
+        .as_str()
+        .filter(|text| valid_version(text))
+        .map(str::to_owned)
 }
 
 fn label(value: &Value) -> Option<String> {
@@ -286,13 +258,6 @@ fn label(value: &Value) -> Option<String> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b".-_+".contains(&b)))
     .then(|| text.to_owned())
-}
-
-pub(super) fn lowercase_sha256(text: &str) -> bool {
-    text.len() == 64
-        && text
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// Curl receives a literal HTTPS URL, with no userinfo, controls, fragments or glob expansion.
