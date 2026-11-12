@@ -998,6 +998,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-launcher"
+version = "0.1.0"
+dependencies = [
+ "ctrlc",
+ "orchbee-release-records",
+ "process-wrap",
+ "winsafe",
+]
+
+[[package]]
 name = "orchbee-local-client"
 version = "0.1.0"
 dependencies = [

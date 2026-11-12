@@ -53,7 +53,7 @@ windows.workspace = true
 # The GUI feature also owns the hidden, joined system-notification window.
 # Reuse the cohort's existing safe Windows bindings.
 winsafe = { workspace = true, features = ["kernel", "shell", "gui"] }
-ctrlc = { version = "3.5.2", default-features = false }
+ctrlc.workspace = true
 crossterm = { workspace = true, features = ["windows", "events"] }
 
 [dev-dependencies]

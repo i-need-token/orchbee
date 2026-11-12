@@ -19,9 +19,9 @@ use windows::{
 			IO::{CreateIoCompletionPort, GetQueuedCompletionStatus, OVERLAPPED},
 			JobObjects::{
 				AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-				JOBOBJECT_ASSOCIATE_COMPLETION_PORT, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-				JobObjectAssociateCompletionPortInformation, JobObjectExtendedLimitInformation,
-				SetInformationJobObject, TerminateJobObject,
+				JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_ASSOCIATE_COMPLETION_PORT,
+				JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectAssociateCompletionPortInformation,
+				JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 			},
 			Threading::{
 				CREATE_SUSPENDED, GetProcessId, INFINITE, OpenThread, PROCESS_CREATION_FLAGS,
@@ -117,8 +117,22 @@ impl Drop for JobPort {
 ///
 /// If `kill_on_drop` is true, we opt into the `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` flag, which
 /// essentially implements the "reap children" feature of Unix systems directly in Win32.
+#[cfg(feature = "tokio1")]
 #[cfg_attr(feature = "tracing", instrument(level = "debug"))]
 pub(crate) fn make_job_object(process_handle: HANDLE, kill_on_drop: bool) -> Result<JobPort> {
+	make_job_object_with_breakaway(process_handle, kill_on_drop, false)
+}
+
+/// Create a JobObject and an associated completion port, as [`make_job_object`] does.
+///
+/// If `silent_breakaway` is true, we opt into the `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` flag, so
+/// the processes an assigned process creates are not associated with the job.
+#[cfg_attr(feature = "tracing", instrument(level = "debug"))]
+pub(crate) fn make_job_object_with_breakaway(
+	process_handle: HANDLE,
+	kill_on_drop: bool,
+	silent_breakaway: bool,
+) -> Result<JobPort> {
 	let job = OwnedHandle(unsafe { CreateJobObjectW(None, None) }.map_err(Error::other)?);
 	#[cfg(feature = "tracing")]
 	debug!(?job, "done CreateJobObjectW");
@@ -153,6 +167,9 @@ pub(crate) fn make_job_object(process_handle: HANDLE, kill_on_drop: bool) -> Res
 
 	if kill_on_drop {
 		info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+	}
+	if silent_breakaway {
+		info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK;
 	}
 
 	unsafe {

@@ -30,6 +30,7 @@ const HOST_BUILD = 'apps/terminal-host/build.zig';
 // The Rust programs that inherit the product version, with the name each has in Cargo.lock.
 const RUST_PROGRAMS = [
 	{ manifest: 'apps/orchbee/Cargo.toml', name: 'orchbee' },
+	{ manifest: 'apps/orchbee-launcher/Cargo.toml', name: 'orchbee-launcher' },
 	{ manifest: 'apps/orchbee-server/Cargo.toml', name: 'orchbee-server' },
 	{ manifest: 'apps/orchbee-worker/Cargo.toml', name: 'orchbee-worker' },
 	{ manifest: 'crates/local-runtime/Cargo.toml', name: 'orchbee-local-runtime' },

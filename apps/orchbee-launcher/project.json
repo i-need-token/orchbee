@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "orchbee-launcher",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Windows launcher installed as bin\\<name>.exe in the release store: reads the store pointer and runs the active version's Client of the same name with the unchanged command line, console, standard handles and environment, ends it when the launcher is ended, and returns its exit code.",
+	"nonGoals": [
+		"Installing, verifying, activating or repairing a release, or editing the user Path.",
+		"Reading configuration, settings or any file besides the store pointer, or choosing a version itself.",
+		"Starting, stopping or retaining a Server, Worker or Terminal Host, or running on macOS or Linux."
+	]
+}

@@ -5,7 +5,7 @@ source (upstream commit `ca45003a831ac125e6673b8759430e5ef33cc1db`). Original li
 and copyright notices remain beside the source. It is a third-party dependency,
 excluded from the authored Cargo workspace and never published by Orchbee.
 
-The native Client, Server, and `orchbee-local-runtime` use its existing `std`,
+The native Client, Server, Windows launcher, and `orchbee-local-runtime` use its existing `std`,
 `job-object` and `creation-flags` features. Windows Worker commands consume that shared
 runtime. The root patch pins this corrected source without adding
 a second Windows binding version. The manifest keeps the upstream dependency and
@@ -35,6 +35,13 @@ does not enable `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The explicit
 order with `JobObject`. The Worker's Agent probe uses this opt-in so dropping its
 final owned wrapper is a process-tree termination guard after normal termination
 cannot be confirmed.
+
+The explicit `SilentBreakaway` marker opts one command into
+`JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK`, in either registration order with `JobObject`, so the
+Job holds only the spawned process and the processes it starts are created outside it. The
+Windows launcher combines it with `KillOnJobClose`: ending the launcher ends the Client it
+started, while the Server, Worker and Terminal Host that Client starts keep running. Without the
+marker, the Job's limit flags are unchanged.
 
 ## Maintenance and evidence
 

@@ -3,6 +3,7 @@ resolver = "3"
 exclude = ["third-party/process-wrap"]
 members = [
 	"apps/orchbee",
+	"apps/orchbee-launcher",
 	"apps/orchbee-server",
 	"apps/orchbee-worker",
 	"apps/*/crates/*",
@@ -36,6 +37,7 @@ process-wrap = { path = "third-party/process-wrap" }
 [workspace.dependencies]
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 crossterm = { version = "0.29.0", default-features = false }
+ctrlc = { version = "3.5.2", default-features = false }
 getrandom = { version = "0.3.4", default-features = false }
 jsonschema = { version = "0.53.0", default-features = false }
 nix = { version = "0.31.3", default-features = false }

@@ -18,7 +18,8 @@ use windows::Win32::{
 use crate::{
 	ChildExitStatus,
 	windows::{
-		JobPort, job_creation_flags, make_job_object, resume_threads, terminate_job, wait_on_job,
+		JobPort, job_creation_flags, make_job_object_with_breakaway, resume_threads, terminate_job,
+		wait_on_job,
 	},
 };
 
@@ -51,6 +52,18 @@ pub struct JobObject;
 pub struct KillOnJobClose;
 
 impl CommandWrapper for KillOnJobClose {}
+
+/// Marker which keeps the processes an assigned process creates out of its [`JobObject`].
+///
+/// Register this marker and [`JobObject`] on the same command. Registration order does not matter.
+/// This enables Windows' `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` policy, so the Job holds only the
+/// spawned process: [`KillOnJobClose`] then ends that process alone, waiting completes when it
+/// exits, and the processes it starts outlive the Job. A Job further up an existing hierarchy keeps
+/// its own policy for them.
+#[derive(Clone, Copy, Debug)]
+pub struct SilentBreakaway;
+
+impl CommandWrapper for SilentBreakaway {}
 
 fn user_creation_flags(core: &CommandWrap) -> PROCESS_CREATION_FLAGS {
 	#[cfg(feature = "creation-flags")]
@@ -94,6 +107,7 @@ impl CommandWrapper for JobObject {
 		core: &CommandWrap,
 	) -> Result<Box<dyn ChildWrapper>> {
 		let kill_on_close = core.has_wrap::<KillOnJobClose>();
+		let silent_breakaway = core.has_wrap::<SilentBreakaway>();
 		let policy = job_creation_flags(user_creation_flags(core));
 
 		#[cfg(feature = "tracing")]
@@ -116,7 +130,8 @@ impl CommandWrapper for JobObject {
 			}
 		};
 
-		let job_port = match make_job_object(handle, kill_on_close) {
+		let made = make_job_object_with_breakaway(handle, kill_on_close, silent_breakaway);
+		let job_port = match made {
 			Ok(job_port) => job_port,
 			Err(error) => {
 				terminate_child(&mut *inner);

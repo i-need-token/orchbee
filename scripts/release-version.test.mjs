@@ -14,6 +14,7 @@ const SOURCE_FILES = [
 	'Cargo.toml',
 	'Cargo.lock',
 	'apps/orchbee/Cargo.toml',
+	'apps/orchbee-launcher/Cargo.toml',
 	'apps/orchbee-server/Cargo.toml',
 	'apps/orchbee-worker/Cargo.toml',
 	'crates/local-runtime/Cargo.toml',
@@ -73,7 +74,7 @@ function assertOneDifference(root, path) {
 
 // `set` changes one line in each recorded place: five in Cargo.lock, one in each other file.
 function expectedChanges(file) {
-	if (file === 'Cargo.lock') return 5;
+	if (file === 'Cargo.lock') return 6;
 	return WRITTEN_FILES.includes(file) ? 1 : 0;
 }
 
