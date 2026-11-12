@@ -353,22 +353,27 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   client that connects meanwhile waits in the pipe within its own deadline. With no live Session
   the expiry counts from that read.
 - **Session reads.** A Session is live while its Server holds its lifetime lock. The hub reads every
-  Session that `session list` shows in the environment the hub started in: once when the last
-  `presence` connection closes or attaches again without `presence`, then every 30 seconds while
-  none is attached, once more at `expiresAt` before the hub may close, and never while one is
-  attached. One read covers every Session within 5 seconds; a read that fails or runs out of time
+  Session folder in the runtime base of the environment it started in, where every Session started
+  in that environment keeps its runtime. It reads once when the last `presence` connection closes
+  or attaches again without `presence`, then every 30 seconds while none is attached, once more at
+  `expiresAt` before the hub may close, and never while one is attached. One read covers every Session within 5 seconds; a read that fails or runs out of time
   finds no live Session. The read at `expiresAt` sees a Session started without an interface since
   the last periodic read, so the hub never closes under it.
-- **A read never meets a Server.** The hub skips a Session the catalog marks `deleting`: its
-  deleter holds both locks, so no Server lives there, and the hub's handles, opened without delete
-  sharing, could fail the folder removal midway. For each other Session folder the hub opens its
-  existing `activation.lock` and never creates it: no file means no Session; a lock someone holds
-  means an activation, a stop, or a deletion is running, which counts as live; otherwise the hub
-  holds the activation lock for the instant of `observe_session_lifetime_lock`. A Server takes its
-  lifetime lock once, at start, while its activator holds the activation lock, and releases it
-  during its stop under the same lock, so the read can never take a free lifetime lock at the
-  moment a Server takes it. The bare `observe_session_lifetime_lock` that `session list` uses
-  could.
+- **What a read opens.** A read opens no Session record and nothing in the data root's
+  `sessions/`. First it lists the runtime base, holding the listing open only while it reads it,
+  and keeps the folders whose names are Session names; a base with more than 256 of them is not
+  probed, and the read finds no live Session. Then it probes one folder at a time: it pins the
+  base's ancestors, the base and the folder, shared for reading and writing but not for deletion,
+  opens the folder's existing `activation.lock` and never creates it, and closes all of them before
+  the next folder. No file means no Session; a lock someone holds means an activation, a stop, or a
+  deletion is running, which counts as live; otherwise the hub holds the activation lock for the
+  instant of `observe_session_lifetime_lock`, which opens the existing `session-lifetime.lock` the
+  same way. Neither lock file is replaced by rename: each is created once and removed only with its
+  folder. A probe takes a few system calls and never waits.
+- **A read never meets a Server.** A Server takes its lifetime lock once, at start, while its
+  activator holds the activation lock, and releases it during its stop under the same lock, so the
+  read can never take a free lifetime lock at the moment a Server takes it. The bare
+  `observe_session_lifetime_lock` that `session list` uses could.
 - **Time.** The lifetime state machine takes the time as an argument; only the hub's supervisor
   reads the clocks, monotonic for deadlines and the wall clock for `expiresAt`. The Windows
   monotonic clock counts time asleep, so after a long sleep the deadline has passed at the first
@@ -419,7 +424,7 @@ serves as empty with revision 0 until a `reload` succeeds.
 | Control request                | Its admission thread                                                   | 4 slots; the next gets `capacity`                                                          |
 | Queued frames of a connection  | Its connection state machine                                           | Its reader stops reading while 256 wait; state events replace their own subject            |
 | Catalog                        | The hub state                                                          | 64 Machines from a record of at most 128 KiB                                               |
-| Expiry deadline, Session reads | The supervisor                                                         | One deadline; one read at a time, within 5 seconds                                         |
+| Expiry deadline, Session reads | The supervisor                                                         | One deadline; one read at a time, of at most 256 folders, within 5 seconds                 |
 | Threads                        | The process                                                            | Listener and supervisor, one per candidate, two per attached connection                    |
 
 ### Ends and races
@@ -452,13 +457,12 @@ serves as empty with revision 0 until a `reload` succeeds.
   is attached and the hub is not closing; another leave during a read schedules the next read at
   once.
 - **A read beside a Session start, stop, or deletion.** The activation lock excludes a Server's
-  lifetime acquire and release. What remains is the hub's own instant on the activation lock: an
-  activation or a stop that meets it retries 10 ms later, and a `session delete` that meets it
-  before marking the Session `deleting` is refused `in-use` once. A read that lists the Session
-  after the mark leaves its folder alone; only a read that listed it just before the mark can pin
-  the folder for a moment, exactly as a concurrent `session list` can. A Server still starting
-  when its activator gave up at its deadline takes its lifetime lock without the activation lock;
-  a read at that instant is the one meeting left open.
+  lifetime acquire and release, and the read holds no file a Server writes or replaces. What
+  remains is the probe's own instant: an activation or a stop that meets the activation lock
+  retries 10 ms later; a `session delete` that meets it before marking the Session `deleting` is
+  refused `in-use`; one that meets the probe's folder or lock handles after the mark stops midway,
+  an accepted limit. A Server still starting when its activator gave up at its deadline takes its
+  lifetime lock without the activation lock; a read at that instant is the one meeting left open.
 - **Admission beside closing.** A candidate's slot and decision are taken together under the hub
   state's lock, so an accepted connection is registered before `closing` can begin and receives its
   `bye`, and an offer decided after it is rejected `stopping`.
@@ -468,9 +472,14 @@ serves as empty with revision 0 until a `reload` succeeds.
 
 ### Accepted limits
 
-- **A Session read that keeps failing finds no Session.** A data root with 256 or more Session
-  names, or a runtime base the hub cannot read, fails every read, so the hub, and any Machine login
-  it holds once it can connect, can expire under a live Session.
+- **A Session read that keeps failing finds no Session.** A runtime base with more than 256 Session
+  folders, or one the hub cannot list, fails every read, so the hub, and any Machine login it holds
+  once it can connect, can expire under a live Session.
+- **A Session outside the runtime base is not read.** A Session whose record names a runtime folder
+  elsewhere, started under another `ORCHBEE_RUNTIME_BASE`, never holds this hub.
+- **A deletion that meets a probe stops midway.** When `session delete` removes a Session's runtime
+  folder while a probe holds that folder or one of its lock files, the removal fails and the Session
+  stays marked `deleting`; running `session delete` again completes it.
 - **A Server that outlives its activator's deadline** takes its lifetime lock without the
   activation lock, so a read at that instant is the one meeting with a Server left open.
 
