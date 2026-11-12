@@ -423,8 +423,13 @@ serves as empty with revision 0 until a `reload` succeeds.
 | A second hub starts                           | It cannot take the lock, writes and binds nothing, and exits 0; the client that started it attaches to the running hub                                                                                                                             |
 | A client connects during `closing`            | Its offer is rejected `stopping`; attach-or-start waits and starts a new hub once the old one is gone                                                                                                                                              |
 | The hub is killed                             | The system releases the lock and closes the pipe; the next attach finds no endpoint and starts a hub, which locks the same file                                                                                                                    |
+| A hub thread panics                           | The hub reports the panic and aborts the whole process, which then ends as a killed hub does; no thread unwinds alone                                                                                                                              |
 | The data root is unavailable                  | Attach-or-start fails before starting a hub, or the hub exits 1 when it cannot create `internal/machines/` or open the lock; a running hub keeps its catalog, answers `reload` `storage`, finds no Session, and expires unless `presence` holds it |
 
+- **A panic ends the hub.** No hub thread may unwind while the others serve: a listener that
+  unwound would leave the lock held with no endpoint, so every attach would fail, and a reader that
+  unwound would leave its `presence` counted, so the hub would never expire. The hub's panic hook
+  reports and aborts the process, which the design recovers from as from a kill.
 - **Simultaneous starts.** Several clients that find no endpoint each start a hub; one takes the
   lock, the others exit before binding, and every client connects to the one that binds. The lock
   precedes the bind, and a bind never adopts an existing name.

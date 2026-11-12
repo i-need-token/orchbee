@@ -54,6 +54,7 @@ const IDLE_WAKE: Duration = Duration::from_secs(60);
 
 /// Runs the hub until it closes and returns its exit status.
 pub(super) fn serve() -> u8 {
+    end_on_panic();
     let Ok(root) = DataRoot::resolve(|name| std::env::var_os(name)) else {
         return CANNOT_SERVE;
     };
@@ -92,6 +93,17 @@ pub(super) fn serve() -> u8 {
     let _listener_ended = listening.join();
     drop(lock);
     CLOSED
+}
+
+/// Makes a panic in any of the hub's threads end the process after the usual report, as a kill
+/// would. Unwinding one thread would leave the rest serving wrongly: a listener's panic drops the
+/// endpoint while the lock stays held, and a reader's leaves its `presence` counted for ever.
+fn end_on_panic() {
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        report(panic);
+        std::process::abort();
+    }));
 }
 
 /// Opens `hub.lock` and takes it, or `None` when another hub holds it. The file is created when
