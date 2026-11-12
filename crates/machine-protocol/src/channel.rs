@@ -397,6 +397,26 @@ impl<P: Protocol> Connection<P> {
         !self.outbox.is_empty()
     }
 
+    /// The frames other than `data` and `bye` that wait to be written, so a carrier can stop
+    /// reading while a peer that does not read keeps provoking replies.
+    #[must_use]
+    pub fn queued_frames(&self) -> usize {
+        self.outbox.control_len()
+    }
+
+    /// The committed `data` bytes of `channel` that [`Connection::poll_transmit`] has not yet
+    /// handed out; 0 for a channel that is not open.
+    #[must_use]
+    pub fn queued_bytes(&self, channel: u32) -> usize {
+        self.channels.get(&channel).map_or(0, |stream| {
+            stream
+                .pending
+                .iter()
+                .map(|frame| frame.payload().len())
+                .sum()
+        })
+    }
+
     /// Whether `bye` was written, so the caller closes the carrier.
     #[must_use]
     pub const fn is_finished(&self) -> bool {

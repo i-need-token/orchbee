@@ -104,6 +104,11 @@ impl Outbox {
         self.finished
     }
 
+    /// The queued frames other than `data` and `bye`.
+    pub(super) fn control_len(&self) -> usize {
+        self.control.len()
+    }
+
     /// Whether no frame waits to be written.
     pub(super) fn is_empty(&self) -> bool {
         self.control.is_empty() && self.ready.is_empty() && self.bye.is_none()
