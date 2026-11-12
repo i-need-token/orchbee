@@ -22,12 +22,13 @@ use std::{
 /// The hidden entry of the hub process.
 pub(super) const HUB_ENTRY: &str = "--machine-hub-v1";
 /// Hubs one call may start.
-const STARTS: u8 = 4;
+const STARTS: u8 = 8;
 /// The pause before connecting again.
 const PAUSE: Duration = Duration::from_millis(20);
-/// How long a call waits after a hub it started exited 0, having lost the lock to another hub,
-/// before it starts one again.
+/// How long a call waits after a hub it started exited 0, having lost the lock to another hub that
+/// has not bound yet, before it starts one again; it doubles with each loss up to the maximum.
 const RESTART_PAUSE: Duration = Duration::from_millis(200);
+const RESTART_PAUSE_MAX: Duration = Duration::from_millis(1_600);
 /// One connection attempt's bound, within the call's deadline.
 const CONNECT: Duration = Duration::from_secs(2);
 
@@ -59,7 +60,8 @@ pub(super) fn attach_or_start(deadline: Instant) -> Result<LocalStream, AttachFa
     let executable = std::env::current_exe().map_err(|_| AttachFailure::Unavailable)?;
     let mut child: Option<RetainedChild> = None;
     let mut starts = 0;
-    let mut lost_at: Option<Instant> = None;
+    let mut pause = RESTART_PAUSE;
+    let mut rest_until: Option<Instant> = None;
     loop {
         if Instant::now() >= deadline {
             return Err(AttachFailure::Timeout);
@@ -78,12 +80,13 @@ pub(super) fn attach_or_start(deadline: Instant) -> Result<LocalStream, AttachFa
                         // It lost the lock to another hub, or closed at once: connect again.
                         Ok(Some(status)) if status.success() => {
                             child = None;
-                            lost_at = Some(Instant::now());
+                            rest_until = Some(Instant::now() + pause);
+                            pause = (pause * 2).min(RESTART_PAUSE_MAX);
                         }
                         Ok(Some(_)) | Err(_) => return Err(AttachFailure::Unavailable),
                     }
                 }
-                let rested = lost_at.is_none_or(|at| at.elapsed() >= RESTART_PAUSE);
+                let rested = rest_until.is_none_or(|until| Instant::now() >= until);
                 if child.is_none() && rested {
                     if starts == STARTS {
                         return Err(AttachFailure::Unavailable);

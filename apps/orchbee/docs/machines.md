@@ -344,9 +344,10 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
 | `expiring` | No holder; `expiresAt` is the moment the hub learned that, plus 600,000 ms                                     | `held` on a `presence` attachment or a read that finds a live Session; `closing` at `expiresAt` or on `drain`       |
 | `closing`  | Entered once and never left                                                                                    | Exit                                                                                                                |
 
-- **Start.** The hub takes the lock, reads the catalog and reads every Session before it opens its
-  endpoint, so its first client sees `held` or `expiring`; with no live Session the expiry counts
-  from that read.
+- **Start.** The hub takes the lock and binds its endpoint at once, then reads the catalog and
+  every Session before it accepts a connection, so its first client sees `held` or `expiring`; a
+  client that connects meanwhile waits in the pipe within its own deadline. With no live Session
+  the expiry counts from that read.
 - **Session reads.** A Session is live while its Server holds its lifetime lock. The hub reads every
   Session that `session list` shows in the environment the hub started in: once when the last
   `presence` connection closes or attaches again without `presence`, then every 30 seconds while
@@ -424,8 +425,9 @@ serves as empty with revision 0 until a `reload` succeeds.
 - **Simultaneous starts.** Several clients that find no endpoint each start a hub; one takes the
   lock, the others exit before binding, and every client connects to the one that binds. The lock
   precedes the bind, and a bind never adopts an existing name.
-- **Lock without endpoint.** A client that connects between another hub's lock and bind finds no
-  endpoint and tries again; its own hub, if it started one, loses the lock and exits.
+- **Lock without endpoint.** A client that connects in the instant between another hub's lock and
+  bind finds no endpoint and tries again; its own hub, if it started one, loses the lock and exits,
+  and the client starts another only after a growing pause.
 - **A pipe outliving its lock.** A killed hub's handles close in no fixed order, so its name can
   outlast its lock by a moment; the new holder retries its bind for 2 seconds. A clean exit closes
   the endpoint before it releases the lock.
@@ -451,10 +453,12 @@ A client attaches by one function: it resolves the data root, creates `internal/
 privately, names the endpoint, and within 10 seconds connects and offers `machine-hub`. No
 endpoint means no hub: it starts its own executable with `--machine-hub-v1` detached, as a Session
 Server is started, with no inherited handle, the system folder as working directory, the inherited
-environment, and a new process group, at most four times per call. `stopping` means a hub is
-closing: it tries again 20 ms later. `capacity` is unavailable; `environment-mismatch` and any
-other rejection are incompatible. A hub it started that exits 1 ends the call at once. The hub
-belongs to no Session's Server and outlives its starter.
+environment, and a new process group. A hub it started that exits 0 lost the lock to another hub:
+the call connects again and starts one more only after a pause of 200 ms that doubles with each
+loss up to 1.6 seconds, at most eight times per call. `stopping` means a hub is closing: it tries
+again 20 ms later. `capacity` is unavailable; `environment-mismatch` and any other rejection are
+incompatible. A hub it started that exits 1 ends the call at once. The hub belongs to no Session's
+Server and outlives its starter.
 
 The exercise in `tests/cli_windows_machine_hub.rs` starts eight attachments at once on a fresh
 data root, follows `held`, `expiring` and `closing` with a 20-second expiry, keeps a hub `held`

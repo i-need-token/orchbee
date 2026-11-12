@@ -65,12 +65,14 @@ pub(super) fn serve() -> u8 {
     let Ok(endpoint) = machine_hub_endpoint(&root) else {
         return CANNOT_SERVE;
     };
-    let machines = Machines::read().unwrap_or_else(|_| Machines::empty());
-    let live = sessions::any_live(Instant::now() + SESSION_READ);
-    let lifetime = Lifetime::start(expiry(), live, Moment::now());
+    // Bound at once, so a starting client finds the endpoint instead of starting more hubs; its
+    // connection waits in the pipe until the listener accepts it after the reads below.
     let Some(listener) = bind(&endpoint) else {
         return CANNOT_SERVE;
     };
+    let machines = Machines::read().unwrap_or_else(|_| Machines::empty());
+    let live = sessions::any_live(Instant::now() + SESSION_READ);
+    let lifetime = Lifetime::start(expiry(), live, Moment::now());
     let shared = Arc::new(Shared::new(Hub::new(lifetime, machines)));
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
