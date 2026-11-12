@@ -250,7 +250,7 @@ moves to another thread or connection.
 | Job                            | Owner                                           | Platforms | Physical cleanup bound after cancellation |
 | ------------------------------ | ----------------------------------------------- | --------- | ----------------------------------------- |
 | Worktree discovery             | `worktree_discovery_job::WorktreeDiscoverySlot` | all       | five-second Job/child settlement          |
-| Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | Windows   | five-second Job settlement                |
+| Worktree mutation              | `worktree_mutation_job::WorktreeMutationSlot`   | all       | five-second Job/group settlement          |
 | Plugin and configured commands | `plugin_jobs::PluginJobs`                       | Windows   | five-second Job settlement                |
 | Agent integration              | `agent_integration_jobs::AgentIntegrationJobs`  | all       | 0.6-second provider command teardown      |
 | Agent probe                    | `agent_probe_jobs::AgentProbeJobs`              | all       | 0.6-second `where.exe` Job teardown       |
@@ -1008,12 +1008,15 @@ not enable reconnect, inventory adoption, or migration of old Worker bindings.
 Mac/Linux retain their existing identity behavior. Two independent Windows Session
 process traces cover reused Terminal IDs and refusal of the old Worker context.
 
-## Windows Worktree mutation owner
+## Worktree mutation owner
 
 The [private mutation contract](../../crates/capability-node-protocol/README.md#worktree-mutation-job-contract)
 owns the checked intents and wire vocabulary. `worktree_mutation_job` owns admission,
-retained intent identity, one physical thread and completion receipts; the Windows Git
-adapter owns literal argv, bounded output and exact process settlement. The Server
+retained intent identity, one physical thread and completion receipts; the
+`worktree_mutation_git` adapter owns literal argv, bounded output and exact process settlement
+through the shared [retained command](../../crates/local-runtime/README.md#retained-commands): a
+Job on Windows, a process group on Linux and macOS. Shared `git_repository` prepares every Git
+command; its `windows` and `unix` children own the program name and path spelling. The Server
 continuation remains responsible for Workspace association and end-to-end CLI recovery.
 
 Start validates Worker identity/generation before touching the slot. Equal retained
@@ -1031,10 +1034,10 @@ retention. These are cooperative admission budgets, not filesystem-call preempti
 A tracked native-spawn boundary distinguishes known no-child failure from post-creation
 wrapper failure; the latter retires admission in discovery and mutation owners.
 Every read is nonblocking and quantum-bounded; cancellation or a limit settles
-the existing Job using the separate five-second cleanup budget. A mutation handoff
+the existing Job or process group using the separate five-second cleanup budget. A mutation handoff
 changes the failure observation to MayHaveChanged before it can affect the filesystem.
-Only the existing Windows absolute drive-path contract is admitted; UNC/device and
-drive-relative paths are rejected. Inherited `GIT_*` variables cannot redirect repository, index or config. Explicit trust
+Windows admits only absolute drive paths; UNC/device and drive-relative paths are rejected.
+Linux and macOS admit absolute paths and canonicalize them before use. Inherited `GIT_*` variables cannot redirect repository, index or config. Explicit trust
 applies only to this command's source repository; global config is never changed.
 
 Create checks an existing local branch before choosing checkout or `-b` with base; base
@@ -1053,15 +1056,16 @@ effects instead of claiming rollback.
 Native tests own disposable Git fixtures until the final child, pipe and repository
 consumer has ended. Transition tests cover duplicate/conflicting Start, capacity,
 cancellation, failed settlement and generation fencing. Real Git tests cover branch
-creation/reuse, open selectors, dirty refusal, force removal and branch preservation.
-These do not prove external-writer exclusion, abrupt Worker-death recovery or non-Windows
-execution. No CLI parity is inferred from this Worker boundary alone.
+creation/reuse, open selectors, dirty refusal, force removal and branch preservation on every
+platform; lock residue retirement depends on Windows share modes and is tested there only.
+These do not prove external-writer exclusion or abrupt Worker-death recovery. No CLI parity is
+inferred from this Worker boundary alone; the Server still refuses Worktree mutation off Windows.
 
 InspectSource resolves the checkout containing the source directory; Open permits the main checkout. Create re-observes its branch after Git completes, so a successful hook changing HEAD yields RepositoryChanged with possible effects, not a false successful association. The Server now consumes these observations through its retained continuation; ownership and cleanup remain in this Worker.
 
-## Windows source-based Worktree reads
+## Source-based Worktree reads
 
-`Start` with a present `trust_repository` reuses the discovery owner and physical slot for source discovery. Admission validates drive syntax only. Its owned task canonicalizes the directory and prepares trust, rechecks cancellation/deadline before spawning, and observes common Git directory and checkout root, then lists porcelain entries under one five-second job budget. Shared `git_repository_windows` removes inherited `GIT_*` repository/config injection and applies optional trust to the exact canonical repository for this command only; mutations use the same command preparation. An absent trust policy selects registered-directory listing. Real Git tests cover main/linked subdirectories, untouched dirty files/configuration, exact trust scope and owner shutdown. See the [source-query contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).
+`Start` with a present `trust_repository` reuses the discovery owner and physical slot for source discovery. Admission validates path syntax only: a drive path on Windows, an absolute path on Linux and macOS. Its owned task canonicalizes the directory and prepares trust, rechecks cancellation/deadline before spawning, and observes common Git directory and checkout root, then lists porcelain entries under one five-second job budget. Shared `git_repository` removes inherited `GIT_*` repository/config injection and applies optional trust to the exact canonical repository for this command only; mutations use the same command preparation. An absent trust policy selects registered-directory listing. Real Git tests cover main/linked subdirectories, untouched dirty files/configuration, exact trust scope and owner shutdown. See the [source-query contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).
 
 ## Windows interactive PowerShell directory model
 
@@ -1188,9 +1192,9 @@ queries. Literal `git status --porcelain=v2 --branch --untracked-files=no
 `core.fsmonitor=false`, `core.untrackedCache=false`, optional locks off, isolated
 Git environment and no trust expansion prevent incidental hooks/cache/configuration
 writes; no fetch occurs. Terminal receipts require child/pipes settlement and
-retain exact status/stderr bounds. Real Windows Git tests cover ahead/behind,
+retain exact status/stderr bounds. Real Git tests on every platform cover ahead/behind,
 no upstream, detached/unborn/linked/nonrepository states and unchanged data/config.
-See the [status wire](../../crates/capability-node-protocol/README.md#windows-workspace-git-status-observations)
+See the [status wire](../../crates/capability-node-protocol/README.md#workspace-git-status-observations)
 and [Client model](../orchbee/docs/machines.md#workspace-sidebar-model).
 
 ## Windows Server transport handoff

@@ -699,9 +699,9 @@ Viewer action tag 12 is `ReadProcessInfo`, with no bytes after the tag; it uses 
 
 ## Worktree mutation job contract
 
-This private contract defines the boundary for the Windows Worker Git owner
-and Server Worktree continuation. Windows Worker dispatch and Server continuation implement this boundary. The representation alone does not establish end-to-end CLI correctness. Server owns Workspace association; Worker owns Git
-checkout observations and effects. No new dependency or Unix execution is admitted.
+This private contract defines the boundary for the Worker Git owner
+and Server Worktree continuation. Worker dispatch implements this boundary on Windows, Linux and macOS; the Server continuation runs on Windows. The representation alone does not establish end-to-end CLI correctness. Server owns Workspace association; Worker owns Git
+checkout observations and effects.
 
 The request carries one nonzero operation ID, Worker ID and positive generation.
 Start admits a checked intent; Poll and Cancel address the original Start ID.
@@ -766,7 +766,7 @@ Rollback replaces the cohort and migrates no durable protocol data.
 
 ## Source-based Worktree discovery
 
-Kind 15 uses one `Start` action tag 1. An absent `trust_repository` selects registered-directory listing; a present Boolean selects Windows source discovery and its command-local trust policy. Source paths are bounded absolute UTF-8 directories. Start result tag 6 means unsupported execution. Poll result tag 13 is `SourceCompleted`: common-directory, source-checkout, listing and stderr bytes share the 7936-byte variable-data bound, with four explicit lengths. Worker owns execution and cleanup; the read consumes no mutation job receipt. `tests/worktree_source.rs` covers canonical bytes, truncated/trailing input, optional trust and combined bounds.
+Kind 15 uses one `Start` action tag 1. An absent `trust_repository` selects registered-directory listing; a present Boolean selects source discovery and its command-local trust policy. Source paths are bounded absolute UTF-8 directories. Start result tag 6 means unsupported execution. Poll result tag 13 is `SourceCompleted`: common-directory, source-checkout, listing and stderr bytes share the 7936-byte variable-data bound, with four explicit lengths. Worker owns execution and cleanup; the read consumes no mutation job receipt. `tests/worktree_source.rs` covers canonical bytes, truncated/trailing input, optional trust and combined bounds.
 
 Registered-directory list results retain native Unix path bytes when they are not UTF-8; this is a current producer, not an old-peer representation. Source-query results validate one UTF-8 path representation and reject byte-path entries.
 
@@ -875,14 +875,14 @@ the cursor rules above, a reset of a fresh read, truncation and tails; the Serve
 echoed request equals its own. Frame version 1 stays, older cohorts reject the new kinds and
 magic, and the matched Server/Worker cohort ships and rolls back together with no persisted data.
 
-## Windows Workspace Git status observations
+## Workspace Git status observations
 
 The existing Worktree job request/result kinds 15/16 add `StartStatus` action tag 5
 and `StatusCompleted` poll tag 14. Directory validation and identity/generation
 fences are unchanged; status/stderr use separate u16-prefixed byte fields with the
 existing 7936-byte summed budget. Status observes branch/upstream facts and remains distinct from Start discovery.
-The Windows owner reuses the discovery slot, TTL, cancellation, settlement and
-retained receipt; unsupported platforms reject this action. No mutation/Host
+The Worker owner on Windows, Linux and macOS reuses the discovery slot, TTL, cancellation,
+settlement and retained receipt. No mutation/Host
 startup/input authority is added. Runtime ownership is in the
 [Workspace sidebar model](../../apps/orchbee/docs/machines.md#workspace-sidebar-model).
 

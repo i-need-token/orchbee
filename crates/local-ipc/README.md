@@ -105,3 +105,8 @@ peer closure, and keep the byte order and the full-buffer timeout across those w
 `ChildOutputReader::pipe` provides the reverse direction. The terminal stream relay
 uses both without changing inherited user handle modes. The process owner must bound
 reads/writes, close pipes and stop/join its child; transport writes never imply consumption.
+
+On Linux and macOS, `ChildOutputReader::pipe` alone is available: a Unix socket pair whose
+nonblocking parent end reads what the blocking child end receives, with the same read and
+would-block contract. The standard library opens both ends close-on-exec, so only the child's
+standard stream inherits the writer.

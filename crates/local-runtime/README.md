@@ -31,7 +31,7 @@ unsupported Unix operations before opening a path or spawning a process; private
 Applications decide action visibility and localized feedback through their
 [TUI platform contract](../../apps/orchbee/docs/tui-platforms.md).
 
-Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint, registered-child and retained-command operations return `io::ErrorKind::Unsupported` before effects. Deletion uses `NamedSessionDeleteReason::Unsupported`; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
+Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint and registered-child operations return `io::ErrorKind::Unsupported` before effects. `CommandChild` retains one command and everything it starts: a Job on Windows, its own process group on Unix (see [retained commands](#retained-commands)). Deletion uses `NamedSessionDeleteReason::Unsupported`; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
 
 ## Shared launch and notification policy
 
@@ -74,6 +74,26 @@ state.
 ## Windows literal command encoding
 
 The pure Windows command encoder is shared by CLI Agent start and Server restart. It emits a bounded UTF-16LE Base64 script with one literal argument array. Native, batch and PowerShell script dispatch preserve argument boundaries, including empty values, quotes and percent signs. It excludes aliases/functions, rejects control characters, caps encoded text at 30,000 characters and refuses batch command lines over 8,000 characters. Applications select programs, shells, interactive flags and stricter carrier limits; this library starts no process. Helper functions and error preferences remain in a child scope when the caller keeps PowerShell open. The embedded PowerShell asset is maintained with this encoder and the CLI's real Windows argv test.
+
+## Retained commands
+
+`CommandChild` owns one spawned command and every process it starts until settlement. Callers
+bound output, deadlines and cancellation; the owner gives them one contract: `try_wait` reports a
+status only after every owned process has ended, `settle` ends them all within five seconds or
+fails, a failed settlement never later turns into a status, and spawn failure says whether a
+process was created. Drop starts termination and never waits.
+
+| Platform | Ownership                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Windows  | A suspended-assigned Job; settlement terminates the Job and waits for its all-processes-exited notification.                                                                                                                                                                                                                                                                               |
+| Unix     | The root leads a new process group. It is observed without reaping, so its PID keeps the group ID reserved; settlement of a running root sends `SIGTERM` to the group and allows two seconds that end early when the root exits; then the group receives `SIGKILL`, the root is reaped and settlement waits until the group is empty. Drop sends `SIGKILL` and reaps on a detached thread. |
+
+A process that starts its own session or group leaves Unix ownership; Windows Jobs forbid
+breakaway by default. Neither platform ends owned processes when the owning process dies abruptly:
+`PR_SET_PDEATHSIG` would need `pre_exec`, which `unsafe_code = "forbid"` excludes, and is
+Linux-only and thread-scoped. Output pipes still close then, so a writer receives `SIGPIPE` or an
+error. Unix tests cover root exit, cancellation, ignored `SIGTERM`, dropped owners and missing
+programs with a real descendant in the group.
 
 ## Data root
 
