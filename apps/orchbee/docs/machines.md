@@ -353,13 +353,16 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   `presence` connection closes or attaches again without `presence`, then every 30 seconds while
   none is attached, and never while one is. One read covers every Session within 5 seconds; a read
   that fails or runs out of time finds no live Session.
-- **A read never meets a Server.** For each Session folder the hub opens its existing
-  `activation.lock` and never creates it: no file means no Session; a lock someone holds means an
-  activation, a stop, or a deletion is running, which counts as live; otherwise the hub holds the
-  activation lock for the instant of `observe_session_lifetime_lock`. A Server takes its lifetime
-  lock once, at start, while its activator holds the activation lock, and releases it during its
-  stop under the same lock, so the read can never take a free lifetime lock at the moment a Server
-  takes it. The bare `observe_session_lifetime_lock` that `session list` uses could.
+- **A read never meets a Server.** The hub skips a Session the catalog marks `deleting`: its
+  deleter holds both locks, so no Server lives there, and the hub's handles, opened without delete
+  sharing, could fail the folder removal midway. For each other Session folder the hub opens its
+  existing `activation.lock` and never creates it: no file means no Session; a lock someone holds
+  means an activation, a stop, or a deletion is running, which counts as live; otherwise the hub
+  holds the activation lock for the instant of `observe_session_lifetime_lock`. A Server takes its
+  lifetime lock once, at start, while its activator holds the activation lock, and releases it
+  during its stop under the same lock, so the read can never take a free lifetime lock at the
+  moment a Server takes it. The bare `observe_session_lifetime_lock` that `session list` uses
+  could.
 - **Time.** The lifetime state machine takes the time as an argument; only the hub's supervisor
   reads the clocks, monotonic for deadlines and the wall clock for `expiresAt`. In development and
   test builds `ORCHBEE_MACHINE_HUB_EXPIRY_MS`, from 1,000 to 600,000, replaces the 600,000 ms
@@ -436,11 +439,12 @@ serves as empty with revision 0 until a `reload` succeeds.
   once.
 - **A read beside a Session start, stop, or deletion.** The activation lock excludes a Server's
   lifetime acquire and release. What remains is the hub's own instant on the activation lock: an
-  activation or a stop that meets it retries 10 ms later, and a `session delete` that meets it is
-  refused `in-use` once. The folder handles a read pins for its moments can fail a concurrent
-  deletion of that folder exactly as a concurrent `session list` can. A Server still starting when
-  its activator gave up at its deadline takes its lifetime lock without the activation lock; a read
-  at that instant is the one meeting left open.
+  activation or a stop that meets it retries 10 ms later, and a `session delete` that meets it
+  before marking the Session `deleting` is refused `in-use` once. A read that lists the Session
+  after the mark leaves its folder alone; only a read that listed it just before the mark can pin
+  the folder for a moment, exactly as a concurrent `session list` can. A Server still starting
+  when its activator gave up at its deadline takes its lifetime lock without the activation lock;
+  a read at that instant is the one meeting left open.
 - **Admission beside closing.** A candidate's slot and decision are taken together under the hub
   state's lock, so an accepted connection is registered before `closing` can begin and receives its
   `bye`, and an offer decided after it is rejected `stopping`.

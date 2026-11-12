@@ -1,6 +1,8 @@
 //! Whether a local Session of the hub's data root lives: one read over every Session `session list`
 //! shows in the environment the hub started in, each under its existing activation lock so that
-//! the read never takes a free lifetime lock at the instant a Server takes it.
+//! the read never takes a free lifetime lock at the instant a Server takes it. A Session marked
+//! `deleting` is never opened: its deleter holds both locks, so no Server lives there, and a handle
+//! of the hub's could fail the folder removal midway.
 
 use crate::local_activation;
 use orchbee_local_runtime::{
@@ -23,7 +25,7 @@ pub(super) fn any_live(deadline: Instant) -> bool {
     let Ok(entries) = SessionCatalog::list(&base, &root, deadline) else {
         return false;
     };
-    for entry in entries {
+    for entry in entries.into_iter().filter(|entry| !entry.deleting) {
         if Instant::now() >= deadline {
             return false;
         }
