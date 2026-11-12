@@ -1,8 +1,10 @@
 //! Uninstall is built only on Windows; every port here refuses or finds nothing, and admission
 //! answers the platform refusal before any of them runs.
+use orchbee_local_runtime::DataRoot;
 use std::{
     io,
     path::{Path, PathBuf},
+    time::Instant,
 };
 
 pub(super) struct Locations;
@@ -52,6 +54,14 @@ pub(super) fn registration_present(_locations: &Locations) -> io::Result<bool> {
 
 pub(super) fn remove_registration(_locations: &Locations) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn machine_hub(_data: &DataRoot, _deadline: Instant) -> Option<u32> {
+    None
+}
+
+pub(super) fn end_machine_hub(_data: &DataRoot, _deadline: Instant) -> bool {
+    false
 }
 
 pub(super) fn store_processes(_root: &Path, _except: &[u32]) -> Vec<StoreProcess> {

@@ -2,6 +2,7 @@
 //! for a disabled record, `unsupported` for a connection kind this build does not know, otherwise
 //! `offline` without a cause or a next attempt.
 
+use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
     Count, MachineId,
     hub::{Catalog, Event, MachineEvent, MachineState, ReloadOutcome, UnsupportedCause},
@@ -23,10 +24,11 @@ impl Machines {
         }
     }
 
-    /// Reads `machines.json`, or the `reload-result` failure that keeps the catalog in use.
-    pub(super) fn read() -> Result<Self, ReloadOutcome> {
-        let catalog = Store::configured()
-            .and_then(|store| store.read())
+    /// Reads the `machines.json` of `root`, or the `reload-result` failure that keeps the catalog
+    /// in use.
+    pub(super) fn read(root: &DataRoot) -> Result<Self, ReloadOutcome> {
+        let catalog = Store::in_data_root(root.clone())
+            .read()
             .map_err(|error| match error {
                 Error::InvalidCatalog => ReloadOutcome::InvalidCatalog,
                 _ => ReloadOutcome::Storage,

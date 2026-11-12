@@ -1,10 +1,12 @@
 //! The machine hub `--machine-hub-v1` as real processes under scratch data roots, reached through
-//! its state printer `--machine-hub-state-v1` and through the codec on its endpoint: eight
-//! attachments at once reach one hub; `presence` holds it, its leave starts the expiry that a
-//! 20-second override ends with `closing` and `bye`, and the next attachment starts a new hub; a hub
-//! killed by its process id after a start-time check is replaced; a catalog of two machines and its
-//! reload; and a real Session holds the hub through its stop and a new start. No test starts `ssh`
-//! or names a reachable machine.
+//! the client owner's diagnostic entries `--machine-hub-state-v1` and `--machine-hub-hold-v1` and
+//! through the codec on its endpoint: eight attachments at once reach one hub; `presence` holds it,
+//! its leave starts the expiry that a 20-second override ends with `closing` and `bye`, and the next
+//! attachment starts a new hub; a hub killed by its process id after a start-time check is replaced
+//! by its holder's re-attachment, which restores `presence`; an endpoint that stays closing fails an
+//! attachment as `closing`; `capacity` is retried for a second; a catalog of two machines and its
+//! reload; a real Session holds the hub through its stop and a new start; and uninstall's background
+//! step ends a hub a Session holds. No test starts `ssh` or names a reachable machine.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -12,10 +14,11 @@
 mod session;
 
 use orchbee_connection_handshake::{
-    AcceptorMessage, Build, ConnectionKind, ControlRequest, Extensions, InitiatorMessage, Offer,
-    ProductVersion, RequestKind, encode_initiator_frame, read_acceptor_message,
+    AcceptorMessage, AcceptorProfile, Build, ConnectionKind, ControlRequest, Extensions,
+    InitiatorMessage, Offer, ProductVersion, RejectionReason, RequestKind, encode_acceptor_frame,
+    encode_initiator_frame, read_acceptor_message, read_initiator_message,
 };
-use orchbee_local_ipc::LocalStream;
+use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::{CohortArtifact, DataRoot, PrivateCache, machine_hub_endpoint};
 use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, FrameDecoder, Id, MachineId, Message, ResetReason,
@@ -28,10 +31,16 @@ use orchbee_machine_protocol::{
 };
 use serde_json::json;
 use std::{
+    ffi::OsString,
     fs,
-    io::{self, Read, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    process::{ChildStdout, Command, Output, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc,
+    },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -41,6 +50,8 @@ use winsafe::{HPROCESS, co, guard::CloseHandleGuard};
 const WAIT: Duration = Duration::from_secs(20);
 /// The expiry override of the expiry exercise.
 const SHORT_EXPIRY: &str = "20000";
+/// The shortest expiry override, which a hub without `presence` would outlive by little.
+const SHORTEST_EXPIRY: &str = "1000";
 const FIRST: &str = "11111111111111111111111111111111";
 const SECOND: &str = "22222222222222222222222222222222";
 const ABSENT: &str = "33333333333333333333333333333333";
@@ -142,25 +153,139 @@ fn presence_holds_and_its_leave_expires_into_closing_and_a_new_hub() {
 }
 
 #[test]
-fn a_hub_killed_by_its_process_id_is_replaced_by_the_next_attachment() {
-    let scratch = Scratch::new("mh4-kill-", None);
-    let first = scratch.print();
+fn a_killed_hub_is_replaced_by_its_holder_whose_presence_returns() {
+    let scratch = Scratch::new("mh4-reattach-", Some(SHORTEST_EXPIRY));
+    let mut hold = scratch
+        .client("--machine-hub-hold-v1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let lines = lines(hold.stdout.take().unwrap());
+    let first = attachment(&lines, "attached");
+    assert_eq!(first.state, "held", "{first:?}");
     let hub = Hub::observe(first.pid);
-    // Stop only the process this test's printer started, and only while it is that process.
+    let killed = Instant::now();
+    // Stop only the process this test's holder started, and only while it is that process.
     hub.terminate_checked();
     assert_eq!(hub.wait_exit(WAIT), 1);
-    let recovered = Instant::now();
-    let second = scratch.print();
+    let second = attachment(&lines, "reattached");
+    let restored = killed.elapsed();
     assert_ne!(second.pid, first.pid);
-    eprintln!(
-        "killed {}; hub {} answered in {:?}",
-        first.pid,
-        second.pid,
-        recovered.elapsed()
-    );
+    assert_eq!(second.state, "held", "{second:?}");
     let next = Hub::observe(second.pid);
+    // Past the one-second expiry the new hub is still held: `presence` came back with the holder.
+    thread::sleep(Duration::from_secs(2));
+    let state = scratch.print();
+    assert_eq!((state.hub.as_str(), state.pid), ("held", second.pid));
+    eprintln!(
+        "killed {}; the holder attached to hub {} with presence in {restored:?}",
+        first.pid, second.pid
+    );
+    drop(hold.stdin.take());
+    let held = hold.wait_with_output().unwrap();
+    assert_eq!(
+        held.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&held.stderr)
+    );
+    // The holder's leave starts the expiry, which ends the hub on its own.
+    assert_eq!(next.wait_exit(WAIT), 0);
+}
+
+#[test]
+fn an_endpoint_that_stays_closing_fails_the_attachment_as_closing() {
+    let scratch = Scratch::new("mh4-closing-", None);
+    let listener = LocalListener::bind(scratch.endpoint()).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let answers = Arc::new(AtomicUsize::new(0));
+    // A stand-in for a hub in `closing`: it answers every offer `stopping`, as a closing hub does.
+    let server = {
+        let (stop, answers) = (stop.clone(), answers.clone());
+        thread::spawn(move || {
+            let profile = AcceptorProfile::local(
+                ConnectionKind::MachineHub,
+                ProductVersion::new(env!("CARGO_PKG_VERSION")).unwrap(),
+                Build::default(),
+                orchbee_local_runtime::environment_name(),
+            );
+            let refusal = encode_acceptor_frame(&AcceptorMessage::Rejection(
+                profile.reject(RejectionReason::Stopping),
+            ))
+            .unwrap();
+            while !stop.load(Ordering::Acquire) {
+                let Ok((stream, ())) = listener.accept() else {
+                    thread::sleep(Duration::from_millis(10));
+                    continue;
+                };
+                stream.set_nonblocking(false).unwrap();
+                stream.set_read_timeout(Some(WAIT)).unwrap();
+                if matches!(
+                    read_initiator_message(&mut &stream),
+                    Ok(InitiatorMessage::Offer(_))
+                ) && (&stream).write_all(&refusal).is_ok()
+                {
+                    answers.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        })
+    };
+    let started = Instant::now();
+    let output = scratch.printer().output().unwrap();
+    let elapsed = started.elapsed();
+    stop.store(true, Ordering::Release);
+    server.join().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(4), "{stderr}");
+    assert_eq!(stderr.trim(), "The machine hub is closing. Try again.");
+    assert!(
+        elapsed >= Duration::from_secs(9),
+        "it waits for its deadline: {elapsed:?}"
+    );
+    eprintln!(
+        "closing after {elapsed:?} and {} stopping answers",
+        answers.load(Ordering::Relaxed)
+    );
+}
+
+#[test]
+fn capacity_is_retried_for_a_second() {
+    let scratch = Scratch::new("mh4-capacity-", None);
+    let first = scratch.print();
+    let hub = Hub::observe(first.pid);
+    let endpoint = scratch.endpoint();
+    let mut held: Vec<Client> = (0..256).map(|_| Client::connect(&endpoint)).collect();
+    // With every slot held past the retry, the printer gives up.
+    let started = Instant::now();
+    let refused = scratch.printer().output().unwrap();
+    let gave_up = started.elapsed();
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert_eq!(refused.status.code(), Some(4), "{stderr}");
+    assert_eq!(
+        stderr.trim(),
+        "The machine hub could not be reached or started."
+    );
+    assert!(gave_up >= Duration::from_secs(1), "{gave_up:?}");
+    // A slot freed within the second lets the next printer attach to the same hub.
+    let printer = scratch
+        .printer()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let retrying = Instant::now();
+    thread::sleep(Duration::from_millis(300));
+    drop(held.pop());
+    let state = State::parse(&printer.wait_with_output().unwrap());
+    let attached = retrying.elapsed();
+    assert_eq!(state.pid, first.pid);
+    eprintln!("gave up after {gave_up:?}; attached {attached:?} into the retry");
+    drop(held);
     scratch.exit_hub();
-    next.wait_exit(WAIT);
+    hub.wait_exit(WAIT);
 }
 
 #[test]
@@ -383,6 +508,79 @@ fn a_live_session_holds_the_hub_through_its_stop_and_a_new_start() {
     drop(guard);
 }
 
+#[test]
+fn uninstall_ends_the_hub_a_session_holds() {
+    let fixture = session::Fixture::new("mh4-uninstall-", &["tmp"]);
+    let output = fixture
+        .command(&["--machine-hub-state-v1"])
+        .env("ORCHBEE_MACHINE_HUB_EXPIRY_MS", "120000")
+        .output()
+        .unwrap();
+    let state = State::parse(&output);
+    assert_eq!(state.hub, "held", "two live Sessions hold the new hub");
+    let hub = Hub::observe(state.pid);
+    let mut nonce = [0; 8];
+    getrandom::fill(&mut nonce).unwrap();
+    let key = format!(
+        r"Software\ob-test-scratch\mh4-uninstall-{:016x}",
+        u64::from_le_bytes(nonce)
+    );
+    // Only the fixture's own variables and the system's: no Agent program on `PATH` and no
+    // Agent's configuration folder outside the fixture.
+    let mut command = fixture.command(&["uninstall", "--confirm"]);
+    let own: Vec<(OsString, OsString)> = command
+        .get_envs()
+        .filter_map(|(name, value)| Some((name.to_owned(), value?.to_owned())))
+        .collect();
+    command.env_clear().envs(own);
+    for name in ["SystemRoot", "windir", "SystemDrive", "ComSpec", "PATHEXT"] {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
+    let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32");
+    command
+        .env("PATH", &system)
+        .env("TEMP", fixture.path("tmp"))
+        .env("TMP", fixture.path("tmp"))
+        .env("ORCHBEE_INSTALL_DIR", fixture.path("store"))
+        .env("ORCHBEE_TEST_REGISTRY_KEY", &key);
+    let started = Instant::now();
+    let output = command.output().unwrap();
+    let elapsed = started.elapsed();
+    let _ = Command::new(system.join("reg.exe"))
+        .args(["delete", &format!(r"HKCU\{key}"), "/f"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "Machine hub (process {}): it ends, and every remote machine login it holds ends \
+             with it.",
+            state.pid
+        )),
+        "{stderr}"
+    );
+    // The background step is the subject. The fixture's cohort declares no real Agent adapters,
+    // so the integration writer may refuse step 2 after it; the run then names step b done.
+    assert!(
+        output.status.code() == Some(0) || stderr.contains("Done: Sessions stopped"),
+        "{stderr}"
+    );
+    assert_eq!(hub.exited(Duration::ZERO), Some(0), "the hub ended");
+    eprintln!(
+        "uninstall stopped two Sessions and ended hub {} in {elapsed:?}",
+        state.pid
+    );
+    // The fixture stops both Sessions when it drops.
+    for name in ["default", "host"] {
+        let started = fixture.run(&["server", "start", "--session", name]);
+        assert_eq!(started.code, Some(0), "{started}");
+    }
+}
+
 /// A scratch data root with its own staged client, whose hub the test ends before the root goes.
 struct Scratch {
     root: PathBuf,
@@ -419,6 +617,11 @@ impl Scratch {
     }
 
     fn printer(&self) -> Command {
+        self.client("--machine-hub-state-v1")
+    }
+
+    /// The staged client's `entry` in this root only.
+    fn client(&self, entry: &str) -> Command {
         let mut command = Command::new(
             self.root
                 .join("cohort")
@@ -435,7 +638,7 @@ impl Scratch {
             }
         }
         command
-            .arg("--machine-hub-state-v1")
+            .arg(entry)
             .env("ORCHBEE_HOME", self.home())
             .env("USERPROFILE", self.root.join("profile"))
             .env("HOME", self.root.join("profile"))
@@ -512,6 +715,46 @@ impl Drop for HubGuard {
         let _ = request(&self.endpoint, RequestKind::Exit);
         if self.hub.exited(WAIT).is_none() && !thread::panicking() {
             panic!("hub {} did not exit", self.hub.pid);
+        }
+    }
+}
+
+/// One `attached` or `reattached` line of the hold entry.
+#[derive(Debug)]
+struct Attachment {
+    pid: u32,
+    state: String,
+}
+
+/// The lines `output` prints, as they arrive.
+fn lines(output: ChildStdout) -> mpsc::Receiver<String> {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        for line in BufReader::new(output).lines() {
+            let Ok(line) = line else { return };
+            if sender.send(line).is_err() {
+                return;
+            }
+        }
+    });
+    receiver
+}
+
+/// The next line that begins with `word`, skipping events.
+fn attachment(lines: &mpsc::Receiver<String>, word: &str) -> Attachment {
+    let deadline = Instant::now() + WAIT;
+    loop {
+        let line = lines
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .unwrap_or_else(|_| panic!("no {word} line within {WAIT:?}"));
+        let fields: Vec<&str> = line.split(' ').collect();
+        if let [first, pid, _starts, state] = fields[..]
+            && first == word
+        {
+            return Attachment {
+                pid: pid.parse().unwrap(),
+                state: state.to_owned(),
+            };
         }
     }
 }

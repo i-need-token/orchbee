@@ -30,6 +30,7 @@ The level says who may rely on a variable:
 | `ORCHBEE_TERMINAL_HOST_TRACE`         | Private  | Benchmark runs: interaction timing records from the Terminal Host ([Terminal Host](../../terminal-host/README.md)).                                                                  |
 | `ORCHBEE_TUI_CAPTURE_DIR`             | Private  | Tests: where render tests write captured frames.                                                                                                                                     |
 | `ORCHBEE_MACHINE_HUB_EXPIRY_MS`       | Private  | Tests: a development or test build's machine hub expiry in milliseconds, from 1,000 to 600,000; a release never reads it ([machine hub](machines.md#lifetime)).                      |
+| `ORCHBEE_MACHINE_HUB_TEST_CHILD`      | Private  | Tests: an absolute program a development or test build's machine hub starts once after it binds; a release never reads it ([machine hub](machines.md#environment)).                  |
 | `ORCHBEE_TEST_REGISTRY_KEY`           | Private  | Tests: a scratch key under `HKCU\Software\ob-test-scratch\` that a test build's uninstall edits instead of the real ones ([uninstall](windows-cli-configuration.md)).                |
 | `ORCHBEE_TEST_UNINSTALL_CLIENT`       | Private  | Tests: the packaged test Client the ignored uninstall rehearsal installs from.                                                                                                       |
 

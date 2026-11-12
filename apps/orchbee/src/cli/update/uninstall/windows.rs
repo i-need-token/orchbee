@@ -10,11 +10,15 @@
 //! else is in it. It ends once the held files and the pointer are gone, or after about a minute.
 //! Interrupted, it leaves the pointer while any held file or folder remains.
 use super::super::path_value::{self, Edit};
-use orchbee_local_runtime::{EnvironmentKind, environment_kind, environment_stem, is_release};
+use orchbee_local_runtime::{
+    DataRoot, EnvironmentKind, environment_kind, environment_stem, is_release,
+};
+use orchbee_workbench_client::application::machine_hub;
 use std::{
     ffi::OsString,
     io,
     path::{Path, PathBuf},
+    time::Instant,
 };
 use winsafe::{self as w, co};
 
@@ -209,6 +213,17 @@ pub(super) fn remove_registration(locations: &Locations) -> io::Result<()> {
 
 fn registry_error(error: co::ERROR) -> io::Error {
     io::Error::from_raw_os_error(error.raw() as i32)
+}
+
+/// The process id of the machine hub serving `data`; none when none runs or none answers.
+pub(super) fn machine_hub(data: &DataRoot, deadline: Instant) -> Option<u32> {
+    machine_hub::running(data, deadline).ok().flatten()
+}
+
+/// Ends the machine hub serving `data` through the hub client's one ending path; whether a hub
+/// ended.
+pub(super) fn end_machine_hub(data: &DataRoot, deadline: Instant) -> bool {
+    matches!(machine_hub::end(data, deadline), Ok(Some(_)))
 }
 
 /// One process whose program file is inside the store root.

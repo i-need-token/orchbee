@@ -3,7 +3,8 @@
 //!
 //! a. list what goes and what stays, with each running Session's open terminals and running
 //!    Agents, then confirm;
-//! b. stop every Session of the environment, including one another installed version runs;
+//! b. stop every Session of the environment, including one another installed version runs, then
+//!    end the machine hub of its data root;
 //! c. disable every Agent integration through the writer's own disable path;
 //! d. remove the user `Path` entry the PATH step wrote and the installer entries;
 //! e. remove from the data root what the data-root contract lists, or the whole root with
@@ -63,6 +64,8 @@ const INVENTORY_BUDGET: Duration = Duration::from_secs(10);
 const STOP_BUDGET: Duration = Duration::from_secs(65);
 /// How long the processes of stopped Sessions and their Clients may take to leave the store.
 const EXIT_BUDGET: Duration = Duration::from_secs(10);
+/// The bound for ending the machine hub: its drain, its exit and the checks around them.
+const HUB_BUDGET: Duration = Duration::from_secs(20);
 /// The variable that chooses the store root instead of the default, as install reads it.
 const STORE_VARIABLE: &str = "ORCHBEE_INSTALL_DIR";
 
@@ -72,9 +75,12 @@ const STORE_VARIABLE: &str = "ORCHBEE_INSTALL_DIR";
 #[derive(Clone, Copy)]
 enum Background {
     Sessions,
+    /// The machine hub of the data root, ended after the Sessions so that no interface of theirs
+    /// attaches to it again.
+    Hub,
 }
 
-const BACKGROUND: [Background; 1] = [Background::Sessions];
+const BACKGROUND: [Background; 2] = [Background::Sessions, Background::Hub];
 
 #[derive(Clone, Copy)]
 enum Caller {
@@ -101,6 +107,7 @@ pub(crate) fn installer(delete_data: bool, locale: Locale) -> Output {
 /// What the run found before changing anything.
 struct Inventory {
     roots: Roots,
+    data: DataRoot,
     locations: platform::Locations,
     plan: plan::Plan,
     /// This process's parent when its program file is inside the store root: the launcher.
@@ -266,6 +273,7 @@ fn inventory(report: &mut Report, delete_data: bool) -> Option<Inventory> {
     let launcher = parent.filter(|parent| platform::inside(&parent.image, &store));
     Some(Inventory {
         roots,
+        data,
         locations,
         plan,
         launcher,
@@ -309,6 +317,7 @@ fn background(report: &mut Report, data: &DataRoot, deadline: Instant) -> io::Re
     for kind in BACKGROUND {
         match kind {
             Background::Sessions => sessions(report, data, deadline)?,
+            Background::Hub => report.hub = platform::machine_hub(data, deadline),
         }
     }
     Ok(())
@@ -494,6 +503,7 @@ fn end_background(
     for kind in BACKGROUND {
         match kind {
             Background::Sessions => stop_sessions(report, signals)?,
+            Background::Hub => end_hub(report, inventory, signals)?,
         }
     }
     wait_for_store(report, inventory, signals)
@@ -519,6 +529,20 @@ fn stop_sessions(report: &mut Report, signals: &mut ArmedSignals) -> Result<(), 
                 return Err(());
             }
         }
+    }
+    Ok(())
+}
+
+/// Ends the machine hub, whether or not the inventory found one, since a Client may have started
+/// one since. A hub that will not end is left for the store wait, which names it.
+fn end_hub(
+    report: &mut Report,
+    inventory: &Inventory,
+    signals: &mut ArmedSignals,
+) -> Result<(), ()> {
+    check(report, signals)?;
+    if platform::end_machine_hub(&inventory.data, Instant::now() + HUB_BUDGET) {
+        report.changed = true;
     }
     Ok(())
 }

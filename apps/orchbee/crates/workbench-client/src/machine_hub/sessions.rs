@@ -1,29 +1,38 @@
-//! Whether a local Session of the hub's data root lives. The read opens no Session record and
-//! nothing a starting, stopping or deleting Session writes or replaces: it takes the Session names
-//! from the folder names in the runtime base, then probes each folder's existing activation lock
-//! and, under it, the lifetime lock, so that it never takes a free lifetime lock at the instant a
-//! Server takes it.
+//! Whether a local Session of the hub's data root lives, read by the hub for its lifetime and by a
+//! client before it replaces an incompatible hub. The read opens no Session record and nothing a
+//! starting, stopping or deleting Session writes or replaces: it takes the Session names from the
+//! folder names in the runtime base, then probes each folder's existing activation lock and, under
+//! it, the lifetime lock, so that it never takes a free lifetime lock at the instant a Server takes
+//! it.
 
-use crate::local_activation;
 use orchbee_local_runtime::{
     ModeCheckedLocalSessionRendezvous, SessionHolderObservation, SessionLifetimeObservation,
     SessionScope,
 };
-use std::{path::Path, time::Instant};
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 /// The most Session folders one read probes, as many Sessions as the catalog admits; a base that
 /// holds more reads as holding no live Session.
 const SESSIONS: usize = 256;
 
-/// Whether any Session lives; a read that fails or reaches `deadline` finds none.
-pub(super) fn any_live(deadline: Instant) -> bool {
-    let Ok((base, _)) = local_activation::runtime_location() else {
-        return false;
-    };
-    if local_activation::runtime_base_unstarted().unwrap_or(true) {
-        return false;
-    }
-    let Some(names) = folder_names(&base, deadline) else {
+/// The runtime base Sessions run in under `environment`: `ORCHBEE_RUNTIME_BASE` when it applies to
+/// this build, otherwise the data root's default. The hub keeps that variable under the same rule,
+/// so a client and the hub it starts read the same base.
+pub fn runtime_base(environment: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    let routed = orchbee_local_runtime::session_route_environment(|name| environment(name));
+    routed("ORCHBEE_RUNTIME_BASE")
+        .map(PathBuf::from)
+        .or_else(|| orchbee_local_runtime::default_runtime_base(|name| environment(name)))
+}
+
+/// Whether any Session in `base` lives; a base that does not exist yet holds none, and a read that
+/// fails or reaches `deadline` finds none.
+pub fn any_live(base: &Path, deadline: Instant) -> bool {
+    let Some(names) = folder_names(base, deadline) else {
         return false;
     };
     for name in names {

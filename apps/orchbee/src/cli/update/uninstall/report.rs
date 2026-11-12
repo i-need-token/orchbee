@@ -117,6 +117,8 @@ pub(super) struct Report {
     pub(super) store_root: Option<PathBuf>,
     pub(super) data_root: Option<PathBuf>,
     pub(super) sessions: Vec<SessionLine>,
+    /// The process id of the machine hub the listing names.
+    pub(super) hub: Option<u32>,
     pub(super) integrations: Vec<IntegrationLine>,
     pub(super) path_key: Option<String>,
     pub(super) path_entry: Outcome,
@@ -149,6 +151,7 @@ impl Report {
             store_root: None,
             data_root: None,
             sessions: Vec::new(),
+            hub: None,
             integrations: Vec::new(),
             path_key: None,
             path_entry: Outcome::NotReached,
@@ -262,7 +265,7 @@ impl Report {
     }
 
     /// Step a: what goes and what stays, then the running Sessions with their open terminals and
-    /// running Agents.
+    /// running Agents, and the machine hub.
     pub(super) fn listing(&self, locale: Locale) -> String {
         let text = CliText::new(locale);
         let phrase = |key| text.cli_uninstall_phrase(key);
@@ -329,6 +332,9 @@ impl Report {
                     text.cli_uninstall_session(&session.name, session.terminals, session.agents)
                 ));
             }
+        }
+        if let Some(process_id) = self.hub {
+            lines.push(text.cli_uninstall_hub(process_id));
         }
         lines.join("\n") + "\n"
     }

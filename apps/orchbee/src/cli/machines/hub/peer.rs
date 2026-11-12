@@ -1,11 +1,12 @@
-//! One attached connection: its reader, which decodes frames into the state machine and answers
-//! each request under the hub state's lock, and its writer, which writes one whole frame at a time
-//! until `bye` or the connection's end.
+//! One attached connection: its reader, which hands each frame to the connection's state machine
+//! under the connection's own lock and answers a request under the hub state's lock and then the
+//! connection's, and its writer, which writes whole frames, up to a batch at a time, until `bye` or
+//! the connection's end. A frame wakes only its own connection's threads.
 
 use super::super::shared_carrier::frames;
 use super::{
     catalog::Machines,
-    state::{Hub, Shared},
+    state::{Hub, Line, Shared},
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_machine_protocol::{
@@ -18,7 +19,7 @@ use orchbee_machine_protocol::{
 };
 use std::{
     io::{self, Read, Write},
-    sync::{Arc, MutexGuard},
+    sync::Arc,
     thread,
 };
 
@@ -26,37 +27,44 @@ use std::{
 const READ_BUFFER_BYTES: usize = 64 * 1024;
 /// The reader stops reading while this many frames wait to be written.
 const BACKLOG: usize = 256;
+/// The most bytes of whole frames one write carries.
+const WRITE_BATCH_BYTES: usize = 64 * 1024;
 
 /// Starts the writer of the connection `id`; false when no thread could start.
-pub(super) fn start_writer(shared: &Arc<Shared>, id: u64, stream: LocalStream) -> bool {
-    let shared = shared.clone();
+pub(super) fn start_writer(
+    shared: &Arc<Shared>,
+    line: &Arc<Line>,
+    id: u64,
+    stream: LocalStream,
+) -> bool {
+    let (shared, line) = (shared.clone(), line.clone());
     thread::Builder::new()
         .name("orchbee-hub-writer".into())
-        .spawn(move || write(&shared, id, &stream))
+        .spawn(move || write(&shared, &line, id, &stream))
         .is_ok()
 }
 
 /// The reader of the connection `id`, on the thread that admitted it.
-pub(super) fn read(shared: &Shared, id: u64, stream: &LocalStream) {
+pub(super) fn read(shared: &Shared, line: &Line, id: u64, stream: &LocalStream) {
     let mut decoder = FrameDecoder::new();
     let mut buffer = vec![0; READ_BUFFER_BYTES];
     let mut input = stream;
     loop {
         {
-            let mut hub = shared.lock();
+            let mut wire = line.lock();
             loop {
-                let Some(peer) = hub.peers.get(&id) else {
-                    return;
-                };
-                if !peer.open || peer.connection.violation().is_some() {
+                if !wire.open || wire.connection.violation().is_some() {
+                    drop(wire);
+                    let mut hub = shared.lock();
                     hub.release(id);
+                    drop(hub);
                     shared.wake();
                     return;
                 }
-                if peer.connection.queued_frames() < BACKLOG {
+                if wire.connection.queued_frames() < BACKLOG {
                     break;
                 }
-                hub = shared.wait(hub);
+                wire = line.wait(wire);
             }
         }
         let read = match input.read(&mut buffer) {
@@ -68,75 +76,91 @@ pub(super) fn read(shared: &Shared, id: u64, stream: &LocalStream) {
         let taken = if read == 0 {
             Ok(false)
         } else {
-            frames(&mut decoder, bytes, |frame| receive(shared, id, frame))
+            frames(&mut decoder, bytes, |frame| {
+                receive(shared, line, id, frame)
+            })
         };
-        let mut hub = shared.lock();
         match taken {
             Ok(true) => continue,
             // The connection ended, or committed a violation whose `bye` the writer still sends.
             Ok(false) => {
                 if read == 0 {
-                    hub.close(id);
+                    shared.lock().close(id);
                 }
             }
             Err(_) => {
-                if let Some(peer) = hub.peers.get_mut(&id) {
-                    peer.connection.frame_failed();
-                }
+                let _violation = line.lock().connection.frame_failed();
+                line.wake();
             }
         }
-        hub.release(id);
+        shared.lock().release(id);
         shared.wake();
         return;
     }
 }
 
 /// Takes one frame; false once the connection stops reading.
-fn receive(shared: &Shared, id: u64, frame: &orchbee_machine_protocol::Frame) -> bool {
-    let mut hub = shared.lock();
-    let Some(peer) = hub.peers.get_mut(&id).filter(|peer| peer.open) else {
-        return false;
-    };
-    let delivery = match peer.connection.receive(frame) {
-        Ok(receipt) => receipt.delivery,
-        Err(_) => {
-            shared.wake();
+fn receive(shared: &Shared, line: &Line, id: u64, frame: &orchbee_machine_protocol::Frame) -> bool {
+    let delivery = {
+        let mut wire = line.lock();
+        if !wire.open {
             return false;
         }
+        match wire.connection.receive(frame) {
+            Ok(receipt) => receipt.delivery,
+            Err(_) => {
+                drop(wire);
+                line.wake();
+                return false;
+            }
+        }
     };
-    let (mut hub, reading) = match delivery {
-        Some(delivery) => deliver(shared, hub, id, delivery),
-        None => (hub, true),
+    let reading = match delivery {
+        Some(delivery) => deliver(shared, line, id, delivery),
+        None => true,
     };
     if !reading {
-        hub.close(id);
+        shared.lock().close(id);
+        shared.wake();
     }
-    shared.wake();
+    line.wake();
     reading
 }
 
-fn deliver<'a>(
-    shared: &'a Shared,
-    mut hub: MutexGuard<'a, Hub>,
+/// Takes a delivery that depends on the hub state, under its lock and then the connection's.
+fn deliver(
+    shared: &Shared,
+    line: &Line,
     id: u64,
     delivery: Delivery<orchbee_machine_protocol::hub::Hub>,
-) -> (MutexGuard<'a, Hub>, bool) {
+) -> bool {
     match delivery {
         Delivery::Message(Message::Request {
             id: request,
             request: Request::Reload,
             ..
-        }) => (reload(shared, hub, id, request), true),
+        }) => {
+            reload(shared, line, request);
+            true
+        }
         Delivery::Message(Message::Request {
             id: request,
             request: body,
             ..
         }) => {
-            answer(&mut hub, id, request, body);
-            (hub, true)
+            let attach = matches!(body, Request::Attach(_));
+            let mut hub = shared.lock();
+            answer(&mut hub, line, id, request, body);
+            drop(hub);
+            if attach {
+                // The lifetime may have changed.
+                shared.wake();
+            }
+            true
         }
-        Delivery::Message(Message::Bye { .. }) => (hub, false),
+        Delivery::Message(Message::Bye { .. }) => false,
         Delivery::Open { channel, open, .. } => {
+            let hub = shared.lock();
             let reason = if hub.lifetime.is_closing() {
                 ResetReason::Stopping
             } else if hub.machines.state(open.machine()).is_some() {
@@ -144,19 +168,17 @@ fn deliver<'a>(
             } else {
                 ResetReason::NotFound
             };
-            if let Some(peer) = hub.peers.get_mut(&id) {
-                let _reset = peer.connection.reset(channel, reason);
-            }
-            (hub, true)
+            let _reset = line.lock().connection.reset(channel, reason);
+            true
         }
         // The state machine answered an unknown request itself; nothing else reaches a hub with
         // no channel open.
-        _ => (hub, true),
+        _ => true,
     }
 }
 
-/// Answers every request but `reload` at once, under the lock.
-fn answer(hub: &mut Hub, id: u64, request: Id, body: Request) {
+/// Answers every request but `reload` at once, under the hub state's lock.
+fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
     let closing = hub.lifetime.is_closing();
     let reply = match body {
         Request::Attach(_) if closing => Some(Reply::Attach(AttachOutcome::Stopping)),
@@ -178,8 +200,9 @@ fn answer(hub: &mut Hub, id: u64, request: Id, body: Request) {
                 false
             };
             let state = hub.lifetime.state();
-            if let Some(peer) = hub.peers.get_mut(&id) {
-                let _replied = peer.connection.reply(
+            {
+                let mut wire = line.lock();
+                let _replied = wire.connection.reply(
                     request,
                     Reply::Attach(AttachOutcome::Attached { hub: state }),
                 );
@@ -189,13 +212,12 @@ fn answer(hub: &mut Hub, id: u64, request: Id, body: Request) {
             }
             if watching {
                 let events = hub.machines.events();
-                if let Some(peer) = hub.peers.get_mut(&id) {
-                    for event in events {
-                        let _queued = peer.connection.event(event);
-                    }
+                let mut wire = line.lock();
+                for event in events {
+                    let _queued = wire.connection.event(event);
                 }
             }
-            None
+            return;
         }
         Request::Connect(connect) => connect_reply(&hub.machines, &connect, closing),
         Request::Disconnect { .. } if closing => {
@@ -226,13 +248,11 @@ fn answer(hub: &mut Hub, id: u64, request: Id, body: Request) {
         // `deliver` hands `reload` to its own path.
         Request::Reload => Some(Reply::Reload(ReloadOutcome::Stopping)),
     };
-    let Some(peer) = hub.peers.get_mut(&id) else {
-        return;
-    };
+    let mut wire = line.lock();
     let _answered = match reply {
-        Some(reply) => peer.connection.reply(request, reply),
+        Some(reply) => wire.connection.reply(request, reply),
         // A request the hub cannot serve until it can connect.
-        None => peer.connection.unsupported(request),
+        None => wire.connection.unsupported(request),
     };
 }
 
@@ -262,19 +282,16 @@ fn connect_reply(machines: &Machines, connect: &Connect, closing: bool) -> Optio
     }
 }
 
-/// Rereads `machines.json` outside the lock and replies with the catalog then in use.
-fn reload<'a>(
-    shared: &'a Shared,
-    mut hub: MutexGuard<'a, Hub>,
-    id: u64,
-    request: Id,
-) -> MutexGuard<'a, Hub> {
+/// Rereads `machines.json` outside every lock and replies with the catalog then in use.
+fn reload(shared: &Shared, line: &Line, request: Id) {
+    let mut hub = shared.lock();
     let outcome = if hub.lifetime.is_closing() {
         ReloadOutcome::Stopping
     } else {
         let order = hub.begin_reload();
+        let root = hub.root.clone();
         drop(hub);
-        let read = Machines::read();
+        let read = Machines::read(&root);
         hub = shared.lock();
         match read {
             _ if hub.lifetime.is_closing() => {
@@ -293,37 +310,45 @@ fn reload<'a>(
             }
         }
     };
-    if let Some(peer) = hub.peers.get_mut(&id) {
-        let _replied = peer.connection.reply(request, Reply::Reload(outcome));
-    }
-    hub
+    let _replied = line
+        .lock()
+        .connection
+        .reply(request, Reply::Reload(outcome));
+    drop(hub);
+    // Closing waits for the reads in flight.
+    shared.wake();
 }
 
-/// The writer of the connection `id`: frames in the state machine's order until `bye` is written
-/// or the connection is over.
-fn write(shared: &Shared, id: u64, stream: &LocalStream) {
+/// The writer of the connection `id`: whole frames in the state machine's order until `bye` is
+/// written or the connection is over.
+fn write(shared: &Shared, line: &Line, id: u64, stream: &LocalStream) {
     let mut output = stream;
     loop {
-        let frame = {
-            let mut hub = shared.lock();
+        let bytes = {
+            let mut wire = line.lock();
             loop {
-                let Some(peer) = hub.peers.get_mut(&id) else {
-                    break None;
-                };
-                if let Some(frame) = peer.connection.poll_transmit().filter(|_| peer.open) {
-                    break Some(frame);
+                let mut bytes = Vec::new();
+                while wire.open && bytes.len() < WRITE_BATCH_BYTES {
+                    match wire.connection.poll_transmit() {
+                        Some(frame) => bytes.extend_from_slice(&frame.encode()),
+                        None => break,
+                    }
                 }
-                if !peer.open || peer.connection.is_finished() {
+                if !bytes.is_empty() {
+                    break Some(bytes);
+                }
+                if !wire.open || wire.connection.is_finished() {
                     break None;
                 }
-                hub = shared.wait(hub);
+                wire = line.wait(wire);
             }
         };
-        shared.wake();
-        let Some(frame) = frame else {
+        // A reader paused at the backlog may read again.
+        line.wake();
+        let Some(bytes) = bytes else {
             break;
         };
-        if output.write_all(&frame.encode()).is_err() {
+        if output.write_all(&bytes).is_err() {
             break;
         }
     }
@@ -333,5 +358,6 @@ fn write(shared: &Shared, id: u64, stream: &LocalStream) {
     }
     hub.close(id);
     hub.release(id);
+    drop(hub);
     shared.wake();
 }

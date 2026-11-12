@@ -18,7 +18,9 @@ impl Store {
             DataRoot::resolve(|name| std::env::var_os(name)).map_err(|_| Error::Configuration)?;
         Ok(Self::in_data_root(root))
     }
-    fn in_data_root(root: DataRoot) -> Self {
+    /// The store of `root`, for a reader that resolved its data root from its own view of the
+    /// environment.
+    pub fn in_data_root(root: DataRoot) -> Self {
         Self {
             record: VersionedFile::device(root, VersionedRecord::Machines),
         }

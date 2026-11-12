@@ -1160,6 +1160,7 @@ dependencies = [
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-runtime",
+ "orchbee-machine-protocol",
  "orchbee-terminal-protocol",
  "orchbee-windows-console-host",
  "orchbee-workbench-protocol",

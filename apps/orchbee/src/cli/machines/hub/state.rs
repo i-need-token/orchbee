@@ -1,17 +1,22 @@
-//! The hub's state under its one lock: the lifetime, the catalog, the attached connections with
-//! their protocol state machines, and the counts admission and closing wait on.
+//! The hub's state under its lock: the lifetime, the catalog, the registry of attached connections,
+//! and the counts admission and closing wait on. Each connection's protocol state machine lives
+//! under that connection's own lock. Lock order: the hub state's lock before a connection's; a
+//! thread holding a connection's lock takes no other, and neither is held across I/O.
 
 use super::{catalog::Machines, lifetime::Lifetime};
 use orchbee_local_ipc::LocalStream;
+use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
     Connection,
     hub::{self, Event},
 };
-use std::{collections::BTreeMap, net::Shutdown};
+use std::{collections::BTreeMap, net::Shutdown, sync::Arc};
 
-/// The state under its lock, and the signal that wakes the supervisor, closing, every writer and
-/// every paused reader.
+/// The hub state under its lock, and the signal that wakes the supervisor and closing.
 pub(super) type Shared = super::super::shared_carrier::Shared<Hub>;
+/// One connection's state under its own lock, and the signal that wakes its writer and its reader
+/// paused at the backlog.
+pub(super) type Line = super::super::shared_carrier::Shared<Wire>;
 
 /// Attached connections.
 pub(super) const PEERS: usize = 256;
@@ -21,6 +26,8 @@ pub(super) const CONTROLS: usize = 4;
 pub(super) const CANDIDATES: usize = 64;
 
 pub(super) struct Hub {
+    /// The data root the hub serves, resolved once from its view of the environment.
+    pub(super) root: DataRoot,
     pub(super) lifetime: Lifetime,
     pub(super) machines: Machines,
     pub(super) peers: BTreeMap<u64, Peer>,
@@ -34,23 +41,29 @@ pub(super) struct Hub {
     reload_applied: u64,
 }
 
-/// One attached connection.
+/// One attached connection as the hub state knows it.
 pub(super) struct Peer {
-    pub(super) connection: Connection<hub::Hub>,
+    pub(super) line: Arc<Line>,
     stream: LocalStream,
     pub(super) presence: bool,
     pub(super) watch: bool,
-    /// False once the connection is over at the hub: the client left, sent `bye`, or a write
-    /// failed. A connection that committed a violation stays open until its `bye` is written.
-    pub(super) open: bool,
     pub(super) writer_done: bool,
     /// The reader and the writer that still run.
     threads: u8,
 }
 
+/// One connection's own state.
+pub(super) struct Wire {
+    pub(super) connection: Connection<hub::Hub>,
+    /// False once the connection is over at the hub: the client left, sent `bye`, or a write
+    /// failed. A connection that committed a violation stays open until its `bye` is written.
+    pub(super) open: bool,
+}
+
 impl Hub {
-    pub(super) fn new(lifetime: Lifetime, machines: Machines) -> Self {
+    pub(super) fn new(root: DataRoot, lifetime: Lifetime, machines: Machines) -> Self {
         Self {
+            root,
             lifetime,
             machines,
             peers: BTreeMap::new(),
@@ -64,30 +77,35 @@ impl Hub {
     }
 
     /// Registers an admitted connection whose reader and writer are about to run.
-    pub(super) fn register(&mut self, stream: LocalStream) -> u64 {
+    pub(super) fn register(&mut self, stream: LocalStream) -> (u64, Arc<Line>) {
         self.next_peer += 1;
+        let line = Arc::new(Line::new(Wire {
+            connection: Connection::<hub::Hub>::acceptor(),
+            open: true,
+        }));
         self.peers.insert(
             self.next_peer,
             Peer {
-                connection: Connection::<hub::Hub>::acceptor(),
+                line: line.clone(),
                 stream,
                 presence: false,
                 watch: false,
-                open: true,
                 writer_done: false,
                 threads: 2,
             },
         );
-        self.next_peer
+        (self.next_peer, line)
     }
 
     /// Ends the connection `id` at the hub: it stops holding the hub and both directions close.
+    /// The caller wakes the hub state's signal, since the lifetime may have changed.
     pub(super) fn close(&mut self, id: u64) {
         let Some(peer) = self.peers.get_mut(&id) else {
             return;
         };
         let held = std::mem::take(&mut peer.presence);
-        peer.open = false;
+        peer.line.lock().open = false;
+        peer.line.wake();
         let _closed = peer.stream.shutdown(Shutdown::Both);
         if held {
             self.lifetime.detach();
@@ -105,19 +123,21 @@ impl Hub {
         }
     }
 
-    /// Queues `event` to every open connection attached with `watch`.
-    pub(super) fn broadcast(&mut self, event: &Event) {
-        for peer in self
-            .peers
-            .values_mut()
-            .filter(|peer| peer.open && peer.watch)
-        {
-            let _queued = peer.connection.event(event.clone());
+    /// Queues `event` to every open connection attached with `watch`, waking only those writers.
+    /// The caller holds no connection's lock.
+    pub(super) fn broadcast(&self, event: &Event) {
+        for peer in self.peers.values().filter(|peer| peer.watch) {
+            let mut wire = peer.line.lock();
+            if wire.open {
+                let _queued = wire.connection.event(event.clone());
+                drop(wire);
+                peer.line.wake();
+            }
         }
     }
 
     /// Queues the lifetime state to every watcher.
-    pub(super) fn announce(&mut self) {
+    pub(super) fn announce(&self) {
         self.broadcast(&Event::Hub(self.lifetime.state()));
     }
 

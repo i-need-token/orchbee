@@ -115,6 +115,18 @@ impl super::CliText {
         }
     }
 
+    /// The listing's line for the machine hub, which ends with every remote machine login it holds.
+    pub(crate) fn cli_uninstall_hub(self, process_id: u32) -> String {
+        match self.locale {
+            Locale::EnUs => format!(
+                "Machine hub (process {process_id}): it ends, and every remote machine login it holds ends with it."
+            ),
+            Locale::ZhCn => {
+                format!("连接进程（进程 {process_id}）：将结束，它保持的所有远程机器登录随之结束。")
+            }
+        }
+    }
+
     /// The listing's line for what a default uninstall removes from the data folder `data`, already
     /// rendered for display.
     pub(crate) fn cli_uninstall_data_entries(self, data: &str) -> String {

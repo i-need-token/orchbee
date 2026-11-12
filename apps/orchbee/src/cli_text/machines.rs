@@ -189,10 +189,37 @@ impl super::CliText {
     #[cfg(windows)]
     pub(crate) fn cli_machine_hub_failure(
         self,
-        failure: crate::cli::machines::hub::StateFailure,
+        failure: &crate::cli::machines::hub::StateFailure,
+    ) -> String {
+        use crate::cli::machines::hub::StateFailure as F;
+        use orchbee_workbench_client::application::machine_hub::Incompatible as I;
+        match (self.locale, failure) {
+            (Locale::EnUs, F::Incompatible(I::Environment { environment })) => format!(
+                "The machine hub of this data folder belongs to another Orchbee build ({environment})."
+            ),
+            (Locale::ZhCn, F::Incompatible(I::Environment { environment })) => {
+                format!("此数据文件夹的连接进程属于另一个 Orchbee 构建（{environment}）。")
+            }
+            (Locale::EnUs, F::Incompatible(I::Held { version })) => format!(
+                "The machine hub of version {version} may still be in use by an Orchbee window or a Session, so it was not replaced. Close them and try again."
+            ),
+            (Locale::ZhCn, F::Incompatible(I::Held { version })) => format!(
+                "版本 {version} 的连接进程可能仍被 Orchbee 窗口或会话使用，因此未被替换。请关闭它们后重试。"
+            ),
+            (locale, failure) => self
+                .cli_machine_hub_fixed_failure(locale, failure)
+                .to_owned(),
+        }
+    }
+
+    #[cfg(windows)]
+    fn cli_machine_hub_fixed_failure(
+        self,
+        locale: Locale,
+        failure: &crate::cli::machines::hub::StateFailure,
     ) -> &'static str {
         use crate::cli::machines::hub::StateFailure as F;
-        match (self.locale, failure) {
+        match (locale, failure) {
             (Locale::EnUs, F::DataRoot) => {
                 "The Orchbee data folder is unavailable; check USERPROFILE or ORCHBEE_HOME."
             }
@@ -211,10 +238,10 @@ impl super::CliText {
             (Locale::ZhCn, F::Closing) => "连接进程正在关闭，请重试。",
             (Locale::EnUs, F::Lost) => "The connection to the machine hub was lost.",
             (Locale::ZhCn, F::Lost) => "与连接进程的连接已断开。",
-            (Locale::EnUs, F::Incompatible) => {
-                "The running machine hub belongs to another environment or version."
+            (Locale::EnUs, F::Incompatible(_)) => {
+                "The running machine hub does not understand this version of Orchbee."
             }
-            (Locale::ZhCn, F::Incompatible) => "正在运行的连接进程属于其他环境或版本。",
+            (Locale::ZhCn, F::Incompatible(_)) => "正在运行的连接进程无法识别此版本的 Orchbee。",
             (Locale::EnUs, F::Timeout) => "The machine hub did not answer in time.",
             (Locale::ZhCn, F::Timeout) => "连接进程未及时响应。",
         }

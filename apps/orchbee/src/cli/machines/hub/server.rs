@@ -5,9 +5,10 @@
 use super::super::shared_carrier::{acceptor_profile, answer, query};
 use super::{
     catalog::Machines,
+    environment::Environment,
     lifetime::{Lifetime, Moment, ReadDue},
-    peer, sessions,
-    state::{CANDIDATES, CONTROLS, Hub, PEERS, Shared},
+    peer,
+    state::{CANDIDATES, CONTROLS, Hub, Line, PEERS, Shared},
 };
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, CANDIDATE_DEADLINE, ConnectionKind, Decision,
@@ -17,6 +18,7 @@ use orchbee_connection_handshake::{
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::{DataRoot, create_private_directory, machine_hub_endpoint};
 use orchbee_machine_protocol::ByeReason;
+use orchbee_workbench_client::application::machine_hub;
 use std::{
     fs::{File, TryLockError},
     io::{self, Read},
@@ -35,7 +37,6 @@ const CLOSED: u8 = 0;
 const CANNOT_SERVE: u8 = 1;
 /// The expiry, and the bound of the development override.
 const EXPIRY: Duration = Duration::from_secs(600);
-const EXPIRY_OVERRIDE: &str = "ORCHBEE_MACHINE_HUB_EXPIRY_MS";
 /// One Session read covers every Session within this.
 const SESSION_READ: Duration = Duration::from_secs(5);
 /// How long a name the hub cannot take is retried.
@@ -55,7 +56,8 @@ const IDLE_WAKE: Duration = Duration::from_secs(60);
 /// Runs the hub until it closes and returns its exit status.
 pub(super) fn serve() -> u8 {
     end_on_panic();
-    let Ok(root) = DataRoot::resolve(|name| std::env::var_os(name)) else {
+    let environment = Environment::take();
+    let Ok(root) = DataRoot::resolve(|name| environment.get(name)) else {
         return CANNOT_SERVE;
     };
     let lock = match take_lock(&root) {
@@ -71,10 +73,12 @@ pub(super) fn serve() -> u8 {
     let Some(listener) = bind(&endpoint) else {
         return CANNOT_SERVE;
     };
-    let machines = Machines::read().unwrap_or_else(|_| Machines::empty());
-    let live = sessions::any_live(Instant::now() + SESSION_READ);
-    let lifetime = Lifetime::start(expiry(), live, Moment::now());
-    let shared = Arc::new(Shared::new(Hub::new(lifetime, machines)));
+    environment.start_test_child();
+    let machines = Machines::read(&root).unwrap_or_else(|_| Machines::empty());
+    let base = machine_hub::runtime_base(|name| environment.get(name));
+    let live = any_live(base.as_deref());
+    let lifetime = Lifetime::start(environment.expiry().unwrap_or(EXPIRY), live, Moment::now());
+    let shared = Arc::new(Shared::new(Hub::new(root, lifetime, machines)));
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
     let listening = {
@@ -86,13 +90,18 @@ pub(super) fn serve() -> u8 {
     let Ok(listening) = listening else {
         return CANNOT_SERVE;
     };
-    supervise(&shared);
+    supervise(&shared, base.as_deref());
     close(&shared);
     stop.store(true, Ordering::Release);
     // The endpoint closes before the lock is released, so a successor binds a free name.
     let _listener_ended = listening.join();
     drop(lock);
     CLOSED
+}
+
+/// Whether any Session in the runtime base lives, within the read's bound.
+fn any_live(base: Option<&Path>) -> bool {
+    base.is_some_and(|base| machine_hub::any_live(base, Instant::now() + SESSION_READ))
 }
 
 /// Makes a panic in any of the hub's threads end the process after the usual report, as a kill
@@ -128,18 +137,6 @@ fn take_lock(root: &DataRoot) -> io::Result<Option<File>> {
         Err(TryLockError::WouldBlock) => Ok(None),
         Err(TryLockError::Error(error)) => Err(error),
     }
-}
-
-/// The expiry: 600 seconds, or in a development or test build the override in milliseconds.
-fn expiry() -> Duration {
-    if orchbee_local_runtime::is_release() {
-        return EXPIRY;
-    }
-    std::env::var(EXPIRY_OVERRIDE)
-        .ok()
-        .and_then(|text| text.parse::<u64>().ok())
-        .filter(|milliseconds| (1_000..=600_000).contains(milliseconds))
-        .map_or(EXPIRY, Duration::from_millis)
 }
 
 /// Binds the endpoint, retrying a name a killed predecessor's pipe still holds for a moment.
@@ -211,8 +208,8 @@ fn candidate(
 ) {
     let admitted = decide(shared, profile, &stream, accepted + CANDIDATE_DEADLINE);
     shared.lock().candidates -= 1;
-    if let Some(id) = admitted {
-        peer::read(shared, id, &stream);
+    if let Some((id, line)) = admitted {
+        peer::read(shared, &line, id, &stream);
     }
 }
 
@@ -221,7 +218,7 @@ fn decide(
     profile: &AcceptorProfile,
     stream: &LocalStream,
     deadline: Instant,
-) -> Option<u64> {
+) -> Option<(u64, Arc<Line>)> {
     let message = match read_initiator_message(&mut Deadlined { stream, deadline }) {
         Ok(message) => message,
         Err(ReadError::Closed) => return None,
@@ -252,12 +249,12 @@ fn decide(
             if stream.set_read_timeout(None).is_err() {
                 return None;
             }
-            let id = hub.register(stream.clone());
+            let (id, line) = hub.register(stream.clone());
             drop(hub);
             if answer(&mut &*stream, &AcceptorMessage::Answer(reply))
-                && peer::start_writer(shared, id, stream.clone())
+                && peer::start_writer(shared, &line, id, stream.clone())
             {
-                return Some(id);
+                return Some((id, line));
             }
             let mut hub = shared.lock();
             hub.close(id);
@@ -331,7 +328,7 @@ impl Read for Deadlined<'_> {
 }
 
 /// Owns the Session reads, the one at the expiry deadline included, until the hub enters `closing`.
-fn supervise(shared: &Shared) {
+fn supervise(shared: &Shared, base: Option<&Path>) {
     let mut hub = shared.lock();
     loop {
         if hub.lifetime.is_closing() {
@@ -347,11 +344,10 @@ fn supervise(shared: &Shared) {
         if read_now {
             let ticket = hub.lifetime.begin_read();
             drop(hub);
-            let live = sessions::any_live(Instant::now() + SESSION_READ);
+            let live = any_live(base);
             hub = shared.lock();
             if hub.lifetime.finish_read(ticket, live, Moment::now()) {
                 hub.announce();
-                shared.wake();
             }
             continue;
         }
@@ -371,10 +367,14 @@ fn close(shared: &Shared) {
     while hub.reloads > 0 && Instant::now() < allowance {
         hub = shared.wait_until(hub, allowance);
     }
-    for peer in hub.peers.values_mut().filter(|peer| peer.open) {
-        let _farewell = peer.connection.bye(ByeReason::Stopping);
+    for peer in hub.peers.values() {
+        let mut wire = peer.line.lock();
+        if wire.open {
+            let _farewell = wire.connection.bye(ByeReason::Stopping);
+            drop(wire);
+            peer.line.wake();
+        }
     }
-    shared.wake();
     let farewell = Instant::now() + FAREWELL;
     while hub.peers.values().any(|peer| !peer.writer_done) && Instant::now() < farewell {
         hub = shared.wait_until(hub, farewell);

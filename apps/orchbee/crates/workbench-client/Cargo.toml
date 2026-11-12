@@ -18,6 +18,8 @@ orchbee-connection-handshake = { path = "../../../../crates/connection-handshake
 orchbee-local-client = { path = "../local-client" }
 orchbee-local-ipc = { path = "../../../../crates/local-ipc" }
 orchbee-local-runtime = { path = "../../../../crates/local-runtime" }
+# The `machine-hub` records the hub's one client owner exchanges.
+orchbee-machine-protocol = { path = "../../../../crates/machine-protocol" }
 crossterm.workspace = true
 orchbee-agent-integration = { path = "../../../../crates/agent-integration" }
 orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }

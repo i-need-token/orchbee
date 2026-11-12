@@ -1,11 +1,14 @@
 //! The machine hub `orchbee --machine-hub-v1`: the one process per data root through which
-//! interfaces reach saved machines over `machine-hub`, and its state printer
-//! `orchbee --machine-hub-state-v1`. `docs/machines.md#machine-hub` owns the lifetime, the frozen
+//! interfaces reach saved machines over `machine-hub`, and its diagnostic entries
+//! `orchbee --machine-hub-state-v1` and `orchbee --machine-hub-hold-v1`, which reach it through the
+//! workbench Client's one client owner. `docs/machines.md#machine-hub` owns the lifetime, the frozen
 //! names, the bounds and the races kept here; the contract in `schemas/machine` owns every byte.
 #[cfg(windows)]
-mod attach;
-#[cfg(windows)]
 mod catalog;
+#[cfg(windows)]
+mod environment;
+#[cfg(windows)]
+mod hold;
 #[cfg(windows)]
 mod lifetime;
 #[cfg(windows)]
@@ -14,8 +17,6 @@ mod peer;
 mod printer;
 #[cfg(windows)]
 mod server;
-#[cfg(windows)]
-mod sessions;
 #[cfg(windows)]
 mod state;
 
@@ -49,6 +50,19 @@ pub(crate) fn print_state(locale: Locale) -> Output {
     #[cfg(windows)]
     {
         printer::run(locale)
+    }
+    #[cfg(not(windows))]
+    {
+        crate::cli::unsupported_platform(None, locale)
+    }
+}
+
+/// Attaches with `presence` and `watch`, starting the hub when none runs, and prints each
+/// attachment and event until standard input ends.
+pub(crate) fn hold(locale: Locale) -> Output {
+    #[cfg(windows)]
+    {
+        hold::run(locale)
     }
     #[cfg(not(windows))]
     {

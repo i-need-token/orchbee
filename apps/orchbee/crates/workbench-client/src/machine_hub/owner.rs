@@ -1,0 +1,632 @@
+//! The owner of one attachment to the hub. A reader thread hands frames to the connection's state
+//! machine and re-attaches after the hub goes away; a writer thread writes what the state machine
+//! queues; callers send requests and take notices. One lock guards the owner's state, with one
+//! signal for callers and one for the writer; no thread holds it while it reads or writes the
+//! carrier or attaches.
+
+use super::{
+    AttachFailure, Attached, Attachment,
+    attach::{self, Link, READ_BUFFER_BYTES},
+    data_root,
+};
+use orchbee_local_ipc::LocalStream;
+use orchbee_local_runtime::DataRoot;
+use orchbee_machine_protocol::{
+    ByeReason, Connection, Delivery, FrameDecoder, Id, Message,
+    hub::{self, AttachOutcome, Event, Reply, Request},
+};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    io::{self, Read, Write},
+    net::Shutdown,
+    sync::{Arc, Condvar, Mutex, MutexGuard},
+    thread::{self, JoinHandle},
+    time::{Duration, Instant},
+};
+
+/// One re-attachment attempt's bound.
+const ATTEMPT: Duration = Duration::from_secs(10);
+/// How long after a loss re-attachment goes on while the hub is still closing: the hub's 60-second
+/// allowance, its writers' 2 seconds, and a margin.
+const CLOSING_ALLOWANCE: Duration = Duration::from_secs(75);
+/// The loss within [`LOSS_WINDOW`] that ends the owner instead of re-attaching.
+const LOSSES: usize = 5;
+const LOSS_WINDOW: Duration = Duration::from_secs(60);
+/// The reader stops reading while this many notices wait for `next`.
+const PACE: usize = 256;
+/// How long `close` gives `bye` and the threads.
+const FAREWELL: Duration = Duration::from_secs(2);
+/// The most bytes of whole frames one write carries.
+const WRITE_BATCH_BYTES: usize = 64 * 1024;
+
+/// What the owner tells its caller, in order.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Notice {
+    /// A hub event.
+    Event(Event),
+    /// The owner attached to a hub again after a loss, restoring the attachment. Everything read
+    /// before, the hub state, the catalog and each Machine, must be read again.
+    Reattached(Attached),
+    /// The owner ended; every later request fails with the same failure.
+    Ended(AttachFailure),
+}
+
+/// Why a request has no reply.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RequestFailure {
+    /// The connection was lost with the request in flight; whether the hub acted on it is unknown.
+    Lost,
+    /// The hub does not serve the request.
+    Unsupported,
+    /// No reply within the deadline.
+    Timeout,
+    /// The owner ended.
+    Ended(AttachFailure),
+}
+
+/// One attachment to the hub of this process's data root, kept across the hub going away.
+pub struct HubClient {
+    inner: Arc<Inner>,
+    threads: Vec<JoinHandle<()>>,
+}
+
+struct Inner {
+    root: DataRoot,
+    state: Mutex<State>,
+    /// Wakes callers waiting for a reply, a notice or a connection, the paused reader, and `close`.
+    changed: Condvar,
+    /// Wakes the writer.
+    transmit: Condvar,
+}
+
+struct State {
+    /// The attached connection; absent while re-attaching and after the end.
+    current: Option<Current>,
+    /// What a re-attachment restores.
+    attachment: Attachment,
+    notices: VecDeque<Notice>,
+    /// Each request's answer by ticket, `None` while it waits.
+    answers: BTreeMap<u64, Option<Result<Reply, RequestFailure>>>,
+    next_ticket: u64,
+    losses: VecDeque<Instant>,
+    ended: Option<AttachFailure>,
+    closing: bool,
+    reader_done: bool,
+    writer_done: bool,
+}
+
+struct Current {
+    connection: Connection<hub::Hub>,
+    /// The writer's handle; shutting it down cancels the reader's read too.
+    stream: Arc<LocalStream>,
+    /// Requests in flight: the ticket, and the attachment an `attach` states.
+    pending: BTreeMap<Id, (u64, Option<Attachment>)>,
+}
+
+/// Why the reader stopped reading a connection.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Loss {
+    /// `bye` other than `violation`, or the carrier ended.
+    Gone,
+    /// Either side broke the protocol.
+    Violation,
+    /// `close` began.
+    Closed,
+}
+
+/// What the reader needs to read one connection.
+struct Reading {
+    stream: LocalStream,
+    decoder: FrameDecoder,
+    early: Vec<Delivery<hub::Hub>>,
+}
+
+impl HubClient {
+    /// Attaches as `attachment` to the hub of this process's data root, starting it when none
+    /// runs, within `deadline`.
+    ///
+    /// # Errors
+    ///
+    /// [`AttachFailure`] as attach or start answers; `closing` when the hub was still closing at
+    /// the deadline.
+    pub fn open(
+        attachment: Attachment,
+        deadline: Instant,
+    ) -> Result<(Self, Attached), AttachFailure> {
+        let root = data_root()?;
+        let link = attach::attach(&root, attachment, deadline, &|| false)?;
+        let attached = link.attached;
+        let inner = Arc::new(Inner {
+            root,
+            state: Mutex::new(State {
+                current: None,
+                attachment,
+                notices: VecDeque::new(),
+                answers: BTreeMap::new(),
+                next_ticket: 0,
+                losses: VecDeque::new(),
+                ended: None,
+                closing: false,
+                reader_done: false,
+                writer_done: false,
+            }),
+            changed: Condvar::new(),
+            transmit: Condvar::new(),
+        });
+        let reading = {
+            let mut state = inner.lock();
+            install(&mut state, link).ok_or(AttachFailure::Unavailable)?
+        };
+        let mut client = Self {
+            inner,
+            threads: Vec::new(),
+        };
+        let reader = {
+            let inner = client.inner.clone();
+            thread::Builder::new()
+                .name("orchbee-hub-client-reader".into())
+                .spawn(move || inner.read(reading))
+        };
+        client
+            .threads
+            .push(reader.map_err(|_| AttachFailure::Unavailable)?);
+        let writer = {
+            let inner = client.inner.clone();
+            thread::Builder::new()
+                .name("orchbee-hub-client-writer".into())
+                .spawn(move || inner.write())
+        };
+        client
+            .threads
+            .push(writer.map_err(|_| AttachFailure::Unavailable)?);
+        Ok((client, attached))
+    }
+
+    /// Sends `request` and waits for its reply within `deadline`. While the owner re-attaches, the
+    /// request waits for the new connection. An `attach` that is answered `attached` becomes what a
+    /// later re-attachment restores.
+    ///
+    /// # Errors
+    ///
+    /// [`RequestFailure`] when no reply arrives.
+    pub fn request(&self, request: Request, deadline: Instant) -> Result<Reply, RequestFailure> {
+        let attachment = match &request {
+            Request::Attach(attach) => Some(Attachment {
+                presence: attach.presence,
+                asks: attach.asks,
+                watch: attach.watch,
+            }),
+            _ => None,
+        };
+        let mut state = self.inner.lock();
+        let ticket = loop {
+            if let Some(failure) = &state.ended {
+                return Err(RequestFailure::Ended(failure.clone()));
+            }
+            let ticket = state.next_ticket;
+            let sent = state.current.as_mut().and_then(|current| {
+                let id = current.connection.request(request.clone()).ok()?;
+                current.pending.insert(id, (ticket, attachment));
+                Some(())
+            });
+            if sent.is_some() {
+                state.next_ticket += 1;
+                state.answers.insert(ticket, None);
+                break ticket;
+            }
+            // Re-attaching, or 64 requests already wait: a reply or a connection wakes this.
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out {
+                return Err(RequestFailure::Timeout);
+            }
+        };
+        self.inner.transmit.notify_all();
+        loop {
+            if matches!(state.answers.get(&ticket), Some(Some(_)))
+                && let Some(Some(answer)) = state.answers.remove(&ticket)
+            {
+                return answer;
+            }
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out && !matches!(state.answers.get(&ticket), Some(Some(_))) {
+                // A late reply finds no ticket and is dropped.
+                state.answers.remove(&ticket);
+                return Err(RequestFailure::Timeout);
+            }
+        }
+    }
+
+    /// The next notice, waiting until `deadline`; `None` when none arrived, and at once after the
+    /// owner's end was taken.
+    pub fn next(&self, deadline: Instant) -> Option<Notice> {
+        let mut state = self.inner.lock();
+        loop {
+            if let Some(notice) = state.notices.pop_front() {
+                let paused = state.notices.len() + 1 >= PACE;
+                drop(state);
+                if paused {
+                    self.inner.changed.notify_all();
+                }
+                return Some(notice);
+            }
+            if state.ended.is_some() {
+                return None;
+            }
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out && state.notices.is_empty() {
+                return None;
+            }
+        }
+    }
+
+    /// Sends `bye` `done`, gives it and the threads at most 2 seconds, and ends the owner.
+    pub fn close(mut self) {
+        self.shut();
+    }
+
+    fn shut(&mut self) {
+        let deadline = Instant::now() + FAREWELL;
+        {
+            let mut state = self.inner.lock();
+            if state.closing {
+                return;
+            }
+            state.closing = true;
+            if let Some(current) = state.current.as_mut() {
+                let _farewell = current.connection.bye(ByeReason::Done);
+            }
+        }
+        self.inner.transmit.notify_all();
+        self.inner.changed.notify_all();
+        let mut state = self.inner.lock();
+        while !state.writer_done {
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out {
+                break;
+            }
+        }
+        // Cancels the reader's read; a reader still attaching notices `closing` within one
+        // connection attempt.
+        if let Some(current) = state.current.as_ref() {
+            let _cancelled = current.stream.shutdown(Shutdown::Both);
+        }
+        while !state.reader_done {
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out {
+                break;
+            }
+        }
+        drop(state);
+        self.inner.transmit.notify_all();
+        for thread in self.threads.drain(..) {
+            // A thread past the bound ends on its own; the owner does not wait for it.
+            if thread.is_finished() {
+                let _joined = thread.join();
+            }
+        }
+    }
+}
+
+impl Drop for HubClient {
+    fn drop(&mut self) {
+        self.shut();
+    }
+}
+
+impl Inner {
+    fn lock(&self) -> MutexGuard<'_, State> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Waits on `changed` until `deadline`; true when the deadline had passed.
+    fn wait<'a>(
+        &self,
+        state: MutexGuard<'a, State>,
+        deadline: Instant,
+    ) -> (MutexGuard<'a, State>, bool) {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return (state, true);
+        }
+        let (state, _) = self
+            .changed
+            .wait_timeout(state, remaining)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        (state, Instant::now() >= deadline)
+    }
+
+    /// The reader: each connection until it is lost, then a re-attachment, until the end.
+    fn read(&self, mut reading: Reading) {
+        let mut buffer = vec![0; READ_BUFFER_BYTES];
+        loop {
+            let loss = self.pump(&mut reading, &mut buffer);
+            match self.recover(loss) {
+                Some(next) => reading = next,
+                None => break,
+            }
+        }
+        self.lock().reader_done = true;
+        self.changed.notify_all();
+        self.transmit.notify_all();
+    }
+
+    /// Reads one connection until it is lost.
+    fn pump(&self, reading: &mut Reading, buffer: &mut [u8]) -> Loss {
+        {
+            let mut state = self.lock();
+            for delivery in std::mem::take(&mut reading.early) {
+                if let Some(loss) = state.deliver(delivery) {
+                    return loss;
+                }
+            }
+        }
+        self.changed.notify_all();
+        loop {
+            {
+                let mut state = self.lock();
+                while state.notices.len() >= PACE && !state.closing {
+                    state = self
+                        .changed
+                        .wait(state)
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                }
+                if state.closing {
+                    return Loss::Closed;
+                }
+            }
+            let read = match reading.stream.read(buffer) {
+                Ok(0) => return Loss::Gone,
+                Ok(read) => read,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(_) => return Loss::Gone,
+            };
+            let mut state = self.lock();
+            let mut offset = 0;
+            while let Some(rest) = buffer.get(offset..read).filter(|rest| !rest.is_empty()) {
+                let Ok((consumed, frame)) = reading.decoder.decode(rest) else {
+                    return Loss::Violation;
+                };
+                offset += consumed;
+                if let Some(frame) = frame {
+                    let Some(current) = state.current.as_mut() else {
+                        return Loss::Gone;
+                    };
+                    let Ok(receipt) = current.connection.receive(&frame) else {
+                        return Loss::Violation;
+                    };
+                    if let Some(delivery) = receipt.delivery
+                        && let Some(loss) = state.deliver(delivery)
+                    {
+                        return loss;
+                    }
+                }
+                if consumed == 0 {
+                    break;
+                }
+            }
+            let transmit = state
+                .current
+                .as_ref()
+                .is_some_and(|current| current.connection.queued_frames() > 0);
+            drop(state);
+            self.changed.notify_all();
+            if transmit {
+                self.transmit.notify_all();
+            }
+        }
+    }
+
+    /// After a loss: ends the owner, or re-attaches and returns the new connection to read.
+    fn recover(&self, loss: Loss) -> Option<Reading> {
+        let attachment = {
+            let mut state = self.lock();
+            if let Some(current) = state.current.take() {
+                let _closed = current.stream.shutdown(Shutdown::Both);
+                state.fail(
+                    current.pending.values().map(|(ticket, _)| *ticket),
+                    &RequestFailure::Lost,
+                );
+            }
+            if state.closing || loss == Loss::Closed {
+                return None;
+            }
+            if loss == Loss::Violation {
+                state.end(AttachFailure::Lost);
+                drop(state);
+                self.changed.notify_all();
+                return None;
+            }
+            let now = Instant::now();
+            while state
+                .losses
+                .front()
+                .is_some_and(|at| now.duration_since(*at) >= LOSS_WINDOW)
+            {
+                state.losses.pop_front();
+            }
+            state.losses.push_back(now);
+            if state.losses.len() >= LOSSES {
+                state.end(AttachFailure::Unavailable);
+                drop(state);
+                self.changed.notify_all();
+                return None;
+            }
+            state.attachment
+        };
+        self.changed.notify_all();
+        let lost = Instant::now();
+        let mut deadline = lost + ATTEMPT;
+        let cancelled = || self.lock().closing;
+        loop {
+            let attached = attach::attach(&self.root, attachment, deadline, &cancelled);
+            let mut state = self.lock();
+            if state.closing {
+                if let Ok(link) = attached {
+                    let _closed = link.stream.shutdown(Shutdown::Both);
+                }
+                return None;
+            }
+            match attached {
+                Ok(link) => {
+                    let notice = Notice::Reattached(link.attached);
+                    let Some(reading) = install(&mut state, link) else {
+                        state.end(AttachFailure::Unavailable);
+                        drop(state);
+                        self.changed.notify_all();
+                        return None;
+                    };
+                    state.notices.push_back(notice);
+                    drop(state);
+                    self.changed.notify_all();
+                    self.transmit.notify_all();
+                    return Some(reading);
+                }
+                Err(AttachFailure::Closing) if Instant::now() < lost + CLOSING_ALLOWANCE => {
+                    deadline = (Instant::now() + ATTEMPT).min(lost + CLOSING_ALLOWANCE);
+                }
+                Err(failure) => {
+                    state.end(failure);
+                    drop(state);
+                    self.changed.notify_all();
+                    return None;
+                }
+            }
+        }
+    }
+
+    /// The writer: whole frames in the state machine's order, up to a batch per write, until the
+    /// owner closes or ends.
+    fn write(&self) {
+        loop {
+            let batch = {
+                let mut state = self.lock();
+                loop {
+                    let closing = state.closing;
+                    if let Some(current) = state.current.as_mut() {
+                        let mut bytes = Vec::new();
+                        while bytes.len() < WRITE_BATCH_BYTES {
+                            match current.connection.poll_transmit() {
+                                Some(frame) => bytes.extend_from_slice(&frame.encode()),
+                                None => break,
+                            }
+                        }
+                        if !bytes.is_empty() {
+                            break Some((current.stream.clone(), bytes));
+                        }
+                        if closing {
+                            break None;
+                        }
+                    } else if closing || state.ended.is_some() {
+                        break None;
+                    }
+                    state = self
+                        .transmit
+                        .wait(state)
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                }
+            };
+            let Some((stream, bytes)) = batch else {
+                break;
+            };
+            // A failed write loses the connection, which the reader finds.
+            let mut output = &*stream;
+            let _written = output.write_all(&bytes);
+        }
+        self.lock().writer_done = true;
+        self.changed.notify_all();
+    }
+}
+
+impl State {
+    /// Takes one delivery; a loss when it ends the connection.
+    fn deliver(&mut self, delivery: Delivery<hub::Hub>) -> Option<Loss> {
+        match delivery {
+            Delivery::Message(Message::Reply { id, reply, .. }) => {
+                // A reply to no pending request is one the owner already failed as `lost`.
+                if let Some((ticket, attachment)) = self
+                    .current
+                    .as_mut()
+                    .and_then(|current| current.pending.remove(&id))
+                {
+                    if let (Some(attachment), Reply::Attach(AttachOutcome::Attached { .. })) =
+                        (attachment, &reply)
+                    {
+                        self.attachment = attachment;
+                    }
+                    if let Some(answer) = self.answers.get_mut(&ticket) {
+                        *answer = Some(Ok(reply));
+                    }
+                }
+                None
+            }
+            Delivery::Message(Message::Unsupported { id, .. }) => {
+                if let Some((ticket, _)) = self
+                    .current
+                    .as_mut()
+                    .and_then(|current| current.pending.remove(&id))
+                    && let Some(answer) = self.answers.get_mut(&ticket)
+                {
+                    *answer = Some(Err(RequestFailure::Unsupported));
+                }
+                None
+            }
+            Delivery::Message(Message::Event { event, .. }) => {
+                self.notices.push_back(Notice::Event(event));
+                None
+            }
+            Delivery::Message(Message::Bye { reason, .. }) => {
+                Some(if reason == ByeReason::Violation {
+                    Loss::Violation
+                } else {
+                    Loss::Gone
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Answers the waiting requests `tickets` with `failure`.
+    fn fail(&mut self, tickets: impl Iterator<Item = u64>, failure: &RequestFailure) {
+        for ticket in tickets {
+            if let Some(answer) = self.answers.get_mut(&ticket) {
+                *answer = Some(Err(failure.clone()));
+            }
+        }
+    }
+
+    /// Ends the owner with `failure`: the last notice, and the answer to every waiting request.
+    fn end(&mut self, failure: AttachFailure) {
+        let waiting: Vec<u64> = self
+            .answers
+            .iter()
+            .filter(|(_, answer)| answer.is_none())
+            .map(|(ticket, _)| *ticket)
+            .collect();
+        self.fail(waiting.into_iter(), &RequestFailure::Ended(failure.clone()));
+        self.notices.push_back(Notice::Ended(failure.clone()));
+        self.ended = Some(failure);
+    }
+}
+
+/// Makes `link` the attached connection and returns what the reader needs to read it; `None` when
+/// the carrier cannot be shared between the reader and the writer.
+fn install(state: &mut State, link: Link) -> Option<Reading> {
+    let writer = link.stream.try_clone().ok()?;
+    state.current = Some(Current {
+        connection: link.connection,
+        stream: Arc::new(writer),
+        pending: BTreeMap::new(),
+    });
+    Some(Reading {
+        stream: link.stream,
+        decoder: link.decoder,
+        early: link.early,
+    })
+}

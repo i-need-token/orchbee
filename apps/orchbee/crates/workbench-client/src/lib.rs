@@ -24,6 +24,8 @@ mod local_client;
 mod localization;
 mod machine_agents;
 mod machine_discovery;
+#[cfg(windows)]
+mod machine_hub;
 mod machine_observation;
 mod machine_picker;
 mod machine_refusal;
@@ -251,6 +253,14 @@ pub mod application {
     pub mod machine_discovery {
         pub use crate::machine_discovery::{
             Connection, Context, Discovery, display_label, same_endpoint,
+        };
+    }
+
+    #[cfg(windows)]
+    pub mod machine_hub {
+        pub use crate::machine_hub::{
+            AttachFailure, Attached, Attachment, EndFailure, HUB_ENTRY, HubClient, Incompatible,
+            Notice, RequestFailure, any_live, data_root, end, running, runtime_base,
         };
     }
 

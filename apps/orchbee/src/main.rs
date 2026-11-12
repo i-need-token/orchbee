@@ -143,6 +143,7 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::MachineHub) => cli::machines::hub::serve(locale),
             Ok(invocation::Request::MachineHubState) => cli::machines::hub::print_state(locale),
+            Ok(invocation::Request::MachineHubHold) => cli::machines::hub::hold(locale),
             Ok(invocation::Request::MachineLink) => cli::machines::link::serve(locale),
             Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
             #[cfg(windows)]

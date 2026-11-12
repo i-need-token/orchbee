@@ -2,46 +2,45 @@
 //! hub when none runs, and prints the hub's state, its process id, the catalog revision, and each
 //! Machine's state as localized text.
 
-use super::super::shared_carrier::frames;
-use super::attach::{self, AttachFailure};
 use super::lifetime::Moment;
 use crate::{cli::Output, cli_text::CliText, localization::Locale};
-use orchbee_local_ipc::LocalStream;
 use orchbee_machine_protocol::{
-    ByeReason, Connection, Delivery, FrameDecoder, MachineId, Message,
-    hub::{self, Attach, AttachOutcome, Catalog, Event, HubState, MachineState, Reply, Request},
+    MachineId,
+    hub::{Catalog, Event, HubState, MachineState},
+};
+use orchbee_workbench_client::application::machine_hub::{
+    AttachFailure, Attachment, HubClient, Incompatible, Notice, data_root, running,
 };
 use std::{
     collections::BTreeMap,
-    io::{self, Read, Write},
     time::{Duration, Instant},
 };
 
 /// The bound on reaching the hub, a start included.
 const ATTACH: Duration = Duration::from_secs(10);
-/// The bound on the attachment's reply and events, and on the `query`.
+/// The bound on the attachment's events, and on the `query`.
 const READ: Duration = Duration::from_secs(5);
 
 /// Why the printer printed no state.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum StateFailure {
     DataRoot,
     Unavailable,
     Denied,
     Closing,
     Lost,
-    Incompatible,
+    Incompatible(Incompatible),
     Timeout,
 }
 
 impl StateFailure {
-    const fn status(self) -> u8 {
+    pub(super) const fn status(&self) -> u8 {
         match self {
             Self::DataRoot => 1,
             Self::Denied => 3,
             Self::Unavailable | Self::Closing => 4,
             Self::Lost => 5,
-            Self::Incompatible => 6,
+            Self::Incompatible(_) => 6,
             Self::Timeout => 7,
         }
     }
@@ -53,7 +52,9 @@ impl From<AttachFailure> for StateFailure {
             AttachFailure::DataRoot => Self::DataRoot,
             AttachFailure::Unavailable => Self::Unavailable,
             AttachFailure::Denied => Self::Denied,
-            AttachFailure::Incompatible => Self::Incompatible,
+            AttachFailure::Closing => Self::Closing,
+            AttachFailure::Incompatible(incompatible) => Self::Incompatible(incompatible),
+            AttachFailure::Lost => Self::Lost,
             AttachFailure::Timeout => Self::Timeout,
         }
     }
@@ -78,120 +79,68 @@ pub(super) fn run(locale: Locale) -> Output {
         Err(failure) => Output {
             status: failure.status(),
             stdout: Vec::new(),
-            stderr: format!("{}\n", text.cli_machine_hub_failure(failure)),
+            stderr: format!("{}\n", text.cli_machine_hub_failure(&failure)),
             finalization: None,
         },
     }
 }
 
 fn collect() -> Result<(Report, u32), StateFailure> {
-    let stream = attach::attach_or_start(Instant::now() + ATTACH)?;
-    let report = watch(&stream, Instant::now() + READ)?;
-    let pid = attach::query(Instant::now() + READ)?
-        .processes()
-        .first()
-        .map(|process| process.pid.get())
-        .ok_or(StateFailure::Incompatible)?;
+    let attachment = Attachment {
+        presence: false,
+        asks: false,
+        watch: true,
+    };
+    let (client, attached) = HubClient::open(attachment, Instant::now() + ATTACH)?;
+    let report = watch(&client, attached.hub, Instant::now() + READ);
+    client.close();
+    let report = report?;
+    let pid = running(&data_root()?, Instant::now() + READ)
+        .ok()
+        .flatten()
+        .ok_or(StateFailure::Unavailable)?;
     Ok((report, pid))
 }
 
-/// Attaches with `watch` and reads the reply, `catalog`, and one `machine` per id.
-fn watch(stream: &LocalStream, deadline: Instant) -> Result<Report, StateFailure> {
-    let mut connection = Connection::<hub::Hub>::initiator();
-    let attach = connection
-        .request(Request::Attach(Attach {
-            presence: false,
-            asks: false,
-            watch: true,
-        }))
-        .map_err(|_| StateFailure::Lost)?;
-    send(&mut connection, stream)?;
-    let mut decoder = FrameDecoder::new();
-    let mut buffer = vec![0; 64 * 1024];
-    let mut hub: Option<HubState> = None;
+/// Takes notices until the catalog and one `machine` per id arrived; a re-attachment starts over
+/// with the new hub.
+fn watch(
+    client: &HubClient,
+    attached: HubState,
+    deadline: Instant,
+) -> Result<Report, StateFailure> {
+    let mut hub = attached;
     let mut catalog: Option<Catalog> = None;
     let mut machines: BTreeMap<String, MachineState> = BTreeMap::new();
-    let mut failure: Option<StateFailure> = None;
     loop {
-        if let (Some(hub), Some(catalog)) = (hub, catalog.as_ref())
+        if let Some(catalog) = catalog.as_ref()
             && catalog
                 .machines()
                 .iter()
                 .all(|id: &MachineId| machines.contains_key(id.as_str()))
         {
-            let _farewell = connection.bye(ByeReason::Done);
-            let _sent = send(&mut connection, stream);
             return Ok(Report {
                 hub,
                 catalog: catalog.clone(),
                 machines,
             });
         }
-        if let Some(failure) = failure {
-            return Err(failure);
-        }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return Err(StateFailure::Timeout);
-        }
-        stream
-            .set_read_timeout(Some(remaining))
-            .map_err(|_| StateFailure::Lost)?;
-        let mut input = stream;
-        let read = match input.read(&mut buffer) {
-            Ok(0) => return Err(StateFailure::Lost),
-            Ok(read) => read,
-            Err(error) if error.kind() == io::ErrorKind::TimedOut => {
-                return Err(StateFailure::Timeout);
+        match client.next(deadline) {
+            Some(Notice::Event(Event::Hub(state))) => hub = state,
+            Some(Notice::Event(Event::Catalog(next))) => catalog = Some(next),
+            Some(Notice::Event(Event::Machine(machine))) => {
+                machines.insert(machine.machine.as_str().to_owned(), machine.state);
             }
-            Err(_) => return Err(StateFailure::Lost),
-        };
-        let bytes = buffer.get(..read).unwrap_or_default();
-        frames(&mut decoder, bytes, |frame| {
-            let Ok(receipt) = connection.receive(frame) else {
-                failure = Some(StateFailure::Lost);
-                return false;
-            };
-            match receipt.delivery {
-                Some(Delivery::Message(Message::Reply {
-                    id,
-                    reply: Reply::Attach(outcome),
-                    ..
-                })) if id == attach => match outcome {
-                    AttachOutcome::Attached { hub: state } => hub = Some(state),
-                    AttachOutcome::Stopping | AttachOutcome::Unknown => {
-                        failure = Some(StateFailure::Closing);
-                    }
-                },
-                Some(Delivery::Message(Message::Event { event, .. })) => match event {
-                    Event::Hub(state) => hub = Some(state),
-                    Event::Catalog(next) => catalog = Some(next),
-                    Event::Machine(machine) => {
-                        machines.insert(machine.machine.as_str().to_owned(), machine.state);
-                    }
-                    _ => {}
-                },
-                Some(Delivery::Message(Message::Bye { .. })) => {
-                    failure = Some(StateFailure::Closing)
-                }
-                _ => {}
+            Some(Notice::Event(_)) => {}
+            Some(Notice::Reattached(attached)) => {
+                hub = attached.hub;
+                catalog = None;
+                machines.clear();
             }
-            failure.is_none()
-        })
-        .map_err(|_| StateFailure::Lost)?;
-        send(&mut connection, stream)?;
+            Some(Notice::Ended(failure)) => return Err(failure.into()),
+            None => return Err(StateFailure::Timeout),
+        }
     }
-}
-
-/// Writes every frame the connection has queued.
-fn send(connection: &mut Connection<hub::Hub>, stream: &LocalStream) -> Result<(), StateFailure> {
-    let mut output = stream;
-    while let Some(frame) = connection.poll_transmit() {
-        output
-            .write_all(&frame.encode())
-            .map_err(|_| StateFailure::Lost)?;
-    }
-    Ok(())
 }
 
 fn render(text: CliText, report: &Report, pid: u32) -> String {

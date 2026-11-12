@@ -822,6 +822,7 @@ pub(crate) enum Request {
     MachineRoute(machine_routing::Route),
     MachineHub,
     MachineHubState,
+    MachineHubHold,
     MachineLink,
     MachineRelay,
     MachineTunnel,
