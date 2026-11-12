@@ -70,6 +70,9 @@ remain explicitly unavailable until their platform adapter exists.
 
 ## Command surface
 
+Every `ORCHBEE_*` variable Orchbee reads or sets, with its level, is in the
+[environment variable table](docs/environment-variables.md).
+
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
 cell geometry, then run the local startup workflow below on Windows, Linux, and macOS Apple Silicon.
 They are the same Client route; `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
@@ -834,7 +837,8 @@ it or create diagnostic files. The opt-in collector records bounded timing/count
 and writes them after terminal restoration; it records no input bytes or pane text. The
 [timing contract](docs/native-terminal-environment.md#tui-timing-observations) defines the schema,
 failure and truncation rules, packet correlation, and the limits of internal completion times.
-Compare enabled and disabled runs before attributing delay to the measured runtime.
+Compare enabled and disabled runs before attributing delay to the measured runtime. The variable
+and the file's format are unstable diagnostics and may change in any release without migration.
 Per-stage CPU costs without terminal I/O come from the
 [frame-pipeline benchmarks](crates/workbench-client/README.md#benchmarks).
 
