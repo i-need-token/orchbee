@@ -31,6 +31,17 @@ No new dependency or public protocol is introduced.
 | Alternate screen, live                                          | Use the exact current live frame without history demands. Vertical/page movement and `g`/`G` stay within the screen; unavailable history never becomes fabricated rows. |
 | Missing frame, unusable geometry or history entering/recovering | Refuse with a localized notice; send no pane input and do not infer a position from stale paint.                                                                        |
 
+### History search
+
+`/` while the focused pane reads retained history (Entering or Viewing, recovery not decided)
+enters the same episode with a history-search origin instead of typing into the shell. It reuses
+the committed window like any committed-history entry, waits for an Entering window's accepted
+`RowsApplied`, places the cursor at the window's top-left glyph rather than the application
+cursor, and opens a forward search draft. Esc, `q` and the toolbar's close control then return to
+the history at the window the episode left, without recovery to live; the pane is again an
+ordinary history view. A delivered copy keeps the rule below and returns to live, as do pane,
+context and content invalidation. `Ctrl+B U` entries keep returning to live on every exit.
+
 The ordinary PageUp/wheel history gate and return-at-tail behavior remain owned by
 [native terminal history viewport](native-terminal-viewport.md). Copy navigation adds an absolute
 `Newest` intent (`Tail(0)`) that remains in history. Downward copy navigation uses that intent when

@@ -2793,10 +2793,11 @@ impl WorkbenchClientUi {
     }
 
     /// Whether the focus pane's non-Live core consumes this key locally.
-    /// The five history keys scroll or exit; every other key reports
-    /// `false` so the ordinary byte path forwards (and exits history
-    /// first). Live panes always report `false` — their passthrough is
-    /// untouched.
+    /// The five history keys scroll or exit, and copy mode's forward-search
+    /// key opens that search over the history being read; every other key
+    /// reports `false` so the ordinary byte path forwards (and exits history
+    /// first). Live panes, and a core already returning to live, report
+    /// `false` for the search key — their passthrough is untouched.
     pub(super) fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
         if self.workspace_creation_replaces_content() {
             return false;
@@ -2816,6 +2817,17 @@ impl WorkbenchClientUi {
         let Some(viewport) = self.projections[index].viewport.as_mut() else {
             return false;
         };
+        if crate::client_view::copy_mode_key(*event)
+            == Some(crate::client_view::CopyModeKey::Search(
+                crate::terminal_copy::CopySearchDirection::Forward,
+            ))
+        {
+            if viewport.recovery_pending() {
+                return false;
+            }
+            self.search_history();
+            return true;
+        }
         let (_, row_count) = viewport.geometry();
         let nav = match event.normalized() {
             (crate::client_view::KeyCode::PageUp, mods)

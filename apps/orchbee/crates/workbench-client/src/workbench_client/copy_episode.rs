@@ -22,6 +22,17 @@ pub(super) struct PendingQuery {
     pub(super) search: Option<Box<str>>,
 }
 
+/// Where an episode was opened from, which decides where a person's own exit returns.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum EntryOrigin {
+    /// The copy-mode command: the episode starts at the application cursor and exit returns to
+    /// live output.
+    Command,
+    /// `/` while reading retained history: the episode starts a forward search from the top of
+    /// the window being read, and exit returns to that history.
+    HistorySearch,
+}
+
 /// The content fence an entering episode waits on.
 #[derive(Clone)]
 pub(super) struct Entry {
@@ -47,6 +58,7 @@ enum EpisodeState {
 struct Episode {
     key: PaneRef,
     id: EpisodeId,
+    origin: EntryOrigin,
     source: Option<ContentSource>,
     state: EpisodeState,
     pending_query: Option<PendingQuery>,
@@ -81,12 +93,14 @@ impl CopyModeEpisodes {
         key: PaneRef,
         fence: ContentSource,
         needs_viewport_enter: bool,
+        origin: EntryOrigin,
     ) -> Option<EpisodeId> {
         let id = self.next_episode()?;
         self.surface_pending = false;
         self.episode = Some(Episode {
             key,
             id,
+            origin,
             source: None,
             state: EpisodeState::Entering(Entry {
                 fence,
@@ -133,6 +147,10 @@ impl CopyModeEpisodes {
 
     pub(super) fn key(&self) -> Option<&PaneRef> {
         self.episode.as_ref().map(|episode| &episode.key)
+    }
+
+    pub(super) fn origin(&self) -> Option<EntryOrigin> {
+        self.episode.as_ref().map(|episode| episode.origin)
     }
 
     pub(super) fn id(&self) -> Option<EpisodeId> {
@@ -257,6 +275,7 @@ impl CopyModeEpisodes {
             episode: Some(Episode {
                 key,
                 id: mode.episode(),
+                origin: EntryOrigin::Command,
                 source: None,
                 state: EpisodeState::Active(mode),
                 pending_query: None,

@@ -32,7 +32,8 @@ copy/export, and ordinary Help's nonmodal input behavior remain unchanged. The c
 keys for local row paging while it owns input.
 
 Retained history keeps content through the bottom row and paints no chrome over it. `Esc` returns
-to live output; no persistent navigation footer or hover tooltip occupies terminal rows.
+to live output and `/` searches it; no persistent navigation footer or hover tooltip occupies
+terminal rows.
 
 ## Smaller live viewers
 
@@ -262,6 +263,12 @@ navigation keys (`PageUp`, `PageDown`, `Home`, `End`, `Esc`) and mouse wheel loc
 keeps application input and mouse tracking, except for untracked primary-screen wheel history
 entry. `Ctrl+B PageUp` enters history while help keeps
 `PageUp` precedence when open.
+
+`/` in an Entering or Viewing pane is a search, not shell input: it opens
+[keyboard copy mode](native-keyboard-copy.md#history-search) over the window being read, with a
+forward search draft. Nothing is sent to the pane and the view does not return to live; a refused
+entry shows copy mode's notice and still sends nothing. A pane whose recovery is already decided
+forwards `/` like any other byte. Every other printable key keeps the recover-before-input rule.
 
 Every non-wheel pointer event that targets a non-Live pane is consumed by the Client — presses on
 the focused pane, presses that move focus onto it, queued pending-focus replays, gesture

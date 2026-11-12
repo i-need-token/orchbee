@@ -17,7 +17,7 @@ use crate::terminal_copy_query::{
 };
 use crate::terminal_text::line_editor::LineKey;
 use crate::terminal_viewport::{TerminalViewport, ViewportNav, ViewportStep};
-use crate::workbench_client::copy_episode::PendingQuery;
+use crate::workbench_client::copy_episode::{EntryOrigin, PendingQuery};
 use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged};
 use crate::workbench_client::terminal_selection;
 use crate::workbench_state::{CarrierFailure, ClientNotice, PaneRef};
@@ -164,7 +164,13 @@ impl WorkbenchClientUi {
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
         };
-        let Some(cursor) = self.copy_initial_cursor(&source, surface) else {
+        let origin = self.copy_mode.origin();
+        let cursor = if origin == Some(EntryOrigin::HistorySearch) {
+            self.normalize_copy_point(&source, surface.top_left())
+        } else {
+            self.copy_initial_cursor(&source, surface)
+        };
+        let Some(cursor) = cursor else {
             self.cancel_copy_mode();
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
@@ -173,6 +179,16 @@ impl WorkbenchClientUi {
             self.cancel_copy_mode();
             self.copy_notice(ClientNotice::CopyModeInvalidated);
             return true;
+        }
+        if origin == Some(EntryOrigin::HistorySearch) {
+            let draft = self
+                .copy_mode
+                .mode_mut()
+                .ok_or(Refusal::Invalid)
+                .and_then(|mode| {
+                    mode.begin_search(crate::terminal_copy::CopySearchDirection::Forward)
+                });
+            self.settle_copy_refusal(draft.err());
         }
         true
     }
@@ -193,6 +209,19 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn enter_copy_mode(&mut self) -> crate::client_view::ClientActionDisposition {
+        self.enter_copy_mode_from(EntryOrigin::Command)
+    }
+
+    /// `/` while the focused pane reads its retained history opens the copy search over the
+    /// window being read; the key never reaches the shell, refused entry included.
+    pub(super) fn search_history(&mut self) {
+        self.enter_copy_mode_from(EntryOrigin::HistorySearch);
+    }
+
+    fn enter_copy_mode_from(
+        &mut self,
+        origin: EntryOrigin,
+    ) -> crate::client_view::ClientActionDisposition {
         use crate::client_view::ClientActionDisposition;
         if self.retirement_failure.is_none()
             && !self.modal_owns_input()
@@ -300,7 +329,7 @@ impl WorkbenchClientUi {
         }
         if self
             .copy_mode
-            .begin_entering(key, source, needs_viewport_enter)
+            .begin_entering(key, source, needs_viewport_enter, origin)
             .is_none()
         {
             self.copy_notice(ClientNotice::CopyModeUnavailable);
@@ -319,7 +348,7 @@ impl WorkbenchClientUi {
             return false;
         }
         if event.code == KeyCode::Esc && event.kind != KeyKind::Release {
-            self.cancel_copy_mode();
+            self.leave_copy_mode();
             return true;
         }
         if self.copy_mode.surface_pending() {
@@ -342,7 +371,7 @@ impl WorkbenchClientUi {
             if event.kind != KeyKind::Release
                 && matches!(copy_mode_key(*event), Some(CopyModeKey::Exit))
             {
-                self.cancel_copy_mode();
+                self.leave_copy_mode();
             } else if event.kind != KeyKind::Release {
                 self.copy_notice(ClientNotice::CopyModeBusy);
             }
@@ -424,7 +453,7 @@ impl WorkbenchClientUi {
                     .and_then(|mode| mode.request_copy(active))
             }
             CopyModeKey::Exit => {
-                self.cancel_copy_mode();
+                self.leave_copy_mode();
                 return;
             }
             CopyModeKey::Help => Ok(()),
@@ -469,7 +498,21 @@ impl WorkbenchClientUi {
         true
     }
 
+    /// A person's own exit: Esc, `q` or the toolbar's close control. An episode opened by `/` in
+    /// retained history returns to that history where the episode left it; any other returns to
+    /// live output.
+    fn leave_copy_mode(&mut self) -> bool {
+        let recover = self.copy_mode.origin() != Some(EntryOrigin::HistorySearch);
+        self.end_copy_mode(recover)
+    }
+
+    /// Ends the episode for any other reason, including a delivered copy, and returns the pane
+    /// to live output.
     pub(in crate::workbench_client) fn cancel_copy_mode(&mut self) -> bool {
+        self.end_copy_mode(true)
+    }
+
+    fn end_copy_mode(&mut self, recover: bool) -> bool {
         let Some(key) = self.copy_mode.key().cloned() else {
             return false;
         };
@@ -513,11 +556,12 @@ impl WorkbenchClientUi {
                 self.copy_notice(ClientNotice::CopyModeInvalidated);
             }
             self.admit_selections(&mailbox);
-            if let Some(viewport) = self
-                .projections
-                .iter_mut()
-                .find(|projection| projection.key == key)
-                .and_then(|projection| projection.viewport.as_mut())
+            if recover
+                && let Some(viewport) = self
+                    .projections
+                    .iter_mut()
+                    .find(|projection| projection.key == key)
+                    .and_then(|projection| projection.viewport.as_mut())
             {
                 let effect = viewport.nav(ViewportNav::Exit);
                 self.settle_viewport_effect(&mailbox, &key, effect);

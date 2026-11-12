@@ -605,6 +605,10 @@ impl TerminalInputPort for ClientInputPort<'_> {
         self.0.capture_context(owner)
     }
 
+    fn copy_mode_active(&self) -> bool {
+        self.0.copy_mode_active()
+    }
+
     fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
         self.0.pointer_probe()
     }
@@ -721,6 +725,42 @@ fn dispatcher_consumes_history_keys_and_orders_recovery() {
             [WireCmd::Recover(_), WireCmd::Input(_, _)]
         ),
         "Recover before the forwarded byte: {commands:?}"
+    );
+}
+
+// `/` read in history is the copy search's key, never shell input: the raw byte through the real
+// dispatcher opens a forward search draft over the history and stages nothing on the wire. Leaving
+// that search returns to the history, not to live output.
+#[test]
+fn slash_in_history_opens_the_copy_search_and_types_nothing() {
+    let (mut ui, mailbox, _clock, _elapsed) = controlling_ui();
+    let key = install_projection(&mut ui, Some((9, false, 24)), 0);
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    ui.enter_history();
+    assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+    settle_viewing(&mut ui, &mailbox, &key, 1);
+
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"/");
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "neither an Input nor a Recover reaches the wire"
+    );
+    assert_eq!(
+        ui.copy_mode_view()
+            .and_then(|copy| copy.search)
+            .map(|search| search.direction),
+        Some(crate::terminal_copy::CopySearchDirection::Forward)
+    );
+
+    assert!(ui.capture_copy_mode_key(&KeyEvent::press(KeyCode::Esc, Modifiers::NONE)));
+    assert!(!ui.copy_mode_active());
+    assert!(mailbox.try_recv().unwrap().is_none(), "no recovery to live");
+    assert!(
+        projection_at(&mut ui, &key)
+            .viewport
+            .as_ref()
+            .is_some_and(|viewport| !viewport.recovery_pending())
     );
 }
 

@@ -110,6 +110,13 @@ impl Surface {
         })
     }
 
+    pub(crate) fn top_left(self) -> TerminalTextPoint {
+        TerminalTextPoint {
+            row: self.start_row as u32,
+            col: 0,
+        }
+    }
+
     pub(crate) fn bottom_left(self) -> TerminalTextPoint {
         let row = (self.start_row + u64::from(self.row_count) - 1).min(self.total_rows - 1);
         TerminalTextPoint {

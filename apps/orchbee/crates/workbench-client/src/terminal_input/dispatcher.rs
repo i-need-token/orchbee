@@ -2252,13 +2252,22 @@ impl InputDispatcher {
             // anything, then pending pane bytes flush in order — a stale
             // read outcome the flush's recovery turn produces is
             // discarded by the core. Live panes always report `false`, so
-            // their keys keep the ordinary byte path untouched.
+            // their keys keep the ordinary byte path untouched. The history
+            // search key opens copy mode there, which then owns input as
+            // its command entry does: the rest of this packet is captured.
             DecodedKind::Key(event)
                 if event.kind != KeyKind::Release
                     && port.pane_input(PaneInput::HistoryKey(&event))
                         == PaneAdmission::Admitted =>
             {
                 self.flush_pending(view, port);
+                if port.copy_mode_active() {
+                    self.cancel_pointer(port);
+                    self.copy_packet = true;
+                    self.keys.capture_pending();
+                    mode(ModeRequest::BracketedPaste(true))?;
+                    self.reconcile(view, port, now);
+                }
             }
             DecodedKind::Key(event) if view.bindings().find(event, false).is_some() => {
                 self.flush_pending(view, port);

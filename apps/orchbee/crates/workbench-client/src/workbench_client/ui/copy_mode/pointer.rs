@@ -12,7 +12,7 @@ impl WorkbenchClientUi {
             return;
         }
         if control == CopyControl::Exit {
-            self.cancel_copy_mode();
+            self.leave_copy_mode();
             return;
         }
         if control == CopyControl::CancelSearch {

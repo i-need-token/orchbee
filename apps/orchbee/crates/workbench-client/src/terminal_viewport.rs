@@ -396,7 +396,7 @@ impl TerminalViewport {
     /// step still staged for admission. From this point on, late facts,
     /// windows, and read/ack outcomes are absorbed without installing a
     /// window or minting further wire commands.
-    fn recovery_pending(&self) -> bool {
+    pub(crate) fn recovery_pending(&self) -> bool {
         self.recovering()
             || self
                 .pending_commands
