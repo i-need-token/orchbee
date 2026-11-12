@@ -114,6 +114,7 @@ function WorkbenchActionsHarness({
 		openPanelNameEditor: () => undefined,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		requestWorktreeForm: () => Promise.resolve(null),
 		runtime,
 		searchFilters: WORKBENCH_SEARCH_FILTERS,
 		setTabStripOrientation: () => undefined,

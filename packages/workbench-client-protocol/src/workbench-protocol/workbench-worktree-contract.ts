@@ -17,7 +17,8 @@ import {
 export const WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES = 96 * 1024;
 const WORKBENCH_MAXIMUM_WORKTREE_OPERATION_ATTEMPTS = 64;
 
-const WorktreeReferenceSchema = z
+/** A branch, tag or commit a Worktree operation names; empty is not a reference. */
+export const WorktreeReferenceSchema = z
 	.string()
 	.min(1)
 	.max(1024)

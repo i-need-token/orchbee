@@ -43,8 +43,11 @@ interface WorkbenchAgentDialogs {
 	 * keyboard was.
 	 */
 	readonly closeStart: () => void;
-	/** A start ran: Start Agent closes on this frame, with the board it replaced. */
-	readonly endStart: () => void;
+	/**
+	 * A start ran: Start Agent closes on this frame, with the board it replaced. `handedOff` says a
+	 * dialog the start opened, the New Worktree form, takes the keyboard in its place.
+	 */
+	readonly endStart: (handedOff: boolean) => void;
 	readonly openBoard: () => void;
 	/**
 	 * Opens Start Agent with the places `workbench.agent.start` found available. Opened while the
@@ -132,7 +135,10 @@ export function useWorkbenchAgentDialogs({
 		const current = next.current;
 		show(current.kind === 'start' && current.fromBoard ? BOARD : NONE);
 	});
-	const endStart = useMemoizedFn(() => show(NONE));
+	const endStart = useMemoizedFn((handedOff: boolean) => {
+		show(NONE);
+		if (handedOff) landed.current = true;
+	});
 
 	return {
 		board:

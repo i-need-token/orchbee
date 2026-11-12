@@ -39,6 +39,7 @@ import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkben
 import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
 import { registerWorkbenchEarlierLayoutAction } from '../actions/registerWorkbenchEarlierLayoutAction';
 import { registerWorkbenchLastPanelAction } from '../actions/registerWorkbenchLastPanelAction';
+import type { WorkbenchWorktreeFormRequest } from '../types/workbench-worktree-form';
 import { registerWorkbenchWorktreeActions } from '../actions/registerWorkbenchWorktreeActions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -106,6 +107,8 @@ interface UseWorkbenchActionsOptions {
 	readonly setTabStripOrientation: (orientation: TabStripOrientation) => void;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly toggleSidebar: () => void;
+	/** Opens the New Worktree form; keep it stable across renders. */
+	readonly requestWorktreeForm: WorkbenchWorktreeFormRequest;
 	/** The localized default Worktree Workspace label with this ordinal; keep it stable across renders. */
 	readonly worktreeLabel: (ordinal: number) => string;
 }
@@ -147,6 +150,7 @@ export function useWorkbenchActions({
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
+	requestWorktreeForm,
 	runtime,
 	searchFilters,
 	setTabStripOrientation,
@@ -326,6 +330,7 @@ export function useWorkbenchActions({
 				? []
 				: registerWorkbenchWorktreeActions({
 						projectWorkspaceRuntime,
+						requestWorktreeForm,
 						scope,
 						typedRuntime,
 						worktreeLabel,
@@ -593,6 +598,7 @@ export function useWorkbenchActions({
 		panelFocusTrail,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		requestWorktreeForm,
 		runtime,
 		searchFilters,
 		setTabStripOrientation,

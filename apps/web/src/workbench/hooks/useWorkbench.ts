@@ -123,6 +123,10 @@ import {
 } from '../model/workbench-configured-command-keys';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import {
+	useWorkbenchWorktreeForm,
+	type WorkbenchWorktreeFormModel,
+} from './useWorkbenchWorktreeForm';
+import {
 	useWorkbenchAuthorityNotice,
 	type WorkbenchAuthorityNoticeView,
 } from './useWorkbenchAuthorityNotice';
@@ -185,6 +189,8 @@ interface WorkbenchView {
 	readonly closeAgentStart: () => void;
 	/** Closes Start Agent and runs `workbench.agent.start-provider`. */
 	readonly startAgent: (input: WorkbenchAgentStartInput) => void;
+	/** Present while the New Worktree form is open. */
+	readonly worktreeForm: WorkbenchWorktreeFormModel | undefined;
 	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
@@ -564,6 +570,7 @@ export function useWorkbench({
 		setTabStripOrientationState(orientation);
 		writeWorkbenchTabStripOrientation(storage, orientation);
 	});
+	const worktreeForm = useWorkbenchWorktreeForm({ projectWorkspaceRuntime });
 	const worktreeLabel = useMemoizedFn((ordinal: number) =>
 		intl.formatMessage(workbenchMessages.worktreeDefaultLabel, { ordinal }),
 	);
@@ -693,6 +700,7 @@ export function useWorkbench({
 		openPanelNameEditor: openNameEditor,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		requestWorktreeForm: worktreeForm.request,
 		runtime: actionRuntime,
 		searchFilters,
 		setTabStripOrientation,
@@ -701,7 +709,8 @@ export function useWorkbench({
 		worktreeLabel,
 	});
 	const startAgent = useMemoizedFn((input: WorkbenchAgentStartInput) => {
-		agentDialogs.endStart();
+		// No stacked dialogs: New Worktree… closes Start Agent and its form opens in its place.
+		agentDialogs.endStart(input.place === 'new-worktree');
 		actions.invoke(WORKBENCH_ACTION_IDS.startAgent, input, 'button');
 	});
 	const startAgentFromBoard = useMemoizedFn(() => {
@@ -964,6 +973,7 @@ export function useWorkbench({
 		agentStart: agentDialogs.start,
 		closeAgentStart: agentDialogs.closeStart,
 		startAgent,
+		worktreeForm: worktreeForm.form,
 		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,
 		navigateAgent: (input) => {

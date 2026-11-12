@@ -12,7 +12,7 @@ export const enUSAgentStartMessages = {
 	'agentStart.list': 'Agents',
 	'agentStart.opensIn': 'Opens in',
 	'agentStart.place.newTab': 'New Tab',
-	'agentStart.place.newWorktree': 'New Worktree',
+	'agentStart.place.newWorktree': 'New Worktree…',
 	'agentStart.place.splitDown': 'Split down',
 	'agentStart.place.splitRight': 'Split right',
 	'agentStart.search': 'Search',

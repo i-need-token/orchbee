@@ -14,7 +14,7 @@ export const zhCNAgentStartMessages = {
 	'agentStart.list': '智能体',
 	'agentStart.opensIn': '打开位置',
 	'agentStart.place.newTab': '新标签页',
-	'agentStart.place.newWorktree': '新工作树',
+	'agentStart.place.newWorktree': '新工作树…',
 	'agentStart.place.splitDown': '向下拆分',
 	'agentStart.place.splitRight': '向右拆分',
 	'agentStart.search': '搜索',

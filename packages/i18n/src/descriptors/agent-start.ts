@@ -49,7 +49,7 @@ export const agentStartMessages = defineMessages({
 	placeNewTab: message('agentStart.place.newTab', 'Place choice: the Agent opens in a new Tab.'),
 	placeNewWorktree: message(
 		'agentStart.place.newWorktree',
-		'Place choice: a new Worktree is created with its defaults and the Agent opens in its Workspace.',
+		'Place choice: Start first opens the New Worktree form, and the Agent starts in the Workspace it creates.',
 	),
 	placeSplitDown: message(
 		'agentStart.place.splitDown',

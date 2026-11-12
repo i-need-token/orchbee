@@ -21,6 +21,7 @@ export {
 	parseWorkbenchResponse,
 } from './workbench-parsing';
 export { WorkbenchLaunchSelectionSchema } from './workbench-terminal-launch-contract';
+export { WorktreeReferenceSchema } from './workbench-worktree-contract';
 export type {
 	WorkbenchCommand,
 	WorkbenchCommandResult,

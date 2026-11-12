@@ -87,14 +87,18 @@ export interface WorkbenchWorktreeStoppedRemoval {
  */
 export type WorkbenchWorktreeCommand =
 	/**
-	 * Creates a checkout with Git's and the configuration's defaults and opens it in a Workspace. From
-	 * a Panel, which showed the person nothing, the authority reads Git there first.
+	 * Creates a checkout with what the New Worktree form submitted and opens it in a Workspace. A
+	 * missing branch is generated and a missing base is HEAD. From a Panel, whose repository nobody
+	 * has read yet, the authority reads Git there first.
 	 */
 	| {
 			/** The Agent the new Workspace's first terminal runs first; a reused Workspace starts nothing. */
 			readonly agentStart?: WorkbenchAgentStartProvider | undefined;
+			readonly base?: string | undefined;
+			readonly branch?: string | undefined;
 			readonly kind: 'create';
-			readonly label: string;
+			/** The Workspace's name; without it the Server names the Workspace after the branch. */
+			readonly label?: string | undefined;
 			readonly panel?: WorkbenchPanelTerminal;
 			readonly workspaceId: string;
 	  }

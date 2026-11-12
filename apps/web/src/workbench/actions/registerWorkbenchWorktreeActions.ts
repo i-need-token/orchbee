@@ -11,6 +11,10 @@ import { workbenchMessages } from '@orchbee/i18n';
 import { workbenchWorktreeFailureDescriptor } from '../model/workbench-worktree-failure';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
+	WorkbenchWorktreeFormAnswer,
+	WorkbenchWorktreeFormRequest,
+} from '../types/workbench-worktree-form';
+import type {
 	WorkbenchWorktreeCommand,
 	WorkbenchWorktreeOutcome,
 	WorkbenchWorktrees,
@@ -30,6 +34,8 @@ import {
 
 interface RegisterWorkbenchWorktreeActionsOptions {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	/** Asks for the new Worktree's branch and base before anything is created. */
+	readonly requestWorktreeForm: WorkbenchWorktreeFormRequest;
 	readonly scope: ActionScope;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 	/** The localized default Workspace label with this ordinal. */
@@ -61,11 +67,13 @@ function openingResult(outcome: WorkbenchWorktreeOutcome): ActionResult<Workbenc
 /**
  * The Workspace menu's Worktree commands, and the TUI's `Ctrl+B W` and `Ctrl+B O` as Search's
  * commands from the focused Panel. The authority owns Git and the operation, and its notices report
- * progress and outcomes; these Actions own the person's decisions. Removal asks first, and a removal
- * that stops where it may continue asks again before it continues.
+ * progress and outcomes; these Actions own the person's decisions. New Worktree asks for a branch and
+ * base in the New Worktree form and creates nothing until it is submitted. Removal asks first, and a
+ * removal that stops where it may continue asks again before it continues.
  */
 export function registerWorkbenchWorktreeActions({
 	projectWorkspaceRuntime,
+	requestWorktreeForm,
 	scope,
 	typedRuntime,
 	worktreeLabel,
@@ -107,6 +115,15 @@ export function registerWorkbenchWorktreeActions({
 		while (names.has(worktreeLabel(ordinal))) ordinal += 1;
 		return worktreeLabel(ordinal);
 	};
+	/**
+	 * The TUI's naming rule: a blank branch is generated and the Workspace takes the first unused
+	 * default name, while a typed branch names the Workspace through the Server.
+	 */
+	const creation = (answer: WorkbenchWorktreeFormAnswer) => ({
+		...(answer.branch === null ? { label: defaultLabel() } : { branch: answer.branch }),
+		...(answer.base === null ? {} : { base: answer.base }),
+		kind: 'create' as const,
+	});
 	const removalResult = (
 		context: ActionExecutionContext,
 		outcome: WorkbenchWorktreeOutcome,
@@ -131,14 +148,17 @@ export function registerWorkbenchWorktreeActions({
 				execution: workspaceExecution,
 				getAvailability: (_context, input) => workspaceAvailability(input),
 				handler: {
-					execute: async (context, input) =>
-						openingResult(
-							await send(context, {
-								kind: 'create',
-								label: defaultLabel(),
-								workspaceId: input.workspaceId,
-							}),
-						),
+					execute: async (context, input) => {
+						const answer = await requestWorktreeForm({ branch: '' }, context.signal);
+						if (answer === null) return { kind: 'cancelled' };
+						// The Workspace may have closed while the form was open.
+						if (workspaceName(input.workspaceId) === undefined) {
+							return { kind: 'blocked', code: 'workspace-unavailable' };
+						}
+						return openingResult(
+							await send(context, { ...creation(answer), workspaceId: input.workspaceId }),
+						);
+					},
 				},
 				id: WORKBENCH_ACTION_IDS.createWorktree,
 				input: workbenchWorkspaceInput,
@@ -178,14 +198,21 @@ export function registerWorkbenchWorktreeActions({
 				getAvailability: focusedPanelAvailability,
 				handler: {
 					execute: async (context, input) => {
+						// The form acts on the Panel that was focused when it opened, as the TUI's form does.
 						const focused = resolveFocusedPanel(projectWorkspaceRuntime);
 						if (focused === null) return { kind: 'blocked', code: 'focused-panel-unavailable' };
+						const agentStart = input?.agentStart;
+						// Start Agent proposes a branch for its Agent, which stays editable.
+						const answer = await requestWorktreeForm(
+							{ branch: agentStart === undefined ? '' : `agent/${agentStart}` },
+							context.signal,
+						);
+						if (answer === null) return { kind: 'cancelled' };
 						// Git's answer is unknown until the authority reads where the Panel stands.
 						return openingResult(
 							await send(context, {
-								...(input?.agentStart === undefined ? {} : { agentStart: input.agentStart }),
-								kind: 'create',
-								label: defaultLabel(),
+								...creation(answer),
+								...(agentStart === undefined ? {} : { agentStart }),
 								panel: { panelId: focused.panelId, presentationId: focused.presentationId },
 								workspaceId: focused.workspaceId,
 							}),

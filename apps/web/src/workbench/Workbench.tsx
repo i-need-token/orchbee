@@ -34,6 +34,7 @@ import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar'
 import { WorkbenchMobileBar } from './components/workbench-mobile-bar/WorkbenchMobileBar';
 import { WorkbenchTabList } from './components/workbench-tab-list/WorkbenchTabList';
 import { NameDialog } from './components/name-dialog/NameDialog';
+import { WorkbenchWorktreeFormDialog } from './components/workbench-worktree-form-dialog/WorkbenchWorktreeFormDialog';
 import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
@@ -593,6 +594,15 @@ export function Workbench({
 					onClose={view.closeAgentStart}
 					onStart={view.startAgent}
 					places={view.agentStart.places}
+				/>
+			)}
+			{view.worktreeForm === undefined ? null : (
+				<WorkbenchWorktreeFormDialog
+					branch={view.worktreeForm.branch}
+					finalFocus={view.worktreeForm.finalFocus}
+					key={view.worktreeForm.key}
+					onCancel={view.worktreeForm.onCancel}
+					onSubmit={view.worktreeForm.onSubmit}
 				/>
 			)}
 			{projectWorkspaceConfirmationSurface}

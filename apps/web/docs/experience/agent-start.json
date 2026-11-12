@@ -50,7 +50,7 @@
 			]
 		}
 	],
-	"uses": [],
+	"uses": ["workbench.worktree-form-dialog"],
 	"useWhen": ["A person starts one of the Session's Agents in a new terminal of the Workbench."],
 	"avoidWhen": [
 		"The person goes to an Agent session that already runs; use the Agent Board.",
@@ -62,7 +62,7 @@
 		"The search field holds the keyboard: typing filters by name, command or id, Up and Down move the highlight, Enter starts the highlighted Agent or unfolds, and a key held with Ctrl, Alt, or Meta passes through.",
 		"Escape clears a query first and closes only an empty field's dialog; Escape, Cancel, the close button, and backdrop dismissal return focus to where it was when the dialog opened.",
 		"One status line keeps its height and says, highest first, that this platform cannot start an Agent, that the lookup runs or could not check, or that no Agent matches.",
-		"Opens in lists only the places a start can use now, New Tab first; New Worktree creates the Worktree at once with its defaults, and starting closes the dialog."
+		"Opens in lists only the places a start can use now, New Tab first; starting closes the dialog, and New Worktree… then opens the New Worktree form in its place with a branch proposed for the Agent, the Agent starting only once that form is submitted."
 	],
 	"references": ["apps/web/docs/workbench.md"]
 }

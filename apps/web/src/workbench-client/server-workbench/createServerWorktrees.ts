@@ -489,10 +489,15 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 			case 'create': {
 				const configured = await worktreesDirectory();
 				if (configured === null) return failed('configuration-unavailable');
+				// As in the TUI, the configured destination follows the typed branch or the generated one.
 				const path =
 					configured.root === null
 						? undefined
-						: worktreeDestination(configured.root, facts.repositoryRoot, `worktree/${operationId}`);
+						: worktreeDestination(
+								configured.root,
+								facts.repositoryRoot,
+								command.branch ?? `worktree/${operationId}`,
+							);
 				if (path === null) return failed('internal');
 				return start(
 					{
@@ -503,7 +508,9 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 							kind: 'create',
 							...launch,
 							...(command.agentStart === undefined ? {} : { agentStart: command.agentStart }),
-							label: command.label,
+							...(command.branch === undefined ? {} : { branch: command.branch }),
+							...(command.base === undefined ? {} : { base: command.base }),
+							...(command.label === undefined ? {} : { label: command.label }),
 							...(path === undefined ? {} : { path }),
 						},
 					},

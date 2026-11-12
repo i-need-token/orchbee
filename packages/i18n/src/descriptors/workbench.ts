@@ -1042,17 +1042,17 @@ export const workbenchMessages = defineMessages({
 	resourceCancel: {
 		id: 'workbench.resource.actions.cancel',
 		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.cancel'],
-		description: 'Action that cancels a Project or Workspace edit.',
+		description: 'Action that cancels a Project or Workspace edit, or the New Worktree form.',
 	},
 	resourceClose: {
 		id: 'workbench.resource.actions.close',
 		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.close'],
-		description: 'Accessible label for closing a Project or Workspace dialog.',
+		description: 'Accessible label for closing a Project, Workspace or New Worktree dialog.',
 	},
 	resourceCreate: {
 		id: 'workbench.resource.actions.create',
 		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.create'],
-		description: 'Action that creates a new Project or Tab group.',
+		description: 'Action that creates a new Project, Tab group or Worktree.',
 	},
 	search: {
 		id: 'workbench.sidebar.items.search',
@@ -1525,7 +1525,47 @@ export const workbenchMessages = defineMessages({
 	worktreeNew: {
 		id: 'workbench.worktrees.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.new'],
-		description: 'Workspace menu command that creates a Git Worktree with defaults and opens it.',
+		description:
+			'Menu and Search command that opens the New Worktree form; the Worktree is created only when the form is submitted.',
+	},
+	worktreeFormTitle: {
+		id: 'workbench.worktrees.form.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.title'],
+		description:
+			'Title of the form that asks for a new Worktree’s branch and base before creating it.',
+	},
+	worktreeFormBranch: {
+		id: 'workbench.worktrees.form.branch',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.branch'],
+		description: 'Label of the New Worktree form field naming the Git branch to create.',
+	},
+	worktreeFormBranchHelp: {
+		id: 'workbench.worktrees.form.branchHelp',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.branchHelp'],
+		description:
+			'Help under the Branch field: a blank branch is generated and the Workspace gets a default name.',
+	},
+	worktreeFormBranchInvalid: {
+		id: 'workbench.worktrees.form.branchInvalid',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.branchInvalid'],
+		description: 'Error under the Branch field when its text cannot name a Git branch.',
+	},
+	worktreeFormBase: {
+		id: 'workbench.worktrees.form.base',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.base'],
+		description:
+			'Label of the New Worktree form field naming the branch, tag or commit the Worktree starts from; blank means HEAD.',
+	},
+	worktreeFormBaseInvalid: {
+		id: 'workbench.worktrees.form.baseInvalid',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.baseInvalid'],
+		description: 'Error under the Base field when its text cannot name a branch, tag or commit.',
+	},
+	worktreeFormTooLong: {
+		id: 'workbench.worktrees.form.tooLong',
+		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.form.tooLong'],
+		description:
+			'Error under a New Worktree form field whose text is longer than 1024 UTF-8 bytes.',
 	},
 	worktreeOpen: {
 		id: 'workbench.worktrees.open',

@@ -53,10 +53,10 @@ function withoutValue<Value>(result: ActionResult<Value>): ActionResult<void> {
 /**
  * Start Agent and its start, the TUI's `orchbee.native.agent.start`. The dialog opens only while the
  * Server says this Session can start an Agent. A start names an Agent and a place: New Tab and the
- * splits create a terminal whose first command the Server delivers, and New Worktree creates a
- * checkout with its defaults, as New Worktree from the focused Panel does, and starts the Agent in
- * the Workspace it opens. Each place keeps the availability and focus handover of the command it
- * delegates to.
+ * splits create a terminal whose first command the Server delivers, and New Worktree… runs New
+ * Worktree from the focused Panel: its form opens with a branch proposed for the Agent, and once it is
+ * submitted the Server starts the Agent in the Workspace the Worktree opens; cancelling it starts
+ * nothing. Each place keeps the availability and focus handover of the command it delegates to.
  */
 export function registerWorkbenchAgentStartActions({
 	agentCatalog,

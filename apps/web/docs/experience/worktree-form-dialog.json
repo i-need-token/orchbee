@@ -1,0 +1,57 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.worktree-form-dialog",
+	"kind": "experience",
+	"status": "candidate",
+	"name": "New Worktree Form",
+	"description": "Asks for a new Git Worktree's Branch and Base with the TUI form's fields, defaults, validation and words, and creates nothing until it is submitted.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["create-worktree", "start-agent-in-worktree"],
+	"implementation": [
+		"apps/web/src/workbench/components/workbench-worktree-form-dialog/WorkbenchWorktreeFormDialog.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "Blank",
+			"file": "apps/web/stories/workbench-worktree-form-dialog.stories.tsx",
+			"id": "applications-web-new-worktree--blank",
+			"states": [
+				"Inspect Branch, blank with help that a blank branch gets a generated name, and Base, blank with HEAD as its placeholder; Branch takes the keyboard.",
+				"Type a Branch starting with a dash, leave the field, and see the localized reason; submit and see Create refuse with the first refused field focused."
+			]
+		},
+		{
+			"exportName": "AgentBranch",
+			"file": "apps/web/stories/workbench-worktree-form-dialog.stories.tsx",
+			"id": "applications-web-new-worktree--agent-branch",
+			"states": [
+				"See the form Start Agent opens for its New Worktree… place, with the editable branch it proposes for the Agent."
+			]
+		},
+		{
+			"exportName": "BlankChinese",
+			"file": "apps/web/stories/workbench-worktree-form-dialog.stories.tsx",
+			"id": "applications-web-new-worktree--blank-chinese",
+			"states": ["Inspect the same fields, help, reasons and footer in Simplified Chinese."]
+		}
+	],
+	"uses": ["workbench.resource-dialog-form"],
+	"useWhen": [
+		"A person creates a Git Worktree from a Workspace menu, a Project's New Workspace submenu, or Search.",
+		"A person starts an Agent in a new Worktree from Start Agent."
+	],
+	"avoidWhen": [
+		"The person opens an existing checkout; use Open Worktree.",
+		"The person creates a Workspace in an existing directory; use the one-click New Workspace action."
+	],
+	"invariants": [
+		"The fields are the TUI form's: Branch, blank by default or prefilled with the branch Start Agent proposes, and Base, blank for HEAD. No other option is offered.",
+		"Text is sent exactly as typed. A non-blank field that starts with a dash or holds a control character is refused, and one longer than 1024 UTF-8 bytes is refused as too long.",
+		"A refused field shows its localized reason on blur or submit, the reason then follows the field until it is fixed, and a refused submit focuses the first refused field.",
+		"A blank Branch creates a generated branch and names the Workspace with the first unused default Worktree name; a typed Branch lets the Server name the Workspace.",
+		"Create closes the form and starts the creation, whose progress and outcome the authority's notices report. Cancel, Escape, the close button and backdrop dismissal create and start nothing.",
+		"Closing returns focus to where it was when the form opened, or to the active terminal when that place has gone."
+	],
+	"references": ["apps/web/docs/project-workspace.md", "apps/web/docs/workbench.md"]
+}
