@@ -21,8 +21,8 @@ impl super::CliText {
             ),
             C::AgentViewSet => (
                 "orchbee agent view set --spec <json> [--format text|json]",
-                "Replace the selected Windows session's temporary Agent view. The JSON specification has source and optional label/filter/sort. Filters support all/any/not/eq/in/exists; fields include status, workspace_id, tab_id, pane_id, agent, seen, state_change_seq and token. Up to eight ascending or descending sort keys are accepted. IDs use the selected machine's scope.\n\nInspect the input schema with orchbee api schema orchbee.agent.view ($defs/spec). Invalid input is rejected before connecting. A lost reply is unknown (exit 8) and never retried automatically. Restart clears the override.",
-                "替换选中 Windows 会话的临时智能体视图。JSON 定义包含 source 和可选的 label/filter/sort。筛选支持 all/any/not/eq/in/exists；字段包括 status、workspace_id、tab_id、pane_id、agent、seen、state_change_seq 和 token。最多接受八个升序或降序排序键；ID 使用选中机器的作用域。\n\n使用 orchbee api schema orchbee.agent.view 查看输入结构（$defs/spec）。连接前即拒绝无效输入；应答丢失时结果未知（退出 8），不自动重试。重启会清除设置。",
+                "Replace the selected Windows session's temporary Agent view. The JSON specification has source and optional label/filter/sort. Filters support all/any/not/eq/in/exists; fields include status, workspace_id, tab_id, panel_id, agent, seen, state_change_seq and token. Up to eight ascending or descending sort keys are accepted. IDs use the selected machine's scope.\n\nInspect the input schema with orchbee api schema orchbee.agent.view ($defs/spec). Invalid input is rejected before connecting. A lost reply is unknown (exit 8) and never retried automatically. Restart clears the override.",
+                "替换选中 Windows 会话的临时智能体视图。JSON 定义包含 source 和可选的 label/filter/sort。筛选支持 all/any/not/eq/in/exists；字段包括 status、workspace_id、tab_id、panel_id、agent、seen、state_change_seq 和 token。最多接受八个升序或降序排序键；ID 使用选中机器的作用域。\n\n使用 orchbee api schema orchbee.agent.view 查看输入结构（$defs/spec）。连接前即拒绝无效输入；应答丢失时结果未知（退出 8），不自动重试。重启会清除设置。",
             ),
             C::AgentViewClear => (
                 "orchbee agent view clear [--source <name>] [--format text|json]",

@@ -62,7 +62,11 @@ fn field_types_and_context_pairs_are_closed() {
             true,
         ),
         (json!("tab_id"), json!({"context":"current_tab_id"}), true),
-        (json!("pane_id"), json!({"context":"current_tab_id"}), false),
+        (
+            json!("panel_id"),
+            json!({"context":"current_tab_id"}),
+            false,
+        ),
         (
             json!("tab_id"),
             json!({"context":"current_workspace_id"}),

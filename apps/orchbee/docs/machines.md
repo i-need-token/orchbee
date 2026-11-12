@@ -661,7 +661,7 @@ are trimmed and controls removed, then require 1–32 scalars. A 64 KiB encoded
 specification limit also bounds string operands. Filters use `all`, `any`, `not`,
 `eq`, `in`, or `exists` in the `op` field; nonempty groups, at most eight levels,
 64 nodes and 32 `in` values are allowed. Fields are `status`, `workspace_id`,
-`tab_id`, `pane_id`, `agent`, `seen`, `state_change_seq`, or `{ "token": "name" }`.
+`tab_id`, `panel_id`, `agent`, `seen`, `state_change_seq`, or `{ "token": "name" }`.
 Values are strings, booleans for `seen`, full unsigned 64-bit integers for sequence,
 or `{ "context": "current_workspace_id" }` / `current_tab_id` for matching ID
 fields. Status admits idle, working, blocked, done, error and unknown. A row whose Agent is

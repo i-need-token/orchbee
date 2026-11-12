@@ -69,7 +69,7 @@
 										"status",
 										"workspace_id",
 										"tab_id",
-										"pane_id",
+										"panel_id",
 										"agent",
 										"seen",
 										"state_change_seq"
@@ -266,7 +266,7 @@
 							"const": "eq"
 						},
 						"field": {
-							"const": "pane_id"
+							"const": "panel_id"
 						},
 						"value": {
 							"type": "string"
@@ -282,7 +282,7 @@
 							"const": "in"
 						},
 						"field": {
-							"const": "pane_id"
+							"const": "panel_id"
 						},
 						"values": {
 							"type": "array",

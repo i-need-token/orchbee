@@ -82,7 +82,7 @@ fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
         &Choice::Local,
         "explicit sort ties retain placement, not preset priority"
     );
-    let spec=parse_agent_view_spec(&serde_json::to_vec(&serde_json::json!({"source":"x","filter":{"op":"eq","field":"pane_id","value":first.target.member.as_str()}})).unwrap()).unwrap();
+    let spec=parse_agent_view_spec(&serde_json::to_vec(&serde_json::json!({"source":"x","filter":{"op":"eq","field":"panel_id","value":first.target.member.as_str()}})).unwrap()).unwrap();
     assert_eq!(
         view.project_source(entries(), &Choice::Local, None, None, Some(&spec))
             .len(),

@@ -61,6 +61,7 @@ pub enum AgentViewBuiltinField {
     Status,
     WorkspaceId,
     TabId,
+    #[serde(rename = "panel_id")]
     PaneId,
     Agent,
     Seen,
