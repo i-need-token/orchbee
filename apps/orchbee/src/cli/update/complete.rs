@@ -51,7 +51,7 @@ pub(super) fn activate(root: &Path, entry: &Entry, completion: Completion) -> Re
         return Err(Error::NotReleaseDirectory);
     }
     if completion.path {
-        path_step::run(root, &entry.product)?;
+        path_step::run(root, &entry.product, path_step::USER_ENVIRONMENT)?;
     }
     store
         .replace_pointer(&Pointer::activate(current, entry.clone()).encode())

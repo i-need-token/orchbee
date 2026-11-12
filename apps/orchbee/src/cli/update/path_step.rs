@@ -14,9 +14,10 @@ use std::{
 /// The key under `HKEY_CURRENT_USER` that holds the user `Path`.
 pub(super) const USER_ENVIRONMENT: &str = "Environment";
 
-/// Places the launcher of the version directory `product` names under `root`, then edits the user
-/// `Path`. A failure at either part stops the step before the pointer moves.
-pub(super) fn run(root: &Path, product: &str) -> Result<(), Error> {
+/// Places the launcher of the version directory `product` names under `root`, then edits the `Path`
+/// value of `HKEY_CURRENT_USER\<key>`, which is [`USER_ENVIRONMENT`] outside a rehearsal. A failure
+/// at either part stops the step before the pointer moves.
+pub(super) fn run(root: &Path, product: &str, key: &str) -> Result<(), Error> {
     let stem = orchbee_local_runtime::environment_stem();
     let source = root
         .join("versions")
@@ -25,7 +26,7 @@ pub(super) fn run(root: &Path, product: &str) -> Result<(), Error> {
     place_launcher(&root.join("bin"), &source, &format!("{stem}.exe"))
         .map_err(|_| Error::PathLauncher)?;
     let root = root.to_str().ok_or(Error::PathVariable)?;
-    platform::edit_user_path(USER_ENVIRONMENT, &|current| path_value::edit(current, root))
+    platform::edit_user_path(key, &|current| path_value::edit(current, root))
         .map_err(|_| Error::PathVariable)
 }
 
