@@ -30,7 +30,7 @@ contract for the connection's lifetime, and a later generation of either connect
 frames.
 
 - **Capabilities.** A member, request, event, channel kind, or enumerated value marked with a
-  capability name under [First release and capabilities](#first-release-and-capabilities) is sent
+  capability name under [Baseline and capabilities](#baseline-and-capabilities) is sent
   only when the answer lists that name. A peer without it loses that feature and nothing else.
 - **Hub admission.** The hub checks that the connecting peer runs as its own user before it reads a
   byte. It has 256 connection slots and 4 control slots, and rejects offers with `stopping` once
@@ -620,23 +620,23 @@ one-time code, or any other answer to a login question.
 | Link: hub send interval; helper receive silence      | 30 s; 90 s                              | The helper exits                    |
 | Helper: wait for a Session to report ready           | 30 s                                    | `close` with `unknown`              |
 
-## First release and capabilities
+## Baseline and capabilities
 
-| Part                                                                                                                                                         | First release | Capability                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- | --------------------------- |
-| Frame, channels, flow control, `message` classes, `unsupported`, `bye`, `ping`, `pong`                                                                       | Yes           | —                           |
-| Link: `facts` with `platform`, `architecture`, `executable`, `storeRoot`                                                                                     | Yes           | —                           |
-| Link: `session`, `route`, `ensure-session`                                                                                                                   | Yes           | —                           |
-| Link: `install` channel; `facts` members `origin` and `install`                                                                                              | No            | `install` on `machine-link` |
-| Hub: `attach`, `hub`, `catalog`, `machine`, `reload`                                                                                                         | Yes           | —                           |
-| Hub: `connect` with `origin`, `answers`, `draft`; `connect-waiting`; `disconnect`                                                                            | Yes           | —                           |
-| Hub: `login`, `question`, `claim`, `dismiss`; the answer delivery record                                                                                     | Yes           | —                           |
-| Hub: `session`, `route`; `stop-session`                                                                                                                      | Yes           | —                           |
-| Hub: `install` request; `connect` member `install`; `machine` members `offer` and `transfer`; state `installing`; `connect-waiting` reason `install-consent` | No            | `install` on `machine-hub`  |
+| Part                                                                                                                                                         | Baseline | Capability                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------------------------- |
+| Frame, channels, flow control, `message` classes, `unsupported`, `bye`, `ping`, `pong`                                                                       | Yes      | —                           |
+| Link: `facts` with `platform`, `architecture`, `executable`, `storeRoot`                                                                                     | Yes      | —                           |
+| Link: `session`, `route`, `ensure-session`                                                                                                                   | Yes      | —                           |
+| Link: `install` channel; `facts` members `origin` and `install`                                                                                              | No       | `install` on `machine-link` |
+| Hub: `attach`, `hub`, `catalog`, `machine`, `reload`                                                                                                         | Yes      | —                           |
+| Hub: `connect` with `origin`, `answers`, `draft`; `connect-waiting`; `disconnect`                                                                            | Yes      | —                           |
+| Hub: `login`, `question`, `claim`, `dismiss`; the answer delivery record                                                                                     | Yes      | —                           |
+| Hub: `session`, `route`; `stop-session`                                                                                                                      | Yes      | —                           |
+| Hub: `install` request; `connect` member `install`; `machine` members `offer` and `transfer`; state `installing`; `connect-waiting` reason `install-consent` | No       | `install` on `machine-hub`  |
 
-Generation 1 lists no capability name until `install` ships. A later channel kind, request, event,
-or member arrives under its own capability name, and a peer without it answers `unsupported` or
-ignores the event.
+A baseline part is in every generation 1 peer and needs no capability name. Generation 1 lists no
+capability name until `install` ships. A later channel kind, request, event, or member arrives
+under its own capability name, and a peer without it answers `unsupported` or ignores the event.
 
 ## Fixtures and conformance
 
