@@ -375,7 +375,8 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   wake; the read at `expiresAt` then decides, so a Session that lives across the sleep holds the
   hub. In development and test builds `ORCHBEE_MACHINE_HUB_EXPIRY_MS`, from 1,000 to 600,000,
   replaces the 600,000 ms expiry; a release build never reads it. The hub reads it from the
-  environment it inherits from the process that started it; nothing in Orchbee sets it.
+  environment it inherits from the process that started it; nothing in Orchbee sets it. It is
+  listed with every other variable in [environment variables](environment-variables.md).
 - **Events.** Every change of state goes as `hub` to every connection attached with `watch`.
 
 In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`

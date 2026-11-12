@@ -29,6 +29,7 @@ The level says who may rely on a variable:
 | `ORCHBEE_DESKTOP_*` (others)          | Private  | Development runs of the Desktop entry, listed in the [Desktop guide](../../desktop/README.md#window).                                                                                |
 | `ORCHBEE_TERMINAL_HOST_TRACE`         | Private  | Benchmark runs: interaction timing records from the Terminal Host ([Terminal Host](../../terminal-host/README.md)).                                                                  |
 | `ORCHBEE_TUI_CAPTURE_DIR`             | Private  | Tests: where render tests write captured frames.                                                                                                                                     |
+| `ORCHBEE_MACHINE_HUB_EXPIRY_MS`       | Private  | Tests: a development or test build's machine hub expiry in milliseconds, from 1,000 to 600,000; a release never reads it ([machine hub](machines.md#lifetime)).                      |
 
 ## Set by Orchbee in the processes it starts
 
