@@ -21,6 +21,21 @@ impl super::CliText {
                 "PATH not changed (--no-path).",
                 "未修改 PATH（--no-path）。",
             ),
+            "path-not-reached" => ("The PATH step did not run to the end.", "PATH 步骤未完成。"),
+            "path-added" => ("Added to your user Path: ", "已添加到用户 Path："),
+            "path-present" => ("Already on your user Path: ", "已在用户 Path 中："),
+            "path-replaced" => (
+                "Replaced old Orchbee entries in your user Path with: ",
+                "已将用户 Path 中旧的 Orchbee 条目替换为：",
+            ),
+            "path-launcher" => (
+                "The PATH step could not place the launcher in the bin folder of the installation, so this version was not activated. Run orchbee install --no-path to install without the PATH step.",
+                "PATH 步骤无法把启动器放入安装目录的 bin 文件夹，因此未启用此版本。如需不经 PATH 步骤安装，请运行 orchbee install --no-path。",
+            ),
+            "path-variable" => (
+                "The PATH step could not update the user Path (HKCU\\Environment): it is not a text value, would grow past 32,760 characters, or could not be written, so this version was not activated. Run orchbee install --no-path to install without the PATH step.",
+                "PATH 步骤无法更新用户 Path（HKCU\\Environment）：它不是文本值、会超过 32,760 个字符或无法写入，因此未启用此版本。如需不经 PATH 步骤安装，请运行 orchbee install --no-path。",
+            ),
             "development-build" => (
                 "This is a development build, so it does not install. Nothing was changed. Use a release or test package.",
                 "当前是开发构建，不能安装，未做任何改动。请使用正式版或测试包。",

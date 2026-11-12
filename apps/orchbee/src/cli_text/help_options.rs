@@ -545,7 +545,11 @@ impl super::CliText {
                     "Keep the client's current selection.",
                     "保持客户端当前选中项。",
                 ),
-                "--no-path" => ("", "Leave PATH unchanged.", "不修改 PATH。"),
+                "--no-path" => (
+                    "",
+                    "Skip the PATH step: no launcher in bin/ and no user Path change.",
+                    "跳过 PATH 步骤：不在 bin/ 放置启动器，也不修改用户 Path。",
+                ),
                 "--off" => ("", "Turn panel maximization off.", "关闭面板最大化。"),
                 "--offset-from-bottom" => (
                     "<n>",

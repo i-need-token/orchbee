@@ -47,8 +47,9 @@ serde_json = { workspace = true, features = ["raw_value"] }
 nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "user"] }
 
 [target.'cfg(windows)'.dependencies]
-# System-directory lookup for the owned, cancellable stdin reader and command routing.
-winsafe = { workspace = true, features = ["kernel"] }
+# System-directory lookup for the owned, cancellable stdin reader and command routing, and the
+# user `Path` registry value of the release PATH step.
+winsafe = { workspace = true, features = ["advapi", "kernel"] }
 winapi-util.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]

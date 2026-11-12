@@ -432,11 +432,11 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::Install) => crate::cli_text::HelpDetails::new(
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",
-                "Install the signed release directory this orchbee runs from and make it the active version.\nCopies every file to versions/<version> under ORCHBEE_INSTALL_DIR (default %LOCALAPPDATA%/Programs/Orchbee; a test build uses its own folder), verifies it, then moves active.json.\nAn installed version is verified and reused, never overwritten. A version lower than the active one is refused unless --allow-downgrade.\nThis build has no PATH step: it always behaves as if --no-path were given.\nTotal deadline: 600 seconds. Ctrl+C cancels.",
+                "Install the signed release directory this orchbee runs from and make it the active version.\nCopies every file to versions/<version> under ORCHBEE_INSTALL_DIR (default %LOCALAPPDATA%/Programs/Orchbee; a test build uses its own folder), verifies it, then moves active.json.\nAn installed version is verified and reused, never overwritten. A version lower than the active one is refused unless --allow-downgrade.\nUnless --no-path, the PATH step copies the version's launcher into bin/ there and adds that folder to the user Path when it is missing, removing entries for other folders inside the installation.\nTotal deadline: 600 seconds. Ctrl+C cancels.",
             ),
             (Locale::ZhCn, CommandPath::Install) => crate::cli_text::HelpDetails::new(
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",
-                "安装当前 orchbee 所在的已签名发布目录，并设为当前版本。\n把每个文件复制到 ORCHBEE_INSTALL_DIR（默认 %LOCALAPPDATA%/Programs/Orchbee；测试构建使用自己的目录）下的 versions/<版本>，校验后更新 active.json。\n已安装的版本校验后复用，绝不覆盖。低于当前版本时拒绝，除非加 --allow-downgrade。\n此构建尚无 PATH 步骤，始终按 --no-path 处理。\n总时限 600 秒。Ctrl+C 取消。",
+                "安装当前 orchbee 所在的已签名发布目录，并设为当前版本。\n把每个文件复制到 ORCHBEE_INSTALL_DIR（默认 %LOCALAPPDATA%/Programs/Orchbee；测试构建使用自己的目录）下的 versions/<版本>，校验后更新 active.json。\n已安装的版本校验后复用，绝不覆盖。低于当前版本时拒绝，除非加 --allow-downgrade。\n除非加 --no-path，PATH 步骤会把该版本的启动器复制到其中的 bin/，在用户 Path 缺少该文件夹时添加它，并移除指向安装目录内其他文件夹的条目。\n总时限 600 秒。Ctrl+C 取消。",
             ),
             (Locale::EnUs, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_EN,
             (Locale::ZhCn, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_ZH,

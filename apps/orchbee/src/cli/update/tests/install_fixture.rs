@@ -60,6 +60,7 @@ pub(super) fn context() -> Context {
                     signals,
                     deadline: Instant::now() + Duration::from_secs(60),
                     curl_checked: false,
+                    completion_diagnostic: None,
                 };
             }
             Err(_) if Instant::now() < give_up => std::thread::sleep(Duration::from_millis(20)),
@@ -77,7 +78,7 @@ pub(super) fn print_probe(client: &Path) -> Command {
 
 /// Completes the install of a published version directory in process, as its Client's completion
 /// helper would after verifying its own signature, so it fails unless it receives a published
-/// release.
+/// release. It never performs the PATH step, which would edit this user's real `Path`.
 pub(super) fn in_process_completion(
     root: &Path,
     version: &Path,
@@ -89,7 +90,14 @@ pub(super) fn in_process_completion(
         product: version.file_name().unwrap().to_string_lossy().into_owned(),
         manifest: format!("{:x}", Sha256::digest(&bytes)),
     };
-    complete::activate(root, &entry, completion)
+    complete::activate(
+        root,
+        &entry,
+        Completion {
+            path: false,
+            ..completion
+        },
+    )
 }
 
 /// The pointer under `root`, or `None` when it is missing or names no valid record.

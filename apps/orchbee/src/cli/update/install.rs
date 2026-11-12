@@ -49,7 +49,12 @@ pub(super) fn version_probe(client: &Path) -> Command {
     command
 }
 
+/// The most of a failed helper's first standard-error line kept for the person.
+const DIAGNOSTIC_LIMIT: usize = 1024;
+
 /// Runs the published copy's completion helper; its exit status `3` is the lower-version refusal.
+/// Any other failure keeps the helper's first standard-error line, which names the cause, such as
+/// a PATH step that could not finish.
 pub(super) fn run_completion(
     _root: &Path,
     version: &Path,
@@ -73,7 +78,20 @@ pub(super) fn run_completion(
         Some(CommandFailure::ExitFailure) if result.exit_code == Some(3) => {
             Err(Error::DowngradeRefused)
         }
-        Some(_) => Err(Error::Activation),
+        Some(_) => {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            context.completion_diagnostic = stderr
+                .lines()
+                .next()
+                .map(|line| {
+                    line.trim()
+                        .chars()
+                        .take(DIAGNOSTIC_LIMIT)
+                        .collect::<String>()
+                })
+                .filter(|line| !line.is_empty());
+            Err(Error::Activation)
+        }
     }
 }
 

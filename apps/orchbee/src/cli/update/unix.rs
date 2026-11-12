@@ -1,5 +1,5 @@
 //! No update effects are implemented on Unix; every port refuses without observation or mutation.
-use super::Context;
+use super::{Context, path_value::Edit};
 use orchbee_local_runtime::CommandOutput;
 use std::{
     fs::File,
@@ -37,5 +37,13 @@ pub(super) fn execute_capturing(
 }
 
 pub(super) fn verify_capsule(_directory: &Path, _expected: &str) -> io::Result<bool> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn planned_path_edit(_root: &Path) -> Option<Edit> {
+    None
+}
+
+pub(super) fn edit_user_path(_key: &str, _edit: &dyn Fn(&str) -> Edit) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }

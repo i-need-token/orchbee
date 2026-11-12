@@ -7,6 +7,7 @@ use super::{
     Error, Output,
     install::Completion,
     manifest::{Release, own_platform},
+    path_step,
     signature::{self, DOCUMENT_LIMIT, MANIFEST_LIMIT, Refusal},
 };
 use crate::{
@@ -18,16 +19,9 @@ use orchbee_local_runtime::{EnvironmentKind, compare_product_versions, environme
 use orchbee_release_records::{Entry, Pointer};
 use std::{cmp::Ordering, io::Read, path::Path};
 
-/// Whether this build performs the PATH step. While it does not, `install` behaves as if
-/// `--no-path` were given and says so in its result, and a completion asked for the step changes
-/// no PATH.
-pub(super) const PATH_STEP_BUILT: bool = false;
-
-/// The PATH step for the version `entry` names under `root`, run before the pointer moves. This
-/// build has none: it adds no `bin\orchbee.exe` and no `Path` entry.
-fn path_step(_root: &Path, _entry: &Entry) -> Result<(), Error> {
-    Ok(())
-}
+/// Whether this build performs the PATH step. A build without it makes `install` behave as if
+/// `--no-path` were given and say so in its result.
+pub(super) const PATH_STEP_BUILT: bool = true;
 
 /// Makes the published version `entry` names the active one under `root`, holding the writer
 /// lock throughout. An unreadable pointer names no active version, so this repairs it.
@@ -57,7 +51,7 @@ pub(super) fn activate(root: &Path, entry: &Entry, completion: Completion) -> Re
         return Err(Error::NotReleaseDirectory);
     }
     if completion.path {
-        path_step(root, entry)?;
+        path_step::run(root, &entry.product)?;
     }
     store
         .replace_pointer(&Pointer::activate(current, entry.clone()).encode())

@@ -55,7 +55,7 @@
 					"type": ["string", "null"]
 				},
 				"pathStep": {
-					"enum": ["not-requested", "unavailable"]
+					"enum": ["not-requested", "unavailable", "not-reached", "added", "present", "replaced"]
 				},
 				"cleanupPending": {
 					"type": ["string", "null"]

@@ -10,6 +10,8 @@ mod engine;
 mod install;
 mod installed;
 mod manifest;
+mod path_step;
+mod path_value;
 #[cfg(windows)]
 #[path = "update/windows.rs"]
 mod platform;
@@ -63,6 +65,10 @@ enum Error {
     DowngradeRefused,
     OtherArchitecture,
     SmokeFailed,
+    /// The completing Client could not place `bin\<stem>.exe`.
+    PathLauncher,
+    /// The completing Client could not edit the user `Path`.
+    PathVariable,
     Activation,
     ActivationUnknown,
     Cancelled,
@@ -94,6 +100,8 @@ impl Error {
             Self::DowngradeRefused => "downgrade-refused",
             Self::OtherArchitecture => "other-architecture",
             Self::SmokeFailed => "smoke-failed",
+            Self::PathLauncher => "path-launcher",
+            Self::PathVariable => "path-variable",
             Self::Activation => "activation",
             Self::ActivationUnknown => "activation-unknown",
             Self::Cancelled => "cancelled",
@@ -124,6 +132,8 @@ struct Context {
     signals: ArmedSignals,
     deadline: Instant,
     curl_checked: bool,
+    /// The first line a failed completion helper wrote to standard error, which names its cause.
+    completion_diagnostic: Option<String>,
 }
 impl Context {
     fn interrupted(&mut self) -> io::Result<bool> {
@@ -213,19 +223,43 @@ fn document(
     })
 }
 
-/// Whether `install` ran the PATH step, or why it did not.
+/// What `install` did to the user `Path`, or why it did nothing.
 #[derive(Clone, Copy)]
 enum PathStep {
     /// The person passed `--no-path`.
     NotRequested,
     /// This build has no PATH step, so it behaved as if `--no-path` were given.
     Unavailable,
+    /// The run ended before the PATH step completed.
+    NotReached,
+    /// `<store root>\bin` was added to the user `Path`.
+    Added,
+    /// The user `Path` already named `<store root>\bin` and was left unchanged.
+    Present,
+    /// Entries naming other folders inside the store root were removed, and the user `Path` names
+    /// `<store root>\bin`.
+    Replaced,
 }
 impl PathStep {
     fn code(self) -> &'static str {
         match self {
             Self::NotRequested => "not-requested",
             Self::Unavailable => "unavailable",
+            Self::NotReached => "not-reached",
+            Self::Added => "added",
+            Self::Present => "present",
+            Self::Replaced => "replaced",
+        }
+    }
+
+    /// The outcome of a completed PATH step, classified by the edit planned from the user `Path` as
+    /// it was before the completion ran. A value that could not be read beforehand classifies as
+    /// added, since the completion succeeded and the `Path` now names `bin`.
+    fn completed(plan: Option<&path_value::Edit>) -> Self {
+        match plan {
+            Some(path_value::Edit::Unchanged) => Self::Present,
+            Some(path_value::Edit::Write { removed: true, .. }) => Self::Replaced,
+            _ => Self::Added,
         }
     }
 }
@@ -286,6 +320,7 @@ fn start(format: OutputFormat, locale: Locale) -> Result<Context, Box<Output>> {
         signals,
         deadline: Instant::now() + DEADLINE,
         curl_checked: false,
+        completion_diagnostic: None,
     })
 }
 
@@ -367,6 +402,7 @@ pub(crate) fn run(
         };
         engine::run(&inputs, &mut context, &mut report)
     })();
+    let completion_diagnostic = context.completion_diagnostic.take();
     let settled = settle(context, &report, result);
     let document = document(channel, &report, settled.error, settled.interrupted);
     let encoded = match format {
@@ -386,6 +422,10 @@ pub(crate) fn run(
                             .cli_update_message(settled.error.map_or("complete", Error::message)),
                     );
                     text.push('\n');
+                    if let Some(cause) = completion_diagnostic.filter(|_| settled.error.is_some()) {
+                        text.push_str(&cause);
+                        text.push('\n');
+                    }
                 }
             }
             if let Some(line) = client_line(&report) {
@@ -425,12 +465,16 @@ pub(crate) fn install(
         Ok(context) => context,
         Err(output) => return *output,
     };
-    // The PATH step reports its own outcome once this build has one.
-    let path_step = if no_path {
+    let requested = !no_path && complete::PATH_STEP_BUILT;
+    let mut path_step = if no_path {
         PathStep::NotRequested
+    } else if requested {
+        PathStep::NotReached
     } else {
         PathStep::Unavailable
     };
+    let install_root = platform::install_root().map_err(|_| Error::InstallLocation);
+    let mut path_plan = None;
     let mut report = Report::new();
     report.phase = "source";
     let result = (|| {
@@ -438,24 +482,38 @@ pub(crate) fn install(
         if environment_kind() == EnvironmentKind::Development {
             return Err(Error::DevelopmentBuild);
         }
+        if requested && let Ok(root) = &install_root {
+            path_plan = platform::planned_path_edit(root);
+        }
         let inputs = engine::InstallInputs {
             directory: own_directory(),
             keys: signature::TRUSTED_KEYS,
-            install_root: platform::install_root().map_err(|_| Error::InstallLocation),
+            install_root: install_root.clone(),
             probe: install::version_probe,
             activation: install::run_completion,
             completion: install::Completion {
-                path: !no_path && complete::PATH_STEP_BUILT,
+                path: requested,
                 allow_downgrade,
             },
         };
         engine::install(&inputs, &mut context, &mut report)
     })();
+    if requested && result.is_ok() {
+        path_step = PathStep::completed(path_plan.as_ref());
+    }
+    let completion_diagnostic = context.completion_diagnostic.take();
     let settled = settle(context, &report, result);
     let text = CliText::new(locale);
     let diagnostic = settled
         .error
-        .map(|error| format!("{}\n", text.cli_update_message(error.message())))
+        .map(|error| {
+            let mut lines = format!("{}\n", text.cli_update_message(error.message()));
+            if let Some(cause) = &completion_diagnostic {
+                lines.push_str(cause);
+                lines.push('\n');
+            }
+            lines
+        })
         .unwrap_or_default();
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&install_document(
@@ -479,13 +537,20 @@ pub(crate) fn install(
                 report.version.as_deref().unwrap_or_default()
             )];
             lines.extend(client_line(&report));
-            lines.push(
-                text.cli_update_message(match path_step {
-                    PathStep::NotRequested => "path-not-requested",
-                    PathStep::Unavailable => "path-unavailable",
-                })
-                .to_owned(),
-            );
+            let bin = install_root
+                .as_ref()
+                .ok()
+                .and_then(|root| root.to_str())
+                .map(|root| crate::native_path::display(&path_value::bin(root)))
+                .unwrap_or_default();
+            lines.push(match path_step {
+                PathStep::NotRequested => text.cli_update_message("path-not-requested").to_owned(),
+                PathStep::Unavailable => text.cli_update_message("path-unavailable").to_owned(),
+                PathStep::NotReached => text.cli_update_message("path-not-reached").to_owned(),
+                PathStep::Added => format!("{}{bin}", text.cli_update_message("path-added")),
+                PathStep::Present => format!("{}{bin}", text.cli_update_message("path-present")),
+                PathStep::Replaced => format!("{}{bin}", text.cli_update_message("path-replaced")),
+            });
             if let Some(path) = &report.cleanup_pending {
                 lines.push(format!(
                     "{}{}",

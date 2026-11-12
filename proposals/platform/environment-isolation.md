@@ -128,7 +128,8 @@ command.
   within a documented range, so checkouts run concurrently. Packaged builds run no development
   server.
 - Development and test CLIs stay off `PATH`; run them through `pnpm` scripts or the path that staging
-  prints.
+  prints. The one exception is a person running a test package's own `install` without `--no-path`,
+  which adds that test store's stem-named `bin` folder.
 - "Environment" (release, development, test) and "release channel" (stable, preview) are separate
   terms; only release has channels. `docs/GLOSSARY.md` defines Environment.
 

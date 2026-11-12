@@ -1,5 +1,6 @@
-//! Windows update effects: declared inputs, no-follow source admission and owned process execution.
-use super::Context;
+//! Windows update effects: declared inputs, no-follow source admission, owned process execution,
+//! and the user `Path` value the PATH step edits.
+use super::{Context, path_value::Edit};
 use orchbee_local_runtime::CommandOutput;
 use std::{
     fs::{File, OpenOptions},
@@ -8,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+use winsafe::{self as w, co};
 
 /// `ORCHBEE_UPDATE_MANIFEST`; an absent or non-Unicode value leaves the source unconfigured.
 pub(super) fn manifest_source() -> Option<String> {
@@ -85,4 +87,91 @@ pub(super) fn execute_capturing(
 
 pub(super) fn verify_capsule(directory: &Path, expected: &str) -> io::Result<bool> {
     Ok(orchbee_agent_integration_writer::verify_distribution_capsule(directory, expected))
+}
+
+/// How many times the PATH step recomputes its edit when another writer changes the value between
+/// its read and its write.
+const PATH_ATTEMPTS: usize = 3;
+
+/// The `Path` value of `HKEY_CURRENT_USER\<key>` with its registry type; an absent value reads as an
+/// empty `REG_EXPAND_SZ`, the type Windows gives a new user `Path`.
+#[derive(Eq, PartialEq)]
+struct PathValue {
+    expandable: bool,
+    text: String,
+}
+
+/// Reads `Path` from an open key. Another type is refused, and so is text that could not be read
+/// as UTF-16 without loss, because it could not be written back unchanged.
+fn read_path(key: &w::HKEY) -> io::Result<PathValue> {
+    let (expandable, text) = match key.RegQueryValueEx(Some("Path")) {
+        Ok(w::RegistryValue::Sz(text)) => (false, text),
+        Ok(w::RegistryValue::ExpandSz(text)) => (true, text),
+        Ok(_) => return Err(io::ErrorKind::InvalidData.into()),
+        Err(error) if error == co::ERROR::FILE_NOT_FOUND => (true, String::new()),
+        Err(error) => return Err(registry_error(error)),
+    };
+    if text.contains(char::REPLACEMENT_CHARACTER) {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    Ok(PathValue { expandable, text })
+}
+
+fn registry_error(error: co::ERROR) -> io::Error {
+    io::Error::from_raw_os_error(error.raw() as i32)
+}
+
+/// The edit the PATH step would make to the user `Path` for the store `root`, read without writing.
+pub(super) fn planned_path_edit(root: &Path) -> Option<Edit> {
+    let key = w::HKEY::CURRENT_USER
+        .RegOpenKeyEx(
+            Some(super::path_step::USER_ENVIRONMENT),
+            co::REG_OPTION::default(),
+            co::KEY::QUERY_VALUE,
+        )
+        .ok()?;
+    let current = read_path(&key).ok()?;
+    Some(super::path_value::edit(&current.text, root.to_str()?))
+}
+
+/// Applies `edit` to the `Path` value of `HKEY_CURRENT_USER\<key>` and writes the result with the
+/// value's own registry type, then flushes the key and reads the value back. The key is a parameter
+/// so that a rehearsal can name a scratch key. The value is read again just before the write and the
+/// edit recomputed when another writer changed it. Nothing is broadcast.
+pub(super) fn edit_user_path(key: &str, edit: &dyn Fn(&str) -> Edit) -> io::Result<()> {
+    let (key, _) = w::HKEY::CURRENT_USER
+        .RegCreateKeyEx(
+            key,
+            None,
+            co::REG_OPTION::default(),
+            co::KEY::QUERY_VALUE | co::KEY::SET_VALUE,
+            None,
+        )
+        .map_err(registry_error)?;
+    for _ in 0..PATH_ATTEMPTS {
+        let before = read_path(&key)?;
+        let value = match edit(&before.text) {
+            Edit::Unchanged => return Ok(()),
+            Edit::TooLong | Edit::UnnamedRoot => return Err(io::ErrorKind::InvalidInput.into()),
+            Edit::Write { value, .. } => value,
+        };
+        if read_path(&key)? != before {
+            continue;
+        }
+        let written = if before.expandable {
+            w::RegistryValue::ExpandSz(value.clone())
+        } else {
+            w::RegistryValue::Sz(value.clone())
+        };
+        key.RegSetValueEx(Some("Path"), written)
+            .map_err(registry_error)?;
+        key.RegFlushKey().map_err(registry_error)?;
+        let after = read_path(&key)?;
+        return if after.text == value && after.expandable == before.expandable {
+            Ok(())
+        } else {
+            Err(io::ErrorKind::Other.into())
+        };
+    }
+    Err(io::ErrorKind::Interrupted.into())
 }
