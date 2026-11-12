@@ -3992,7 +3992,7 @@
 												"maxLength": 120
 											},
 											"action": {
-												"enum": ["shell", "panel", "popup", "plugin_action"]
+												"enum": ["shell", "panel", "popup", "plugin-action"]
 											},
 											"bindings": {
 												"type": "array",

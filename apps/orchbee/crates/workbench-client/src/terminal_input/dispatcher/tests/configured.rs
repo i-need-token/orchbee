@@ -94,7 +94,7 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
 #[test]
 fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
     let keys = KeySettings::from_profile(
-        "[[keys.command]]\ncommand='echo hello'\nkey='prefix+c'\ndescription='Run hello'\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin_action'\ndescription='Refresh tools'",
+        "[[keys.command]]\ncommand='echo hello'\nkey='prefix+c'\ndescription='Run hello'\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin-action'\ndescription='Refresh tools'",
     ).unwrap();
     let id = keys.command_catalog()[0].id.clone();
     let mut view = ClientView::new(100);

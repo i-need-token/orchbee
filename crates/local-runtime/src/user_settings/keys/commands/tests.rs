@@ -19,7 +19,7 @@ height=12
 key="prefix+p"
 [[keys.command]]
 command="tools.inspect"
-type="plugin_action"
+type="plugin-action"
 "#;
     let keys = KeySettings::from_profile(profile).unwrap();
     assert_eq!(keys.commands.len(), 4);

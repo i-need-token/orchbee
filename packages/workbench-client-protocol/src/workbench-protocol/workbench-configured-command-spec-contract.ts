@@ -25,7 +25,7 @@ const ConfiguredCommandSizeSchema = z.discriminatedUnion('kind', [
 export const ConfiguredCommandDescriptorSchema = z
 	.strictObject({
 		id: ConfiguredCommandIdSchema,
-		action: z.enum(['shell', 'panel', 'popup', 'plugin_action']),
+		action: z.enum(['shell', 'panel', 'popup', 'plugin-action']),
 		bindings: z
 			.array(
 				z

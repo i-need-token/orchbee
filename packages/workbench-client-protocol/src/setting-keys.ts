@@ -617,7 +617,7 @@ export const SETTING_KEY_TABLE = {
 		{
 			path: 'keys.command[].type',
 			type: 'choice',
-			choices: ['shell', 'panel', 'popup', 'plugin_action'],
+			choices: ['shell', 'panel', 'popup', 'plugin-action'],
 			default: 'shell',
 			scope: 'client',
 			clients: 'both',

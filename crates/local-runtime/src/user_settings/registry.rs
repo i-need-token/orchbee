@@ -767,11 +767,11 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     ),
     key(
         "keys.command[].type",
-        V::Choice(&["shell", "panel", "popup", "plugin_action"]),
+        V::Choice(&["shell", "panel", "popup", "plugin-action"]),
         D::Text("shell"),
         (C::Keyboard, G::Commands),
         CLIENT,
-        "How the command runs; plugin_action takes up to 241 letters, digits or . _ : -.",
+        "How the command runs; plugin-action takes up to 241 letters, digits or . _ : -.",
     ),
     key(
         "keys.command[].key",

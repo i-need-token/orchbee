@@ -12,7 +12,7 @@ pub const MAXIMUM_CONFIGURED_COMMAND_BYTES: usize = 256 * 1024;
 pub const MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "kebab-case")]
 pub enum ConfiguredCommandKind {
     Shell,
     #[serde(rename = "panel")]

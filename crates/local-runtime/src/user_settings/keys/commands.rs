@@ -14,7 +14,7 @@ impl CustomCommandAction {
             Self::Shell => "shell",
             Self::Pane => "panel",
             Self::Popup => "popup",
-            Self::PluginAction => "plugin_action",
+            Self::PluginAction => "plugin-action",
         }
     }
 }
@@ -96,7 +96,7 @@ pub(super) fn parse(
                 "shell" => CustomCommandAction::Shell,
                 "panel" => CustomCommandAction::Pane,
                 "popup" => CustomCommandAction::Popup,
-                "plugin_action" => CustomCommandAction::PluginAction,
+                "plugin-action" => CustomCommandAction::PluginAction,
                 _ => return Err(error("invalid-binding")),
             },
         };

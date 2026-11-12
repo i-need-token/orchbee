@@ -210,7 +210,7 @@
 						},
 						{
 							"id": "cmd_profile_3",
-							"action": "plugin_action",
+							"action": "plugin-action",
 							"bindings": [],
 							"description": null,
 							"display": "tools.refresh",
@@ -1015,7 +1015,7 @@
 						},
 						{
 							"id": "cmd_profile_3",
-							"action": "plugin_action",
+							"action": "plugin-action",
 							"bindings": [],
 							"description": null,
 							"display": null,
