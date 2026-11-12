@@ -91,6 +91,20 @@ else
             return count == 0;
         }
 
+        /// Runs a read-only observation keyed by the session identifier while
+        /// the leader is retained, or returns null once it is released.
+        pub fn observe(
+            self: *SessionIdentityState,
+            comptime T: type,
+            session_id: std.posix.pid_t,
+            observer: anytype,
+        ) !?T {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.released.load(.acquire)) return null;
+            return try observer.observe(session_id);
+        }
+
         pub fn release(
             self: *SessionIdentityState,
             session_id: std.posix.pid_t,

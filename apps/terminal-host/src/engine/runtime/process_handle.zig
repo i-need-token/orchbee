@@ -8,8 +8,8 @@ const process_io_ops = @import("process_io.zig");
 // Process-facing adapters preserve the opaque public runtime boundary.
 pub fn Type(comptime Runtime: type) type {
     return struct {
-        pub fn sampleProcesses(self: *const Runtime, allocator: std.mem.Allocator) !pty_process.ProcessSample {
-            return pty_process.sampleProcesses(&stateFromConst(self).process, allocator);
+        pub fn sampleProcesses(self: *Runtime, allocator: std.mem.Allocator) !pty_process.ProcessSample {
+            return pty_process.sampleProcesses(&stateFrom(self).process, allocator);
         }
 
         /// How the Host started the root process; fixed for the runtime's life.

@@ -545,6 +545,12 @@ pub fn build(builder: *std.Build) void {
                 .file = builder.path("src/platform/process_session.c"),
                 .flags = authored_c_flags,
             });
+            if (target.result.os.tag != .freebsd) {
+                platform_module.addCSourceFile(.{
+                    .file = builder.path("src/platform/process_query_posix.c"),
+                    .flags = authored_c_flags,
+                });
+            }
             const pty_c = builder.addTranslateC(.{
                 .root_source_file = ghostty.path("src/pty.c"),
                 .target = target,

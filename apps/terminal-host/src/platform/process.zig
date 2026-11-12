@@ -15,9 +15,12 @@ pub const environmentVariableOwned = process_common.environmentVariableOwned;
 /// Windows Host startup clears inherited signal suppression before any child launch.
 pub const prepareWindowsTerminalChildren = windows_process.prepareTerminalChildren;
 
-pub fn sampleProcesses(process: *const Process, allocator: @import("std").mem.Allocator) @import("process_sample.zig").Error!ProcessSample {
-    if (builtin.os.tag != .windows) return error.ProcessSampleUnsupported;
-    return @import("process_query_windows.zig").collect(allocator, process.job_handle, process.process_handle);
+pub fn sampleProcesses(process: *Process, allocator: @import("std").mem.Allocator) @import("process_sample.zig").Error!ProcessSample {
+    return switch (builtin.os.tag) {
+        .windows => @import("process_query_windows.zig").collect(allocator, process.job_handle, process.process_handle),
+        .linux, .macos => process.sampleProcesses(allocator),
+        else => error.ProcessSampleUnsupported,
+    };
 }
 
 /// Stable platform-process facade. Each operating-system implementation owns
@@ -34,6 +37,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const launchKindFn = @import("interactive_shell.zig").launchKind;
     pub const powershellArgumentsFn = @import("powershell_integration.zig").arguments;
     pub const process_query = @import("process_query_windows.zig").testing;
+    pub const posix_process_query = @import("process_query_posix.zig").testing;
     pub const foregroundCommandActiveFn = posix_process.foregroundCommandActive;
     pub const posixExecutableCandidatesFn = posix_process.executableCandidatesForTesting;
     pub const PosixProcessType = posix_process.Process;

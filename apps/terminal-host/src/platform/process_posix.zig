@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const process_common = @import("process_common.zig");
+const process_sample = @import("process_sample.zig");
 const posix_compat = @import("posix_compat.zig");
 const process_session = @import("process_session.zig");
 const process_types = @import("process_types.zig");
@@ -191,6 +192,21 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             self.child_id,
             process_session.NativeSessionQuery{},
         );
+    }
+
+    /// Samples the session the root leads, inside the identity fence. Once the
+    /// leader is reaped its session identifier may name a later session, so the
+    /// sample keeps the root PID and lists no members.
+    pub fn sampleProcesses(self: *Process, allocator: std.mem.Allocator) process_sample.Error!process_sample.Sample {
+        const Sampler = struct {
+            allocator: std.mem.Allocator,
+            pub fn observe(sampler: @This(), session_id: posix.pid_t) process_sample.Error!process_sample.Sample {
+                return @import("process_query_posix.zig").collect(sampler.allocator, session_id);
+            }
+        };
+        const root_pid = std.math.cast(u32, self.child_id) orelse return error.ProcessSampleUnavailable;
+        return try self.identity.observe(process_sample.Sample, self.child_id, Sampler{ .allocator = allocator }) orelse
+            .{ .allocator = allocator, .root_pid = root_pid, .processes = &.{} };
     }
 
     pub fn hasActiveCommand(self: *const Process) !bool {
