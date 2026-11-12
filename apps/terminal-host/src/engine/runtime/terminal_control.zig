@@ -48,7 +48,9 @@ pub fn applyTerminalControl(
             self.terminal.eraseDisplay(.complete, false);
             self.terminal.setCursorPos(1, 1);
         },
-        .clear_prompt => clearPromptLocked(self),
+        // ConPTY keeps its own buffer and places later output by its coordinates, so it
+        // clears too, and the screen keeps exactly the row ConPTY keeps.
+        .clear_prompt => clearPromptLocked(self, self.process.clearConsoleKeepingCursorRow()),
         .reset => {
             self.terminal.fullReset();
             std.debug.assert(mode_effects.resetLocked(self));
@@ -71,19 +73,20 @@ pub fn applyTerminalControl(
     return update;
 }
 
-// Preserve the entire cursor logical line, including continuations on either side.
+// Preserve the entire cursor logical line, including continuations on either side, or only the
+// cursor row when the console behind the child kept only that row.
 // Pins and cursor are reloaded by Ghostty's erase operations, under terminal_mutex.
-fn clearPromptLocked(self: *state.State) void {
+fn clearPromptLocked(self: *state.State, cursor_row_only: bool) void {
     const terminal = &self.terminal;
     const screen = terminal.screens.active;
     var first = screen.cursor.y;
-    while (first > 0) {
+    while (!cursor_row_only and first > 0) {
         const pin = screen.pages.pin(.{ .active = .{ .y = first } }).?;
         if (!pin.rowAndCell().row.wrap_continuation) break;
         first -= 1;
     }
     var last = screen.cursor.y;
-    while (last + 1 < terminal.rows) {
+    while (!cursor_row_only and last + 1 < terminal.rows) {
         const pin = screen.pages.pin(.{ .active = .{ .y = last } }).?;
         if (!pin.rowAndCell().row.wrap) break;
         last += 1;
@@ -94,7 +97,9 @@ fn clearPromptLocked(self: *state.State) void {
     }
     screen.eraseHistory(null);
     if (first > 0) screen.eraseActive(first - 1);
-    screen.pages.pin(.{ .active = .{} }).?.rowAndCell().row.wrap_continuation = false;
+    const top = screen.pages.pin(.{ .active = .{} }).?.rowAndCell().row;
+    top.wrap_continuation = false;
+    if (cursor_row_only) top.wrap = false;
     screen.scroll(.active);
     if (comptime @TypeOf(screen.kitty_images) != void) {
         screen.kitty_images.delete(terminal.io(), screen.alloc, terminal, .{ .all = true });

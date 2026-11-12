@@ -7,6 +7,7 @@ const pins = @import("windows-conpty-options");
 const Create = *const fn (windows.COORD, windows.HANDLE, windows.HANDLE, windows.DWORD, *kernel.HPCON) callconv(.winapi) kernel.HRESULT;
 const Resize = *const fn (kernel.HPCON, windows.COORD) callconv(.winapi) kernel.HRESULT;
 const Close = *const fn (kernel.HPCON) callconv(.winapi) void;
+const Clear = *const fn (kernel.HPCON, windows.BOOL) callconv(.winapi) kernel.HRESULT;
 const AttributeTag = extern struct { attributes: windows.DWORD, tag: windows.DWORD };
 const max_file_bytes = 64 * 1024 * 1024;
 
@@ -25,6 +26,8 @@ pub const Api = struct {
     create: Create = kernel.CreatePseudoConsole,
     resize: Resize = kernel.ResizePseudoConsole,
     close: Close = kernel.ClosePseudoConsole,
+    /// The bundled ConPTY's buffer clear; the system ConHost has none.
+    clear: ?Clear = null,
     module: ?windows.HMODULE = null,
     dll_file: ?windows.HANDLE = null,
     console_file: ?windows.HANDLE = null,
@@ -74,6 +77,7 @@ pub const Api = struct {
         result.create = @ptrCast(GetProcAddress(module, "CreatePseudoConsole") orelse return error.ConptyExportUnavailable);
         result.resize = @ptrCast(GetProcAddress(module, "ResizePseudoConsole") orelse return error.ConptyExportUnavailable);
         result.close = @ptrCast(GetProcAddress(module, "ClosePseudoConsole") orelse return error.ConptyExportUnavailable);
+        result.clear = @ptrCast(GetProcAddress(module, "ConptyClearPseudoConsole") orelse return error.ConptyExportUnavailable);
         return result;
     }
 };

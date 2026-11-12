@@ -114,7 +114,9 @@ and `src/cli/**`. Prose and implementation must converge in the same change.
 ## Clear terminal output
 
 Windows `terminal clear <terminal>` clears one exact bound primary or child terminal
-in an existing Session. It preserves the cursor's complete soft-wrapped prompt line,
+in an existing Session. It preserves the cursor's prompt row, which the bundled ConPTY
+also keeps at the top of its own buffer so the next typed command stays at the prompt
+(see the Host's [prompt-preserving clear](../../terminal-host/docs/runtime-model.md#prompt-preserving-clear)),
 removes preceding history and other output, clears selection and returns the viewport
 to the active screen. An alternate screen is refused without changing content.
 Terminal modes, title, working directory and child process remain intact. Clearing never injects terminal input.

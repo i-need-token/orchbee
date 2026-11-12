@@ -153,6 +153,11 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         return self.pty.write(bytes);
     }
 
+    /// A POSIX PTY keeps no screen buffer of its own, so there is nothing to clear.
+    pub fn clearConsoleKeepingCursorRow(_: *Process) bool {
+        return false;
+    }
+
     pub fn resize(self: *const Process, columns: u16, rows: u16) !void {
         try self.resizePixels(columns, rows, 0, 0);
     }

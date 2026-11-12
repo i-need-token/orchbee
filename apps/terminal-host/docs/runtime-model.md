@@ -8,6 +8,8 @@ A Windows launch's `currentDirectory` reaches the child through the same convers
 
 The required Boolean `preservePrompt` on `ClearTerminal` selects the operation. `preservePrompt: true` preserves the complete soft-wrapped cursor line on the primary screen, erases earlier history and other output, clears selection/images and restores the active viewport. Alternate screens fail with `terminal-clear-alternate-screen` before mutation. Explicit false selects erase/home semantics; ResetTerminal never accepts this field. The same runtime lock owns mutation and one generation/revision advance, preserving modes and metadata. Input-capable attachment authorization is required; no resize lease or synthetic child bytes are used.
 
+On Windows the bundled ConPTY keeps its own screen buffer and positions later output, such as a shell's echo of the next typed command, by that buffer's coordinates. Under the same lock the clear therefore first signals `ConptyClearPseudoConsole` with `keepCursorRow`, which leaves only the cursor row at the top of ConPTY's buffer with the cursor's column, and the Host then preserves exactly that row instead of the whole soft-wrapped line, so both screens agree. Without the signal the next typed line lands where the old prompt was. The system ConHost has no such signal: a Host without the bundle keeps the whole line and ConPTY's buffer is left as it was. POSIX PTYs keep no buffer, so nothing is signalled there.
+
 ## Earlier output before a restored child
 
 `StageTerminalOutput` stores at most 1 MiB of earlier output in one slot on the requesting

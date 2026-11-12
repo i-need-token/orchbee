@@ -292,6 +292,17 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
 
     pub fn closeSlave(_: *WindowsPty) void {}
 
+    /// Asks ConPTY to clear its own buffer, keeping only the cursor row at the top with the
+    /// cursor's column. True when the signal was sent: ConPTY then places later output by
+    /// coordinates that count from that row, so the caller's screen must match.
+    pub fn clearKeepingCursorRow(self: *WindowsPty) bool {
+        self.lifecycle_mutex.lock();
+        defer self.lifecycle_mutex.unlock();
+        const clear = self.conpty.clear orelse return false;
+        if (self.console_closed) return false;
+        return clear(self.pseudo_console, .TRUE) == windows_api.S_OK;
+    }
+
     pub fn read(self: *WindowsPty, buffer: []u8) !usize {
         self.lifecycle_mutex.lock();
         while (self.reader_thread == null and !self.read_abort_requested) {

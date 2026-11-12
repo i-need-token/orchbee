@@ -323,6 +323,11 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         return self.pty.write(bytes);
     }
 
+    /// True when the console buffer behind the child now holds only the cursor row.
+    pub fn clearConsoleKeepingCursorRow(self: *Process) bool {
+        return self.pty.clearKeepingCursorRow();
+    }
+
     pub fn resize(self: *Process, columns: u16, rows: u16) !void {
         try self.resizePixels(columns, rows, 0, 0);
     }
