@@ -163,7 +163,7 @@ fn plugin_install_real_cli_fetches_builds_lists_provenance_updates_and_uninstall
     ]);
     let update = ["plugin", "update", "local.tools", "--yes", "--format=json"];
     let updated = receipt(source.invoke(&fixture, &update), 0);
-    assert_eq!(updated["operation"], "update");
+    assert_eq!(updated["result"]["operation"], "update");
     assert_eq!(updated["result"]["report"]["changed"], true);
     let updated_source = &updated["result"]["report"]["plugin"]["source"];
     assert_eq!(updated_source["requestedRef"], "main");

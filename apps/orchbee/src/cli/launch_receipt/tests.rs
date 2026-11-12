@@ -9,10 +9,10 @@ fn annotates_supported_receipts_without_replacing_their_results() {
         "orchbee.panel.terminal-create",
         "orchbee.mutation.result",
     ] {
-        let mut document = json!({"schema":schema,"version":1,"resolvedLaunch":null,"result":{"outcome":"unknown"}});
+        let mut document = json!({"schema":schema,"version":1,"result":{"resolvedLaunch":null,"outcome":"unknown"}});
         assert!(attach(&mut document, &launch));
         assert_eq!(document["version"], 1);
-        assert_eq!(document["resolvedLaunch"]["exec"], "/bin/tool");
+        assert_eq!(document["result"]["resolvedLaunch"]["exec"], "/bin/tool");
         assert_eq!(document["result"]["outcome"], "unknown");
     }
     let mut failure = json!({"schema":"orchbee.cli.failure","version":1});
@@ -29,7 +29,7 @@ fn resolved_launch_annotation_obeys_the_existing_output_bound() {
             vec![b'x'; output::LIMIT]
         } else {
             let document = json!({"schema":"orchbee.creation.result","version":1,
-                "result":"x".repeat(output::LIMIT - 100)});
+                "result":{"label":"x".repeat(output::LIMIT - 120)}});
             let bytes = document.to_string().into_bytes();
             assert!(bytes.len() <= output::LIMIT);
             bytes

@@ -36,9 +36,9 @@ fn a_shared_swap_completes_without_a_client_focus_receipt() {
     assert_eq!(receipt.outcome(), "swapped");
     assert_eq!(receipt.exit_code(), 0);
     let document = receipt.document();
-    assert_eq!(document["scope"], "shared");
-    assert!(document["clientId"].is_null());
-    assert!(document["focus"].is_null());
+    assert_eq!(document["result"]["scope"], "shared");
+    assert!(document["result"]["clientId"].is_null());
+    assert!(document["result"]["focus"].is_null());
     let schema: Value =
         serde_json::from_str(include_str!("../../../schemas/orchbee.panel.swap.json")).unwrap();
     assert!(
@@ -99,14 +99,14 @@ fn terminal_failure_cuts_preserve_canonical_and_focus_evidence_in_both_locales()
             }
             let document = receipt.document();
             assert_eq!(
-                document["canonical"],
+                document["result"]["canonical"],
                 json!({"kind":"committed","revision":"13"})
             );
             validator.validate(&document).unwrap();
             let complete = name == Some("operation-applied") && failure.is_none();
             assert_eq!(receipt.exit_code() == 0, complete, "{name:?}/{failure:?}");
             assert_eq!(
-                document["outcome"],
+                document["result"]["outcome"],
                 if complete { "swapped" } else { "incomplete" }
             );
             for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -141,8 +141,11 @@ fn terminal_failure_cuts_preserve_canonical_and_focus_evidence_in_both_locales()
         receipt.focus.as_mut().unwrap().wait = wait;
         let document = receipt.document();
         validator.validate(&document).unwrap();
-        assert_eq!(document["canonical"]["kind"], "committed");
-        assert_eq!(document["focus"]["observation"]["kind"], "unknown");
+        assert_eq!(document["result"]["canonical"]["kind"], "committed");
+        assert_eq!(
+            document["result"]["focus"]["observation"]["kind"],
+            "unknown"
+        );
         assert_ne!(receipt.exit_code(), 0);
     }
 }

@@ -83,7 +83,7 @@ impl super::CliText {
                 if let Some(id) = receipt["source"]["requestId"]
                     .as_str()
                     .or_else(|| receipt["requestId"].as_str())
-                    .or_else(|| receipt["operationId"].as_str())
+                    .or_else(|| receipt["result"]["operationId"].as_str())
                 {
                     text.push_str(&format!(
                         "{receipt_label}: {} {}\n",

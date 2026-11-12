@@ -69,7 +69,7 @@ fn attention_process_observes_a_busy_client_without_navigation_or_acknowledgemen
         assert!(output.status.success(), "{output:?}");
         let doc = document(&output);
         receipt(&doc);
-        let result = &doc["observation"]["reply"]["outcome"]["operation"]["status"];
+        let result = &doc["result"]["observation"]["reply"]["outcome"]["operation"]["status"];
         assert_eq!(result["attention"]["entries"][0]["state"], expected);
         assert_eq!(result["view"]["selection"]["panelId"], id(6));
         assert_eq!(result["attention"]["outerFocused"], false);

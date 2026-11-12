@@ -196,8 +196,11 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
             include_str!("../../src/cli/schemas/orchbee.creation.result.json"),
         );
         assert_eq!(document["version"], 1);
-        assert_eq!(document["postCreate"]["requested"]["overlay"], true);
-        assert_eq!(document["postCreate"]["requested"]["focus"], true);
+        assert_eq!(
+            document["result"]["postCreate"]["requested"]["overlay"],
+            true
+        );
+        assert_eq!(document["result"]["postCreate"]["requested"]["focus"], true);
         assert_eq!(document["result"]["outcome"], "committed");
         assert_eq!(
             output.status.code(),
@@ -211,7 +214,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
             "{document}"
         );
         if cut == Cut::Complete {
-            assert_eq!(document["postCreate"]["focus"]["version"], 1);
+            assert_eq!(document["result"]["postCreate"]["focus"]["version"], 1);
         }
     }
 }
@@ -421,21 +424,21 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
                 assert_eq!(output.status.code(), Some(8), "{document}");
             } else if cut == Cut::SelectionChanged {
                 assert!(!output.status.success(), "{document}");
-                assert_eq!(document["postCreate"]["failure"], "denied");
+                assert_eq!(document["result"]["postCreate"]["failure"], "denied");
             } else {
                 assert!(output.status.success(), "{document}");
             }
             assert_eq!(document["version"], 1);
             if zoom {
-                assert_eq!(document["postCreate"]["requested"]["zoom"], true);
-                assert_eq!(document["postCreate"]["requested"]["focus"], true);
+                assert_eq!(document["result"]["postCreate"]["requested"]["zoom"], true);
+                assert_eq!(document["result"]["postCreate"]["requested"]["focus"], true);
                 assert_eq!(document["result"]["outcome"], "committed");
             }
             validate(
                 &document,
                 include_str!("../../src/cli/schemas/orchbee.creation.result.json"),
             );
-            assert_eq!(document["directory"]["policy"], "plugin-root");
+            assert_eq!(document["result"]["directory"]["policy"], "plugin-root");
         }
     }
 }

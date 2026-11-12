@@ -37,7 +37,7 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        json!({"schema":"orchbee.workspace.creation","version":1,"resolvedLaunch":null,"workspace":self.workspace.as_ref().map(mutation::Receipt::document),"directory":self.directory.document(),"clientId":self.client_id,"requestedFocus":self.requested_focus,"focus":self.focus.as_ref().map(Answer::document),"stage":self.stage,"failure":self.failure.as_ref().map(Failure::observation),"outcome":if self.complete() {"completed"} else {"incomplete"}})
+        json!({"schema":"orchbee.workspace.creation","version":1,"result":{"resolvedLaunch":null,"workspace":self.workspace.as_ref().map(mutation::Receipt::document),"directory":self.directory.document(),"clientId":self.client_id,"requestedFocus":self.requested_focus,"focus":self.focus.as_ref().map(Answer::document),"stage":self.stage,"failure":self.failure.as_ref().map(Failure::observation),"outcome":if self.complete() {"completed"} else {"incomplete"}}})
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {
         let document = self.document();

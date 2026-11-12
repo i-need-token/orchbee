@@ -19,7 +19,7 @@ pub(super) fn emit(
 ) -> Output {
     let mut document = answer.document();
     document["schema"] = json!("orchbee.panel.layout");
-    document["query"] = match query {
+    document["result"]["query"] = match query {
         LayoutQuery::Layout => json!({"kind":"layout"}),
         LayoutQuery::Neighbor(direction) => json!({"kind":"neighbor","direction":direction}),
         LayoutQuery::Edges => json!({"kind":"edges"}),
@@ -33,7 +33,7 @@ pub(super) fn emit(
         };
         Some(layout.as_ref())
     });
-    document["projection"] = layout.map_or(serde_json::Value::Null, |layout| match query {
+    document["result"]["projection"] = layout.map_or(serde_json::Value::Null, |layout| match query {
         LayoutQuery::Layout => json!({"kind":"layout"}),
         LayoutQuery::Neighbor(direction) => json!({"kind":"neighbor","direction":direction,
             "sourceAvailable":layout.source_available,"neighborPanelId":layout.neighbors.get(direction)}),

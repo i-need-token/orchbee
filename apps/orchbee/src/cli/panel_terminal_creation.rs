@@ -88,7 +88,7 @@ pub(crate) fn run(
     }
     let mut output = if let Some(mut document) = document {
         let failure = result.err().map(|e| e.kind);
-        document["failure"] = json!(failure.map(FailureKind::as_str));
+        document["result"]["failure"] = json!(failure.map(FailureKind::as_str));
         receipt::emit(&document, failure, format, locale)
     } else {
         failure_output(
@@ -230,10 +230,14 @@ fn execute(
             }),
         ),
     };
+    let mut result = outcome;
+    result["resolvedLaunch"] = serde_json::Value::Null;
+    result["target"] = json!({"terminalContextId":resolved.context,"tabId":resolved.tab,"panelId":resolved.panel,"member":resolved.target});
+    result["directory"] = directory.document();
+    result["failure"] = json!(failure.map(FailureKind::as_str));
     *document = Some(json!({"schema":"orchbee.panel.terminal-create","version":1,
-        "resolvedLaunch":null,"source":{"sessionId":snapshot.session_id,"requestId":request_id,"baseRevision":snapshot.revision},
-        "target":{"terminalContextId":resolved.context,"tabId":resolved.tab,"panelId":resolved.panel,"member":resolved.target},
-        "directory":directory.document(),"result":outcome,"failure":failure.map(FailureKind::as_str)}));
+        "source":{"sessionId":snapshot.session_id,"requestId":request_id,"baseRevision":snapshot.revision},
+        "result":result}));
     if let Some(kind) = failure {
         return Err(Failure::new(kind));
     }

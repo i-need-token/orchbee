@@ -149,7 +149,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
             let document = if operation == "logs" {
                 history_document(&replies, complete, interrupted, cleanup_failed)
             } else {
-                serde_json::json!({"schema":"orchbee.plugin.runtime","version":1,"source":{"kind":"local-runtime"},"operation":operation,"result":{"operationId":operation_id,"replies":replies,"complete":complete,"interrupted":interrupted,"cleanupFailed":cleanup_failed}})
+                serde_json::json!({"schema":"orchbee.plugin.runtime","version":1,"source":{"kind":"local-runtime"},"result":{"operation":operation,"operationId":operation_id,"replies":replies,"complete":complete,"interrupted":interrupted,"cleanupFailed":cleanup_failed}})
             };
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),

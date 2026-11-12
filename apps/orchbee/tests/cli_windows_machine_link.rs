@@ -784,7 +784,7 @@ impl Attachment {
                 if let Ok(record) = serde_json::from_slice::<Value>(&line) {
                     let bytes = match record["kind"].as_str() {
                         Some("opened") => b"\0opened\0".to_vec(),
-                        _ => record["bytes"]
+                        _ => record["result"]["bytes"]
                             .as_str()
                             .and_then(|text| STANDARD.decode(text).ok())
                             .unwrap_or_default(),

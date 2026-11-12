@@ -153,7 +153,7 @@ fn creates_primary_exact_child_and_new_child_without_focus_or_secret_echo() {
         handler.join().unwrap();
         let doc = document(output, 0);
         assert_eq!(doc["result"]["kind"], "panel-terminal-pending");
-        assert_eq!(doc["failure"], Value::Null);
+        assert_eq!(doc["result"]["failure"], Value::Null);
         assert!(!doc.to_string().contains("do-not-print-this"));
         assert!(!doc.to_string().contains("a & b"));
     }

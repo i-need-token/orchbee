@@ -76,7 +76,7 @@ impl super::CliText {
             ),
         };
         let result = &document["result"];
-        let post = &document["postCreate"];
+        let post = &result["postCreate"];
         let mut text = self.cli_receipt(result);
         if post["outcome"] == "incomplete" {
             text.push_str(incomplete);
@@ -100,7 +100,7 @@ impl super::CliText {
             (directory_source, "source"),
             (directory_path, "path"),
         ] {
-            if let Some(value) = document["directory"][key].as_str() {
+            if let Some(value) = result["directory"][key].as_str() {
                 text.push_str(&format!("{name}: {}\n", escape(value)));
             }
         }
@@ -113,6 +113,7 @@ impl super::CliText {
     }
 
     pub(crate) fn cli_panel_swap(self, document: &Value) -> String {
+        let document = &document["result"];
         let (title, client, source, target, canonical, request, revision, reason) =
             match self.locale {
                 Locale::EnUs => (
@@ -231,10 +232,11 @@ impl super::CliText {
     pub(crate) fn cli_client_control(self, document: &Value) -> String {
         let control = document["schema"] == "orchbee.client.control"
             || document["schema"] == "orchbee.popup.result";
+        let body = &document["result"];
         let outcome = if control {
-            &document["observation"]["reply"]["outcome"]
+            &body["observation"]["reply"]["outcome"]
         } else {
-            &document["result"]["outcome"]
+            &body["outcome"]
         };
         let labels = match self.locale {
             Locale::EnUs => [
@@ -261,7 +263,7 @@ impl super::CliText {
             ],
         };
         let mut text = String::new();
-        if let Some(id) = document["operationId"].as_str() {
+        if let Some(id) = body["operationId"].as_str() {
             text.push_str(&format!("{}: {}\n", labels[1], escape(id)));
         }
         if let Some(clients) = outcome["clients"].as_array() {
@@ -279,7 +281,7 @@ impl super::CliText {
             let state = status["kind"]
                 .as_str()
                 .or_else(|| outcome["kind"].as_str())
-                .or_else(|| document["observation"]["kind"].as_str())
+                .or_else(|| body["observation"]["kind"].as_str())
                 .unwrap_or("unavailable");
             text.push_str(self.client_control_state(state));
             text.push('\n');
@@ -321,7 +323,7 @@ impl super::CliText {
                 ));
             }
         }
-        if let Some(wait) = document["wait"].as_str() {
+        if let Some(wait) = body["wait"].as_str() {
             text.push_str(&format!(
                 "{}: {}\n",
                 labels[7],
@@ -329,8 +331,8 @@ impl super::CliText {
             ));
         }
         if control
-            && (document["wait"].is_string() || document["observation"]["kind"] == "unknown")
-            && let Some(id) = document["operationId"].as_str()
+            && (body["wait"].is_string() || body["observation"]["kind"] == "unknown")
+            && let Some(id) = body["operationId"].as_str()
         {
             text.push_str(&format!("orchbee client control-status {}\n", escape(id)));
         }

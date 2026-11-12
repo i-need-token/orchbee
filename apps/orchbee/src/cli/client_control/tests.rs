@@ -553,7 +553,7 @@ fn client_control_documents_preserve_every_receipt_and_validate_exported_schemas
             };
             control_validator.validate(&answer.document()).unwrap();
             assert_eq!(
-                answer.document()["observation"]["kind"],
+                answer.document()["result"]["observation"]["kind"],
                 if status_only {
                     "unobserved"
                 } else {
@@ -728,20 +728,27 @@ fn layout_queries_keep_exact_routing_and_emit_closed_locale_independent_document
             validator.validate(&document).unwrap();
             match query {
                 LayoutQuery::Layout => {
-                    assert_eq!(document["projection"], serde_json::json!({"kind":"layout"}))
+                    assert_eq!(
+                        document["result"]["projection"],
+                        serde_json::json!({"kind":"layout"})
+                    )
                 }
                 LayoutQuery::Neighbor(_) => {
-                    assert_eq!(document["projection"]["direction"], "right");
-                    assert!(document["projection"].get("neighborPanelId").is_some());
+                    assert_eq!(document["result"]["projection"]["direction"], "right");
+                    assert!(
+                        document["result"]["projection"]
+                            .get("neighborPanelId")
+                            .is_some()
+                    );
                 }
                 LayoutQuery::Edges => {
                     assert_eq!(
-                        document["projection"]["sourceAvailable"],
+                        document["result"]["projection"]["sourceAvailable"],
                         name != "hidden-source-layout-read"
                     );
                     for direction in ["left", "right", "up", "down"] {
                         assert_eq!(
-                            document["projection"][direction].is_null(),
+                            document["result"]["projection"][direction].is_null(),
                             name == "hidden-source-layout-read"
                         );
                     }
@@ -1157,8 +1164,8 @@ fn editor_control_receipt_is_closed() {
         validator.iter_errors(&document).collect::<Vec<_>>()
     );
     let mut extra = document.clone();
-    extra["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]["program"] =
-        json!("notepad.exe");
+    extra["result"]["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]
+        ["program"] = json!("notepad.exe");
     assert!(!validator.is_valid(&extra));
 }
 

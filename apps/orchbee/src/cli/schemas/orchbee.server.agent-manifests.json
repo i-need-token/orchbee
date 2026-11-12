@@ -667,16 +667,7 @@
 		}
 	},
 	"type": "object",
-	"required": [
-		"schema",
-		"version",
-		"requestId",
-		"sessionId",
-		"action",
-		"observation",
-		"interrupted",
-		"cleanupFailed"
-	],
+	"required": ["schema", "version", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
@@ -685,51 +676,65 @@
 		"version": {
 			"const": 1
 		},
-		"requestId": {
-			"$ref": "#/$defs/identity"
-		},
-		"sessionId": {
-			"$ref": "#/$defs/identity"
-		},
-		"action": {
-			"$ref": "#/$defs/action"
-		},
-		"observation": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["kind", "reply"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "server"
-						},
-						"reply": {
-							"$ref": "#/$defs/result"
-						}
-					}
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"requestId",
+				"sessionId",
+				"action",
+				"observation",
+				"interrupted",
+				"cleanupFailed"
+			],
+			"properties": {
+				"requestId": {
+					"$ref": "#/$defs/identity"
 				},
-				{
-					"type": "object",
-					"required": ["kind", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "unknown"
+				"sessionId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "reply"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/result"
+								}
+							}
 						},
-						"reason": {
-							"type": "string",
-							"minLength": 1
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
 						}
-					}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
 				}
-			]
-		},
-		"interrupted": {
-			"type": "boolean"
-		},
-		"cleanupFailed": {
-			"type": "boolean"
+			}
 		}
 	}
 }

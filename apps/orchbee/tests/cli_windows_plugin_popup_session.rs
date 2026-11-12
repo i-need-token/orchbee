@@ -29,7 +29,8 @@ fn popups_open_on_a_live_client_and_busy_refusals_name_their_cause() {
         let opened = popup(&fixture, &tui.client);
         assert!(
             opened.code == Some(0)
-                && opened.document["observation"]["reply"]["outcome"]["operation"]["status"]["kind"]
+                && opened.document["result"]["observation"]["reply"]["outcome"]["operation"]["status"]
+                    ["kind"]
                     == "popup-opened",
             "{opened}"
         );

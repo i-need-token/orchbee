@@ -4,7 +4,7 @@
 	"title": "Native plugin invocation and log receipts",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["schema", "version", "source", "operation", "result"],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.plugin.runtime"
@@ -22,13 +22,17 @@
 				}
 			}
 		},
-		"operation": {
-			"enum": ["invoke", "logs"]
-		},
 		"result": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["operationId", "replies", "complete", "interrupted", "cleanupFailed"],
+			"required": [
+				"operationId",
+				"replies",
+				"complete",
+				"interrupted",
+				"cleanupFailed",
+				"operation"
+			],
 			"properties": {
 				"operationId": {
 					"anyOf": [
@@ -196,6 +200,9 @@
 				},
 				"cleanupFailed": {
 					"type": "boolean"
+				},
+				"operation": {
+					"enum": ["invoke", "logs"]
 				}
 			}
 		}
@@ -599,8 +606,12 @@
 	},
 	"if": {
 		"properties": {
-			"operation": {
-				"const": "invoke"
+			"result": {
+				"properties": {
+					"operation": {
+						"const": "invoke"
+					}
+				}
 			}
 		}
 	},

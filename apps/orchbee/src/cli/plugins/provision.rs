@@ -136,7 +136,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
             _ => 1,
         }
     };
-    let document = serde_json::json!({"schema":"orchbee.plugin.provision","version":1,"source":{"kind":"local-configuration"},"operation":operation,"result":{"operationId":id,"report":report,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
+    let document = serde_json::json!({"schema":"orchbee.plugin.provision","version":1,"source":{"kind":"local-configuration"},"result":{"operation":operation,"operationId":id,"report":report,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => render(&report, operation, id.as_str(), locale),

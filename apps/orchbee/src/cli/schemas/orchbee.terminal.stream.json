@@ -15,8 +15,44 @@
 				"kind": {
 					"const": "opened"
 				},
-				"mode": {
-					"enum": ["observe", "control"]
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["mode", "width", "height"],
+					"properties": {
+						"mode": {
+							"enum": ["observe", "control"]
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"controllerId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						}
+					},
+					"if": {
+						"properties": {
+							"mode": {
+								"const": "control"
+							}
+						}
+					},
+					"then": {
+						"required": ["controllerId"]
+					},
+					"else": {
+						"not": {
+							"required": ["controllerId"]
+						}
+					}
 				},
 				"source": {
 					"type": "object",
@@ -60,39 +96,10 @@
 						"hostEpoch"
 					],
 					"additionalProperties": false
-				},
-				"width": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"height": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"controllerId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$"
 				}
 			},
-			"required": ["schema", "version", "kind", "mode", "source", "width", "height"],
-			"additionalProperties": false,
-			"if": {
-				"properties": {
-					"mode": {
-						"const": "control"
-					}
-				}
-			},
-			"then": {
-				"required": ["controllerId"]
-			},
-			"else": {
-				"not": {
-					"required": ["controllerId"]
-				}
-			}
+			"required": ["schema", "version", "kind", "source", "result"],
+			"additionalProperties": false
 		},
 		{
 			"type": "object",
@@ -106,65 +113,69 @@
 				"kind": {
 					"const": "frame"
 				},
-				"encoding": {
-					"const": "ansi"
-				},
-				"full": {
-					"const": true
-				},
-				"sequence": {
-					"type": "string",
-					"pattern": "^[1-9][0-9]*$"
-				},
-				"generation": {
-					"type": "string",
-					"pattern": "^[1-9][0-9]*$"
-				},
-				"revision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"width": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"height": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"sourceWidth": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"sourceHeight": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"bytes": {
-					"type": "string",
-					"maxLength": 6990508,
-					"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"encoding",
+						"full",
+						"sequence",
+						"generation",
+						"revision",
+						"width",
+						"height",
+						"sourceWidth",
+						"sourceHeight",
+						"bytes"
+					],
+					"properties": {
+						"encoding": {
+							"const": "ansi"
+						},
+						"full": {
+							"const": true
+						},
+						"sequence": {
+							"type": "string",
+							"pattern": "^[1-9][0-9]*$"
+						},
+						"generation": {
+							"type": "string",
+							"pattern": "^[1-9][0-9]*$"
+						},
+						"revision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"sourceWidth": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"sourceHeight": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"bytes": {
+							"type": "string",
+							"maxLength": 6990508,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+						}
+					}
 				}
 			},
-			"required": [
-				"schema",
-				"version",
-				"kind",
-				"encoding",
-				"full",
-				"sequence",
-				"generation",
-				"revision",
-				"width",
-				"height",
-				"sourceWidth",
-				"sourceHeight",
-				"bytes"
-			],
+			"required": ["schema", "version", "kind", "result"],
 			"additionalProperties": false
 		},
 		{
@@ -179,23 +190,30 @@
 				"kind": {
 					"const": "reset"
 				},
-				"reason": {
-					"enum": [
-						"projection-blocked",
-						"base-mismatch",
-						"decoder-rejected",
-						"dimensions-mismatch",
-						"generation-mismatch",
-						"identity-mismatch",
-						"sequence-gap",
-						"store-reset",
-						"history-pending",
-						"history-recovering",
-						"resynchronize"
-					]
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["reason"],
+					"properties": {
+						"reason": {
+							"enum": [
+								"projection-blocked",
+								"base-mismatch",
+								"decoder-rejected",
+								"dimensions-mismatch",
+								"generation-mismatch",
+								"identity-mismatch",
+								"sequence-gap",
+								"store-reset",
+								"history-pending",
+								"history-recovering",
+								"resynchronize"
+							]
+						}
+					}
 				}
 			},
-			"required": ["schema", "version", "kind", "reason"],
+			"required": ["schema", "version", "kind", "result"],
 			"additionalProperties": false
 		},
 		{
@@ -210,34 +228,41 @@
 				"kind": {
 					"const": "closed"
 				},
-				"reason": {
-					"enum": [
-						"ambiguous",
-						"cancelled",
-						"check-failed",
-						"denied",
-						"incompatible",
-						"internal-failure",
-						"invalid-identifier",
-						"invalid-usage",
-						"not-found",
-						"outcome-unknown",
-						"output-too-large",
-						"protocol-invalid",
-						"rejected",
-						"service-unavailable",
-						"connection-capacity",
-						"timeout",
-						"transport-loss",
-						"stdin-eof",
-						"released"
-					]
-				},
-				"cleanup": {
-					"enum": ["not-attached", "session-released", "detached"]
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["reason", "cleanup"],
+					"properties": {
+						"reason": {
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"incompatible",
+								"internal-failure",
+								"invalid-identifier",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"rejected",
+								"service-unavailable",
+								"connection-capacity",
+								"timeout",
+								"transport-loss",
+								"stdin-eof",
+								"released"
+							]
+						},
+						"cleanup": {
+							"enum": ["not-attached", "session-released", "detached"]
+						}
+					}
 				}
 			},
-			"required": ["schema", "version", "kind", "reason", "cleanup"],
+			"required": ["schema", "version", "kind", "result"],
 			"additionalProperties": false
 		},
 		{
@@ -252,144 +277,151 @@
 				"kind": {
 					"const": "control"
 				},
-				"ordinal": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"operation": {
-					"enum": ["acquire", "parse", "input", "resize", "scroll"]
-				},
-				"outcome": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "input-accepted"
-								},
-								"acceptedBytes": {
-									"type": "integer",
-									"minimum": 0,
-									"maximum": 262144
-								}
-							},
-							"required": ["kind", "acceptedBytes"],
-							"additionalProperties": false
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["ordinal", "operation", "outcome"],
+					"properties": {
+						"ordinal": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "scroll-accepted"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
+						"operation": {
+							"enum": ["acquire", "parse", "input", "resize", "scroll"]
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "rejected"
-								},
-								"reason": {
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 80
-								}
-							},
-							"required": ["kind", "reason"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unavailable"
-								},
-								"reason": {
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 80
-								}
-							},
-							"required": ["kind", "reason"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "outcome-unknown"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "failed"
-								},
-								"reason": {
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 80
-								},
-								"acceptedBytes": {
-									"type": "integer",
-									"minimum": 0,
-									"maximum": 262144
-								},
-								"deliveryMayBeUnknown": {
-									"const": true
-								}
-							},
-							"required": ["kind", "reason", "acceptedBytes", "deliveryMayBeUnknown"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "resized"
-								},
-								"geometry": {
+						"outcome": {
+							"oneOf": [
+								{
 									"type": "object",
 									"properties": {
-										"columns": {
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4096
+										"kind": {
+											"const": "input-accepted"
 										},
-										"rows": {
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4096
-										},
-										"cellPixelWidth": {
+										"acceptedBytes": {
 											"type": "integer",
 											"minimum": 0,
-											"maximum": 4096
-										},
-										"cellPixelHeight": {
-											"type": "integer",
-											"minimum": 0,
-											"maximum": 4096
+											"maximum": 262144
 										}
 									},
-									"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+									"required": ["kind", "acceptedBytes"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "scroll-accepted"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 80
+										}
+									},
+									"required": ["kind", "reason"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unavailable"
+										},
+										"reason": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 80
+										}
+									},
+									"required": ["kind", "reason"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "outcome-unknown"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "failed"
+										},
+										"reason": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 80
+										},
+										"acceptedBytes": {
+											"type": "integer",
+											"minimum": 0,
+											"maximum": 262144
+										},
+										"deliveryMayBeUnknown": {
+											"const": true
+										}
+									},
+									"required": ["kind", "reason", "acceptedBytes", "deliveryMayBeUnknown"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "resized"
+										},
+										"geometry": {
+											"type": "object",
+											"properties": {
+												"columns": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												},
+												"rows": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4096
+												},
+												"cellPixelWidth": {
+													"type": "integer",
+													"minimum": 0,
+													"maximum": 4096
+												},
+												"cellPixelHeight": {
+													"type": "integer",
+													"minimum": 0,
+													"maximum": 4096
+												}
+											},
+											"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+											"additionalProperties": false
+										}
+									},
+									"required": ["kind", "geometry"],
 									"additionalProperties": false
 								}
-							},
-							"required": ["kind", "geometry"],
-							"additionalProperties": false
+							]
 						}
-					]
+					}
 				}
 			},
-			"required": ["schema", "version", "kind", "ordinal", "operation", "outcome"],
+			"required": ["schema", "version", "kind", "result"],
 			"additionalProperties": false
 		},
 		{
@@ -404,63 +436,67 @@
 				"kind": {
 					"const": "history"
 				},
-				"encoding": {
-					"const": "ansi"
-				},
-				"full": {
-					"const": true
-				},
-				"sequence": {
-					"type": "string",
-					"pattern": "^[1-9][0-9]*$"
-				},
-				"generation": {
-					"type": "string",
-					"pattern": "^[1-9][0-9]*$"
-				},
-				"revision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"width": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"height": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4096
-				},
-				"bytes": {
-					"type": "string",
-					"maxLength": 6990508,
-					"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
-				},
-				"startRow": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"totalRows": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"encoding",
+						"full",
+						"sequence",
+						"generation",
+						"revision",
+						"width",
+						"height",
+						"bytes",
+						"startRow",
+						"totalRows"
+					],
+					"properties": {
+						"encoding": {
+							"const": "ansi"
+						},
+						"full": {
+							"const": true
+						},
+						"sequence": {
+							"type": "string",
+							"pattern": "^[1-9][0-9]*$"
+						},
+						"generation": {
+							"type": "string",
+							"pattern": "^[1-9][0-9]*$"
+						},
+						"revision": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"bytes": {
+							"type": "string",
+							"maxLength": 6990508,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+						},
+						"startRow": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						},
+						"totalRows": {
+							"type": "string",
+							"pattern": "^(0|[1-9][0-9]*)$"
+						}
+					}
 				}
 			},
-			"required": [
-				"schema",
-				"version",
-				"kind",
-				"encoding",
-				"full",
-				"sequence",
-				"generation",
-				"revision",
-				"width",
-				"height",
-				"bytes",
-				"startRow",
-				"totalRows"
-			],
+			"required": ["schema", "version", "kind", "result"],
 			"additionalProperties": false
 		}
 	],

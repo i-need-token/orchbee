@@ -35,9 +35,12 @@
 				},
 				"outcome": {
 					"$ref": "#/$defs/publicPanel_d5"
+				},
+				"cleanup": {
+					"enum": ["closed", "session-released", "not-opened"]
 				}
 			},
-			"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+			"required": ["protocolVersion", "requestId", "sessionId", "outcome", "cleanup"],
 			"additionalProperties": false
 		},
 		"publicPanel_d4": {
@@ -1815,11 +1818,8 @@
 		},
 		"result": {
 			"$ref": "#/$defs/publicPanel_d3"
-		},
-		"cleanup": {
-			"enum": ["closed", "session-released", "not-opened"]
 		}
 	},
-	"required": ["schema", "version", "source", "result", "cleanup"],
+	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false
 }

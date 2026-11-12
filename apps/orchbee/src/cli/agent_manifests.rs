@@ -46,7 +46,7 @@ impl Answer {
                     .or_insert(serde_json::Value::Null);
             }
         }
-        serde_json::json!({"schema":"orchbee.server.agent-manifests","version":1,"requestId":self.request_id,"sessionId":self.session_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        serde_json::json!({"schema":"orchbee.server.agent-manifests","version":1,"result":{"requestId":self.request_id,"sessionId":self.session_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed}})
     }
     fn exit_code(&self) -> u8 {
         let failure = match &self.observation {

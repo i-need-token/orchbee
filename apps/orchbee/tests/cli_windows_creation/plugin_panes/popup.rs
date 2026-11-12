@@ -171,7 +171,7 @@ fn popup_close_cli_addresses_client_even_with_noncanonical_caller_and_reports_no
         );
         assert_eq!(output.status.code(), Some(0), "{document}");
         assert_eq!(
-            document["observation"]["reply"]["outcome"]["operation"]["status"]["hadPopup"],
+            document["result"]["observation"]["reply"]["outcome"]["operation"]["status"]["hadPopup"],
             had_popup
         );
     }

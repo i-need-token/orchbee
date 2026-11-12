@@ -4,16 +4,7 @@
 	"title": "Panel terminal creation receipt",
 	"type": "object",
 	"additionalProperties": false,
-	"required": [
-		"schema",
-		"version",
-		"source",
-		"target",
-		"directory",
-		"result",
-		"failure",
-		"resolvedLaunch"
-	],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.panel.terminal-create"
@@ -39,196 +30,6 @@
 					"pattern": "^(0|[1-9][0-9]{0,19})$"
 				}
 			}
-		},
-		"target": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["terminalContextId", "tabId", "panelId", "member"],
-			"properties": {
-				"terminalContextId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$"
-				},
-				"tabId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$"
-				},
-				"panelId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$"
-				},
-				"member": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "child"
-								},
-								"label": {
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 512,
-									"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
-								}
-							},
-							"required": ["kind", "label"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unbound"
-								},
-								"presentationId": {
-									"type": "string",
-									"pattern": "^[0-9a-f]{32}$",
-									"not": {
-										"const": "00000000000000000000000000000000"
-									},
-									"title": "TerminalPresentationId"
-								}
-							},
-							"required": ["kind", "presentationId"],
-							"additionalProperties": false
-						}
-					]
-				}
-			}
-		},
-		"directory": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["policy", "source", "path", "sourcePanelId"],
-			"properties": {
-				"policy": {
-					"enum": ["follow", "explicit", "home", "current", "workspace"]
-				},
-				"source": {
-					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
-				},
-				"path": {
-					"type": ["string", "null"],
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"sourcePanelId": {
-					"anyOf": [
-						{
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"oneOf": [
-				{
-					"properties": {
-						"policy": {
-							"const": "follow"
-						},
-						"source": {
-							"enum": ["launch-default", "terminal-process"]
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "explicit"
-						},
-						"source": {
-							"enum": ["argument"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "home"
-						},
-						"source": {
-							"enum": ["home"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "current"
-						},
-						"source": {
-							"enum": ["current"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "workspace"
-						},
-						"source": {
-							"enum": ["launch-default"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				}
-			],
-			"if": {
-				"properties": {
-					"source": {
-						"const": "launch-default"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"path": {
-						"type": "null"
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"path": {
-						"type": "string"
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "terminal-process"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"sourcePanelId": {
-								"type": "string",
-								"pattern": "^[0-9a-f]{32}$"
-							}
-						}
-					}
-				}
-			]
 		},
 		"result": {
 			"oneOf": [
@@ -268,9 +69,247 @@
 								"workspace-move-index-out-of-bounds",
 								"workspace-move-target-in-block"
 							]
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
-					"required": ["kind", "revision", "reason"],
+					"required": [
+						"kind",
+						"revision",
+						"reason",
+						"target",
+						"directory",
+						"failure",
+						"resolvedLaunch"
+					],
 					"additionalProperties": false
 				},
 				{
@@ -278,9 +317,239 @@
 					"properties": {
 						"kind": {
 							"const": "denied"
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
-					"required": ["kind"],
+					"required": ["kind", "target", "directory", "failure", "resolvedLaunch"],
 					"additionalProperties": false
 				},
 				{
@@ -299,9 +568,239 @@
 								"terminal-runtime-unavailable",
 								"directory-unavailable"
 							]
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
-					"required": ["kind", "reason"],
+					"required": ["kind", "reason", "target", "directory", "failure", "resolvedLaunch"],
 					"additionalProperties": false
 				},
 				{
@@ -349,6 +848,236 @@
 								"const": "00000000000000000000000000000000"
 							},
 							"title": "TerminalPresentationId"
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"required": [
@@ -357,7 +1086,11 @@
 						"terminalContextId",
 						"tabId",
 						"panelId",
-						"presentationId"
+						"presentationId",
+						"target",
+						"directory",
+						"failure",
+						"resolvedLaunch"
 					],
 					"additionalProperties": false
 				},
@@ -483,6 +1216,236 @@
 									"additionalProperties": false
 								}
 							]
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"required": [
@@ -492,7 +1455,11 @@
 						"tabId",
 						"panelId",
 						"presentationId",
-						"terminalOutcome"
+						"terminalOutcome",
+						"target",
+						"directory",
+						"failure",
+						"resolvedLaunch"
 					],
 					"additionalProperties": false
 				},
@@ -501,9 +1468,239 @@
 					"properties": {
 						"kind": {
 							"const": "launch-profile-unavailable"
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
-					"required": ["kind"],
+					"required": ["kind", "target", "directory", "failure", "resolvedLaunch"],
 					"additionalProperties": false
 				},
 				{
@@ -519,15 +1716,245 @@
 								"type": "string",
 								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 							}
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
-					"required": ["kind", "candidateIds"],
+					"required": ["kind", "candidateIds", "target", "directory", "failure", "resolvedLaunch"],
 					"additionalProperties": false
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": ["kind", "reason", "target", "directory", "failure", "resolvedLaunch"],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
@@ -540,61 +1967,481 @@
 								"outcome-mismatch",
 								"response-mismatch"
 							]
+						},
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": ["kind", "reason", "target", "directory", "failure", "resolvedLaunch"],
 					"properties": {
 						"kind": {
 							"const": "not-submitted"
 						},
 						"reason": {
 							"enum": ["session-unavailable", "request-encoding", "request-not-submitted"]
-						}
-					}
-				}
-			]
-		},
-		"failure": {
-			"enum": [
-				null,
-				"denied",
-				"rejected",
-				"not-found",
-				"ambiguous",
-				"service-unavailable",
-				"protocol-invalid",
-				"outcome-unknown",
-				"timeout",
-				"cancelled",
-				"internal-failure"
-			]
-		},
-		"resolvedLaunch": {
-			"anyOf": [
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["exec", "args"],
-					"properties": {
-						"exec": {
-							"type": "string",
-							"minLength": 1
 						},
-						"args": {
-							"type": "array",
-							"maxItems": 128,
-							"items": {
-								"type": "string"
+						"target": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["terminalContextId", "tabId", "panelId", "member"],
+							"properties": {
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"member": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "child"
+												},
+												"label": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 512,
+													"pattern": "^[\\u0000-\\uD7FF\\uE000-\\u{10FFFF}]*$"
+												}
+											},
+											"required": ["kind", "label"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unbound"
+												},
+												"presentationId": {
+													"type": "string",
+													"pattern": "^[0-9a-f]{32}$",
+													"not": {
+														"const": "00000000000000000000000000000000"
+													},
+													"title": "TerminalPresentationId"
+												}
+											},
+											"required": ["kind", "presentationId"],
+											"additionalProperties": false
+										}
+									]
+								}
 							}
+						},
+						"directory": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["policy", "source", "path", "sourcePanelId"],
+							"properties": {
+								"policy": {
+									"enum": ["follow", "explicit", "home", "current", "workspace"]
+								},
+								"source": {
+									"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+								},
+								"path": {
+									"type": ["string", "null"],
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								"sourcePanelId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"policy": {
+											"const": "follow"
+										},
+										"source": {
+											"enum": ["launch-default", "terminal-process"]
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "explicit"
+										},
+										"source": {
+											"enum": ["argument"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "home"
+										},
+										"source": {
+											"enum": ["home"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "current"
+										},
+										"source": {
+											"enum": ["current"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								},
+								{
+									"properties": {
+										"policy": {
+											"const": "workspace"
+										},
+										"source": {
+											"enum": ["launch-default"]
+										},
+										"sourcePanelId": {
+											"type": "null"
+										}
+									}
+								}
+							],
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"source": {
+												"const": "terminal-process"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"sourcePanelId": {
+												"type": "string",
+												"pattern": "^[0-9a-f]{32}$"
+											}
+										}
+									}
+								}
+							]
+						},
+						"failure": {
+							"enum": [
+								null,
+								"denied",
+								"rejected",
+								"not-found",
+								"ambiguous",
+								"service-unavailable",
+								"protocol-invalid",
+								"outcome-unknown",
+								"timeout",
+								"cancelled",
+								"internal-failure"
+							]
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					}
-				},
-				{
-					"type": "null"
 				}
 			]
 		}

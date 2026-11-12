@@ -95,14 +95,14 @@ impl Receipt {
         } else {
             "completed"
         };
-        json!({"schema":"orchbee.panel.move","version":1,"sessionId":self.session_id,"baseRevision":self.base_revision,
+        json!({"schema":"orchbee.panel.move","version":1,"result":{"sessionId":self.session_id,"baseRevision":self.base_revision,
             "source":{"terminalContextId":self.source.terminal_context_id,"tabId":self.source.tab_id,"panelId":self.source.panel_id},"clientId":self.client_id,"requestedFocus":self.requested_focus,"requestedRatio":self.requested_ratio,
             "directoryPath":self.directory_path,"directorySource":self.directory_source,
             "movement":self.movement.as_ref().map(mutation::Receipt::document),
             "directory":self.directory,
             "ratio":self.ratio.as_ref().map(Answer::document),"focus":self.focus.as_ref().map(Answer::document),
             "sourceLayout":self.source_layout,"targetLayout":self.target_layout,"stage":self.stage,"reason":self.reason,
-            "failure":self.failure.as_ref().map(Failure::observation),"outcome":outcome})
+            "failure":self.failure.as_ref().map(Failure::observation),"outcome":outcome}})
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {
         let document = self.document();

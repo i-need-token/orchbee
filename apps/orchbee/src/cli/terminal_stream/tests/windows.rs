@@ -88,13 +88,13 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
                         }
                     ));
                     assert_eq!(emitted["kind"], "reset");
-                    assert_eq!(emitted["reason"], "decoder-rejected");
+                    assert_eq!(emitted["result"]["reason"], "decoder-rejected");
                 } else {
                     assert!(matches!(feedback.action(), Action::FrameApplied { .. }));
                     assert_eq!(emitted["kind"], "frame");
-                    assert_eq!(emitted["sequence"], sequence.to_string());
+                    assert_eq!(emitted["result"]["sequence"], sequence.to_string());
                     assert_eq!(
-                        emitted["sourceWidth"],
+                        emitted["result"]["sourceWidth"],
                         decode_terminal_text_frame(SNAPSHOT)
                             .map_err(io::Error::other)?
                             .geometry

@@ -7,9 +7,9 @@ fn organization_receipts_require_explicit_nullable_grouping_and_closed_action_fi
     let validator = jsonschema::validator_for(&schema).unwrap();
     let id = "00000000000000000000000000000001";
     for project in [Value::Null, json!(id)] {
-        let doc = json!({"schema":"orchbee.mutation.result","version":1,"resolvedLaunch":null,
+        let doc = json!({"schema":"orchbee.mutation.result","version":1,
             "source":{"kind":"workbench-command","sessionId":id,"requestId":id,"expectedRevision":"1"},
-            "result":{"action":"workspace.set-project","outcome":"committed","revision":"2","workspaceId":id,"projectId":project}});
+            "result":{"resolvedLaunch":null,"action":"workspace.set-project","outcome":"committed","revision":"2","workspaceId":id,"projectId":project}});
         validator.validate(&doc).unwrap();
         for field in ["workspaceId", "projectId", "revision"] {
             let mut bad = doc.clone();

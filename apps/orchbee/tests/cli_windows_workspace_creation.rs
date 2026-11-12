@@ -175,18 +175,18 @@ fn run_in(
         validate(&document, SCHEMA);
         let schema: Value = serde_json::from_str(SCHEMA).unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
-        if !document["failure"].is_null() {
+        if !document["result"]["failure"].is_null() {
             let mut invalid = document.clone();
-            invalid["failure"]["details"] = json!({"unexpected":true});
+            invalid["result"]["failure"]["details"] = json!({"unexpected":true});
             assert!(
                 !validator.is_valid(&invalid),
                 "failure details must remain closed"
             );
         }
-        if document["outcome"] == "incomplete" {
+        if document["result"]["outcome"] == "incomplete" {
             let mut invalid = document.clone();
-            invalid["outcome"] = json!("completed");
-            invalid["stage"] = json!("complete");
+            invalid["result"]["outcome"] = json!("completed");
+            invalid["result"]["stage"] = json!("complete");
             assert!(
                 !validator.is_valid(&invalid),
                 "partial effects cannot claim completion"
@@ -295,9 +295,12 @@ fn workspace_path_resolution_uses_the_final_process_home_or_current_directory() 
         );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(&document, SCHEMA);
-        assert_eq!(document["directory"]["path"].as_str(), target.to_str());
-        assert_eq!(document["directory"]["policy"], "explicit");
-        assert_eq!(document["outcome"], "completed");
+        assert_eq!(
+            document["result"]["directory"]["path"].as_str(),
+            target.to_str()
+        );
+        assert_eq!(document["result"]["directory"]["policy"], "explicit");
+        assert_eq!(document["result"]["outcome"], "completed");
         assert!(!target.exists());
     }
 }
@@ -355,7 +358,7 @@ fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() 
         },
     );
     assert_eq!(status, 0, "{doc}");
-    assert_eq!(doc["directory"]["source"], "home");
+    assert_eq!(doc["result"]["directory"]["source"], "home");
     let (status, doc) = run(
         &[
             "workspace",
@@ -384,7 +387,7 @@ fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() 
         },
     );
     assert_eq!(status, 0, "{doc}");
-    assert_eq!(doc["workspace"]["result"]["projectId"], id(103));
+    assert_eq!(doc["result"]["workspace"]["result"]["projectId"], id(103));
     assert!(doc["project"].is_null());
 }
 
@@ -401,11 +404,11 @@ fn new_workspace_is_ungrouped_even_when_projects_exist() {
             },
         );
         assert_eq!(status, 0, "{doc}");
-        assert_eq!(doc["outcome"], "completed");
-        assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
+        assert_eq!(doc["result"]["outcome"], "completed");
+        assert_eq!(doc["result"]["workspace"]["result"]["workspaceId"], id(20));
         assert!(doc.get("project").is_none());
-        assert!(doc["workspace"]["result"]["projectId"].is_null());
-        assert!(doc["focus"].is_null());
+        assert!(doc["result"]["workspace"]["result"]["projectId"].is_null());
+        assert!(doc["result"]["focus"].is_null());
     }
 }
 #[test]
@@ -428,15 +431,15 @@ fn launch_unknown_and_terminal_failures_keep_identity_without_project_effects() 
             },
         );
         assert_ne!(status, 0, "{cut}: {doc}");
-        assert_eq!(doc["outcome"], "incomplete");
+        assert_eq!(doc["result"]["outcome"], "incomplete");
         assert!(doc.get("project").is_none());
         if cut == "unknown" {
-            assert_eq!(doc["failure"]["kind"], "outcome-unknown");
-            assert!(doc["failure"]["details"]["requestId"].is_string());
+            assert_eq!(doc["result"]["failure"]["kind"], "outcome-unknown");
+            assert!(doc["result"]["failure"]["details"]["requestId"].is_string());
         }
         if matches!(cut, "failed" | "unavailable" | "terminal-unknown") {
-            assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
-            assert!(doc["workspace"]["result"]["projectId"].is_null());
+            assert_eq!(doc["result"]["workspace"]["result"]["workspaceId"], id(20));
+            assert!(doc["result"]["workspace"]["result"]["projectId"].is_null());
         }
     }
 }
@@ -495,11 +498,14 @@ fn a_stale_launch_is_submitted_again_only_when_its_derived_label_is_unchanged() 
         );
         if collides {
             assert_eq!(status, 3, "{doc}");
-            assert_eq!(doc["failure"]["details"]["reason"], "revision-mismatch");
-            assert!(doc["workspace"].is_null(), "{doc}");
+            assert_eq!(
+                doc["result"]["failure"]["details"]["reason"],
+                "revision-mismatch"
+            );
+            assert!(doc["result"]["workspace"].is_null(), "{doc}");
         } else {
             assert_eq!(status, 0, "{doc}");
-            assert_eq!(doc["workspace"]["result"]["label"], "repo");
+            assert_eq!(doc["result"]["workspace"]["result"]["label"], "repo");
         }
     }
 }
@@ -579,7 +585,7 @@ fn focus_accepts_exact_new_workspace_reconciliation_and_refuses_other_navigation
             matches!(cut, "original" | "created"),
             "{cut}: {doc}"
         );
-        assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
+        assert_eq!(doc["result"]["workspace"]["result"]["workspaceId"], id(20));
     }
 }
 #[test]
@@ -675,10 +681,10 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
             "{mode}: {doc}"
         );
         if mode == "live" {
-            assert_eq!(doc["directory"]["source"], "terminal-process");
+            assert_eq!(doc["result"]["directory"]["source"], "terminal-process");
         }
         if mode == "absent" {
-            assert_eq!(doc["directory"]["source"], "workspace");
+            assert_eq!(doc["result"]["directory"]["source"], "workspace");
         }
     }
 }
@@ -876,7 +882,7 @@ fn omitted_labels_avoid_global_collisions_with_bounded_suffixes_and_explicit_lab
             assert_closed(&mut stream);
         });
         assert_eq!(status, 0, "{doc}");
-        assert_eq!(doc["workspace"]["result"]["label"], expected);
+        assert_eq!(doc["result"]["workspace"]["result"]["label"], expected);
         assert!(expected.chars().count() <= 512);
     }
 }

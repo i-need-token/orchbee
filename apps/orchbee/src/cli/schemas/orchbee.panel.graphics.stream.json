@@ -15,69 +15,67 @@
 				"kind": {
 					"const": "reply"
 				},
-				"requestId": {
-					"$ref": "#/$defs/wb_requestId"
-				},
-				"sessionId": {
-					"$ref": "#/$defs/wb_sessionId"
-				},
-				"target": {
-					"$ref": "#/$defs/gfx_target"
-				},
-				"layerId": {
-					"$ref": "#/$defs/gfx_layerId"
-				},
-				"observation": {
-					"oneOf": [
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "server"
-								},
-								"reply": {
-									"$ref": "#/$defs/gfx_result"
-								}
-							},
-							"required": ["kind", "reply"]
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "sessionId", "target", "layerId", "observation"],
+					"properties": {
+						"requestId": {
+							"$ref": "#/$defs/wb_requestId"
 						},
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"properties": {
-								"kind": {
-									"const": "unknown"
+						"sessionId": {
+							"$ref": "#/$defs/wb_sessionId"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_target"
+						},
+						"layerId": {
+							"$ref": "#/$defs/gfx_layerId"
+						},
+						"observation": {
+							"oneOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "server"
+										},
+										"reply": {
+											"$ref": "#/$defs/gfx_result"
+										}
+									},
+									"required": ["kind", "reply"]
 								},
-								"reason": {
-									"enum": [
-										"session-unavailable",
-										"request-encoding",
-										"request-deadline",
-										"request-not-submitted",
-										"request-write",
-										"response-read",
-										"response-deadline",
-										"response-correlation",
-										"response-protocol"
-									]
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "unknown"
+										},
+										"reason": {
+											"enum": [
+												"session-unavailable",
+												"request-encoding",
+												"request-deadline",
+												"request-not-submitted",
+												"request-write",
+												"response-read",
+												"response-deadline",
+												"response-correlation",
+												"response-protocol"
+											]
+										}
+									},
+									"required": ["kind", "reason"]
 								}
-							},
-							"required": ["kind", "reason"]
+							]
 						}
-					]
+					}
 				}
 			},
-			"required": [
-				"schema",
-				"version",
-				"kind",
-				"requestId",
-				"sessionId",
-				"target",
-				"layerId",
-				"observation"
-			]
+			"required": ["schema", "version", "kind", "result"]
 		},
 		{
 			"type": "object",
@@ -92,81 +90,85 @@
 				"kind": {
 					"const": "closed"
 				},
-				"sessionId": {
-					"$ref": "#/$defs/wb_sessionId"
-				},
-				"target": {
-					"$ref": "#/$defs/gfx_target"
-				},
-				"layerId": {
-					"$ref": "#/$defs/gfx_layerId"
-				},
-				"reason": {
-					"enum": [
-						"ambiguous",
-						"cancelled",
-						"check-failed",
-						"denied",
-						"eof",
-						"file-unavailable",
-						"header-too-large",
-						"image-too-large",
-						"incompatible",
-						"input-failed",
-						"internal-failure",
-						"invalid-frame",
-						"invalid-identifier",
-						"invalid-sequence",
-						"invalid-usage",
-						"not-found",
-						"outcome-unknown",
-						"output-too-large",
-						"protocol-invalid",
-						"refused",
-						"rejected",
-						"service-unavailable",
-						"connection-capacity",
-						"timeout",
-						"transport-loss",
-						"truncated-frame"
-					]
-				},
-				"cleanup": {
-					"enum": ["closed", "retired", "not-opened", "connection-ended", "unknown"]
-				},
-				"lastReply": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/gfx_result"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"sessionId",
+						"target",
+						"layerId",
+						"reason",
+						"cleanup",
+						"lastReply",
+						"closeReply"
+					],
+					"properties": {
+						"sessionId": {
+							"$ref": "#/$defs/wb_sessionId"
 						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"closeReply": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/gfx_result"
+						"target": {
+							"$ref": "#/$defs/gfx_target"
 						},
-						{
-							"type": "null"
+						"layerId": {
+							"$ref": "#/$defs/gfx_layerId"
+						},
+						"reason": {
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"eof",
+								"file-unavailable",
+								"header-too-large",
+								"image-too-large",
+								"incompatible",
+								"input-failed",
+								"internal-failure",
+								"invalid-frame",
+								"invalid-identifier",
+								"invalid-sequence",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"refused",
+								"rejected",
+								"service-unavailable",
+								"connection-capacity",
+								"timeout",
+								"transport-loss",
+								"truncated-frame"
+							]
+						},
+						"cleanup": {
+							"enum": ["closed", "retired", "not-opened", "connection-ended", "unknown"]
+						},
+						"lastReply": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/gfx_result"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"closeReply": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/gfx_result"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
-					]
+					}
 				}
 			},
-			"required": [
-				"schema",
-				"version",
-				"kind",
-				"sessionId",
-				"target",
-				"layerId",
-				"reason",
-				"cleanup",
-				"lastReply",
-				"closeReply"
-			]
+			"required": ["schema", "version", "kind", "result"]
 		}
 	],
 	"$defs": {

@@ -61,7 +61,7 @@ fn attach(document: &mut Value, launch: &LaunchSelection) -> bool {
     ) {
         return false;
     }
-    document["resolvedLaunch"] = json!(launch);
+    document["result"]["resolvedLaunch"] = json!(launch);
     true
 }
 

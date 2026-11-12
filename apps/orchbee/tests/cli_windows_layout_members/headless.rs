@@ -161,8 +161,8 @@ fn headless_ratio_and_pair_swap_submit_once_without_client_discovery() {
             },
         );
         if swap {
-            assert_eq!(document["outcome"], "swapped");
-            assert!(document["focus"].is_null());
+            assert_eq!(document["result"]["outcome"], "swapped");
+            assert!(document["result"]["focus"].is_null());
         } else {
             assert_eq!(document["result"]["effect"]["result"]["revision"], "13");
         }
@@ -248,13 +248,16 @@ fn same_tab_move_uses_one_placement_and_preserves_unchanged_receipts() {
             &document,
             include_str!("../../src/cli/schemas/orchbee.panel.move.json"),
         );
-        assert_eq!(document["outcome"], "completed");
-        assert_eq!(document["movement"]["result"]["action"], "panel.move");
+        assert_eq!(document["result"]["outcome"], "completed");
         assert_eq!(
-            document["movement"]["result"]["outcome"],
+            document["result"]["movement"]["result"]["action"],
+            "panel.move"
+        );
+        assert_eq!(
+            document["result"]["movement"]["result"]["outcome"],
             if unchanged { "unchanged" } else { "committed" }
         );
-        assert!(document["focus"].is_null());
+        assert!(document["result"]["focus"].is_null());
     }
 }
 

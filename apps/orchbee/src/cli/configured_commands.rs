@@ -455,7 +455,7 @@ fn emit(
             _ => status,
         };
     }
-    let document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"operation":operation,"result":{"reply":reply,"followup":followup.map(|answer| answer.document),"complete":complete && status==0}});
+    let document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"result":{"operation":operation,"reply":reply,"followup":followup.map(|answer| answer.document),"complete":complete && status==0}});
     let stdout = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {

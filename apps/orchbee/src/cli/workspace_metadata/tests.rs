@@ -42,6 +42,7 @@ fn workspace_metadata_receipts_survive_late_interrupt_and_validate_the_public_sc
         );
     }
     let mut invalid = answer.document();
-    invalid["observation"]["reply"]["outcome"]["disposition"] = serde_json::json!("invented");
+    invalid["result"]["observation"]["reply"]["outcome"]["disposition"] =
+        serde_json::json!("invented");
     assert!(!validator.is_valid(&invalid));
 }

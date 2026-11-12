@@ -1821,7 +1821,7 @@ falling back to global `navigation.workspaces` order when absent or empty. Other
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. All machine documents and the catalog use only version `1`. `api schema <id>` retrieves the complete current contract offline. Adding fields or schema IDs updates this current contract directly. The same command keeps the same members across platform and option choices, with unsupported capabilities explicit. Sources retain their owner's meaning:
+Every machine document uses the envelope `{schema, version, source?, result}` of [CLI output](../../../docs/cli/output.md#machine-documents); staged workflows carry their phases inside `result`. All machine documents and the catalog use only version `1`. `api schema <id>` retrieves the complete current contract offline. Adding fields or schema IDs updates this current contract directly. The same command keeps the same members across platform and option choices, with unsupported capabilities explicit. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `sessionId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.

@@ -239,8 +239,8 @@ fn workspace_metadata_report_preserves_known_and_unknown_outcomes_without_replay
             &doc,
             include_str!("../../../src/cli/schemas/orchbee.workspace.metadata.json"),
         );
-        assert_eq!(doc["workspaceId"], id(100));
-        assert_eq!(doc["sessionId"], id(2));
+        assert_eq!(doc["result"]["workspaceId"], id(100));
+        assert_eq!(doc["result"]["sessionId"], id(2));
         assert_eq!(
             output.status.code(),
             Some(match case {
@@ -251,7 +251,7 @@ fn workspace_metadata_report_preserves_known_and_unknown_outcomes_without_replay
             "{case}: {doc}"
         );
         assert_eq!(
-            doc["observation"]["kind"],
+            doc["result"]["observation"]["kind"],
             if matches!(case, "lost" | "wrong-request" | "malformed") {
                 "unknown"
             } else {

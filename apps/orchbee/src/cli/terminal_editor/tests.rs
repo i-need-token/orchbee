@@ -270,9 +270,9 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
         } else {
             let answer = answer.unwrap();
             assert_eq!(answer.exit_code(), if mode == 0 { 0 } else { 8 });
-            assert!(answer.document()["operationId"].is_string());
+            assert!(answer.document()["result"]["operationId"].is_string());
             assert_eq!(
-                answer.document()["observation"]["kind"] == "unknown",
+                answer.document()["result"]["observation"]["kind"] == "unknown",
                 mode != 0
             );
             if mode == 0 {

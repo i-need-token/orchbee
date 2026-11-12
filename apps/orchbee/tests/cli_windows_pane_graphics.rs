@@ -131,9 +131,9 @@ fn graphics_upload_clear_info_and_unknown_submission_keep_closed_receipts_withou
             &document,
             include_str!("../src/cli/schemas/orchbee.panel.graphics.json"),
         );
-        assert_eq!(document["target"]["panelId"], PANEL);
+        assert_eq!(document["result"]["target"]["panelId"], PANEL);
         assert_eq!(
-            document["observation"]["kind"],
+            document["result"]["observation"]["kind"],
             if matches!(mode, "lost" | "wrong-action") {
                 "unknown"
             } else {
@@ -343,7 +343,7 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
         let closed = records.last().unwrap();
         assert_eq!(closed["kind"], "closed");
         assert_eq!(
-            closed["cleanup"],
+            closed["result"]["cleanup"],
             if mode == "lost" {
                 "connection-ended"
             } else {

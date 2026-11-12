@@ -75,7 +75,7 @@ fn focus_document(answer: &Answer) -> Value {
     } else {
         json!({"kind":"not-submitted"})
     };
-    json!({"operationId":answer.operation_id,"observation":observation,"wait":document["wait"]})
+    json!({"operationId":answer.operation_id,"observation":observation,"wait":document["result"]["wait"]})
 }
 
 pub(super) struct Receipt {
@@ -133,7 +133,7 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        let document = json!({"schema":"orchbee.panel.swap","version":1,"sessionId":self.session_id,
+        let document = json!({"schema":"orchbee.panel.swap","version":1,"result":{"sessionId":self.session_id,
             "clientId":self.client_id,"baseRevision":self.base_revision,
             "scope":if self.client_id.is_some() {"client"} else {"shared"},
             "source":self.source.document(),"target":self.target.as_ref().map(Panel::document),"direction":self.direction,
@@ -141,7 +141,7 @@ impl Receipt {
             "requestId":self.request_id,"canonical":self.canonical.document(),
             "focus":self.focus.as_ref().map(focus_document),"stage":self.stage,
             "reason":self.reason,"failure":self.failure.map(FailureKind::as_str),
-            "outcome":self.outcome()});
+            "outcome":self.outcome()}});
         document
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {

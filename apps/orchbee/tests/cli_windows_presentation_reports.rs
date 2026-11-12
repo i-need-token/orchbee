@@ -143,20 +143,23 @@ fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unkno
         validate(&doc, schema);
         assert_eq!(doc["version"], 1);
         if case != "primary" {
-            assert_eq!(doc["presentationId"], id(306));
+            assert_eq!(doc["result"]["presentationId"], id(306));
             let validator =
                 jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
             let mut invalid = doc.clone();
-            invalid.as_object_mut().unwrap().remove("presentationId");
+            invalid["result"]
+                .as_object_mut()
+                .unwrap()
+                .remove("presentationId");
             assert!(!validator.is_valid(&invalid));
         }
         if matches!(case, "wrong-reply" | "lost") {
             assert_eq!(output.status.code(), Some(8));
-            assert_eq!(doc["observation"]["kind"], "unknown");
+            assert_eq!(doc["result"]["observation"]["kind"], "unknown");
         } else {
             assert!(output.status.success(), "{verb}/{case}: {output:?}");
             assert_eq!(
-                doc["observation"]["reply"]["outcome"]["binding"]["terminalId"],
+                doc["result"]["observation"]["reply"]["outcome"]["binding"]["terminalId"],
                 id(if case == "primary" { 206 } else { 406 })
             );
         }

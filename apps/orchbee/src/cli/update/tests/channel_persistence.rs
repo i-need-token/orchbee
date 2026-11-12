@@ -81,14 +81,14 @@ fn channel_set_persists_before_failed_update_and_never_activates_a_session() {
 
     for source in [None, Some(""), Some("  ")] {
         let (report, rendered) = roots.update(None, source);
-        assert_eq!(rendered["operation"], "update");
+        assert_eq!(rendered["result"]["operation"], "update");
         assert_failed_after_save(&rendered, false, "source-unconfigured");
         assert_eq!(report.channel, Some(UpdateChannel::Stable));
         assert!(!config.exists());
     }
 
     let (report, rendered) = roots.update(Some(UpdateChannel::Preview), None);
-    assert_eq!(rendered["operation"], "channel-set");
+    assert_eq!(rendered["result"]["operation"], "channel-set");
     assert_eq!(rendered["result"]["channel"], "preview");
     assert_failed_after_save(&rendered, true, "source-unconfigured");
     assert_eq!(report.config_path.as_deref(), Some(config.as_path()));

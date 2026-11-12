@@ -4,7 +4,7 @@
 	"title": "Saved remote machine command receipt",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["schema", "version", "source", "operation", "result"],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.machine"
@@ -22,9 +22,6 @@
 				}
 			}
 		},
-		"operation": {
-			"enum": ["list", "add", "rename", "remove", "enable", "disable", "connect", "disconnect"]
-		},
 		"result": {
 			"type": "object",
 			"additionalProperties": false,
@@ -37,7 +34,8 @@
 				"remote",
 				"remoteVersion",
 				"error",
-				"interrupted"
+				"interrupted",
+				"operation"
 			],
 			"properties": {
 				"profileId": {
@@ -178,6 +176,9 @@
 				},
 				"interrupted": {
 					"type": "boolean"
+				},
+				"operation": {
+					"enum": ["list", "add", "rename", "remove", "enable", "disable", "connect", "disconnect"]
 				}
 			},
 			"if": {

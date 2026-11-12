@@ -3,6 +3,7 @@ use super::Locale;
 use serde_json::Value;
 impl super::CliText {
     pub(crate) fn cli_panel_relocation(self, document: &Value) -> String {
+        let document = &document["result"];
         let outcome = match (self.locale, document["outcome"].as_str()) {
             (Locale::EnUs, Some("completed")) => "Panel moved",
             (Locale::ZhCn, Some("completed")) => "面板已迁移",

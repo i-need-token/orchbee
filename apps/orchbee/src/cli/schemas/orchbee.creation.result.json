@@ -5,7 +5,7 @@
 	"$defs": {
 		"canonical": {
 			"type": "object",
-			"required": ["schema", "version", "source", "result", "resolvedLaunch"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
 				"schema": {
@@ -26,8 +26,7 @@
 				},
 				"result": {
 					"type": "object",
-					"required": ["action", "outcome"],
-					"additionalProperties": false,
+					"required": ["action", "outcome", "resolvedLaunch"],
 					"properties": {
 						"action": {
 							"enum": [
@@ -173,6 +172,31 @@
 							},
 							"required": ["targetTerminalContextId", "closedSourceTab"],
 							"additionalProperties": false
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"if": {
@@ -349,7 +373,14 @@
 											}
 										},
 										"propertyNames": {
-											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											"enum": [
+												"action",
+												"outcome",
+												"revision",
+												"workspaceId",
+												"projectId",
+												"resolvedLaunch"
+											]
 										}
 									}
 								},
@@ -372,7 +403,14 @@
 											}
 										},
 										"propertyNames": {
-											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											"enum": [
+												"action",
+												"outcome",
+												"revision",
+												"workspaceId",
+												"projectId",
+												"resolvedLaunch"
+											]
 										}
 									}
 								},
@@ -392,36 +430,11 @@
 											}
 										},
 										"propertyNames": {
-											"enum": ["action", "outcome", "revision", "projectId"]
+											"enum": ["action", "outcome", "revision", "projectId", "resolvedLaunch"]
 										}
 									}
 								}
 							]
-						}
-					]
-				},
-				"resolvedLaunch": {
-					"anyOf": [
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["exec", "args"],
-							"properties": {
-								"exec": {
-									"type": "string",
-									"minLength": 1
-								},
-								"args": {
-									"type": "array",
-									"maxItems": 128,
-									"items": {
-										"type": "string"
-									}
-								}
-							}
-						},
-						{
-							"type": "null"
 						}
 					]
 				}
@@ -522,94 +535,107 @@
 				"version": {
 					"const": 1
 				},
-				"sessionId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control/$defs/sessionId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"operationId": {
-					"$ref": "#/$defs/control/$defs/requestId"
-				},
-				"observation": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "server"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["sessionId", "operationId", "observation", "wait"],
+					"properties": {
+						"sessionId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/sessionId"
 								},
-								"reply": {
+								{
+									"type": "null"
+								}
+							]
+						},
+						"operationId": {
+							"$ref": "#/$defs/control/$defs/requestId"
+						},
+						"observation": {
+							"oneOf": [
+								{
 									"type": "object",
 									"properties": {
-										"protocolVersion": {
-											"const": 1
+										"kind": {
+											"const": "server"
 										},
-										"requestId": {
-											"$ref": "#/$defs/control/$defs/requestId"
-										},
-										"sessionId": {
-											"$ref": "#/$defs/control/$defs/sessionId"
-										},
-										"outcome": {
-											"$ref": "#/$defs/control/$defs/outcome"
+										"reply": {
+											"type": "object",
+											"properties": {
+												"protocolVersion": {
+													"const": 1
+												},
+												"requestId": {
+													"$ref": "#/$defs/control/$defs/requestId"
+												},
+												"sessionId": {
+													"$ref": "#/$defs/control/$defs/sessionId"
+												},
+												"outcome": {
+													"$ref": "#/$defs/control/$defs/outcome"
+												}
+											},
+											"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+											"additionalProperties": false
 										}
 									},
-									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+									"required": ["kind", "reply"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unknown"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "not-submitted"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unobserved"
+										}
+									},
+									"required": ["kind"],
 									"additionalProperties": false
 								}
-							},
-							"required": ["kind", "reply"],
-							"additionalProperties": false
+							]
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unknown"
+						"wait": {
+							"anyOf": [
+								{
+									"enum": [
+										"detached",
+										"timed-out",
+										"cancelled",
+										"transport-lost",
+										"observation-failed"
+									]
+								},
+								{
+									"type": "null"
 								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "not-submitted"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unobserved"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
+							]
 						}
-					]
-				},
-				"wait": {
-					"anyOf": [
-						{
-							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
-						},
-						{
-							"type": "null"
-						}
-					]
+					}
 				}
 			},
-			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "result"],
 			"additionalProperties": false,
 			"$defs": {
 				"sessionId": {
@@ -2991,94 +3017,107 @@
 				"version": {
 					"const": 1
 				},
-				"sessionId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/overlayControl/$defs/sessionId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"operationId": {
-					"$ref": "#/$defs/overlayControl/$defs/requestId"
-				},
-				"observation": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "server"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["sessionId", "operationId", "observation", "wait"],
+					"properties": {
+						"sessionId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/overlayControl/$defs/sessionId"
 								},
-								"reply": {
+								{
+									"type": "null"
+								}
+							]
+						},
+						"operationId": {
+							"$ref": "#/$defs/overlayControl/$defs/requestId"
+						},
+						"observation": {
+							"oneOf": [
+								{
 									"type": "object",
 									"properties": {
-										"protocolVersion": {
-											"const": 1
+										"kind": {
+											"const": "server"
 										},
-										"requestId": {
-											"$ref": "#/$defs/overlayControl/$defs/requestId"
-										},
-										"sessionId": {
-											"$ref": "#/$defs/overlayControl/$defs/sessionId"
-										},
-										"outcome": {
-											"$ref": "#/$defs/overlayControl/$defs/outcome"
+										"reply": {
+											"type": "object",
+											"properties": {
+												"protocolVersion": {
+													"const": 1
+												},
+												"requestId": {
+													"$ref": "#/$defs/overlayControl/$defs/requestId"
+												},
+												"sessionId": {
+													"$ref": "#/$defs/overlayControl/$defs/sessionId"
+												},
+												"outcome": {
+													"$ref": "#/$defs/overlayControl/$defs/outcome"
+												}
+											},
+											"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+											"additionalProperties": false
 										}
 									},
-									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+									"required": ["kind", "reply"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unknown"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "not-submitted"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unobserved"
+										}
+									},
+									"required": ["kind"],
 									"additionalProperties": false
 								}
-							},
-							"required": ["kind", "reply"],
-							"additionalProperties": false
+							]
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unknown"
+						"wait": {
+							"anyOf": [
+								{
+									"enum": [
+										"detached",
+										"timed-out",
+										"cancelled",
+										"transport-lost",
+										"observation-failed"
+									]
+								},
+								{
+									"type": "null"
 								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "not-submitted"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unobserved"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
+							]
 						}
-					]
-				},
-				"wait": {
-					"anyOf": [
-						{
-							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
-						},
-						{
-							"type": "null"
-						}
-					]
+					}
 				}
 			},
-			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "result"],
 			"additionalProperties": false,
 			"$defs": {
 				"sessionId": {
@@ -5453,15 +5492,7 @@
 	},
 	"type": "object",
 	"additionalProperties": false,
-	"required": [
-		"schema",
-		"version",
-		"source",
-		"result",
-		"postCreate",
-		"directory",
-		"resolvedLaunch"
-	],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.creation.result"
@@ -5481,6 +5512,303 @@
 				},
 				"outcome": {
 					"const": "committed"
+				},
+				"postCreate": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
+					"properties": {
+						"clientId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"requested": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["ratio", "focus", "zoom", "overlay"],
+							"properties": {
+								"ratio": {
+									"anyOf": [
+										{
+											"type": "number",
+											"minimum": 0.1,
+											"maximum": 0.9
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"focus": {
+									"type": "boolean"
+								},
+								"zoom": {
+									"type": "boolean"
+								},
+								"overlay": {
+									"type": "boolean"
+								}
+							}
+						},
+						"ratio": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focus": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"$ref": "#/$defs/overlayControl"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stage": {
+							"enum": [
+								"created",
+								"ratio-resolution",
+								"ratio",
+								"focus-observation",
+								"focus",
+								"complete"
+							]
+						},
+						"failure": {
+							"anyOf": [
+								{
+									"enum": [
+										"invalid-usage",
+										"not-found",
+										"ambiguous",
+										"denied",
+										"rejected",
+										"service-unavailable",
+										"protocol-invalid",
+										"transport",
+										"outcome-unknown",
+										"timeout",
+										"cancelled",
+										"internal-failure",
+										"check-failed",
+										"output-too-large"
+									]
+								},
+								{
+									"type": "null"
+								}
+							],
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"incompatible",
+								"internal-failure",
+								"invalid-identifier",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"rejected",
+								"service-unavailable",
+								"connection-capacity",
+								"timeout",
+								"transport-loss",
+								null
+							]
+						},
+						"outcome": {
+							"enum": ["not-requested", "completed", "incomplete"]
+						}
+					}
+				},
+				"directory": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["policy", "source", "path", "sourcePanelId"],
+					"properties": {
+						"policy": {
+							"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
+						},
+						"source": {
+							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+						},
+						"path": {
+							"type": ["string", "null"],
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"sourcePanelId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"oneOf": [
+						{
+							"properties": {
+								"policy": {
+									"const": "follow"
+								},
+								"source": {
+									"enum": ["launch-default", "terminal-process"]
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "explicit"
+								},
+								"source": {
+									"enum": ["argument"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "home"
+								},
+								"source": {
+									"enum": ["home"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "current"
+								},
+								"source": {
+									"enum": ["current"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "workspace"
+								},
+								"source": {
+									"enum": ["launch-default"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "plugin-root"
+								},
+								"source": {
+									"const": "launch-default"
+								},
+								"path": {
+									"type": "null"
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						}
+					],
+					"if": {
+						"properties": {
+							"source": {
+								"const": "launch-default"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"source": {
+										"const": "terminal-process"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"sourcePanelId": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"policy": {
+										"const": "plugin-root"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									},
+									"path": {
+										"type": "null"
+									},
+									"sourcePanelId": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
 				}
 			},
 			"required": [
@@ -5492,7 +5820,10 @@
 				"panelId",
 				"presentationId",
 				"label",
-				"terminal"
+				"terminal",
+				"postCreate",
+				"directory",
+				"resolvedLaunch"
 			],
 			"if": {
 				"properties": {
@@ -5503,322 +5834,8 @@
 			},
 			"then": {
 				"required": ["newPanelId", "splitId", "firstSlotId", "secondSlotId", "direction"]
-			}
-		},
-		"postCreate": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
-			"properties": {
-				"clientId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control/$defs/clientId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"requested": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["ratio", "focus", "zoom", "overlay"],
-					"properties": {
-						"ratio": {
-							"anyOf": [
-								{
-									"type": "number",
-									"minimum": 0.1,
-									"maximum": 0.9
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"focus": {
-							"type": "boolean"
-						},
-						"zoom": {
-							"type": "boolean"
-						},
-						"overlay": {
-							"type": "boolean"
-						}
-					}
-				},
-				"ratio": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"focus": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control"
-						},
-						{
-							"$ref": "#/$defs/overlayControl"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"stage": {
-					"enum": ["created", "ratio-resolution", "ratio", "focus-observation", "focus", "complete"]
-				},
-				"failure": {
-					"anyOf": [
-						{
-							"enum": [
-								"invalid-usage",
-								"not-found",
-								"ambiguous",
-								"denied",
-								"rejected",
-								"service-unavailable",
-								"protocol-invalid",
-								"transport",
-								"outcome-unknown",
-								"timeout",
-								"cancelled",
-								"internal-failure",
-								"check-failed",
-								"output-too-large"
-							]
-						},
-						{
-							"type": "null"
-						}
-					],
-					"enum": [
-						"ambiguous",
-						"cancelled",
-						"check-failed",
-						"denied",
-						"incompatible",
-						"internal-failure",
-						"invalid-identifier",
-						"invalid-usage",
-						"not-found",
-						"outcome-unknown",
-						"output-too-large",
-						"protocol-invalid",
-						"rejected",
-						"service-unavailable",
-						"connection-capacity",
-						"timeout",
-						"transport-loss",
-						null
-					]
-				},
-				"outcome": {
-					"enum": ["not-requested", "completed", "incomplete"]
-				}
-			}
-		},
-		"directory": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["policy", "source", "path", "sourcePanelId"],
-			"properties": {
-				"policy": {
-					"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
-				},
-				"source": {
-					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
-				},
-				"path": {
-					"type": ["string", "null"],
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"sourcePanelId": {
-					"anyOf": [
-						{
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
 			},
-			"oneOf": [
-				{
-					"properties": {
-						"policy": {
-							"const": "follow"
-						},
-						"source": {
-							"enum": ["launch-default", "terminal-process"]
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "explicit"
-						},
-						"source": {
-							"enum": ["argument"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "home"
-						},
-						"source": {
-							"enum": ["home"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "current"
-						},
-						"source": {
-							"enum": ["current"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "workspace"
-						},
-						"source": {
-							"enum": ["launch-default"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "plugin-root"
-						},
-						"source": {
-							"const": "launch-default"
-						},
-						"path": {
-							"type": "null"
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				}
-			],
-			"if": {
-				"properties": {
-					"source": {
-						"const": "launch-default"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"path": {
-						"type": "null"
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"path": {
-						"type": "string"
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "terminal-process"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"sourcePanelId": {
-								"type": "string",
-								"pattern": "^[0-9a-f]{32}$"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"policy": {
-								"const": "plugin-root"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"source": {
-								"const": "launch-default"
-							},
-							"path": {
-								"type": "null"
-							},
-							"sourcePanelId": {
-								"type": "null"
-							}
-						}
-					}
-				}
-			]
-		},
-		"resolvedLaunch": {
-			"anyOf": [
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["exec", "args"],
-					"properties": {
-						"exec": {
-							"type": "string",
-							"minLength": 1
-						},
-						"args": {
-							"type": "array",
-							"maxItems": 128,
-							"items": {
-								"type": "string"
-							}
-						}
-					}
-				},
-				{
-					"type": "null"
-				}
-			]
+			"unevaluatedProperties": false
 		}
 	}
 }

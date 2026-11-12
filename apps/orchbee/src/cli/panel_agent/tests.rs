@@ -77,12 +77,13 @@ fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() 
         }
     }
     let mut invalid = answer.document();
-    invalid["observation"]["reply"]["outcome"]["disposition"] = serde_json::json!("invented");
+    invalid["result"]["observation"]["reply"]["outcome"]["disposition"] =
+        serde_json::json!("invented");
     assert!(!validator.is_valid(&invalid));
     for state in ["idle", "working", "blocked", "done", "error", "unknown"] {
         let mut current = answer.document();
-        current["observation"]["reply"]["outcome"]["view"]["agent"] = "Fixture".into();
-        current["observation"]["reply"]["outcome"]["view"]["state"] = state.into();
+        current["result"]["observation"]["reply"]["outcome"]["view"]["agent"] = "Fixture".into();
+        current["result"]["observation"]["reply"]["outcome"]["view"]["state"] = state.into();
         validator.validate(&current).unwrap();
     }
 }

@@ -235,14 +235,20 @@ fn every_exchange_fault_retains_prior_effects_and_never_replays() {
             Cut::WaitTimedOut => (7, "incomplete", "committed"),
         };
         assert_eq!(output.status.code(), Some(status), "{cut:?}: {document}");
-        assert_eq!(document["outcome"], outcome, "{cut:?}");
-        assert_eq!(document["canonical"]["kind"], canonical, "{cut:?}");
+        assert_eq!(document["result"]["outcome"], outcome, "{cut:?}");
+        assert_eq!(
+            document["result"]["canonical"]["kind"], canonical,
+            "{cut:?}"
+        );
         if canonical == "committed" {
-            assert_eq!(document["canonical"]["revision"], "13");
+            assert_eq!(document["result"]["canonical"]["revision"], "13");
         }
         if matches!(cut, Cut::WaitLost) {
-            assert_eq!(document["focus"]["observation"]["result"]["kind"], "queued");
-            assert_eq!(document["focus"]["wait"], "transport-lost");
+            assert_eq!(
+                document["result"]["focus"]["observation"]["result"]["kind"],
+                "queued"
+            );
+            assert_eq!(document["result"]["focus"]["wait"], "transport-lost");
         }
     }
 }
@@ -278,13 +284,13 @@ fn same_panel_and_cross_tab_are_effect_free_receipts() {
             &document,
             include_str!("../src/cli/schemas/orchbee.panel.swap.json"),
         );
-        assert_eq!(document["reason"], reason);
+        assert_eq!(document["result"]["reason"], reason);
         assert_eq!(
-            document["canonical"],
+            document["result"]["canonical"],
             json!({"kind":"unchanged","revision":"12"})
         );
-        assert!(document["requestId"].is_null());
-        assert!(document["focus"].is_null());
+        assert!(document["result"]["requestId"].is_null());
+        assert!(document["result"]["focus"].is_null());
     }
 }
 
@@ -377,12 +383,15 @@ fn directional_swap_uses_one_layout_and_refuses_to_retarget_after_revision_chang
             _ => (8, "not-submitted", json!("layout-unconfirmed")),
         };
         assert_eq!(output.status.code(), Some(exit), "{mode}: {document}");
-        assert_eq!(document["canonical"]["kind"], kind, "{mode}: {document}");
-        assert_eq!(document["reason"], reason);
-        assert!(document["layoutOperationId"].is_string());
+        assert_eq!(
+            document["result"]["canonical"]["kind"], kind,
+            "{mode}: {document}"
+        );
+        assert_eq!(document["result"]["reason"], reason);
+        assert!(document["result"]["layoutOperationId"].is_string());
         if mode != "swap" {
-            assert!(document["requestId"].is_null());
-            assert!(document["focus"].is_null());
+            assert!(document["result"]["requestId"].is_null());
+            assert!(document["result"]["focus"].is_null());
         }
     }
 }

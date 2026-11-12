@@ -527,16 +527,7 @@
 		}
 	},
 	"type": "object",
-	"required": [
-		"schema",
-		"version",
-		"requestId",
-		"sessionId",
-		"operation",
-		"result",
-		"interrupted",
-		"cleanupFailed"
-	],
+	"required": ["schema", "version", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
@@ -545,22 +536,19 @@
 		"version": {
 			"const": 1
 		},
-		"requestId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"sessionId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"operation": {
-			"enum": ["get", "set", "clear"]
-		},
 		"result": {
 			"oneOf": [
 				{
 					"type": "object",
-					"required": ["kind", "snapshot"],
+					"required": [
+						"kind",
+						"snapshot",
+						"requestId",
+						"sessionId",
+						"operation",
+						"interrupted",
+						"cleanupFailed"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
@@ -586,12 +574,37 @@
 									]
 								}
 							}
+						},
+						"requestId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"sessionId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"operation": {
+							"enum": ["get", "set", "clear"]
+						},
+						"interrupted": {
+							"type": "boolean"
+						},
+						"cleanupFailed": {
+							"type": "boolean"
 						}
 					}
 				},
 				{
 					"type": "object",
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason",
+						"requestId",
+						"sessionId",
+						"operation",
+						"interrupted",
+						"cleanupFailed"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
@@ -608,12 +621,37 @@
 								"sourceUnavailable",
 								"revisionExhausted"
 							]
+						},
+						"requestId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"sessionId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"operation": {
+							"enum": ["get", "set", "clear"]
+						},
+						"interrupted": {
+							"type": "boolean"
+						},
+						"cleanupFailed": {
+							"type": "boolean"
 						}
 					}
 				},
 				{
 					"type": "object",
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason",
+						"requestId",
+						"sessionId",
+						"operation",
+						"interrupted",
+						"cleanupFailed"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
@@ -627,12 +665,37 @@
 								"response-correlation",
 								"response-protocol"
 							]
+						},
+						"requestId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"sessionId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"operation": {
+							"enum": ["get", "set", "clear"]
+						},
+						"interrupted": {
+							"type": "boolean"
+						},
+						"cleanupFailed": {
+							"type": "boolean"
 						}
 					}
 				},
 				{
 					"type": "object",
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason",
+						"requestId",
+						"sessionId",
+						"operation",
+						"interrupted",
+						"cleanupFailed"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
@@ -650,23 +713,38 @@
 								"response-correlation",
 								"response-protocol"
 							]
+						},
+						"requestId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"sessionId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"operation": {
+							"enum": ["get", "set", "clear"]
+						},
+						"interrupted": {
+							"type": "boolean"
+						},
+						"cleanupFailed": {
+							"type": "boolean"
 						}
 					}
 				}
 			]
-		},
-		"interrupted": {
-			"type": "boolean"
-		},
-		"cleanupFailed": {
-			"type": "boolean"
 		}
 	},
 	"description": "Structural spec contract. Native validation additionally bounds depth to 8, total filter nodes to 64 and encoded spec to 64 KiB; source and label are normalized before publication.",
 	"if": {
 		"properties": {
-			"operation": {
-				"const": "get"
+			"result": {
+				"properties": {
+					"operation": {
+						"const": "get"
+					}
+				}
 			}
 		}
 	},
@@ -687,13 +765,13 @@
 		{
 			"if": {
 				"properties": {
-					"operation": {
-						"enum": ["set", "clear"]
-					},
 					"result": {
 						"properties": {
 							"kind": {
 								"const": "exchange-failed"
+							},
+							"operation": {
+								"enum": ["set", "clear"]
 							}
 						}
 					}

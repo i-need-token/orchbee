@@ -36,17 +36,17 @@ fn ordinary_and_no_focus_forms_submit_one_first_terminal_launch() {
             });
             assert_eq!(status, 0, "{args:?}: {doc}");
             assert_eq!(doc["schema"], "orchbee.workspace.creation");
-            assert_eq!(doc["outcome"], "completed");
+            assert_eq!(doc["result"]["outcome"], "completed");
             assert!(doc["project"].is_null());
-            assert_eq!(doc["directory"]["path"], path);
+            assert_eq!(doc["result"]["directory"]["path"], path);
             assert_eq!(
-                doc["directory"]["source"],
+                doc["result"]["directory"]["source"],
                 if explicit_cwd { "argument" } else { "home" }
             );
-            assert_eq!(doc["workspace"]["result"]["panelId"], id(23));
-            assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
-            assert_eq!(doc["requestedFocus"], false);
-            assert!(doc["clientId"].is_null() && doc["focus"].is_null());
+            assert_eq!(doc["result"]["workspace"]["result"]["panelId"], id(23));
+            assert_eq!(doc["result"]["workspace"]["result"]["workspaceId"], id(20));
+            assert_eq!(doc["result"]["requestedFocus"], false);
+            assert!(doc["result"]["clientId"].is_null() && doc["result"]["focus"].is_null());
         }
     }
 }
@@ -79,15 +79,15 @@ fn explicit_creation_retains_failed_terminal_and_unknown_submission_receipts() {
         );
         assert_ne!(status, 0, "{outcome}: {doc}");
         assert_eq!(doc["schema"], "orchbee.workspace.creation");
-        assert_eq!(doc["outcome"], "incomplete");
-        assert!(doc["project"].is_null() && doc["focus"].is_null());
+        assert_eq!(doc["result"]["outcome"], "incomplete");
+        assert!(doc["project"].is_null() && doc["result"]["focus"].is_null());
         if matches!(outcome, "failed" | "unavailable" | "terminal-unknown") {
-            assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
-            assert_eq!(doc["workspace"]["result"]["panelId"], id(23));
+            assert_eq!(doc["result"]["workspace"]["result"]["workspaceId"], id(20));
+            assert_eq!(doc["result"]["workspace"]["result"]["panelId"], id(23));
         }
         if outcome == "unknown" {
-            assert_eq!(doc["failure"]["kind"], "outcome-unknown");
-            assert!(doc["failure"]["details"]["requestId"].is_string());
+            assert_eq!(doc["result"]["failure"]["kind"], "outcome-unknown");
+            assert!(doc["result"]["failure"]["details"]["requestId"].is_string());
         }
     }
 }

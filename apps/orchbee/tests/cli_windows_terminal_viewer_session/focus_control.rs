@@ -93,7 +93,7 @@ fn five_clients_transfer_input_resize_and_restore_after_the_recent_client_closes
     words.extend(environment.iter().map(String::as_str));
     let created = fixture.run(&words);
     assert_eq!(created.code, Some(0), "{created}");
-    let panel = created.document["workspace"]["result"]["panelId"]
+    let panel = created.document["result"]["workspace"]["result"]["panelId"]
         .as_str()
         .unwrap();
     let listed = fixture.run(&["terminal", "list"]);

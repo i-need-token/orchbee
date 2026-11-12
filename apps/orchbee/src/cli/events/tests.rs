@@ -36,7 +36,7 @@ fn current_stream_envelopes_validate_without_reopening_historical_event_names() 
         }
     }
     let closed = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed",
-        "source":source,"reason":"completed","cleanup":"closed"});
+        "source":source,"result":{"reason":"completed","cleanup":"closed"}});
     validator.validate(&closed).unwrap();
     assert_eq!(
         kinds,
@@ -77,7 +77,7 @@ fn organization_events_have_one_nullable_project_location_in_both_machine_envelo
             if schema_id == "orchbee.events.stream" {
                 document["kind"] = json!("event");
             } else {
-                document["cleanup"] = json!("closed");
+                document["result"]["cleanup"] = json!("closed");
             }
             validator.validate(&document).unwrap();
             let mut wrong = document.clone();

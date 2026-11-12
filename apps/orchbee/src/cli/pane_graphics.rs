@@ -106,7 +106,7 @@ fn execute(
     let request = request(&snapshot, action)?;
     let observation = exchange(&mut client, &request, deadline, signals)?;
     let status = observation.status();
-    let document = json!({"schema":"orchbee.panel.graphics", "version":1, "operation":command.operation(), "requestId":request.request_id, "sessionId":snapshot.session_id, "target":target, "observation":observation.document()});
+    let document = json!({"schema":"orchbee.panel.graphics", "version":1, "result":{"operation":command.operation(), "requestId":request.request_id, "sessionId":snapshot.session_id, "target":target, "observation":observation.document()}});
     let stdout = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {

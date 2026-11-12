@@ -180,7 +180,7 @@ impl Receipt {
             "result": Value::Object(result),
         });
         if self.schema_id == super::schema::MUTATION_RESULT_ID {
-            document["resolvedLaunch"] = Value::Null;
+            document["result"]["resolvedLaunch"] = Value::Null;
         }
         document
     }

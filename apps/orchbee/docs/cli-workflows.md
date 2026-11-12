@@ -47,17 +47,17 @@ Invoke-OrchbeeJson -Words @('server', 'start')
 $project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
 $created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
     '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
-$created.workspace.result
-& $cli workspace get $created.workspace.result.workspaceId --format json
+$created.result.workspace.result
+& $cli workspace get $created.result.workspace.result.workspaceId --format json
 & $cli tui
 # Close this Workspace when finished:
-& $cli workspace close $created.workspace.result.workspaceId --confirm --format json
+& $cli workspace close $created.result.workspace.result.workspaceId --confirm --format json
 # Or stop the whole Windows Session and all its terminals (development and test cohorts):
 $stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
 & $cli server stop-status $stopped.result.requestId --format json
 ```
 
-Check `workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `server diagnose` reports local Windows runtime facts without activating the Session. The numbered POSIX examples below describe the existing Linux path.
+Check `result.workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `server diagnose` reports local Windows runtime facts without activating the Session. The numbered POSIX examples below describe the existing Linux path.
 
 ## Windows Agent diagnostics
 
@@ -127,7 +127,7 @@ field, so `set -e` or per-step checking halts the sequence.
 
 ```sh
 PROJECT=$(orchbee project create --label demo --format json | jq -er .result.projectId)
-WS=$(orchbee workspace create --project "$PROJECT" --label main --format json | jq -er .result.workspaceId)
+WS=$(orchbee workspace create --project "$PROJECT" --label main --format json | jq -er .result.workspace.result.workspaceId)
 # Replace with an existing absolute project directory on this machine:
 DIR=$(orchbee workspace accept-directory "$WS" --path /absolute/path/to/existing-repo --format json | jq -er .result.directoryId)
 ```

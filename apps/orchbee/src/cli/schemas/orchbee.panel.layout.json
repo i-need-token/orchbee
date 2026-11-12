@@ -10,198 +10,196 @@
 		"version": {
 			"const": 1
 		},
-		"sessionId": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/sessionId"
-				},
-				{
-					"type": "null"
-				}
-			]
-		},
-		"operationId": {
-			"$ref": "#/$defs/requestId"
-		},
-		"observation": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "server"
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["sessionId", "operationId", "observation", "wait", "query", "projection"],
+			"properties": {
+				"sessionId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/sessionId"
 						},
-						"reply": {
+						{
+							"type": "null"
+						}
+					]
+				},
+				"operationId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"observation": {
+					"oneOf": [
+						{
 							"type": "object",
 							"properties": {
-								"protocolVersion": {
-									"const": 1
+								"kind": {
+									"const": "server"
 								},
-								"requestId": {
-									"$ref": "#/$defs/requestId"
-								},
-								"sessionId": {
-									"$ref": "#/$defs/sessionId"
-								},
-								"outcome": {
-									"$ref": "#/$defs/outcome"
+								"reply": {
+									"type": "object",
+									"properties": {
+										"protocolVersion": {
+											"const": 1
+										},
+										"requestId": {
+											"$ref": "#/$defs/requestId"
+										},
+										"sessionId": {
+											"$ref": "#/$defs/sessionId"
+										},
+										"outcome": {
+											"$ref": "#/$defs/outcome"
+										}
+									},
+									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+									"additionalProperties": false
 								}
 							},
-							"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+							"required": ["kind", "reply"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-submitted"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unobserved"
+								}
+							},
+							"required": ["kind"],
 							"additionalProperties": false
 						}
-					},
-					"required": ["kind", "reply"],
-					"additionalProperties": false
+					]
 				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "unknown"
-						}
-					},
-					"required": ["kind"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "not-submitted"
-						}
-					},
-					"required": ["kind"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "unobserved"
-						}
-					},
-					"required": ["kind"],
-					"additionalProperties": false
-				}
-			]
-		},
-		"wait": {
-			"anyOf": [
-				{
-					"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
-				},
-				{
-					"type": "null"
-				}
-			]
-		},
-		"query": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"enum": ["layout", "edges"]
-						}
-					},
-					"required": ["kind"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "neighbor"
+				"wait": {
+					"anyOf": [
+						{
+							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
 						},
-						"direction": {
-							"enum": ["left", "right", "up", "down"]
+						{
+							"type": "null"
 						}
-					},
-					"required": ["kind", "direction"],
-					"additionalProperties": false
-				}
-			]
-		},
-		"projection": {
-			"oneOf": [
-				{
-					"type": "null"
+					]
 				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "layout"
-						}
-					},
-					"required": ["kind"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "neighbor"
-						},
-						"direction": {
-							"enum": ["left", "right", "up", "down"]
-						},
-						"sourceAvailable": {
-							"type": "boolean"
-						},
-						"neighborPanelId": {
-							"oneOf": [
-								{
-									"type": "null"
-								},
-								{
-									"$ref": "#/$defs/panelId"
+				"query": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"enum": ["layout", "edges"]
 								}
-							]
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "neighbor"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								}
+							},
+							"required": ["kind", "direction"],
+							"additionalProperties": false
 						}
-					},
-					"required": ["kind", "direction", "sourceAvailable", "neighborPanelId"],
-					"additionalProperties": false
+					]
 				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "edges"
+				"projection": {
+					"oneOf": [
+						{
+							"type": "null"
 						},
-						"sourceAvailable": {
-							"type": "boolean"
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
 						},
-						"left": {
-							"type": ["boolean", "null"]
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "neighbor"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								},
+								"sourceAvailable": {
+									"type": "boolean"
+								},
+								"neighborPanelId": {
+									"oneOf": [
+										{
+											"type": "null"
+										},
+										{
+											"$ref": "#/$defs/panelId"
+										}
+									]
+								}
+							},
+							"required": ["kind", "direction", "sourceAvailable", "neighborPanelId"],
+							"additionalProperties": false
 						},
-						"right": {
-							"type": ["boolean", "null"]
-						},
-						"up": {
-							"type": ["boolean", "null"]
-						},
-						"down": {
-							"type": ["boolean", "null"]
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "edges"
+								},
+								"sourceAvailable": {
+									"type": "boolean"
+								},
+								"left": {
+									"type": ["boolean", "null"]
+								},
+								"right": {
+									"type": ["boolean", "null"]
+								},
+								"up": {
+									"type": ["boolean", "null"]
+								},
+								"down": {
+									"type": ["boolean", "null"]
+								}
+							},
+							"required": ["kind", "sourceAvailable", "left", "right", "up", "down"],
+							"additionalProperties": false
 						}
-					},
-					"required": ["kind", "sourceAvailable", "left", "right", "up", "down"],
-					"additionalProperties": false
+					]
 				}
-			]
+			}
 		}
 	},
-	"required": [
-		"schema",
-		"version",
-		"sessionId",
-		"operationId",
-		"observation",
-		"wait",
-		"query",
-		"projection"
-	],
+	"required": ["schema", "version", "result"],
 	"additionalProperties": false,
 	"$defs": {
 		"sessionId": {

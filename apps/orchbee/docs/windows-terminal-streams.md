@@ -28,7 +28,8 @@ record is appended after partial output, and no successful-stream claim is made.
 `--cols` and `--rows` select the observer viewport without resizing the terminal. Full ANSI frames
 are synthesized from validated styled cells, clipped/padded to that viewport. Each record reports
 source dimensions separately. The stream is a screen projection, not raw PTY bytes or graphics.
-Every JSON record names `orchbee.terminal.stream` version 1 and its kind. Frame bytes use base64;
+Every JSON record names `orchbee.terminal.stream` version 1, its kind and the attachment `source`;
+every other member sits in `result`. Frame bytes use base64;
 sequence/generation/revision identities are decimal strings. Both format selections emit NDJSON.
 
 Windows stdout is mediated by an invocation-owned system PowerShell process running a fixed

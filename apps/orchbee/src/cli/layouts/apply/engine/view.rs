@@ -96,7 +96,8 @@ impl Engine<'_> {
         if answer.exit_code() != 0 {
             // A pending/uncertain Client operation may still execute. Preserve the new tree.
             let pending=answer.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome,ClientViewOutcome::Operation{operation} if operation.status.pending()));
-            let kind = if pending || answer.document()["observation"]["kind"] == "unknown" {
+            let kind = if pending || answer.document()["result"]["observation"]["kind"] == "unknown"
+            {
                 FailureKind::OutcomeUnknown
             } else {
                 match answer.exit_code() {

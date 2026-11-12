@@ -68,8 +68,8 @@ impl Receipt {
         let mut document = self.canonical.document();
         document["schema"] = json!("orchbee.creation.result");
         document["version"] = json!(1);
-        document["directory"] = self.directory.document();
-        document["postCreate"] = json!({
+        document["result"]["directory"] = self.directory.document();
+        document["result"]["postCreate"] = json!({
             "clientId":self.client_id,
             "requested":{"ratio":self.requested_ratio,"focus":self.requested_focus,"zoom":self.requested_zoom,"overlay":self.requested_overlay},
             "ratio":self.ratio.as_ref().map(Answer::document),

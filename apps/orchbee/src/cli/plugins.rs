@@ -73,7 +73,9 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
             format!("{}\n", CliText::new(locale).plugin_error(reason)),
         ),
     };
-    let document = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":operation,"result":result});
+    let mut result = result;
+    result["operation"] = json!(operation);
+    let document = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"result":result});
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text if status != 0 => Ok(vec![]),

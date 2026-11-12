@@ -688,7 +688,7 @@ fn focus_keeps_canonical_success_across_changed_view_and_uncertain_handoff() {
         }
         if case == 2 {
             assert_eq!(status, 8);
-            assert_eq!(post["focus"]["observation"]["kind"], "unknown");
+            assert_eq!(post["focus"]["result"]["observation"]["kind"], "unknown");
         }
         if case == 6 {
             assert_eq!(status, 7);

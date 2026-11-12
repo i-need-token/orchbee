@@ -108,7 +108,7 @@ fn configured_catalog_and_receipts_publish_closed_native_schema() {
     {
         let mut reply = case["document"].clone();
         reply.as_object_mut().unwrap().remove("kind");
-        let mut document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"operation":"invoke","result":{"reply":reply,"followup":null,"complete":true}});
+        let mut document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"result":{"operation":"invoke","reply":reply,"followup":null,"complete":true}});
         validator
             .validate(&document)
             .unwrap_or_else(|error| panic!("{}: {error}", case["name"]));
@@ -123,7 +123,7 @@ fn plugin_catalog_requires_current_provenance() {
     let schema: Value =
         serde_json::from_str(super::document("orchbee.plugin.registry").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":"list","result":{"kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
+    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"result":{"operation":"list","kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
     assert!(!validator.is_valid(&receipt));
     receipt["result"]["catalog"]["plugins"][0]["source"] = Value::Null;
     assert!(validator.is_valid(&receipt));
@@ -726,9 +726,9 @@ fn popup_receipts_and_client_control_keep_closed_shapes() {
         .unwrap()["document"]
         .clone();
     reply.as_object_mut().unwrap().remove("kind");
-    let mut document = json!({"schema":"orchbee.client.control","version":1,
+    let mut document = json!({"schema":"orchbee.client.control","version":1,"result":{
         "sessionId": reply["sessionId"],"operationId":reply["outcome"]["operation"]["command"]["operationId"],
-        "observation":{"kind":"server","reply":reply},"wait":null});
+        "observation":{"kind":"server","reply":reply},"wait":null}});
     let schema: Value =
         serde_json::from_str(super::document("orchbee.client.control").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
@@ -739,7 +739,7 @@ fn popup_receipts_and_client_control_keep_closed_shapes() {
         serde_json::from_str(super::document("orchbee.popup.result").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     assert!(validator.is_valid(&document));
-    document["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]
+    document["result"]["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]
         .as_object_mut()
         .unwrap()
         .remove("width");

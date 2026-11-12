@@ -29,7 +29,7 @@ fn operation(action: &AgentViewAction) -> &'static str {
 }
 impl Answer {
     fn document(&self) -> serde_json::Value {
-        let result = match &self.observation {
+        let mut result = match &self.observation {
             Observation::Server(reply) => {
                 serde_json::to_value(&reply.outcome).expect("view result encodes")
             }
@@ -38,7 +38,12 @@ impl Answer {
                 serde_json::json!({"kind":"exchange-failed","reason":reason.as_str()})
             }
         };
-        serde_json::json!({"schema":"orchbee.agent.view","version":1,"requestId":self.request.request_id,"sessionId":self.request.session_id,"operation":operation(&self.request.action),"result":result,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        result["requestId"] = serde_json::json!(self.request.request_id);
+        result["sessionId"] = serde_json::json!(self.request.session_id);
+        result["operation"] = serde_json::json!(operation(&self.request.action));
+        result["interrupted"] = serde_json::json!(self.interrupted);
+        result["cleanupFailed"] = serde_json::json!(self.cleanup_failed);
+        serde_json::json!({"schema":"orchbee.agent.view","version":1,"result":result})
     }
     fn status(&self) -> u8 {
         let status = match &self.observation {

@@ -189,23 +189,23 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                                     stage = "read-parse-receipt";
                                     stage_started = Instant::now();
                                     let parsed = line(&mut output)?;
-                                    assert_eq!(parsed["operation"], "parse");
-                                    assert_eq!(parsed["ordinal"], "1");
-                                    assert_eq!(parsed["outcome"]["kind"], "rejected");
+                                    assert_eq!(parsed["result"]["operation"], "parse");
+                                    assert_eq!(parsed["result"]["ordinal"], "1");
+                                    assert_eq!(parsed["result"]["outcome"]["kind"], "rejected");
                                     stage = "validate-parse-receipt";
                                     stage_started = Instant::now();
                                     schema_check(&parsed)?;
                                     stage = "read-input-receipt";
                                     stage_started = Instant::now();
                                     let input = line(&mut output)?;
-                                    assert_eq!(input["ordinal"], "2");
-                                    assert_eq!(input["operation"], "input");
+                                    assert_eq!(input["result"]["ordinal"], "2");
+                                    assert_eq!(input["result"]["operation"], "input");
                                     assert_eq!(
-                                        input["outcome"]["acceptedBytes"],
+                                        input["result"]["outcome"]["acceptedBytes"],
                                         if refuse_second { 4096 } else { 5000 }
                                     );
                                     assert_eq!(
-                                        input["outcome"]["kind"],
+                                        input["result"]["outcome"]["kind"],
                                         if refuse_second {
                                             "failed"
                                         } else {
@@ -220,13 +220,16 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                                             effects,
                                             ["resize:8x2", "input:4096", "input:904"]
                                         );
-                                        assert_eq!(input["outcome"]["deliveryMayBeUnknown"], true);
+                                        assert_eq!(
+                                            input["result"]["outcome"]["deliveryMayBeUnknown"],
+                                            true
+                                        );
                                     } else {
                                         stage = "read-resize-receipt";
                                         stage_started = Instant::now();
                                         let resized = line(&mut output)?;
-                                        assert_eq!(resized["ordinal"], "3");
-                                        assert_eq!(resized["outcome"]["kind"], "resized");
+                                        assert_eq!(resized["result"]["ordinal"], "3");
+                                        assert_eq!(resized["result"]["outcome"]["kind"], "resized");
                                         stage = "validate-resize-receipt";
                                         stage_started = Instant::now();
                                         schema_check(&resized)?;

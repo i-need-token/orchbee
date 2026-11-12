@@ -2294,28 +2294,35 @@
 					"required": ["kind", "sessionId", "revision"],
 					"additionalProperties": false
 				},
-				"reason": {
-					"enum": [
-						"completed",
-						"timeout",
-						"history-lost",
-						"physical-unknown",
-						"refused",
-						"cancelled",
-						"protocol-invalid",
-						"transport-loss",
-						"service-unavailable",
-						"internal-failure",
-						"output-too-large",
-						"denied",
-						"invalid-usage"
-					]
-				},
-				"cleanup": {
-					"enum": ["closed", "session-released", "not-opened"]
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["reason", "cleanup"],
+					"properties": {
+						"reason": {
+							"enum": [
+								"completed",
+								"timeout",
+								"history-lost",
+								"physical-unknown",
+								"refused",
+								"cancelled",
+								"protocol-invalid",
+								"transport-loss",
+								"service-unavailable",
+								"internal-failure",
+								"output-too-large",
+								"denied",
+								"invalid-usage"
+							]
+						},
+						"cleanup": {
+							"enum": ["closed", "session-released", "not-opened"]
+						}
+					}
 				}
 			},
-			"required": ["schema", "version", "kind", "source", "reason", "cleanup"],
+			"required": ["schema", "version", "kind", "source", "result"],
 			"additionalProperties": false
 		}
 	],

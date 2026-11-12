@@ -679,7 +679,7 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
         let document = document(&output);
         receipt(&document);
         assert_eq!(
-            document["operationId"],
+            document["result"]["operationId"],
             operations.last().unwrap().as_str(),
             "{case}: {document}"
         );
@@ -694,12 +694,12 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
         } else {
             assert_eq!(output.status.code(), Some(3), "{case}: {document}");
             assert_eq!(
-                document["observation"]["reply"]["outcome"]["operation"]["status"]["reason"],
+                document["result"]["observation"]["reply"]["outcome"]["operation"]["status"]["reason"],
                 "stale-view"
             );
         }
         if case == "named" {
-            assert_eq!(document["operationId"], named.as_str());
+            assert_eq!(document["result"]["operationId"], named.as_str());
         }
     }
 }

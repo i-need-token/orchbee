@@ -209,8 +209,8 @@ fn document(
 ) -> serde_json::Value {
     json!({
         "schema":"orchbee.update", "version":1, "source":{"kind":"local-installation"},
-        "operation": if channel.is_some() {"channel-set"} else {"update"},
         "result":{
+            "operation": if channel.is_some() {"channel-set"} else {"update"},
             "channel":report.channel.or(channel).map(UpdateChannel::as_str),
             "phase":report.phase, "channelSaved":report.channel_saved, "configPath":report.config_path,
             "releasePath":report.published, "reused":report.reused, "activated":report.activated,

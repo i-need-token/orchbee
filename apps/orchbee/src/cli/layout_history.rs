@@ -36,9 +36,9 @@ impl Answer {
                 "reply":WorkbenchResponse::LayoutHistory(reply.clone())}),
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
-        serde_json::json!({"schema":self.schema, "version":1, "requestId":self.request_id,
+        serde_json::json!({"schema":self.schema, "version":1, "result":{"requestId":self.request_id,
             "sessionId":self.session_id, "observation":observation,
-            "interrupted":self.interrupted, "cleanupFailed":self.cleanup_failed})
+            "interrupted":self.interrupted, "cleanupFailed":self.cleanup_failed}})
     }
 
     fn exit_code(&self) -> u8 {

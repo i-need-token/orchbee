@@ -278,10 +278,10 @@ fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_b
             "popup 关闭操作已完成",
         ),
     ] {
-        let mut document = serde_json::json!({"schema":"orchbee.popup.result","operationId":id,
+        let mut document = serde_json::json!({"schema":"orchbee.popup.result","result":{"operationId":id,
             "observation":{"kind":"known","reply":{"outcome":{"kind":"operation","operation":{
                 "command":{"clientId":"b".repeat(32)},"status":{"kind":"incomplete","reason":"projection-unavailable"}
-            }}}},"wait":"timed-out"});
+            }}}},"wait":"timed-out"}});
         let text = CliText::new(locale).cli_client_control(&document);
         assert!(text.contains(incomplete) && text.contains(reason), "{text}");
         assert!(
@@ -290,7 +290,7 @@ fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_b
         );
         document["schema"] = serde_json::json!("orchbee.client.control");
         for (state, label) in [("popup-opened", opened), ("popup-closed", closed)] {
-            document["observation"]["reply"]["outcome"]["operation"]["status"]["kind"] =
+            document["result"]["observation"]["reply"]["outcome"]["operation"]["status"]["kind"] =
                 serde_json::json!(state);
             assert!(
                 CliText::new(locale)
@@ -488,7 +488,7 @@ fn close_waits_name_the_closed_member_and_the_status_command() {
 fn a_workspace_create_that_applied_nothing_never_says_incomplete() {
     let document = |workspace: serde_json::Value, stage: &str, kind: &str| {
         serde_json::json!({
-            "schema": "orchbee.workspace.creation", "version": 1, "resolvedLaunch": null,
+            "schema": "orchbee.workspace.creation", "version": 1, "result": {"resolvedLaunch": null,
             "workspace": workspace,
             "directory": {"policy": "explicit", "source": "explicit",
                 "path": "C:/System Volume Information", "sourcePanelId": null},
@@ -497,7 +497,7 @@ fn a_workspace_create_that_applied_nothing_never_says_incomplete() {
                 "details": {"stage": "command", "reason": "directory-unavailable"},
                 "source": null, "schema": "orchbee.cli.failure", "version": 1},
             "outcome": "incomplete"
-        })
+        }})
     };
     let committed = serde_json::json!({"schema": "orchbee.mutation.result", "version": 1,
         "source": null, "result": {"action": "workspace.create", "outcome": "committed",

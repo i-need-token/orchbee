@@ -11,64 +11,63 @@
 		"version": {
 			"const": 1
 		},
-		"requestId": {
-			"$ref": "#/$defs/identity"
-		},
-		"sessionId": {
-			"$ref": "#/$defs/identity"
-		},
-		"interrupted": {
-			"type": "boolean"
-		},
-		"cleanupFailed": {
-			"type": "boolean"
-		},
-		"observation": {
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "server"
-						},
-						"reply": {
-							"$ref": "#/$defs/result"
-						}
-					},
-					"required": ["kind", "reply"],
-					"additionalProperties": false
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["requestId", "sessionId", "interrupted", "cleanupFailed", "observation"],
+			"properties": {
+				"requestId": {
+					"$ref": "#/$defs/identity"
 				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
-							"const": "unknown"
+				"sessionId": {
+					"$ref": "#/$defs/identity"
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/result"
+								}
+							},
+							"required": ["kind", "reply"],
+							"additionalProperties": false
 						},
-						"reason": {
-							"enum": [
-								"request-write",
-								"response-read",
-								"response-deadline",
-								"response-correlation",
-								"response-protocol"
-							]
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"enum": [
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation",
+										"response-protocol"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
 						}
-					},
-					"required": ["kind", "reason"],
-					"additionalProperties": false
+					]
 				}
-			]
+			}
 		}
 	},
-	"required": [
-		"schema",
-		"version",
-		"requestId",
-		"sessionId",
-		"interrupted",
-		"cleanupFailed",
-		"observation"
-	],
+	"required": ["schema", "version", "result"],
 	"additionalProperties": false,
 	"$defs": {
 		"identity": {

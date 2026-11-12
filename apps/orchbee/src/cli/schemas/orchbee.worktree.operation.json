@@ -838,94 +838,107 @@
 				"version": {
 					"const": 1
 				},
-				"sessionId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control/$defs/sessionId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"operationId": {
-					"$ref": "#/$defs/control/$defs/requestId"
-				},
-				"observation": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "server"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["sessionId", "operationId", "observation", "wait"],
+					"properties": {
+						"sessionId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/sessionId"
 								},
-								"reply": {
+								{
+									"type": "null"
+								}
+							]
+						},
+						"operationId": {
+							"$ref": "#/$defs/control/$defs/requestId"
+						},
+						"observation": {
+							"oneOf": [
+								{
 									"type": "object",
 									"properties": {
-										"protocolVersion": {
-											"const": 1
+										"kind": {
+											"const": "server"
 										},
-										"requestId": {
-											"$ref": "#/$defs/control/$defs/requestId"
-										},
-										"sessionId": {
-											"$ref": "#/$defs/control/$defs/sessionId"
-										},
-										"outcome": {
-											"$ref": "#/$defs/control/$defs/outcome"
+										"reply": {
+											"type": "object",
+											"properties": {
+												"protocolVersion": {
+													"const": 1
+												},
+												"requestId": {
+													"$ref": "#/$defs/control/$defs/requestId"
+												},
+												"sessionId": {
+													"$ref": "#/$defs/control/$defs/sessionId"
+												},
+												"outcome": {
+													"$ref": "#/$defs/control/$defs/outcome"
+												}
+											},
+											"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+											"additionalProperties": false
 										}
 									},
-									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+									"required": ["kind", "reply"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unknown"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "not-submitted"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unobserved"
+										}
+									},
+									"required": ["kind"],
 									"additionalProperties": false
 								}
-							},
-							"required": ["kind", "reply"],
-							"additionalProperties": false
+							]
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unknown"
+						"wait": {
+							"anyOf": [
+								{
+									"enum": [
+										"detached",
+										"timed-out",
+										"cancelled",
+										"transport-lost",
+										"observation-failed"
+									]
+								},
+								{
+									"type": "null"
 								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "not-submitted"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unobserved"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
+							]
 						}
-					]
-				},
-				"wait": {
-					"anyOf": [
-						{
-							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
-						},
-						{
-							"type": "null"
-						}
-					]
+					}
 				}
 			},
-			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "result"],
 			"additionalProperties": false,
 			"$defs": {
 				"sessionId": {

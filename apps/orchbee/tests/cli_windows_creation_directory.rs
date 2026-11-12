@@ -295,14 +295,14 @@ fn source_observation_is_exact_bounded_read_only_and_never_replays_creation() {
         let doc = check(output, success);
         if success {
             assert_eq!(
-                doc["directory"]["source"],
+                doc["result"]["directory"]["source"],
                 if cut == Cut::Good {
                     "terminal-process"
                 } else {
                     "launch-default"
                 }
             );
-            assert_eq!(doc["directory"]["sourcePanelId"], id(6));
+            assert_eq!(doc["result"]["directory"]["sourcePanelId"], id(6));
         } else {
             assert_eq!(
                 doc["failure"]["kind"],
@@ -350,8 +350,11 @@ fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_
         ]);
         handler.join().unwrap();
         let doc = check(output, true);
-        assert_eq!(doc["directory"]["path"].as_str(), expected.as_deref());
-        assert!(doc["directory"]["sourcePanelId"].is_null());
+        assert_eq!(
+            doc["result"]["directory"]["path"].as_str(),
+            expected.as_deref()
+        );
+        assert!(doc["result"]["directory"]["sourcePanelId"].is_null());
     }
     // Headless explicit context, validated caller, matching Client, different Client context.
     for (explicit, client_context) in [
@@ -395,7 +398,7 @@ fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_
         handler.join().unwrap();
         let doc = check(output, true);
         assert_eq!(
-            doc["directory"]["source"],
+            doc["result"]["directory"]["source"],
             if follow {
                 "terminal-process"
             } else {
@@ -412,7 +415,7 @@ fn directory_receipt_schema_rejects_invented_and_inconsistent_facts() {
     ))
     .unwrap();
     // The single version-one document owns the receipt.
-    let directory = &doc["properties"]["directory"];
+    let directory = &doc["properties"]["result"]["properties"]["directory"];
     assert!(directory.is_object());
     let validator = jsonschema::validator_for(directory).unwrap();
     let valid = json!({"policy":"follow","source":"terminal-process","path":r"C:\source","sourcePanelId":id(6)});

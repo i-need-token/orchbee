@@ -79,8 +79,8 @@ impl Answer {
         } else {
             json!({"kind": if self.status_only { "unobserved" } else { "not-submitted" }})
         };
-        json!({"schema":"orchbee.client.control","version":1,"sessionId":self.session_id,
-            "operationId":self.operation_id,"observation":observation,"wait":wait})
+        json!({"schema":"orchbee.client.control","version":1,"result":{"sessionId":self.session_id,
+            "operationId":self.operation_id,"observation":observation,"wait":wait}})
     }
     pub(super) fn exit_code(&self) -> u8 {
         match self.wait {

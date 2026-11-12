@@ -148,9 +148,9 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
                 stage_started = Instant::now();
                 let emitted = line(&mut output)?;
                 assert_eq!(emitted["kind"], "history");
-                assert_eq!(emitted["sequence"], sequence.to_string());
-                assert_eq!(emitted["startRow"], "0");
-                assert_eq!(emitted["totalRows"], "6");
+                assert_eq!(emitted["result"]["sequence"], sequence.to_string());
+                assert_eq!(emitted["result"]["startRow"], "0");
+                assert_eq!(emitted["result"]["totalRows"], "6");
                 stage = "validate-output";
                 stage_started = Instant::now();
                 let schema: Value = serde_json::from_str(include_str!(

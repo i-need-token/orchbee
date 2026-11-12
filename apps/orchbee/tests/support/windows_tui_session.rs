@@ -283,7 +283,7 @@ impl Fixture {
         words.extend(environment.iter().map(String::as_str));
         let created = self.run(&words);
         assert_eq!(created.code, Some(0), "{created}");
-        created.document["workspace"]["result"].clone()
+        created.document["result"]["workspace"]["result"].clone()
     }
 
     /// Starts a terminal in another Workspace that prints every second until the Session stops,
@@ -310,7 +310,7 @@ impl Fixture {
         words.extend(environment.iter().map(String::as_str));
         let created = self.run(&words);
         assert_eq!(created.code, Some(0), "{created}");
-        created.document["workspace"]["result"].clone()
+        created.document["result"]["workspace"]["result"].clone()
     }
 
     /// Runs `orchbee tui` in a terminal of the `host` Session at `columns` by `rows`. That
@@ -367,7 +367,7 @@ impl Fixture {
         let environment = self.terminal_environment();
         words.extend(environment.iter().map(String::as_str));
         let created = self.run(&words);
-        let panel = created.document["workspace"]["result"]["panelId"]
+        let panel = created.document["result"]["workspace"]["result"]["panelId"]
             .as_str()
             .unwrap_or_else(|| panic!("{created}"))
             .to_owned();

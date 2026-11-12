@@ -34,9 +34,9 @@ impl Answer {
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
-        let value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":1,
+        let value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":1, "result":{
             "requestId":self.request_id,"sessionId":self.session_id,"panelId":self.panel_id,"presentationId":self.presentation_id,
-            "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
+            "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed}});
         value
     }
     fn exit_code(&self) -> u8 {

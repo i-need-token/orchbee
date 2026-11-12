@@ -1939,7 +1939,7 @@
 		},
 		"canonical": {
 			"type": "object",
-			"required": ["schema", "version", "source", "result", "resolvedLaunch"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
 				"schema": {
@@ -1960,7 +1960,7 @@
 				},
 				"result": {
 					"type": "object",
-					"required": ["action", "outcome"],
+					"required": ["action", "outcome", "resolvedLaunch"],
 					"additionalProperties": false,
 					"properties": {
 						"action": {
@@ -2107,6 +2107,31 @@
 							},
 							"required": ["targetTerminalContextId", "closedSourceTab"],
 							"additionalProperties": false
+						},
+						"resolvedLaunch": {
+							"anyOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["exec", "args"],
+									"properties": {
+										"exec": {
+											"type": "string",
+											"minLength": 1
+										},
+										"args": {
+											"type": "array",
+											"maxItems": 128,
+											"items": {
+												"type": "string"
+											}
+										}
+									}
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"if": {
@@ -2283,7 +2308,14 @@
 											}
 										},
 										"propertyNames": {
-											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											"enum": [
+												"action",
+												"outcome",
+												"revision",
+												"workspaceId",
+												"projectId",
+												"resolvedLaunch"
+											]
 										}
 									}
 								},
@@ -2306,7 +2338,14 @@
 											}
 										},
 										"propertyNames": {
-											"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											"enum": [
+												"action",
+												"outcome",
+												"revision",
+												"workspaceId",
+												"projectId",
+												"resolvedLaunch"
+											]
 										}
 									}
 								},
@@ -2326,36 +2365,11 @@
 											}
 										},
 										"propertyNames": {
-											"enum": ["action", "outcome", "revision", "projectId"]
+											"enum": ["action", "outcome", "revision", "projectId", "resolvedLaunch"]
 										}
 									}
 								}
 							]
-						}
-					]
-				},
-				"resolvedLaunch": {
-					"anyOf": [
-						{
-							"type": "object",
-							"additionalProperties": false,
-							"required": ["exec", "args"],
-							"properties": {
-								"exec": {
-									"type": "string",
-									"minLength": 1
-								},
-								"args": {
-									"type": "array",
-									"maxItems": 128,
-									"items": {
-										"type": "string"
-									}
-								}
-							}
-						},
-						{
-							"type": "null"
 						}
 					]
 				}
@@ -2456,94 +2470,107 @@
 				"version": {
 					"const": 1
 				},
-				"sessionId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control/$defs/sessionId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"operationId": {
-					"$ref": "#/$defs/control/$defs/requestId"
-				},
-				"observation": {
-					"oneOf": [
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "server"
+				"result": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["sessionId", "operationId", "observation", "wait"],
+					"properties": {
+						"sessionId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/sessionId"
 								},
-								"reply": {
+								{
+									"type": "null"
+								}
+							]
+						},
+						"operationId": {
+							"$ref": "#/$defs/control/$defs/requestId"
+						},
+						"observation": {
+							"oneOf": [
+								{
 									"type": "object",
 									"properties": {
-										"protocolVersion": {
-											"const": 1
+										"kind": {
+											"const": "server"
 										},
-										"requestId": {
-											"$ref": "#/$defs/control/$defs/requestId"
-										},
-										"sessionId": {
-											"$ref": "#/$defs/control/$defs/sessionId"
-										},
-										"outcome": {
-											"$ref": "#/$defs/control/$defs/outcome"
+										"reply": {
+											"type": "object",
+											"properties": {
+												"protocolVersion": {
+													"const": 1
+												},
+												"requestId": {
+													"$ref": "#/$defs/control/$defs/requestId"
+												},
+												"sessionId": {
+													"$ref": "#/$defs/control/$defs/sessionId"
+												},
+												"outcome": {
+													"$ref": "#/$defs/control/$defs/outcome"
+												}
+											},
+											"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+											"additionalProperties": false
 										}
 									},
-									"required": ["protocolVersion", "requestId", "sessionId", "outcome"],
+									"required": ["kind", "reply"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unknown"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "not-submitted"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unobserved"
+										}
+									},
+									"required": ["kind"],
 									"additionalProperties": false
 								}
-							},
-							"required": ["kind", "reply"],
-							"additionalProperties": false
+							]
 						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unknown"
+						"wait": {
+							"anyOf": [
+								{
+									"enum": [
+										"detached",
+										"timed-out",
+										"cancelled",
+										"transport-lost",
+										"observation-failed"
+									]
+								},
+								{
+									"type": "null"
 								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "not-submitted"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "unobserved"
-								}
-							},
-							"required": ["kind"],
-							"additionalProperties": false
+							]
 						}
-					]
-				},
-				"wait": {
-					"anyOf": [
-						{
-							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
-						},
-						{
-							"type": "null"
-						}
-					]
+					}
 				}
 			},
-			"required": ["schema", "version", "sessionId", "operationId", "observation", "wait"],
+			"required": ["schema", "version", "result"],
 			"additionalProperties": false,
 			"$defs": {
 				"sessionId": {
@@ -4948,19 +4975,7 @@
 	},
 	"type": "object",
 	"additionalProperties": false,
-	"required": [
-		"schema",
-		"version",
-		"workspace",
-		"directory",
-		"clientId",
-		"requestedFocus",
-		"focus",
-		"stage",
-		"failure",
-		"outcome",
-		"resolvedLaunch"
-	],
+	"required": ["schema", "version", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.workspace.creation"
@@ -4968,33 +4983,60 @@
 		"version": {
 			"const": 1
 		},
-		"workspace": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/workspaceReceipt"
-				},
-				{
-					"type": "null"
-				}
-			]
-		},
-		"directory": {
+		"result": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["policy", "source", "path", "sourcePanelId"],
+			"required": [
+				"workspace",
+				"directory",
+				"clientId",
+				"requestedFocus",
+				"focus",
+				"stage",
+				"failure",
+				"outcome",
+				"resolvedLaunch"
+			],
 			"properties": {
-				"policy": {
-					"enum": ["explicit", "follow", "home", "current", "workspace"]
+				"workspace": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/workspaceReceipt"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
-				"source": {
-					"enum": ["argument", "terminal-process", "workspace", "home", "current"]
+				"directory": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["policy", "source", "path", "sourcePanelId"],
+					"properties": {
+						"policy": {
+							"enum": ["explicit", "follow", "home", "current", "workspace"]
+						},
+						"source": {
+							"enum": ["argument", "terminal-process", "workspace", "home", "current"]
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"sourcePanelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
 				},
-				"path": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"sourcePanelId": {
+				"clientId": {
 					"anyOf": [
 						{
 							"$ref": "#/$defs/control/$defs/clientId"
@@ -5003,145 +5045,141 @@
 							"type": "null"
 						}
 					]
-				}
-			}
-		},
-		"clientId": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/control/$defs/clientId"
 				},
-				{
-					"type": "null"
-				}
-			]
-		},
-		"requestedFocus": {
-			"type": "boolean"
-		},
-		"focus": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/control"
+				"requestedFocus": {
+					"type": "boolean"
 				},
-				{
-					"type": "null"
-				}
-			]
-		},
-		"stage": {
-			"enum": ["workspace", "terminal", "focus", "complete"]
-		},
-		"failure": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/failureObservation"
-				},
-				{
-					"type": "null"
-				}
-			]
-		},
-		"outcome": {
-			"enum": ["completed", "incomplete"]
-		},
-		"resolvedLaunch": {
-			"anyOf": [
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["exec", "args"],
-					"properties": {
-						"exec": {
-							"type": "string",
-							"minLength": 1
+				"focus": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/control"
 						},
-						"args": {
-							"type": "array",
-							"maxItems": 128,
-							"items": {
-								"type": "string"
-							}
+						{
+							"type": "null"
 						}
+					]
+				},
+				"stage": {
+					"enum": ["workspace", "terminal", "focus", "complete"]
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/failureObservation"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"outcome": {
+					"enum": ["completed", "incomplete"]
+				},
+				"resolvedLaunch": {
+					"anyOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["exec", "args"],
+							"properties": {
+								"exec": {
+									"type": "string",
+									"minLength": 1
+								},
+								"args": {
+									"type": "array",
+									"maxItems": 128,
+									"items": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "completed"
 					}
 				},
-				{
-					"type": "null"
-				}
-			]
-		}
-	},
-	"if": {
-		"properties": {
-			"outcome": {
-				"const": "completed"
-			}
-		},
-		"type": "object"
-	},
-	"then": {
-		"properties": {
-			"workspace": {
-				"$ref": "#/$defs/workspaceReceipt",
+				"type": "object"
+			},
+			"then": {
 				"properties": {
-					"result": {
+					"workspace": {
+						"$ref": "#/$defs/workspaceReceipt",
 						"properties": {
-							"terminal": {
+							"result": {
 								"properties": {
-									"outcome": {
-										"enum": ["pending", "started"]
+									"terminal": {
+										"properties": {
+											"outcome": {
+												"enum": ["pending", "started"]
+											}
+										},
+										"type": "object"
 									}
 								},
 								"type": "object"
 							}
 						},
 						"type": "object"
+					},
+					"failure": {
+						"type": "null"
+					},
+					"stage": {
+						"const": "complete"
 					}
 				},
-				"type": "object"
-			},
-			"failure": {
-				"type": "null"
-			},
-			"stage": {
-				"const": "complete"
-			}
-		},
-		"type": "object",
-		"if": {
-			"properties": {
-				"requestedFocus": {
-					"const": true
-				}
-			},
-			"type": "object"
-		},
-		"then": {
-			"properties": {
-				"focus": {
-					"$ref": "#/$defs/control",
+				"type": "object",
+				"if": {
 					"properties": {
-						"wait": {
-							"type": "null"
-						},
-						"observation": {
+						"requestedFocus": {
+							"const": true
+						}
+					},
+					"type": "object"
+				},
+				"then": {
+					"properties": {
+						"focus": {
+							"$ref": "#/$defs/control",
 							"properties": {
-								"kind": {
-									"const": "server"
-								},
-								"reply": {
+								"result": {
 									"properties": {
-										"outcome": {
+										"wait": {
+											"type": "null"
+										},
+										"observation": {
 											"properties": {
 												"kind": {
-													"const": "operation"
+													"const": "server"
 												},
-												"operation": {
+												"reply": {
 													"properties": {
-														"status": {
+														"outcome": {
 															"properties": {
 																"kind": {
-																	"const": "applied"
+																	"const": "operation"
+																},
+																"operation": {
+																	"properties": {
+																		"status": {
+																			"properties": {
+																				"kind": {
+																					"const": "applied"
+																				}
+																			},
+																			"type": "object"
+																		}
+																	},
+																	"type": "object"
 																}
 															},
 															"type": "object"
@@ -5152,40 +5190,38 @@
 											},
 											"type": "object"
 										}
-									},
-									"type": "object"
+									}
 								}
 							},
 							"type": "object"
+						},
+						"clientId": {
+							"$ref": "#/$defs/control/$defs/clientId"
 						}
 					},
 					"type": "object"
-				},
-				"clientId": {
-					"$ref": "#/$defs/control/$defs/clientId"
 				}
 			},
-			"type": "object"
-		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"requestedFocus": {
-						"const": false
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"requestedFocus": {
+								"const": false
+							}
+						},
+						"type": "object"
+					},
+					"then": {
+						"properties": {
+							"focus": {
+								"type": "null"
+							}
+						},
+						"type": "object"
 					}
-				},
-				"type": "object"
-			},
-			"then": {
-				"properties": {
-					"focus": {
-						"type": "null"
-					}
-				},
-				"type": "object"
-			}
+				}
+			]
 		}
-	]
+	}
 }

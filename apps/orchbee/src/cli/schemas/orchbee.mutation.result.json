@@ -1,6 +1,6 @@
 {
 	"type": "object",
-	"required": ["schema", "version", "source", "result", "resolvedLaunch"],
+	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
@@ -21,7 +21,7 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["action", "outcome"],
+			"required": ["action", "outcome", "resolvedLaunch"],
 			"additionalProperties": false,
 			"properties": {
 				"action": {
@@ -168,6 +168,31 @@
 					},
 					"required": ["targetTerminalContextId", "closedSourceTab"],
 					"additionalProperties": false
+				},
+				"resolvedLaunch": {
+					"anyOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["exec", "args"],
+							"properties": {
+								"exec": {
+									"type": "string",
+									"minLength": 1
+								},
+								"args": {
+									"type": "array",
+									"maxItems": 128,
+									"items": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"if": {
@@ -344,7 +369,14 @@
 									}
 								},
 								"propertyNames": {
-									"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+									"enum": [
+										"action",
+										"outcome",
+										"revision",
+										"workspaceId",
+										"projectId",
+										"resolvedLaunch"
+									]
 								}
 							}
 						},
@@ -367,7 +399,14 @@
 									}
 								},
 								"propertyNames": {
-									"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+									"enum": [
+										"action",
+										"outcome",
+										"revision",
+										"workspaceId",
+										"projectId",
+										"resolvedLaunch"
+									]
 								}
 							}
 						},
@@ -387,36 +426,11 @@
 									}
 								},
 								"propertyNames": {
-									"enum": ["action", "outcome", "revision", "projectId"]
+									"enum": ["action", "outcome", "revision", "projectId", "resolvedLaunch"]
 								}
 							}
 						}
 					]
-				}
-			]
-		},
-		"resolvedLaunch": {
-			"anyOf": [
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["exec", "args"],
-					"properties": {
-						"exec": {
-							"type": "string",
-							"minLength": 1
-						},
-						"args": {
-							"type": "array",
-							"maxItems": 128,
-							"items": {
-								"type": "string"
-							}
-						}
-					}
-				},
-				{
-					"type": "null"
 				}
 			]
 		}

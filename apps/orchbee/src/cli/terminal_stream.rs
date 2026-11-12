@@ -269,14 +269,12 @@ fn classify(outcome: Outcome) -> Failure {
 }
 fn emit(
     relay: &mut relay::Relay,
-    mut record: Value,
+    record: Value,
     deadline: Instant,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(), Failure> {
-    record["schema"] = json!(SCHEMA);
-    record["version"] = json!(1);
-    let bytes =
-        output::encode_record(&record).map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
+    let bytes = output::encode_record(&envelope(record))
+        .map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
     relay.record(&bytes, deadline, cancelled).map_err(|error| {
         Failure::new(match error.kind() {
             std::io::ErrorKind::Interrupted => FailureKind::Cancelled,
@@ -284,6 +282,25 @@ fn emit(
             _ => FailureKind::InternalFailure,
         })
     })
+}
+
+/// One stream record in the shared envelope: its `kind` and the attachment `source` sit beside
+/// `schema` and `version`; every other member belongs to `result`.
+fn envelope(record: Value) -> Value {
+    let Value::Object(mut members) = record else {
+        unreachable!("stream records are JSON objects")
+    };
+    let mut document = serde_json::Map::new();
+    document.insert("schema".to_owned(), json!(SCHEMA));
+    document.insert("version".to_owned(), json!(1));
+    if let Some(kind) = members.remove("kind") {
+        document.insert("kind".to_owned(), kind);
+    }
+    if let Some(source) = members.remove("source") {
+        document.insert("source".to_owned(), source);
+    }
+    document.insert("result".to_owned(), Value::Object(members));
+    Value::Object(document)
 }
 
 #[cfg(test)]

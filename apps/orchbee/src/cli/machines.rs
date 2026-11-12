@@ -268,7 +268,7 @@ fn emit(
 ) -> Output {
     let status = error.map_or(if interrupted { 130 } else { 0 }, Error::status);
     let document = json!({"schema":"orchbee.machine","version":1,"source":{"kind":"saved-machines"},
-        "operation":command.operation(),"result":{
+        "result":{"operation":command.operation(),
             "profileId":report.id.as_ref().map(ProfileId::as_str),
             "revision":report.catalog.as_ref().map(|c| c.revision),
             "profiles":report.catalog.as_ref().map(|c| c.profiles.iter().map(crate::machines::Profile::json).collect::<Vec<_>>()),

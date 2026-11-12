@@ -4,7 +4,7 @@
 	"title": "Windows native release update result",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["schema", "version", "source", "operation", "result"],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.update"
@@ -22,9 +22,6 @@
 				}
 			}
 		},
-		"operation": {
-			"enum": ["update", "channel-set"]
-		},
 		"result": {
 			"type": "object",
 			"additionalProperties": false,
@@ -41,7 +38,8 @@
 				"cleanupPending",
 				"error",
 				"interrupted",
-				"configurationFailure"
+				"configurationFailure",
+				"operation"
 			],
 			"properties": {
 				"channel": {
@@ -125,6 +123,9 @@
 							"$ref": "#/$defs/configurationFailure"
 						}
 					]
+				},
+				"operation": {
+					"enum": ["update", "channel-set"]
 				}
 			},
 			"if": {

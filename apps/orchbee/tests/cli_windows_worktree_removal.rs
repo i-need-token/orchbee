@@ -293,7 +293,7 @@ impl Fixture {
             "--label",
             "noise",
         ]);
-        let workspace = created.document["workspace"]["result"]["workspaceId"]
+        let workspace = created.document["result"]["workspace"]["result"]["workspaceId"]
             .as_str()
             .unwrap_or_else(|| panic!("{created}"))
             .to_owned();

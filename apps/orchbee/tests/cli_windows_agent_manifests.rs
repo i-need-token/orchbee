@@ -174,9 +174,9 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 include_str!("../src/cli/schemas/orchbee.server.agent-manifests.json"),
             );
             if matches!(case, "lost" | "wrong-operation") {
-                assert_eq!(document["observation"]["kind"], "unknown");
+                assert_eq!(document["result"]["observation"]["kind"], "unknown");
                 assert_eq!(
-                    document["action"]["operationId"],
+                    document["result"]["action"]["operationId"],
                     "11111111111111111111111111111111"
                 );
             }
@@ -290,7 +290,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
         assert_eq!(document["version"], 1);
         if case == "wrong-kind" {
             assert_eq!(
-                document["observation"]["reply"]["outcome"]["status"]["kind"],
+                document["result"]["observation"]["reply"]["outcome"]["status"]["kind"],
                 "pending"
             );
         }

@@ -305,7 +305,7 @@ fn create_unnamed(fixture: &Fixture, directory: &str) -> Value {
     words.extend(environment.iter().map(String::as_str));
     let created = fixture.run(&words);
     assert_eq!(created.code, Some(0), "{created}");
-    created.document["workspace"]["result"].clone()
+    created.document["result"]["workspace"]["result"].clone()
 }
 
 /// The terminal bound to the creation result's Panel.

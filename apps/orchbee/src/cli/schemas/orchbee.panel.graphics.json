@@ -10,60 +10,67 @@
 		"version": {
 			"const": 1
 		},
-		"operation": {
-			"enum": ["set", "clear", "info"]
-		},
-		"requestId": {
-			"$ref": "#/$defs/wb_requestId"
-		},
-		"sessionId": {
-			"$ref": "#/$defs/wb_sessionId"
-		},
-		"target": {
-			"$ref": "#/$defs/gfx_target"
-		},
-		"observation": {
-			"oneOf": [
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "server"
-						},
-						"reply": {
-							"$ref": "#/$defs/gfx_result"
-						}
-					},
-					"required": ["kind", "reply"]
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["operation", "requestId", "sessionId", "target", "observation"],
+			"properties": {
+				"operation": {
+					"enum": ["set", "clear", "info"]
 				},
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "unknown"
+				"requestId": {
+					"$ref": "#/$defs/wb_requestId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/wb_sessionId"
+				},
+				"target": {
+					"$ref": "#/$defs/gfx_target"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/gfx_result"
+								}
+							},
+							"required": ["kind", "reply"]
 						},
-						"reason": {
-							"enum": [
-								"session-unavailable",
-								"request-encoding",
-								"request-deadline",
-								"request-not-submitted",
-								"request-write",
-								"response-read",
-								"response-deadline",
-								"response-correlation",
-								"response-protocol"
-							]
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"enum": [
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation",
+										"response-protocol"
+									]
+								}
+							},
+							"required": ["kind", "reason"]
 						}
-					},
-					"required": ["kind", "reason"]
+					]
 				}
-			]
+			}
 		}
 	},
-	"required": ["schema", "version", "operation", "requestId", "sessionId", "target", "observation"],
+	"required": ["schema", "version", "result"],
 	"$defs": {
 		"gfx_result": {
 			"type": "object",

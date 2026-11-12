@@ -4,7 +4,7 @@
 	"title": "Windows native plugin source installation, update and removal receipts",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["schema", "version", "source", "operation", "result"],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.plugin.provision"
@@ -22,13 +22,10 @@
 				}
 			}
 		},
-		"operation": {
-			"enum": ["install", "update", "uninstall"]
-		},
 		"result": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["operationId", "report", "interrupted", "cleanupFailed"],
+			"required": ["operationId", "report", "interrupted", "cleanupFailed", "operation"],
 			"properties": {
 				"operationId": {
 					"type": "string",
@@ -42,6 +39,9 @@
 				},
 				"cleanupFailed": {
 					"type": "boolean"
+				},
+				"operation": {
+					"enum": ["install", "update", "uninstall"]
 				}
 			}
 		}

@@ -4,7 +4,7 @@
 	"title": "Windows native plugin catalog receipts",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["schema", "version", "source", "operation", "result"],
+	"required": ["schema", "version", "source", "result"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.plugin.registry"
@@ -21,9 +21,6 @@
 					"const": "local-configuration"
 				}
 			}
-		},
-		"operation": {
-			"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
 		},
 		"result": {
 			"$ref": "#/$defs/result"
@@ -420,20 +417,23 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "catalog"],
+					"required": ["kind", "catalog", "operation"],
 					"properties": {
 						"kind": {
 							"const": "catalog"
 						},
 						"catalog": {
 							"$ref": "#/$defs/catalog"
+						},
+						"operation": {
+							"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "pluginId", "path"],
+					"required": ["kind", "pluginId", "path", "operation"],
 					"properties": {
 						"kind": {
 							"const": "directory"
@@ -445,13 +445,16 @@
 							"type": "string",
 							"minLength": 1,
 							"maxLength": 4096
+						},
+						"operation": {
+							"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "revision", "actions"],
+					"required": ["kind", "revision", "actions", "operation"],
 					"properties": {
 						"kind": {
 							"const": "actions"
@@ -477,19 +480,25 @@
 									}
 								}
 							}
+						},
+						"operation": {
+							"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": ["kind", "reason", "operation"],
 					"properties": {
 						"kind": {
 							"const": "failed"
 						},
 						"reason": {
 							"$ref": "#/$defs/error"
+						},
+						"operation": {
+							"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
 						}
 					}
 				}

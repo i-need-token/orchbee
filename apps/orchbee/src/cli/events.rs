@@ -206,7 +206,7 @@ fn execute(
             Err(failure) => (failure.kind.exit_code(), failure.kind.as_str()),
         };
         if relay.healthy() {
-            let record = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed","source":source(&snapshot),"reason":reason,"cleanup":cleanup});
+            let record = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed","source":source(&snapshot),"result":{"reason":reason,"cleanup":cleanup}});
             let bytes = if format == OutputFormat::Json {
                 output::encode_record(&record)
             } else {
@@ -246,6 +246,11 @@ fn public_reply(reply: &SemanticEventsResult) -> Result<serde_json::Value, Failu
     }
     Ok(value)
 }
+/// The wait answer: the Server's reply with the subscription's local cleanup beside its members.
+fn with_cleanup(mut reply: serde_json::Value, cleanup: &str) -> serde_json::Value {
+    reply["cleanup"] = json!(cleanup);
+    reply
+}
 fn finish_reply(
     reply: SemanticEventsResult,
     cleanup: &str,
@@ -255,7 +260,7 @@ fn finish_reply(
 ) -> Result<Output, Failure> {
     let status = status(&reply.outcome);
     let stdout = match format {
-        OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":1,"source":source(snapshot),"result":public_reply(&reply)?,"cleanup":cleanup})),
+        OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":1,"source":source(snapshot),"result":with_cleanup(public_reply(&reply)?, cleanup)})),
         OutputFormat::Text => {
             let mut text = CliText::new(locale).events_status(status).to_owned();
             if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", event.event.public_name(), crate::cli_text::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }

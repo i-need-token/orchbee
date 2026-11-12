@@ -34,6 +34,7 @@ impl super::CliText {
     }
 
     pub(crate) fn cli_workspace_creation(self, document: &Value) -> String {
+        let document = &document["result"];
         let result = &document["workspace"]["result"];
         let complete = document["outcome"] == "completed";
         let mut text = if result.is_object() {

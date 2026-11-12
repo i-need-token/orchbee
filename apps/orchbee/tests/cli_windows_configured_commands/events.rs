@@ -299,6 +299,6 @@ fn semantic_events_executable_stream_emits_open_and_closed_records_with_owned_cl
     }
     assert_eq!(lines[0]["kind"], "opened");
     assert_eq!(lines[1]["kind"], "closed");
-    assert_eq!(lines[1]["cleanup"], "closed");
+    assert_eq!(lines[1]["result"]["cleanup"], "closed");
     handler.join().unwrap();
 }

@@ -105,7 +105,7 @@ fn update_in_a_test_build_refuses_before_saving_or_installing() {
         assert_eq!(output.status.code(), Some(1), "{args:?}");
         let doc = document(output);
         validate(&doc, include_str!("../src/cli/schemas/orchbee.update.json"));
-        assert_eq!(doc["operation"], operation);
+        assert_eq!(doc["result"]["operation"], operation);
         assert_eq!(doc["result"]["error"], "non-release-build");
         assert_eq!(doc["result"]["channelSaved"], false);
     }

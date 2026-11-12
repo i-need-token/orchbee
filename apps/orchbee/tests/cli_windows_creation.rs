@@ -377,16 +377,16 @@ fn creation_default_headless_current_focus_and_ratio_are_independent() {
         for implicit in [false, true] {
             let (output, doc) = run(split, false, false, implicit, Cut::Complete);
             assert!(output.status.success(), "{doc}");
-            assert_eq!(doc["postCreate"]["outcome"], "not-requested");
-            assert!(doc["postCreate"]["focus"].is_null());
+            assert_eq!(doc["result"]["postCreate"]["outcome"], "not-requested");
+            assert!(doc["result"]["postCreate"]["focus"].is_null());
         }
         let (output, doc) = run(split, false, true, false, Cut::Complete);
         assert!(output.status.success(), "{doc}");
-        assert_eq!(doc["postCreate"]["outcome"], "completed");
+        assert_eq!(doc["result"]["postCreate"]["outcome"], "completed");
     }
     let (output, doc) = run(true, true, false, false, Cut::Complete);
     assert!(output.status.success(), "{doc}");
-    assert!(doc["postCreate"]["focus"].is_null());
+    assert!(doc["result"]["postCreate"]["focus"].is_null());
 }
 
 #[test]
@@ -494,7 +494,7 @@ fn first_tab_focus_drives_refresh_from_an_unchanged_empty_client() {
         &document,
         include_str!("../src/cli/schemas/orchbee.creation.result.json"),
     );
-    assert_eq!(document["postCreate"]["outcome"], "completed");
+    assert_eq!(document["result"]["postCreate"]["outcome"], "completed");
 }
 #[test]
 fn creation_phase_faults_preserve_known_effects_and_stop_later_submissions() {
@@ -528,7 +528,7 @@ fn creation_phase_faults_preserve_known_effects_and_stop_later_submissions() {
             continue;
         }
         assert_eq!(
-            doc["postCreate"]["outcome"],
+            doc["result"]["postCreate"]["outcome"],
             if cut == Cut::Complete {
                 "completed"
             } else {
@@ -540,8 +540,8 @@ fn creation_phase_faults_preserve_known_effects_and_stop_later_submissions() {
             Cut::FocusLost | Cut::FocusRejected | Cut::WaitLost | Cut::WaitTimeout
         ) {
             assert_eq!(
-                doc["postCreate"]["ratio"]["observation"]["reply"]["outcome"]["operation"]["status"]
-                    ["kind"],
+                doc["result"]["postCreate"]["ratio"]["result"]["observation"]["reply"]["outcome"]["operation"]
+                    ["status"]["kind"],
                 "layout-adjusted"
             );
         }

@@ -246,7 +246,7 @@ fn terminal_observe_rejects_invalid_grammar_before_effect_and_closes_missing_run
         let record: serde_json::Value =
             serde_json::from_slice(&output.stdout).expect("one closed record");
         assert_eq!(record["kind"], "closed");
-        assert_eq!(record["cleanup"], "not-attached");
+        assert_eq!(record["result"]["cleanup"], "not-attached");
         assert!(!output.stderr.is_empty());
         validator.validate(&record).expect("closed record conforms");
     }
@@ -302,7 +302,7 @@ fn terminal_control_rejects_invalid_grammar_before_effect_and_closes_missing_run
         let record: serde_json::Value =
             serde_json::from_slice(&output.stdout).expect("one closed record");
         assert_eq!(record["kind"], "closed");
-        assert_eq!(record["cleanup"], "not-attached");
+        assert_eq!(record["result"]["cleanup"], "not-attached");
         assert!(!output.stderr.is_empty());
         validator.validate(&record).expect("closed record conforms");
     }

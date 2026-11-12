@@ -976,7 +976,7 @@ impl Witness {
         words.extend(environment.iter().map(String::as_str));
         let created = self.fixture.run(&words);
         assert_eq!(created.code, Some(0), "{created}");
-        created.document["workspace"]["result"]["panelId"]
+        created.document["result"]["workspace"]["result"]["panelId"]
             .as_str()
             .unwrap_or_else(|| panic!("{created}"))
             .to_owned()
