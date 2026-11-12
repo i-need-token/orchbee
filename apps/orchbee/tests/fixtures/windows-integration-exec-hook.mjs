@@ -97,7 +97,12 @@ async function run(hook, input, scriptRoot = root, environment = process.env.ORC
 					: 'node -e "eval(Buffer.from(',
 			),
 		);
-		command = shell;
+		// Find cmd.exe as Node's `shell: true` does, so a same-named program earlier on PATH cannot stand in.
+		command =
+			shell === 'cmd.exe'
+				? (process.env.ComSpec ??
+					path.join(process.env.SystemRoot ?? String.raw`C:\Windows`, 'System32', 'cmd.exe'))
+				: shell;
 		args =
 			shell === 'cmd.exe'
 				? ['/d', '/s', '/c', hook.command]
