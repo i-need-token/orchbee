@@ -158,10 +158,19 @@ pub(super) fn edit_user_path(key: &str, edit: &dyn Fn(&str) -> Edit) -> io::Resu
         if read_path(&key)? != before {
             continue;
         }
-        let written = if before.expandable {
-            w::RegistryValue::ExpandSz(value.clone())
+        // winsafe passes an empty string as a null pointer with a two-byte length, which
+        // `RegSetValueExW` refuses with `ERROR_NOACCESS`. A lone NUL is written as exactly that
+        // two-byte terminator, the bytes of an empty value, so removing the only entry leaves the
+        // value empty with its type.
+        let data = if value.is_empty() {
+            "\0".to_owned()
         } else {
-            w::RegistryValue::Sz(value.clone())
+            value.clone()
+        };
+        let written = if before.expandable {
+            w::RegistryValue::ExpandSz(data)
+        } else {
+            w::RegistryValue::Sz(data)
         };
         key.RegSetValueEx(Some("Path"), written)
             .map_err(registry_error)?;

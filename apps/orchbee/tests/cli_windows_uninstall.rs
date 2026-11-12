@@ -3,7 +3,8 @@
 //! user `Path` entry, the installer entries, the integration and the removed data entries are gone,
 //! and the person's settings and Sessions stay unless all data was deleted. With all data deleted,
 //! an item Orchbee did not write stays in each root, which then stays too, and a second run still
-//! finds nothing to refuse. The Agent's own file returns byte for byte.
+//! finds nothing to refuse. The Agent's own file returns byte for byte. The platform uninstaller's
+//! removal empties a user `Path` that held only the store's entry and keeps its registry type.
 //!
 //! It needs `ORCHBEE_TEST_UNINSTALL_CLIENT` naming the Client of a staged, packaged and test-signed
 //! release directory (see the application's Windows CLI configuration). Every process gets its own
@@ -30,6 +31,26 @@ fn uninstall_removes_the_installation_and_keeps_data_unless_asked() {
     for delete_data in [false, true] {
         let profile = Profile::new(&client);
         let result = std::panic::catch_unwind(|| profile.uninstall_once(delete_data));
+        profile.release();
+        if let Err(panic) = result {
+            std::panic::resume_unwind(panic);
+        }
+    }
+}
+
+/// On an account whose user `Path` was absent or empty, the PATH step leaves a value holding only
+/// the store's entry, `REG_EXPAND_SZ` when it was absent. The platform uninstaller's removal then
+/// succeeds and leaves the value empty with its registry type.
+#[test]
+#[ignore = "requires ORCHBEE_TEST_UNINSTALL_CLIENT naming a test-signed release directory's Client; run explicitly"]
+fn installer_uninstall_empties_a_path_that_held_only_the_store_entry() {
+    let client = PathBuf::from(
+        std::env::var_os("ORCHBEE_TEST_UNINSTALL_CLIENT")
+            .expect("set ORCHBEE_TEST_UNINSTALL_CLIENT to a staged test package's Client"),
+    );
+    for kind in ["REG_SZ", "REG_EXPAND_SZ"] {
+        let profile = Profile::new(&client);
+        let result = std::panic::catch_unwind(|| profile.remove_the_only_entry(kind));
         profile.release();
         if let Err(panic) = result {
             std::panic::resume_unwind(panic);
@@ -125,7 +146,8 @@ impl Profile {
             .unwrap()
     }
 
-    fn path_value(&self) -> Option<String> {
+    /// The scratch `Path` value's registry type and text; `None` when the value is absent.
+    fn path_value(&self) -> Option<(String, String)> {
         let output = self.reg(&[
             "query",
             &format!(r"HKCU\{}\Environment", self.key),
@@ -133,14 +155,31 @@ impl Profile {
             "Path",
         ]);
         let text = String::from_utf8_lossy(&output.stdout).into_owned();
-        output.status.success().then(|| {
-            text.lines()
-                .find_map(|line| {
-                    line.split_once("REG_EXPAND_SZ")
-                        .map(|(_, value)| value.trim().to_owned())
-                })
-                .unwrap_or_default()
+        if !output.status.success() {
+            return None;
+        }
+        text.lines().find_map(|line| {
+            let rest = line.trim_start().strip_prefix("Path")?.trim_start();
+            let (kind, value) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+            kind.starts_with("REG_")
+                .then(|| (kind.to_owned(), value.trim().to_owned()))
         })
+    }
+
+    fn set_path(&self, kind: &str, value: &str) {
+        let environment = format!(r"HKCU\{}\Environment", self.key);
+        let arguments = [
+            "add",
+            environment.as_str(),
+            "/v",
+            "Path",
+            "/t",
+            kind,
+            "/d",
+            value,
+            "/f",
+        ];
+        assert!(self.reg(&arguments).status.success());
     }
 
     fn registered(&self) -> bool {
@@ -152,10 +191,8 @@ impl Profile {
         .success()
     }
 
-    /// Installs the package, then stands in for the installer and the PATH step: the launcher in
-    /// `bin`, the `Path` entry, the registration, the shortcut and a `desktop` folder. Enables one
-    /// Agent integration and starts the Session.
-    fn prepare(&self) -> PathBuf {
+    /// Installs the package and stands in for the PATH step's launcher in `bin`, which it returns.
+    fn install(&self) -> PathBuf {
         let (output, install) =
             self.run(&self.client, &["install", "--no-path", "--format", "json"]);
         assert_eq!(output.status.code(), Some(0), "{}", describe(&output));
@@ -168,6 +205,14 @@ impl Profile {
             &launcher,
         )
         .unwrap();
+        launcher
+    }
+
+    /// Installs the package, then stands in for the installer and the PATH step: the launcher in
+    /// `bin`, the `Path` entry, the registration, the shortcut and a `desktop` folder. Enables one
+    /// Agent integration and starts the Session.
+    fn prepare(&self) -> PathBuf {
+        let launcher = self.install();
         fs::create_dir_all(self.store().join("desktop")).unwrap();
         fs::write(self.store().join(r"desktop\placeholder.txt"), b"desktop").unwrap();
         let path = format!(
@@ -176,21 +221,10 @@ impl Profile {
             self.store().join("bin").display(),
             OTHER_ENTRIES[1]
         );
-        let environment = format!(r"HKCU\{}\Environment", self.key);
+        self.set_path("REG_EXPAND_SZ", &path);
         let registration = format!(r"HKCU\{}\Uninstall\com.{}.desktop_is1", self.key, self.stem);
-        for arguments in [
-            vec![
-                "add",
-                environment.as_str(),
-                "/v",
-                "Path",
-                "/t",
-                "REG_EXPAND_SZ",
-                "/d",
-                &path,
-                "/f",
-            ],
-            vec![
+        assert!(
+            self.reg(&[
                 "add",
                 registration.as_str(),
                 "/v",
@@ -198,10 +232,10 @@ impl Profile {
                 "/d",
                 "scratch",
                 "/f",
-            ],
-        ] {
-            assert!(self.reg(&arguments).status.success());
-        }
+            ])
+            .status
+            .success()
+        );
         fs::create_dir_all(self.shortcut().parent().unwrap()).unwrap();
         fs::write(self.shortcut(), b"shortcut").unwrap();
         // The Agent's own file exists before the enable; its program is a stub on this PATH.
@@ -304,8 +338,8 @@ impl Profile {
         }
         assert_eq!(fs::read_to_string(self.agent_file()).unwrap(), AGENT_FILE);
         assert_eq!(
-            self.path_value().as_deref(),
-            Some(OTHER_ENTRIES.join(";").as_str())
+            self.path_value(),
+            Some(("REG_EXPAND_SZ".to_owned(), OTHER_ENTRIES.join(";")))
         );
         assert!(!self.registered());
         assert!(!self.shortcut().exists());
@@ -329,6 +363,36 @@ impl Profile {
         assert_eq!(output.status.code(), Some(0), "{}", describe(&output));
         assert_eq!(again["result"]["store"], "absent", "{again}");
         assert_eq!(again["result"]["pathEntry"]["result"], "absent", "{again}");
+    }
+
+    fn remove_the_only_entry(&self, kind: &str) {
+        let launcher = self.install();
+        self.set_path(kind, &self.store().join("bin").display().to_string());
+        let started = Instant::now();
+        let output = self
+            .command(&launcher)
+            .arg("--installer-uninstall-v1")
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{kind}: {}",
+            describe(&output)
+        );
+        assert_eq!(
+            self.path_value(),
+            Some((kind.to_owned(), String::new())),
+            "{kind}"
+        );
+        while entries(&self.store()).is_some() {
+            assert!(
+                started.elapsed() < Duration::from_secs(30),
+                "the program folder holds {:?}",
+                entries(&self.store())
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
     }
 
     /// Stops a Session a failed run left, then deletes the scratch key and the profile.
