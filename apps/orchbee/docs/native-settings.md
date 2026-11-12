@@ -75,6 +75,10 @@ drops every waiting change and names that reason once. No request is replayed au
 
 A row whose key the file sets carries a changed marker. Del on a changed row, or its painted Restore
 default action, sends one `restore` for that key; the launch-profile row restores both platform keys.
+The focused changed row paints the action on its first line, before the row's control as on the
+Desktop, and it never takes cells from the name or the description: when the first line has no room
+it moves to the end of the description line while the whole description fits beside it, and
+otherwise only Del offers it.
 A theme list whose slot the file sets carries the marker on its heading, and Del on any of its lines
 restores that slot alone; the appearance and Colors keep their own rows. There is no page-wide reset.
 
@@ -276,7 +280,8 @@ change in flight, one restore per changed row (including both launch-profile key
 column steps, one edit for a theme line's slot and appearance, and the unusable-file line. The
 [page render cases](../crates/workbench-client/src/tui_render/settings/tests.rs) cover one column
 below 56 columns and two above, always-visible descriptions in both locales, every description
-fitting its row at 100 columns, and refusal below the page minimum. The
+fitting its row at 100 columns, the restore action leaving a changed row's description whole, and
+refusal below the page minimum. The
 [dispatcher Settings cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
 apply every key of one input packet in order. The
 [whole-frame cases](../src/tui_shell/tests/settings.rs) drive the real Shell drawing boundary with an existing native terminal, both locales, 120x40 and 50x20, and

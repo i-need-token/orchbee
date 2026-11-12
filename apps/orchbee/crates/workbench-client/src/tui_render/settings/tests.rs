@@ -215,3 +215,32 @@ fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
         }
     }
 }
+
+/// A focused changed row offers its restore action without taking cells from its description: at
+/// the reference width both are painted whole, in both locales.
+#[test]
+fn the_restore_action_leaves_a_changed_rows_description_whole() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (row, key) in [
+            (Row::NewTerminalFolder, "terminal.new_cwd"),
+            (Row::PrefixKey, "keys.prefix"),
+        ] {
+            let mut editor = Editor::default();
+            let token = editor.open().unwrap();
+            let mut snapshot = snapshot();
+            snapshot.set = vec![orchbee_workbench_protocol::SettingPath::parse(key).unwrap()];
+            assert!(editor.loaded(token, &snapshot));
+            present(&mut editor, (100, 36), locale);
+            editor.edit(Edit::Select(row));
+            let page = paint(&mut editor, (100, 36), locale);
+            assert!(
+                has(&page, locale.settings_description(row)),
+                "{locale:?} {row:?}: {page}"
+            );
+            assert!(
+                has(&page, &format!("[{}]", locale.settings_restore())),
+                "{locale:?} {row:?}: {page}"
+            );
+        }
+    }
+}

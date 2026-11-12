@@ -832,6 +832,17 @@ fn render_row(
         return;
     }
     let mut recorded_controls = Vec::new();
+    // The restore action of a focused changed row sits beside the row's control, where the
+    // Desktop puts it, and never takes cells from the name or the description: it moves to the
+    // description line while both fit there whole, and is left to its key when neither line has
+    // room.
+    let mut restore = (is_focused && !editing && page.changed(row))
+        .then(|| format!("[{}]", locale.settings_restore()));
+    let restore_width = restore.as_ref().map_or(0, |label| display_width(label));
+    let restore_target = || InteractionTarget::SettingsControl {
+        token,
+        control: Control::Restore(row),
+    };
     if first_drawn {
         let y = rect.y;
         if is_focused {
@@ -878,6 +889,25 @@ fn render_row(
             &name,
             style(content_role),
         );
+        let control_span = if control_width == 0 {
+            0
+        } else {
+            control_width + RESTORE_GAP
+        };
+        if display_width(&name) + RESTORE_GAP + restore_width + control_span <= available
+            && let Some(label) = restore.take()
+        {
+            let x = end.saturating_sub(u16::try_from(control_span + restore_width).unwrap_or(0));
+            recorded_controls.push(render_restore(
+                frame,
+                hits,
+                (x, y),
+                &label,
+                restore_target(),
+                interaction,
+                theme,
+            ));
+        }
         if let Some(control) = control {
             let control_x = end.saturating_sub(u16::try_from(control_width).unwrap_or(0));
             let text = truncate_display(&control.text, control_width, theme.glyphs.ellipsis);
@@ -934,16 +964,6 @@ fn render_row(
                 theme,
             );
         } else {
-            let restore = (is_focused && page.changed(row))
-                .then(|| format!("[{}]", locale.settings_restore()));
-            let restore_width = restore
-                .as_ref()
-                .map_or(0, |label| u16::try_from(display_width(label)).unwrap_or(0));
-            let description_width = if restore_width + 1 < available {
-                available - restore_width.saturating_add(u16::from(restore_width > 0))
-            } else {
-                available
-            };
             // NO_COLOR, not the color depth it implies, is why a color setting cannot show; a
             // focused unavailable row says why it is unavailable.
             let description = if theme.no_color()
@@ -965,31 +985,23 @@ fn render_row(
                 frame,
                 name_x,
                 second,
-                description_width,
+                available,
                 &description,
                 style(Role::TextMuted),
             );
-            if let Some(label) = restore
-                && restore_width + 1 < available
+            if display_width(&description) + RESTORE_GAP + restore_width <= usize::from(available)
+                && let Some(label) = restore.take()
             {
-                let button = Rect::new(end - restore_width, second, restore_width, 1);
-                let target = InteractionTarget::SettingsControl {
-                    token,
-                    control: Control::Restore(row),
-                };
-                let spec = interaction_spec(true);
-                let pointer =
-                    hits.projected_pointer(HitLayer::Overlay, button, button, &target, spec);
-                let button_surface = pointer_surface(pointer).or(interaction);
-                put(
+                let x = end.saturating_sub(u16::try_from(restore_width).unwrap_or(0));
+                recorded_controls.push(render_restore(
                     frame,
-                    button.x,
-                    second,
-                    restore_width,
+                    hits,
+                    (x, second),
                     &label,
-                    on(theme, base, button_surface, Role::AccentAction),
-                );
-                recorded_controls.push((button, target, spec));
+                    restore_target(),
+                    interaction,
+                    theme,
+                ));
             }
         }
     }
@@ -997,6 +1009,35 @@ fn render_row(
         hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
     }
     hits.record_interaction(HitLayer::Overlay, inner, inner, target, spec);
+}
+
+/// Blank cells between a row's restore action and the text or control beside it.
+const RESTORE_GAP: usize = 2;
+
+/// Paints a changed row's restore action from `origin` and returns its pointer target.
+fn render_restore(
+    frame: &mut Frame<'_>,
+    hits: &mut HitMapBuilder,
+    origin: (u16, u16),
+    label: &str,
+    target: InteractionTarget,
+    row_surface: Option<Role>,
+    theme: &Theme,
+) -> (Rect, InteractionTarget, InteractionSpec) {
+    let width = u16::try_from(display_width(label)).unwrap_or(0);
+    let button = Rect::new(origin.0, origin.1, width, 1);
+    let spec = interaction_spec(true);
+    let pointer = hits.projected_pointer(HitLayer::Overlay, button, button, &target, spec);
+    let surface = pointer_surface(pointer).or(row_surface);
+    put(
+        frame,
+        button.x,
+        button.y,
+        width,
+        label,
+        on(theme, Role::SurfaceCanvas, surface, Role::AccentAction),
+    );
+    (button, target, spec)
 }
 
 /// Cells of a theme swatch: a foreground sample on the theme canvas, then five ANSI fills.
