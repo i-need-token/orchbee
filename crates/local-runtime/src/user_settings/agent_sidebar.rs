@@ -51,7 +51,7 @@ fn token_kind(name: &str) -> Result<AgentSidebarTokenKind<'_>, SettingsError> {
         "machine" => Machine,
         "workspace" => Workspace,
         "tab" => Tab,
-        "pane" => Pane,
+        "panel" => Pane,
         "agent" => Agent,
         "terminal_title" => TerminalTitle,
         "terminal_title_stripped" => TerminalTitleStripped,

@@ -57,7 +57,7 @@ pub(super) fn clear_context(command: &mut Command) {
     for name in [
         "ORCHBEE_WORKSPACE_ID",
         "ORCHBEE_TAB_ID",
-        "ORCHBEE_PANE_ID",
+        "ORCHBEE_PANEL_ID",
         "ORCHBEE_TERMINAL_ID",
         "ORCHBEE_WORKER_ID",
     ] {

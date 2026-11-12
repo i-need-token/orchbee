@@ -12,7 +12,7 @@ pub const PLUGIN_TERMINAL_ENVIRONMENT_NAMES: [&str; 10] = [
     "ORCHBEE_BIN_PATH",
     "ORCHBEE_WORKSPACE_ID",
     "ORCHBEE_TAB_ID",
-    "ORCHBEE_PANE_ID",
+    "ORCHBEE_PANEL_ID",
 ];
 #[derive(Clone, Eq, PartialEq)]
 pub struct PluginTerminalEnvironment(Vec<(String, String)>);

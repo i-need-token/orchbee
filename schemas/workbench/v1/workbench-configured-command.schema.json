@@ -233,7 +233,7 @@
 												"maxLength": 120
 											},
 											"action": {
-												"enum": ["shell", "pane", "popup", "plugin_action"]
+												"enum": ["shell", "panel", "popup", "plugin_action"]
 											},
 											"bindings": {
 												"type": "array",
@@ -422,7 +422,7 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "pane"
+									"const": "panel"
 								},
 								"commandId": {
 									"type": "string",

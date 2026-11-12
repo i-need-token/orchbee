@@ -108,7 +108,7 @@ export const ConfiguredCommandResultSchema = z
 				existing: z.boolean(),
 			}),
 			z.strictObject({
-				kind: z.literal('pane'),
+				kind: z.literal('panel'),
 				...command,
 				result: z.strictObject({
 					protocolVersion: correlation.protocolVersion,
@@ -161,7 +161,7 @@ export const ConfiguredCommandResultSchema = z
 	.refine((value) => {
 		const outcome = value.outcome;
 		if (outcome.kind === 'shell-started') return outcome.jobId === value.requestId;
-		if (outcome.kind === 'pane')
+		if (outcome.kind === 'panel')
 			return (
 				outcome.result.requestId === value.requestId &&
 				[

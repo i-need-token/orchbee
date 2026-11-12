@@ -2,7 +2,7 @@ use super::*;
 #[test]
 fn window_title_template_tokens_escapes_missing_values_and_diagnostics() {
     let t =
-        WindowTitleTemplate::parse("{{{ hostname }}}/{workspace}/{tab}/{pane}/{terminal_title}")
+        WindowTitleTemplate::parse("{{{ hostname }}}/{workspace}/{tab}/{panel}/{terminal_title}")
             .unwrap()
             .unwrap();
     assert_eq!(
@@ -22,7 +22,7 @@ fn window_title_template_tokens_escapes_missing_values_and_diagnostics() {
 }
 #[test]
 fn window_title_template_bounds_after_substitution_preserve_spaces_and_remove_controls() {
-    let t = WindowTitleTemplate::parse("  {pane} {terminal_title}  ")
+    let t = WindowTitleTemplate::parse("  {panel} {terminal_title}  ")
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -33,7 +33,7 @@ fn window_title_template_bounds_after_substitution_preserve_spaces_and_remove_co
     assert_eq!(title.chars().count(), 198);
     assert!(WindowTitleTemplate::parse(&"x".repeat(4097)).is_err());
     assert!(
-        WindowTitleTemplate::parse("{pane}")
+        WindowTitleTemplate::parse("{panel}")
             .unwrap()
             .unwrap()
             .render(["", "", "", "", ""])

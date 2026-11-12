@@ -1766,7 +1766,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             orchbee_local_runtime::AgentSidebarSettings::from_profile(
                 &serde_json::json!({
                     "rows": [[{
-                        "name": "pane",
+                        "name": "panel",
                         "style": {"fg": null, "bold": false, "dim": null},
                         "rules": []
                     }]],

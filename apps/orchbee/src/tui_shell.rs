@@ -429,7 +429,7 @@ fn run_prepared_surface(
             "ZELLIJ",
             "STY",
             "HERDR_ENV",
-            "ORCHBEE_PANE_ID",
+            "ORCHBEE_PANEL_ID",
             "TERM_PROGRAM",
         ]
         .iter()

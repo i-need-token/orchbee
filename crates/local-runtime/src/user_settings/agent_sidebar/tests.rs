@@ -22,7 +22,7 @@ fn explicit_empty_defaults_overrides_and_profiles_keep_distinct_meanings() {
     let default = parse("").unwrap();
     assert!(default.rows_for_agent("codex", None).is_none());
     let configured = parse(
-        "rows=[['state_icon','state_text','machine','workspace','tab','pane','agent','$summary']]\nrow_gap=65535\n[rows_by_agent]\nclaude=[]\n'claude-code'=[['$model']]\n",
+        "rows=[['state_icon','state_text','machine','workspace','tab','panel','agent','$summary']]\nrow_gap=65535\n[rows_by_agent]\nclaude=[]\n'claude-code'=[['$model']]\n",
     )
     .unwrap();
     assert_eq!(configured.row_gap(), u16::MAX);

@@ -20,7 +20,7 @@ type WindowTitleSnapshot = NonNullable<
 	Extract<WindowTitleOutcome, { readonly kind: 'listening' }>['snapshot']
 >;
 
-/** What a Session's title template names as `{workspace}`, `{tab}`, `{pane}` and `{terminal_title}`. */
+/** What a Session's title template names as `{workspace}`, `{tab}`, `{panel}` and `{terminal_title}`. */
 interface ServerWindowTitleContext {
 	readonly pane: string;
 	readonly tab: string;

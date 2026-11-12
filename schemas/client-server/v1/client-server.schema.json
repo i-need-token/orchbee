@@ -2452,7 +2452,7 @@
 							"ORCHBEE_BIN_PATH",
 							"ORCHBEE_WORKSPACE_ID",
 							"ORCHBEE_TAB_ID",
-							"ORCHBEE_PANE_ID"
+							"ORCHBEE_PANEL_ID"
 						]
 					},
 					{
@@ -2579,7 +2579,7 @@
 						"type": "array",
 						"prefixItems": [
 							{
-								"const": "ORCHBEE_PANE_ID"
+								"const": "ORCHBEE_PANEL_ID"
 							}
 						]
 					},

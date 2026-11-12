@@ -477,12 +477,12 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).window_title, "{workspace}");
-    fixture.write("[appearance]\nwindow_title='{tab}/{pane}'");
+    fixture.write("[appearance]\nwindow_title='{tab}/{panel}'");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
     };
-    assert_eq!(snapshot.window_title, "{tab}/{pane}");
+    assert_eq!(snapshot.window_title, "{tab}/{panel}");
     assert!(snapshot.diagnostics.items.is_empty());
     fixture.write("[appearance]\nwindow_title='{unknown}'");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)

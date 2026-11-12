@@ -165,7 +165,7 @@ fn capacities_and_revision_overflow_fail_before_commit() {
 fn window_title_live_template_override_clear_disable_and_context_changes() {
     let mut r = Registry::default();
     let now = Instant::now();
-    r.configure("{hostname}: {workspace}/{tab}/{pane}/{terminal_title}");
+    r.configure("{hostname}: {workspace}/{tab}/{panel}/{terminal_title}");
     r.hostname = "SessionHost".into();
     let context = orchbee_workbench_protocol::WindowTitleContext::new(
         "Workspace",

@@ -392,7 +392,7 @@ For example:
 
 ```toml
 [appearance.sidebar.agents]
-rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"], ["terminal_title_stripped"]]
+rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["panel", "$summary"], ["terminal_title_stripped"]]
 row_gap = 1
 
 [appearance.sidebar.agents.rows_by_agent]

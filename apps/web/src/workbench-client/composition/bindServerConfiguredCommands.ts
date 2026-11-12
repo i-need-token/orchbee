@@ -22,7 +22,7 @@ const PUBLICATION_WAIT_MILLISECONDS = 5_000;
 
 type Refusal = Extract<WorkbenchConfiguredCommandOutcome, { readonly kind: 'refused' }>['reason'];
 type Answered = Extract<ServerConfiguredCommandReply, { readonly kind: 'answered' }>['outcome'];
-type PaneOutcome = Extract<Answered, { readonly kind: 'pane' }>['result']['outcome'];
+type PaneOutcome = Extract<Answered, { readonly kind: 'panel' }>['result']['outcome'];
 
 const ACCEPTED: WorkbenchConfiguredCommandOutcome = { kind: 'accepted' };
 const FAILED: WorkbenchConfiguredCommandOutcome = { kind: 'failed' };
@@ -143,7 +143,7 @@ export function bindServerConfiguredCommands({
 			case 'plugin':
 				if (outcome.result.outcome.kind === 'failed') return FAILED;
 				return outcome.result.outcome.kind === 'unknown' ? UNKNOWN : ACCEPTED;
-			case 'pane':
+			case 'panel':
 				return opened(outcome.result.outcome);
 			default:
 				// Only the receipt of the command's own kind confirms that it started.

@@ -20,13 +20,13 @@ impl Locale {
         let location = workspace.or(project);
         match (self, location) {
             (Self::EnUs, Some(location)) => {
-                format!("Workspace {location} · Tab {tab} · Pane {pane}")
+                format!("Workspace {location} · Tab {tab} · Panel {pane}")
             }
-            (Self::EnUs, None) => format!("Tab {tab} · Pane {pane}"),
+            (Self::EnUs, None) => format!("Tab {tab} · Panel {pane}"),
             (Self::ZhCn, Some(location)) => {
-                format!("工作区 {location} · 标签页 {tab} · 窗格 {pane}")
+                format!("工作区 {location} · 标签页 {tab} · 面板 {pane}")
             }
-            (Self::ZhCn, None) => format!("标签页 {tab} · 窗格 {pane}"),
+            (Self::ZhCn, None) => format!("标签页 {tab} · 面板 {pane}"),
         }
     }
 }

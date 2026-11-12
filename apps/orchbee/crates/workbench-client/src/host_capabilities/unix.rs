@@ -152,7 +152,7 @@ impl Facts {
 /// Terminals that apply an application's OSC 52 clipboard write under their default settings.
 /// A multiplexer or a host pane in between consumes or drops the sequence, so neither admits it.
 fn osc52_terminal(set: &impl Fn(&str) -> bool, term: Option<&str>, program: Option<&str>) -> bool {
-    if ["TMUX", "ZELLIJ", "STY", "HERDR_ENV", "ORCHBEE_PANE_ID"]
+    if ["TMUX", "ZELLIJ", "STY", "HERDR_ENV", "ORCHBEE_PANEL_ID"]
         .into_iter()
         .any(set)
     {

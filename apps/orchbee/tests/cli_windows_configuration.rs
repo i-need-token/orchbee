@@ -135,7 +135,7 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
     let fixture = Fixture::new();
     let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let content = "[appearance.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[appearance.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
+    let content = "[appearance.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[appearance.sidebar.agents.rows_by_agent]\nclaude=[['tab','panel']]\n";
     std::fs::write(&config, content).unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");

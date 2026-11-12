@@ -312,7 +312,7 @@ fn command_environment(
     for (name, value) in [
         ("ORCHBEE_WORKSPACE_ID", &context.workspace_id),
         ("ORCHBEE_TAB_ID", &context.tab_id),
-        ("ORCHBEE_PANE_ID", &context.focused_pane_id),
+        ("ORCHBEE_PANEL_ID", &context.focused_pane_id),
         ("ORCHBEE_PLUGIN_CLICKED_URL", &context.clicked_url),
         ("ORCHBEE_PLUGIN_LINK_HANDLER_ID", &context.link_handler_id),
     ] {

@@ -457,7 +457,10 @@ fn plugin_pane_source_context_freezes_canonical_source_separately_from_destinati
             context.workspace_id.as_ref().unwrap(),
         ),
         ("ORCHBEE_TAB_ID", context.tab_id.as_ref().unwrap()),
-        ("ORCHBEE_PANE_ID", context.focused_pane_id.as_ref().unwrap()),
+        (
+            "ORCHBEE_PANEL_ID",
+            context.focused_pane_id.as_ref().unwrap(),
+        ),
     ] {
         assert_eq!(
             &frozen

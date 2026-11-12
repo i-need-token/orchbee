@@ -12,7 +12,7 @@ impl CustomCommandAction {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Shell => "shell",
-            Self::Pane => "pane",
+            Self::Pane => "panel",
             Self::Popup => "popup",
             Self::PluginAction => "plugin_action",
         }
@@ -94,7 +94,7 @@ pub(super) fn parse(
             None => CustomCommandAction::Shell,
             Some(value) => match value.as_str().ok_or(error("wrong-type"))? {
                 "shell" => CustomCommandAction::Shell,
-                "pane" => CustomCommandAction::Pane,
+                "panel" => CustomCommandAction::Pane,
                 "popup" => CustomCommandAction::Popup,
                 "plugin_action" => CustomCommandAction::PluginAction,
                 _ => return Err(error("invalid-binding")),

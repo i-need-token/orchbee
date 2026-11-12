@@ -192,7 +192,7 @@
 						},
 						{
 							"id": "cmd_profile_1",
-							"action": "pane",
+							"action": "panel",
 							"bindings": [],
 							"description": null,
 							"display": null,
@@ -275,7 +275,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -520,7 +520,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -543,7 +543,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -566,7 +566,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -589,7 +589,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -614,7 +614,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -637,7 +637,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,
@@ -997,7 +997,7 @@
 						},
 						{
 							"id": "cmd_profile_0",
-							"action": "pane",
+							"action": "panel",
 							"bindings": [],
 							"description": null,
 							"display": null,
@@ -1113,7 +1113,7 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane",
+					"kind": "panel",
 					"commandId": "cmd_profile_0",
 					"result": {
 						"protocolVersion": 1,

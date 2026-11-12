@@ -132,7 +132,7 @@ available in this session; the Windows wording and admission do not change.
 OSC 52 is admitted only for an outer terminal that applies an application's clipboard write
 under its default settings: Ghostty, kitty, WezTerm, foot, Alacritty or Windows Terminal, named by
 `TERM_PROGRAM`, `KITTY_WINDOW_ID`, `ALACRITTY_WINDOW_ID`, `WT_SESSION` or `TERM`, with no
-multiplexer or host pane (`TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV`, `ORCHBEE_PANE_ID`) in between.
+multiplexer or host pane (`TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV`, `ORCHBEE_PANEL_ID`) in between.
 iTerm2 leaves clipboard access off by default, Terminal.app and VTE terminals have none, and tmux
 ignores an application's OSC 52 under its default `set-clipboard external`, so none of them is
 admitted. A copy above 1 MiB on the OSC 52 route fails before any byte is written; a written

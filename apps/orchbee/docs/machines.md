@@ -783,7 +783,7 @@ configured sidebar profile uses its safe default, emits a warning and remains pa
 atomic candidate; a malformed private wire profile is rejected before Client installation. No
 renderer reads configuration files or starts background work.
 
-Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `pane`,
+Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `panel`,
 `agent`, `terminal_title`, `terminal_title_stripped`, or `$name`. Missing values and tokens hidden by rules disappear; rows
 with no remaining tokens disappear. An entry still retains its focus marker,
 exact target and navigation eligibility. Custom values and custom state

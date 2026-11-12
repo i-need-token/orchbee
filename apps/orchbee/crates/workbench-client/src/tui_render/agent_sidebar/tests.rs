@@ -391,7 +391,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
     configure(
         &mut view,
         serde_json::json!([[token("agent")]]),
-        serde_json::json!({"codex":[[token("$missing")]],"claude":[[token("state_icon"),token("state_text")],[token("machine"),token("workspace")],[token("tab"),token("pane")],[token("agent"),token("$issue")]]}),
+        serde_json::json!({"codex":[[token("$missing")]],"claude":[[token("state_icon"),token("state_text")],[token("machine"),token("workspace")],[token("tab"),token("panel")],[token("agent"),token("$issue")]]}),
         0,
     );
     for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -514,8 +514,8 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     let token = configured_token;
     configure(
         &mut view,
-        serde_json::json!([[token("pane")], [token("agent")]]),
-        serde_json::json!({"codex":[[token("pane")]],"claude":[[token("state_text")],[token("pane")],[token("agent")]]}),
+        serde_json::json!([[token("panel")], [token("agent")]]),
+        serde_json::json!({"codex":[[token("panel")]],"claude":[[token("state_text")],[token("panel")],[token("agent")]]}),
         1,
     );
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);
@@ -617,7 +617,7 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
     )]);
     configure(
         &mut view,
-        serde_json::json!([[{"name":"pane","style":{"fg":[16,32,48],"bold":true,"dim":false},"rules":[]}]]),
+        serde_json::json!([[{"name":"panel","style":{"fg":[16,32,48],"bold":true,"dim":false},"rules":[]}]]),
         serde_json::json!({}),
         0,
     );

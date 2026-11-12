@@ -140,7 +140,7 @@ fn freeze(
     for (key, value) in [
         ("ORCHBEE_WORKSPACE_ID", context.workspace_id),
         ("ORCHBEE_TAB_ID", context.tab_id),
-        ("ORCHBEE_PANE_ID", context.focused_pane_id),
+        ("ORCHBEE_PANEL_ID", context.focused_pane_id),
     ] {
         if let Some(value) = value {
             environment.push((key.into(), value));

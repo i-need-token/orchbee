@@ -15,6 +15,7 @@ pub const MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES: usize = 512;
 #[serde(rename_all = "snake_case")]
 pub enum ConfiguredCommandKind {
     Shell,
+    #[serde(rename = "panel")]
     Pane,
     Popup,
     PluginAction,
@@ -250,6 +251,7 @@ pub enum ConfiguredCommandOutcome {
         job_id: WorkbenchRequestId,
         existing: bool,
     },
+    #[serde(rename = "panel")]
     Pane {
         command_id: String,
         result: Box<WorkbenchCommandResult>,

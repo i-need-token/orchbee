@@ -364,7 +364,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "appearance.window_title",
         V::Text {
             maximum_bytes: 4096,
-            shape: "a template; tokens {hostname}, {workspace}, {tab}, {pane}, {terminal_title}; doubled braces are literal",
+            shape: "a template; tokens {hostname}, {workspace}, {tab}, {panel}, {terminal_title}; doubled braces are literal",
         },
         D::Text("{hostname}: {workspace}"),
         (C::General, G::Basics),
@@ -373,7 +373,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     ),
     key(
         "appearance.sidebar.agents.rows",
-        V::Structured("up to 16 rows of up to 16 tokens: state_icon, state_text, machine, workspace, tab, pane, agent, terminal_title, terminal_title_stripped, or custom token keys"),
+        V::Structured("up to 16 rows of up to 16 tokens: state_icon, state_text, machine, workspace, tab, panel, agent, terminal_title, terminal_title_stripped, or custom token keys"),
         unset("the built-in layout", "[[\"state_icon\", \"agent\"], [\"workspace\"]]"),
         (C::Appearance, G::Sidebar),
         CLIENT,
@@ -767,7 +767,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     ),
     key(
         "keys.command[].type",
-        V::Choice(&["shell", "pane", "popup", "plugin_action"]),
+        V::Choice(&["shell", "panel", "popup", "plugin_action"]),
         D::Text("shell"),
         (C::Keyboard, G::Commands),
         CLIENT,

@@ -9,7 +9,7 @@ pub(super) const HELP_PANEL_RENAME_EN: crate::cli_text::HelpDetails =
 pub(super) const HELP_PANEL_RENAME_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee panel rename <panel> (--label <text> | --clear) [--format text|json]",
-        "用精确 ID 或 @panel:0x<hex> 设置共享的窗格自定义标题。空文本或纯空白文本会清除标题，恢复创建时的标签。裁剪前最多 512 个 Unicode 字符。不会切换焦点。\nrenamed 表示已提交新修订；unchanged 表示自定义标题未变。",
+        "用精确 ID 或 @panel:0x<hex> 设置共享的面板自定义标题。空文本或纯空白文本会清除标题，恢复创建时的标签。裁剪前最多 512 个 Unicode 字符。不会切换焦点。\nrenamed 表示已提交新修订；unchanged 表示自定义标题未变。",
     );
 
 pub(super) const HELP_PANEL_LIST_EN: crate::cli_text::HelpDetails =

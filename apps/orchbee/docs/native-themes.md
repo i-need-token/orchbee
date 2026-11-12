@@ -149,7 +149,7 @@ evidence.
 
 On native Windows, a plain GUID-shaped `WT_SESSION` admits OSC 11/111 background control for
 Windows Terminal only when no nested host is marked: `TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV`,
-`ORCHBEE_PANE_ID` and `TERM_PROGRAM` are all absent. Windows Terminal sets no `TERM_PROGRAM`, so its
+`ORCHBEE_PANEL_ID` and `TERM_PROGRAM` are all absent. Windows Terminal sets no `TERM_PROGRAM`, so its
 presence names another host between the TUI and the window, whose panes would otherwise retint the
 whole outer window. Other hosts remain unchanged until
 an adapter contract admits them. A named theme sets the host default background to `surface-canvas`

@@ -129,7 +129,7 @@ The navigator lists Tabs rather than Panels and keeps the existing Tab naming ru
 headers, close confirmations and rename placeholders use the primary custom/automatic rule; child
 terminal strips and terminal accessibility names still identify their own Presentation. The
 human CLI `panel list` title uses the same terminal-title and launch-program naming functions;
-its ordinal/handle columns and JSON remain unchanged. The `{pane}` window-title token remains
+its ordinal/handle columns and JSON remain unchanged. The `{panel}` window-title token remains
 the explicitly documented manual override, not a chrome-name projection. All displayed names
 retain sanitization and display-cell truncation, without changing canonical labels or identities.
 

@@ -197,8 +197,8 @@ impl LocalTerminalService {
         for (name, value) in [
             ("ORCHBEE_WORKSPACE_ID", &context.workspace_id),
             ("ORCHBEE_TAB_ID", &context.tab_id),
-            ("ORCHBEE_PANE_ID", &context.focused_pane_id),
-            ("ORCHBEE_PANE_CWD", &context.focused_pane_cwd),
+            ("ORCHBEE_PANEL_ID", &context.focused_pane_id),
+            ("ORCHBEE_PANEL_CWD", &context.focused_pane_cwd),
         ] {
             if let Some(value) = value {
                 environment.push((name.into(), value.clone()));

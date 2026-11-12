@@ -41,7 +41,7 @@ impl WindowTitleTemplate {
                         "hostname" => 0,
                         "workspace" => 1,
                         "tab" => 2,
-                        "pane" => 3,
+                        "panel" => 3,
                         "terminal_title" => 4,
                         _ => return Err("unknown-token"),
                     };
@@ -59,7 +59,7 @@ impl WindowTitleTemplate {
         }
         Ok(Some(Self(parts)))
     }
-    /// Values are hostname, Workspace, Tab, manual Pane name and stripped terminal title.
+    /// Values are hostname, Workspace, Tab, manual Panel name and stripped terminal title.
     pub fn render(&self, values: [&str; 5]) -> Option<String> {
         let rendered: String = self
             .0

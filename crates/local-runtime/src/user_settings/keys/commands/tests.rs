@@ -10,7 +10,7 @@ key=["prefix+x","alt+f9"]
 description="后台命令"
 [[keys.command]]
 command="echo pane"
-type="pane"
+type="panel"
 [[keys.command]]
 command="echo popup"
 type="popup"
