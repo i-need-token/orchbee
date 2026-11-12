@@ -290,8 +290,8 @@ change in flight, one restore per changed row (including both launch-profile key
 column steps, one edit for a theme line's slot and appearance, and the unusable-file line. The
 [page render cases](../crates/workbench-client/src/tui_render/settings/tests.rs) cover one column
 below 56 columns and two above, always-visible descriptions in both locales, every description
-fitting its row at 100 columns, the restore action leaving a changed row's description whole, and
-refusal below the page minimum. The
+fitting its row at 100 columns, every changed row showing its restore action and its whole
+description there, and refusal below the page minimum. The
 [dispatcher Settings cases](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs)
 apply every key of one input packet in order. The
 [whole-frame cases](../src/tui_shell/tests/settings.rs) drive the real Shell drawing boundary with an existing native terminal, both locales, 120x40 and 50x20, and

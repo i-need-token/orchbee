@@ -1,13 +1,15 @@
 //! The narrow tier, page admission and the inline text field's projection of raw text.
 use crate::{
     localization::Locale,
-    native_settings::{Category, Control, Edit, Editor, Pane, Row, View},
+    native_settings::{Category, Control, Edit, Editor, Pane, Row, SETTINGS, View},
     tui_hit_map::HitMapBuilder,
     tui_presentation::ModalPresentation,
     tui_theme::Theme,
 };
 use orchbee_workbench_protocol::{
-    SettingsFile, SettingsPlatform, SettingsSnapshot, UserSettingsValues, WorkbenchRevision,
+    CompletionReminderMode, SettingChange, SettingPath, SettingScalar, SettingValue, SettingsFile,
+    SettingsPlatform, SettingsSnapshot, TerminalDisplayAppearance, UserSettingsValues,
+    WorkbenchRevision,
 };
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
@@ -216,31 +218,75 @@ fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
     }
 }
 
-/// A focused changed row offers its restore action without taking cells from its description: at
-/// the reference width both are painted whole, in both locales.
+/// A file that sets every key, with the values that show the rows other settings hide.
+fn every_key_set() -> SettingsSnapshot {
+    let values = UserSettingsValues {
+        terminal_display_theme: TerminalDisplayAppearance::Custom,
+        completion_reminder_mode: CompletionReminderMode::Always,
+        ..Default::default()
+    };
+    let restore_keys = SETTINGS.iter().flat_map(|metadata| {
+        orchbee_local_runtime::value_changes(&values, &values, &[metadata.key])
+    });
+    let mut snapshot = snapshot();
+    snapshot.values = orchbee_local_runtime::value_changes(&Default::default(), &values, &[])
+        .into_iter()
+        .filter_map(|change| match change {
+            SettingChange::Set { key, value } => Some((
+                key,
+                Some(match value {
+                    SettingValue::Boolean(value) => SettingScalar::Boolean(value),
+                    SettingValue::Integer(value) => SettingScalar::Integer(value),
+                    SettingValue::Text(value) => SettingScalar::Text(value),
+                    SettingValue::Entries(_) => return None,
+                }),
+            )),
+            SettingChange::Restore { .. } => None,
+        })
+        .collect();
+    snapshot.set = restore_keys
+        .filter_map(|change| match change {
+            SettingChange::Restore { key } => Some(key),
+            SettingChange::Set { .. } => None,
+        })
+        .chain(["terminal.new_cwd", "keys.prefix"].map(|key| SettingPath::parse(key).unwrap()))
+        .collect();
+    snapshot
+}
+
+/// Every focused changed row offers its restore action without taking cells from its
+/// description: at the reference width both are painted whole, in both locales. Theme lines
+/// restore their list from its heading instead.
 #[test]
 fn the_restore_action_leaves_a_changed_rows_description_whole() {
+    let snapshot = every_key_set();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (row, key) in [
-            (Row::NewTerminalFolder, "terminal.new_cwd"),
-            (Row::PrefixKey, "keys.prefix"),
-        ] {
-            let mut editor = Editor::default();
-            let token = editor.open().unwrap();
-            let mut snapshot = snapshot();
-            snapshot.set = vec![orchbee_workbench_protocol::SettingPath::parse(key).unwrap()];
-            assert!(editor.loaded(token, &snapshot));
-            present(&mut editor, (100, 36), locale);
-            editor.edit(Edit::Select(row));
-            let page = paint(&mut editor, (100, 36), locale);
-            assert!(
-                has(&page, locale.settings_description(row)),
-                "{locale:?} {row:?}: {page}"
-            );
-            assert!(
-                has(&page, &format!("[{}]", locale.settings_restore())),
-                "{locale:?} {row:?}: {page}"
-            );
+        for category in Category::ALL {
+            for row in category.groups().iter().flat_map(|group| group.rows()) {
+                if matches!(row, Row::ThemeOption(_)) {
+                    continue;
+                }
+                let mut editor = Editor::default();
+                let token = editor.open().unwrap();
+                assert!(editor.loaded(token, &snapshot));
+                present(&mut editor, (100, 40), locale);
+                editor.edit(Edit::Select(row));
+                let page = paint(&mut editor, (100, 40), locale);
+                let View::Page(view) = editor.view().unwrap() else {
+                    panic!("the page is open");
+                };
+                if !view.changed(row) {
+                    continue;
+                }
+                assert!(
+                    has(&page, locale.settings_description(row)),
+                    "{locale:?} {row:?}: {page}"
+                );
+                assert!(
+                    has(&page, &format!("[{}]", locale.settings_restore())),
+                    "{locale:?} {row:?}: {page}"
+                );
+            }
         }
     }
 }
