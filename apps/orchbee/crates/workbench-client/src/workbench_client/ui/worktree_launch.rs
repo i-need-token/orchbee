@@ -188,11 +188,13 @@ impl WorkbenchClientUi {
         let Some(operation) = self.worktree_request() else {
             return;
         };
-        let Some(plan) = self
-            .worktrees
-            .launcher
-            .choose_and_confirm(token, index, operation, &origin)
-        else {
+        let Some(plan) = self.worktrees.launcher.choose_and_confirm(
+            token,
+            index,
+            operation,
+            &origin,
+            workspace_name_locale(),
+        ) else {
             return;
         };
         self.observe_worktree();
@@ -403,10 +405,10 @@ impl WorkbenchClientUi {
         match draw {
             Some(ModalPresentation::Presented(token)) => {
                 self.worktrees.launcher.draw(Some(token));
+                // A checkout chosen in a sidebar submenu is the menu's own decision. A create
+                // waits for the form's Create, whichever entry opened it.
                 if self.worktrees.launcher.sidebar_open_ready() {
                     self.submit_worktree(token);
-                } else {
-                    self.submit_default_worktree_if_ready();
                 }
             }
             Some(ModalPresentation::NotPresented) => {
@@ -462,7 +464,11 @@ impl WorkbenchClientUi {
         self.worktrees
             .launcher
             .set_client_directory(windows_client_directory());
-        let Some(plan) = self.worktrees.launcher.confirm(token, operation, &origin) else {
+        let Some(plan) =
+            self.worktrees
+                .launcher
+                .confirm(token, operation, &origin, workspace_name_locale())
+        else {
             return;
         };
         // The Start Agent picker under this form has done its part once the create is submitted.
@@ -544,31 +550,6 @@ impl WorkbenchClientUi {
                 .start_settled(&operation, Err(false));
         }
     }
-    fn submit_default_worktree_if_ready(&mut self) -> bool {
-        if self.worktrees.origin.is_none() || !self.worktrees.launcher.default_create_ready() {
-            return false;
-        }
-        let Some(origin) = self
-            .state
-            .as_ref()
-            .and_then(|state| state.worktree_origin())
-        else {
-            return false;
-        };
-        let Some(operation_id) = self.worktree_request() else {
-            return false;
-        };
-        let Some(plan) = self.worktrees.launcher.create_with_defaults(
-            operation_id,
-            &origin,
-            crate::localization::select_locale(|name| std::env::var_os(name)),
-        ) else {
-            return false;
-        };
-        self.observe_worktree();
-        self.submit_worktree_start(plan);
-        true
-    }
     pub(super) fn drive_worktree(&mut self) -> bool {
         self.worktrees.changes_dirty |= self
             .worktrees
@@ -599,7 +580,6 @@ impl WorkbenchClientUi {
                             self.worktrees.launcher.fail(WorktreeNotice::SourceChanged);
                         } else {
                             self.worktrees.launcher.discovered(token, result);
-                            self.submit_default_worktree_if_ready();
                         }
                     }
                 }
@@ -702,6 +682,11 @@ impl WorkbenchClientUi {
         }
         changed | self.drive_worktree_entry()
     }
+}
+
+/// The language of a generated Workspace name (Worktree 1, 工作树 1), from this process's locale.
+fn workspace_name_locale() -> crate::localization::Locale {
+    crate::localization::select_locale(|name| std::env::var_os(name))
 }
 
 /// Where this Client process stands while Windows keeps that folder in use; a POSIX directory can

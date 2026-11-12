@@ -150,20 +150,29 @@ fn removal_waits_for_exact_confirmation_draw_and_never_uses_create_or_open_auto_
         launcher.view().unwrap().removal_target(),
         Some(("Task 猫", "C:/trees/猫", Some("refs/heads/same"), 2))
     );
-    assert!(launcher.confirm(token, request(90), &origin).is_none());
-    assert!(!launcher.default_create_ready());
+    assert!(
+        launcher
+            .confirm(token, request(90), &origin, Locale::EnUs)
+            .is_none()
+    );
     assert!(!launcher.sidebar_open_ready());
     launcher.draw(Some(token));
     assert!(launcher.edit(token, WorktreeEdit::Paste("--force")));
     assert_eq!(launcher.token(), Some(token));
-    let plan = launcher.confirm(token, request(90), &origin).unwrap();
+    let plan = launcher
+        .confirm(token, request(90), &origin, Locale::EnUs)
+        .unwrap();
     assert!(
         matches!(&plan.intent, WorktreeIntent::Remove { workspace_id, force: false, trust_repository: false }
         if workspace_id.as_str() == format!("{:032x}", 80))
     );
     assert!(plan.project.is_none());
     assert_start_roundtrip(&plan);
-    assert!(launcher.confirm(token, request(91), &origin).is_none());
+    assert!(
+        launcher
+            .confirm(token, request(91), &origin, Locale::EnUs)
+            .is_none()
+    );
 
     let (mut cancelled, origin, _) = fixture();
     let token = cancelled.token().unwrap();
@@ -171,7 +180,11 @@ fn removal_waits_for_exact_confirmation_draw_and_never_uses_create_or_open_auto_
     cancelled.dismiss();
     assert!(cancelled.operation().is_none());
     assert!(!cancelled.reopen());
-    assert!(cancelled.confirm(token, request(92), &origin).is_none());
+    assert!(
+        cancelled
+            .confirm(token, request(92), &origin, Locale::EnUs)
+            .is_none()
+    );
 }
 
 #[test]
@@ -182,7 +195,11 @@ fn changed_addressed_directory_and_first_blocked_geometry_cannot_confirm_removal
     let mut snapshot = origin.cache.canonical_snapshot().clone();
     snapshot.navigation.directories[0].path = path("C:/other");
     origin.cache = project_preferred_workspace(&snapshot).unwrap();
-    assert!(launcher.confirm(token, request(90), &origin).is_none());
+    assert!(
+        launcher
+            .confirm(token, request(90), &origin, Locale::EnUs)
+            .is_none()
+    );
     assert_eq!(launcher.notice(), WorktreeNotice::SourceChanged);
     assert!(launcher.operation().is_none());
 
@@ -192,7 +209,11 @@ fn changed_addressed_directory_and_first_blocked_geometry_cannot_confirm_removal
         launcher.geometry_blocked(),
         Some(GeometrySettlement::Refused)
     );
-    assert!(launcher.confirm(token, request(90), &origin).is_none());
+    assert!(
+        launcher
+            .confirm(token, request(90), &origin, Locale::EnUs)
+            .is_none()
+    );
     assert!(launcher.operation().is_none());
 }
 

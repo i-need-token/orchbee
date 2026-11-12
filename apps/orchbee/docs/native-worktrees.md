@@ -2,24 +2,25 @@
 
 ## Interaction and scope
 
-On Windows, New Worktree and `Ctrl+B W` create a checkout with a generated branch and default
-base after read-only source discovery. No Project chooser or branch/name form blocks this intent.
-Use the CLI for an explicit branch, base or destination. `Ctrl+B O` opens an exact checkout
+On Windows, New Worktree… and `Ctrl+B W` open the New Worktree form after read-only source
+discovery, with Branch blank (a generated branch) and Base `HEAD`. Nothing is created until its
+Create or Enter; Esc or Cancel creates nothing. No Project chooser blocks this intent. Use the CLI
+for an explicit destination. `Ctrl+B O` opens an exact checkout
 selected from the repository listing. F1 and `[keys].new_worktree` / `open_worktree` use the
 existing binding registry. Both start only from a settled Workspace view. Without one, such as
 in a Workspace whose terminals ended while its close waits on a failed removal, they start
 nothing and the status line says the Workspace is not ready; while another local operation
 owns the structure, it says the Client is busy. A retained result still reopens first.
 
-Default creation gives the Workspace a short localized name (Worktree 1, Worktree 2, and so on),
-choosing the first unused name across the current snapshot. The generated Git branch retains its
-unique operation identity. Renaming the Workspace later does not rename the branch or move files.
+A create submitted with Branch blank gives the Workspace a short localized name (Worktree 1,
+Worktree 2, and so on), choosing the first unused name across the current snapshot; the generated
+Git branch retains its unique operation identity. A create with a typed branch takes its Workspace
+name from that branch. Renaming the Workspace later does not rename the branch or move files.
 
-New Worktree in the [Start Agent picker](agent-board.md) opens the same form for one create under
-the same refusals, with the picker left open beneath it. The Branch field is prefilled with
-`agent/<provider id>` and editable; this draft never submits defaults on its first draw and waits
-for the form's own Enter, so the Workspace takes its name from the branch as an explicit create's
-does. Cancelling before submission returns to the picker with its query, cursor and place. The
+There is one New Worktree form. The sidebar row menus' New Worktree… opens it for their addressed
+source, and New Worktree in the [Start Agent picker](agent-board.md) opens it for one create under
+the same refusals, with the picker left open beneath it. The picker prefills Branch with
+`agent/<provider id>`, which stays editable. No draft submits on its first draw. Cancelling before submission returns to the picker with its query, cursor and place. The
 submitted create carries the provider's catalog id as `agentStart`, which the Server hands to the
 new Workspace's first shell; the retained operation keeps it in memory only, for exact replay
 correlation and Resume, and no record on disk stores it. A failed create shows the form's own
@@ -253,8 +254,8 @@ open menu omits the Worktree rows once Git refuses it, and a checkout every Work
 | Transition                           | Guard and result                                                                                |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | Hidden → prepare                     | Capture current semantic origin; read source and listing without mutation                       |
-| Prepared Create → Start              | Still-current visible intent authorizes one plan using defaults; no second confirmation         |
-| Picker Create → Start                | Prefilled `agent/<provider>` draft waits for Enter; the plan carries the catalog id             |
+| Prepared Create → Start              | The drawn form's own Create or Enter authorizes one plan; a blank Branch uses the defaults      |
+| Picker Create → Start                | The same form, prefilled with `agent/<provider>`; the plan carries the catalog id               |
 | Prepared Open → list                 | Exact source, Session, non-stale revision and stable checkout paths                             |
 | Choose Open                          | A complete current draw token and decoded packet authorize that exact choice                    |
 | Cancel preparation or list           | Drop unsubmitted intent; late discovery cannot start an operation                               |

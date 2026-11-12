@@ -290,7 +290,8 @@ bounded preparation without timing optional human editing.
 
 Workspace menus contain Move to Project ▸, Rename Workspace (shown as Rename), Set Directory… when
 it applies, a separated Worktree section and a separated close section. The Worktree section holds
-New Worktree…, which creates a Worktree with defaults through the sidebar Create route, and Open
+New Worktree…, which opens the New Worktree form with its defaults for the sidebar Create route
+and creates only on that form's Create, and Open
 Worktree ▸, whose submenu lists the discovered non-bare checkouts other than the Workspace's own
 (labelled like the Git Worktrees group) and opens the chosen one through the sidebar Open route.
 Both act on the addressed Workspace without selecting it; their source and grouping follow

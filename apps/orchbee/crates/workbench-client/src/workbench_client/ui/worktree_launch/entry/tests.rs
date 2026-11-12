@@ -21,12 +21,12 @@ fn case_with_mode(mode: WorktreeMode) -> (WorkbenchClientUi, Plan, Snapshot) {
     ui.worktrees.launcher.draw(Some(token));
     let operation = WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap();
     let plan = match mode {
-        WorktreeMode::Create => ui.worktrees.launcher.create_with_defaults(
+        WorktreeMode::Create | WorktreeMode::Open => ui.worktrees.launcher.confirm(
+            token,
             operation,
             &origin,
             crate::localization::Locale::EnUs,
         ),
-        WorktreeMode::Open => ui.worktrees.launcher.confirm(token, operation, &origin),
         WorktreeMode::Remove => unreachable!("entry is only for Create/Open"),
     }
     .unwrap();
@@ -250,7 +250,12 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     assert!(
         ui.worktrees
             .launcher
-            .confirm(next, operation.clone(), &origin)
+            .confirm(
+                next,
+                operation.clone(),
+                &origin,
+                crate::localization::Locale::EnUs
+            )
             .is_none()
     );
     ui.worktrees.launcher.draw(Some(next));
@@ -258,7 +263,12 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     let opened = ui
         .worktrees
         .launcher
-        .confirm(next, operation.clone(), &origin)
+        .confirm(
+            next,
+            operation.clone(),
+            &origin,
+            crate::localization::Locale::EnUs,
+        )
         .unwrap();
     assert_eq!(opened.operation_id, operation);
     assert_ne!(opened.operation_id, created.operation_id);
@@ -275,7 +285,7 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     assert!(
         ui.worktrees
             .launcher
-            .confirm(next, operation, &origin)
+            .confirm(next, operation, &origin, crate::localization::Locale::EnUs)
             .is_none()
     );
     assert!(
@@ -366,7 +376,6 @@ fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
     ui.worktrees.entry = None;
     assert!(ui.worktrees.open_sidebar(origin, sidebar, None));
     assert!(ui.worktrees.launcher.operation().is_none());
-    assert!(!ui.worktrees.launcher.default_create_ready());
 }
 
 #[test]

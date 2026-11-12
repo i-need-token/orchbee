@@ -61,7 +61,9 @@ fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_re
     ));
     let token = launcher.token().unwrap();
     launcher.draw(Some(token));
-    let plan = launcher.confirm(token, id(90), &origin).unwrap();
+    let plan = launcher
+        .confirm(token, id(90), &origin, crate::localization::Locale::EnUs)
+        .unwrap();
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         handshake(&mut stream, index as u64 + 1)?;
         if index == 0 {

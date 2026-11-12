@@ -247,6 +247,7 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                     token,
                     WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
                     &origin,
+                    crate::localization::Locale::EnUs,
                 );
                 assert_eq!(plan.is_some(), fits);
                 assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
@@ -401,6 +402,7 @@ fn a_geometry_change_revokes_the_draw_without_submitting_or_changing_source() {
                 ui.worktrees.launcher.token().unwrap(),
                 WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
                 &origin,
+                crate::localization::Locale::EnUs,
             )
             .is_none()
     );
@@ -418,7 +420,12 @@ fn hidden_completion_reopens_the_same_receipt_without_new_preparation_or_focus()
         let plan = ui
             .worktrees
             .launcher
-            .confirm(token, operation.clone(), &origin)
+            .confirm(
+                token,
+                operation.clone(),
+                &origin,
+                crate::localization::Locale::EnUs,
+            )
             .unwrap();
         ui.dismiss_worktree(token);
         assert!(!ui.worktrees.launcher.visible());
@@ -486,7 +493,12 @@ fn unknown_worktree_result_retains_one_operation_and_can_be_hidden_without_repla
     let plan = ui
         .worktrees
         .launcher
-        .confirm(token, operation.clone(), &origin)
+        .confirm(
+            token,
+            operation.clone(),
+            &origin,
+            crate::localization::Locale::EnUs,
+        )
         .unwrap();
     assert!(plan.project.is_none());
     assert!(ui.worktrees.launcher.start_settled(&operation, Err(true)));
@@ -590,7 +602,12 @@ fn a_result_without_an_operation_offers_only_close() {
     let token = ui.worktrees.launcher.token().unwrap();
     ui.worktrees
         .launcher
-        .confirm(token, operation.clone(), &origin)
+        .confirm(
+            token,
+            operation.clone(),
+            &origin,
+            crate::localization::Locale::EnUs,
+        )
         .unwrap();
     assert!(ui.worktrees.launcher.start_settled(&operation, Err(true)));
     let drawn = draw_frame_with_theme(
@@ -677,7 +694,8 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
                             .confirm(
                                 token,
                                 WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
-                                &origin
+                                &origin,
+                                crate::localization::Locale::EnUs
                             )
                             .is_some()
                     );

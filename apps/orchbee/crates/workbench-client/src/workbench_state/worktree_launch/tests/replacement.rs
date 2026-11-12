@@ -4,9 +4,7 @@ use super::*;
 
 fn hidden_opened() -> Launcher {
     let (mut launcher, origin) = fixture(1, WorktreeMode::Create);
-    let plan = launcher
-        .create_with_defaults(request(90), &origin, Locale::EnUs)
-        .unwrap();
+    let plan = confirm(&mut launcher, &origin).unwrap();
     assert!(
         launcher.start_settled(
             &plan.operation_id,
@@ -83,7 +81,7 @@ fn hidden_worktree_replacement_preserves_recovery_on_invalid_source_choice_or_to
         assert!(retained.focus_allowed);
         assert!(
             launcher
-                .confirm(WorktreeToken(token), request(91), &origin)
+                .confirm(WorktreeToken(token), request(91), &origin, Locale::EnUs)
                 .is_none()
         );
         assert!(launcher.reopen(), "recovery remains available for {change}");
@@ -159,9 +157,7 @@ fn visible_uncertain_nonterminal_and_focus_retired_results_never_yield_to_a_side
         assert_eq!(launcher.last_token, token);
     }
     let (mut starting, origin) = fixture(1, WorktreeMode::Create);
-    let plan = starting
-        .create_with_defaults(request(90), &origin, Locale::EnUs)
-        .unwrap();
+    let plan = confirm(&mut starting, &origin).unwrap();
     starting.dismiss();
     let (next_origin, sidebar) = sidebar_fixture();
     assert!(!starting.open_sidebar(next_origin, sidebar, WorktreeMode::Create, None));

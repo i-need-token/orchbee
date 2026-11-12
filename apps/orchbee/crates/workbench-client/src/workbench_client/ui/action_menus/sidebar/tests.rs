@@ -833,7 +833,8 @@ fn a_row_chosen_during_the_read_waits_for_the_answer_and_acts_on_it() {
     let token = launcher.token().unwrap();
     launcher.draw(Some(token));
     let plan = launcher
-        .create_with_defaults(
+        .confirm(
+            token,
             orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 903))
                 .unwrap(),
             &origin,
@@ -1049,7 +1050,8 @@ fn ungrouped_git_workspace_menu_creates_a_worktree_from_the_workspace_so_the_ser
     let token = launcher.token().unwrap();
     launcher.draw(Some(token));
     let plan = launcher
-        .create_with_defaults(
+        .confirm(
+            token,
             orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 901))
                 .unwrap(),
             &origin,
@@ -1116,6 +1118,7 @@ fn open_worktree_submenu_lists_the_other_checkouts_and_opens_the_chosen_one_alon
             orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 902))
                 .unwrap(),
             &origin,
+            crate::localization::Locale::EnUs,
         )
         .unwrap();
     assert_eq!(plan.project, None);

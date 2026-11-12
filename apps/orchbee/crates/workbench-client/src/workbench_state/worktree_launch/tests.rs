@@ -107,7 +107,7 @@ fn edit(l: &mut Launcher, e: WorktreeEdit<'_>) {
 pub(crate) fn confirm(l: &mut Launcher, origin: &Origin) -> Option<Plan> {
     let token = l.token().unwrap();
     l.draw(Some(token));
-    l.confirm(token, request(90), origin)
+    l.confirm(token, request(90), origin, Locale::EnUs)
 }
 fn pending(project: Option<WorkbenchProjectId>) -> WorkbenchWorktreeOutcome {
     WorkbenchWorktreeOutcome::Available {
@@ -170,32 +170,22 @@ fn a_shortcut_listing_where_the_terminal_stands_becomes_the_draft() {
     }
 }
 /// A create from the Start Agent picker opens with the branch `agent/<provider>`, which edits like
-/// any branch, waits for the form's own Enter and names its Agent; an ordinary create names none
-/// and submits its defaults on the first draw.
+/// any branch and names its Agent; an ordinary create names none.
 #[test]
 fn a_picker_create_prefills_the_agent_branch_waits_for_enter_and_names_its_agent() {
     let codex = orchbee_workbench_protocol::AgentStartSelector::parse("codex");
-    for (name, agent, edit_text, branch, default_ready, agent_start) in [
-        (
-            "picker",
-            Some("codex"),
-            None,
-            Some("agent/codex"),
-            false,
-            codex,
-        ),
+    for (name, agent, edit_text, branch, agent_start) in [
+        ("picker", Some("codex"), None, Some("agent/codex"), codex),
         (
             "picker, edited",
             Some("codex"),
             Some("-2"),
             Some("agent/codex-2"),
-            false,
             codex,
         ),
-        ("ordinary", None, None, None, true, None),
+        ("ordinary", None, None, None, None),
     ] {
         let (mut l, origin) = fixture_starting(1, WorktreeMode::Create, discovery(), agent);
-        assert_eq!(l.default_create_ready(), default_ready, "{name}");
         if let Some(text) = edit_text {
             edit(&mut l, WorktreeEdit::Append(text));
         }
@@ -221,10 +211,16 @@ fn worktree_confirmation_requires_fresh_draw_complete_packet_and_immutable_origi
     let (mut l, origin) = fixture(1, WorktreeMode::Create);
     edit(&mut l, WorktreeEdit::Append("feature/猫"));
     let stale = l.token().unwrap();
-    assert!(l.confirm(stale, request(90), &origin,).is_none());
+    assert!(
+        l.confirm(stale, request(90), &origin, Locale::EnUs,)
+            .is_none()
+    );
     l.draw(Some(stale));
     edit(&mut l, WorktreeEdit::NextField);
-    assert!(l.confirm(stale, request(90), &origin,).is_none());
+    assert!(
+        l.confirm(stale, request(90), &origin, Locale::EnUs,)
+            .is_none()
+    );
     l.draw(l.token());
     edit(&mut l, WorktreeEdit::Completeness(false));
     assert!(confirm(&mut l, &origin).is_none());
@@ -353,10 +349,9 @@ fn an_empty_first_member_keeps_required_null_project_at_the_wire_boundary() {
         let token = launcher.token().unwrap();
         launcher.draw(Some(token));
         let plan = match mode {
-            WorktreeMode::Create => {
-                launcher.create_with_defaults(request(90), &origin, Locale::EnUs)
+            WorktreeMode::Create | WorktreeMode::Open => {
+                launcher.confirm(token, request(90), &origin, Locale::EnUs)
             }
-            WorktreeMode::Open => launcher.confirm(token, request(90), &origin),
             WorktreeMode::Remove => unreachable!("this witness only iterates launch modes"),
         }
         .unwrap();
@@ -401,13 +396,18 @@ fn sidebar_checkout_requires_its_complete_source_draw_then_starts_the_exact_choi
     ));
     let token = launcher.token().unwrap();
     assert!(!launcher.sidebar_open_ready());
-    assert!(launcher.confirm(token, request(90), &origin).is_none());
+    assert!(
+        launcher
+            .confirm(token, request(90), &origin, Locale::EnUs)
+            .is_none()
+    );
     launcher.draw(None);
     assert!(!launcher.sidebar_open_ready());
     launcher.draw(Some(token));
     assert!(launcher.sidebar_open_ready());
-    assert!(!launcher.default_create_ready());
-    let plan = launcher.confirm(token, request(90), &origin).unwrap();
+    let plan = launcher
+        .confirm(token, request(90), &origin, Locale::EnUs)
+        .unwrap();
     assert_eq!(plan.project, sidebar.addressed.cache.project_id().cloned());
     assert_start_roundtrip(&plan);
     assert!(matches!(plan.intent, WorktreeIntent::Open {
@@ -416,7 +416,11 @@ fn sidebar_checkout_requires_its_complete_source_draw_then_starts_the_exact_choi
     } if source == path("C:/repo") && checkout == path("C:/trees/猫")));
     assert!(plan.sidebar.is_some());
     assert!(!launcher.sidebar_open_ready());
-    assert!(launcher.confirm(token, request(91), &origin).is_none());
+    assert!(
+        launcher
+            .confirm(token, request(91), &origin, Locale::EnUs)
+            .is_none()
+    );
 }
 
 #[test]
@@ -438,7 +442,11 @@ fn sidebar_checkout_blocked_or_cancelled_before_draw_cannot_authorize_a_start() 
         }
         launcher.draw(Some(token));
         assert!(!launcher.sidebar_open_ready());
-        assert!(launcher.confirm(token, request(90), &origin).is_none());
+        assert!(
+            launcher
+                .confirm(token, request(90), &origin, Locale::EnUs)
+                .is_none()
+        );
         assert!(launcher.operation().is_none());
     }
 }
@@ -472,23 +480,25 @@ fn worktree_cancellation_and_foreign_late_discovery_never_issue_a_plan() {
     assert!(!l.discovered(old, Ok(discovery())));
     assert!(l.operation().is_none());
     assert!(!l.visible());
-    assert!(l.confirm(old, request(91), &origin,).is_none());
+    assert!(
+        l.confirm(old, request(91), &origin, Locale::EnUs,)
+            .is_none()
+    );
 }
 #[test]
 fn worktree_create_uses_defaults_without_a_project_or_second_confirmation() {
     for projects in [0, 1, 2] {
         let (mut l, origin) = fixture(projects, WorktreeMode::Create);
-        let plan = l
-            .create_with_defaults(request(90), &origin, Locale::EnUs)
-            .unwrap();
+        let plan = confirm(&mut l, &origin).unwrap();
         assert!(plan.project.is_none());
         assert!(
             matches!(plan.intent, WorktreeIntent::Create { branch: None, label: Some(ref label), .. } if label.as_str() == "Worktree 1")
         );
         assert!(l.start_settled(&plan.operation_id, Ok(pending(None))));
         assert!(l.pending());
+        let token = l.token().unwrap();
         assert!(
-            l.create_with_defaults(request(91), &origin, Locale::EnUs)
+            l.confirm(token, request(91), &origin, Locale::EnUs)
                 .is_none()
         );
         assert_eq!(origin.cache.projects().len(), projects);
@@ -530,8 +540,9 @@ fn worktree_default_names_consider_newer_workspace_labels_across_groups() {
                 groups: vec![],
             });
             origin.cache = project_preferred_workspace(&snapshot).unwrap();
+            let token = launcher.token().unwrap();
             let plan = launcher
-                .create_with_defaults(request(90), &origin, locale)
+                .confirm(token, request(90), &origin, locale)
                 .unwrap();
             assert!(
                 matches!(plan.intent, WorktreeIntent::Create { branch: None, label: Some(ref label), .. } if label.as_str() == expected)
@@ -550,7 +561,10 @@ fn worktree_unknown_start_only_accepts_correlated_reads_and_never_reconfirms() {
     assert_eq!(l.notice(), WorktreeNotice::Unknown);
     let token = l.token().unwrap();
     l.draw(Some(token));
-    assert!(l.confirm(token, request(92), &origin,).is_none());
+    assert!(
+        l.confirm(token, request(92), &origin, Locale::EnUs,)
+            .is_none()
+    );
     assert!(!l.observed(&request(91), Ok(pending(plan.project.clone()))));
     l.dismiss();
     assert!(l.reopen());
@@ -594,16 +608,15 @@ fn worktree_opened_keeps_canonical_receipt_after_source_or_entry_failure() {
 #[test]
 fn default_create_preserves_a_known_partial_receipt_after_observation_loss() {
     let (mut l, origin) = fixture(0, WorktreeMode::Create);
-    let plan = l
-        .create_with_defaults(request(90), &origin, Locale::EnUs)
-        .unwrap();
+    let plan = confirm(&mut l, &origin).unwrap();
     let known = pending(None);
     assert!(l.start_settled(&plan.operation_id, Ok(known.clone())));
     assert!(l.observed(&plan.operation_id, Err(true)));
     assert_eq!(l.operation().unwrap().outcome, Some(known));
     assert_eq!(l.notice(), WorktreeNotice::Unknown);
+    let token = l.token().unwrap();
     assert!(
-        l.create_with_defaults(request(91), &origin, Locale::EnUs)
+        l.confirm(token, request(91), &origin, Locale::EnUs)
             .is_none()
     );
 }
@@ -618,29 +631,16 @@ fn hiding_during_start_permanently_revokes_focus_even_after_reopen() {
     assert!(!l.operation().unwrap().focus_allowed);
 }
 #[test]
-fn cancel_or_newer_focus_prevents_default_create_after_discovery() {
-    for hide in [false, true] {
-        let (mut l, origin) = fixture(0, WorktreeMode::Create);
-        if hide {
-            l.dismiss();
-        } else {
-            l.suppress_focus();
-        }
-        assert!(
-            l.create_with_defaults(request(90), &origin, Locale::EnUs)
-                .is_none()
-        );
-    }
-}
-
-#[test]
 fn completing_an_inflight_packet_requires_another_presented_draw() {
     let (mut l, origin) = fixture(1, WorktreeMode::Open);
     let token = l.token().unwrap();
     l.draw(Some(token));
     edit(&mut l, WorktreeEdit::Completeness(false));
     edit(&mut l, WorktreeEdit::Completeness(true));
-    assert!(l.confirm(token, request(90), &origin,).is_none());
+    assert!(
+        l.confirm(token, request(90), &origin, Locale::EnUs,)
+            .is_none()
+    );
     assert!(confirm(&mut l, &origin).is_some());
 }
 #[test]
@@ -656,7 +656,10 @@ fn read_of_a_known_terminal_result_does_not_regain_focus_or_confirm_again() {
     assert!(!l.operation().unwrap().focus_allowed);
     let token = l.token().unwrap();
     l.draw(Some(token));
-    assert!(l.confirm(token, request(91), &origin,).is_none());
+    assert!(
+        l.confirm(token, request(91), &origin, Locale::EnUs,)
+            .is_none()
+    );
 }
 
 #[test]
@@ -886,7 +889,11 @@ fn worktree_geometry_suspension_retains_the_same_draft_until_a_fresh_draw() {
         cursor
     );
     assert!(!launcher.edit(token, WorktreeEdit::Append("-hidden")));
-    assert!(launcher.confirm(token, request(90), &origin).is_none());
+    assert!(
+        launcher
+            .confirm(token, request(90), &origin, Locale::EnUs)
+            .is_none()
+    );
 
     launcher.draw(None);
     assert!(!launcher.edit(token, WorktreeEdit::Append("-covered")));

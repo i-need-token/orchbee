@@ -109,13 +109,6 @@ impl Draft {
         self.agent = Some(agent);
         self
     }
-    pub(crate) fn is_create(&self) -> bool {
-        self.mode == WorktreeMode::Create
-    }
-    /// Whether this create starts an Agent, so it waits for the form's own submission.
-    pub(super) const fn starts_agent(&self) -> bool {
-        self.agent.is_some()
-    }
     pub(super) fn is_checkout(&self) -> bool {
         self.stage == WorktreeStage::Checkout
     }

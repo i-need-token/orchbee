@@ -171,6 +171,7 @@ impl Launcher {
         index: usize,
         operation_id: WorkbenchRequestId,
         origin: &Origin,
+        locale: crate::localization::Locale,
     ) -> Option<Plan> {
         if self.token() != Some(token)
             || self.shown != Some(token)
@@ -184,7 +185,7 @@ impl Launcher {
         if !draft.origin.unchanged(origin) || !draft.choose_checkout(index) {
             return None;
         }
-        self.confirm(token, operation_id, origin)
+        self.confirm(token, operation_id, origin, locale)
     }
 
     pub(crate) fn scroll_choices(&mut self, token: WorktreeToken, up: bool, lines: usize) -> bool {
@@ -223,14 +224,6 @@ impl Launcher {
     }
     pub(crate) fn accepts_input(&self, token: WorktreeToken) -> bool {
         self.token() == Some(token) && self.presentation.interactive() && self.input_frame_live
-    }
-    /// A create that starts an Agent waits for the form's own Enter instead, so its prefilled
-    /// branch can be edited first.
-    pub(crate) fn default_create_ready(&self) -> bool {
-        self.shown == self.token()
-            && self.presentation.interactive()
-            && !self.focus_revoked
-            && matches!(&self.phase, Phase::Draft(draft) if draft.is_create() && !draft.starts_agent())
     }
     /// The menu already chose one exact checkout. Its complete source form
     /// must still be painted before the choice can start an operation.
@@ -458,6 +451,7 @@ impl Launcher {
         token: WorktreeToken,
         operation_id: WorkbenchRequestId,
         origin: &Origin,
+        locale: crate::localization::Locale,
     ) -> Option<Plan> {
         if self.token() != Some(token)
             || self.shown != Some(token)
@@ -488,45 +482,30 @@ impl Launcher {
             self.fail(WorktreeNotice::ClientInCheckout);
             return None;
         }
-        let Some(plan) = draft.plan(operation_id) else {
+        let Some(mut plan) = draft.plan(operation_id) else {
             self.notice = WorktreeNotice::InvalidInput;
             return None;
         };
+        // A create whose Branch was left blank takes a generated branch, so its Workspace takes
+        // the first unused short name (Worktree 1, Worktree 2, …) instead of that branch.
+        if let WorktreeIntent::Create {
+            branch: None,
+            label,
+            ..
+        } = &mut plan.intent
+        {
+            let workspaces = &origin.cache.canonical_snapshot().navigation.workspaces;
+            let generated = (1..=workspaces.len() + 1)
+                .map(|ordinal| locale.worktree_default_workspace(ordinal))
+                .find(|candidate| {
+                    workspaces
+                        .iter()
+                        .all(|workspace| workspace.label != *candidate)
+                })?;
+            *label = Some(orchbee_workbench_protocol::WorkbenchLabel::parse(&generated).ok()?);
+        }
         // Keep the current frame proof only as automatic-entry eligibility for
         // this accepted operation; the next draw receipt may revoke it.
-        self.notice = WorktreeNotice::Pending;
-        self.phase = Phase::Starting(Box::new(plan.clone()));
-        Some(plan)
-    }
-    /// A Create action supplies the intent; the first successful surface draw
-    /// authorizes its default plan without a second confirmation.
-    pub(crate) fn create_with_defaults(
-        &mut self,
-        operation_id: WorkbenchRequestId,
-        origin: &Origin,
-        locale: crate::localization::Locale,
-    ) -> Option<Plan> {
-        let Phase::Draft(draft) = &self.phase else {
-            return None;
-        };
-        if !self.default_create_ready() || !draft.is_create() || !draft.origin.unchanged(origin) {
-            return None;
-        }
-        let mut plan = draft.plan(operation_id)?;
-        let workspaces = &origin.cache.canonical_snapshot().navigation.workspaces;
-        let generated = (1..=workspaces.len() + 1)
-            .map(|ordinal| locale.worktree_default_workspace(ordinal))
-            .find(|candidate| {
-                workspaces
-                    .iter()
-                    .all(|workspace| workspace.label != *candidate)
-            })?;
-        let WorktreeIntent::Create { label, .. } = &mut plan.intent else {
-            return None;
-        };
-        *label = Some(orchbee_workbench_protocol::WorkbenchLabel::parse(&generated).ok()?);
-        // The draw that accepted default Create remains the current proof until
-        // a later frame reports that the surface is absent or blocked.
         self.notice = WorktreeNotice::Pending;
         self.phase = Phase::Starting(Box::new(plan.clone()));
         Some(plan)
