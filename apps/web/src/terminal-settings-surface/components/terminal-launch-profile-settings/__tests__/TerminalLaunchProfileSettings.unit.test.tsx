@@ -231,22 +231,16 @@ class TestTerminalLaunchProfileControl implements TerminalLaunchProfileControl {
 		source: 'stored',
 	};
 
-	createProfile = async (
-		name: string,
-		sourceProfileId: UserLaunchProfileId,
-	): Promise<TerminalLaunchProfileClientOperationResult> => {
+	createProfile = async (name: string): Promise<TerminalLaunchProfileClientOperationResult> => {
 		this.commands.push({ type: 'desktop-terminal-launch-profile-create-requested' });
-		const sourceIndex = this.#snapshot.catalog.profiles.findIndex(
-			(profile) => profile.id === sourceProfileId,
-		);
-		const source = this.#snapshot.catalog.profiles[sourceIndex];
-		if (source === undefined) return { kind: 'unavailable' };
-		const profiles = [...this.#snapshot.catalog.profiles];
-		profiles.splice(sourceIndex + 1, 0, {
-			...source,
-			id: UserLaunchProfileIdSchema.parse('profile-created'),
-			name,
-		});
+		const profiles = [
+			...this.#snapshot.catalog.profiles,
+			{
+				command: { kind: 'system-shell', login: false } as const,
+				id: UserLaunchProfileIdSchema.parse('profile-created'),
+				name,
+			},
+		];
 		return this.#commit({ ...this.#snapshot.catalog, profiles });
 	};
 

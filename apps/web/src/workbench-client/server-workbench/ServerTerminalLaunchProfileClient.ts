@@ -29,11 +29,7 @@ import {
 } from '../../user-settings';
 
 type CatalogChange =
-	| {
-			readonly kind: 'create';
-			readonly name: string;
-			readonly sourceProfileId: UserLaunchProfileId;
-	  }
+	| { readonly kind: 'create'; readonly name: string }
 	| { readonly kind: 'delete'; readonly profileId: UserLaunchProfileId }
 	| { readonly kind: 'reset' }
 	| { readonly kind: 'select-default'; readonly profileId: UserLaunchProfileId }
@@ -89,11 +85,8 @@ export class ServerTerminalLaunchProfileClient implements TerminalLaunchProfileC
 		return () => this.#listeners.delete(listener);
 	};
 
-	createProfile(
-		name: string,
-		sourceProfileId: UserLaunchProfileId,
-	): Promise<TerminalLaunchProfileClientOperationResult> {
-		return this.#change({ kind: 'create', name, sourceProfileId });
+	createProfile(name: string): Promise<TerminalLaunchProfileClientOperationResult> {
+		return this.#change({ kind: 'create', name });
 	}
 
 	updateProfile(
@@ -225,30 +218,28 @@ function transitionCatalog(
 	change: Exclude<CatalogChange, { readonly kind: 'reset' }>,
 ): UserLaunchProfileCatalog | CatalogRefusal {
 	const { profiles } = catalog;
-	let profileId: string;
-	if (change.kind === 'create') profileId = change.sourceProfileId;
-	else if (change.kind === 'update') profileId = change.profile.id;
-	else profileId = change.profileId;
+	if (change.kind === 'create') {
+		if (profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount) {
+			return 'catalog-full';
+		}
+		// As in the TUI, a new profile starts as the system shell at the end of the list, never
+		// as a copy of the profile last edited.
+		const created = {
+			command: { kind: 'system-shell', login: false },
+			id: nextProfileId(catalog),
+			name: change.name,
+		};
+		const parsed = UserLaunchProfileCatalogSchema.safeParse({
+			...catalog,
+			profiles: [...profiles, created],
+		});
+		return parsed.success ? parsed.data : 'invalid-profile';
+	}
+	const profileId = change.kind === 'update' ? change.profile.id : change.profileId;
 	const index = profiles.findIndex((profile) => profile.id === profileId);
-	const target = profiles[index];
-	if (target === undefined) return 'profile-not-found';
+	if (index === -1) return 'profile-not-found';
 	let candidate: unknown;
 	switch (change.kind) {
-		case 'create': {
-			if (profiles.length >= USER_LAUNCH_PROFILE_LIMITS.maximumProfileCount) {
-				return 'catalog-full';
-			}
-			const created = {
-				command: structuredClone(target.command),
-				id: nextProfileId(catalog),
-				name: change.name,
-			};
-			candidate = {
-				...catalog,
-				profiles: [...profiles.slice(0, index + 1), created, ...profiles.slice(index + 1)],
-			};
-			break;
-		}
 		case 'update':
 			candidate = {
 				...catalog,

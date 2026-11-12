@@ -323,7 +323,7 @@ export function useTerminalLaunchProfileSettings(
 		}
 		setLocalError(null);
 		const previousIds = new Set(snapshot.catalog.profiles.map((profile) => profile.id));
-		const result = await client.createProfile(name.data, selectedProfile.id);
+		const result = await client.createProfile(name.data);
 		if (result.kind !== 'completed') return;
 		const created = result.snapshot.catalog.profiles.find(
 			(profile) => !previousIds.has(profile.id),

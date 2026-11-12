@@ -275,18 +275,14 @@ function createTerminalLaunchProfileStoryControl(
 		return Promise.resolve({ kind: 'completed' as const, snapshot });
 	};
 	return {
-		createProfile: (name, sourceProfileId) => {
-			const sourceIndex = snapshot.catalog.profiles.findIndex(
-				(profile) => profile.id === sourceProfileId,
-			);
-			const source = snapshot.catalog.profiles[sourceIndex];
-			if (source === undefined) return Promise.resolve({ kind: 'unavailable' });
+		createProfile: (name) => {
 			const id = UserLaunchProfileIdSchema.parse(`story-profile-${++profileSequence}`);
-			const profiles = [...snapshot.catalog.profiles];
-			profiles.splice(sourceIndex + 1, 0, { ...source, id, name });
 			return commit({
 				...snapshot.catalog,
-				profiles,
+				profiles: [
+					...snapshot.catalog.profiles,
+					{ command: { kind: 'system-shell', login: false }, id, name },
+				],
 			});
 		},
 		deleteProfile: (profileId) =>

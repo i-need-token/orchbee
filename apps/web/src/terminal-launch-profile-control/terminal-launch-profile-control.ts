@@ -65,10 +65,8 @@ export type TerminalLaunchProfileClientOperationResult =
 	| { readonly kind: 'unavailable' };
 
 export interface TerminalLaunchProfileControl {
-	createProfile(
-		name: string,
-		sourceProfileId: UserLaunchProfileId,
-	): Promise<TerminalLaunchProfileClientOperationResult>;
+	/** Adds a system-shell profile with this name at the end of the catalog. */
+	createProfile(name: string): Promise<TerminalLaunchProfileClientOperationResult>;
 	deleteProfile(
 		profileId: UserLaunchProfileId,
 	): Promise<TerminalLaunchProfileClientOperationResult>;

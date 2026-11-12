@@ -166,7 +166,8 @@ The stable built-in profile uses a localized display label rather than persisted
 names remain exact user data and duplicate names do not merge identities. The Launch profiles card
 shows one profile per line with its Default label or a Use as default action, and an Edit action
 that opens the profile's editor under its line; Done saves the draft. Add profile, the card's last
-line, creates a new profile by copying the selected command. The editor can rename a profile,
+line, adds a new system-shell profile, without login mode, at the end of the list, as the TUI does;
+it never copies the profile last selected or edited. The editor can rename a profile,
 change its command and arguments, or delete a non-default profile after confirmation. The default
 and final profile cannot be deleted. The group's Restore default requires confirmation and replaces
 the complete catalog with the built-in default only after the Server commits it. Pending operations disable competing
