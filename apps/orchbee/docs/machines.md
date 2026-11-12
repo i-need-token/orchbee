@@ -291,6 +291,176 @@ helper with pipes against a real scratch Session, two Session streams, a routed 
 while another stream is stalled at its window, both `ensure-session` outcomes, `bye`, and pipe
 closure, and the console refusal. It does not start `ssh`.
 
+## Machine hub
+
+`orchbee --machine-hub-v1`, with no other argument, is the hub: the one process per data root
+through which interfaces reach saved machines over
+[`machine-hub`](../../../schemas/machine/README.md#hub-records). It serves the catalog and its own
+lifetime today; it starts no `ssh` and contacts no machine yet. Windows serves it; elsewhere both
+hub entries answer unsupported before they touch the data root. The entry is an internal pairing
+between this program and its own start path, not a command: nothing outside one installation runs
+it, and a release may rename it. `orchbee --machine-hub-state-v1`, equally internal, attaches to
+the hub, starting it when none runs, and prints the hub's state, its process id, and each
+Machine's state; it holds nothing. Neither appears in help, completion, or the Agent guide.
+
+### Names that freeze
+
+| Name                | Spelling                                                                                                                                                                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lock                | `<data root>/internal/machines/hub.lock`                                                                                                                                                                                                              |
+| Windows endpoint    | `\\.\pipe\orchbee-<id>-hub`: `<id>` is the first 32 lowercase hexadecimal digits of the SHA-256 of `orchbee-windows-machine-hub-v1`, one NUL byte, and the UTF-16LE code units of the data root's canonical `\\?\` path with ASCII letters lowercased |
+| macOS, Linux socket | `<socket folder>/<id>-hub.sock` in the environment's `/tmp/<stem>-<uid>` (`/private/tmp/` on macOS): `<id>` as on Windows over `orchbee-posix-machine-hub-v1`, NUL, and the canonical path's bytes; at most 90 bytes                                  |
+
+Both freeze at the first public release. After an update an older hub meets a newer interface, or
+the reverse, so they must find each other by these spellings alone; a later release changes the
+connection through the `OBHS` generation, never through the names.
+
+- **One data root, one hub.** The hub serves one data root's catalog and Sessions, so its lock
+  lives in that root; a hub under another `ORCHBEE_HOME` never contends for it. `internal/` holds
+  what people do not edit, and `internal/machines/` is the hub's own folder for what later slices
+  add.
+- **Named like a Session endpoint.** The `orchbee-` prefix in every environment, a hash of a
+  canonical location so the length never depends on the home folder, a role suffix, and a domain
+  tag in the hash so a hub id never equals a Session id. Environments have distinct default data
+  roots and so distinct names, and the hub runs as the Client's `<stem>.exe`, so a development hub
+  never carries a release name.
+- **The data root alone names it.** The stem stays out of the Windows hash so that the endpoint and
+  the lock always name the same hub. Two environments that share one data root through
+  `ORCHBEE_HOME`, which the layout does not support, reach one hub, and its handshake refuses the
+  other environment's clients with `environment-mismatch`; on macOS and Linux the second
+  environment's hub cannot take the lock and its clients report the hub unavailable.
+- **Holding is a handle, never a file.** The hub holds an operating-system lock on its open handle
+  of `hub.lock`, which the system releases when the process ends however it ends. The file is never
+  deleted, so a leftover file means nothing and every hub locks the same file.
+
+### Lifetime
+
+A holder is a connection attached with `presence` or a live local Session of the data root. The
+hub's state follows the contract's [hub lifetime](../../../schemas/machine/README.md#hub-lifetime).
+
+| State      | When                                                                                                           | Leaves to                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `held`     | A holder exists, or the last `presence` connection has left and the Session read it triggered has not finished | `expiring` when no `presence` connection is attached and a Session read finds no live Session; `closing` on `drain` |
+| `expiring` | No holder; `expiresAt` is the moment the hub learned that, plus 600,000 ms                                     | `held` on a `presence` attachment or a read that finds a live Session; `closing` at `expiresAt` or on `drain`       |
+| `closing`  | Entered once and never left                                                                                    | Exit                                                                                                                |
+
+- **Start.** The hub takes the lock, reads the catalog and reads every Session before it opens its
+  endpoint, so its first client sees `held` or `expiring`; with no live Session the expiry counts
+  from that read.
+- **Session reads.** A Session is live while its Server holds its lifetime lock. The hub reads every
+  Session that `session list` shows in the environment the hub started in: once when the last
+  `presence` connection closes or attaches again without `presence`, then every 30 seconds while
+  none is attached, and never while one is. One read covers every Session within 5 seconds; a read
+  that fails or runs out of time finds no live Session.
+- **A read never meets a Server.** For each Session folder the hub opens its existing
+  `activation.lock` and never creates it: no file means no Session; a lock someone holds means an
+  activation, a stop, or a deletion is running, which counts as live; otherwise the hub holds the
+  activation lock for the instant of `observe_session_lifetime_lock`. A Server takes its lifetime
+  lock once, at start, while its activator holds the activation lock, and releases it during its
+  stop under the same lock, so the read can never take a free lifetime lock at the moment a Server
+  takes it. The bare `observe_session_lifetime_lock` that `session list` uses could.
+- **Time.** The lifetime state machine takes the time as an argument; only the hub's supervisor
+  reads the clocks, monotonic for deadlines and the wall clock for `expiresAt`. In development and
+  test builds `ORCHBEE_MACHINE_HUB_EXPIRY_MS`, from 1,000 to 600,000, replaces the 600,000 ms
+  expiry; a release build never reads it. The hub reads it from the environment it inherits from
+  the process that started it; nothing in Orchbee sets it.
+- **Events.** Every change of state goes as `hub` to every connection attached with `watch`.
+
+In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`
+with state `stopping`; it answers every request `stopping` and resets every `open` `stopping`. No
+channel stays open in this slice, so the 60-second allowance waits only for catalog reads already
+in flight, which then reply `stopping`. The hub then queues `bye` `stopping` on every connection,
+gives its writers at most 2 seconds, closes the endpoint, releases the lock, and exits 0. `drain`
+enters `closing`; `exit` replies and ends the process at once, without the allowance.
+
+### Admission and requests
+
+The endpoint admits only the current user: its DACL grants access to the hub's own token user
+alone, it refuses remote clients, and every accepted connection proves that the client process's
+token user equals the hub's before a byte is read, as [`local-ipc`](../../../crates/local-ipc/README.md)
+does for Session endpoints. The `OBHS` frame must arrive within 2 seconds of the accept.
+
+| Request                        | Answer while the hub cannot connect                                                                                                                              |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id                                                                         |
+| `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher |
+| `connect`                      | `not-found` for an id outside the catalog, `disabled-machine`, `unsupported-machine`; otherwise, and for a `draft`, `unsupported`                                |
+| `disconnect`                   | `not-found` for an id outside the catalog, otherwise `unsupported`                                                                                               |
+| `stop-session`                 | `not-found` for an id outside the catalog, otherwise `not-online`                                                                                                |
+| `claim`, `dismiss`             | `ended`: the hub has no login episode                                                                                                                            |
+| `open` of `session` or `route` | `reset` `not-found` for an id outside the catalog, otherwise `not-online`                                                                                        |
+
+A disabled record reads `disabled`, a connection kind this build does not know `unsupported` with
+cause `connection-kind`, and any other Machine `offline` without a cause or a next attempt. No
+silent attempt runs until the hub can connect. A catalog that cannot be read when the hub starts
+serves as empty with revision 0 until a `reload` succeeds.
+
+### Ownership and bounds
+
+| Resource                       | Owner                                                                  | Bound                                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `hub.lock`                     | The hub process, from before its endpoint exists until after it closes | One holder per data root                                                                   |
+| Endpoint                       | The listener thread of the lock holder                                 | Bound only by the lock holder; a name it cannot take is retried for 2 seconds, then exit 1 |
+| Candidate                      | Its admission thread                                                   | 2 seconds; 64 read at once, and the next gets `capacity` unread                            |
+| Attached connection            | Its reader and writer threads; its protocol state is the hub state's   | 256 slots; the next offer gets `capacity`                                                  |
+| Control request                | Its admission thread                                                   | 4 slots; the next gets `capacity`                                                          |
+| Queued frames of a connection  | Its connection state machine                                           | Its reader stops reading while 256 wait; state events replace their own subject            |
+| Catalog                        | The hub state                                                          | 64 Machines from a record of at most 128 KiB                                               |
+| Expiry deadline, Session reads | The supervisor                                                         | One deadline; one read at a time, within 5 seconds                                         |
+| Threads                        | The process                                                            | Listener and supervisor, one per candidate, two per attached connection                    |
+
+### Ends and races
+
+| Event                                         | Effect                                                                                                                                                                                                                                             |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The last `presence` connection leaves         | `held` while one Session read runs; `expiring` when it finds no live Session                                                                                                                                                                       |
+| A Session ends                                | The next read, at most 30 seconds later, finds it; `expiring` when nothing else holds                                                                                                                                                              |
+| The expiry fires while a request is in flight | Requests are answered under the hub state's lock, before or after the change; a `reload` reads its file outside the lock and, applied in `closing`, replies `stopping`, and the closing waits for it before `bye`                                  |
+| A second hub starts                           | It cannot take the lock, writes and binds nothing, and exits 0; the client that started it attaches to the running hub                                                                                                                             |
+| A client connects during `closing`            | Its offer is rejected `stopping`; attach-or-start waits and starts a new hub once the old one is gone                                                                                                                                              |
+| The hub is killed                             | The system releases the lock and closes the pipe; the next attach finds no endpoint and starts a hub, which locks the same file                                                                                                                    |
+| The data root is unavailable                  | Attach-or-start fails before starting a hub, or the hub exits 1 when it cannot create `internal/machines/` or open the lock; a running hub keeps its catalog, answers `reload` `storage`, finds no Session, and expires unless `presence` holds it |
+
+- **Simultaneous starts.** Several clients that find no endpoint each start a hub; one takes the
+  lock, the others exit before binding, and every client connects to the one that binds. The lock
+  precedes the bind, and a bind never adopts an existing name.
+- **Lock without endpoint.** A client that connects between another hub's lock and bind finds no
+  endpoint and tries again; its own hub, if it started one, loses the lock and exits.
+- **A pipe outliving its lock.** A killed hub's handles close in no fixed order, so its name can
+  outlast its lock by a moment; the new holder retries its bind for 2 seconds. A clean exit closes
+  the endpoint before it releases the lock.
+- **Presence changing during a read.** A read's result applies only while no `presence` connection
+  is attached and the hub is not closing; another leave during a read schedules the next read at
+  once.
+- **A read beside a Session start, stop, or deletion.** The activation lock excludes a Server's
+  lifetime acquire and release. What remains is the hub's own instant on the activation lock: an
+  activation or a stop that meets it retries 10 ms later, and a `session delete` that meets it is
+  refused `in-use` once. The folder handles a read pins for its moments can fail a concurrent
+  deletion of that folder exactly as a concurrent `session list` can. A Server still starting when
+  its activator gave up at its deadline takes its lifetime lock without the activation lock; a read
+  at that instant is the one meeting left open.
+- **Admission beside closing.** A candidate's slot and decision are taken together under the hub
+  state's lock, so an accepted connection is registered before `closing` can begin and receives its
+  `bye`, and an offer decided after it is rejected `stopping`.
+- **Expiry beside attachment.** Both run under the hub state's lock: an attachment with `presence`
+  that comes first returns the hub to `held`; one after the expiry is answered `stopping`.
+
+### Attach or start
+
+A client attaches by one function: it resolves the data root, creates `internal/machines/`
+privately, names the endpoint, and within 10 seconds connects and offers `machine-hub`. No
+endpoint means no hub: it starts its own executable with `--machine-hub-v1` detached, as a Session
+Server is started, with no inherited handle, the system folder as working directory, the inherited
+environment, and a new process group, at most four times per call. `stopping` means a hub is
+closing: it tries again 20 ms later. `capacity` is unavailable; `environment-mismatch` and any
+other rejection are incompatible. A hub it started that exits 1 ends the call at once. The hub
+belongs to no Session's Server and outlives its starter.
+
+The exercise in `tests/cli_windows_machine_hub.rs` starts eight attachments at once on a fresh
+data root, follows `held`, `expiring` and `closing` with a 20-second expiry, keeps a hub `held`
+by a real scratch Session through its stop and a new start, recovers from a killed hub, reads a
+catalog of two machines, and reloads it. It starts no `ssh`.
+
 ## Persistent TUI connections
 
 The Windows TUI discovers the saved catalog while open and offers a machine
