@@ -26,9 +26,11 @@ export const ARTIFACT_STEM_PATTERN = /^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})$
  * release packaging names in `ORCHBEE_SOURCE_COMMIT`, which the Cargo builds read at compile time.
  */
 export function terminalHostBuildOptions(root, artifactStem, environment = process.env) {
-	const manifest = readFileSync(path.join(root, 'apps', 'orchbee', 'Cargo.toml'), 'utf8');
-	const version = /^version = "([^"]+)"$/mu.exec(manifest)?.[1];
-	if (version === undefined) throw new Error('apps/orchbee/Cargo.toml declares no package version');
+	const manifest = readFileSync(path.join(root, 'Cargo.toml'), 'utf8');
+	const workspacePackage =
+		/^\[workspace\.package\]\r?\n([\s\S]*?)(?=^\[|(?![\s\S]))/mu.exec(manifest)?.[1] ?? '';
+	const version = /^version = "([^"]+)"$/mu.exec(workspacePackage)?.[1];
+	if (version === undefined) throw new Error('Cargo.toml declares no workspace package version');
 	const commit = environment.ORCHBEE_SOURCE_COMMIT;
 	return [
 		`-Denvironment=${artifactStem}`,
