@@ -3116,7 +3116,7 @@ and existing status, resets screen stabilization and switches sampling and Expla
 `server update-agent-manifests [--request-id <operation-id>]` downloads validated rules through the
 Server's owned Windows curl worker, commits eligible cache versions and then activates the current
 local/cache/bundled selection. Local overrides continue to take precedence. The catalog comes only
-from `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`; there is no default. Without it, or with an
+from `ORCHBEE_AGENT_DETECTION_CATALOG_URL`; there is no default. Without it, or with an
 invalid value, Update is unavailable, no check runs, the remote cache is ignored and the catalog reads
 `not configured` or reports the source error, while bundled and local rules remain usable. The source
 is frozen at Session startup. With a catalog, managed release Sessions automatically check at startup and

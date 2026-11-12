@@ -70,7 +70,7 @@ The shared Windows settings reader owns bounded file inspection, deterministic f
 
 `[agent_detection] auto_update` is a TOML boolean, default true, with `default`/`file` provenance.
 It allows automatic detection-rule checks only when the Server has a catalog from
-`ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL`; Orchbee ships no default catalog.
+`ORCHBEE_AGENT_DETECTION_CATALOG_URL`; Orchbee ships no default catalog.
 Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
 Client activation admits the location and passes only its configuration path/explicit-file flag. The
 managed Server reads the complete authoritative revision-0 candidate at that frozen location once,

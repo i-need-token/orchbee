@@ -824,7 +824,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         D::Boolean(true),
         (C::Agents, G::Updates),
         SERVER,
-        "Check the Agent detection-rule catalog that ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL names; nothing is checked without one.",
+        "Check the Agent detection-rule catalog that ORCHBEE_AGENT_DETECTION_CATALOG_URL names; nothing is checked without one.",
     ),
     key(
         "update.channel",

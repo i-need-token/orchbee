@@ -32,13 +32,13 @@ impl super::CliText {
             (Locale::EnUs, CommandPath::ServerUpdateAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "Download detection rules from the catalog that ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL set at session startup and activate eligible cached rules. Without a catalog, update is unavailable. Wait up to five seconds; exit 8 retains the operation ID for server agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
+                    "Download detection rules from the catalog that ORCHBEE_AGENT_DETECTION_CATALOG_URL set at session startup and activate eligible cached rules. Without a catalog, update is unavailable. Wait up to five seconds; exit 8 retains the operation ID for server agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
                 )
             }
             (Locale::ZhCn, CommandPath::ServerUpdateAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server update-agent-manifests [--request-id <operation-id>] [--format text|json]",
-                    "从会话启动时 ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL 指定的目录源下载识别规则，并启用符合条件的缓存规则；未配置目录源时无法更新。最多等待五秒；退出码 8 会保留操作 ID，可用 server agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
+                    "从会话启动时 ORCHBEE_AGENT_DETECTION_CATALOG_URL 指定的目录源下载识别规则，并启用符合条件的缓存规则；未配置目录源时无法更新。最多等待五秒；退出码 8 会保留操作 ID，可用 server agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
                 )
             }
             (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(

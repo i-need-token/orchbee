@@ -17,7 +17,7 @@ const UPDATE_BUDGET: Duration = Duration::from_secs(600);
 const STATUS: &str = "catalog.json";
 /// Names the cache's writer lock and staging file beside its index.
 const RECORD: &str = "catalog";
-pub(crate) const CATALOG_ENV: &str = "ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL";
+pub(crate) const CATALOG_ENV: &str = "ORCHBEE_AGENT_DETECTION_CATALOG_URL";
 /// The Session's frozen catalog choice. `Ok(None)` means no catalog is configured, so no update
 /// runs and the remote directory is never read.
 pub(crate) type Source = Result<Option<CatalogUrl>, Failure>;
