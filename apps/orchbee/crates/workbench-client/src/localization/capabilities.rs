@@ -43,7 +43,7 @@ impl Locale {
             (Self::ZhCn, Capability::PositionStorage) => "保存客户端位置",
             (Self::EnUs, Capability::ConfigurationFile) => "Local configuration files",
             (Self::ZhCn, Capability::ConfigurationFile) => "本地配置文件",
-            (Self::EnUs, Capability::SystemNotification) => "System notifications",
+            (Self::EnUs, Capability::SystemNotification) => "System notification",
             (Self::ZhCn, Capability::SystemNotification) => "系统通知",
             (Self::EnUs, Capability::WindowTitle) => "Setting the host window title",
             (Self::ZhCn, Capability::WindowTitle) => "设置宿主窗口标题",

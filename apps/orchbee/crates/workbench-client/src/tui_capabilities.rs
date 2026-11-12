@@ -51,8 +51,8 @@ impl Capabilities {
             search: true,
         }
     }
-    /// Admits exactly the effects whose host adapters exist on this build, and the entry points
-    /// every build offers.
+    /// Admits exactly the effects whose host adapters exist on this build and, for the
+    /// session-dependent ones, can reach this session; and the entry points every build offers.
     pub fn for_host() -> Self {
         let mut effects = Self::none().effects;
         let mut index = 0;
