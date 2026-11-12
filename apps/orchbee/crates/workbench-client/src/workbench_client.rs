@@ -254,7 +254,14 @@ impl WorkbenchClient {
         directory: StartupDirectory,
     ) -> io::Result<Self> {
         if !crate::tui_capabilities::Capability::PositionStorage.available() {
-            return Self::start(client, geometry);
+            // Without a remembered position an existing Session opens on its first Workspace, as
+            // `start` does; an empty one still starts in the launch directory.
+            let context = Some(ClientStartupTarget::LocalDirectory {
+                position: None,
+                fallback: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                directory: Box::new(directory),
+            });
+            return Self::start_with_context(client, geometry, context);
         }
         let preferences = crate::startup_preference::store::Preferences::load(runtime);
         let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));

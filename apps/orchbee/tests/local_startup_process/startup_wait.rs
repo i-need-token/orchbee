@@ -74,15 +74,13 @@ fn initially_zero_cell_startup_recovers_on_resize_and_reaches_ready() -> TestRes
         }
         let checkpoint = client.checkpoint();
         client.resize(COLUMNS as u16, ROWS as u16);
-        client.wait_frame_text_after(
+        client.wait_ready_after(
             checkpoint,
             Instant::now() + Duration::from_secs(40),
-            &["No terminal tabs"],
-            &[],
-            &[],
-            &mut [],
+            1,
+            "1",
+            ReadyMode::Controlling,
         );
-        assert!(fixture.processes("orchbee-terminal-host").is_empty());
         client.close_before(Instant::now() + EXIT_TIMEOUT);
     }
     Ok(())

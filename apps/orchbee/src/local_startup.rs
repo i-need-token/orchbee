@@ -66,10 +66,12 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         started.restore_notice,
         Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty)
     );
+    // The launch directory is the absolute path the operating system reports, not typed input, so
+    // directory startup does not wait on the directory-input adapter.
     let directory = crate::workbench_client::StartupDirectory::new(
         startup_cwd.as_deref(),
         locale,
-        allow_startup_directory && crate::tui_capabilities::Capability::DirectoryInput.available(),
+        allow_startup_directory,
     );
     let notice = started.restore_notice.map(|notice| match notice {
         orchbee_local_runtime::CheckpointRestoreNotice::Recovered => {

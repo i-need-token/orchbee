@@ -247,10 +247,10 @@ selects the first compatible PowerShell 7 on absolute PATH or system Windows Pow
 See [Windows configuration](docs/windows-cli-configuration.md#automatic-windows-shell)
 for candidate selection. `server start --format json` also works without an interactive console.
 
-On a Windows Session with no Workspace or terminal content, `cd <project>; orchbee` creates
+On a Session with no Workspace or terminal content, `cd <project>; orchbee` creates
 an ungrouped Workspace named after the current directory and its first terminal in that directory.
-Later launches restore the last displayed Workspace, Tab and Panel; launching from
-another directory does not add a Workspace. See [directory startup](docs/native-directory-startup.md)
+Later launches restore the last displayed Workspace, Tab and Panel on Windows and open the first
+Workspace on Linux and macOS; launching from another directory does not add a Workspace. See [directory startup](docs/native-directory-startup.md)
 and [startup position](docs/native-context-selection.md#windows-startup-preference).
 
 The prefix is `Ctrl+b`, followed by `|` for a side-by-side split, `-` for a stacked split,
@@ -940,7 +940,7 @@ with its integration exit mapping.
 
 ## Workspace terminal startup
 
-The connected TUI reads a correlated OBWP snapshot before choosing a location. Selection uses an exact Workspace/Context pair, remembered selection when available, or the first canonical Workspace in display order, including an empty one. Windows eligible directory startup may explicitly launch the first Workspace; other empty Workbenches remain empty. There is no `TerminalIntent::Standalone`, `terminal.open` request or Workspace-ID-less selection.
+The connected TUI reads a correlated OBWP snapshot before choosing a location. Selection uses an exact Workspace/Context pair, remembered selection when available, or the first canonical Workspace in display order, including an empty one. Eligible directory startup may explicitly launch the first Workspace; other empty Workbenches remain empty. There is no `TerminalIntent::Standalone`, `terminal.open` request or Workspace-ID-less selection.
 
 An identity-less `NoWorkspace` is only the Client's empty landing state: it owns no Context, creates no terminal, appears in no navigation row and is never saved as a Workspace position. Workspace Project membership remains nullable. Empty Workspaces preserve their identity and support explicit configuration/creation.
 

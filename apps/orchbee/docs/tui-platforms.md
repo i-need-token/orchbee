@@ -69,6 +69,9 @@ Settings drafts and edits use the Server's settings snapshots on every platform.
 Local activation retains the admitted runtime directory on every platform. Remembered-position
 storage derives its cache path only inside the Windows adapter; the Unix adapter returns the
 typed `PositionStorage` refusal without reading Windows environment variables or inventing a path.
+[Directory startup](native-directory-startup.md) takes the launch directory from the operating
+system rather than from the directory-entry adapter, so an empty Session creates its first
+Workspace there on every platform; interactive directory entry and quick creation still need it.
 
 Activation restore feedback is one optional typed fact on every platform, consumed by the same
 TUI notice and CLI warning projections. The Windows reader retains its activation-generation

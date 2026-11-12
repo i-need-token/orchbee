@@ -24,7 +24,7 @@ repair the exact target. Tab and Project naming policies remain independently ow
 
 Server owns optional boolean `Workspace.automaticLabel`. Omission means `false`, serialization
 omits `false`, and readers never infer automatic naming from text, so legacy Workspaces keep their
-exact names. Quick creation whose generated name was not edited, Windows directory startup and
+exact names. Quick creation whose generated name was not edited, directory startup and
 Windows `workspace create` without `--label` launch automatic Workspaces; explicit names, worktree
 checkouts, Panel relocation and `workspace.create` stay fixed.
 

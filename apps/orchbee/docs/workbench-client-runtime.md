@@ -895,7 +895,7 @@ Cold startup follows the current Workspace model:
 
 1. measure complete real terminal geometry;
 2. submit a correlated `SnapshotRead` on the admitted carrier;
-3. resolve the explicit or remembered Workspace selection, otherwise use the first canonical Workspace in display order; eligible Windows directory startup uses the ordinary Workspace launch path;
+3. resolve the explicit or remembered Workspace selection, otherwise use the first canonical Workspace in display order; eligible directory startup uses the ordinary Workspace launch path;
 4. validate the full `ClientContextTabs` projection, accepting an empty Workspace or a `NoWorkspace` landing when the Workbench has no Workspaces;
 5. publish Bootstrap and let its exact UI settlement install the cache and, when a selected terminal exists, allocate the initial attachment generation;
 6. for that selected terminal, send snapshot-derived `AttachBinding`, Acquire, conditionally Resize, receive and draw a fresh full projection, send matching `FrameApplied`, and require `FeedbackAccepted` before publishing attached Ready.
