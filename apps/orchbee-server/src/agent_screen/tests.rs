@@ -208,7 +208,7 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
 }
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
 /// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code, deveco
-/// 0.3.0, gemini 0.67.0 and 0.68.0 and kilo 7.8.27. Busy chrome outranks the composer that stays on screen, a startup question blocks only
+/// 0.3.0, gemini 0.67.0 and 0.68.0, kilo 7.8.27 and openclaw 2026.11. Busy chrome outranks the composer that stays on screen, a startup question blocks only
 /// while its live choices or empty answer row are shown, and stray words stay unknown.
 #[test]
 fn new_provider_rules_follow_redacted_windows_captures() {
@@ -304,6 +304,49 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         "                   Commands                      esc\n       ┃  Ask a    Suggested\n       ╹▀▀▀▀▀▀▀    System                        ▀▀▀▀▀▀▀\n                   Hide tips         ctrl+x h    ommands\n       ● Move y    Reload Reload config, skills, agents, and commands f\n{kilo_tail}"
     );
     let kilo_clipped = kilo_box("abc");
+    // OpenClaw 2026.11 local TUI: the status line sits right above the agent line and the composer.
+    let claw = |chat: &str, status: &str, agent: &str, below: &str| {
+        format!(
+            " openclaw tui - local embedded - agent main - session main\n\n session agent:main:main\n\n{chat}\n {status}\n {agent}\n─────────\n{below}\n─────────"
+        )
+    };
+    let claw_agent =
+        "agent main | session main | model medium | deliver:off |\n tokens 15k/1.0m (1%)";
+    let claw_idle = claw("Reply line.", "local ready | idle", claw_agent, "");
+    let claw_typed = claw(
+        "Reply line.",
+        "local ready | idle",
+        claw_agent,
+        "Count from 1 to 3.",
+    );
+    let claw_menu = format!(
+        "{}\n→ exit        Exit the TUI",
+        claw("Reply line.", "local ready | idle", claw_agent, "/exit")
+    );
+    let claw_retry = claw(
+        " session history not ready — wait or retry /session",
+        "local ready | idle",
+        "agent main | session main | unknown | deliver:off | tokens ?",
+        "Count from 1 to 3.",
+    );
+    let claw_start = claw(
+        "Count from 1 to 3.",
+        "⠼ bamboozling… • 0s | local ready",
+        claw_agent,
+        "",
+    );
+    let claw_stream = claw(
+        " local ready | idle\n1. Reply line.",
+        "⠸ streaming • 3s | local ready",
+        claw_agent,
+        "",
+    );
+    let claw_narrow = claw(
+        "Reply line.",
+        "⠹ streaming • 1m 4s | local ready",
+        "agent main | session main |\n model medium | deliver:off\n | tokens 15k/1.0m (1%)",
+        "",
+    );
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
         (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
@@ -466,6 +509,20 @@ fn new_provider_rules_follow_redacted_windows_captures() {
             "",
             Blocked,
         ),
+        (P::OpenClaw, &claw_idle, "", Idle),
+        (P::OpenClaw, &claw_typed, "", Idle),
+        (P::OpenClaw, &claw_menu, "", Idle),
+        (P::OpenClaw, &claw_retry, "", Idle), // A refused command leaves the turn idle.
+        (P::OpenClaw, &claw_start, "", Working),
+        (P::OpenClaw, &claw_stream, "", Working),
+        (P::OpenClaw, &claw_narrow, "", Working),
+        // No status chrome under the words, and the title carries no state.
+        (
+            P::OpenClaw,
+            " local ready | idle\nmore chat",
+            "openclaw",
+            Unknown,
+        ),
     ] {
         let sample = ScreenInput {
             screen,
@@ -477,6 +534,14 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         assert_eq!(detected.visible_blocker, expected == Blocked);
         assert_eq!(engine.explain(provider, sample).unwrap().state, expected);
     }
+    // A chat line that repeats OpenClaw's idle status is not its status line.
+    let streaming = engine.explain(P::OpenClaw, input(&claw_stream)).unwrap();
+    assert!(
+        streaming
+            .evaluated_rules
+            .iter()
+            .any(|e| e.rule.id == "ready_status_idle" && !e.matched)
+    );
 }
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()

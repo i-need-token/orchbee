@@ -4,7 +4,7 @@ The Server owns fallback screen interpretation separately from explicit Agent re
 
 ## Inputs and rule ownership
 
-The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Mastracode and OpenClaw have no bundled screen manifest and use this known-provider fallback. CodeBuddy Code, Command Code and DevEco Code bundle only their startup blockers, so their idle and working screens also stay unknown.
+The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Mastracode has no bundled screen manifest and uses this known-provider fallback. CodeBuddy Code, Command Code and DevEco Code bundle only their startup blockers, so their idle and working screens also stay unknown.
 
 Bundled TOML files are retained under `resources/agent-detection`; files derived from Herdr keep its Apache-2.0 license and source attribution, and `NOTICE` names the files Orchbee authored. Server maintainers own review and pinned updates. Parsing rejects unknown fields, invalid states/regions, empty rule identifiers, unsupported engine versions, invalid skip-state combinations and excessive complexity before compiling any executable rule set. Each manifest allows at most 128 rules, 512 gates, depth 8 and 1,024 matchers; each gate allows 32 direct matchers of at most 512 Unicode characters. Regex compilation has explicit memory limits. The already locked `regex` and `toml` packages supply syntax that the standard library cannot implement; no new versions or runtime framework are required.
 
@@ -41,6 +41,18 @@ an answered question stays unknown. Only Snow's tool confirmation has been obser
 ran the captured shell command without asking, so their approval screens have no rule apart from
 MiMo Code's OpenCode 1.x permission rule.
 `agent_screen/tests.rs` covers these rules with redacted excerpts.
+
+Orchbee also authored the OpenClaw rules, from Windows captures of OpenClaw 2026.11 running
+`openclaw chat`, its local embedded TUI. Its status line sits directly above the
+`agent <id> | session <key> | <model> | deliver:… |` line, which can wrap into the token usage,
+and the composer between two rules lies beneath; both rules need that order within the last
+16 nonempty rows, so a chat line that repeats the status text decides nothing. `local ready | idle`
+is idle, also while typed text waits in the composer, a slash-command list is open or a refused
+command such as `session history not ready` stays in the transcript. A braille spinner, a word and
+a timer before `| local ready` is working. Its OSC title was left to the shell or an earlier
+program in the captures, so the title decides nothing. Only local embedded mode was captured, and
+no approval, sign-in or interrupt screen, so OpenClaw has no blocker rule and other screens stay
+unknown.
 
 The bundled Grok rules include browser authentication chrome from Grok
 Build `2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8`. An anchored approval/login waiting caption plus

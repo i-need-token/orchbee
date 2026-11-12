@@ -1,0 +1,32 @@
+id = "openclaw"
+version = "2026.11.11.1"
+min_engine_version = 1
+updated_at = "2026-11-11T00:00:00Z"
+
+# OpenClaw 2026.11.x runs `openclaw chat` as its local embedded TUI. A status line sits directly
+# above the `agent <id> | session <key> | <model> | deliver:… |` line, which wraps into the token
+# usage at narrow widths, above the composer between two rules. At rest the status line reads
+# `local ready | idle`; a running turn shows a braille spinner, a changing word and a timer before
+# `| local ready`. The rules need that line order, so a chat line that repeats the status text
+# decides nothing. The OSC title is left to the shell or an earlier program and carries no state.
+# No approval, sign-in or interrupt screen has been captured, so there is no blocker rule.
+
+[[rules]]
+id = "spinner_status_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(16)"
+visible_working = true
+regex = [
+	'(?m)^[ \t]*[\x{2800}-\x{28FF}] \S[^\n]* • \d[\dhms ]*\| local ready[ \t]*\r?\n[ \t]*agent \S+ \| session \S[^\n]*\n(?:[ \t]*[^\s─][^\n]*\n){0,3}[ \t]*─{3,}',
+]
+
+[[rules]]
+id = "ready_status_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(16)"
+visible_idle = true
+regex = [
+	'(?m)^[ \t]*local ready \| idle[ \t]*\r?\n[ \t]*agent \S+ \| session \S[^\n]*\n(?:[ \t]*[^\s─][^\n]*\n){0,3}[ \t]*─{3,}',
+]
