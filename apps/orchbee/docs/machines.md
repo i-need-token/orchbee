@@ -305,15 +305,18 @@ Machine's state; it holds nothing. Neither appears in help, completion, or the A
 
 ### Names that freeze
 
-| Name                | Spelling                                                                                                                                                                                                                                              |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lock                | `<data root>/internal/machines/hub.lock`                                                                                                                                                                                                              |
-| Windows endpoint    | `\\.\pipe\orchbee-<id>-hub`: `<id>` is the first 32 lowercase hexadecimal digits of the SHA-256 of `orchbee-windows-machine-hub-v1`, one NUL byte, and the UTF-16LE code units of the data root's canonical `\\?\` path with ASCII letters lowercased |
-| macOS, Linux socket | `<socket folder>/<id>-hub.sock` in the environment's `/tmp/<stem>-<uid>` (`/private/tmp/` on macOS): `<id>` as on Windows over `orchbee-posix-machine-hub-v1`, NUL, and the canonical path's bytes; at most 90 bytes                                  |
+| Name                | Spelling                                                                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Lock                | `<data root>/internal/machines/hub.lock`                                                                                                                                                                                                                                                         |
+| Windows endpoint    | `\\.\pipe\orchbee-<id>-hub`: `<id>` is the first 32 lowercase hexadecimal digits of the SHA-256 of `orchbee-windows-machine-hub-v1`, one NUL byte, and the UTF-16LE code units of the data root's canonical `\\?\` path with ASCII letters lowercased                                            |
+| macOS, Linux socket | Not frozen until a hub serves it there; nothing binds it today. Computed as `<socket folder>/<id>-hub.sock` in the environment's `/tmp/<stem>-<uid>` (`/private/tmp/` on macOS), `<id>` as on Windows over `orchbee-posix-machine-hub-v1`, NUL, and the canonical path's bytes, at most 90 bytes |
 
-Both freeze at the first public release. After an update an older hub meets a newer interface, or
-the reverse, so they must find each other by these spellings alone; a later release changes the
-connection through the `OBHS` generation, never through the names.
+The lock and the Windows endpoint freeze at the first public release. After an update an older hub
+meets a newer interface, or the reverse, so they must find each other by these spellings alone; a
+later release changes the connection through the `OBHS` generation, never through the names. The
+macOS and Linux spelling freezes only when a hub first serves there: its binder must create and
+hold the socket folder through `prepare_socket_root` and `hold_socket_root`, as Session endpoints
+do, and whether the canonical path stays stable on macOS is unverified.
 
 - **One data root, one hub.** The hub serves one data root's catalog and Sessions, so its lock
   lives in that root; a hub under another `ORCHBEE_HOME` never contends for it. `internal/` holds
@@ -367,10 +370,12 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   moment a Server takes it. The bare `observe_session_lifetime_lock` that `session list` uses
   could.
 - **Time.** The lifetime state machine takes the time as an argument; only the hub's supervisor
-  reads the clocks, monotonic for deadlines and the wall clock for `expiresAt`. In development and
-  test builds `ORCHBEE_MACHINE_HUB_EXPIRY_MS`, from 1,000 to 600,000, replaces the 600,000 ms
-  expiry; a release build never reads it. The hub reads it from the environment it inherits from
-  the process that started it; nothing in Orchbee sets it.
+  reads the clocks, monotonic for deadlines and the wall clock for `expiresAt`. The Windows
+  monotonic clock counts time asleep, so after a long sleep the deadline has passed at the first
+  wake; the read at `expiresAt` then decides, so a Session that lives across the sleep holds the
+  hub. In development and test builds `ORCHBEE_MACHINE_HUB_EXPIRY_MS`, from 1,000 to 600,000,
+  replaces the 600,000 ms expiry; a release build never reads it. The hub reads it from the
+  environment it inherits from the process that started it; nothing in Orchbee sets it.
 - **Events.** Every change of state goes as `hub` to every connection attached with `watch`.
 
 In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`
@@ -459,6 +464,14 @@ serves as empty with revision 0 until a `reload` succeeds.
 - **Expiry beside attachment.** The read at `expiresAt` runs outside the hub state's lock and
   applies under it, as every read does: an attachment with `presence` before it applies returns the
   hub to `held` and the read changes nothing; one after `closing` is answered `stopping`.
+
+### Accepted limits
+
+- **A Session read that keeps failing finds no Session.** A data root with 256 or more Session
+  names, or a runtime base the hub cannot read, fails every read, so the hub, and any Machine login
+  it holds once it can connect, can expire under a live Session.
+- **A Server that outlives its activator's deadline** takes its lifetime lock without the
+  activation lock, so a read at that instant is the one meeting with a Server left open.
 
 ### Attach or start
 
