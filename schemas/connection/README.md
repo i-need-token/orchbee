@@ -91,7 +91,8 @@ decoders only.
 - `reason`, `role`, and `state` grow: a receiver reads an unknown name as `unknown`. Reasons are
   `malformed`, `connection-unsupported`, `environment-mismatch`, `initiator-too-old`,
   `initiator-too-new`, `fingerprint-mismatch`, `capacity`, `stopping`, and `timeout`. Roles are
-  `server`, `worker`, and `terminal-host`. States are `ready`, `draining`, and `stopping`.
+  `server`, `worker`, `terminal-host`, `machine-hub`, and `machine-link`. States are `ready`,
+  `draining`, and `stopping`.
 - `processes` lists 1 to 258 entries: the answering process first, then for a Server its Worker
   and up to 256 connected Hosts. Each entry has exactly `role`, `productVersion`, `build`,
   `environment`, `pid` (integer from 1 to 4,294,967,295), `state`, `terminals` (integer from 0 to
@@ -130,11 +131,11 @@ The acceptor runs these checks in order and rejects at the first failure.
 
 [`v1/connections.json`](v1/connections.json) holds three closed objects, each keyed by contract name.
 
-| Member                  | Entries                        | Entry members                                          |
-| ----------------------- | ------------------------------ | ------------------------------------------------------ |
-| `negotiatedConnections` | `client-server`, `worker-host` | `generations`, `capabilities`, and `fingerprintInputs` |
-| `frameFormats`          | `obkg`, `obpb`, `obrw`, `obtf` | `generations`                                          |
-| `deliveries`            | `agent-hook`, `machine-route`  | `generations`                                          |
+| Member                  | Entries                                                       | Entry members                                          |
+| ----------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
+| `negotiatedConnections` | `client-server`, `machine-hub`, `machine-link`, `worker-host` | `generations`, `capabilities`, and `fingerprintInputs` |
+| `frameFormats`          | `obkg`, `obpb`, `obrw`, `obtf`                                | `generations`                                          |
+| `deliveries`            | `agent-hook`, `machine-route`                                 | `generations`                                          |
 
 - `generations` is the supported range. Every contract starts at generation 1.
 - `capabilities` lists `{name, addedIn}` entries in bytewise name order, where `addedIn` is the
@@ -145,6 +146,10 @@ The acceptor runs these checks in order and rejects at the first failure.
   bytewise order; none repeats or contains another, and each exists. The `worker-host` list
   includes the Terminal Host's `src/handshake` binding.
 - Each binding mirrors these numbers in its own constants under a conformance check.
+- What a connection carries after its `answer` belongs to that connection's own contract. The
+  [machine connection contracts](../machine/README.md) state it for `machine-hub` and
+  `machine-link`, whose `fingerprintInputs` both list `schemas/machine` and the source of their
+  binding, `crates/machine-protocol`.
 
 ## Development fingerprint
 
