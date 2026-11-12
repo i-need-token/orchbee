@@ -1,0 +1,1198 @@
+{
+	"cases": [
+		{
+			"name": "frame-message-bye",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"frameHex": "4f424d5801000000000000000000001e7b2274797065223a22627965222c22726561736f6e223a22646f6e65227d"
+		},
+		{
+			"name": "frame-open-route",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5802000000000000010000003d7b226b696e64223a22726f757465222c226d616368696e65223a223066316532643363346235613639373838373936613562346333643265316630227d"
+		},
+		{
+			"name": "frame-accept",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"frameHex": "4f424d580300000000000001000000027b7d"
+		},
+		{
+			"name": "frame-data",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"frameHex": "4f424d580400000000000001000000064f42485300ff"
+		},
+		{
+			"name": "frame-credit",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"frameHex": "4f424d5805000000000000010000000400020000"
+		},
+		{
+			"name": "frame-end",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58060000000000000300000000"
+		},
+		{
+			"name": "frame-close-replied",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"frameHex": "4f424d580700000000000001000000157b226f7574636f6d65223a227265706c696564227d"
+		},
+		{
+			"name": "frame-reset-cancelled",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580800000000000001000000167b22726561736f6e223a2263616e63656c6c6564227d"
+		},
+		{
+			"name": "frame-ping",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"frameHex": "4f424d580900000000000000000000080102030405060708"
+		},
+		{
+			"name": "frame-pong",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"frameHex": "4f424d580a00000000000000000000080102030405060708"
+		},
+		{
+			"name": "link-facts-with-store-root",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/1.6.0/orchbee\",\"storeRoot\":\"/var/lib/orchbee\"}"
+		},
+		{
+			"name": "link-facts-without-store-root",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"windows\",\"architecture\":\"aarch64\",\"executable\":\"C:\\\\Program Files\\\\Orchbee\\\\orchbee.exe\"}"
+		},
+		{
+			"name": "link-facts-unknown-platform-kept",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"freebsd\",\"architecture\":\"riscv64\",\"executable\":\"/usr/local/bin/orchbee\"}"
+		},
+		{
+			"name": "link-facts-with-extensions",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"macos\",\"architecture\":\"aarch64\",\"executable\":\"/Applications/Orchbee.app/Contents/MacOS/orchbee\",\"extensions\":{\"trace-id\":\"abc\",\"nested-detail\":{\"list\":[1,2.5,null,true,-3]}}}"
+		},
+		{
+			"name": "link-open-session",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"session\",\"session\":\"default\"}"
+		},
+		{
+			"name": "link-open-route",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"route\"}"
+		},
+		{
+			"name": "link-open-ensure-session",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"ensure-session\",\"session\":\"work.main\"}"
+		},
+		{
+			"name": "link-open-install-is-an-unknown-kind",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"install\",\"version\":\"1.6.0\",\"platform\":\"linux-x86_64\",\"files\":3,\"bytes\":1024}"
+		},
+		{
+			"name": "link-accept",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "accept",
+			"payload": "{}"
+		},
+		{
+			"name": "link-accept-with-extensions",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "accept",
+			"payload": "{\"extensions\":{\"hint\":\"x\"}}"
+		},
+		{
+			"name": "link-close-ended",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"ended\"}"
+		},
+		{
+			"name": "link-close-failed",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"failed\"}"
+		},
+		{
+			"name": "link-close-replied",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"replied\"}"
+		},
+		{
+			"name": "link-close-unknown",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"unknown\"}"
+		},
+		{
+			"name": "link-close-ready-started",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"ready\",\"started\":true}"
+		},
+		{
+			"name": "link-close-ready-not-started",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"ready\",\"started\":false}"
+		},
+		{
+			"name": "link-close-unknown-outcome-reads-unknown",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"interrupted\"}"
+		},
+		{
+			"name": "link-reset-unsupported",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"unsupported\"}"
+		},
+		{
+			"name": "link-reset-capacity",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"capacity\"}"
+		},
+		{
+			"name": "link-reset-stopping",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"stopping\"}"
+		},
+		{
+			"name": "link-reset-unavailable",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"unavailable\"}"
+		},
+		{
+			"name": "link-reset-session-not-running",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"session-not-running\"}"
+		},
+		{
+			"name": "link-reset-invalid-session",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"invalid-session\"}"
+		},
+		{
+			"name": "link-reset-too-large",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"too-large\"}"
+		},
+		{
+			"name": "link-reset-cancelled",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "reset",
+			"payload": "{\"reason\":\"cancelled\"}"
+		},
+		{
+			"name": "link-reset-unknown-reason-reads-unknown",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"exhausted\"}"
+		},
+		{
+			"name": "link-reset-hub-reason-reads-unknown",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"not-online\"}"
+		},
+		{
+			"name": "link-unknown-event-type",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"progress\",\"percent\":5,\"note\":{\"a\":[1]}}"
+		},
+		{
+			"name": "link-unknown-request-type",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"install-status\",\"id\":1,\"detail\":true}"
+		},
+		{
+			"name": "link-unsupported-reply",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"unsupported\",\"id\":1,\"request\":\"install-status\"}"
+		},
+		{
+			"name": "link-bye-done",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\",\"reason\":\"done\"}"
+		},
+		{
+			"name": "link-bye-stopping",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\",\"reason\":\"stopping\"}"
+		},
+		{
+			"name": "link-bye-violation",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\",\"reason\":\"violation\"}"
+		},
+		{
+			"name": "link-bye-idle",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\",\"reason\":\"idle\"}"
+		},
+		{
+			"name": "link-bye-unknown-reason-reads-unknown",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\",\"reason\":\"upgrade\"}"
+		},
+		{
+			"name": "hub-attach",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"attach\",\"id\":1,\"presence\":true,\"asks\":true,\"watch\":false}"
+		},
+		{
+			"name": "hub-reload",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":2}"
+		},
+		{
+			"name": "hub-connect-user",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":3,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"user\",\"answers\":true}"
+		},
+		{
+			"name": "hub-connect-command",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":4,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"command\"}"
+		},
+		{
+			"name": "hub-connect-command-answers-draft",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":5,\"machine\":\"00112233445566778899aabbccddeeff\",\"origin\":\"command\",\"answers\":true,\"draft\":{\"connection\":{\"kind\":\"ssh\",\"target\":\"user@build-box.example:2222\"},\"session\":\"default\"}}"
+		},
+		{
+			"name": "hub-disconnect",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"disconnect\",\"id\":6,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+		},
+		{
+			"name": "hub-claim",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"claim\",\"id\":7,\"login\":1}"
+		},
+		{
+			"name": "hub-dismiss",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"dismiss\",\"id\":8,\"login\":1}"
+		},
+		{
+			"name": "hub-stop-session",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session\",\"id\":9,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+		},
+		{
+			"name": "hub-install-request-is-an-unknown-type",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"install\",\"id\":10,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+		},
+		{
+			"name": "hub-request-with-extensions",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":11,\"extensions\":{\"trace-id\":\"abc\"}}"
+		},
+		{
+			"name": "hub-attach-result-held",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"attached\",\"hub\":{\"state\":\"held\"}}"
+		},
+		{
+			"name": "hub-attach-result-expiring",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"attached\",\"hub\":{\"state\":\"expiring\",\"expiresAt\":1762905600000}}"
+		},
+		{
+			"name": "hub-attach-result-closing",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"attached\",\"hub\":{\"state\":\"closing\"}}"
+		},
+		{
+			"name": "hub-attach-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-attach-result-unknown-outcome",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"deferred\",\"hub\":{\"state\":\"held\"}}"
+		},
+		{
+			"name": "hub-reload-result-reloaded",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":2,\"outcome\":\"reloaded\",\"revision\":7}"
+		},
+		{
+			"name": "hub-reload-result-invalid-catalog",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":2,\"outcome\":\"invalid-catalog\"}"
+		},
+		{
+			"name": "hub-reload-result-storage",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":2,\"outcome\":\"storage\"}"
+		},
+		{
+			"name": "hub-reload-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":2,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-reload-result-postponed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":2,\"outcome\":\"postponed\"}"
+		},
+		{
+			"name": "hub-connect-result-online",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"online\",\"state\":\"online\",\"remoteVersion\":\"1.6.0\"}"
+		},
+		{
+			"name": "hub-connect-result-disabled-machine",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"disabled-machine\",\"state\":\"disabled\"}"
+		},
+		{
+			"name": "hub-connect-result-host-unreachable",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"host-unreachable\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-ssh-unavailable",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"ssh-unavailable\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-ssh-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"ssh-failed\",\"state\":\"reconnecting\"}"
+		},
+		{
+			"name": "hub-connect-result-remote-protocol",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"remote-protocol\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-remote-not-ready",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"remote-not-ready\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-auth-required",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"auth-required\",\"state\":\"needs-login\"}"
+		},
+		{
+			"name": "hub-connect-result-auth-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"auth-failed\",\"state\":\"login-failed\"}"
+		},
+		{
+			"name": "hub-connect-result-host-untrusted",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"host-untrusted\",\"state\":\"untrusted\"}"
+		},
+		{
+			"name": "hub-connect-result-host-key-changed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"host-key-changed\",\"state\":\"key-changed\"}"
+		},
+		{
+			"name": "hub-connect-result-remote-not-installed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"remote-not-installed\",\"state\":\"not-installed\"}"
+		},
+		{
+			"name": "hub-connect-result-remote-unsupported",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"remote-unsupported\",\"state\":\"unsupported\"}"
+		},
+		{
+			"name": "hub-connect-result-unsupported-machine",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"unsupported-machine\",\"state\":\"unsupported\"}"
+		},
+		{
+			"name": "hub-connect-result-version-incompatible",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"version-incompatible\",\"state\":\"needs-update\"}"
+		},
+		{
+			"name": "hub-connect-result-remote-other-environment",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"remote-other-environment\",\"state\":\"incompatible\"}"
+		},
+		{
+			"name": "hub-connect-result-not-found",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"not-found\"}"
+		},
+		{
+			"name": "hub-connect-result-invalid-draft",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"invalid-draft\"}"
+		},
+		{
+			"name": "hub-connect-result-cancelled",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"cancelled\",\"state\":\"needs-login\"}"
+		},
+		{
+			"name": "hub-connect-result-timeout",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"timeout\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-remote-install-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"remote-install-failed\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-internal",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"internal\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"stopping\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-connect-result-unknown-outcome-and-state",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"installing-elsewhere\",\"state\":\"installing\"}"
+		},
+		{
+			"name": "hub-connect-result-version-incompatible-local",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":3,\"outcome\":\"version-incompatible\",\"state\":\"local-needs-update\"}"
+		},
+		{
+			"name": "hub-disconnect-result-disconnected",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"disconnect-result\",\"id\":6,\"outcome\":\"disconnected\"}"
+		},
+		{
+			"name": "hub-disconnect-result-not-found",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"disconnect-result\",\"id\":6,\"outcome\":\"not-found\"}"
+		},
+		{
+			"name": "hub-disconnect-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"disconnect-result\",\"id\":6,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-claim-result-claimed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"claim-result\",\"id\":7,\"outcome\":\"claimed\"}"
+		},
+		{
+			"name": "hub-claim-result-taken",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"claim-result\",\"id\":7,\"outcome\":\"taken\"}"
+		},
+		{
+			"name": "hub-claim-result-ended",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"claim-result\",\"id\":7,\"outcome\":\"ended\"}"
+		},
+		{
+			"name": "hub-claim-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"claim-result\",\"id\":7,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-dismiss-result-dismissed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"dismiss-result\",\"id\":8,\"outcome\":\"dismissed\"}"
+		},
+		{
+			"name": "hub-dismiss-result-not-claimant",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"dismiss-result\",\"id\":8,\"outcome\":\"not-claimant\"}"
+		},
+		{
+			"name": "hub-dismiss-result-ended",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"dismiss-result\",\"id\":8,\"outcome\":\"ended\"}"
+		},
+		{
+			"name": "hub-dismiss-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"dismiss-result\",\"id\":8,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-stop-session-result-stopped",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"stopped\"}"
+		},
+		{
+			"name": "hub-stop-session-result-not-running",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"not-running\"}"
+		},
+		{
+			"name": "hub-stop-session-result-not-online",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"not-online\"}"
+		},
+		{
+			"name": "hub-stop-session-result-not-found",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"not-found\"}"
+		},
+		{
+			"name": "hub-stop-session-result-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"failed\"}"
+		},
+		{
+			"name": "hub-stop-session-result-unknown",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"unknown\"}"
+		},
+		{
+			"name": "hub-stop-session-result-stopping",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"stop-session-result\",\"id\":9,\"outcome\":\"stopping\"}"
+		},
+		{
+			"name": "hub-disconnect-result-unknown-outcome",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"disconnect-result\",\"id\":6,\"outcome\":\"queued\"}"
+		},
+		{
+			"name": "hub-unsupported-reply",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"unsupported\",\"id\":10,\"request\":\"install\"}"
+		},
+		{
+			"name": "hub-event-held",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"held\"}"
+		},
+		{
+			"name": "hub-event-expiring",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"expiring\",\"expiresAt\":1762905600000}"
+		},
+		{
+			"name": "hub-event-closing",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"closing\"}"
+		},
+		{
+			"name": "hub-catalog-empty",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"catalog\",\"revision\":0,\"machines\":[]}"
+		},
+		{
+			"name": "hub-catalog-two",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"catalog\",\"revision\":4,\"machines\":[\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"00112233445566778899aabbccddeeff\"]}"
+		},
+		{
+			"name": "hub-machine-disabled",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"disabled\"}"
+		},
+		{
+			"name": "hub-machine-connecting-stage",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"connecting\",\"stage\":\"probing\"}"
+		},
+		{
+			"name": "hub-machine-connecting-draft",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"connecting\",\"draft\":true}"
+		},
+		{
+			"name": "hub-machine-online-remote",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"online\",\"lastAttempt\":1762905000000,\"remote\":{\"productVersion\":\"1.6.0\",\"platform\":\"linux\",\"architecture\":\"x86_64\"}}"
+		},
+		{
+			"name": "hub-machine-reconnecting",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"reconnecting\",\"cause\":\"link-lost\",\"stage\":\"authenticating\",\"nextAttempt\":1762905030000}"
+		},
+		{
+			"name": "hub-machine-reconnecting-stage-starting",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"reconnecting\",\"cause\":\"host-refused\",\"stage\":\"starting\"}"
+		},
+		{
+			"name": "hub-machine-offline",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"offline\",\"cause\":\"host-timeout\",\"nextAttempt\":1762905060000,\"lastAttempt\":1762905000000}"
+		},
+		{
+			"name": "hub-machine-offline-without-cause",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"offline\"}"
+		},
+		{
+			"name": "hub-machine-unresponsive",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"unresponsive\"}"
+		},
+		{
+			"name": "hub-machine-needs-login",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"needs-login\",\"cause\":\"remembered-rejected\"}"
+		},
+		{
+			"name": "hub-machine-login-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"login-failed\",\"cause\":\"key-rejected\"}"
+		},
+		{
+			"name": "hub-machine-untrusted",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"untrusted\",\"hostKey\":{\"algorithm\":\"ssh-ed25519\",\"fingerprint\":\"SHA256:Lh4bcd0DkQqz3ut7Hc1a1PbW0F0Ifv5mJOUzyzWTMk4\"}}"
+		},
+		{
+			"name": "hub-machine-key-changed-with-key",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"key-changed\",\"hostKey\":{\"algorithm\":\"ssh-ed25519\",\"fingerprint\":\"SHA256:Lh4bcd0DkQqz3ut7Hc1a1PbW0F0Ifv5mJOUzyzWTMk4\"}}"
+		},
+		{
+			"name": "hub-machine-key-changed-without-key",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"key-changed\"}"
+		},
+		{
+			"name": "hub-machine-not-installed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"not-installed\",\"remote\":{\"platform\":\"linux\",\"architecture\":\"aarch64\"}}"
+		},
+		{
+			"name": "hub-machine-unsupported",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"unsupported\",\"cause\":\"remote-platform\",\"remote\":{\"platform\":\"freebsd\"}}"
+		},
+		{
+			"name": "hub-machine-needs-update",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"needs-update\",\"cause\":\"session-too-old\",\"remote\":{\"productVersion\":\"1.4.2\"}}"
+		},
+		{
+			"name": "hub-machine-local-needs-update",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"local-needs-update\"}"
+		},
+		{
+			"name": "hub-machine-incompatible",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"incompatible\"}"
+		},
+		{
+			"name": "hub-machine-unknown-state-reads-unknown",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"installing\",\"stage\":\"copying\"}"
+		},
+		{
+			"name": "hub-machine-unknown-cause-reads-absent",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"offline\",\"cause\":\"host-banned\"}"
+		},
+		{
+			"name": "hub-machine-unknown-stage-reads-absent",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"connecting\",\"stage\":\"uploading\"}"
+		},
+		{
+			"name": "hub-connect-waiting",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-waiting\",\"request\":3,\"reason\":\"login\"}"
+		},
+		{
+			"name": "hub-connect-waiting-unknown-reason-reads-login",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-waiting\",\"request\":3,\"reason\":\"install-consent\"}"
+		},
+		{
+			"name": "hub-login-offered",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"offered\",\"waiters\":2}"
+		},
+		{
+			"name": "hub-login-claimed-you",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"user\",\"phase\":\"claimed\",\"waiters\":0,\"claim\":\"you\"}"
+		},
+		{
+			"name": "hub-login-claimed-other",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":2,\"machine\":\"00112233445566778899aabbccddeeff\",\"trigger\":\"command\",\"phase\":\"claimed\",\"waiters\":1,\"claim\":\"other\"}"
+		},
+		{
+			"name": "hub-login-ended-succeeded",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"succeeded\"}"
+		},
+		{
+			"name": "hub-login-ended-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"failed\"}"
+		},
+		{
+			"name": "hub-login-ended-dismissed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"dismissed\"}"
+		},
+		{
+			"name": "hub-login-ended-abandoned",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"abandoned\"}"
+		},
+		{
+			"name": "hub-login-ended-unavailable",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"unavailable\"}"
+		},
+		{
+			"name": "hub-login-ended-expired",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"expired\"}"
+		},
+		{
+			"name": "hub-login-unknown-trigger-reads-command",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":3,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"schedule\",\"phase\":\"offered\",\"waiters\":1}"
+		},
+		{
+			"name": "hub-question-password",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"prompt\":\"Password: \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}"
+		},
+		{
+			"name": "hub-question-key-passphrase-repeated",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":2,\"kind\":\"key-passphrase\",\"prompt\":\"Enter passphrase for key:\\n\",\"repeated\":true,\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}"
+		},
+		{
+			"name": "hub-question-host-key",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":3,\"kind\":\"host-key\",\"hostKey\":{\"algorithm\":\"ssh-ed25519\",\"fingerprint\":\"SHA256:Lh4bcd0DkQqz3ut7Hc1a1PbW0F0Ifv5mJOUzyzWTMk4\"},\"prompt\":\"Are you sure you want to continue connecting (yes/no/[fingerprint])? \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}"
+		},
+		{
+			"name": "hub-question-other-remembered-rejected",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":4,\"kind\":\"other\",\"prompt\":\"Verification code: \",\"remembered\":\"rejected\",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}"
+		},
+		{
+			"name": "hub-question-unknown-kind-reads-other",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":5,\"kind\":\"security-key\",\"prompt\":\"Touch your key\",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}"
+		},
+		{
+			"name": "hub-unknown-event-type",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"offer\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"version\":\"1.6.0\"}"
+		},
+		{
+			"name": "hub-bye-from-client",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\",\"reason\":\"done\"}"
+		},
+		{
+			"name": "hub-open-session",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+		},
+		{
+			"name": "hub-open-route",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"route\",\"machine\":\"00112233445566778899aabbccddeeff\"}"
+		},
+		{
+			"name": "hub-open-unknown-kind",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"tunnel\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"port\":22}"
+		},
+		{
+			"name": "hub-close-ended",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"ended\"}"
+		},
+		{
+			"name": "hub-close-failed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"failed\"}"
+		},
+		{
+			"name": "hub-close-lost",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"lost\"}"
+		},
+		{
+			"name": "hub-close-replied",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"replied\"}"
+		},
+		{
+			"name": "hub-close-aborted",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"aborted\"}"
+		},
+		{
+			"name": "hub-reset-not-found",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"not-found\"}"
+		},
+		{
+			"name": "hub-reset-not-online",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"not-online\"}"
+		},
+		{
+			"name": "hub-reset-link-lost",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"link-lost\"}"
+		},
+		{
+			"name": "hub-reset-too-large",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"too-large\"}"
+		},
+		{
+			"name": "hub-reset-capacity",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"capacity\"}"
+		},
+		{
+			"name": "hub-reset-unavailable",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"unavailable\"}"
+		},
+		{
+			"name": "hub-reset-session-not-running",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"session-not-running\"}"
+		}
+	]
+}

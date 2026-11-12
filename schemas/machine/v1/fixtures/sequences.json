@@ -1,0 +1,1962 @@
+{
+	"cases": [
+		{
+			"name": "hub-route-round-trip",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "7b22636d64223a5b5d7d",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "accepted",
+					"replies": []
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "7b226f6b223a747275657d"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "close",
+					"channel": 1,
+					"payload": "{\"outcome\":\"replied\"}"
+				}
+			]
+		},
+		{
+			"name": "link-session-both-ways-then-end-and-close",
+			"connection": "machine-link",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"session\":\"default\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "4f42485300000010"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "4f42485300000020",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1
+				},
+				{
+					"sender": "acceptor",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "0102030405",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "close",
+					"channel": 1,
+					"payload": "{\"outcome\":\"ended\"}",
+					"verdict": "accepted",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "link-early-data-before-accept",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"session\":\"default\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "4f42485300000010",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "accepted",
+					"replies": []
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "close",
+					"channel": 1,
+					"payload": "{\"outcome\":\"ended\"}"
+				}
+			]
+		},
+		{
+			"name": "hub-cancel-then-late-frames-discarded",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00ff00ff",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "reset",
+					"channel": 1,
+					"payload": "{\"reason\":\"cancelled\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00ff00ff",
+					"verdict": "discarded"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "credit",
+					"channel": 1,
+					"payloadHex": "00020000",
+					"verdict": "discarded"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "close",
+					"channel": 1,
+					"payload": "{\"outcome\":\"ended\"}",
+					"verdict": "discarded"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 3,
+					"payload": "{\"kind\":\"route\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 3,
+					"payload": "{}",
+					"verdict": "accepted",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "hub-unknown-kind-reset-unsupported",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"tunnel\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"port\":22}",
+					"verdict": "reply",
+					"replies": [
+						{
+							"kind": "reset",
+							"channel": 1,
+							"payload": "{\"reason\":\"unsupported\"}"
+						}
+					]
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00",
+					"verdict": "discarded"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 3,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "link-install-open-reset-unsupported",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"install\",\"version\":\"1.6.0\",\"platform\":\"linux-x86_64\",\"files\":1,\"bytes\":10}",
+					"verdict": "reply",
+					"replies": [
+						{
+							"kind": "reset",
+							"channel": 1,
+							"payload": "{\"reason\":\"unsupported\"}"
+						}
+					]
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "000c72656c656173652e6a736f6e",
+					"verdict": "discarded"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "discarded",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "hub-unknown-request-answered-unsupported",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"install\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "reply",
+					"replies": [
+						{
+							"kind": "message",
+							"payload": "{\"type\":\"unsupported\",\"id\":1,\"request\":\"install\"}"
+						}
+					]
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":2}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"reload-result\",\"id\":2,\"outcome\":\"reloaded\",\"revision\":3}"
+				}
+			]
+		},
+		{
+			"name": "hub-unknown-event-ignored",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"offer\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"version\":\"1.6.0\"}",
+					"verdict": "accepted",
+					"replies": []
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"hub\",\"state\":\"held\"}",
+					"verdict": "accepted",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "hub-requests-events-and-replies",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"attach\",\"id\":1,\"presence\":true,\"asks\":true,\"watch\":true}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"hub\",\"state\":\"held\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"attached\",\"hub\":{\"state\":\"held\"}}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"catalog\",\"revision\":1,\"machines\":[\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"]}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"needs-login\",\"cause\":\"auth-required\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"connect\",\"id\":2,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"command\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"connect-waiting\",\"request\":2,\"reason\":\"login\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"offered\",\"waiters\":1}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"claim\",\"id\":3,\"login\":1}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"claimed\",\"waiters\":1,\"claim\":\"you\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"claim-result\",\"id\":3,\"outcome\":\"claimed\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"prompt\":\"Password: \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"ended\",\"waiters\":0,\"end\":\"succeeded\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"online\",\"remote\":{\"productVersion\":\"1.6.0\"}}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"connect-result\",\"id\":2,\"outcome\":\"online\",\"state\":\"online\",\"remoteVersion\":\"1.6.0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"bye\",\"reason\":\"done\"}"
+				}
+			]
+		},
+		{
+			"name": "link-credit-held-until-accept",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"session\":\"default\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"fill": {
+						"byte": 97,
+						"length": 32768
+					},
+					"repeat": 4,
+					"verdict": "accepted",
+					"replies": []
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"replies": [
+						{
+							"kind": "credit",
+							"channel": 1,
+							"payloadHex": "00020000"
+						}
+					]
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"fill": {
+						"byte": 98,
+						"length": 32768
+					},
+					"repeat": 4,
+					"verdict": "accepted",
+					"replies": [
+						{
+							"kind": "credit",
+							"channel": 1,
+							"payloadHex": "00020000"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "link-data-beyond-credit",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"session\":\"default\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"fill": {
+						"byte": 97,
+						"length": 32768
+					},
+					"repeat": 8,
+					"verdict": "accepted",
+					"replies": []
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00",
+					"verdict": "violation",
+					"violation": "credit-exceeded"
+				}
+			]
+		},
+		{
+			"name": "hub-credit-up-to-outstanding-bound-then-overflow",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "credit",
+					"channel": 1,
+					"payloadHex": "003c0000",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "credit",
+					"channel": 1,
+					"payloadHex": "00000001",
+					"verdict": "violation",
+					"violation": "credit-overflow"
+				}
+			]
+		},
+		{
+			"name": "link-route-request-beyond-bound-reset-too-large",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"fill": {
+						"byte": 32,
+						"length": 32768
+					},
+					"repeat": 64,
+					"verdict": "accepted",
+					"replies": [
+						{
+							"kind": "credit",
+							"channel": 1,
+							"payloadHex": "00020000",
+							"repeat": 16
+						}
+					]
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "20",
+					"verdict": "reply",
+					"replies": [
+						{
+							"kind": "reset",
+							"channel": 1,
+							"payload": "{\"reason\":\"too-large\"}"
+						}
+					]
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "discarded",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "link-ping-and-pong",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "ping",
+					"payloadHex": "0102030405060708",
+					"verdict": "reply",
+					"replies": [
+						{
+							"kind": "pong",
+							"payloadHex": "0102030405060708"
+						}
+					]
+				},
+				{
+					"sender": "acceptor",
+					"kind": "ping",
+					"payloadHex": "0807060504030201"
+				},
+				{
+					"sender": "initiator",
+					"kind": "pong",
+					"payloadHex": "0807060504030201",
+					"verdict": "accepted",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "hub-second-unanswered-ping",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "ping",
+					"payloadHex": "0102030405060708",
+					"verdict": "reply"
+				},
+				{
+					"sender": "initiator",
+					"kind": "ping",
+					"payloadHex": "0102030405060708",
+					"verdict": "violation",
+					"violation": "second-ping"
+				}
+			]
+		},
+		{
+			"name": "hub-unmatched-pong",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "pong",
+					"payloadHex": "0102030405060708",
+					"verdict": "violation",
+					"violation": "unmatched-pong"
+				}
+			]
+		},
+		{
+			"name": "hub-open-with-wrong-parity",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 2,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "violation",
+					"violation": "parity"
+				}
+			]
+		},
+		{
+			"name": "hub-open-id-not-increasing",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 3,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "violation",
+					"violation": "open-id-not-increasing"
+				}
+			]
+		},
+		{
+			"name": "hub-open-id-reused",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "reset",
+					"channel": 1,
+					"payload": "{\"reason\":\"cancelled\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "violation",
+					"violation": "open-id-not-increasing"
+				}
+			]
+		},
+		{
+			"name": "hub-frame-on-never-opened-id",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 3,
+					"payloadHex": "00",
+					"verdict": "violation",
+					"violation": "never-opened"
+				}
+			]
+		},
+		{
+			"name": "hub-frame-on-never-opened-own-id",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "violation",
+					"violation": "never-opened"
+				}
+			]
+		},
+		{
+			"name": "hub-data-after-end",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00",
+					"verdict": "violation",
+					"violation": "data-after-end"
+				}
+			]
+		},
+		{
+			"name": "hub-second-end",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "end",
+					"channel": 1,
+					"verdict": "violation",
+					"violation": "second-end"
+				}
+			]
+		},
+		{
+			"name": "hub-second-accept",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "violation",
+					"violation": "second-accept"
+				}
+			]
+		},
+		{
+			"name": "hub-responder-data-before-accept",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00",
+					"verdict": "violation",
+					"violation": "before-accept"
+				}
+			]
+		},
+		{
+			"name": "hub-responder-close-before-accept",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "close",
+					"channel": 1,
+					"payload": "{\"outcome\":\"replied\"}",
+					"verdict": "violation",
+					"violation": "before-accept"
+				}
+			]
+		},
+		{
+			"name": "hub-opener-close",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "close",
+					"channel": 1,
+					"payload": "{\"outcome\":\"ended\"}",
+					"verdict": "violation",
+					"violation": "opener-accept-or-close"
+				}
+			]
+		},
+		{
+			"name": "hub-opener-accept",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"session\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "violation",
+					"violation": "opener-accept-or-close"
+				}
+			]
+		},
+		{
+			"name": "link-data-on-ensure-session",
+			"connection": "machine-link",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"ensure-session\",\"session\":\"default\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "data",
+					"channel": 1,
+					"payloadHex": "00",
+					"verdict": "violation",
+					"violation": "data-direction"
+				}
+			]
+		},
+		{
+			"name": "hub-request-id-not-increasing",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":2}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":2}",
+					"verdict": "violation",
+					"violation": "request-id-not-increasing"
+				}
+			]
+		},
+		{
+			"name": "hub-65th-unanswered-request",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":1}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":2}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":3}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":4}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":5}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":6}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":7}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":8}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":9}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":10}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":11}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":12}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":13}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":14}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":15}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":16}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":17}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":18}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":19}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":20}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":21}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":22}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":23}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":24}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":25}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":26}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":27}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":28}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":29}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":30}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":31}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":32}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":33}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":34}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":35}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":36}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":37}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":38}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":39}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":40}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":41}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":42}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":43}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":44}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":45}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":46}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":47}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":48}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":49}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":50}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":51}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":52}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":53}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":54}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":55}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":56}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":57}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":58}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":59}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":60}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":61}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":62}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":63}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":64}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":65}",
+					"verdict": "violation",
+					"violation": "too-many-requests"
+				}
+			]
+		},
+		{
+			"name": "hub-answered-requests-free-their-slots",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":1}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":2}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":3}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":4}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":5}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":6}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":7}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":8}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":9}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":10}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":11}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":12}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":13}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":14}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":15}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":16}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":17}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":18}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":19}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":20}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":21}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":22}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":23}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":24}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":25}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":26}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":27}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":28}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":29}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":30}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":31}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":32}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":33}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":34}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":35}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":36}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":37}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":38}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":39}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":40}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":41}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":42}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":43}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":44}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":45}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":46}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":47}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":48}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":49}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":50}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":51}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":52}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":53}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":54}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":55}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":56}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":57}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":58}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":59}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":60}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":61}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":62}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":63}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":64}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"reload-result\",\"id\":1,\"outcome\":\"storage\"}"
+				},
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":65}",
+					"verdict": "accepted",
+					"replies": []
+				}
+			]
+		},
+		{
+			"name": "hub-reply-of-another-type",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":1}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"stopping\"}",
+					"verdict": "violation",
+					"violation": "unmatched-reply"
+				}
+			]
+		},
+		{
+			"name": "hub-reply-to-nothing",
+			"connection": "machine-hub",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"reload-result\",\"id\":1,\"outcome\":\"storage\"}",
+					"verdict": "violation",
+					"violation": "unmatched-reply"
+				}
+			]
+		},
+		{
+			"name": "link-first-acceptor-frame-not-facts",
+			"connection": "machine-link",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "ping",
+					"payloadHex": "0102030405060708",
+					"verdict": "violation",
+					"violation": "facts-missing"
+				}
+			]
+		},
+		{
+			"name": "link-channel-answer-before-facts",
+			"connection": "machine-link",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\"}"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "accept",
+					"channel": 1,
+					"payload": "{}",
+					"verdict": "violation",
+					"violation": "facts-missing"
+				}
+			]
+		},
+		{
+			"name": "link-second-facts",
+			"connection": "machine-link",
+			"machine": "initiator",
+			"steps": [
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}",
+					"verdict": "accepted"
+				},
+				{
+					"sender": "acceptor",
+					"kind": "message",
+					"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}",
+					"verdict": "violation",
+					"violation": "facts-repeated"
+				}
+			]
+		},
+		{
+			"name": "hub-encoding-violation",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "message",
+					"payload": "{\"type\":\"reload\",\"id\":1,\"id\":2}",
+					"verdict": "violation",
+					"violation": "encoding"
+				}
+			]
+		},
+		{
+			"name": "hub-record-violation",
+			"connection": "machine-hub",
+			"machine": "acceptor",
+			"steps": [
+				{
+					"sender": "initiator",
+					"kind": "open",
+					"channel": 1,
+					"payload": "{\"kind\":\"route\",\"machine\":\"0F1E2D3C4B5A69788796A5B4C3D2E1F0\"}",
+					"verdict": "violation",
+					"violation": "record"
+				}
+			]
+		}
+	]
+}

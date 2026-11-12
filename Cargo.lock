@@ -1068,6 +1068,15 @@ name = "orchbee-local-worker-protocol"
 version = "0.1.0"
 
 [[package]]
+name = "orchbee-machine-protocol"
+version = "0.1.0"
+dependencies = [
+ "orchbee-connection-handshake",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "orchbee-server"
 version = "0.1.0"
 dependencies = [

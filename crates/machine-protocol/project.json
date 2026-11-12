@@ -1,0 +1,13 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "machine-connections",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Rust binding of the machine-link and machine-hub connections that follow an OBHS answer: the OBMX frame codec with a partial-input decoder, the closed typed records of both connections, and the per-connection channel state machine with its credit, request, and ping ledgers and fair sender.",
+	"nonGoals": [
+		"Owning a carrier, endpoint, ssh child, timer, liveness deadline, retry, or process lifecycle.",
+		"Deciding hub policy: attempts, login episodes, attachment, catalog reloads, relaying between connections, or what a Machine state means for a person.",
+		"Running the OBHS exchange, which crates/connection-handshake owns, or carrying a login answer, which never enters either connection.",
+		"Localizing any outcome or building product copy."
+	]
+}

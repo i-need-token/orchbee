@@ -1,0 +1,751 @@
+{
+	"cases": [
+		{
+			"name": "wrong-magic",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d59060000000000000100000000",
+			"layer": "frame"
+		},
+		{
+			"name": "kind-0",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58000000000000000100000000",
+			"layer": "frame"
+		},
+		{
+			"name": "kind-11",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580b0000000000000100000000",
+			"layer": "frame"
+		},
+		{
+			"name": "reserved-byte-nonzero",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58060001000000000100000000",
+			"layer": "frame"
+		},
+		{
+			"name": "message-on-channel-1",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580100000000000001000000187b2274797065223a2272656c6f6164222c226964223a317d",
+			"layer": "frame"
+		},
+		{
+			"name": "ping-on-channel-1",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580900000000000001000000080000000000000000",
+			"layer": "frame"
+		},
+		{
+			"name": "open-on-channel-0",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5802000000000000000000003d7b226b696e64223a22726f757465222c226d616368696e65223a223066316532643363346235613639373838373936613562346333643265316630227d",
+			"layer": "frame"
+		},
+		{
+			"name": "data-on-channel-0",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5804000000000000000000000178",
+			"layer": "frame"
+		},
+		{
+			"name": "json-length-1",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580100000000000000000000017b",
+			"layer": "frame"
+		},
+		{
+			"name": "json-length-65537",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58010000000000000000010001",
+			"layer": "frame"
+		},
+		{
+			"name": "data-length-0",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58040000000000000100000000",
+			"layer": "frame"
+		},
+		{
+			"name": "data-length-32769",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58040000000000000100008001",
+			"layer": "frame"
+		},
+		{
+			"name": "credit-length-3",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58050000000000000100000003000001",
+			"layer": "frame"
+		},
+		{
+			"name": "end-length-1",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5806000000000000010000000100",
+			"layer": "frame"
+		},
+		{
+			"name": "ping-length-7",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5809000000000000000000000700000000000000",
+			"layer": "frame"
+		},
+		{
+			"name": "truncated-header",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d58060000000000",
+			"layer": "frame"
+		},
+		{
+			"name": "truncated-payload",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580100000000000000000000187b22747970",
+			"layer": "frame"
+		},
+		{
+			"name": "trailing-bytes",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580600000000000001000000004f",
+			"layer": "frame"
+		},
+		{
+			"name": "invalid-utf-8",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d580100000000000000000000207b2274797065223a2272656c6f6164222c226964223a312c2278223a22ff227d",
+			"layer": "encoding"
+		},
+		{
+			"name": "byte-order-mark",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "\ufeff{\"type\":\"reload\",\"id\":1}",
+			"layer": "encoding"
+		},
+		{
+			"name": "duplicate-member",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1,\"id\":2}",
+			"layer": "encoding"
+		},
+		{
+			"name": "duplicate-member-inside-extensions",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1,\"extensions\":{\"a\":{\"b\":1,\"b\":2}}}",
+			"layer": "encoding"
+		},
+		{
+			"name": "nesting-depth-33",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1,\"extensions\":{\"deep\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[\"leaf\"]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}}",
+			"layer": "encoding"
+		},
+		{
+			"name": "fractional-number",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1.0}",
+			"layer": "encoding"
+		},
+		{
+			"name": "exponent-number",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"catalog\",\"revision\":1e2,\"machines\":[]}",
+			"layer": "encoding"
+		},
+		{
+			"name": "null-member",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"command\",\"draft\":null}",
+			"layer": "encoding"
+		},
+		{
+			"name": "null-in-nested-object",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"online\",\"remote\":{\"platform\":null}}",
+			"layer": "encoding"
+		},
+		{
+			"name": "non-object-root",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "[\"reload\",1]",
+			"layer": "encoding"
+		},
+		{
+			"name": "second-value",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1}{}",
+			"layer": "encoding"
+		},
+		{
+			"name": "not-json",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "outcome=ended",
+			"layer": "encoding"
+		},
+		{
+			"name": "missing-member",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"attach\",\"id\":1,\"presence\":true,\"asks\":false}",
+			"layer": "record"
+		},
+		{
+			"name": "unknown-member",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1,\"force\":true}",
+			"layer": "record"
+		},
+		{
+			"name": "nested-extensions",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"user\",\"answers\":true,\"draft\":{\"connection\":{\"kind\":\"ssh\",\"target\":\"box\"},\"session\":\"default\",\"extensions\":{}}}",
+			"layer": "record"
+		},
+		{
+			"name": "facts-from-initiator",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}",
+			"layer": "record"
+		},
+		{
+			"name": "hub-request-from-acceptor",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":1}",
+			"layer": "record"
+		},
+		{
+			"name": "hub-event-from-initiator",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"held\"}",
+			"layer": "record"
+		},
+		{
+			"name": "hub-reply-from-initiator",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":1,\"outcome\":\"storage\"}",
+			"layer": "record"
+		},
+		{
+			"name": "known-open-from-acceptor",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "open",
+			"payload": "{\"kind\":\"route\"}",
+			"layer": "record"
+		},
+		{
+			"name": "reply-type-not-result",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"outcome\":\"online\"}",
+			"layer": "record"
+		},
+		{
+			"name": "reply-of-unknown-request-type",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"frobnicate-result\",\"id\":1,\"outcome\":\"done\"}",
+			"layer": "record"
+		},
+		{
+			"name": "credit-0",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5805000000000000010000000400000000",
+			"layer": "record"
+		},
+		{
+			"name": "credit-4194305",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"frameHex": "4f424d5805000000000000010000000400400001",
+			"layer": "record"
+		},
+		{
+			"name": "session-name-leading-dot",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"session\",\"session\":\".hidden\"}",
+			"layer": "record"
+		},
+		{
+			"name": "session-name-trailing-dot",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"ensure-session\",\"session\":\"main.\"}",
+			"layer": "record"
+		},
+		{
+			"name": "session-name-65-bytes",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"session\",\"session\":\"sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\"}",
+			"layer": "record"
+		},
+		{
+			"name": "machine-id-uppercase",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"session\",\"machine\":\"0F1E2D3C4B5A69788796A5B4C3D2E1F0\"}",
+			"layer": "record"
+		},
+		{
+			"name": "machine-id-31-digits",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"disconnect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f\"}",
+			"layer": "record"
+		},
+		{
+			"name": "connect-user-without-answers",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"user\"}",
+			"layer": "record"
+		},
+		{
+			"name": "connect-user-answers-false",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"user\",\"answers\":false}",
+			"layer": "record"
+		},
+		{
+			"name": "connect-unknown-origin",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"robot\"}",
+			"layer": "record"
+		},
+		{
+			"name": "connect-draft-connection-kind-not-ssh",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"command\",\"draft\":{\"connection\":{\"kind\":\"telnet\",\"target\":\"box\"},\"session\":\"default\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "connect-draft-target-not-ascii",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"connect\",\"id\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"origin\":\"command\",\"draft\":{\"connection\":{\"kind\":\"ssh\",\"target\":\"bøx\"},\"session\":\"default\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "login-claim-outside-claimed",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"offered\",\"waiters\":1,\"claim\":\"you\"}",
+			"layer": "record"
+		},
+		{
+			"name": "login-claimed-without-claim",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"claimed\",\"waiters\":1}",
+			"layer": "record"
+		},
+		{
+			"name": "login-unknown-claim",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"command\",\"phase\":\"claimed\",\"waiters\":1,\"claim\":\"them\"}",
+			"layer": "record"
+		},
+		{
+			"name": "login-end-outside-ended",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"user\",\"phase\":\"claimed\",\"waiters\":0,\"claim\":\"you\",\"end\":\"failed\"}",
+			"layer": "record"
+		},
+		{
+			"name": "login-unknown-phase",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"login\",\"login\":1,\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"trigger\":\"user\",\"phase\":\"paused\",\"waiters\":0}",
+			"layer": "record"
+		},
+		{
+			"name": "expires-at-outside-expiring",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"held\",\"expiresAt\":1762905600000}",
+			"layer": "record"
+		},
+		{
+			"name": "expiring-without-expires-at",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"expiring\"}",
+			"layer": "record"
+		},
+		{
+			"name": "hub-unknown-state",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"hub\",\"state\":\"sleeping\"}",
+			"layer": "record"
+		},
+		{
+			"name": "attached-without-hub",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"attached\"}",
+			"layer": "record"
+		},
+		{
+			"name": "stopping-with-hub",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"attach-result\",\"id\":1,\"outcome\":\"stopping\",\"hub\":{\"state\":\"closing\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "reloaded-without-revision",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"reload-result\",\"id\":1,\"outcome\":\"reloaded\"}",
+			"layer": "record"
+		},
+		{
+			"name": "online-without-remote-version",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":1,\"outcome\":\"online\",\"state\":\"online\"}",
+			"layer": "record"
+		},
+		{
+			"name": "remote-version-outside-online",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"connect-result\",\"id\":1,\"outcome\":\"timeout\",\"remoteVersion\":\"1.6.0\"}",
+			"layer": "record"
+		},
+		{
+			"name": "started-without-ready",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"ended\",\"started\":true}",
+			"layer": "record"
+		},
+		{
+			"name": "ready-without-started",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{\"outcome\":\"ready\"}",
+			"layer": "record"
+		},
+		{
+			"name": "host-key-on-password-question",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"hostKey\":{\"algorithm\":\"ssh-ed25519\",\"fingerprint\":\"SHA256:Lh4bcd0DkQqz3ut7Hc1a1PbW0F0Ifv5mJOUzyzWTMk4\"},\"prompt\":\"Password: \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "host-key-question-without-host-key",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"host-key\",\"prompt\":\"Continue? \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "token-31-digits",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"prompt\":\"Password: \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeef\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "token-uppercase",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"prompt\":\"Password: \",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899AABBCCDDEEFF\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "repeated-false",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"prompt\":\"Password: \",\"repeated\":false,\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "remembered-unknown-value",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"password\",\"prompt\":\"Password: \",\"remembered\":\"accepted\",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "prompt-4097-bytes",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"question\",\"login\":1,\"question\":1,\"kind\":\"other\",\"prompt\":\"ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\",\"answer\":{\"endpoint\":\"/tmp/ob-answer/1.sock\",\"token\":\"00112233445566778899aabbccddeeff\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "catalog-65-machines",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"catalog\",\"revision\":1,\"machines\":[\"00000000000000000000000000000000\",\"00000000000000000000000000000001\",\"00000000000000000000000000000002\",\"00000000000000000000000000000003\",\"00000000000000000000000000000004\",\"00000000000000000000000000000005\",\"00000000000000000000000000000006\",\"00000000000000000000000000000007\",\"00000000000000000000000000000008\",\"00000000000000000000000000000009\",\"0000000000000000000000000000000a\",\"0000000000000000000000000000000b\",\"0000000000000000000000000000000c\",\"0000000000000000000000000000000d\",\"0000000000000000000000000000000e\",\"0000000000000000000000000000000f\",\"00000000000000000000000000000010\",\"00000000000000000000000000000011\",\"00000000000000000000000000000012\",\"00000000000000000000000000000013\",\"00000000000000000000000000000014\",\"00000000000000000000000000000015\",\"00000000000000000000000000000016\",\"00000000000000000000000000000017\",\"00000000000000000000000000000018\",\"00000000000000000000000000000019\",\"0000000000000000000000000000001a\",\"0000000000000000000000000000001b\",\"0000000000000000000000000000001c\",\"0000000000000000000000000000001d\",\"0000000000000000000000000000001e\",\"0000000000000000000000000000001f\",\"00000000000000000000000000000020\",\"00000000000000000000000000000021\",\"00000000000000000000000000000022\",\"00000000000000000000000000000023\",\"00000000000000000000000000000024\",\"00000000000000000000000000000025\",\"00000000000000000000000000000026\",\"00000000000000000000000000000027\",\"00000000000000000000000000000028\",\"00000000000000000000000000000029\",\"0000000000000000000000000000002a\",\"0000000000000000000000000000002b\",\"0000000000000000000000000000002c\",\"0000000000000000000000000000002d\",\"0000000000000000000000000000002e\",\"0000000000000000000000000000002f\",\"00000000000000000000000000000030\",\"00000000000000000000000000000031\",\"00000000000000000000000000000032\",\"00000000000000000000000000000033\",\"00000000000000000000000000000034\",\"00000000000000000000000000000035\",\"00000000000000000000000000000036\",\"00000000000000000000000000000037\",\"00000000000000000000000000000038\",\"00000000000000000000000000000039\",\"0000000000000000000000000000003a\",\"0000000000000000000000000000003b\",\"0000000000000000000000000000003c\",\"0000000000000000000000000000003d\",\"0000000000000000000000000000003e\",\"0000000000000000000000000000003f\",\"00000000000000000000000000000040\"]}",
+			"layer": "record"
+		},
+		{
+			"name": "count-above-9007199254740991",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"catalog\",\"revision\":9007199254740992,\"machines\":[]}",
+			"layer": "record"
+		},
+		{
+			"name": "id-0",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":0}",
+			"layer": "record"
+		},
+		{
+			"name": "id-4294967296",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"reload\",\"id\":4294967296}",
+			"layer": "record"
+		},
+		{
+			"name": "cause-on-state-without-causes",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"online\",\"cause\":\"link-lost\"}",
+			"layer": "record"
+		},
+		{
+			"name": "stage-outside-attempt-states",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"offline\",\"stage\":\"probing\"}",
+			"layer": "record"
+		},
+		{
+			"name": "untrusted-without-host-key",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"untrusted\"}",
+			"layer": "record"
+		},
+		{
+			"name": "remote-without-members",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"online\",\"remote\":{}}",
+			"layer": "record"
+		},
+		{
+			"name": "draft-false",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"connecting\",\"draft\":false}",
+			"layer": "record"
+		},
+		{
+			"name": "machine-gated-offer-member",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"machine\",\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"state\":\"not-installed\",\"offer\":{\"version\":\"1.6.0\",\"bytes\":1,\"storeRoot\":\"/x\"}}",
+			"layer": "record"
+		},
+		{
+			"name": "facts-gated-origin-member",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\",\"origin\":\"store\"}",
+			"layer": "record"
+		},
+		{
+			"name": "facts-platform-not-token",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"Linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee/orchbee\"}",
+			"layer": "record"
+		},
+		{
+			"name": "path-with-control-character",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"facts\",\"platform\":\"linux\",\"architecture\":\"x86_64\",\"executable\":\"/opt/orchbee\\n/orchbee\"}",
+			"layer": "record"
+		},
+		{
+			"name": "bye-without-reason",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "message",
+			"payload": "{\"type\":\"bye\"}",
+			"layer": "record"
+		},
+		{
+			"name": "unsupported-without-request",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"unsupported\",\"id\":1}",
+			"layer": "record"
+		},
+		{
+			"name": "type-not-a-name",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"Hub\"}",
+			"layer": "record"
+		},
+		{
+			"name": "open-without-kind",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"machine\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+			"layer": "record"
+		},
+		{
+			"name": "open-session-without-machine",
+			"connection": "machine-hub",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"session\"}",
+			"layer": "record"
+		},
+		{
+			"name": "accept-with-member",
+			"connection": "machine-link",
+			"direction": "acceptor",
+			"kind": "accept",
+			"payload": "{\"session\":\"default\"}",
+			"layer": "record"
+		},
+		{
+			"name": "close-without-outcome",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "close",
+			"payload": "{}",
+			"layer": "record"
+		},
+		{
+			"name": "reset-reason-not-a-name",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"Too Large\"}",
+			"layer": "record"
+		},
+		{
+			"name": "link-route-open-with-member",
+			"connection": "machine-link",
+			"direction": "initiator",
+			"kind": "open",
+			"payload": "{\"kind\":\"route\",\"session\":\"default\"}",
+			"layer": "record"
+		}
+	]
+}

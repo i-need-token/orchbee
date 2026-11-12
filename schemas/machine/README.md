@@ -13,10 +13,11 @@ of remote machines, for the `OBMX` frame both share, and for the answer delivery
 | File                                           | Content                                                             |
 | ---------------------------------------------- | ------------------------------------------------------------------- |
 | This README                                    | Frame, channels, flow control, every record, bounds, and violations |
-| `v1/fixtures/`                                 | Valid, boundary, invalid, and sequence fixtures                     |
+| [`v1/fixtures/`](v1/fixtures/)                 | Valid, boundary, invalid, and sequence fixtures                     |
 | [Connection contract](../connection/README.md) | `OBHS`, the generation registry, and the development fingerprint    |
 
-`crates/machine-protocol` is the Rust binding: a codec and a channel state machine without I/O.
+[`crates/machine-protocol`](../../crates/machine-protocol/README.md) is the Rust binding: a codec
+and a channel state machine without I/O.
 Product behavior behind these records — retry policy, login policy, copy, the launch line that
 starts the helper, the hub's endpoint name and lock — belongs to
 [Remote machines](../../apps/orchbee/docs/machines.md), not to this contract.
@@ -507,8 +508,9 @@ most one. The event `login` replaces everything known about an episode.
   A claimed episode stays claimed when its last waiter leaves.
 - A client shows one episode at a time, lowest `login` first.
 - `claim` and `dismiss` carry `login`. `claim-result` is `claimed`, `taken` when another client
-  claimed first, or `ended`. `dismiss-result` is `dismissed`, `not-claimant` when the episode is
-  claimed by another client, or `ended`. `ended` also answers a `login` the hub does not know.
+  claimed first, `ended`, or `stopping`. `dismiss-result` is `dismissed`, `not-claimant` when the
+  episode is claimed by another client, `ended`, or `stopping`. `ended` also answers a `login` the
+  hub does not know.
 - **Mute.** After a `command` episode ends `dismissed`, every waiter fails with `auth-required`
   and the hub offers no `command` episode for that Machine, which reads `needs-login` with cause
   `login-dismissed`, until a `user` `connect` for it arrives or no client that `asks` remains.
@@ -640,16 +642,45 @@ under its own capability name, and a peer without it answers `unsupported` or ig
 
 ## Fixtures and conformance
 
-Fixtures live in `v1/fixtures/`. Frame fixtures hold `frameHex`, the complete bytes; payload
-fixtures hold `kind`, the frame kind name, and `payload`, the exact JSON text. Each names its
-`connection` and its `direction`, `initiator` or `acceptor`.
+Fixtures live in [`v1/fixtures/`](v1/fixtures/). Frame fixtures hold `frameHex`, the complete
+bytes; payload fixtures hold `kind`, the frame kind name, and `payload`, the exact JSON text, framed
+on channel 0 for `message` and on channel 1 for every other kind. Each names its `connection` and
+its `direction`, `initiator` or `acceptor`.
 
-| File             | Claim                                                                                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `valid.json`     | Each decodes in its connection and direction and re-encodes to an equal value                                                                                                  |
-| `boundary.json`  | Each value at its limit decodes                                                                                                                                                |
-| `invalid.json`   | Each fails to decode. `layer` names the first layer that refuses it: `frame`, `encoding`, or `record`                                                                          |
-| `sequences.json` | Each is an ordered list of frames with their senders and the verdict of the receiving state machine: accepted, discarded, a reply it must send, or a violation at a named step |
+| File                                           | Claim                                                                                                                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`valid.json`](v1/fixtures/valid.json)         | Each decodes in its connection and direction and re-encodes to an equal value                                                                                                  |
+| [`boundary.json`](v1/fixtures/boundary.json)   | Each value at its limit decodes                                                                                                                                                |
+| [`invalid.json`](v1/fixtures/invalid.json)     | Each fails to decode. `layer` names the first layer that refuses it: `frame`, `encoding`, or `record`                                                                          |
+| [`sequences.json`](v1/fixtures/sequences.json) | Each is an ordered list of frames with their senders and the verdict of the receiving state machine: accepted, discarded, a reply it must send, or a violation at a named step |
+
+A sequence case names its `connection`, the `machine` under test, `initiator` or `acceptor`, and
+its `steps` in order:
+
+| Step member                        | Content                                                                                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sender`                           | `initiator` or `acceptor`. The machine sends its own steps through its interface and receives the peer's                                                       |
+| `kind`, `channel`                  | The frame kind name and the channel, 0 when absent                                                                                                             |
+| `payload`, `payloadHex`, or `fill` | At most one: the exact JSON text, the bytes in lowercase hexadecimal, or `{byte, length}` for `length` copies of `byte`; an empty payload when none is present |
+| `repeat`                           | How many times in a row the step happens, 1 when absent                                                                                                        |
+| `verdict`, `violation`             | Received steps only: `accepted`, `discarded`, `reply`, or `violation`, and with `violation` the name of the broken rule                                        |
+| `replies`                          | The frames the machine writes next, in order, each with `kind`, `channel`, a payload member, and `repeat`                                                      |
+
+- After its own step the machine writes exactly the step's frames and its `replies`. After a
+  received step with `replies` it writes exactly those; without `replies`, what it queued stays
+  queued for a later step. After the last step nothing is left to write.
+- A written JSON frame matches when its kind, channel, and parsed JSON value are equal; member
+  order and spacing are free. Every other frame matches byte for byte.
+- The consumer takes every delivered `data` byte at once, so `credit` follows the regrant
+  threshold.
+- A `machine-link` acceptor's first step is its `facts`, which it sends on its own at start.
+- A violation is the last step of its case; the machine then writes only `bye` with reason
+  `violation`. Violation names: `frame`, `encoding`, and `record` for the three layers; `parity`
+  and `open-id-not-increasing` for `open` ids; `never-opened`; `opener-accept-or-close`,
+  `second-accept`, and `before-accept`; `data-after-end`, `second-end`, and `data-direction`;
+  `credit-exceeded` and `credit-overflow`; `data-bound`; `request-id-not-increasing`,
+  `too-many-requests`, and `second-ping`; `unmatched-reply` and `unmatched-pong`; and
+  `facts-missing` and `facts-repeated`.
 
 Bounds too large for a fixture file — a 25,165,824-byte reply, 257 channels — are checked by the
 binding's own tests, as is the two-ended exercise of open, flood, half-close, and cancel.

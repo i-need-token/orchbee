@@ -18,6 +18,7 @@ members = [
 	"crates/local-peer-credentials",
 	"crates/local-worker-protocol",
 	"crates/local-runtime",
+	"crates/machine-protocol",
 	"crates/terminal-protocol",
 	"crates/windows-console-host",
 	"crates/workbench-protocol",
