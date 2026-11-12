@@ -153,8 +153,9 @@ impl Sidebar<'_> {
     }
 }
 
+/// An Agent row names its provider by the product name, as in `fake · Codex`.
 fn agent_rows(screen: &str) -> impl Iterator<Item = &str> {
-    screen.lines().filter(|line| line.contains(" codex"))
+    screen.lines().filter(|line| line.contains(" Codex"))
 }
 
 fn repository(fixture: &Fixture, directory: &str) {
