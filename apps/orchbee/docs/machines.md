@@ -492,8 +492,10 @@ Server is started, with no inherited handle, the system folder as working direct
 environment, and a new process group. A hub it started that exits 0 lost the lock to another hub:
 the call connects again and starts one more only after a pause of 200 ms that doubles with each
 loss up to 1.6 seconds, at most eight times per call. `stopping` means a hub is closing: it tries
-again 20 ms later. `capacity` is unavailable; `environment-mismatch` and any other rejection are
-incompatible. An endpoint that refuses to open, by its DACL or an elevated creator's integrity
+again 20 ms later. `capacity` means every slot of its kind is taken: the call tries again every
+20 ms for at most 1 second from its first `capacity` answer, then reports the hub unavailable.
+Every client of the hub retries `capacity` this way, for an offer and for a control request alike.
+`environment-mismatch` and any other rejection are incompatible. An endpoint that refuses to open, by its DACL or an elevated creator's integrity
 level, or whose server proves to run as another user, ends the call at once as denied. A hub it
 started that exits 1 ends the call at once. The hub belongs to no Session's Server and outlives its
 starter.

@@ -31,13 +31,15 @@ const RESTART_PAUSE: Duration = Duration::from_millis(200);
 const RESTART_PAUSE_MAX: Duration = Duration::from_millis(1_600);
 /// One connection attempt's bound, within the call's deadline.
 const CONNECT: Duration = Duration::from_secs(2);
+/// How long a call tries again, every [`PAUSE`], after its first `capacity` answer.
+const CAPACITY_RETRY: Duration = Duration::from_secs(1);
 
 /// Why a call reached no hub.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum AttachFailure {
     /// The data root or its `internal/machines/` folder is unavailable.
     DataRoot,
-    /// The hub refused `capacity`, or the call could not start one.
+    /// The hub kept answering `capacity` for [`CAPACITY_RETRY`], or the call could not start one.
     Unavailable,
     /// The endpoint refused to open, or its server runs as another user.
     Denied,
@@ -64,6 +66,7 @@ pub(super) fn attach_or_start(deadline: Instant) -> Result<LocalStream, AttachFa
     let mut starts = 0;
     let mut pause = RESTART_PAUSE;
     let mut rest_until: Option<Instant> = None;
+    let mut first_capacity: Option<Instant> = None;
     loop {
         if Instant::now() >= deadline {
             return Err(AttachFailure::Timeout);
@@ -72,7 +75,9 @@ pub(super) fn attach_or_start(deadline: Instant) -> Result<LocalStream, AttachFa
             Ok(stream) => return Ok(stream),
             Err(Reached::Refused(RejectionReason::Stopping) | Reached::Lost) => {}
             Err(Reached::Refused(RejectionReason::Capacity)) => {
-                return Err(AttachFailure::Unavailable);
+                if !capacity_retry_left(&mut first_capacity) {
+                    return Err(AttachFailure::Unavailable);
+                }
             }
             Err(Reached::Refused(_)) => return Err(AttachFailure::Incompatible),
             Err(Reached::Denied) => return Err(AttachFailure::Denied),
@@ -174,23 +179,37 @@ fn exchange(
 /// The running hub's `query` answer, on a control connection of its own.
 pub(super) fn query(deadline: Instant) -> Result<QueryResult, AttachFailure> {
     let endpoint = endpoint()?;
-    let stream = connect(&endpoint, deadline).map_err(|reached| match reached {
-        Reached::Denied => AttachFailure::Denied,
-        Reached::Nothing | Reached::Refused(_) | Reached::Lost => AttachFailure::Unavailable,
-    })?;
     let request = InitiatorMessage::Request(ControlRequest {
         kind: RequestKind::Query,
         environment: orchbee_local_runtime::environment_name(),
         extensions: Extensions::new(),
     });
-    let reply = exchange(&stream, &request, deadline).map_err(|_| AttachFailure::Unavailable)?;
-    match conclude_request(RequestKind::Query, reply) {
-        Ok(RequestReply::Query(result)) => Ok(result),
-        Err(RequestFailure::Rejected(rejection))
-            if rejection.reason == RejectionReason::Capacity =>
-        {
-            Err(AttachFailure::Unavailable)
+    let mut first_capacity: Option<Instant> = None;
+    loop {
+        let stream = connect(&endpoint, deadline).map_err(|reached| match reached {
+            Reached::Denied => AttachFailure::Denied,
+            Reached::Nothing | Reached::Refused(_) | Reached::Lost => AttachFailure::Unavailable,
+        })?;
+        let reply =
+            exchange(&stream, &request, deadline).map_err(|_| AttachFailure::Unavailable)?;
+        match conclude_request(RequestKind::Query, reply) {
+            Ok(RequestReply::Query(result)) => return Ok(result),
+            Err(RequestFailure::Rejected(rejection))
+                if rejection.reason == RejectionReason::Capacity =>
+            {
+                if !capacity_retry_left(&mut first_capacity) || Instant::now() + PAUSE >= deadline {
+                    return Err(AttachFailure::Unavailable);
+                }
+            }
+            Ok(_) | Err(_) => return Err(AttachFailure::Incompatible),
         }
-        Ok(_) | Err(_) => Err(AttachFailure::Incompatible),
+        drop(stream);
+        thread::sleep(PAUSE);
     }
+}
+
+/// Whether a call that has just been answered `capacity` may try again: every client retries
+/// within [`CAPACITY_RETRY`] of its first such answer, since a slot frees when a request ends.
+fn capacity_retry_left(first: &mut Option<Instant>) -> bool {
+    first.get_or_insert_with(Instant::now).elapsed() < CAPACITY_RETRY
 }
