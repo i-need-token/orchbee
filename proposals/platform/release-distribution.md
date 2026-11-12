@@ -196,10 +196,12 @@ new name, as with [`--machine-tunnel-v1`](../../apps/orchbee/docs/machines.md).
 - Windows PATH step: copy the active version's `orchbee-launcher.exe` to `bin\orchbee.exe` when its
   bytes differ, and add `<store root>\bin` to the user `Path` when it is absent. Entries of the user
   `Path` naming another directory inside the store root were written by the earlier layout; the same
-  write removes them, and the result says so. The launcher reads `active.json`, starts
-  `versions\<product>\orchbee.exe` with the unchanged command line, console, standard handles, and
-  environment, ends it when the launcher itself is ended, and returns its exit code; it reads
-  nothing else. Verified 2026-11-12 on a test build: `bin\<stem>.exe --version` took a median 17 ms
+  write removes them, and the result says so. The command writes the value and does not broadcast
+  the change: a platform installer broadcasts at its own end (Inno Setup's `ChangesEnvironment`),
+  and a broadcast from the command itself waits for an unsafe-code policy decision. The launcher
+  reads `active.json`, starts `versions\<product>\orchbee.exe` with the unchanged command line,
+  console, standard handles, and environment, ends it when the launcher itself is ended, and returns
+  its exit code; it reads nothing else. Verified 2026-11-12 on a test build: `bin\<stem>.exe --version` took a median 17 ms
   against 9 ms for the version's own Client (two sets of 40 warm runs each on a quiet machine), so
   the launcher adds about 8 ms per `orchbee` invocation; with other builds loading the machine, both
   doubled (34–39 against 19–22 ms).

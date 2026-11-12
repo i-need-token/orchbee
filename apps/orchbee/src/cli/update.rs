@@ -551,6 +551,10 @@ pub(crate) fn install(
                 PathStep::Present => format!("{}{bin}", text.cli_update_message("path-present")),
                 PathStep::Replaced => format!("{}{bin}", text.cli_update_message("path-replaced")),
             });
+            // The change is not broadcast, so programs started earlier keep the old environment.
+            if matches!(path_step, PathStep::Added | PathStep::Replaced) {
+                lines.push(text.cli_update_message("path-new-terminal").to_owned());
+            }
             if let Some(path) = &report.cleanup_pending {
                 lines.push(format!(
                     "{}{}",

@@ -28,6 +28,10 @@ impl super::CliText {
                 "Replaced old Orchbee entries in your user Path with: ",
                 "已将用户 Path 中旧的 Orchbee 条目替换为：",
             ),
+            "path-new-terminal" => (
+                "Open a new terminal to use orchbee; if it is not found there, sign out and back in.",
+                "请打开新终端使用 orchbee；如果仍找不到该命令，请注销后重新登录。",
+            ),
             "path-launcher" => (
                 "The PATH step could not place the launcher in the bin folder of the installation, so this version was not activated. Run orchbee install --no-path to install without the PATH step.",
                 "PATH 步骤无法把启动器放入安装目录的 bin 文件夹，因此未启用此版本。如需不经 PATH 步骤安装，请运行 orchbee install --no-path。",
