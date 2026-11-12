@@ -1,4 +1,3 @@
-#[cfg(windows)]
 mod source;
 #[cfg(not(windows))]
 mod unix;

@@ -7,7 +7,6 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_worker_protocol::WorkerId;
 use std::num::NonZeroU64;
 
-#[cfg(windows)]
 pub(crate) fn execute(
     request: WorktreeMutationRequest,
     worker: WorkerId,
@@ -17,7 +16,7 @@ pub(crate) fn execute(
     if request.worker_id.as_bytes() != worker.as_bytes()
         || request.worker_generation.get() != generation.get()
     {
-        return rejected(request, true);
+        return fenced(request);
     }
     let (job_id, outcome) = match request.action {
         Action::Start(intent) => (
@@ -34,43 +33,11 @@ pub(crate) fn execute(
     }
 }
 
-#[cfg(not(windows))]
-pub(crate) fn execute(
-    request: WorktreeMutationRequest,
-    worker: WorkerId,
-    generation: NonZeroU64,
-) -> WorktreeMutationResult {
-    let fenced = request.worker_id.as_bytes() != worker.as_bytes()
-        || request.worker_generation.get() != generation.get();
-    rejected(request, fenced)
-}
-
-fn rejected(request: WorktreeMutationRequest, fenced: bool) -> WorktreeMutationResult {
+fn fenced(request: WorktreeMutationRequest) -> WorktreeMutationResult {
     let (job_id, outcome) = match request.action {
-        Action::Start(_) => (
-            request.operation_id,
-            Outcome::Start(if fenced {
-                Start::RejectedFencing
-            } else {
-                Start::Unsupported
-            }),
-        ),
-        Action::Poll { job_id } => (
-            job_id,
-            Outcome::Poll(if fenced {
-                Poll::RejectedFencing
-            } else {
-                Poll::Unknown
-            }),
-        ),
-        Action::Cancel { job_id } => (
-            job_id,
-            Outcome::Cancel(if fenced {
-                Cancel::RejectedFencing
-            } else {
-                Cancel::Unknown
-            }),
-        ),
+        Action::Start(_) => (request.operation_id, Outcome::Start(Start::RejectedFencing)),
+        Action::Poll { job_id } => (job_id, Outcome::Poll(Poll::RejectedFencing)),
+        Action::Cancel { job_id } => (job_id, Outcome::Cancel(Cancel::RejectedFencing)),
     };
     WorktreeMutationResult {
         operation_id: request.operation_id,

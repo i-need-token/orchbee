@@ -474,9 +474,8 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
     });
     let drain = Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new()));
     let jobs = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
-    let mutations = crate::worktree_mutation_job::WorktreeMutationSlot::new(
-        crate::worktree_mutation_windows::run,
-    );
+    let mutations =
+        crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
     let plugins = crate::plugin_jobs::PluginJobs::new();
     assert!(
         super::super::run_admitted(

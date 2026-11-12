@@ -1,4 +1,5 @@
-//! Bounded, nonblocking output and one exact Job owner for each Git command.
+//! Bounded, nonblocking output and one exact process owner for each Git command: a Job on
+//! Windows, a process group on Unix.
 use super::{Abort, Context, failed};
 use orchbee_capability_node_protocol::{WorktreeMutationError as Error, WorktreeMutationStage};
 use orchbee_local_ipc::ChildOutputReader;
@@ -31,8 +32,8 @@ impl Context<'_> {
     ) -> Result<Output, Abort> {
         self.stage = stage;
         self.check()?;
-        let mut command = Command::new("git.exe");
-        crate::git_repository_windows::configure(&mut command, Path::new(at), self.trust)
+        let mut command = Command::new(crate::git_repository::GIT_PROGRAM);
+        crate::git_repository::configure(&mut command, Path::new(at), self.trust)
             .map_err(|_| self.failure(Error::InvalidRepository, vec![]))?;
         command.args(["-C", at]).args(args).stdin(Stdio::null());
         let (out, stdout) =
@@ -44,7 +45,7 @@ impl Context<'_> {
         // failure below restores the previous effect fact.
         let previous_effect = self.changed;
         self.changed |= mutation;
-        // The wrapper may fail after suspended creation or Job assignment.
+        // The Windows wrapper may fail after suspended creation or Job assignment.
         // Retire on post-creation failure; an observed no-child failure preserves
         // normal error reporting and does not poison the owner.
         let mut child = CommandChild::spawn(command).map_err(|failure| {
@@ -87,7 +88,7 @@ impl Context<'_> {
                     return Err(self.failure(Error::Io, diagnostics));
                 }
             };
-            // The Job is settled: no descendant can keep writing. Repeated
+            // The Job or group is settled: no owned descendant can keep writing. Repeated
             // bounded drains consume the finite buffered tail, never wait for EOF.
             while out.is_some() || err.is_some() {
                 self.check()?;

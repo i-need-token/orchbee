@@ -38,20 +38,10 @@ pub(crate) fn execute(
                         Some(path) => map_start(slot.start(job_id, path)),
                         None => WorktreeJobStartOutcome::InvalidDirectory,
                     },
-                    Some(trust) => {
-                        #[cfg(windows)]
-                        {
-                            match directory_path(&directory) {
-                                Some(path) => map_start(slot.start_source(job_id, path, trust)),
-                                None => WorktreeJobStartOutcome::InvalidDirectory,
-                            }
-                        }
-                        #[cfg(not(windows))]
-                        {
-                            let _ = trust;
-                            WorktreeJobStartOutcome::Unsupported
-                        }
-                    }
+                    Some(trust) => match directory_path(&directory) {
+                        Some(path) => map_start(slot.start_source(job_id, path, trust)),
+                        None => WorktreeJobStartOutcome::InvalidDirectory,
+                    },
                 }
             };
             (job_id, WorktreeJobOutcome::Start(outcome))
@@ -61,17 +51,9 @@ pub(crate) fn execute(
             let outcome = if fenced {
                 WorktreeJobStartOutcome::RejectedFencing
             } else {
-                #[cfg(windows)]
-                {
-                    match directory_path(&directory) {
-                        Some(path) => map_start(slot.start_status(job_id, path)),
-                        None => WorktreeJobStartOutcome::InvalidDirectory,
-                    }
-                }
-                #[cfg(not(windows))]
-                {
-                    let _ = directory;
-                    WorktreeJobStartOutcome::Unsupported
+                match directory_path(&directory) {
+                    Some(path) => map_start(slot.start_status(job_id, path)),
+                    None => WorktreeJobStartOutcome::InvalidDirectory,
                 }
             };
             (job_id, WorktreeJobOutcome::Start(outcome))

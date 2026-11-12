@@ -91,6 +91,16 @@ impl Fixture {
     fn path(&self, name: &str) -> AbsoluteCwd {
         AbsoluteCwd::new(self.root.join(name).to_str().unwrap()).unwrap()
     }
+    /// Installs the post-checkout hook so this platform's Git runs it.
+    fn post_checkout(&self, script: impl AsRef<[u8]>) {
+        let hook = self.root.join("hooks/post-checkout");
+        fs::write(&hook, script).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
     fn intent(&self, mutation: WorktreeMutation) -> WorktreeMutationIntent {
         WorktreeMutationIntent::new(self.source.clone(), false, mutation).unwrap()
     }
@@ -129,14 +139,19 @@ impl Drop for Fixture {
         }
         // Every runner above returns only after Job settlement. Never touch a
         // pre-existing name or a reparse-point replacement during fixture cleanup.
-        use std::os::windows::fs::MetadataExt;
         let temp = fs::canonicalize(std::env::temp_dir()).unwrap();
         let root = fs::canonicalize(&self.root).unwrap();
         assert!(root.starts_with(&temp) && root != temp);
-        assert_eq!(
-            fs::symlink_metadata(&self.root).unwrap().file_attributes() & 0x400,
-            0
-        );
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            assert_eq!(
+                fs::symlink_metadata(&self.root).unwrap().file_attributes() & 0x400,
+                0
+            );
+        }
+        #[cfg(unix)]
+        assert!(!fs::symlink_metadata(&self.root).unwrap().is_symlink());
         fs::remove_dir_all(&self.root).unwrap();
     }
 }
@@ -191,6 +206,7 @@ fn native_create_open_dirty_refusal_force_remove_and_branch_preservation() {
     );
 }
 
+#[cfg(windows)]
 #[test]
 fn locked_removal_residue_is_retired_after_the_lock_ends() {
     use std::os::windows::fs::OpenOptionsExt;
@@ -333,11 +349,7 @@ fn cancellation_before_effect_and_output_overflow_have_known_cleanup() {
 #[test]
 fn cancellation_during_post_checkout_hook_preserves_possible_effects() {
     let fixture = Fixture::new();
-    fs::write(
-        fixture.root.join("hooks/post-checkout"),
-        b"#!/bin/sh\nprintf ready > ../mutation-ready\nsleep 30\n",
-    )
-    .unwrap();
+    fixture.post_checkout(b"#!/bin/sh\nprintf ready > ../mutation-ready\nsleep 30\n");
     let cancel = Arc::new(AtomicBool::new(false));
     let owner_cancel = Arc::clone(&cancel);
     let intent = fixture.intent(WorktreeMutation::Create {
@@ -441,13 +453,15 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
     use orchbee_local_ipc::LocalStream;
     use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous};
     use std::num::NonZeroU64;
-    for explicit_stop in [true, false] {
+    // Explicit Session shutdown exists only on Windows; Server disconnection settles everywhere.
+    let stops: &[bool] = if cfg!(windows) {
+        &[true, false]
+    } else {
+        &[false]
+    };
+    for &explicit_stop in stops {
         let fixture = Fixture::new();
-        fs::write(
-            fixture.root.join("hooks/post-checkout"),
-            b"#!/bin/sh\nprintf ready > ../mutation-ready\nsleep 30\n",
-        )
-        .unwrap();
+        fixture.post_checkout(b"#!/bin/sh\nprintf ready > ../mutation-ready\nsleep 30\n");
         let cohort_path = fixture.root.join("cohort");
         fs::create_dir(&cohort_path).unwrap();
         for artifact in [
@@ -456,7 +470,13 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
             orchbee_local_runtime::CohortArtifact::Worker,
             orchbee_local_runtime::CohortArtifact::TerminalHost,
         ] {
-            fs::write(cohort_path.join(artifact.file_name()), b"native fixture\n").unwrap();
+            let path = cohort_path.join(artifact.file_name());
+            fs::write(&path, b"native fixture\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+            }
         }
         let digest = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
         fs::write(cohort_path.join("cohort.json"), format!(r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{digest}","orchbee-server":"{digest}","orchbee-worker":"{digest}","orchbee-terminal-host":"{digest}","agent-observation-adapters":"{digest}"}}}}"#)).unwrap();
@@ -594,14 +614,10 @@ fn source_probe_resolves_subdirectories_and_open_includes_main_checkout() {
 fn successful_hook_cannot_hide_a_different_checked_out_branch() {
     let fixture = Fixture::new();
     fixture.git(&["branch", "other"]);
-    std::fs::write(
-        fixture.root.join("hooks/post-checkout"),
-        format!(
-            "#!/bin/sh\nunset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR\ngit -C '{}' symbolic-ref HEAD refs/heads/other\n",
-            fixture.path("changed").as_str().replace('\'', "'\\''")
-        ),
-    )
-    .unwrap();
+    fixture.post_checkout(format!(
+        "#!/bin/sh\nunset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR\ngit -C '{}' symbolic-ref HEAD refs/heads/other\n",
+        fixture.path("changed").as_str().replace('\'', "'\\''")
+    ));
     let result = fixture.execute(WorktreeMutation::Create {
         path: fixture.path("changed"),
         branch: GitReference::new("requested").unwrap(),

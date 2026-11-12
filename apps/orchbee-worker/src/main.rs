@@ -13,8 +13,8 @@ mod default_interactive_launch;
 mod diagnostic_events;
 #[cfg(windows)]
 mod editor_documents;
-#[cfg(windows)]
-mod git_repository_windows;
+#[cfg(any(unix, windows))]
+mod git_repository;
 #[cfg(any(unix, windows))]
 mod host_connection;
 #[cfg(any(unix, windows))]
@@ -52,12 +52,12 @@ mod worker_options;
 mod worktree_discovery_job;
 #[cfg(any(unix, windows))]
 mod worktree_job_operation;
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
+mod worktree_mutation_git;
+#[cfg(any(unix, windows))]
 mod worktree_mutation_job;
 #[cfg(any(unix, windows))]
 mod worktree_mutation_operation;
-#[cfg(windows)]
-mod worktree_mutation_windows;
 
 #[cfg(any(unix, windows))]
 use std::env;

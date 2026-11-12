@@ -113,7 +113,6 @@ pub(crate) enum CancelOutcome {
 }
 
 struct CommandSpec {
-    #[cfg(windows)]
     git_context: Option<(std::path::PathBuf, bool)>,
     program: OsString,
     args: Vec<OsString>,
@@ -122,17 +121,11 @@ struct CommandSpec {
 impl CommandSpec {
     fn prepare(&self) -> io::Result<Command> {
         let mut command = Command::new(&self.program);
-        #[cfg(windows)]
         if let Some((path, trust)) = &self.git_context {
             let invalid = || io::Error::new(io::ErrorKind::InvalidInput, "invalid Git repository");
-            let canonical =
-                crate::git_repository_windows::canonical_path(path).map_err(|()| invalid())?;
-            crate::git_repository_windows::configure(
-                &mut command,
-                Path::new(canonical.as_str()),
-                *trust,
-            )
-            .map_err(|()| invalid())?;
+            let canonical = crate::git_repository::canonical_path(path).map_err(|()| invalid())?;
+            crate::git_repository::configure(&mut command, Path::new(canonical.as_str()), *trust)
+                .map_err(|()| invalid())?;
             command.args(["--no-optional-locks", "-C", canonical.as_str()]);
         }
         command
@@ -235,7 +228,6 @@ fn git_commands(directory: &Path) -> JobCommands {
     JobCommands {
         source: None,
         probe: CommandSpec {
-            #[cfg(windows)]
             git_context: None,
             program: "git".into(),
             args: vec![
@@ -248,7 +240,6 @@ fn git_commands(directory: &Path) -> JobCommands {
             ],
         },
         list: Some(CommandSpec {
-            #[cfg(windows)]
             git_context: None,
             program: "git".into(),
             args: vec![
@@ -266,11 +257,10 @@ fn git_commands(directory: &Path) -> JobCommands {
     }
 }
 
-#[cfg(windows)]
 fn source_commands(directory: &Path, trust: bool) -> JobCommands {
     let git = |args: &[&str]| CommandSpec {
         git_context: Some((directory.to_owned(), trust)),
-        program: "git.exe".into(),
+        program: crate::git_repository::GIT_PROGRAM.into(),
         args: args.iter().map(OsString::from).collect(),
     };
     JobCommands {
@@ -286,13 +276,12 @@ fn source_commands(directory: &Path, trust: bool) -> JobCommands {
     }
 }
 
-#[cfg(windows)]
 fn status_commands(directory: &Path) -> JobCommands {
     JobCommands {
         source: None,
         probe: CommandSpec {
             git_context: Some((directory.to_owned(), false)),
-            program: "git.exe".into(),
+            program: crate::git_repository::GIT_PROGRAM.into(),
             args: [
                 "-c",
                 "core.fsmonitor=false",
@@ -359,14 +348,13 @@ impl WorktreeDiscoverySlot {
         self.start_with(job_id, directory, JOB_TTL, git_commands(directory))
     }
 
-    #[cfg(windows)]
     pub(crate) fn start_source(
         &self,
         job_id: JobId,
         directory: &Path,
         trust: bool,
     ) -> StartOutcome {
-        if !crate::git_repository_windows::is_drive_path(directory) {
+        if !crate::git_repository::is_admissible_path(directory) {
             return StartOutcome::InvalidDirectory;
         }
         self.start_with(
@@ -377,9 +365,8 @@ impl WorktreeDiscoverySlot {
         )
     }
 
-    #[cfg(windows)]
     pub(crate) fn start_status(&self, job_id: JobId, directory: &Path) -> StartOutcome {
-        if !crate::git_repository_windows::is_drive_path(directory) {
+        if !crate::git_repository::is_admissible_path(directory) {
             return StartOutcome::InvalidDirectory;
         }
         self.start_with(job_id, directory, JOB_TTL, status_commands(directory))

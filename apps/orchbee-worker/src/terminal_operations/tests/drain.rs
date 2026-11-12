@@ -312,9 +312,8 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
             worktree_slot: &worktree_slot,
             agent_integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
             agent_probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
-            #[cfg(windows)]
             mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
-                crate::worktree_mutation_windows::run,
+                crate::worktree_mutation_git::run,
             ),
             #[cfg(windows)]
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),

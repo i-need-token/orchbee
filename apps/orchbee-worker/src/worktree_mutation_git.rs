@@ -1,5 +1,5 @@
-//! Windows Git worktree effects; the job slot owns this function's whole lifetime.
-use crate::git_repository_windows::canonical_path;
+//! Git worktree effects; the job slot owns this function's whole lifetime.
+use crate::git_repository::{canonical_path, checkout_spelling, is_admissible_path};
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, GitReference, WorktreeCheckout, WorktreeCheckoutSelector, WorktreeMutation,
     WorktreeMutationCompletion as Completion, WorktreeMutationEffect,
@@ -336,7 +336,7 @@ impl Context<'_> {
         path: &AbsoluteCwd,
     ) -> Option<Result<Completion, Abort>> {
         let target = Path::new(path.as_str());
-        if !crate::git_repository_windows::is_drive_path(target) || registered(repository, path) {
+        if !is_admissible_path(target) || registered(repository, path) {
             return None;
         }
         if let Err(abort) = self.check() {
@@ -380,17 +380,11 @@ impl Context<'_> {
 
 /// Git lists checkout paths as recorded; compare them without touching the filesystem.
 fn registered(repository: &Repository, path: &AbsoluteCwd) -> bool {
-    let spelling = |value: &str| {
-        value
-            .replace('\\', "/")
-            .trim_end_matches('/')
-            .to_ascii_lowercase()
-    };
-    let path = spelling(path.as_str());
+    let path = checkout_spelling(path.as_str());
     repository
         .entries
         .iter()
-        .any(|entry| spelling(entry.path.as_str()) == path)
+        .any(|entry| checkout_spelling(entry.path.as_str()) == path)
 }
 
 fn failed(stage: Stage, changed: bool, error: Error, diagnostics: Vec<u8>) -> Abort {

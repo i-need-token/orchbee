@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::git_repository_windows::canonical_path;
+use crate::git_repository::canonical_path;
 use orchbee_local_runtime::CommandChild;
 use std::{fs, path::PathBuf, sync::atomic::AtomicU64};
 
@@ -27,9 +27,8 @@ impl Fixture {
         fixture
     }
     fn git(&self, args: &[&str]) {
-        let mut command = Command::new("git.exe");
-        crate::git_repository_windows::configure(&mut command, &self.root.join("repo"), false)
-            .unwrap();
+        let mut command = Command::new(crate::git_repository::GIT_PROGRAM);
+        crate::git_repository::configure(&mut command, &self.root.join("repo"), false).unwrap();
         command
             .args([
                 "-c",
@@ -156,9 +155,8 @@ fn main_and_linked_subdirectories_report_checkout_and_common_directory() {
 #[test]
 fn source_command_trust_is_an_exact_argument_and_invalid_source_is_typed() {
     let fixture = Fixture::new();
-    let mut command = Command::new("git.exe");
-    crate::git_repository_windows::configure(&mut command, &fixture.root.join("repo"), true)
-        .unwrap();
+    let mut command = Command::new(crate::git_repository::GIT_PROGRAM);
+    crate::git_repository::configure(&mut command, &fixture.root.join("repo"), true).unwrap();
     let args: Vec<_> = command
         .get_args()
         .map(|arg| arg.to_string_lossy().into_owned())
@@ -210,6 +208,7 @@ fn unavailable_directory_is_prepared_by_the_owner_and_late_cancellation_never_sp
             ..Faults::default()
         },
         witness: Arc::clone(&witness),
+        #[cfg(windows)]
         after_spawn: None,
     });
     let report = run_owner(

@@ -7,6 +7,7 @@ publish = false
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["fs", "user"] }
+rustix = { workspace = true, features = ["process"] }
 
 [dependencies]
 toml.workspace = true

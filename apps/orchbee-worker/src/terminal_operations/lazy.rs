@@ -56,10 +56,8 @@ pub(crate) fn run(
     let agent_probes = crate::agent_probe_jobs::AgentProbeJobs::new();
     #[cfg(windows)]
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
-    #[cfg(windows)]
-    let mutation_slot = crate::worktree_mutation_job::WorktreeMutationSlot::new(
-        crate::worktree_mutation_windows::run,
-    );
+    let mutation_slot =
+        crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
     let outcome = (|| {
         loop {
             #[cfg(not(windows))]
@@ -231,16 +229,12 @@ pub(crate) fn run(
                 continue;
             }
             if let CapabilityNodeMessage::WorktreeMutationRequest(request) = request {
-                #[cfg(windows)]
                 let result = crate::worktree_mutation_operation::execute(
                     request,
                     worker_id,
                     generation,
                     &mutation_slot,
                 );
-                #[cfg(not(windows))]
-                let result =
-                    crate::worktree_mutation_operation::execute(request, worker_id, generation);
                 let _no_host = server_transport::send(
                     &server,
                     None,
@@ -364,7 +358,6 @@ pub(crate) fn run(
                     worktree_slot: &worktree_slot,
                     agent_integrations: &agent_integrations,
                     agent_probes: &agent_probes,
-                    #[cfg(windows)]
                     mutation_slot: &mutation_slot,
                     #[cfg(windows)]
                     plugin_jobs: &plugin_jobs,
@@ -381,7 +374,6 @@ pub(crate) fn run(
         discovery: &worktree_slot,
         integrations: &agent_integrations,
         probes: &agent_probes,
-        #[cfg(windows)]
         mutations: &mutation_slot,
         #[cfg(windows)]
         plugins: &plugin_jobs,

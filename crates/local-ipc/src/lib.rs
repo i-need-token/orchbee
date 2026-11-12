@@ -19,7 +19,11 @@ pub use windows::{
 };
 
 #[cfg(unix)]
+mod unix;
+#[cfg(unix)]
 pub use std::os::unix::net::{UnixListener as LocalListener, UnixStream as LocalStream};
+#[cfg(unix)]
+pub use unix::ChildOutputReader;
 
 mod polling;
 pub use polling::{AsLocalIo, LocalIo, PollFd, PollFlags, PollTimeout, poll};

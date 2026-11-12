@@ -539,9 +539,8 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
     server.set_nonblocking(true).unwrap();
     host.stream().set_nonblocking(true).unwrap();
     let worktrees = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
-    let mutations = crate::worktree_mutation_job::WorktreeMutationSlot::new(
-        crate::worktree_mutation_windows::run,
-    );
+    let mutations =
+        crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
     assert!(
         run_admitted(
             server,

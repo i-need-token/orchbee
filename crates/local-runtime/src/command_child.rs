@@ -1,4 +1,5 @@
 //! Retained command ownership reports process creation separately from descendant settlement.
+//! Windows retains each command's Job; Unix retains each command's process group.
 use std::io;
 #[derive(Debug)]
 pub struct CommandSpawnFailure {
@@ -6,12 +7,12 @@ pub struct CommandSpawnFailure {
     pub created: bool,
 }
 
-#[cfg(not(windows))]
-mod unsupported;
+#[cfg(unix)]
+mod unix;
 #[cfg(windows)]
 mod windows;
-#[cfg(not(windows))]
-pub use unsupported::CommandChild;
+#[cfg(unix)]
+pub use unix::CommandChild;
 #[cfg(windows)]
 pub use windows::{
     CommandChild, resolve_windows_program, run_windows_command, run_windows_command_exchange,

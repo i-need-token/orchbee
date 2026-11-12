@@ -1050,6 +1050,7 @@ dependencies = [
  "orchbee-local-ipc",
  "orchbee-workbench-protocol",
  "process-wrap",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",
