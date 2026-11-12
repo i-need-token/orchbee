@@ -118,6 +118,7 @@ mod operation;
 mod pane_graphics;
 mod plugins;
 mod runtime_configuration;
+mod uninstall;
 mod update;
 mod window_title;
 

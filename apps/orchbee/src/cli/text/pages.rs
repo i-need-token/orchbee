@@ -47,6 +47,7 @@ const ROOT_GROUPS: &[(HelpText, &[&str])] = &[
             "channel",
             "update",
             "install",
+            "uninstall",
             "api",
             "completion",
         ],

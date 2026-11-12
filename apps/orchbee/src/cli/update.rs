@@ -20,6 +20,7 @@ mod platform;
 mod platform;
 mod signature;
 mod source_path;
+mod uninstall;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish},
@@ -37,6 +38,7 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
+pub(crate) use uninstall::{installer as installer_uninstall, run as uninstall};
 
 /// The total deadline of one install or update.
 const DEADLINE: Duration = Duration::from_secs(600);

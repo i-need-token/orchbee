@@ -352,8 +352,13 @@ impl super::CliText {
                 "--cols" => ("<n>", "Terminal width in columns.", "终端列数。"),
                 "--confirm" => (
                     "",
-                    "Confirm closing or removing the selected resources. The Windows release build refuses it on server stop, session stop and session delete, which ask a person to type the Session name instead.",
-                    "确认关闭或移除所选资源。Windows 正式版的 server stop、session stop 和 session delete 不接受此选项，改为由人输入会话名称。",
+                    "Confirm closing or removing the selected resources. The Windows release build refuses it on server stop, session stop, session delete and uninstall, which ask a person to type the Session name, or orchbee, instead.",
+                    "确认关闭或移除所选资源。Windows 正式版的 server stop、session stop、session delete 和 uninstall 不接受此选项，改为由人输入会话名称或 orchbee。",
+                ),
+                "--delete-data" => (
+                    "",
+                    "Also delete the whole data folder: settings, Sessions and everything else.",
+                    "同时删除整个数据文件夹：设置、会话及其他所有内容。",
                 ),
                 "--content-revision" => (
                     "<revision>",

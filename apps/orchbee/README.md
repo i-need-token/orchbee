@@ -63,6 +63,8 @@ Windows `machine list|add|rename|remove|enable|disable` manages saved remote mac
 
 Windows `install` publishes the signed release directory the running Client sits in into the store's `versions\<version>` and makes it the active version through `active.json`; this build has no PATH step, so it always behaves as if `--no-path` were given. `update` and `channel set` share the same verification, immutable publication and activation with explicit release sources. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
 
+Windows `uninstall [--delete-data]` is the inverse: it stops the environment's Sessions, disables every Agent integration, removes the user `Path` entry, the installer entries and the store root, and removes logs, caches and runtime state from the data root; settings and Sessions stay unless `--delete-data` is given. A platform uninstaller runs the hidden `--installer-uninstall-v1 [--delete-data]`, which asks nothing and changes nothing while a terminal is open. See [Windows release uninstall](docs/windows-cli-configuration.md#windows-release-uninstall).
+
 The [TUI platform boundary](docs/tui-platforms.md) defines the shared Client implementation,
 optional OS adapters, localized unsupported outcomes and native-platform evidence. State, input,
 menus and rendering compile together on Windows, Linux and macOS; optional Windows host effects

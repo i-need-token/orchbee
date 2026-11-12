@@ -972,6 +972,18 @@ pub(crate) enum Request {
         no_path: bool,
         allow_downgrade: bool,
     },
+    /// `uninstall`: removes the installed release, its PATH entry, installer entries and Agent
+    /// integrations; data stays unless `delete_data`.
+    Uninstall {
+        delete_data: bool,
+        confirm: bool,
+        format: OutputFormat,
+    },
+    /// The uninstall a platform uninstaller runs after its own confirmation; hidden from help,
+    /// completion and the Agent guide.
+    InstallerUninstall {
+        delete_data: bool,
+    },
     ConfigResetKeys {
         format: OutputFormat,
     },
@@ -1048,6 +1060,7 @@ struct Options {
     plugin_yes: bool,
     no_path: bool,
     allow_downgrade: bool,
+    delete_data: bool,
     plugin_ref: Option<String>,
     notification_body: Option<String>,
     notification_position: Option<String>,

@@ -1,0 +1,202 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.uninstall",
+	"title": "Windows release uninstall result",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.uninstall"
+		},
+		"version": {
+			"const": 1
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"mode",
+				"caller",
+				"storeRoot",
+				"dataRoot",
+				"sessions",
+				"integrations",
+				"pathEntry",
+				"installerEntries",
+				"data",
+				"store",
+				"remaining",
+				"npmCarrier",
+				"error",
+				"reason",
+				"interrupted"
+			],
+			"properties": {
+				"mode": {
+					"enum": ["keep-data", "delete-data"]
+				},
+				"caller": {
+					"enum": ["person", "installer"]
+				},
+				"storeRoot": {
+					"type": ["string", "null"]
+				},
+				"dataRoot": {
+					"type": ["string", "null"]
+				},
+				"sessions": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["name", "terminals", "agents", "otherVersion", "result"],
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"terminals": {
+								"type": ["integer", "null"],
+								"minimum": 0
+							},
+							"agents": {
+								"type": ["integer", "null"],
+								"minimum": 0
+							},
+							"otherVersion": {
+								"type": ["string", "null"]
+							},
+							"result": {
+								"enum": ["not-reached", "stopped", "failed"]
+							}
+						}
+					}
+				},
+				"integrations": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["provider", "listed", "result"],
+						"properties": {
+							"provider": {
+								"type": "string"
+							},
+							"listed": {
+								"type": "boolean"
+							},
+							"result": {
+								"enum": [
+									"not-reached",
+									"disabled",
+									"not-enabled",
+									"not-managed",
+									"program-not-found",
+									"failed"
+								]
+							}
+						}
+					}
+				},
+				"pathEntry": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["key", "result"],
+					"properties": {
+						"key": {
+							"type": ["string", "null"]
+						},
+						"result": {
+							"$ref": "#/$defs/outcome"
+						}
+					}
+				},
+				"installerEntries": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["entry", "location", "result"],
+						"properties": {
+							"entry": {
+								"enum": ["start-menu-shortcut", "uninstall-registration"]
+							},
+							"location": {
+								"type": ["string", "null"]
+							},
+							"result": {
+								"$ref": "#/$defs/outcome"
+							}
+						}
+					}
+				},
+				"data": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["path", "result"],
+						"properties": {
+							"path": {
+								"type": "string"
+							},
+							"result": {
+								"$ref": "#/$defs/outcome"
+							}
+						}
+					}
+				},
+				"store": {
+					"$ref": "#/$defs/outcome"
+				},
+				"remaining": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"npmCarrier": {
+					"type": "boolean"
+				},
+				"error": {
+					"enum": [
+						null,
+						"location",
+						"inside-session",
+						"plan",
+						"inventory",
+						"terminals-open",
+						"session-unstoppable",
+						"program-running",
+						"still-running",
+						"sessions",
+						"integrations",
+						"path-entry",
+						"installer-entries",
+						"data",
+						"store",
+						"interrupted"
+					]
+				},
+				"reason": {
+					"enum": [
+						null,
+						"unsafe-root",
+						"roots-overlap",
+						"outside-roots",
+						"root-parent",
+						"through-link"
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				}
+			}
+		}
+	},
+	"$defs": {
+		"outcome": {
+			"enum": ["not-reached", "absent", "removed", "scheduled", "failed"]
+		}
+	}
+}

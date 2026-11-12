@@ -274,6 +274,14 @@ fn main() -> ExitCode {
                 no_path,
                 allow_downgrade,
             }) => cli::update::complete_install(no_path, allow_downgrade, locale),
+            Ok(invocation::Request::Uninstall {
+                delete_data,
+                confirm,
+                format,
+            }) => cli::update::uninstall(delete_data, confirm, format, locale),
+            Ok(invocation::Request::InstallerUninstall { delete_data }) => {
+                cli::update::installer_uninstall(delete_data, locale)
+            }
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }

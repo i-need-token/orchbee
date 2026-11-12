@@ -162,8 +162,9 @@ terminal identity. A bare ID that selects different resources across both kinds 
   It refuses `--confirm` and every non-interactive invocation, Agents and scripts included, with a
   localized `denied` failure that names the command to run by hand. Development and test builds
   keep `--confirm`. The guard slows unintended Agent actions and is not a security boundary.
-  Orchbee's Windows release `server stop`, `session stop`, and `session delete` are guarded; their
-  destructive admission in `apps/orchbee/src/cli/destructive_request.rs` enforces it.
+  Orchbee's Windows release `server stop`, `session stop`, `session delete`, and `uninstall`, whose
+  target name is `orchbee`, are guarded; their destructive admission in
+  `apps/orchbee/src/cli/destructive_request.rs` enforces it.
 - Commands never prompt on standard input or read the terminal. The exceptions are the release
   confirmation above and a command whose grammar authority declares it interactive setup, such as
   installation or trust review; that command must accept `--yes` for non-interactive use and must

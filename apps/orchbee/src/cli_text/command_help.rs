@@ -438,6 +438,20 @@ impl super::CliText {
                 "orchbee install [--no-path] [--allow-downgrade] [--format text|json]",
                 "安装当前 orchbee 所在的已签名发布目录，并设为当前版本。\n把每个文件复制到 ORCHBEE_INSTALL_DIR（默认 %LOCALAPPDATA%/Programs/Orchbee；测试构建使用自己的目录）下的 versions/<版本>，校验后更新 active.json。\n已安装的版本校验后复用，绝不覆盖。低于当前版本时拒绝，除非加 --allow-downgrade。\n除非加 --no-path，PATH 步骤会把该版本的启动器复制到其中的 bin/，在用户 Path 缺少该文件夹时添加它，并移除指向安装目录内其他文件夹的条目。\n总时限 600 秒。Ctrl+C 取消。",
             ),
+            (Locale::EnUs, CommandPath::Uninstall) => crate::cli_text::HelpDetails::new(
+                "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
+                "Remove the installed Orchbee of this environment completely, in this order: list what goes and confirm; stop every Session; disable every Agent integration; remove the user Path entry, the Start menu shortcut and the uninstall registration; remove logs, internal/integrations, internal/cache, internal/runtime and internal/tmp from the data folder; remove the program folder (ORCHBEE_INSTALL_DIR, default %LOCALAPPDATA%/Programs/Orchbee) a few seconds after the command ends.
+Settings, Sessions and the rest of the data folder stay unless --delete-data, which removes the whole data folder.
+The Windows release build asks a person in a console to type orchbee; development and test builds require --confirm.
+A failure says what was done and what remains; running the command again continues.",
+            ),
+            (Locale::ZhCn, CommandPath::Uninstall) => crate::cli_text::HelpDetails::new(
+                "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
+                "完整移除本环境已安装的 Orchbee，顺序为：列出将移除的内容并确认；停止所有会话；停用所有智能体集成；移除用户 Path 条目、开始菜单快捷方式和卸载登记；从数据文件夹移除 logs、internal/integrations、internal/cache、internal/runtime 和 internal/tmp；命令结束几秒后移除程序文件夹（ORCHBEE_INSTALL_DIR，默认 %LOCALAPPDATA%/Programs/Orchbee）。
+除非加 --delete-data（删除整个数据文件夹），否则设置、会话和数据文件夹中的其余内容都会保留。
+Windows 正式版要求在控制台中输入 orchbee；开发和测试构建需要 --confirm。
+失败时会说明已完成和尚余的内容；再次运行命令即可继续。",
+            ),
             (Locale::EnUs, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_EN,
             (Locale::ZhCn, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_ZH,
             (

@@ -100,6 +100,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ChannelSet => &["stable"],
         CommandPath::Update => &[],
         CommandPath::Install => &["--no-path"],
+        CommandPath::Uninstall => &["--confirm"],
         CommandPath::ProjectList => &[],
         CommandPath::ProjectGet => &["app"],
         CommandPath::ProjectDissolve => &["app"],

@@ -70,6 +70,58 @@ pub(crate) fn run(command: &ServerStopCommand, format: OutputFormat, locale: Loc
     workflow::run(command, id, format, locale)
 }
 
+/// How `uninstall` found one Session after asking it to stop.
+pub(in crate::cli) enum SessionEnd {
+    /// The Session completed its stop, or ended through `exit` with no terminal open.
+    Stopped,
+    /// The Session did not end; the token names why, as `server stop` reports it.
+    Failed(&'static str),
+}
+
+/// Stops the Session whose runtime directory is `runtime` exactly as `session stop` does, for
+/// `uninstall`, which has already admitted the request: a Session of this build stops through its
+/// own stop request, and one another build started ends only when it holds no terminal.
+pub(in crate::cli) fn stop_session(
+    runtime: &std::path::Path,
+    deadline: std::time::Instant,
+    signals: &mut super::console_interrupt::ArmedSignals,
+) -> SessionEnd {
+    let mut bytes = [0; 16];
+    if getrandom::fill(&mut bytes).is_err() {
+        return SessionEnd::Failed("entropy");
+    }
+    let Ok(id) = StopId::new(bytes) else {
+        return SessionEnd::Failed("entropy");
+    };
+    let Ok(session) =
+        orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::from_runtime_directory(runtime)
+    else {
+        return SessionEnd::Failed("runtime");
+    };
+    let mut answer = Answer {
+        id,
+        observation: Observation::Unavailable("runtime"),
+        wait: None,
+        query: false,
+    };
+    workflow::observe_session(
+        &session,
+        orchbee_local_client_protocol::StopAction::Start,
+        false,
+        deadline,
+        &mut answer,
+        signals,
+    );
+    match (answer.observation, answer.wait) {
+        (_, Some(wait)) => SessionEnd::Failed(wait),
+        (Observation::Stopped | Observation::Exited, None) => SessionEnd::Stopped,
+        (Observation::Unavailable(reason) | Observation::Unknown(reason), None) => {
+            SessionEnd::Failed(reason)
+        }
+        (Observation::Server(_), None) => SessionEnd::Failed("stop-failed"),
+    }
+}
+
 fn id_text(id: StopId) -> String {
     id.bytes()
         .iter()

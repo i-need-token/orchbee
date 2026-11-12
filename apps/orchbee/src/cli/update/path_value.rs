@@ -2,7 +2,8 @@
 //! front when no entry names it, and entries naming another folder inside the store root, which the
 //! earlier layout added, go in the same write. Every other entry, empty ones included, stays byte
 //! for byte. Names compare case-insensitively, with or without surrounding quotes and trailing
-//! separators; an entry with `.` or `..` segments names nothing this edit recognizes.
+//! separators; an entry with `.` or `..` segments names nothing this edit recognizes. Uninstall's
+//! removal is the exact inverse: the entries this edit writes or recognizes go, and nothing else.
 
 /// The longest value the edit writes, in UTF-16 units: the 32,767-character environment variable
 /// limit less a margin, as the earlier layout's writer bounded it.
@@ -67,6 +68,39 @@ pub(super) fn edit(current: &str, root: &str) -> Edit {
         return Edit::TooLong;
     }
     Edit::Write { value, removed }
+}
+
+/// The inverse of [`edit`] for uninstall: every entry naming [`bin`] of `root` or another folder
+/// inside the store root goes, and every other entry, empty ones included, stays byte for byte.
+/// `removed` is always `true` in the write; nothing to remove is [`Edit::Unchanged`].
+pub(super) fn removal(current: &str, root: &str) -> Edit {
+    let bin_key = fold(&bin(root));
+    let root_key = fold(root).filter(|key| below_volume(key));
+    let mut removed = false;
+    let mut kept = Vec::new();
+    let entries = (!current.is_empty()).then(|| current.split(';'));
+    for entry in entries.into_iter().flatten() {
+        let key = fold(entry);
+        let inside = match (&key, &root_key) {
+            (Some(key), Some(root_key)) => key
+                .strip_prefix(root_key.as_str())
+                .is_some_and(|rest| rest.starts_with('\\')),
+            _ => false,
+        };
+        if inside || (key.is_some() && key == bin_key) {
+            removed = true;
+        } else {
+            kept.push(entry);
+        }
+    }
+    if removed {
+        Edit::Write {
+            value: kept.join(";"),
+            removed,
+        }
+    } else {
+        Edit::Unchanged
+    }
 }
 
 /// The comparison key of one `Path` entry, or `None` when it names no folder this edit compares.

@@ -1,7 +1,8 @@
 //! The user `Path` edit of the PATH step: exactly one entry for `<root>\bin` when none names it,
 //! every other entry kept byte for byte, names compared without case or trailing separators, and
-//! entries naming other folders inside the store root removed. No test reads or writes a registry.
-use super::super::path_value::{Edit, MAXIMUM_LENGTH, edit};
+//! entries naming other folders inside the store root removed. Uninstall's removal is its exact
+//! inverse. No test reads or writes a registry.
+use super::super::path_value::{Edit, MAXIMUM_LENGTH, edit, removal};
 
 const ROOT: &str = r"C:\Users\Ada\AppData\Local\Programs\Orchbee";
 const BIN: &str = r"C:\Users\Ada\AppData\Local\Programs\Orchbee\bin";
@@ -125,4 +126,52 @@ fn the_edit_refuses_a_value_past_the_bound() {
     // Length counts UTF-16 units, not bytes.
     let wide = format!(r"C:\{}", "张".repeat(room - 3));
     assert_eq!(edit(&wide, ROOT), write(&format!("{BIN};{wide}"), false));
+}
+
+#[test]
+fn the_removal_undoes_the_edit_and_keeps_every_other_entry() {
+    // Every value the PATH step starts from comes back byte for byte after its edit and the removal.
+    for current in [
+        "",
+        r"C:\Windows;C:\Tools",
+        r"C:\Tools;",
+        "a;;b",
+        ";",
+        r" C:\Tools ;C:\张三\bin",
+        ROOT,
+        &format!(r"{ROOT}-old\bin;{ROOT}2"),
+        &format!(r"{ROOT}\bin\..\bin;{ROOT}\..\Other"),
+        r"%LOCALAPPDATA%\Programs\Orchbee\bin",
+    ] {
+        let Edit::Write { value, .. } = edit(current, ROOT) else {
+            panic!("the edit writes {current}");
+        };
+        assert_eq!(removal(&value, ROOT), write(current, true), "{current}");
+    }
+    let cases = [
+        // Nothing the PATH step wrote: unchanged.
+        ("", ROOT, Edit::Unchanged),
+        (r"C:\Windows;;C:\Tools;", ROOT, Edit::Unchanged),
+        (&format!(r"{ROOT};{ROOT}-old\bin"), ROOT, Edit::Unchanged),
+        // The entry in any spelling the edit recognizes, and every folder inside the root, go.
+        (
+            &format!(
+                r#""{}/BIN/";x;{ROOT}\versions\0.1.0"#,
+                ROOT.replace('\\', "/")
+            ),
+            ROOT,
+            write("x", true),
+        ),
+        (&format!(r"x;{BIN};y;{BIN}\"), ROOT, write("x;y", true)),
+        (BIN, &format!(r"{ROOT}\"), write("", true)),
+        // A store at a drive root owns only its `bin` entry there.
+        (
+            r"D:\bin;D:\Tools;D:\versions\0.1.0",
+            r"D:\",
+            write(r"D:\Tools;D:\versions\0.1.0", true),
+        ),
+    ];
+    for (current, root, expected) in cases {
+        assert_eq!(removal(current, root), expected, "{current} under {root}");
+    }
 }

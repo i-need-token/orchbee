@@ -318,6 +318,22 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--delete-data",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::Uninstall],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.delete_data = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--entrypoint",
         values: &[],
         closed_values: false,
@@ -1552,6 +1568,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::PanelClose,
             CommandPath::WorktreeRemove,
             CommandPath::WorktreeResume,
+            CommandPath::Uninstall,
         ],
         role: OptionRole::Business,
         value: None,

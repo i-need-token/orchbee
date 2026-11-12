@@ -10,10 +10,10 @@ use super::{
     adapter_source_option, agent_after_revision_option, agent_limit_option, agent_name,
     agent_selector, agent_until_option, agent_view_spec, agent_wait_timeout_option,
     business_options, check_scope, client_control, close_generation_option, close_request_option,
-    close_wait, configured_commands, creation, diagnostics, doctor_asset_roots_option,
-    doctor_providers_option, events, grammar, label_option, layouts, machines,
-    manifest_operation_id, missing_command, missing_required, mutation, named_sessions, operation,
-    pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
+    close_wait, configured_commands, confirm_option_required, creation, diagnostics,
+    doctor_asset_roots_option, doctor_providers_option, events, grammar, label_option, layouts,
+    machines, manifest_operation_id, missing_command, missing_required, mutation, named_sessions,
+    operation, pane_graphics, panel_agent, panel_input, panel_metadata, panel_move_destination,
     panel_relocation, panel_terminal_creation, parse_send_key, path_option, plugins,
     profile_name_option, profile_selector, provider_option, query, reject_extras,
     reject_extras_scope, reject_filters, required, required_launch_option, required_provider,
@@ -1218,6 +1218,21 @@ pub(super) fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["uninstall"] => {
+            reject_filters(options, UsageContext::Path("uninstall"), envelope)?;
+            if !options.confirm && confirm_option_required() {
+                return Err(missing_required(
+                    UsageContext::Path("uninstall"),
+                    "'--confirm'",
+                    envelope,
+                ));
+            }
+            Ok(Request::Uninstall {
+                delete_data: options.delete_data,
+                confirm: options.confirm,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["channel", "set", channel @ ("stable" | "preview")] => {
             reject_filters(options, UsageContext::Path("channel set"), envelope)?;
             Ok(Request::Update {
@@ -1872,6 +1887,11 @@ pub(super) fn resolve_words(
         )),
         ["install", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("install"),
+            extra,
+            envelope,
+        )),
+        ["uninstall", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("uninstall"),
             extra,
             envelope,
         )),

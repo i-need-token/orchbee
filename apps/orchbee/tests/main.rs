@@ -52,6 +52,7 @@ mod cli_windows_server_stop;
 mod cli_windows_tab_index;
 mod cli_windows_terminal_output;
 mod cli_windows_terminal_run;
+mod cli_windows_uninstall;
 mod cli_windows_window_title;
 mod cli_windows_workspace;
 mod cli_windows_workspace_creation;

@@ -12,7 +12,8 @@ retained mutation outcomes. Values and report vocabularies come from the
 - Unix and Windows are supported. Windows configuration-location helpers compile only on Windows.
 - The actual consumers are `orchbee-worker`, whose job owner runs every inspection and mutation
   for its Session, and `orchbee`, which reuses the read-only configuration helpers for offline
-  `agent doctor` and Windows update verification.
+  `agent doctor` and Windows update verification and runs the disable of every provider in
+  `uninstall` after the environment's Sessions have stopped.
 
 ## What each operation starts
 

@@ -367,6 +367,10 @@ impl super::CliText {
                 "Install this release and make it active.",
                 "安装此版本并设为当前版本。",
             ),
+            HelpTopic::Command(CommandPath::Uninstall) => (
+                "Remove the installed Orchbee; data stays unless --delete-data.",
+                "移除已安装的 Orchbee；除非加 --delete-data，否则保留数据。",
+            ),
             HelpTopic::Family(Family::Completion) => (
                 "Generate shell completion scripts.",
                 "生成 Shell 命令补全脚本。",

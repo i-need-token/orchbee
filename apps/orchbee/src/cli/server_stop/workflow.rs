@@ -95,7 +95,20 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
         }
         Err(_) => return,
     };
-    match completed(&session, answer.id) {
+    observe_session(&session, action, detached, deadline, answer, signals);
+}
+
+/// The stop or status exchange with one resolved Session and, for a stop, the bounded wait for its
+/// end.
+pub(super) fn observe_session(
+    session: &Rendezvous,
+    action: StopAction,
+    detached: bool,
+    deadline: Instant,
+    answer: &mut Answer,
+    signals: &mut ArmedSignals,
+) {
+    match completed(session, answer.id) {
         Ok(true) => {
             answer.observation = Observation::Stopped;
             return;
@@ -107,7 +120,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
         Ok(false) => {}
     }
     if answer.query
-        && match super::platform::activation_state(&session) {
+        && match super::platform::activation_state(session) {
             Ok(ActivationState::Absent) => true,
             Ok(ActivationState::Stopped { request_id }) => request_id != answer.id.bytes(),
             _ => false,
@@ -162,7 +175,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
                         ) =>
                 {
                     let draining = rejection.reason == Refusal::Stopping;
-                    end_by_exit(&session, answer, signals, deadline, draining);
+                    end_by_exit(session, answer, signals, deadline, draining);
                     return;
                 }
                 ConnectClientError::Rejected(_) | ConnectClientError::Refused(_) => {
@@ -172,7 +185,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
                 _ => {}
             }
             if !error.submitted || answer.query {
-                match completed(&session, answer.id) {
+                match completed(session, answer.id) {
                     Ok(true) => answer.observation = Observation::Stopped,
                     _ => answer.observation = Observation::Unavailable("transport"),
                 }
@@ -214,7 +227,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
             answer.wait = Some("cancelled");
             return;
         }
-        match completed(&session, answer.id) {
+        match completed(session, answer.id) {
             Ok(true) => {
                 answer.observation = Observation::Stopped;
                 return;

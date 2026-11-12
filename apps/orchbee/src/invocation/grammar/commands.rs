@@ -90,6 +90,7 @@ commands! {
     ChannelSet => ["channel", "set"], 1, Operand, Windows, true, false, false;
     Update => ["update"], 0, Operand, Windows, true, false, false;
     Install => ["install"], 0, Operand, Windows, true, false, false;
+    Uninstall => ["uninstall"], 0, Operand, Windows, true, false, false;
     ProjectList => ["project", "list"], 0, Operand, Portable, true, true, false;
     ProjectGet => ["project", "get"], 1, Operand, Portable, true, true, false;
     ProjectDissolve => ["project", "dissolve"], 1, Operand, Portable, true, true, false;

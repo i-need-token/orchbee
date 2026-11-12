@@ -30,7 +30,7 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
-    if let Some(request) = complete_install(&tokens) {
+    if let Some(request) = complete_install(&tokens).or_else(|| installer_uninstall(&tokens)) {
         return Ok(SelectedRequest {
             availability: super::grammar::Availability::Windows,
             format: None,
@@ -63,6 +63,19 @@ fn complete_install(tokens: &[String]) -> Option<super::Request> {
         no_path,
         allow_downgrade,
     })
+}
+
+/// The uninstaller helper `--installer-uninstall-v1 [--delete-data]`. This helper grammar is
+/// permanent; a change adds a new helper name.
+fn installer_uninstall(tokens: &[String]) -> Option<super::Request> {
+    match tokens {
+        [first] if first == "--installer-uninstall-v1" => Some(false),
+        [first, flag] if first == "--installer-uninstall-v1" && flag == "--delete-data" => {
+            Some(true)
+        }
+        _ => None,
+    }
+    .map(|delete_data| super::Request::InstallerUninstall { delete_data })
 }
 
 #[cfg(test)]

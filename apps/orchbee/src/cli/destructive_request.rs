@@ -1,7 +1,9 @@
-//! Destructive admission for `server stop`, `session stop` and `session delete` (ORC-382).
+//! Destructive admission for `server stop`, `session stop`, `session delete` (ORC-382) and
+//! `uninstall`.
 //!
 //! A release Windows build runs them only when standard input and standard output are both
-//! interactive consoles and the person types the exact Session name at the prompt; it refuses
+//! interactive consoles and the person types the exact Session name, or `orchbee` for `uninstall`,
+//! at the prompt; it refuses
 //! `--confirm` and every non-interactive invocation, including Agents, scripts and pipes.
 //! Development and test builds keep `--confirm`, which the grammar already requires there.
 //! Every invocation on Windows, accepted or refused, appends one record to the environment's
@@ -23,6 +25,7 @@ pub(super) enum DestructiveCommand {
     ServerStop,
     SessionStop,
     SessionDelete,
+    Uninstall,
 }
 
 impl DestructiveCommand {
@@ -31,6 +34,7 @@ impl DestructiveCommand {
             Self::ServerStop => "server stop",
             Self::SessionStop => "session stop",
             Self::SessionDelete => "session delete",
+            Self::Uninstall => "uninstall",
         }
     }
 
@@ -39,6 +43,7 @@ impl DestructiveCommand {
         match (self, target) {
             (Self::ServerStop, Some(name)) => format!("orchbee --session {name} server stop"),
             (Self::ServerStop, None) => "orchbee --session <name> server stop".to_owned(),
+            (Self::Uninstall, _) => "orchbee uninstall".to_owned(),
             (_, name) => format!("orchbee {} {}", self.words(), name.unwrap_or("<name>")),
         }
     }
@@ -141,6 +146,38 @@ pub(super) fn admit(
     format: OutputFormat,
     locale: Locale,
 ) -> Result<(), Box<Output>> {
+    admit_after(command, confirm, target, "", format, locale)
+}
+
+/// The name a person types to admit `uninstall`.
+pub(super) const UNINSTALL_NAME: &str = "orchbee";
+
+/// Admits `uninstall`; a release prompt shows `listing`, what goes and what stays, before it asks
+/// for [`UNINSTALL_NAME`].
+pub(super) fn admit_uninstall(
+    confirm: bool,
+    listing: &str,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<(), Box<Output>> {
+    admit_after(
+        DestructiveCommand::Uninstall,
+        confirm,
+        Some(UNINSTALL_NAME),
+        listing,
+        format,
+        locale,
+    )
+}
+
+fn admit_after(
+    command: DestructiveCommand,
+    confirm: bool,
+    target: Option<&str>,
+    listing: &str,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<(), Box<Output>> {
     let release = platform::release();
     let console = platform::console();
     let resolved = match target {
@@ -152,10 +189,15 @@ pub(super) fn admit(
         Decision::Run => Verdict::Run,
         Decision::Refuse(refusal) => Verdict::Refuse(refusal),
         Decision::Prompt => {
-            let prompt = CliText::new(locale).cli_destructive_prompt(
-                target.unwrap_or_default(),
-                command == DestructiveCommand::SessionDelete,
-            );
+            let text = CliText::new(locale);
+            let prompt = if command == DestructiveCommand::Uninstall {
+                format!("{listing}{}", text.cli_uninstall_prompt())
+            } else {
+                text.cli_destructive_prompt(
+                    target.unwrap_or_default(),
+                    command == DestructiveCommand::SessionDelete,
+                )
+            };
             match platform::prompt(&prompt) {
                 Ok(line) => match decide(release, console, confirm, target, Some(&line)) {
                     Decision::Run => Verdict::Run,
@@ -186,11 +228,15 @@ pub(super) fn admit(
                 Some(format),
                 locale,
             );
-            output.stderr = CliText::new(locale).cli_destructive_refusal(
-                refusal.reason(),
-                &command.by_hand(target),
-                target.unwrap_or_default(),
-            );
+            output.stderr = if command == DestructiveCommand::Uninstall {
+                CliText::new(locale).cli_uninstall_refusal(refusal.reason())
+            } else {
+                CliText::new(locale).cli_destructive_refusal(
+                    refusal.reason(),
+                    &command.by_hand(target),
+                    target.unwrap_or_default(),
+                )
+            };
             Err(Box::new(output))
         }
     }
