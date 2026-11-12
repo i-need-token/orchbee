@@ -462,7 +462,7 @@ impl Locale {
             (Self::ZhCn, A::Project) => "项目",
             (Self::EnUs, A::Tab) => "tab",
             (Self::ZhCn, A::Tab) => "标签页",
-            (Self::EnUs, A::Pane) => "pane panel",
+            (Self::EnUs, A::Pane) => "panel",
             (Self::ZhCn, A::Pane) => "面板",
             (Self::EnUs, A::Split) => "split",
             (Self::ZhCn, A::Split) => "分屏",

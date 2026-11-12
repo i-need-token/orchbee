@@ -60,7 +60,7 @@ impl Registry {
                     &self.hostname,
                     &context.workspace,
                     &context.tab,
-                    &context.pane,
+                    &context.panel,
                     &context.terminal_title,
                 ])
                 .and_then(|text| WindowTitle::normalize(&text).ok())

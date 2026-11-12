@@ -47,8 +47,8 @@ pub fn observe<G: Guard>(
     let mut context = PluginInvocationContext {
         tab_id: Some(member.tab.to_string()),
         tab_label: Some(tab.label.clone()),
-        focused_pane_id: Some(member.panel.to_string()),
-        focused_pane_cwd: pane_directory.clone(),
+        focused_panel_id: Some(member.panel.to_string()),
+        focused_panel_cwd: pane_directory.clone(),
         ..PluginInvocationContext::default()
     };
     let workspace = snapshot
@@ -84,12 +84,12 @@ pub fn observe<G: Guard>(
     }
     fence_presentation_agent(client, snapshot, reported.report_revision, deadline, guard)?;
 
-    context.focused_pane_status = reported
+    context.focused_panel_status = reported
         .view
         .as_ref()
         .and_then(|view| panel_state(view.state))
         .or_else(|| aggregate_status(&sessions).map(str::to_owned));
-    context.focused_pane_agent = reported
+    context.focused_panel_agent = reported
         .view
         .and_then(|view| view.agent)
         .or_else(|| unique_provider(&sessions));

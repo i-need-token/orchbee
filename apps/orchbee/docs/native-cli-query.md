@@ -2222,7 +2222,7 @@ more from the snapshot than their targets, so each retry prepares all of it agai
 target, the label (a `workspace create` label with its first-free ` (2)` suffix), the directory and its source, the plugin
 context and the selected Client. They submit again only when every derived value and target is
 identical. Phased workflows that submit an action resolved in an earlier phase — `panel move`
-with `--into-tab`, `--new-tab` or `--new-workspace`, `layout apply`, and plugin pane management —
+with `--into-tab`, `--new-tab` or `--new-workspace`, `layout apply`, and plugin panel management —
 do not retry; their refusal reports as before.
 
 Safety contract:

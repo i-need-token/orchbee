@@ -1,4 +1,4 @@
-//! Constructs bounded plugin pane open, manage, and close intents with typed selectors,
+//! Constructs bounded plugin panel open, manage, and close intents with typed selectors,
 //! placement, geometry, and caller scope. It does not resolve plugin executables or grant
 //! physical launch and close authority.
 
@@ -35,17 +35,17 @@ pub(super) fn parse(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    if let ["plugin", "pane", verb @ ("focus" | "close"), rest @ ..] = words {
+    if let ["plugin", "panel", verb @ ("focus" | "close"), rest @ ..] = words {
         let focus = *verb == "focus";
         let context = UsageContext::Path(if focus {
-            "plugin pane focus"
+            "plugin panel focus"
         } else {
-            "plugin pane close"
+            "plugin panel close"
         });
         check_scope(options, context, envelope)?;
         let value = rest
             .first()
-            .ok_or_else(|| missing_required(context, "<pane-id>", envelope))?;
+            .ok_or_else(|| missing_required(context, "<panel-id>", envelope))?;
         if let Some(extra) = rest.get(1) {
             return Err(unexpected_argument(context, extra, envelope));
         }
@@ -63,18 +63,21 @@ pub(super) fn parse(
             format: options.format.unwrap_or(OutputFormat::Text),
         });
     }
-    let context = UsageContext::Path("plugin pane open");
+    let context = UsageContext::Path("plugin panel open");
     match words {
-        ["plugin", "pane"] => {
-            return Err(missing_command(UsageContext::Path("plugin pane"), envelope));
+        ["plugin", "panel"] => {
+            return Err(missing_command(
+                UsageContext::Path("plugin panel"),
+                envelope,
+            ));
         }
-        ["plugin", "pane", "open"] => {}
-        ["plugin", "pane", "open", extra, ..] => {
+        ["plugin", "panel", "open"] => {}
+        ["plugin", "panel", "open", extra, ..] => {
             return Err(unexpected_argument(context, extra, envelope));
         }
-        ["plugin", "pane", verb, ..] => {
+        ["plugin", "panel", verb, ..] => {
             return Err(unknown_command(
-                UsageContext::Path("plugin pane"),
+                UsageContext::Path("plugin panel"),
                 verb,
                 envelope,
             ));
@@ -149,7 +152,7 @@ pub(super) fn parse(
     };
     let mut launch_options =
         launch_options_with_directory(options, options.cwd.as_deref(), context, envelope)?;
-    launch_options.plugin_pane = Some(selector);
+    launch_options.plugin_panel = Some(selector);
     Ok(Request::Plugin {
         command: super::PluginCommand::PaneOpen(Box::new(Open {
             placement,
@@ -174,7 +177,7 @@ pub(super) fn parse(
                 || options.cell_width.is_some()
                 || options.cell_height.is_some(),
             active_target_overrides: options.workspace.is_some()
-                || options.plugin_target.is_some()
+                || options.target_panel.is_some()
                 || options.direction.is_some(),
             workspace: options
                 .workspace
@@ -190,7 +193,7 @@ pub(super) fn parse(
                 kind: CreationKind::Split {
                     right_click: Default::default(),
                     target: options
-                        .plugin_target
+                        .target_panel
                         .clone()
                         .map(|id| target(id, Resource::Panel, envelope))
                         .transpose()?,

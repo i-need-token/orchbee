@@ -59,7 +59,7 @@ describe('retained Tab duplication', () => {
 		for (const name of [
 			'workbench.schema.json',
 			'workbench-client-view.schema.json',
-			'workbench-pane-graphics.schema.json',
+			'workbench-panel-graphics.schema.json',
 			'workbench-command.schema.json',
 		]) {
 			const dependency = z

@@ -362,8 +362,8 @@ impl LocalTerminalService {
                 self.popup_read(owner, popup_id, &request.session_id, PopupKind::Plugin)
             }
 
-            PluginAction::PaneObserve { .. }
-            | PluginAction::PaneGet { .. }
+            PluginAction::PanelObserve { .. }
+            | PluginAction::PanelGet { .. }
             | PluginAction::Invoke { .. }
             | PluginAction::Logs { .. }
             | PluginAction::Get { .. }

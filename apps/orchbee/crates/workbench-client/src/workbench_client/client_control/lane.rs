@@ -90,7 +90,7 @@ impl QueuedInvocation {
                     .source
                     .as_ref()
                     .map(|source| source.tab_id.as_str().into()),
-                focused_pane_id: self
+                focused_panel_id: self
                     .source
                     .as_ref()
                     .map(|source| source.panel_id.as_str().into()),

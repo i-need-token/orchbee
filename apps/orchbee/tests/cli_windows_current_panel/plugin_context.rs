@@ -58,7 +58,7 @@ fn plugin_context_preflight_uses_exact_caller_or_client_and_refuses_selection_ra
                 };
                 assert_eq!(context.tab_id.as_deref(), Some(id(5).as_str()));
                 assert_eq!(context.tab_label.as_deref(), Some("two"));
-                assert_eq!(context.focused_pane_id.as_deref(), Some(id(6).as_str()));
+                assert_eq!(context.focused_panel_id.as_deref(), Some(id(6).as_str()));
                 assert_eq!(context.workspace_id.as_deref(), Some("display-only"));
                 assert_eq!(context.selected_text.as_deref(), Some("选区"));
                 assert_eq!(
@@ -66,7 +66,7 @@ fn plugin_context_preflight_uses_exact_caller_or_client_and_refuses_selection_ra
                     Some(operation_id.as_str())
                 );
                 assert!(
-                    context.focused_pane_cwd.is_none(),
+                    context.focused_panel_cwd.is_none(),
                     "unavailable Host cwd is not invented"
                 );
                 write_workbench_response(

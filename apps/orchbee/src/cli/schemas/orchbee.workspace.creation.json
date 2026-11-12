@@ -695,7 +695,7 @@
 									"enum": [
 										"selector-unavailable",
 										"plugin-not-found",
-										"pane-not-found",
+										"panel-not-found",
 										"registry-unavailable",
 										"client-listing-unavailable",
 										"binding-unavailable",
@@ -710,7 +710,7 @@
 										"invalid-popup-spec",
 										"client-changed",
 										"context-invalid",
-										"pane-changed",
+										"panel-changed",
 										"transport-loss",
 										"invalid-reply"
 									]
@@ -786,7 +786,7 @@
 												"details": {
 													"properties": {
 														"reason": {
-															"enum": ["plugin-not-found", "pane-not-found"]
+															"enum": ["plugin-not-found", "panel-not-found"]
 														}
 													}
 												}
@@ -842,7 +842,7 @@
 																"invalid-popup-spec",
 																"client-changed",
 																"context-invalid",
-																"pane-changed"
+																"panel-changed"
 															]
 														}
 													}
@@ -4511,7 +4511,7 @@
 								}
 							]
 						},
-						"focusedPaneId": {
+						"focusedPanelId": {
 							"anyOf": [
 								{
 									"type": "string",
@@ -4523,7 +4523,7 @@
 								}
 							]
 						},
-						"focusedPaneCwd": {
+						"focusedPanelCwd": {
 							"anyOf": [
 								{
 									"type": "string",
@@ -4535,7 +4535,7 @@
 								}
 							]
 						},
-						"focusedPaneAgent": {
+						"focusedPanelAgent": {
 							"anyOf": [
 								{
 									"type": "string",
@@ -4547,7 +4547,7 @@
 								}
 							]
 						},
-						"focusedPaneStatus": {
+						"focusedPanelStatus": {
 							"anyOf": [
 								{
 									"type": "string",

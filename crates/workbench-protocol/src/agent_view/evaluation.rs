@@ -22,7 +22,7 @@ pub trait Entry {
     fn token(&self, name: &str) -> Option<&str>;
     fn workspace_order(&self) -> Option<u64>;
     fn tab_order(&self) -> Option<u64>;
-    fn pane_order(&self) -> Option<u64>;
+    fn panel_order(&self) -> Option<u64>;
     fn attention(&self) -> u64;
 }
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
@@ -101,7 +101,7 @@ fn sort_value<'a>(e: &'a impl Entry, f: &AgentViewSortField) -> Option<Value<'a>
         AgentViewSortField::Builtin(b) => match b {
             B::WorkspaceOrder => Value::Number(e.workspace_order()?),
             B::TabOrder => Value::Number(e.tab_order()?),
-            B::PaneOrder => Value::Number(e.pane_order()?),
+            B::PaneOrder => Value::Number(e.panel_order()?),
             B::Attention => Value::Number(e.attention()),
             B::Status => Value::String(e.status().into()),
             B::Agent => Value::String(e.agent()?.into()),

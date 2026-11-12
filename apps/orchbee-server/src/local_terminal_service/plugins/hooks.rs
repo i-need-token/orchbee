@@ -282,16 +282,16 @@ impl Dispatcher {
         self.running
             .retain(|(id, _), _| plugins.iter().any(|entry| entry.manifest.id == *id));
         for event in events {
-            let public = event.event.public_name();
+            let public = event.event.as_str();
             let hooked: Vec<(&PluginRegistryEntry, Vec<&[String]>)> = plugins
                 .iter()
-                .map(|entry| (*entry, hook_commands(entry, event.event, &public)))
+                .map(|entry| (*entry, hook_commands(entry, event.event)))
                 .filter(|(_, commands)| !commands.is_empty())
                 .collect();
             if hooked.is_empty() {
                 continue;
             }
-            let payload = payload(event, &public);
+            let payload = payload(event);
             let context = context(event);
             for (entry, commands) in hooked {
                 if jobs.stopping() {
@@ -301,7 +301,7 @@ impl Dispatcher {
                 if let Some(ids) = self.running.get(&key)
                     && ids.iter().any(|id| jobs.running(*id))
                 {
-                    report("event", "dropped", Some(&entry.manifest.id), Some(&public));
+                    report("event", "dropped", Some(&entry.manifest.id), Some(public));
                     continue;
                 }
                 self.running.remove(&key);
@@ -310,7 +310,7 @@ impl Dispatcher {
                         "event",
                         "payload-too-large",
                         Some(&entry.manifest.id),
-                        Some(&public),
+                        Some(public),
                     );
                     continue;
                 };
@@ -320,7 +320,7 @@ impl Dispatcher {
                         submit(
                             registry,
                             entry,
-                            &public,
+                            public,
                             command.to_vec(),
                             Some(payload),
                             context.clone(),
@@ -340,13 +340,8 @@ fn runnable(entry: &PluginRegistryEntry) -> bool {
     entry.enabled && entry.warning.is_none()
 }
 
-/// The entry's Windows hook commands for this event, named publicly (`panel.*`) or by the
-/// historical protocol noun (`pane.*`).
-fn hook_commands<'a>(
-    entry: &'a PluginRegistryEntry,
-    kind: Kind,
-    public: &str,
-) -> Vec<&'a [String]> {
+/// The entry's Windows hook commands for this event, named as `orchbee events` names it.
+fn hook_commands(entry: &PluginRegistryEntry, kind: Kind) -> Vec<&[String]> {
     if !deliverable(kind) {
         return Vec::new();
     }
@@ -354,17 +349,15 @@ fn hook_commands<'a>(
         .manifest
         .events
         .iter()
-        .filter(|hook| hook.on == public || hook.on == kind.as_str())
+        .filter(|hook| hook.on == kind.as_str())
         .filter(|hook| entry.manifest.supports_windows(&hook.platforms))
         .map(|hook| hook.command.as_slice())
         .collect()
 }
 
 /// The event's public shape, as `orchbee events` reports it.
-fn payload(event: &SemanticEvent, public: &str) -> Option<String> {
-    let mut value = serde_json::to_value(event).ok()?;
-    value["event"] = serde_json::Value::String(public.into());
-    serde_json::to_string(&value)
+fn payload(event: &SemanticEvent) -> Option<String> {
+    serde_json::to_string(event)
         .ok()
         .filter(|text| text.len() <= MAXIMUM_PAYLOAD)
 }
@@ -389,7 +382,7 @@ fn context(event: &SemanticEvent) -> PluginInvocationContext {
         | Data::Exited { pane, .. }
         | Data::Scroll { pane, .. } => {
             context.tab_id = Some(pane.tab_id.to_string());
-            context.focused_pane_id = Some(pane.panel_id.to_string());
+            context.focused_panel_id = Some(pane.panel_id.to_string());
         }
         Data::WorkspaceOrder { .. }
         | Data::WorkspaceMetadata { .. }

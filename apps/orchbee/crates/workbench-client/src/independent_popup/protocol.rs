@@ -29,8 +29,8 @@ impl PopupOutcome {
             PluginOutcome::PopupClosed { .. } => Ok(Self::Closed),
             PluginOutcome::Failed { .. } => Ok(Self::Refused(Reason::TargetUnavailable)),
             PluginOutcome::PopupUnknown { .. }
-            | PluginOutcome::PaneObserved { .. }
-            | PluginOutcome::PaneFound { .. }
+            | PluginOutcome::PanelObserved { .. }
+            | PluginOutcome::PanelFound { .. }
             | PluginOutcome::Started { .. }
             | PluginOutcome::Logs { .. }
             | PluginOutcome::Cancellation { .. }

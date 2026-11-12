@@ -16,8 +16,8 @@ impl LocalTerminalService {
         let target = {
             let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
             let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-            let Some(Outcome::PaneFound { pane: current, .. }) =
-                coordinator.plugin_pane(&pane.panel_id)
+            let Some(Outcome::PanelFound { pane: current, .. }) =
+                coordinator.plugin_panel(&pane.panel_id)
             else {
                 return Err(Failure::NotFound);
             };
@@ -51,8 +51,8 @@ impl LocalTerminalService {
             return Err(Failure::WorkerChanged);
         }
         let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-        match coordinator.plugin_pane(&pane.panel_id) {
-            Some(Outcome::PaneFound {
+        match coordinator.plugin_panel(&pane.panel_id) {
+            Some(Outcome::PanelFound {
                 revision,
                 pane: current,
             }) if *current == *pane => {
@@ -76,7 +76,7 @@ impl LocalTerminalService {
                 if fresh.target != target.target {
                     return Err(Failure::Conflict);
                 }
-                Ok(Outcome::PaneObserved {
+                Ok(Outcome::PanelObserved {
                     revision,
                     pane: current,
                     settled,

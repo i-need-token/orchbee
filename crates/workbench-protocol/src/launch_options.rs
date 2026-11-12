@@ -32,7 +32,7 @@ impl PluginPaneSelector {
             || !crate::plugin_identifier(&entrypoint_id, 120)
             || entrypoint_id.contains('.')
         {
-            return Err("invalid plugin Pane selector");
+            return Err("invalid plugin Panel selector");
         }
         Ok(Self {
             plugin_id,
@@ -78,14 +78,14 @@ pub struct LaunchOptions {
     /// Bounded literal environment overlay, never emitted through debug formatting.
     #[serde(default, skip_serializing_if = "LaunchEnvironment::is_empty")]
     pub environment: LaunchEnvironment,
-    /// Server-owned plugin Pane launch, exclusive with explicit launch/profile.
+    /// Server-owned plugin Panel launch, exclusive with explicit launch/profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plugin_pane: Option<PluginPaneSelector>,
+    pub plugin_panel: Option<PluginPaneSelector>,
     /// Observed source display data; never executable, directory or Worker authority.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_context: Option<Box<crate::PluginInvocationContext>>,
     /// The Agent the new shell runs as its first command, once, leaving the shell behind when
-    /// it exits. Exclusive with a plugin Pane; a shell that cannot take a first command starts
+    /// it exits. Exclusive with a plugin Panel; a shell that cannot take a first command starts
     /// without it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_start: Option<AgentStartSelector>,
@@ -96,7 +96,7 @@ impl LaunchOptions {
     pub fn is_empty(&self) -> bool {
         self.cwd.is_none()
             && self.environment.is_empty()
-            && self.plugin_pane.is_none()
+            && self.plugin_panel.is_none()
             && self.plugin_context.is_none()
             && self.agent_start.is_none()
     }
@@ -107,7 +107,7 @@ impl std::fmt::Debug for LaunchOptions {
         f.debug_struct("LaunchOptions")
             .field("cwd", &self.cwd)
             .field("environment", &self.environment)
-            .field("plugin_pane", &self.plugin_pane)
+            .field("plugin_panel", &self.plugin_panel)
             .field("plugin_context_present", &self.plugin_context.is_some())
             .field("agent_start", &self.agent_start)
             .finish()

@@ -177,10 +177,10 @@ commands! {
     EventsWait => ["events", "wait"], 0, Operand, Windows, true, false, false;
     CommandList => ["command", "list"], 0, Operand, Windows, true, false, false;
     CommandInvoke => ["command", "invoke"], 1, Operand, Windows, true, false, false;
-    PluginPaneOpen => ["plugin", "pane", "open"], 0, Operand, Windows, true, true, false;
+    PluginPaneOpen => ["plugin", "panel", "open"], 0, Operand, Windows, true, true, false;
     PopupClose => ["popup", "close"], 0, Operand, Windows, true, true, false;
-    PluginPaneFocus => ["plugin", "pane", "focus"], 1, Operand, Windows, true, true, false;
-    PluginPaneClose => ["plugin", "pane", "close"], 1, Operand, Windows, true, true, false;
+    PluginPaneFocus => ["plugin", "panel", "focus"], 1, Operand, Windows, true, true, false;
+    PluginPaneClose => ["plugin", "panel", "close"], 1, Operand, Windows, true, true, false;
     PluginActionInvoke => ["plugin", "action", "invoke"], 1, Operand, Windows, true, true, false;
     PluginLogList => ["plugin", "log", "list"], 1, Operand, Windows, true, true, false;
     PluginInstall => ["plugin", "install"], 1, Operand, Windows, true, false, false;

@@ -9,7 +9,7 @@ type Handlers = Parameters<ServerConnection['subscribe']>[2];
 const SESSION_ID = '1'.padStart(32, '0');
 
 interface Context {
-	readonly pane: string;
+	readonly panel: string;
 	readonly tab: string;
 	readonly terminalTitle: string;
 	readonly workspace: string;
@@ -56,7 +56,7 @@ class FakeConnection {
 }
 
 function context(workspace: string): Context {
-	return { pane: '', tab: '', terminalTitle: '', workspace };
+	return { panel: '', tab: '', terminalTitle: '', workspace };
 }
 
 function listening(stream: FakeStream | undefined, snapshot: unknown): void {
@@ -129,14 +129,14 @@ describe('ServerWindowTitle', () => {
 	it('bounds each context value as the TUI does', () => {
 		const { connection, title } = start();
 		title.update(true, {
-			pane: `left\u0007pane\ud800`,
+			panel: `left\u0007panel\ud800`,
 			tab: '😀'.repeat(201),
 			terminalTitle: 'build\nlog',
 			workspace: 'one',
 		});
 
 		expect(connection.streams[0]?.context).toEqual({
-			pane: 'leftpane',
+			panel: 'leftpanel',
 			tab: '😀'.repeat(200),
 			terminalTitle: 'buildlog',
 			workspace: 'one',

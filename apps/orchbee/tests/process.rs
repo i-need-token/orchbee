@@ -58,7 +58,7 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
             "default action {action} is missing"
         );
     }
-    assert!(text.contains("# resize_pane_left = []"));
+    assert!(text.contains("# resize_panel_left = []"));
     assert!(text.contains("# focus_agent = []"));
 
     for arguments in [
@@ -481,7 +481,7 @@ check --format 1 orchbee terminal title set title --f
 check --format 1 orchbee agent view set --f
 check --format 1 orchbee plugin action list --f
 check --format 1 orchbee plugin log list --f
-check --format 1 orchbee plugin pane open --f
+check --format 1 orchbee plugin panel open --f
 check list 1 orchbee --machine work workspace l
 check list 1 orchbee --machine=work workspace l
 check --session 0 orchbee --machine work workspace list --s

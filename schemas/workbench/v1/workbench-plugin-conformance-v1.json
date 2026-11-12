@@ -633,7 +633,7 @@
 			}
 		},
 		{
-			"name": "pane-read",
+			"name": "panel-read",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.plugin",
@@ -641,13 +641,13 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"action": {
-					"kind": "pane-get",
+					"kind": "panel-get",
 					"panelId": "00000000000000000000000000000003"
 				}
 			}
 		},
 		{
-			"name": "pane-membership",
+			"name": "panel-membership",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.plugin.result",
@@ -655,9 +655,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-found",
+					"kind": "panel-found",
 					"revision": "12",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -675,7 +675,7 @@
 			}
 		},
 		{
-			"name": "pane-observe-exact",
+			"name": "panel-observe-exact",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.plugin",
@@ -683,8 +683,8 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"action": {
-					"kind": "pane-observe",
-					"pane": {
+					"kind": "panel-observe",
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -702,7 +702,7 @@
 			}
 		},
 		{
-			"name": "pane-observed-settled",
+			"name": "panel-observed-settled",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.plugin.result",
@@ -710,9 +710,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-observed",
+					"kind": "panel-observed",
 					"revision": "12",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -757,7 +757,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -915,7 +915,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -1600,7 +1600,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "pane-zero-revision",
+			"name": "panel-zero-revision",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.plugin.result",
@@ -1608,9 +1608,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-found",
+					"kind": "panel-found",
 					"revision": "0",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -1628,7 +1628,7 @@
 			}
 		},
 		{
-			"name": "pane-unbound",
+			"name": "panel-unbound",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.plugin.result",
@@ -1636,9 +1636,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-found",
+					"kind": "panel-found",
 					"revision": "12",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -1653,7 +1653,7 @@
 			}
 		},
 		{
-			"name": "pane-invalid-entrypoint",
+			"name": "panel-invalid-entrypoint",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.plugin.result",
@@ -1661,9 +1661,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-found",
+					"kind": "panel-found",
 					"revision": "12",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "tools.dashboard"
@@ -1689,8 +1689,8 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"action": {
-					"kind": "pane-observe",
-					"pane": {
+					"kind": "panel-observe",
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "bad/entry"
@@ -1716,8 +1716,8 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"action": {
-					"kind": "pane-observe",
-					"pane": {
+					"kind": "panel-observe",
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -1739,9 +1739,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-observed",
+					"kind": "panel-observed",
 					"revision": "12",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -1768,9 +1768,9 @@
 				"requestId": "00000000000000000000000000000001",
 				"sessionId": "00000000000000000000000000000002",
 				"outcome": {
-					"kind": "pane-observed",
+					"kind": "panel-observed",
 					"revision": "0",
-					"pane": {
+					"panel": {
 						"selector": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
@@ -1815,7 +1815,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -1865,7 +1865,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -1915,7 +1915,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -1961,7 +1961,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000063",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -2011,7 +2011,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -2062,7 +2062,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["TERM", "hijacked"]],
@@ -2112,7 +2112,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],
@@ -2170,7 +2170,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"cwd": null,
 						"environment": [["FOO", "bar"]],

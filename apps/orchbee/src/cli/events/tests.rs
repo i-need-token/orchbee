@@ -25,15 +25,9 @@ fn current_stream_envelopes_validate_without_reopening_historical_event_names() 
             _ => continue,
         };
         kinds.insert(kind);
-        let mut document = json!({"schema":"orchbee.events.stream","version":1,
+        let document = json!({"schema":"orchbee.events.stream","version":1,
             "kind":kind,"source":source,"result":public_reply(&reply).unwrap()});
         validator.validate(&document).unwrap();
-        if let Outcome::Matched { event, .. } = &reply.outcome
-            && event.event.as_str().starts_with("pane.")
-        {
-            document["result"] = json!(reply);
-            assert!(!validator.is_valid(&document));
-        }
     }
     let closed = json!({"schema":"orchbee.events.stream","version":1,"kind":"closed",
         "source":source,"result":{"reason":"completed","cleanup":"closed"}});
@@ -206,7 +200,7 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
             for locale in [Locale::EnUs, Locale::ZhCn] {
                 let line = text::record("event", &reply.outcome, "23:14:02Z", locale);
                 assert!(
-                    line.starts_with(&format!("23:14:02Z  {}  ", event.event.public_name())),
+                    line.starts_with(&format!("23:14:02Z  {}  ", event.event.as_str())),
                     "{line}"
                 );
                 assert_eq!(line.lines().count(), 1, "{line}");
@@ -234,7 +228,7 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
             .events_help(crate::invocation::CommandPath::EventsSubscribe)
             .notes;
         for kind in Kind::ALL {
-            assert!(help.contains(&kind.public_name()), "{}", kind.as_str());
+            assert!(help.contains(kind.as_str()), "{}", kind.as_str());
         }
         assert_ne!(
             CliText::new(locale).events_subscribe_status(7),

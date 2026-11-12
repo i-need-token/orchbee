@@ -1451,7 +1451,7 @@ fn popup_open_reaches_a_busy_client_so_the_client_names_the_cause() {
                 },
                 context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
                     tab_id: Some(tab_id.to_string()),
-                    focused_pane_id: Some(panel_id.to_string()),
+                    focused_panel_id: Some(panel_id.to_string()),
                     ..Default::default()
                 }),
                 cwd: None,

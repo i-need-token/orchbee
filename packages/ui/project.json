@@ -5,7 +5,7 @@
 	"stability": "experimental",
 	"responsibility": "Reusable visual primitives, including shadcn React components and the product-icon boundary.",
 	"nonGoals": [
-		"Owning Orchbee sessions, agents, terminal panes, routing, or remote state.",
+		"Owning Orchbee sessions, agents, terminal Panels, routing, or remote state.",
 		"Owning the Orchbee design-token vocabulary or product theme semantics.",
 		"Owning Electron, browser service, or other platform-specific effects."
 	]

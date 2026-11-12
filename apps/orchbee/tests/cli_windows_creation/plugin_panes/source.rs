@@ -252,7 +252,7 @@ fn plugin_pane_source_context_tracks_child_observations_and_fails_before_creatio
     ] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
-        std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe']\n").unwrap();
+        std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe']\n").unwrap();
         assert!(
             fixture
                 .run(&[
@@ -330,10 +330,10 @@ fn plugin_pane_source_context_tracks_child_observations_and_fails_before_creatio
                 panic!()
             };
             let context = options.plugin_context.as_ref().unwrap();
-            assert_eq!(context.focused_pane_id.as_deref(), Some(id(6).as_str()));
-            assert_eq!(context.focused_pane_cwd.as_deref(), Some(r"C:\frame 项目"));
-            assert_eq!(context.focused_pane_agent.as_deref(), Some("codex"));
-            assert_eq!(context.focused_pane_status.as_deref(), Some("blocked"));
+            assert_eq!(context.focused_panel_id.as_deref(), Some(id(6).as_str()));
+            assert_eq!(context.focused_panel_cwd.as_deref(), Some(r"C:\frame 项目"));
+            assert_eq!(context.focused_panel_agent.as_deref(), Some("codex"));
+            assert_eq!(context.focused_panel_status.as_deref(), Some("blocked"));
             assert!(context.selected_text.is_none());
             assert!(options.cwd.is_none());
             write_workbench_response(&mut stream,&WorkbenchResponse::Command(WorkbenchCommandResult {protocol_version:ProtocolVersion,request_id:command.request_id,outcome:serde_json::from_value(json!({"kind":"tab-create-pending","revision":"13","terminalContextId":id(4),"tabId":id(19),"panelId":id(20),"presentationId":id(120)})).unwrap()})).unwrap();
@@ -342,7 +342,7 @@ fn plugin_pane_source_context_tracks_child_observations_and_fails_before_creatio
         let terminal = id(406);
         let mut args = vec![
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -381,7 +381,7 @@ fn plugin_pane_explicit_destination_preserves_headless_and_empty_workspace_sourc
     for headless in [true, false] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
-        std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe']\n").unwrap();
+        std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe']\n").unwrap();
         assert!(
             fixture
                 .run(&[
@@ -442,10 +442,10 @@ fn plugin_pane_explicit_destination_preserves_headless_and_empty_workspace_sourc
             assert_eq!(context.workspace_label.as_deref(), Some("empty source"));
             assert!(
                 context.tab_id.is_none()
-                    && context.focused_pane_id.is_none()
-                    && context.focused_pane_cwd.is_none()
-                    && context.focused_pane_agent.is_none()
-                    && context.focused_pane_status.is_none()
+                    && context.focused_panel_id.is_none()
+                    && context.focused_panel_cwd.is_none()
+                    && context.focused_panel_agent.is_none()
+                    && context.focused_panel_status.is_none()
                     && context.selected_text.is_none()
             );
             write_workbench_response(&mut stream,&WorkbenchResponse::Command(WorkbenchCommandResult {protocol_version:ProtocolVersion,request_id:command.request_id,outcome:serde_json::from_value(json!({"kind":"tab-create-pending","revision":"13","terminalContextId":id(11),"tabId":id(19),"panelId":id(20),"presentationId":id(120)})).unwrap()})).unwrap();
@@ -454,7 +454,7 @@ fn plugin_pane_explicit_destination_preserves_headless_and_empty_workspace_sourc
         let workspace = id(12);
         let output = fixture.run(&[
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",

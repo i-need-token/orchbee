@@ -271,7 +271,7 @@ impl Locale {
                 "拒绝搜索：文本无效或过长",
             ),
             N::PositionChanged => shorter(
-                "Saved Tab or pane unavailable",
+                "Saved Tab or Panel unavailable",
                 "上次的标签页或面板已不可用",
             ),
             N::PositionChangedEmpty => shorter("Saved Tab unavailable", "上次的标签页已不可用"),
@@ -564,8 +564,8 @@ impl Locale {
                 Self::ZhCn => "popup 连接或清理状态不确定 · 重启会话后再打开".to_owned(),
             },
             WorkbenchClientNotice::HistoryUnavailable => match self {
-                Self::EnUs => "History is not available on this pane".to_owned(),
-                Self::ZhCn => "此窗格历史不可用".to_owned(),
+                Self::EnUs => "History is not available on this panel".to_owned(),
+                Self::ZhCn => "此面板历史不可用".to_owned(),
             },
             WorkbenchClientNotice::HistoryPositionLost => match self {
                 Self::EnUs => {
@@ -586,16 +586,16 @@ impl Locale {
                 Self::ZhCn => "无法确认剪贴板投递结果".to_owned(),
             },
             WorkbenchClientNotice::CopyModeUnavailable => match self {
-                Self::EnUs => "Copy mode is not available on this pane".into(),
-                Self::ZhCn => "此窗格暂时无法进入复制模式".into(),
+                Self::EnUs => "Copy mode is not available on this panel".into(),
+                Self::ZhCn => "此面板暂时无法进入复制模式".into(),
             },
             WorkbenchClientNotice::CopyModeBusy => match self {
                 Self::EnUs => "Copy mode is busy; wait before trying again".into(),
                 Self::ZhCn => "复制模式正在处理，请稍后再操作".into(),
             },
             WorkbenchClientNotice::CopyModeInvalidated => match self {
-                Self::EnUs => "Copy mode ended because its content or pane changed".into(),
-                Self::ZhCn => "内容或窗格已改变，复制模式已退出".into(),
+                Self::EnUs => "Copy mode ended because its content or panel changed".into(),
+                Self::ZhCn => "内容或面板已改变，复制模式已退出".into(),
             },
             WorkbenchClientNotice::CopyModeQueryFailed => match self {
                 Self::EnUs => {
@@ -625,7 +625,7 @@ impl Locale {
             },
             WorkbenchClientNotice::PositionChanged => match self {
                 Self::EnUs => {
-                    "The saved Tab or pane is unavailable; showing the first available member.".into()
+                    "The saved Tab or Panel is unavailable; showing the first available member.".into()
                 }
                 Self::ZhCn => "上次的标签页或面板已不可用；已打开首个可用成员。".into(),
             },
@@ -754,11 +754,11 @@ impl Locale {
         }
     }
 
-    /// Names how many panes a zoomed pane hides behind it.
+    /// Names how many Panels a maximized Panel hides behind it.
     pub(crate) fn zoomed_panes(self, count: usize) -> String {
         match self {
-            Self::EnUs => format!("maximized · {count} panes"),
-            Self::ZhCn => format!("已最大化 · 共 {count} 个窗格"),
+            Self::EnUs => format!("maximized · {count} panels"),
+            Self::ZhCn => format!("已最大化 · 共 {count} 个面板"),
         }
     }
 

@@ -6,7 +6,7 @@ fn popup_cli_uses_exact_source_sizes_and_one_client_intent_without_canonical_cre
     for case in ["default", "override", "stale", "lost"] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
-        std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='popup'\nwidth='75%'\nheight=7\ncommand=['cmd.exe']\n").unwrap();
+        std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='popup'\nwidth='75%'\nheight=7\ncommand=['cmd.exe']\n").unwrap();
         assert!(
             fixture
                 .run(&[
@@ -70,7 +70,7 @@ fn popup_cli_uses_exact_source_sizes_and_one_client_intent_without_canonical_cre
             );
             assert_eq!(json!(spec.height), json!({"kind":"cells","value":7}));
             assert_eq!(
-                spec.context.focused_pane_id.as_deref(),
+                spec.context.focused_panel_id.as_deref(),
                 Some(id(6).as_str())
             );
             if case == "lost" {
@@ -87,7 +87,7 @@ fn popup_cli_uses_exact_source_sizes_and_one_client_intent_without_canonical_cre
         });
         let mut args = vec![
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -179,7 +179,7 @@ fn popup_close_cli_addresses_client_even_with_noncanonical_caller_and_reports_no
 
 fn link_popup(fixture: &Fixture) {
     let manifest = fixture.0.join("orchbee-plugin.toml");
-    std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='popup'\nwidth='50%'\nheight=10\ncommand=['cmd.exe']\n").unwrap();
+    std::fs::write(&manifest,"id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='popup'\nwidth='50%'\nheight=10\ncommand=['cmd.exe']\n").unwrap();
     assert!(
         fixture
             .run(&[
@@ -195,7 +195,7 @@ fn link_popup(fixture: &Fixture) {
 
 const OPEN: [&str; 8] = [
     "plugin",
-    "pane",
+    "panel",
     "open",
     "--plugin",
     "tools",

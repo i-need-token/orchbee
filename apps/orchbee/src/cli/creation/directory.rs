@@ -31,7 +31,7 @@ pub(super) fn resolve(
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<Resolution, Failure> {
-    if command.options.plugin_pane.is_some() && command.options.cwd.is_none() {
+    if command.options.plugin_panel.is_some() && command.options.cwd.is_none() {
         return Ok(Resolution {
             policy: "plugin-root",
             source: "launch-default",

@@ -42,7 +42,7 @@ families! {
     Events => ["events"],
     PluginAction => ["plugin", "action"],
     PluginLog => ["plugin", "log"],
-    PluginPane => ["plugin", "pane"],
+    PluginPane => ["plugin", "panel"],
     Popup => ["popup"],
     Notification => ["notification"],
 }

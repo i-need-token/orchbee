@@ -1787,7 +1787,7 @@ export const workbenchMessages = defineMessages({
 	configuredCommandFailed: {
 		id: 'workbench.configuredCommands.failed',
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.failed'],
-		description: 'Status notice when a configured command, or the focus on its new Pane, failed.',
+		description: 'Status notice when a configured command, or the focus on its new Panel, failed.',
 	},
 	configuredCommandUnknown: {
 		id: 'workbench.configuredCommands.unknown',

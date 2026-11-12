@@ -668,7 +668,7 @@ fields. Status admits idle, working, blocked, done, error and unknown. A row who
 opening has status `opening`, which no filter value names; it ranks with working.
 
 Up to eight sort entries contain `field` and optional `order` (`asc` by default,
-or `desc`). Fields are workspace_order, tab_order, pane_order, attention, status,
+or `desc`). Fields are workspace_order, tab_order, panel_order, attention, status,
 agent, seen, state_change_seq, or a token object. Token names are 1–32 ASCII
 alphanumeric, underscore or hyphen characters. Values compare without display
 sanitation; missing values sort last in either direction, and complete ties

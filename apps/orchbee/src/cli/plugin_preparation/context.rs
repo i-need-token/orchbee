@@ -165,7 +165,7 @@ fn infer(
             .into_iter()
             .find(|(id, _, _)| id.as_str() == caller.0.text())
             .ok_or_else(invalid)?;
-        result.focused_pane_id = Some(id.to_string());
+        result.focused_panel_id = Some(id.to_string());
         (
             &context.terminal_context_id,
             Some(&tab.tab_id),
@@ -183,7 +183,7 @@ fn infer(
         };
         let panel = if view.panel_id.is_some() {
             let panel = selection::observed_panel(record, snapshot)?;
-            result.focused_pane_id = Some(panel.text().to_owned());
+            result.focused_panel_id = Some(panel.text().to_owned());
             Some((panel, None))
         } else {
             None
@@ -250,19 +250,19 @@ fn infer_context(
 
 fn enrich(context: &mut PluginInvocationContext, document: &serde_json::Value) {
     let panel = &document["panel"];
-    context.focused_pane_cwd = panel["cwd"].as_str().map(String::from);
+    context.focused_panel_cwd = panel["cwd"].as_str().map(String::from);
     context.workspace_cwd = context
-        .focused_pane_cwd
+        .focused_panel_cwd
         .clone()
         .or(context.workspace_cwd.take());
     let report = &panel["reportedAgent"]["view"];
-    context.focused_pane_status = report["state"]
+    context.focused_panel_status = report["state"]
         .as_str()
         .filter(|state| *state != "unknown")
         .or_else(|| panel["agentStatus"].as_str())
         .map(String::from);
-    context.focused_pane_agent = report["agent"].as_str().map(String::from);
-    if context.focused_pane_agent.is_some() {
+    context.focused_panel_agent = report["agent"].as_str().map(String::from);
+    if context.focused_panel_agent.is_some() {
         return;
     }
     let Some(ids) = panel["agentSessionIds"].as_array() else {
@@ -271,7 +271,7 @@ fn enrich(context: &mut PluginInvocationContext, document: &serde_json::Value) {
     let [id] = ids.as_slice() else {
         return;
     };
-    context.focused_pane_agent = document["agents"]["sessions"]
+    context.focused_panel_agent = document["agents"]["sessions"]
         .as_array()
         .and_then(|sessions| {
             sessions

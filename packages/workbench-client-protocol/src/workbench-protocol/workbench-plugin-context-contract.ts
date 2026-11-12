@@ -28,10 +28,10 @@ export const PluginInvocationContextSchema = z
 		worktree: worktreeContext.nullable().optional(),
 		tabId: optionalText,
 		tabLabel: optionalText,
-		focusedPaneId: optionalText,
-		focusedPaneCwd: optionalText,
-		focusedPaneAgent: optionalText,
-		focusedPaneStatus: optionalText,
+		focusedPanelId: optionalText,
+		focusedPanelCwd: optionalText,
+		focusedPanelAgent: optionalText,
+		focusedPanelStatus: optionalText,
 		selectedText: text(8192).nullable().optional(),
 		invocationSource: optionalText,
 		correlationId: optionalText,
@@ -69,17 +69,17 @@ export function normalizePluginInvocationContext(
 		...(value.tabLabel !== null && value.tabLabel !== undefined
 			? { tabLabel: value.tabLabel }
 			: {}),
-		...(value.focusedPaneId !== null && value.focusedPaneId !== undefined
-			? { focusedPaneId: value.focusedPaneId }
+		...(value.focusedPanelId !== null && value.focusedPanelId !== undefined
+			? { focusedPanelId: value.focusedPanelId }
 			: {}),
-		...(value.focusedPaneCwd !== null && value.focusedPaneCwd !== undefined
-			? { focusedPaneCwd: value.focusedPaneCwd }
+		...(value.focusedPanelCwd !== null && value.focusedPanelCwd !== undefined
+			? { focusedPanelCwd: value.focusedPanelCwd }
 			: {}),
-		...(value.focusedPaneAgent !== null && value.focusedPaneAgent !== undefined
-			? { focusedPaneAgent: value.focusedPaneAgent }
+		...(value.focusedPanelAgent !== null && value.focusedPanelAgent !== undefined
+			? { focusedPanelAgent: value.focusedPanelAgent }
 			: {}),
-		...(value.focusedPaneStatus !== null && value.focusedPaneStatus !== undefined
-			? { focusedPaneStatus: value.focusedPaneStatus }
+		...(value.focusedPanelStatus !== null && value.focusedPanelStatus !== undefined
+			? { focusedPanelStatus: value.focusedPanelStatus }
 			: {}),
 		...(value.selectedText !== null && value.selectedText !== undefined
 			? { selectedText: value.selectedText }

@@ -56,11 +56,11 @@ impl Default for Bindings {
             let mut entries = entries;
             // Configured-only actions keep a disabled default, so overrides find their position.
             for name in [
-                "resize_pane_left",
-                "resize_pane_right",
-                "resize_pane_up",
-                "resize_pane_down",
-                "rename_pane",
+                "resize_panel_left",
+                "resize_panel_right",
+                "resize_panel_up",
+                "resize_panel_down",
+                "rename_panel",
                 "clear_terminal",
                 "edit_scrollback",
                 "earlier_layouts",
@@ -465,28 +465,28 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "menu" => (A::OpenActionMenu, D::ActionMenu),
         "copy_mode" => (A::EnterCopyMode, D::CopyMode),
         "resize_mode" => (A::EnterResizeMode, D::ResizeMode),
-        "resize_pane_left" => (
+        "resize_panel_left" => (
             A::ResizePane {
                 direction: PanelDirection::Left,
                 fine: false,
             },
             D::ResizeLeft,
         ),
-        "resize_pane_right" => (
+        "resize_panel_right" => (
             A::ResizePane {
                 direction: PanelDirection::Right,
                 fine: false,
             },
             D::ResizeRight,
         ),
-        "resize_pane_up" => (
+        "resize_panel_up" => (
             A::ResizePane {
                 direction: PanelDirection::Up,
                 fine: false,
             },
             D::ResizeUp,
         ),
-        "resize_pane_down" => (
+        "resize_panel_down" => (
             A::ResizePane {
                 direction: PanelDirection::Down,
                 fine: false,
@@ -543,15 +543,15 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "move_tab_previous" => (A::MovePreviousTab, D::MoveTab),
         "move_tab_next" => (A::MoveNextTab, D::MoveTab),
         "close_tab" => (A::RequestCloseTab, D::CloseTab),
-        "focus_pane_left" => (A::MovePanelFocus(PanelDirection::Left), D::PanelFocus),
-        "focus_pane_down" => (A::MovePanelFocus(PanelDirection::Down), D::PanelFocus),
-        "focus_pane_up" => (A::MovePanelFocus(PanelDirection::Up), D::PanelFocus),
-        "focus_pane_right" => (A::MovePanelFocus(PanelDirection::Right), D::PanelFocus),
+        "focus_panel_left" => (A::MovePanelFocus(PanelDirection::Left), D::PanelFocus),
+        "focus_panel_down" => (A::MovePanelFocus(PanelDirection::Down), D::PanelFocus),
+        "focus_panel_up" => (A::MovePanelFocus(PanelDirection::Up), D::PanelFocus),
+        "focus_panel_right" => (A::MovePanelFocus(PanelDirection::Right), D::PanelFocus),
         "split_vertical" => (A::SplitPanel(PanelDirection::Right), D::SplitPanel),
         "split_horizontal" => (A::SplitPanel(PanelDirection::Down), D::SplitPanel),
-        "close_pane" => (A::ClosePanel, D::ClosePanel),
-        "rename_pane" => (A::RequestRenamePanel, D::RenamePanel),
-        "last_pane" => (A::FocusLastPanel, D::LastPanel),
+        "close_panel" => (A::ClosePanel, D::ClosePanel),
+        "rename_panel" => (A::RequestRenamePanel, D::RenamePanel),
+        "last_panel" => (A::FocusLastPanel, D::LastPanel),
         "clear_terminal" => (A::ClearTerminal, D::ClearTerminal),
         "edit_scrollback" => (A::EditScrollback, D::EditScrollback),
         "zoom" => (A::ToggleZoom, D::PanelZoom),

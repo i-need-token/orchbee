@@ -15,7 +15,7 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let context = ui.view().window_title_context(Locale::EnUs);
     assert_eq!(context.tab, "Tab 0");
-    assert_eq!(context.pane, "Manual");
+    assert_eq!(context.panel, "Manual");
     assert_eq!(context.workspace, "Workspace");
     assert_eq!(context.terminal_title, "");
     let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();

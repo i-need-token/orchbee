@@ -14,7 +14,7 @@ export const Default: Story = {
 	render: () => (
 		<Tooltip>
 			<TooltipTrigger render={<Button variant='outline' />}>Hover for details</TooltipTrigger>
-			<TooltipContent>Open the current session in a new pane.</TooltipContent>
+			<TooltipContent>Open the current session in a new panel.</TooltipContent>
 		</Tooltip>
 	),
 };

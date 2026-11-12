@@ -80,7 +80,7 @@ fn overlay_lane_only_closes_known_settlement_and_retains_the_actual_or_uncertain
             else {
                 panic!("plugin read")
             };
-            assert!(matches!(request.action, PluginAction::PaneGet { .. }));
+            assert!(matches!(request.action, PluginAction::PanelGet { .. }));
             let mut current = pane();
             if case == "rebound" {
                 current.presentation_id = TerminalPresentationId::parse(&id(99)).unwrap();
@@ -88,7 +88,7 @@ fn overlay_lane_only_closes_known_settlement_and_retains_the_actual_or_uncertain
             reply(
                 &mut stream,
                 &request,
-                PluginOutcome::PaneFound {
+                PluginOutcome::PanelFound {
                     revision: WorkbenchRevision::new(12),
                     pane: Box::new(current),
                 },
@@ -100,14 +100,14 @@ fn overlay_lane_only_closes_known_settlement_and_retains_the_actual_or_uncertain
                     panic!("lifecycle read")
                 };
                 assert!(
-                    matches!(&request.action, PluginAction::PaneObserve { pane: expected } if **expected == pane())
+                    matches!(&request.action, PluginAction::PanelObserve { pane: expected } if **expected == pane())
                 );
                 let outcome = if case == "unavailable" {
                     PluginOutcome::Failed {
                         reason: PluginFailure::Unavailable,
                     }
                 } else {
-                    PluginOutcome::PaneObserved {
+                    PluginOutcome::PanelObserved {
                         revision: WorkbenchRevision::new(13),
                         pane: Box::new(pane()),
                         settled: case != "running",

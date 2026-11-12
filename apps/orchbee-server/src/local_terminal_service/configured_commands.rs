@@ -156,7 +156,7 @@ impl LocalTerminalService {
                         .find(|tab| tab.tab_id == selected.tab_id)
                 })
                 .map(|tab| tab.label.clone());
-            context.focused_pane_id = Some(selected.panel_id.as_str().into());
+            context.focused_panel_id = Some(selected.panel_id.as_str().into());
             let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
             let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
             let fresh = coordinator.configured_command_source(
@@ -184,7 +184,7 @@ impl LocalTerminalService {
             })
             .ok_or(Failure::Unavailable)?;
         if source.is_some() {
-            context.focused_pane_cwd = Some(directory.as_str().into());
+            context.focused_panel_cwd = Some(directory.as_str().into());
         }
         context.validate().map_err(|_| Failure::InvalidIntent)?;
         let bin = super::cli_executable()
@@ -197,8 +197,8 @@ impl LocalTerminalService {
         for (name, value) in [
             ("ORCHBEE_WORKSPACE_ID", &context.workspace_id),
             ("ORCHBEE_TAB_ID", &context.tab_id),
-            ("ORCHBEE_PANEL_ID", &context.focused_pane_id),
-            ("ORCHBEE_PANEL_CWD", &context.focused_pane_cwd),
+            ("ORCHBEE_PANEL_ID", &context.focused_panel_id),
+            ("ORCHBEE_PANEL_CWD", &context.focused_panel_cwd),
         ] {
             if let Some(value) = value {
                 environment.push((name.into(), value.clone()));

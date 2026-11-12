@@ -78,7 +78,7 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
         PrefixDesc::DismissOnboarding => "Dismiss the welcome guide",
         PrefixDesc::ConfiguredCommand(_) => "Run configured command",
-        PrefixDesc::ResizeMode => "Enter pane resize mode",
+        PrefixDesc::ResizeMode => "Enter panel resize mode",
         PrefixDesc::CopyMode => "Enter keyboard copy mode",
         PrefixDesc::CopyMove => "Move the copy cursor",
         PrefixDesc::CopyWord => "Move by word / whitespace-delimited word",
@@ -91,10 +91,10 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopySelection => "Start / cancel selection",
         PrefixDesc::CopySubmit => "Copy selection; return live after success",
         PrefixDesc::CopyExit => "Leave copy mode (Esc also cancels search)",
-        PrefixDesc::ResizeLeft => "Move pane divider left by 5%",
-        PrefixDesc::ResizeRight => "Move pane divider right by 5%",
-        PrefixDesc::ResizeUp => "Move pane divider up by 5%",
-        PrefixDesc::ResizeDown => "Move pane divider down by 5%",
+        PrefixDesc::ResizeLeft => "Move panel divider left by 5%",
+        PrefixDesc::ResizeRight => "Move panel divider right by 5%",
+        PrefixDesc::ResizeUp => "Move panel divider up by 5%",
+        PrefixDesc::ResizeDown => "Move panel divider down by 5%",
         PrefixDesc::ResizeCoarse => "Move divider by 5 percentage points",
         PrefixDesc::ResizeFine => "Move divider by 1 percentage point",
         PrefixDesc::ResizeExit => "Leave resize mode",
@@ -108,7 +108,7 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
         PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
         PrefixDesc::WorktreeOpen => "Open an existing Git checkout",
-        PrefixDesc::ControlTakeover => "Take control of the current pane; use this window's size",
+        PrefixDesc::ControlTakeover => "Take control of the current panel; use this window's size",
         PrefixDesc::WorkspaceClose => {
             "Close current Workspace and its terminals (asks for confirmation)"
         }
@@ -156,7 +156,7 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
         PrefixDesc::DismissOnboarding => "关闭首次运行引导",
         PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
-        PrefixDesc::ResizeMode => "进入 pane 大小调整模式",
+        PrefixDesc::ResizeMode => "进入面板大小调整模式",
         PrefixDesc::CopyMode => "进入键盘复制模式",
         PrefixDesc::CopyMove => "移动复制光标",
         PrefixDesc::CopyWord => "按词 / 空白分隔的大词移动",
@@ -186,7 +186,7 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         PrefixDesc::WorktreeCreate => "创建 Git 工作树并进入终端",
         PrefixDesc::WorktreeOpen => "打开已有 Git 检出目录",
-        PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
+        PrefixDesc::ControlTakeover => "接管当前面板；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
         PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
         PrefixDesc::WorkspaceDirectory => "配置空工作区的首个目录",

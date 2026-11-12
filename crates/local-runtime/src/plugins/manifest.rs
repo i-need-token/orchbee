@@ -42,6 +42,7 @@ pub enum PluginActionContext {
     Global,
     Workspace,
     Tab,
+    #[serde(rename = "panel")]
     Pane,
     Selection,
 }
@@ -116,7 +117,7 @@ pub struct PluginManifest {
     pub actions: Vec<PluginActionDefinition>,
     #[serde(default)]
     pub events: Vec<PluginEventDefinition>,
-    #[serde(default)]
+    #[serde(default, rename = "panels")]
     pub panes: Vec<PluginPaneDefinition>,
     #[serde(default)]
     pub link_handlers: Vec<PluginLinkHandler>,

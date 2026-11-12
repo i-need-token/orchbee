@@ -133,7 +133,7 @@ fn execute(
             selector: command
                 .creation
                 .options
-                .plugin_pane
+                .plugin_panel
                 .clone()
                 .ok_or_else(|| Reason::SelectorUnavailable.failure())?,
             source: ClientPopupSource {

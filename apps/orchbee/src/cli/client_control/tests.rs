@@ -1188,7 +1188,7 @@ fn configured_popup_receipt_is_closed() {
             source: spec.source.clone(),
             context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
                 tab_id: Some(spec.source.tab_id.to_string()),
-                focused_pane_id: Some(spec.source.panel_id.to_string()),
+                focused_panel_id: Some(spec.source.panel_id.to_string()),
                 ..Default::default()
             }),
             width: None,

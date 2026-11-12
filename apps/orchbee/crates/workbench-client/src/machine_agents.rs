@@ -170,13 +170,13 @@ pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
         for (tab_order, tab) in context.tabs.iter().enumerate() {
             let start = result.len();
             collect(&tab.root, &target, &tab.tab_id, &workspace, &mut result)?;
-            for (pane_order, row) in result[start..].iter_mut().enumerate() {
+            for (panel_order, row) in result[start..].iter_mut().enumerate() {
                 row.tab_label = (context.tabs.len() > 1 || !tab.automatic_label)
                     .then(|| display_label(&tab.display_label(tab_order)));
                 row.order = PlacementOrder {
                     workspace: workspace_order.checked_sub(1).map(|i| i as u64),
                     tab: tab_order as u64,
-                    pane: pane_order as u64,
+                    pane: panel_order as u64,
                 };
             }
         }

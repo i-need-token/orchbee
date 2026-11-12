@@ -43,7 +43,7 @@ impl Entry for Agent {
     fn tab_order(&self) -> Option<u64> {
         Some(1)
     }
-    fn pane_order(&self) -> Option<u64> {
+    fn panel_order(&self) -> Option<u64> {
         Some(2)
     }
     fn attention(&self) -> u64 {

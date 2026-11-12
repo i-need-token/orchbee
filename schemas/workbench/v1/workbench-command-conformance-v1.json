@@ -5549,7 +5549,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-tab-selector",
+			"name": "plugin-panel-tab-selector",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -5568,7 +5568,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						}
@@ -5577,7 +5577,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-source-context",
+			"name": "plugin-panel-source-context",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -5596,7 +5596,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
@@ -5606,12 +5606,12 @@
 							"workspaceCwd": "C:/source",
 							"tabId": "00000000000000000000000000000005",
 							"tabLabel": "source-tab",
-							"focusedPaneId": "00000000000000000000000000000006",
-							"focusedPaneCwd": "C:/child",
-							"focusedPaneAgent": "codex",
-							"focusedPaneStatus": "working",
+							"focusedPanelId": "00000000000000000000000000000006",
+							"focusedPanelCwd": "C:/child",
+							"focusedPanelAgent": "codex",
+							"focusedPanelStatus": "working",
 							"selectedText": "selection",
-							"invocationSource": "plugin-pane",
+							"invocationSource": "plugin-panel",
 							"correlationId": "00000000000000000000000000000009",
 							"worktree": {
 								"workerId": "00000000000000000000000000000008",
@@ -5627,7 +5627,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-source-context-empty",
+			"name": "plugin-panel-source-context-empty",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -5646,7 +5646,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
@@ -19949,7 +19949,7 @@
 			}
 		},
 		{
-			"name": "agent-start-beside-plugin-pane",
+			"name": "agent-start-beside-plugin-panel",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -19969,7 +19969,7 @@
 					},
 					"options": {
 						"agentStart": "codex",
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						}
@@ -20008,7 +20008,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-empty-plugin",
+			"name": "plugin-panel-empty-plugin",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20027,7 +20027,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "",
 							"entrypointId": "dashboard"
 						}
@@ -20036,7 +20036,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-qualified-entrypoint",
+			"name": "plugin-panel-qualified-entrypoint",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20055,7 +20055,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "tools.dashboard"
 						}
@@ -20064,7 +20064,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-extra-authority-field",
+			"name": "plugin-panel-extra-authority-field",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20083,7 +20083,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard",
 							"exec": "C:/fake.exe"
@@ -20093,7 +20093,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-profile-conflict",
+			"name": "plugin-panel-profile-conflict",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20112,7 +20112,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						}
@@ -20122,7 +20122,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-exec-conflict",
+			"name": "plugin-panel-exec-conflict",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20141,7 +20141,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						}
@@ -20154,7 +20154,7 @@
 			}
 		},
 		{
-			"name": "plugin-pane-context-without-selector",
+			"name": "plugin-panel-context-without-selector",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20180,7 +20180,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "plugin-pane-context-null-selector",
+			"name": "plugin-panel-context-null-selector",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20199,7 +20199,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": null,
+						"pluginPanel": null,
 						"pluginContext": {}
 					}
 				}
@@ -20207,7 +20207,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "plugin-pane-context-unknown-field",
+			"name": "plugin-panel-context-unknown-field",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20226,7 +20226,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
@@ -20239,7 +20239,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "plugin-pane-context-nul",
+			"name": "plugin-panel-context-nul",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20258,7 +20258,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
@@ -20271,7 +20271,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "plugin-pane-context-field-bound",
+			"name": "plugin-panel-context-field-bound",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20290,12 +20290,12 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
 						"pluginContext": {
-							"focusedPaneCwd": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							"focusedPanelCwd": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 						}
 					}
 				}
@@ -20303,7 +20303,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "plugin-pane-context-utf8-bound",
+			"name": "plugin-panel-context-utf8-bound",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20322,12 +20322,12 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
 						"pluginContext": {
-							"focusedPaneAgent": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界"
+							"focusedPanelAgent": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界"
 						}
 					}
 				}
@@ -20335,7 +20335,7 @@
 			"boundary": "semantic"
 		},
 		{
-			"name": "plugin-pane-context-total-bound",
+			"name": "plugin-panel-context-total-bound",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20354,7 +20354,7 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
@@ -20369,7 +20369,7 @@
 			"boundary": "semantic"
 		},
 		{
-			"name": "plugin-pane-context-forbidden-on-child",
+			"name": "plugin-panel-context-forbidden-on-child",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -20393,7 +20393,7 @@
 						"cellPixelHeight": 0
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
@@ -22529,7 +22529,7 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "workspace-launch-plugin-pane",
+			"name": "workspace-launch-plugin-panel",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.command",
@@ -22551,7 +22551,7 @@
 					},
 					"options": {
 						"cwd": "C:/repo",
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "test",
 							"entrypointId": "main"
 						}
@@ -24967,10 +24967,10 @@
 			}
 		},
 		{
-			"name": "plugin-pane-context-optional-null-normalization",
+			"name": "plugin-panel-context-optional-null-normalization",
 			"direction": "request",
-			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"options\":{\"pluginPane\":{\"pluginId\":\"tools\",\"entrypointId\":\"dashboard\"},\"pluginContext\":{\"focusedPaneAgent\":\"codex\",\"workspaceId\":null,\"worktree\":null,\"selectedText\":null}}}}",
-			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"options\":{\"pluginPane\":{\"pluginId\":\"tools\",\"entrypointId\":\"dashboard\"},\"pluginContext\":{\"focusedPaneAgent\":\"codex\"}}}}",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"options\":{\"pluginPanel\":{\"pluginId\":\"tools\",\"entrypointId\":\"dashboard\"},\"pluginContext\":{\"focusedPanelAgent\":\"codex\",\"workspaceId\":null,\"worktree\":null,\"selectedText\":null}}}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"options\":{\"pluginPanel\":{\"pluginId\":\"tools\",\"entrypointId\":\"dashboard\"},\"pluginContext\":{\"focusedPanelAgent\":\"codex\"}}}}",
 			"canonical": {
 				"kind": "workbench.command",
 				"protocolVersion": 1,
@@ -24988,19 +24988,19 @@
 						"cellPixelHeight": 18
 					},
 					"options": {
-						"pluginPane": {
+						"pluginPanel": {
 							"pluginId": "tools",
 							"entrypointId": "dashboard"
 						},
 						"pluginContext": {
-							"focusedPaneAgent": "codex"
+							"focusedPanelAgent": "codex"
 						}
 					}
 				}
 			}
 		},
 		{
-			"name": "plugin-pane-context-null-without-selector",
+			"name": "plugin-panel-context-null-without-selector",
 			"direction": "request",
 			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"options\":{\"pluginContext\":null}}}",
 			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"sessionId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}",

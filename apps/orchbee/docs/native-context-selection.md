@@ -131,7 +131,7 @@ through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS
 across the whole Session Workbench, most recent first, each Panel at most once and at most sixteen.
 After each presented draw it records the settled focus, the current Tab's selected Panel once no
 navigation is pending and no switch is landing, so pointer, keyboard, CLI and Agent focus changes
-all count; a plugin overlay Panel never enters. Last Panel (`Ctrl+b ;`, `[keys].last_pane`, the
+all count; a plugin overlay Panel never enters. Last Panel (`Ctrl+b ;`, `[keys].last_panel`, the
 global menu's Panel group) records the current focus, drops entries whose Panel, Tab or Workspace is
 gone or leaving with an accepted close, and steps to the most recent other Panel that remains. A
 Panel of the current Tab takes the ordinary Panel focus move. For a Panel of another Tab or location

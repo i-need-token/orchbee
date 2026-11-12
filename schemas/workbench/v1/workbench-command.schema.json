@@ -46,10 +46,10 @@
 			"$ref": "#/$defs/workspaceCloseResumeResult"
 		},
 		{
-			"$ref": "urn:orchbee:schema:workbench-pane-graphics:v1#/$defs/request"
+			"$ref": "urn:orchbee:schema:workbench-panel-graphics:v1#/$defs/request"
 		},
 		{
-			"$ref": "urn:orchbee:schema:workbench-pane-graphics:v1#/$defs/result"
+			"$ref": "urn:orchbee:schema:workbench-panel-graphics:v1#/$defs/result"
 		},
 		{
 			"$ref": "#/$defs/worktreeListRead"
@@ -319,9 +319,9 @@
 								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": ["pluginPane"],
+										"required": ["pluginPanel"],
 										"properties": {
-											"pluginPane": {
+											"pluginPanel": {
 												"type": "object"
 											}
 										},
@@ -439,9 +439,9 @@
 								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": ["pluginPane"],
+										"required": ["pluginPanel"],
 										"properties": {
-											"pluginPane": {
+											"pluginPanel": {
 												"type": "object"
 											}
 										},
@@ -970,9 +970,9 @@
 								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": ["pluginPane"],
+										"required": ["pluginPanel"],
 										"properties": {
-											"pluginPane": {
+											"pluginPanel": {
 												"type": "object"
 											}
 										},
@@ -1431,7 +1431,7 @@
 										"cwd": {
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
 										},
-										"pluginPane": {
+										"pluginPanel": {
 											"type": "null"
 										},
 										"pluginContext": {
@@ -3563,10 +3563,10 @@
 					},
 					"$comment": "Rust and TypeScript additionally enforce ASCII-case-unique names and 1024 combined UTF-8 name/value bytes."
 				},
-				"pluginPane": {
+				"pluginPanel": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/pluginPaneSelector"
+							"$ref": "#/$defs/pluginPanelSelector"
 						},
 						{
 							"type": "null"
@@ -3592,7 +3592,7 @@
 							"type": "null"
 						}
 					],
-					"$comment": "Accepted by tab.create, panel.split and workspace.launch, never beside pluginPane; the Server resolves the provider id to the new shell's first command."
+					"$comment": "Accepted by tab.create, panel.split and workspace.launch, never beside pluginPanel; the Server resolves the provider id to the new shell's first command."
 				}
 			},
 			"required": [],
@@ -3608,10 +3608,10 @@
 						}
 					},
 					"then": {
-						"required": ["pluginPane"],
+						"required": ["pluginPanel"],
 						"properties": {
-							"pluginPane": {
-								"$ref": "#/$defs/pluginPaneSelector"
+							"pluginPanel": {
+								"$ref": "#/$defs/pluginPanelSelector"
 							}
 						}
 					}
@@ -3716,7 +3716,7 @@
 				}
 			]
 		},
-		"pluginPaneSelector": {
+		"pluginPanelSelector": {
 			"type": "object",
 			"properties": {
 				"pluginId": {
@@ -3837,7 +3837,7 @@
 						}
 					]
 				},
-				"focusedPaneId": {
+				"focusedPanelId": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -3849,7 +3849,7 @@
 						}
 					]
 				},
-				"focusedPaneCwd": {
+				"focusedPanelCwd": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -3861,7 +3861,7 @@
 						}
 					]
 				},
-				"focusedPaneAgent": {
+				"focusedPanelAgent": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -3873,7 +3873,7 @@
 						}
 					]
 				},
-				"focusedPaneStatus": {
+				"focusedPanelStatus": {
 					"anyOf": [
 						{
 							"type": "string",

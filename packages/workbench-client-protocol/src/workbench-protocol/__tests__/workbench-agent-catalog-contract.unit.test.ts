@@ -83,7 +83,7 @@ const catalogSchemas = async () => {
 		[
 			'workbench.schema.json',
 			'workbench-client-view.schema.json',
-			'workbench-pane-graphics.schema.json',
+			'workbench-panel-graphics.schema.json',
 			'workbench-command.schema.json',
 			'workbench-agent-catalog.schema.json',
 		].map(json),

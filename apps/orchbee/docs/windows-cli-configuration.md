@@ -52,7 +52,7 @@ the TUI's runtime source of application appearance. A `[theme]` table is an unkn
 
 Branch slugs lowercase ASCII letters, collapse nonalphanumeric runs to a hyphen, trim hyphens and use `worktree` if empty. Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The read-only repository query uses the same source and trust policy as creation. The Server still rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem transaction. Explicit path avoids the extra query.
 
-Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin pane never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a file that does not parse starts it on defaults with a `file` warning, a fatal edit keeps the last published snapshot and fails `server reload-config`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
+Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin panel never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a file that does not parse starts it on defaults with a `file` warning, a fatal edit keeps the last published snapshot and fails `server reload-config`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
 
 The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload and keybindings retain their own contracts; every creation surface takes its default program from the shared launch profile described below.
 
@@ -184,10 +184,10 @@ where available, otherwise original bytes, without a hardcoded Ctrl+b fallback.
 
 `settings` opens [Settings](native-settings.md), default `prefix+f4`. `close_workspace` asks to close
 the current Workspace with its existing [confirmation](native-workspace-close.md), default `prefix+D`
-(capital D). `rename_pane`, `clear_terminal` and `edit_scrollback` are unbound by default and run the
+(capital D). `rename_panel`, `clear_terminal` and `edit_scrollback` are unbound by default and run the
 Panel menu's Rename, Clear terminal and Edit scrollback on the focused Panel, with their menu
 outcomes. `earlier_layouts` opens the [Earlier layouts picker](native-action-menus.md) and is unbound
-by default. `last_pane` steps back to the last focused Panel in any Tab or Workspace
+by default. `last_panel` steps back to the last focused Panel in any Tab or Workspace
 ([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`.
 
 `menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
@@ -198,9 +198,9 @@ The same safe direct chords and explicit disabling apply. Machines keeps `prefix
 describes. Safe direct chords and disabling use the same registry.
 
 `resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
-`resize_pane_left`, `resize_pane_right`, `resize_pane_up` and `resize_pane_down` are unbound
+`resize_panel_left`, `resize_panel_right`, `resize_panel_up` and `resize_panel_down` are unbound
 by default and accept the same safe chords. They move the nearest eligible divider five percentage
-points without entering the mode; for example, `resize_pane_left = "ctrl+left"`. Mode arrows are
+points without entering the mode; for example, `resize_panel_left = "ctrl+left"`. Mode arrows are
 fixed at five points, Shift+arrows at one, and Esc exits. Extra resize keys while pending are consumed,
 not queued. Profiles opting into these action names require a matching current cohort; remove those
 keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
@@ -223,8 +223,8 @@ one space. These display rules do not change TOML spelling, normalization, match
 Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
 `earlier_layouts`, `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
-`copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_pane`, `rename_pane`, `last_pane`, `clear_terminal`, `edit_scrollback`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
+`copy_mode`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
+`close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `edit_scrollback`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
 [machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical

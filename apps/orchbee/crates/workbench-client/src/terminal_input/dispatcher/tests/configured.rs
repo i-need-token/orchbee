@@ -740,7 +740,7 @@ fn resize_mode_consumes_keys_prefix_paste_and_complete_sequences_then_escape_res
 #[test]
 fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_chord() {
     let keys =
-        KeySettings::from_profile("[keys]\nresize_mode='prefix+R'\nresize_pane_left='ctrl+left'")
+        KeySettings::from_profile("[keys]\nresize_mode='prefix+R'\nresize_panel_left='ctrl+left'")
             .unwrap();
     let mut view = ClientView::new(120);
     view.configure_keys(&keys);

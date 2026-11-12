@@ -144,7 +144,7 @@
 							"kind": "event",
 							"event": "tab.renamed",
 							"scope": {
-								"kind": "pane",
+								"kind": "panel",
 								"panelId": "00000000000000000000000000000005"
 							},
 							"condition": {
@@ -171,9 +171,9 @@
 					"filters": [
 						{
 							"kind": "event",
-							"event": "pane.output_changed",
+							"event": "panel.output_changed",
 							"scope": {
-								"kind": "pane",
+								"kind": "panel",
 								"panelId": "00000000000000000000000000000005"
 							},
 							"condition": {
@@ -200,9 +200,9 @@
 					"filters": [
 						{
 							"kind": "event",
-							"event": "pane.agent_detected",
+							"event": "panel.agent_detected",
 							"scope": {
-								"kind": "pane",
+								"kind": "panel",
 								"panelId": "00000000000000000000000000000005"
 							},
 							"condition": {
@@ -229,9 +229,9 @@
 					"filters": [
 						{
 							"kind": "event",
-							"event": "pane.agent_status_changed",
+							"event": "panel.agent_status_changed",
 							"scope": {
-								"kind": "pane",
+								"kind": "panel",
 								"panelId": "00000000000000000000000000000005"
 							},
 							"condition": {
@@ -433,10 +433,10 @@
 								"sequence": "18446744073709551615"
 							},
 							"workbenchRevision": "18446744073709551615",
-							"event": "pane.output_matched",
+							"event": "panel.output_matched",
 							"data": {
 								"kind": "output",
-								"pane": {
+								"panel": {
 									"terminalContextId": "00000000000000000000000000000006",
 									"tabId": "00000000000000000000000000000007",
 									"panelId": "00000000000000000000000000000005",
@@ -483,10 +483,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.exited",
+						"event": "panel.exited",
 						"data": {
 							"kind": "exited",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -575,10 +575,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.agent_status_changed",
+						"event": "panel.agent_status_changed",
 						"data": {
 							"kind": "agent",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -1304,7 +1304,7 @@
 					"filters": [
 						{
 							"kind": "event",
-							"event": "pane.output_matched",
+							"event": "panel.output_matched",
 							"scope": {
 								"kind": "all"
 							},
@@ -1378,10 +1378,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.agent_status_changed",
+						"event": "panel.agent_status_changed",
 						"data": {
 							"kind": "exited",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -1424,10 +1424,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.exited",
+						"event": "panel.exited",
 						"data": {
 							"kind": "exited",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -1467,10 +1467,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.exited",
+						"event": "panel.exited",
 						"data": {
 							"kind": "exited",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -1513,10 +1513,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.exited",
+						"event": "panel.exited",
 						"data": {
 							"kind": "exited",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -1559,10 +1559,10 @@
 							}
 						},
 						"workbenchRevision": "18446744073709551615",
-						"event": "pane.exited",
+						"event": "panel.exited",
 						"data": {
 							"kind": "exited",
-							"pane": {
+							"panel": {
 								"terminalContextId": "00000000000000000000000000000006",
 								"tabId": "00000000000000000000000000000007",
 								"panelId": "00000000000000000000000000000005",
@@ -1623,10 +1623,10 @@
 								"sequence": "18446744073709551615"
 							},
 							"workbenchRevision": "18446744073709551615",
-							"event": "pane.output_matched",
+							"event": "panel.output_matched",
 							"data": {
 								"kind": "output",
-								"pane": {
+								"panel": {
 									"terminalContextId": "00000000000000000000000000000006",
 									"tabId": "00000000000000000000000000000007",
 									"panelId": "00000000000000000000000000000005",
@@ -1650,10 +1650,10 @@
 								"sequence": "18446744073709551615"
 							},
 							"workbenchRevision": "18446744073709551615",
-							"event": "pane.output_matched",
+							"event": "panel.output_matched",
 							"data": {
 								"kind": "output",
-								"pane": {
+								"panel": {
 									"terminalContextId": "00000000000000000000000000000006",
 									"tabId": "00000000000000000000000000000007",
 									"panelId": "00000000000000000000000000000005",
@@ -1719,10 +1719,10 @@
 								"sequence": "18446744073709551615"
 							},
 							"workbenchRevision": "18446744073709551615",
-							"event": "pane.output_matched",
+							"event": "panel.output_matched",
 							"data": {
 								"kind": "output",
-								"pane": {
+								"panel": {
 									"terminalContextId": "00000000000000000000000000000006",
 									"tabId": "00000000000000000000000000000007",
 									"panelId": "00000000000000000000000000000005",
@@ -1788,10 +1788,10 @@
 								"sequence": "18446744073709551615"
 							},
 							"workbenchRevision": "18446744073709551615",
-							"event": "pane.output_matched",
+							"event": "panel.output_matched",
 							"data": {
 								"kind": "output",
-								"pane": {
+								"panel": {
 									"terminalContextId": "00000000000000000000000000000006",
 									"tabId": "00000000000000000000000000000007",
 									"panelId": "00000000000000000000000000000005",

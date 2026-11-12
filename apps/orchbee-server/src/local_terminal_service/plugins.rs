@@ -40,15 +40,15 @@ impl LocalTerminalService {
         ) {
             return Err(Failure::Denied);
         }
-        if let PluginAction::PaneObserve { pane } = &request.action {
+        if let PluginAction::PanelObserve { pane } = &request.action {
             return self.observe_plugin_pane(request, pane);
         }
-        if let PluginAction::PaneGet { panel_id } = &request.action {
+        if let PluginAction::PanelGet { panel_id } = &request.action {
             return self
                 .coordinator
                 .lock()
                 .map_err(|_| Failure::Unavailable)?
-                .plugin_pane(panel_id)
+                .plugin_panel(panel_id)
                 .ok_or(Failure::Unavailable);
         }
         let handle = self
@@ -68,8 +68,8 @@ impl LocalTerminalService {
             PluginAction::PopupOpen { .. }
             | PluginAction::PopupRead { .. }
             | PluginAction::PopupClose { .. }
-            | PluginAction::PaneObserve { .. }
-            | PluginAction::PaneGet { .. }
+            | PluginAction::PanelObserve { .. }
+            | PluginAction::PanelGet { .. }
             | PluginAction::Invoke { .. } => None,
         };
         if expected.is_some_and(|expected| *expected != worker) {
@@ -125,8 +125,8 @@ impl LocalTerminalService {
                     PluginAction::PopupOpen { .. }
                     | PluginAction::PopupRead { .. }
                     | PluginAction::PopupClose { .. }
-                    | PluginAction::PaneObserve { .. }
-                    | PluginAction::PaneGet { .. }
+                    | PluginAction::PanelObserve { .. }
+                    | PluginAction::PanelGet { .. }
                     | PluginAction::Invoke { .. } => unreachable!(),
                 };
                 (id, action)
@@ -312,7 +312,7 @@ fn command_environment(
     for (name, value) in [
         ("ORCHBEE_WORKSPACE_ID", &context.workspace_id),
         ("ORCHBEE_TAB_ID", &context.tab_id),
-        ("ORCHBEE_PANEL_ID", &context.focused_pane_id),
+        ("ORCHBEE_PANEL_ID", &context.focused_panel_id),
         ("ORCHBEE_PLUGIN_CLICKED_URL", &context.clicked_url),
         ("ORCHBEE_PLUGIN_LINK_HANDLER_ID", &context.link_handler_id),
     ] {

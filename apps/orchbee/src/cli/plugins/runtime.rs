@@ -216,8 +216,8 @@ fn render(
                         | PluginOutcome::PopupClosed { .. }
                         | PluginOutcome::PopupClosing { .. }
                         | PluginOutcome::PopupUnknown { .. }
-                        | PluginOutcome::PaneObserved { .. }
-                        | PluginOutcome::PaneFound { .. }
+                        | PluginOutcome::PanelObserved { .. }
+                        | PluginOutcome::PanelFound { .. }
                         | PluginOutcome::Cancellation { .. }
                         | PluginOutcome::Failed { .. }
                         | PluginOutcome::Unknown { .. } => &[],
@@ -280,8 +280,8 @@ fn history_document(
         | PluginOutcome::PopupClosed { .. }
         | PluginOutcome::PopupClosing { .. }
         | PluginOutcome::PopupUnknown { .. }
-        | PluginOutcome::PaneObserved { .. }
-        | PluginOutcome::PaneFound { .. }
+        | PluginOutcome::PanelObserved { .. }
+        | PluginOutcome::PanelFound { .. }
         | PluginOutcome::Started { .. }
         | PluginOutcome::Cancellation { .. }
         | PluginOutcome::Failed { .. }
@@ -294,8 +294,8 @@ fn history_document(
         | PluginOutcome::PopupClosed { .. }
         | PluginOutcome::PopupClosing { .. }
         | PluginOutcome::PopupUnknown { .. }
-        | PluginOutcome::PaneObserved { .. }
-        | PluginOutcome::PaneFound { .. }
+        | PluginOutcome::PanelObserved { .. }
+        | PluginOutcome::PanelFound { .. }
         | PluginOutcome::Started { .. }
         | PluginOutcome::Logs { .. }
         | PluginOutcome::Cancellation { .. }
@@ -310,8 +310,8 @@ fn history_document(
             | PluginOutcome::PopupClosed { .. }
             | PluginOutcome::PopupClosing { .. }
             | PluginOutcome::PopupUnknown { .. }
-            | PluginOutcome::PaneObserved { .. }
-            | PluginOutcome::PaneFound { .. }
+            | PluginOutcome::PanelObserved { .. }
+            | PluginOutcome::PanelFound { .. }
             | PluginOutcome::Started { .. }
             | PluginOutcome::Cancellation { .. }
             | PluginOutcome::Failed { .. }

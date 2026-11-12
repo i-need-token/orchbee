@@ -1,4 +1,4 @@
-//! Resolves a plugin Pane's program with the platform executable search. Builds without that search
+//! Resolves a plugin Panel's program with the platform executable search. Builds without that search
 //! resolve nothing, so the caller reports that no compatible Worker can run the Pane.
 use std::path::{Path, PathBuf};
 
@@ -10,7 +10,7 @@ pub(super) fn resolve(program: &str, root: &Path) -> Option<PathBuf> {
     ))
 }
 
-/// This build has no executable search for plugin Panes.
+/// This build has no executable search for plugin Panels.
 #[cfg(not(windows))]
 pub(super) fn resolve(_program: &str, _root: &Path) -> Option<PathBuf> {
     None

@@ -87,7 +87,7 @@ pub(super) fn prepare(
             members.push(Some(Prepared {
                 launch,
                 options: LaunchOptions {
-                    plugin_pane: None,
+                    plugin_panel: None,
                     plugin_context: None,
                     agent_start: None,
                     cwd,

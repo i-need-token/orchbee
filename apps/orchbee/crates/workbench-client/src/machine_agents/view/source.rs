@@ -53,7 +53,7 @@ impl ViewEntry for Entry<'_> {
     fn tab_order(&self) -> Option<u64> {
         Some(self.row.order.tab)
     }
-    fn pane_order(&self) -> Option<u64> {
+    fn panel_order(&self) -> Option<u64> {
         Some(self.row.order.pane)
     }
     fn attention(&self) -> u64 {

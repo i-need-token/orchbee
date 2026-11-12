@@ -20,7 +20,7 @@
 
 Orchbee is a terminal-native environment built for the age of AI agents. It lets you run CLI agents such as Claude Code, Codex, OpenCode, and Pi without changing how you already use them, while giving them something they lack on their own: **the ability to work together**.
 
-Orchbee turns isolated terminal panes into a command center for your AI agents. Through the native `orchbee` CLI, agents can start other agents, prompt them, read their output, and send commands to any terminal.
+Orchbee turns isolated terminal panels into a command center for your AI agents. Through the native `orchbee` CLI, agents can start other agents, prompt them, read their output, and send commands to any terminal.
 
 The name combines **orch**estrator with **bee**—independent workers coordinating as one.
 

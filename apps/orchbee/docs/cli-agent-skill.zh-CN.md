@@ -107,11 +107,11 @@ Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受
 
 ## 插件
 
-使用 `plugin list`、`plugin action list` 和 `plugin pane open --help` 发现已安装能力。`plugin link` 注册本地清单；`plugin install` 和 `plugin update` 的 `--yes` 用于声明的非交互信任流程。已启用插件的启动命令和事件命令会在之后的 Session 中自动运行。注册表命令不启动 Session；调用操作和 pane 命令需要已有 Session。
+使用 `plugin list`、`plugin action list` 和 `plugin panel open --help` 发现已安装能力。`plugin link` 注册本地清单；`plugin install` 和 `plugin update` 的 `--yes` 用于声明的非交互信任流程。已启用插件的启动命令和事件命令会在之后的 Session 中自动运行。注册表命令不启动 Session；调用操作和 panel 命令需要已有 Session。
 
 `plugin action invoke <action-id> --context <json>` 接受 `{"selectedText":"example"}` 等展示覆盖。输入结构见 `api schema orchbee.plugin.runtime` 的 `$defs/context`；字段使用 camelCase，拒绝未知字段。CLI 退出后，已接纳的插件任务可继续运行。`plugin log list` 查看保留日志。
 
-Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，或选择 tab/split 放置。`popup close` 释放弹窗终端。普通 pane 与 popup 的生命周期不同，应查看对应回执。
+Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，或选择 tab/split 放置。`popup close` 释放弹窗终端。普通面板与 popup 的生命周期不同，应查看对应回执。
 
 <!-- /unreleased -->
 

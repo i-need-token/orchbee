@@ -58,7 +58,7 @@ fn resolve_from(
         invocation_source: Some("cli".into()),
         correlation_id: Some(command.request_id.to_string()),
         tab_id: tab_id.map(ToString::to_string),
-        focused_pane_id: panel_id.map(ToString::to_string),
+        focused_panel_id: panel_id.map(ToString::to_string),
         ..Default::default()
     };
     if let Some(workspace) = snapshot
@@ -140,7 +140,7 @@ fn freeze(
     for (key, value) in [
         ("ORCHBEE_WORKSPACE_ID", context.workspace_id),
         ("ORCHBEE_TAB_ID", context.tab_id),
-        ("ORCHBEE_PANEL_ID", context.focused_pane_id),
+        ("ORCHBEE_PANEL_ID", context.focused_panel_id),
     ] {
         if let Some(value) = value {
             environment.push((key.into(), value));
@@ -158,7 +158,7 @@ fn freeze(
 }
 
 impl super::WorkbenchAuthority {
-    /// An independent terminal never acquires canonical plugin Pane membership.
+    /// An independent terminal never acquires canonical plugin Panel membership.
     pub fn resolve_plugin_popup(
         &self,
         popup_id: &orchbee_workbench_protocol::WorkbenchRequestId,

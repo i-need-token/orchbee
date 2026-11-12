@@ -61,8 +61,8 @@ impl WorkbenchClientUi {
                     | orchbee_workbench_protocol::PluginOutcome::PopupClosed { .. }
                     | orchbee_workbench_protocol::PluginOutcome::PopupClosing { .. }
                     | orchbee_workbench_protocol::PluginOutcome::PopupUnknown { .. }
-                    | orchbee_workbench_protocol::PluginOutcome::PaneObserved { .. }
-                    | orchbee_workbench_protocol::PluginOutcome::PaneFound { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PanelObserved { .. }
+                    | orchbee_workbench_protocol::PluginOutcome::PanelFound { .. }
                     | orchbee_workbench_protocol::PluginOutcome::Started { .. }
                     | orchbee_workbench_protocol::PluginOutcome::Logs { .. }
                     | orchbee_workbench_protocol::PluginOutcome::Cancellation { .. } => {

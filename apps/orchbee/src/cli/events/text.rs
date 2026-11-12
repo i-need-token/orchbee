@@ -95,7 +95,7 @@ fn event_line(event: &SemanticEvent) -> String {
     } else {
         subject
     };
-    let mut line = format!("{}  {subject}", event.event.public_name());
+    let mut line = format!("{}  {subject}", event.event.as_str());
     if !detail.is_empty() {
         line.push_str("  ");
         line.push_str(&detail);

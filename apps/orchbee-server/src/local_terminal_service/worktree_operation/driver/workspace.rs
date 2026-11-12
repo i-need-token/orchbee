@@ -203,7 +203,7 @@ impl Driver<'_> {
                     launch: None,
                     profile: None,
                     options: Box::new(LaunchOptions {
-                        plugin_pane: None,
+                        plugin_panel: None,
                         // Git reports Windows checkouts with `/`; the Workspace records the
                         // spelling Windows reports, as its terminals' directories do.
                         cwd: Some(checkout.path.with_native_separators()),

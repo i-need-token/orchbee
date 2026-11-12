@@ -58,14 +58,14 @@ pub(super) fn observed(
     {
         return Err(invalid);
     }
-    if let Some(id) = &context.focused_pane_id {
+    if let Some(id) = &context.focused_panel_id {
         let (_, tab) = tab.ok_or(invalid)?;
         if !contains(&tab.root, id) {
             return Err(invalid);
         }
-    } else if context.focused_pane_cwd.is_some()
-        || context.focused_pane_agent.is_some()
-        || context.focused_pane_status.is_some()
+    } else if context.focused_panel_cwd.is_some()
+        || context.focused_panel_agent.is_some()
+        || context.focused_panel_status.is_some()
         || context.selected_text.is_some()
     {
         return Err(invalid);
@@ -75,7 +75,7 @@ pub(super) fn observed(
     }
     context.workspace_label = workspace.map(|w| w.label.clone());
     context.tab_label = tab.map(|(_, t)| t.label.clone());
-    context.invocation_source = Some("plugin-pane".into());
+    context.invocation_source = Some("plugin-panel".into());
     context.correlation_id = Some(request_id.to_string());
     Ok(context)
 }

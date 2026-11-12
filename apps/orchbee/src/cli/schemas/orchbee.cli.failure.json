@@ -719,7 +719,7 @@
 					"enum": [
 						"selector-unavailable",
 						"plugin-not-found",
-						"pane-not-found",
+						"panel-not-found",
 						"registry-unavailable",
 						"client-listing-unavailable",
 						"binding-unavailable",
@@ -734,7 +734,7 @@
 						"invalid-popup-spec",
 						"client-changed",
 						"context-invalid",
-						"pane-changed",
+						"panel-changed",
 						"client-refused",
 						"transport-loss",
 						"invalid-reply"
@@ -841,7 +841,7 @@
 								"details": {
 									"properties": {
 										"reason": {
-											"enum": ["plugin-not-found", "pane-not-found"]
+											"enum": ["plugin-not-found", "panel-not-found"]
 										}
 									}
 								}
@@ -897,7 +897,7 @@
 												"invalid-popup-spec",
 												"client-changed",
 												"context-invalid",
-												"pane-changed",
+												"panel-changed",
 												"client-refused"
 											]
 										}

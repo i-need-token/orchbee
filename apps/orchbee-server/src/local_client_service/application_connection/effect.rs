@@ -135,8 +135,8 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         WorkbenchRequest::Plugin(request) => match request.action {
             // A pane observation attaches one temporary viewer for its requester.
             PluginAction::PopupRead { .. }
-            | PluginAction::PaneObserve { .. }
-            | PluginAction::PaneGet { .. }
+            | PluginAction::PanelObserve { .. }
+            | PluginAction::PanelGet { .. }
             | PluginAction::Logs { .. }
             | PluginAction::Get { .. } => Read,
             PluginAction::PopupOpen { .. }

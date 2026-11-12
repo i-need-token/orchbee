@@ -496,7 +496,7 @@
 										"enum": [
 											"workspace_order",
 											"tab_order",
-											"pane_order",
+											"panel_order",
 											"attention",
 											"status",
 											"agent",

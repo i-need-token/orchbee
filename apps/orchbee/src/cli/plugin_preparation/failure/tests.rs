@@ -12,7 +12,7 @@ fn preparation_failures_are_typed_localized_and_closed_to_the_new_version() {
         Reason::RegistryUnavailable,
         Reason::PluginNotFound,
         Reason::PluginDisabled,
-        Reason::PaneNotFound,
+        Reason::PanelNotFound,
         Reason::UnsupportedPlatform,
         Reason::InvalidTitle,
         Reason::InvalidGeometry,
@@ -26,7 +26,7 @@ fn preparation_failures_are_typed_localized_and_closed_to_the_new_version() {
         Reason::ContextInvalid,
         Reason::TransportLoss,
         Reason::InvalidReply,
-        Reason::PaneChanged,
+        Reason::PanelChanged,
         Reason::PluginUnavailable,
     ] {
         let failure = reason.failure();

@@ -112,7 +112,7 @@ fn execute(
     };
     let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
     let mut configured = command.clone();
-    if configured.options.plugin_pane.is_none() {
+    if configured.options.plugin_panel.is_none() {
         crate::cli::creation_defaults::apply_directory(
             &mut client,
             &snapshot.session_id,
@@ -504,7 +504,7 @@ fn prepare(
         deadline,
         signals,
     )?;
-    if command.options.plugin_pane.is_some() {
+    if command.options.plugin_panel.is_some() {
         let (context, observed_member) = crate::cli::plugin_preparation::context::observe(
             client,
             snapshot,

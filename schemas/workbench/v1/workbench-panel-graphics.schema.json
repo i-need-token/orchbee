@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "urn:orchbee:schema:workbench-pane-graphics:v1",
+	"$id": "urn:orchbee:schema:workbench-panel-graphics:v1",
 	"$comment": "OBWP57/58 bounds requests at 24MiB and results at 512KiB before allocation. Rust and TypeScript additionally enforce decoded channel lengths, pixel and resident budgets, damage bounds, resource ordering, unique layers and exact chunk completion. PNG bytes are decoded only by the admitted Host. File frames additionally require the producer private-root lease. No renderer or file directory is inferred from protocol availability.",
 	"oneOf": [
 		{
@@ -777,7 +777,7 @@
 								}
 							]
 						},
-						"paneVisible": {
+						"panelVisible": {
 							"oneOf": [
 								{
 									"type": "boolean"
@@ -815,7 +815,7 @@
 						"layerCount",
 						"clientId",
 						"capabilities",
-						"paneVisible",
+						"panelVisible",
 						"drawnRevision",
 						"fileFrameDirectory"
 					],
@@ -834,7 +834,7 @@
 									"capabilities": {
 										"type": "null"
 									},
-									"paneVisible": {
+									"panelVisible": {
 										"type": "null"
 									},
 									"drawnRevision": {
@@ -1160,7 +1160,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
-					"const": "workbench.pane-graphics"
+					"const": "workbench.panel-graphics"
 				},
 				"protocolVersion": {
 					"const": 1
@@ -1182,7 +1182,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
-					"const": "workbench.pane-graphics.result"
+					"const": "workbench.panel-graphics.result"
 				},
 				"protocolVersion": {
 					"const": 1
@@ -1199,7 +1199,7 @@
 			},
 			"required": ["kind", "protocolVersion", "requestId", "sessionId", "outcome"]
 		},
-		"clientPane": {
+		"clientPanel": {
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
@@ -1242,15 +1242,15 @@
 				"complete": {
 					"type": "boolean"
 				},
-				"panes": {
+				"panels": {
 					"type": "array",
 					"maxItems": 64,
 					"items": {
-						"$ref": "#/$defs/clientPane"
+						"$ref": "#/$defs/clientPanel"
 					}
 				}
 			},
-			"required": ["workbenchRevision", "capabilities", "complete", "panes"]
+			"required": ["workbenchRevision", "capabilities", "complete", "panels"]
 		}
 	}
 }

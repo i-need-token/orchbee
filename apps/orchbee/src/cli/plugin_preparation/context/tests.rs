@@ -21,7 +21,7 @@ fn canonical_selection_infers_workspace_tab_and_panel_without_using_display_over
     assert_eq!(context.workspace_label.as_deref(), Some("workspace"));
     assert_eq!(context.workspace_cwd.as_deref(), Some("C:/repo"));
     assert_eq!(context.tab_label.as_deref(), Some("tab"));
-    assert_eq!(context.focused_pane_id, Some(id(9)));
+    assert_eq!(context.focused_panel_id, Some(id(9)));
     assert_eq!(panel.unwrap().0, Target::Id(id(9)));
     let mut wrong = record();
     wrong.view.selection.as_mut().unwrap().terminal_context_id =
@@ -59,17 +59,17 @@ fn runtime_context_uses_observed_cwd_and_unambiguous_member_agent() {
             {"session":{"sessionId":"current","providerId":"codex"}}]}});
     enrich(&mut context, &document);
     assert_eq!(context.workspace_cwd.as_deref(), Some("C:/repo/subdir"));
-    assert_eq!(context.focused_pane_agent.as_deref(), Some("codex"));
-    assert_eq!(context.focused_pane_status.as_deref(), Some("working"));
+    assert_eq!(context.focused_panel_agent.as_deref(), Some("codex"));
+    assert_eq!(context.focused_panel_status.as_deref(), Some("working"));
     document["panel"]["agentSessionIds"] = json!(["current", "other"]);
     // Each enrichment starts from a fresh inferred context.
     let mut fresh = PluginInvocationContext::default();
     enrich(&mut fresh, &document);
-    assert!(fresh.focused_pane_agent.is_none());
+    assert!(fresh.focused_panel_agent.is_none());
     document["panel"]["reportedAgent"] = json!({"view":{"agent":"Team Agent","state":"blocked"}});
     enrich(&mut fresh, &document);
-    assert_eq!(fresh.focused_pane_agent.as_deref(), Some("Team Agent"));
-    assert_eq!(fresh.focused_pane_status.as_deref(), Some("blocked"));
+    assert_eq!(fresh.focused_panel_agent.as_deref(), Some("Team Agent"));
+    assert_eq!(fresh.focused_panel_status.as_deref(), Some("blocked"));
 }
 
 #[test]
@@ -85,9 +85,9 @@ fn headless_destination_keeps_canonical_workspace_without_guessing_tab_or_focus(
     assert_eq!(context.workspace_cwd.as_deref(), Some("C:/repo"));
     assert!(
         context.tab_id.is_none()
-            && context.focused_pane_id.is_none()
-            && context.focused_pane_cwd.is_none()
-            && context.focused_pane_agent.is_none()
+            && context.focused_panel_id.is_none()
+            && context.focused_panel_cwd.is_none()
+            && context.focused_panel_agent.is_none()
     );
     let unknown = WorkbenchTerminalContextId::parse(&id(999)).unwrap();
     assert!(infer_context(&snapshot, &unknown).is_err());

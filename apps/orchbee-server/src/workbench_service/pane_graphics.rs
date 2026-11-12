@@ -61,7 +61,7 @@ impl WorkbenchClientConnection<'_> {
                     revision,
                     client_id,
                     capabilities,
-                    pane_visible,
+                    panel_visible,
                     drawn_revision,
                     ..
                 } = &mut outcome
@@ -84,7 +84,7 @@ impl WorkbenchClientConnection<'_> {
                     if let Some(info) = info {
                         *client_id = Some(info.client_id);
                         *capabilities = info.capabilities;
-                        *pane_visible = info.visible;
+                        *panel_visible = info.visible;
                         *drawn_revision = info.drawn;
                     }
                 }

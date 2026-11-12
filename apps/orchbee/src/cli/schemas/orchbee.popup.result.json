@@ -826,7 +826,7 @@
 						}
 					]
 				},
-				"focusedPaneId": {
+				"focusedPanelId": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -838,7 +838,7 @@
 						}
 					]
 				},
-				"focusedPaneCwd": {
+				"focusedPanelCwd": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -850,7 +850,7 @@
 						}
 					]
 				},
-				"focusedPaneAgent": {
+				"focusedPanelAgent": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -862,7 +862,7 @@
 						}
 					]
 				},
-				"focusedPaneStatus": {
+				"focusedPanelStatus": {
 					"anyOf": [
 						{
 							"type": "string",

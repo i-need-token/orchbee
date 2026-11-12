@@ -59,7 +59,7 @@ fn popup_session_applies_read_create_and_close_permissions_per_operation() {
         "source":{"terminalContextId":"33333333333333333333333333333333",
             "tabId":"44444444444444444444444444444444","panelId":"55555555555555555555555555555555",
             "member":{"presentationId":"66666666666666666666666666666666","selectionGeneration":"1"}},
-        "context":{"tabId":"44444444444444444444444444444444","focusedPaneId":"55555555555555555555555555555555"},
+        "context":{"tabId":"44444444444444444444444444444444","focusedPanelId":"55555555555555555555555555555555"},
         "cwd":null,"environment":[],"width":null,"height":null,
     })).unwrap();
     let popup_id = WorkbenchRequestId::parse(&"7".repeat(32)).unwrap();

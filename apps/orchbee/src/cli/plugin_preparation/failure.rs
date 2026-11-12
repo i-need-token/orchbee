@@ -7,7 +7,7 @@ pub(in crate::cli) enum Reason {
     RegistryUnavailable,
     PluginNotFound,
     PluginDisabled,
-    PaneNotFound,
+    PanelNotFound,
     UnsupportedPlatform,
     InvalidTitle,
     InvalidGeometry,
@@ -21,7 +21,7 @@ pub(in crate::cli) enum Reason {
     ContextInvalid,
     TransportLoss,
     InvalidReply,
-    PaneChanged,
+    PanelChanged,
     PluginUnavailable,
 }
 
@@ -35,7 +35,7 @@ impl Reason {
             Self::RegistryUnavailable => (ServiceUnavailable, "registry-unavailable"),
             Self::PluginNotFound => (NotFound, "plugin-not-found"),
             Self::PluginDisabled => (Rejected, "plugin-disabled"),
-            Self::PaneNotFound => (NotFound, "pane-not-found"),
+            Self::PanelNotFound => (NotFound, "panel-not-found"),
             Self::UnsupportedPlatform => (Rejected, "unsupported-platform"),
             Self::InvalidTitle => (Rejected, "invalid-title"),
             Self::InvalidGeometry => (Rejected, "invalid-geometry"),
@@ -49,7 +49,7 @@ impl Reason {
             Self::ContextInvalid => (Rejected, "context-invalid"),
             Self::TransportLoss => (FailureKind::TransportLoss, "transport-loss"),
             Self::InvalidReply => (ProtocolInvalid, "invalid-reply"),
-            Self::PaneChanged => (Rejected, "pane-changed"),
+            Self::PanelChanged => (Rejected, "panel-changed"),
             Self::PluginUnavailable => (ServiceUnavailable, "plugin-unavailable"),
         };
         Failure::new(kind).details(stage_reason_details("plugin", reason))

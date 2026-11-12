@@ -25,7 +25,7 @@ fn open(fixture: &Fixture) -> PluginRequest {
         "source":{"terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,
             "panelId":panel_id,"member":{"presentationId":primary_presentation.presentation_id,"binding":primary_presentation.binding,
                 "attachmentGeneration":"1","incarnation":0,"viewport":{"state":"unavailable","reason":"frame-unavailable"}}},
-        "context":{"tabId":tab.tab_id,"focusedPaneId":panel_id},
+        "context":{"tabId":tab.tab_id,"focusedPanelId":panel_id},
         "cwd":null,"environment":[],"width":{"kind":"percent","value":75},"height":null,
     })).unwrap();
     PluginRequest {
@@ -234,7 +234,7 @@ fn popup_refuses_a_removed_source_before_launch_and_releases_admission() {
         panic!();
     };
     let missing = orchbee_workbench_protocol::WorkbenchPanelId::parse(&"f".repeat(32)).unwrap();
-    spec.context.focused_pane_id = Some(missing.to_string());
+    spec.context.focused_panel_id = Some(missing.to_string());
     spec.source.panel_id = missing;
     assert!(matches!(
         fixture

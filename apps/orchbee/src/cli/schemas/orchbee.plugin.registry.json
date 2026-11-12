@@ -106,7 +106,7 @@
 					"type": "array",
 					"maxItems": 5,
 					"items": {
-						"enum": ["global", "workspace", "tab", "pane", "selection"]
+						"enum": ["global", "workspace", "tab", "panel", "selection"]
 					}
 				},
 				"platforms": {
@@ -155,7 +155,7 @@
 				}
 			]
 		},
-		"pane": {
+		"panel": {
 			"type": "object",
 			"additionalProperties": false,
 			"required": [
@@ -246,7 +246,7 @@
 				"startup",
 				"actions",
 				"events",
-				"panes",
+				"panels",
 				"link_handlers"
 			],
 			"properties": {
@@ -318,11 +318,11 @@
 						"$ref": "#/$defs/event"
 					}
 				},
-				"panes": {
+				"panels": {
 					"type": "array",
 					"maxItems": 64,
 					"items": {
-						"$ref": "#/$defs/pane"
+						"$ref": "#/$defs/panel"
 					}
 				},
 				"link_handlers": {

@@ -13,7 +13,7 @@ impl Root {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let root = std::env::temp_dir().join(format!(
-            "orchbee-plugin-pane-{:032x}",
+            "orchbee-plugin-panel-{:032x}",
             u128::from_be_bytes(nonce)
         ));
         fs::create_dir(&root).unwrap();
@@ -28,12 +28,12 @@ impl Drop for Root {
                 .file_name()
                 .unwrap()
                 .to_string_lossy()
-                .starts_with("orchbee-plugin-pane-")
+                .starts_with("orchbee-plugin-panel-")
         );
         fs::remove_dir_all(&self.0).unwrap();
     }
 }
-const SOURCE: &str = "id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['pane.exe','hello world','&literal']\n";
+const SOURCE: &str = "id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['pane.exe','hello world','&literal']\n";
 fn fixture() -> (
     Root,
     PluginRegistry,
@@ -78,7 +78,7 @@ fn fixture() -> (
             launch: None,
             profile: None,
             options: Box::new(LaunchOptions {
-                plugin_pane: Some(selector.clone()),
+                plugin_panel: Some(selector.clone()),
                 ..Default::default()
             }),
         },
@@ -126,7 +126,7 @@ fn plugin_pane_resolution_freezes_root_relative_argv_and_protected_target_contex
         context.workspace_id,
         Some(snapshot.navigation.workspaces[0].workspace_id.to_string())
     );
-    assert!(context.tab_id.is_none() && context.focused_pane_id.is_none());
+    assert!(context.tab_id.is_none() && context.focused_panel_id.is_none());
     assert!(
         !frozen
             .environment
@@ -280,7 +280,7 @@ fn admission_witness(root: PathBuf) {
         "protocolVersion":1,"requestId":id(200),"sessionId":id(100),"expectedRevision":"0",
         "action":{"kind":"tab.create","terminalContextId":authority.fixture_context_id(),"label":"Dashboard",
         "geometry":{"columns":80,"rows":24,"cellPixelWidth":0,"cellPixelHeight":0},
-        "options":{"pluginPane":{"pluginId":"tools","entrypointId":"dashboard"}}}
+        "options":{"pluginPanel":{"pluginId":"tools","entrypointId":"dashboard"}}}
     }))
     .unwrap();
     assert!(
@@ -314,14 +314,14 @@ fn admission_witness(root: PathBuf) {
             drop(prepared);
             assert_eq!(authority.projection.snapshot().revision.value(), 0);
             assert!(matches!(
-                authority.plugin_pane(metadata.panel_id()),
+                authority.plugin_panel(metadata.panel_id()),
                 PluginOutcome::Failed { .. }
             ));
         }
     }
     let (metadata, _pending) = created.unwrap();
     assert!(
-        matches!(authority.plugin_pane(metadata.panel_id()), PluginOutcome::PaneFound { revision, pane } if revision.value() == 1 && pane.binding == binding)
+        matches!(authority.plugin_panel(metadata.panel_id()), PluginOutcome::PanelFound { revision, pane } if revision.value() == 1 && pane.binding == binding)
     );
     registry
         .mutate(PluginRegistryMutation::SetEnabled {
@@ -350,12 +350,12 @@ fn admission_witness(root: PathBuf) {
     };
     install(&mut authority, snapshot.clone());
     assert!(matches!(
-        authority.plugin_pane(metadata.panel_id()),
+        authority.plugin_panel(metadata.panel_id()),
         PluginOutcome::Failed { .. }
     ));
     assert!(matches!(
-        authority.plugin_pane(&moved),
-        PluginOutcome::PaneFound { .. }
+        authority.plugin_panel(&moved),
+        PluginOutcome::PanelFound { .. }
     ));
     let PanelNode::Panel {
         primary_presentation,
@@ -369,7 +369,7 @@ fn admission_witness(root: PathBuf) {
     snapshot.revision = WorkbenchRevision::new(3);
     install(&mut authority, snapshot);
     assert!(matches!(
-        authority.plugin_pane(&moved),
+        authority.plugin_panel(&moved),
         PluginOutcome::Failed { .. }
     ));
 }
@@ -399,7 +399,7 @@ fn source_fixture(snapshot: &mut Snapshot) -> PluginInvocationContext {
         &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(snapshot.clone()),
     )
     .unwrap();
-    serde_json::from_value(json!({"workspaceId":id(3),"workspaceLabel":"forged workspace","workspaceCwd":"C:/observed-child","tabId":id(5),"tabLabel":"forged tab","focusedPaneId":id(6),"focusedPaneCwd":"C:/observed-child","focusedPaneAgent":"codex","focusedPaneStatus":"blocked","selectedText":"source selection","invocationSource":"forged source","correlationId":"forged correlation","worktree":{"workerId":id(8),"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","repositoryName":"repo","checkoutPath":"C:/source","linked":true}})).unwrap()
+    serde_json::from_value(json!({"workspaceId":id(3),"workspaceLabel":"forged workspace","workspaceCwd":"C:/observed-child","tabId":id(5),"tabLabel":"forged tab","focusedPanelId":id(6),"focusedPanelCwd":"C:/observed-child","focusedPanelAgent":"codex","focusedPanelStatus":"blocked","selectedText":"source selection","invocationSource":"forged source","correlationId":"forged correlation","worktree":{"workerId":id(8),"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","repositoryName":"repo","checkoutPath":"C:/source","linked":true}})).unwrap()
 }
 fn source_options(command: &mut WorkbenchCommand) -> &mut LaunchOptions {
     let WorkbenchAction::TabCreate { options, .. } = &mut command.action else {
@@ -434,11 +434,11 @@ fn plugin_pane_source_context_freezes_canonical_source_separately_from_destinati
         Some("canonical workspace")
     );
     assert_eq!(observed.tab_label.as_deref(), Some("canonical tab"));
-    assert_eq!(observed.focused_pane_cwd, context.focused_pane_cwd);
-    assert_eq!(observed.focused_pane_agent, context.focused_pane_agent);
-    assert_eq!(observed.focused_pane_status, context.focused_pane_status);
+    assert_eq!(observed.focused_panel_cwd, context.focused_panel_cwd);
+    assert_eq!(observed.focused_panel_agent, context.focused_panel_agent);
+    assert_eq!(observed.focused_panel_status, context.focused_panel_status);
     assert_eq!(observed.worktree, context.worktree);
-    assert_eq!(observed.invocation_source.as_deref(), Some("plugin-pane"));
+    assert_eq!(observed.invocation_source.as_deref(), Some("plugin-panel"));
     assert_eq!(
         observed.correlation_id.as_deref(),
         Some(command.request_id.as_str())
@@ -459,7 +459,7 @@ fn plugin_pane_source_context_freezes_canonical_source_separately_from_destinati
         ("ORCHBEE_TAB_ID", context.tab_id.as_ref().unwrap()),
         (
             "ORCHBEE_PANEL_ID",
-            context.focused_pane_id.as_ref().unwrap(),
+            context.focused_panel_id.as_ref().unwrap(),
         ),
     ] {
         assert_eq!(
@@ -482,7 +482,7 @@ fn plugin_pane_source_context_freezes_canonical_source_separately_from_destinati
         .plugin_context
         .as_mut()
         .unwrap()
-        .focused_pane_cwd = Some("C:/changed".into());
+        .focused_panel_cwd = Some("C:/changed".into());
     assert_eq!(frozen_context(&frozen), observed);
     assert_eq!(frozen.launch.arguments()[0], "hello world");
 }
@@ -513,14 +513,14 @@ fn plugin_pane_source_context_refuses_missing_or_mismatched_source_before_user_s
             "workspace" => context.workspace_id = Some(format!("{:032x}", 99)),
             "tab" => context.tab_id = Some(format!("{:032x}", 99)),
             "parent" => context.workspace_id = Some(format!("{:032x}", 12)),
-            "panel" => context.focused_pane_id = Some(format!("{:032x}", 99)),
+            "panel" => context.focused_panel_id = Some(format!("{:032x}", 99)),
             "no-tab" => context.tab_id = None,
-            "no-panel" => context.focused_pane_id = None,
+            "no-panel" => context.focused_panel_id = None,
             "orphan-worktree" => context.workspace_id = None,
-            "bounds" => context.focused_pane_agent = Some("界".repeat(1366)),
+            "bounds" => context.focused_panel_agent = Some("界".repeat(1366)),
             "canonical-bounds" => {
                 context.selected_text = Some("s".repeat(8192));
-                context.focused_pane_cwd = Some("c".repeat(4096));
+                context.focused_panel_cwd = Some("c".repeat(4096));
                 snapshot.navigation.workspaces[0].label = "🐝".repeat(512);
                 snapshot.terminal_contexts[1].tabs[0].label = "🐝".repeat(512);
                 assert!(context.validate().is_ok());
@@ -556,10 +556,10 @@ fn plugin_pane_empty_source_context_never_fabricates_destination_as_source() {
             && context.workspace_label.is_none()
             && context.workspace_cwd.is_none()
             && context.tab_id.is_none()
-            && context.focused_pane_id.is_none()
+            && context.focused_panel_id.is_none()
             && context.selected_text.is_none()
     );
-    assert_eq!(context.invocation_source.as_deref(), Some("plugin-pane"));
+    assert_eq!(context.invocation_source.as_deref(), Some("plugin-panel"));
     source_options(&mut command).plugin_context = None;
     let legacy = frozen_context(&resolve_from(&registry, &snapshot, &command, &selector).unwrap());
     assert_eq!(

@@ -9,7 +9,7 @@ fn popup_sizes_and_close_options_are_typed_and_scoped() {
         ..
     } = request(&[
         "plugin",
-        "pane",
+        "panel",
         "open",
         "--plugin",
         "tools",
@@ -39,7 +39,7 @@ fn popup_sizes_and_close_options_are_typed_and_scoped() {
         assert!(
             request(&[
                 "plugin",
-                "pane",
+                "panel",
                 "open",
                 "--plugin",
                 "tools",
@@ -76,7 +76,7 @@ fn pane_open_defaults_and_scoped_launch_overrides() {
         ..
     } = request(&[
         "plugin",
-        "pane",
+        "panel",
         "open",
         "--plugin",
         "tools",
@@ -108,7 +108,7 @@ fn pane_open_defaults_and_scoped_launch_overrides() {
     ));
     let base = [
         "plugin",
-        "pane",
+        "panel",
         "open",
         "--plugin",
         "tools",
@@ -127,12 +127,12 @@ fn pane_open_defaults_and_scoped_launch_overrides() {
         args.extend(invalid);
         assert!(request(&args).is_err(), "{args:?}");
     }
-    assert!(request(&["plugin", "pane", "open", "--plugin", "tools"]).is_err());
+    assert!(request(&["plugin", "panel", "open", "--plugin", "tools"]).is_err());
     assert!(
         request(&[
             "panel",
             "split",
-            "--target-pane",
+            "--target-panel",
             "00000000000000000000000000000001"
         ])
         .is_err()

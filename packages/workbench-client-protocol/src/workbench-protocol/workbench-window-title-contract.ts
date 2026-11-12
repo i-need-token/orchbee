@@ -27,7 +27,7 @@ const contextText = z
 const context = z.strictObject({
 	workspace: contextText,
 	tab: contextText,
-	pane: contextText,
+	panel: contextText,
 	terminalTitle: contextText,
 });
 const snapshot = z.strictObject({

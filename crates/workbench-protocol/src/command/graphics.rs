@@ -111,6 +111,7 @@ pub struct PaneGraphicsClientObservation {
     pub workbench_revision: WorkbenchRevision,
     pub capabilities: PaneGraphicsCapabilities,
     pub complete: bool,
+    #[serde(rename = "panels")]
     pub panes: Vec<PaneGraphicsClientPane>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -244,7 +245,7 @@ pub enum PaneGraphicsOutcome {
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
         capabilities: Option<PaneGraphicsCapabilities>,
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
-        pane_visible: Option<bool>,
+        panel_visible: Option<bool>,
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
         drawn_revision: Option<WorkbenchRevision>,
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]

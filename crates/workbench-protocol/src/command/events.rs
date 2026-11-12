@@ -32,21 +32,11 @@ event_kinds! {
     WorktreeCreated => "worktree.created", WorktreeOpened => "worktree.opened", WorktreeRemoved => "worktree.removed",
     TabCreated => "tab.created", TabClosed => "tab.closed", TabFocused => "tab.focused",
     TabRenamed => "tab.renamed", TabMoved => "tab.moved",
-    PaneCreated => "pane.created", PaneClosed => "pane.closed", PaneUpdated => "pane.updated",
-    PaneFocused => "pane.focused", PaneMoved => "pane.moved", PaneExited => "pane.exited",
-    PaneAgentDetected => "pane.agent_detected", PaneAgentStatusChanged => "pane.agent_status_changed",
-    PaneOutputChanged => "pane.output_changed", PaneOutputMatched => "pane.output_matched",
-    PaneScrollChanged => "pane.scroll_changed", LayoutUpdated => "layout.updated",
-}
-impl SemanticEventKind {
-    /// The public name scripts and plugin manifests use. It is independent of this protocol's
-    /// historical `pane.` noun, which reads `panel.` publicly.
-    #[must_use]
-    pub fn public_name(self) -> String {
-        self.as_str()
-            .strip_prefix("pane.")
-            .map_or_else(|| self.as_str().to_owned(), |tail| format!("panel.{tail}"))
-    }
+    PaneCreated => "panel.created", PaneClosed => "panel.closed", PaneUpdated => "panel.updated",
+    PaneFocused => "panel.focused", PaneMoved => "panel.moved", PaneExited => "panel.exited",
+    PaneAgentDetected => "panel.agent_detected", PaneAgentStatusChanged => "panel.agent_status_changed",
+    PaneOutputChanged => "panel.output_changed", PaneOutputMatched => "panel.output_matched",
+    PaneScrollChanged => "panel.scroll_changed", LayoutUpdated => "layout.updated",
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -106,7 +96,9 @@ pub enum SemanticEventData {
         label: String,
         index: u32,
     },
+    #[serde(rename = "panel")]
     Pane {
+        #[serde(rename = "panel")]
         pane: SemanticPane,
     },
     Layout {
@@ -124,11 +116,13 @@ pub enum SemanticEventData {
         workspace_id: Option<WorkbenchWorkspaceId>,
     },
     Agent {
+        #[serde(rename = "panel")]
         pane: SemanticPane,
         report: PanelAgentView,
         exited: bool,
     },
     Output {
+        #[serde(rename = "panel")]
         pane: SemanticPane,
         content_generation: WorkbenchRevision,
         content_revision: WorkbenchRevision,
@@ -136,11 +130,13 @@ pub enum SemanticEventData {
         matched_line: Option<String>,
     },
     Exited {
+        #[serde(rename = "panel")]
         pane: SemanticPane,
         lifecycle_revision: WorkbenchRevision,
     },
     Scroll {
         client_id: WorkbenchClientId,
+        #[serde(rename = "panel")]
         pane: SemanticPane,
         observation: ClientViewportObservation,
     },
@@ -312,6 +308,7 @@ pub enum SemanticEventScope {
     Tab {
         tab_id: WorkbenchTabId,
     },
+    #[serde(rename = "panel")]
     Pane {
         panel_id: WorkbenchPanelId,
     },

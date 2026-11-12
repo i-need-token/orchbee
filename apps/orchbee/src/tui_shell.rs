@@ -276,7 +276,7 @@ fn run_with_client(
             let geometry = terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
                 .and_then(|geometry| {
                     geometry.ok_or_else(|| {
-                        io::Error::other("viewport too small to present a terminal pane")
+                        io::Error::other("viewport too small to present a terminal panel")
                     })
                 })
                 .map_err(TuiFailure::Runtime)?;

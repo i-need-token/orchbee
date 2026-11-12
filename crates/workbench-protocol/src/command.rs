@@ -1096,7 +1096,7 @@ pub struct WorkbenchCommand {
 pub enum WorkbenchRequest {
     #[serde(rename = "workbench.close-operation.read")]
     CloseOperationRead(CloseOperationRead),
-    #[serde(rename = "workbench.pane-graphics")]
+    #[serde(rename = "workbench.panel-graphics")]
     PaneGraphics(PaneGraphicsRequest),
     #[serde(rename = "workbench.events")]
     Events(SemanticEventsRequest),
@@ -1545,7 +1545,7 @@ pub struct WorkbenchSnapshotResult {
 pub enum WorkbenchResponse {
     #[serde(rename = "workbench.close-operation.result")]
     CloseOperation(CloseOperationResult),
-    #[serde(rename = "workbench.pane-graphics.result")]
+    #[serde(rename = "workbench.panel-graphics.result")]
     PaneGraphics(PaneGraphicsResult),
     #[serde(rename = "workbench.events.result")]
     Events(SemanticEventsResult),
@@ -1735,7 +1735,7 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
             options,
             ..
         } => {
-            if let Some(selector) = &options.plugin_pane {
+            if let Some(selector) = &options.plugin_panel {
                 crate::PluginPaneSelector::new(
                     selector.plugin_id.clone(),
                     selector.entrypoint_id.clone(),
@@ -1746,9 +1746,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
                 context.validate()?;
             }
             (launch.is_some() && profile.is_some())
-                || (options.plugin_context.is_some() && options.plugin_pane.is_none())
-                || (options.plugin_pane.is_some() && (launch.is_some() || profile.is_some()))
-                || (options.plugin_pane.is_some() && options.agent_start.is_some())
+                || (options.plugin_context.is_some() && options.plugin_panel.is_none())
+                || (options.plugin_panel.is_some() && (launch.is_some() || profile.is_some()))
+                || (options.plugin_panel.is_some() && options.agent_start.is_some())
         }
         WorkbenchAction::WorkspaceLaunch {
             launch,
@@ -1756,7 +1756,7 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
             options,
             ..
         } => {
-            options.plugin_pane.is_some()
+            options.plugin_panel.is_some()
                 || options.plugin_context.is_some()
                 || (launch.is_some() && profile.is_some())
         }
@@ -1767,7 +1767,7 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
             options,
             ..
         } => {
-            options.plugin_pane.is_some()
+            options.plugin_panel.is_some()
                 || options.plugin_context.is_some()
                 || options.agent_start.is_some()
                 || (launch.is_some() && profile.is_some())

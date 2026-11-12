@@ -140,7 +140,7 @@ impl ConfiguredCommandInvocation {
             source.presentation.member.validate()?;
             if source.presentation.member.binding().is_none()
                 || self.context.tab_id.as_deref() != Some(source.presentation.tab_id.as_str())
-                || self.context.focused_pane_id.as_deref()
+                || self.context.focused_panel_id.as_deref()
                     != Some(source.presentation.panel_id.as_str())
             {
                 return Err(ContractError::InvalidDocument);
@@ -168,7 +168,7 @@ impl ConfiguredCommandPopupSpec {
         dimensions(self.width, self.height)?;
         if self.source.member.binding().is_none()
             || self.context.tab_id.as_deref() != Some(self.source.tab_id.as_str())
-            || self.context.focused_pane_id.as_deref() != Some(self.source.panel_id.as_str())
+            || self.context.focused_panel_id.as_deref() != Some(self.source.panel_id.as_str())
         {
             return Err(ContractError::InvalidDocument);
         }

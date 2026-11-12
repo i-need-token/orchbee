@@ -104,6 +104,7 @@ pub enum AgentViewSortField {
 pub enum AgentViewBuiltinSortField {
     WorkspaceOrder,
     TabOrder,
+    #[serde(rename = "panel_order")]
     PaneOrder,
     Attention,
     Status,

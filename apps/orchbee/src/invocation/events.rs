@@ -12,7 +12,7 @@ fn public_kind(name: &str) -> Option<SemanticEventKind> {
     SemanticEventKind::ALL
         .iter()
         .copied()
-        .find(|kind| kind.public_name() == name)
+        .find(|kind| kind.as_str() == name)
 }
 
 #[derive(Default)]

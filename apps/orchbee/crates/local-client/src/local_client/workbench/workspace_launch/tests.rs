@@ -10,7 +10,7 @@ fn action() -> WorkbenchAction {
         launch: None,
         profile: None,
         options: Box::new(orchbee_workbench_protocol::LaunchOptions {
-            plugin_pane: None,
+            plugin_panel: None,
             plugin_context: None,
             agent_start: None,
             cwd: Some(

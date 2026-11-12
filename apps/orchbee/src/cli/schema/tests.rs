@@ -123,7 +123,7 @@ fn plugin_catalog_requires_current_provenance() {
     let schema: Value =
         serde_json::from_str(super::document("orchbee.plugin.registry").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"result":{"operation":"list","kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
+    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"result":{"operation":"list","kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panels":[],"link_handlers":[]}}]}}});
     assert!(!validator.is_valid(&receipt));
     receipt["result"]["catalog"]["plugins"][0]["source"] = Value::Null;
     assert!(validator.is_valid(&receipt));

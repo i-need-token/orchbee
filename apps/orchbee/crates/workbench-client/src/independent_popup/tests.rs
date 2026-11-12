@@ -20,7 +20,7 @@ fn id(value: u64) -> String {
 fn spec() -> PluginPopupSpec {
     serde_json::from_value(serde_json::json!({"selector":{"pluginId":"tools","entrypointId":"dashboard"},
         "source":{"terminalContextId":id(4),"tabId":id(5),"panelId":id(6),"member":{"presentationId":id(7),"selectionGeneration":"1"}},
-        "context":{"tabId":id(5),"focusedPaneId":id(6)},"cwd":null,"environment":[],"width":null,"height":null})).unwrap()
+        "context":{"tabId":id(5),"focusedPanelId":id(6)},"cwd":null,"environment":[],"width":null,"height":null})).unwrap()
 }
 fn clock() -> LocalOperationClock {
     adjustable_operation_clock(Arc::new(std::sync::atomic::AtomicU64::new(0)))

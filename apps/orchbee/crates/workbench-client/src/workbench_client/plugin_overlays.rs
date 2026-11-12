@@ -84,7 +84,7 @@ pub(super) struct Driver {
     origin: Option<LocalClientOrigin>,
     lane: Option<Lane>,
     inflight: Option<OverlayJob>,
-    // PaneObserve samples the Host-owned process exit status. The Host protocol has no exit
+    // PanelObserve samples the Host-owned process exit status. The Host protocol has no exit
     // notification; this deadline is OS/process sampling, not a semantic-state heartbeat.
     next: Option<Instant>,
 }
@@ -243,7 +243,7 @@ fn execute(
             .ok()
             .map(|result| result.outcome)
     };
-    let Some(PluginOutcome::PaneFound { pane, .. }) = read(PluginAction::PaneGet {
+    let Some(PluginOutcome::PanelFound { pane, .. }) = read(PluginAction::PanelGet {
         panel_id: job.member.panel_id.clone(),
     }) else {
         return OverlayResult::Waiting;
@@ -255,11 +255,11 @@ fn execute(
     {
         return OverlayResult::Waiting;
     }
-    let Some(PluginOutcome::PaneObserved {
+    let Some(PluginOutcome::PanelObserved {
         revision,
         settled: true,
         ..
-    }) = read(PluginAction::PaneObserve { pane })
+    }) = read(PluginAction::PanelObserve { pane })
     else {
         return OverlayResult::Waiting;
     };

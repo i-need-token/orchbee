@@ -157,7 +157,7 @@ pub(super) fn result(reply: &PaneGraphicsResult) -> Result<(), ContractError> {
             layer_count,
             client_id,
             capabilities,
-            pane_visible,
+            panel_visible,
             drawn_revision,
             file_frame_directory,
         } => {
@@ -168,7 +168,9 @@ pub(super) fn result(reply: &PaneGraphicsResult) -> Result<(), ContractError> {
             )?;
             require(
                 client_id.is_some()
-                    || capabilities.is_none() && pane_visible.is_none() && drawn_revision.is_none(),
+                    || capabilities.is_none()
+                        && panel_visible.is_none()
+                        && drawn_revision.is_none(),
             )?;
             if let Some(caps) = capabilities {
                 self::capabilities(caps)?;

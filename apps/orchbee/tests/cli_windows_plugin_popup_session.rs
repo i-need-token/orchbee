@@ -74,7 +74,7 @@ fn link_plugin(fixture: &Fixture) {
     let manifest = fixture.path("plugin/orchbee-plugin.toml");
     fs::write(
         &manifest,
-        "id = 'audit'\nname = 'Audit tools'\nversion = '1'\n\n[[panes]]\nid = 'tools'\n\
+        "id = 'audit'\nname = 'Audit tools'\nversion = '1'\n\n[[panels]]\nid = 'tools'\n\
          title = 'Tools'\nplacement = 'popup'\nwidth = '50%'\nheight = 10\n\
          command = ['cmd.exe']\n",
     )
@@ -86,7 +86,7 @@ fn link_plugin(fixture: &Fixture) {
 fn popup(fixture: &Fixture, client: &str) -> Run {
     fixture.run(&[
         "plugin",
-        "pane",
+        "panel",
         "open",
         "--plugin",
         "audit",

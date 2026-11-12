@@ -70,18 +70,18 @@ export const WorkbenchLaunchEnvironmentSchema = z
 const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
-		pluginPane: WorkbenchPluginPaneSelectorSchema.nullable().optional(),
+		pluginPanel: WorkbenchPluginPaneSelectorSchema.nullable().optional(),
 		pluginContext: PluginInvocationContextSchema.nullable().optional(),
 		environment: WorkbenchLaunchEnvironmentSchema.optional(),
 		agentStart: WorkbenchAgentStartProviderSchema.nullable().optional(),
 	})
 	.refine(
-		(value) => !value.pluginContext || Boolean(value.pluginPane),
-		'Plugin source context requires a Plugin Pane selector',
+		(value) => !value.pluginContext || Boolean(value.pluginPanel),
+		'Plugin source context requires a Plugin Panel selector',
 	)
 	.refine(
-		(value) => !value.pluginPane || !value.agentStart,
-		'A Plugin Pane launch cannot start an Agent',
+		(value) => !value.pluginPanel || !value.agentStart,
+		'A Plugin Panel launch cannot start an Agent',
 	)
 	.readonly();
 
@@ -100,8 +100,8 @@ export const WorkbenchTerminalLaunchFieldsSchema = z
 		'Launch and profile are mutually exclusive',
 	)
 	.refine(
-		(value) => !value.options?.pluginPane || (!value.launch && !value.profile),
-		'Plugin Pane launch excludes executable/profile',
+		(value) => !value.options?.pluginPanel || (!value.launch && !value.profile),
+		'Plugin Panel launch excludes executable/profile',
 	);
 
 type TerminalLaunchFields = z.output<typeof WorkbenchTerminalLaunchFieldsSchema>;
@@ -110,15 +110,15 @@ export const WorkbenchWorkspaceLaunchFieldsSchema = WorkbenchTerminalLaunchField
 		.safeExtend({ cwd: WorkbenchDirectoryPathSchema })
 		.readonly(),
 }).refine(
-	(value) => !value.options.pluginPane && !value.options.pluginContext,
-	'Workspace launch cannot launch a Plugin Pane',
+	(value) => !value.options.pluginPanel && !value.options.pluginContext,
+	'Workspace launch cannot launch a Plugin Panel',
 );
 type CanonicalTerminalLaunchFields = Readonly<{
 	launch?: z.output<typeof WorkbenchLaunchSelectionSchema>;
 	profile?: z.output<typeof WorkbenchLaunchProfileSelectorSchema>;
 	options?: Readonly<{
 		cwd?: z.output<typeof WorkbenchDirectoryPathSchema>;
-		pluginPane?: z.output<typeof WorkbenchPluginPaneSelectorSchema>;
+		pluginPanel?: z.output<typeof WorkbenchPluginPaneSelectorSchema>;
 		pluginContext?: z.output<typeof PluginInvocationContextSchema>;
 		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
 		agentStart?: z.output<typeof WorkbenchAgentStartProviderSchema>;
@@ -137,13 +137,13 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 		...(options &&
 		(options.cwd ||
 			options.environment?.length ||
-			options.pluginPane ||
+			options.pluginPanel ||
 			options.pluginContext ||
 			options.agentStart)
 			? {
 					options: {
 						...(options.cwd ? { cwd: options.cwd } : {}),
-						...(options.pluginPane ? { pluginPane: options.pluginPane } : {}),
+						...(options.pluginPanel ? { pluginPanel: options.pluginPanel } : {}),
 						...(options.pluginContext
 							? { pluginContext: normalizePluginInvocationContext(options.pluginContext) }
 							: {}),

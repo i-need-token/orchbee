@@ -52,7 +52,7 @@ const ConfiguredCommandInvocationSchema = z
 			(value.selection === null || value.source !== null) &&
 			(value.source === null ||
 				(value.context.tabId === value.source.presentation.tabId &&
-					value.context.focusedPaneId === value.source.presentation.panelId)),
+					value.context.focusedPanelId === value.source.presentation.panelId)),
 	)
 	.readonly();
 const popup = { popupId: WorkbenchRequestIdSchema };

@@ -30,7 +30,7 @@ export const enUSWebsiteMessages = {
 		'Keep both terminals in view. Read the output, switch sessions and step in when an agent needs you.',
 	'website.featureOneTitle': 'See your agents at work',
 	'website.featureOneBody':
-		'Keep the implementation and review in view. Split panes put both conversations in front of you.',
+		'Keep the implementation and review in view. Split panels put both conversations in front of you.',
 	'website.featureTwoTitle': 'A place for each project',
 	'website.featureTwoBody':
 		'Switch between tasks with their terminals grouped together. Pick up where you left off.',

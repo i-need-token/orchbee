@@ -35,6 +35,11 @@ impl super::CliText {
                 "Start in a new Panel split to the right of or below the reference Panel.",
                 "在参照面板右侧或下方拆分出的新面板中启动。",
             ),
+            (CommandPath::PluginPaneOpen, "--target-panel") => (
+                "<id>",
+                "Existing Panel used as the plugin placement target.",
+                "作为插件布局目标的已有面板。",
+            ),
             (CommandPath::AgentStart, "--panel") => (
                 "<target>",
                 "Reference Panel by its accepted ID or selector; default: the caller's own Panel.",
@@ -584,7 +589,7 @@ impl super::CliText {
                 ),
                 "--placement" => (
                     "<placement>",
-                    "Plugin pane placement: tab, split, zoomed, overlay or popup.",
+                    "Plugin panel placement: tab, split, zoomed, overlay or popup.",
                     "插件面板布局：tab、split、zoomed、overlay 或 popup。",
                 ),
                 "--plain" => (
@@ -594,7 +599,7 @@ impl super::CliText {
                 ),
                 "--plugin" => (
                     "<id>",
-                    "Select the plugin that owns the action or pane.",
+                    "Select the plugin that owns the action or Panel.",
                     "选择拥有该操作或面板的插件。",
                 ),
                 "--position" => ("<position>", "Notification placement.", "通知显示位置。"),
@@ -712,11 +717,6 @@ impl super::CliText {
                     "",
                     "Explicitly take terminal control from its current owner.",
                     "显式接管当前拥有者的终端控制权。",
-                ),
-                "--target-pane" => (
-                    "<id>",
-                    "Existing pane used as the plugin placement target.",
-                    "作为插件布局目标的已有面板。",
                 ),
                 "--target-panel" => (
                     "<target>",

@@ -330,7 +330,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
             launch: None,
             profile: None,
             options: Box::new(orchbee_workbench_protocol::LaunchOptions {
-                plugin_pane: plugin.then(|| {
+                plugin_panel: plugin.then(|| {
                     orchbee_workbench_protocol::PluginPaneSelector::new(
                         "tools".into(),
                         "dashboard".into(),

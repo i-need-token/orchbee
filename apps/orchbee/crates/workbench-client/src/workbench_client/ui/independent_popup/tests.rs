@@ -37,7 +37,7 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
         },
         context: Box::new(PluginInvocationContext {
             tab_id: Some(selected.tab_id.unwrap().to_string()),
-            focused_pane_id: Some(panel_id.to_string()),
+            focused_panel_id: Some(panel_id.to_string()),
             ..Default::default()
         }),
         cwd: None,
@@ -259,7 +259,7 @@ fn popup_admission_names_an_open_action_menu_as_modal() {
             },
             context: Box::new(PluginInvocationContext {
                 tab_id: Some(selected.tab_id.unwrap().to_string()),
-                focused_pane_id: Some(panel_id.to_string()),
+                focused_panel_id: Some(panel_id.to_string()),
                 ..Default::default()
             }),
             cwd: None,

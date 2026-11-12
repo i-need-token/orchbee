@@ -619,7 +619,7 @@ impl WorkbenchAuthority {
             WorkbenchAction::TabCreate { options, .. }
             | WorkbenchAction::PanelSplit { options, .. } => {
                 match options
-                    .plugin_pane
+                    .plugin_panel
                     .as_ref()
                     .map(|selector| {
                         super::plugin_panes::resolve(self.projection.snapshot(), &command, selector)

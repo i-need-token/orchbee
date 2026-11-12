@@ -34,7 +34,7 @@ export const PluginPopupSpecSchema = z
 	.refine(
 		(spec) =>
 			spec.context.tabId === spec.source.tabId &&
-			spec.context.focusedPaneId === spec.source.panelId,
+			spec.context.focusedPanelId === spec.source.panelId,
 		'Popup invocation context must match its observed source',
 	)
 	.refine(

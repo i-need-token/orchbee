@@ -70,7 +70,7 @@ impl PluginPopupSpec {
             size.validate()?;
         }
         if self.context.tab_id.as_deref() != Some(self.source.tab_id.as_str())
-            || self.context.focused_pane_id.as_deref() != Some(self.source.panel_id.as_str())
+            || self.context.focused_panel_id.as_deref() != Some(self.source.panel_id.as_str())
         {
             return Err(ContractError::InvalidDocument);
         }

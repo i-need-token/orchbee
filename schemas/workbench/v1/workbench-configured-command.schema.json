@@ -430,7 +430,7 @@
 									"maxLength": 120
 								},
 								"result": {
-									"$ref": "#/$defs/configuredPaneResult"
+									"$ref": "#/$defs/configuredPanelResult"
 								}
 							},
 							"required": ["kind", "commandId", "result"],
@@ -2545,7 +2545,7 @@
 						}
 					]
 				},
-				"focusedPaneId": {
+				"focusedPanelId": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -2557,7 +2557,7 @@
 						}
 					]
 				},
-				"focusedPaneCwd": {
+				"focusedPanelCwd": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -2569,7 +2569,7 @@
 						}
 					]
 				},
-				"focusedPaneAgent": {
+				"focusedPanelAgent": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -2581,7 +2581,7 @@
 						}
 					]
 				},
-				"focusedPaneStatus": {
+				"focusedPanelStatus": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -2832,7 +2832,7 @@
 			},
 			"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
 			"additionalProperties": false,
-			"$comment": "Rust and TypeScript additionally require context.tabId and focusedPaneId to equal the source Tab and Panel, and enforce aggregate context/environment UTF-8 budgets."
+			"$comment": "Rust and TypeScript additionally require context.tabId and focusedPanelId to equal the source Tab and Panel, and enforce aggregate context/environment UTF-8 budgets."
 		},
 		"editorSource": {
 			"type": "object",
@@ -4039,7 +4039,7 @@
 				}
 			]
 		},
-		"pl_paneSelector": {
+		"pl_panelSelector": {
 			"type": "object",
 			"properties": {
 				"pluginId": {
@@ -4054,7 +4054,7 @@
 			"required": ["pluginId", "entrypointId"],
 			"additionalProperties": false
 		},
-		"pl_paneInfo": {
+		"pl_panelInfo": {
 			"type": "object",
 			"additionalProperties": false,
 			"required": [
@@ -4067,7 +4067,7 @@
 			],
 			"properties": {
 				"selector": {
-					"$ref": "#/$defs/pl_paneSelector"
+					"$ref": "#/$defs/pl_panelSelector"
 				},
 				"terminalContextId": {
 					"type": "string",
@@ -4131,7 +4131,7 @@
 				"const": "00000000000000000000000000000000"
 			}
 		},
-		"configuredPaneResult": {
+		"configuredPanelResult": {
 			"type": "object",
 			"properties": {
 				"protocolVersion": {
@@ -4286,10 +4286,10 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "revision", "pane"],
+							"required": ["kind", "revision", "panel"],
 							"properties": {
 								"kind": {
-									"const": "pane-found"
+									"const": "panel-found"
 								},
 								"revision": {
 									"type": "string",
@@ -4299,7 +4299,7 @@
 										"const": "0"
 									}
 								},
-								"pane": {
+								"panel": {
 									"type": "object",
 									"additionalProperties": false,
 									"required": [
@@ -4312,7 +4312,7 @@
 									],
 									"properties": {
 										"selector": {
-											"$ref": "#/$defs/pl_paneSelector"
+											"$ref": "#/$defs/pl_panelSelector"
 										},
 										"terminalContextId": {
 											"type": "string",
@@ -4370,17 +4370,17 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "revision", "pane", "settled"],
+							"required": ["kind", "revision", "panel", "settled"],
 							"properties": {
 								"kind": {
-									"const": "pane-observed"
+									"const": "panel-observed"
 								},
 								"revision": {
 									"type": "string",
 									"pattern": "^[1-9][0-9]*$"
 								},
-								"pane": {
-									"$ref": "#/$defs/pl_paneInfo"
+								"panel": {
+									"$ref": "#/$defs/pl_panelInfo"
 								},
 								"settled": {
 									"type": "boolean"

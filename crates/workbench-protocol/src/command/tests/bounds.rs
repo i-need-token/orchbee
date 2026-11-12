@@ -172,7 +172,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
     let geometry = WorkbenchTerminalGeometry::new(4096, 64, 15, 1023).unwrap();
     let context = WorkbenchTerminalContextId::parse("ffffffffffffffffffffffffffffffff").unwrap();
     let options = crate::LaunchOptions {
-        plugin_pane: None,
+        plugin_panel: None,
         plugin_context: None,
         agent_start: None,
         cwd: Some(WorkbenchDirectoryPath::parse(&format!("/{}", "\u{1}".repeat(4095))).unwrap()),
@@ -392,7 +392,7 @@ fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands
 fn typed_plugin_launch_context_is_redacted_and_requires_supported_selector_owner() {
     let mut options = crate::LaunchOptions {
         cwd: Some(WorkbenchDirectoryPath::parse("C:/plugin").unwrap()),
-        plugin_pane: Some(
+        plugin_panel: Some(
             crate::PluginPaneSelector::new("tools".into(), "dashboard".into()).unwrap(),
         ),
         plugin_context: Some(Box::new(crate::PluginInvocationContext {
@@ -406,7 +406,7 @@ fn typed_plugin_launch_context_is_redacted_and_requires_supported_selector_owner
     assert!(debug.contains("plugin_context_present: true"));
     for with_selector in [false, true] {
         if !with_selector {
-            options.plugin_pane = None;
+            options.plugin_panel = None;
         }
         let action = WorkbenchAction::WorkspaceLaunch {
             automatic_label: false,
@@ -422,7 +422,7 @@ fn typed_plugin_launch_context_is_redacted_and_requires_supported_selector_owner
             Err(ContractError::InvalidDocument)
         );
         if !with_selector {
-            options.plugin_pane =
+            options.plugin_panel =
                 Some(crate::PluginPaneSelector::new("tools".into(), "dashboard".into()).unwrap());
         }
     }

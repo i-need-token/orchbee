@@ -4,7 +4,7 @@ use super::*;
 fn fixture() -> Fixture {
     let fixture = Fixture::new();
     let manifest = fixture.0.join("orchbee-plugin.toml");
-    std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe']\n").unwrap();
+    std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe']\n").unwrap();
     assert!(
         fixture
             .run(&[
@@ -115,17 +115,17 @@ fn submit_creation(
         })
     );
     assert_eq!(context.tab_id, tab.map(id));
-    assert_eq!(context.focused_pane_id, pane.map(id));
+    assert_eq!(context.focused_panel_id, pane.map(id));
     assert!(context.selected_text.is_none());
     if pane.is_some() {
-        assert_eq!(context.focused_pane_cwd.as_deref(), Some("C:\\frame 项目"));
-        assert_eq!(context.focused_pane_agent.as_deref(), Some("codex"));
-        assert_eq!(context.focused_pane_status.as_deref(), Some("blocked"));
+        assert_eq!(context.focused_panel_cwd.as_deref(), Some("C:\\frame 项目"));
+        assert_eq!(context.focused_panel_agent.as_deref(), Some("codex"));
+        assert_eq!(context.focused_panel_status.as_deref(), Some("blocked"));
     } else {
         assert!(
-            context.focused_pane_cwd.is_none()
-                && context.focused_pane_agent.is_none()
-                && context.focused_pane_status.is_none()
+            context.focused_panel_cwd.is_none()
+                && context.focused_panel_agent.is_none()
+                && context.focused_panel_status.is_none()
         );
     }
     let outcome = if split {
@@ -197,7 +197,7 @@ fn explicit_plugin_split_reads_target_primary_and_preserves_matching_caller_or_c
         let target = id(if case.starts_with("matching") { 6 } else { 8 });
         let args = [
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -205,7 +205,7 @@ fn explicit_plugin_split_reads_target_primary_and_preserves_matching_caller_or_c
             "dashboard",
             "--placement",
             "split",
-            "--target-pane",
+            "--target-panel",
             &target,
             "--no-focus",
             "--format=json",
@@ -370,7 +370,7 @@ fn plugin_tab_reads_destination_remembered_nonfirst_focus_and_refuses_invalid_or
         let workspace = id(12);
         let args = [
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -425,7 +425,7 @@ fn plugin_tab_destination_preserves_matching_workspace_client_or_caller_child() 
         let workspace = id(12);
         let args = [
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -498,7 +498,7 @@ fn plugin_zoomed_different_target_reads_that_pane_before_forced_client_focus() {
     let target = id(8);
     let output = fixture.run(&[
         "plugin",
-        "pane",
+        "panel",
         "open",
         "--plugin",
         "tools",
@@ -506,7 +506,7 @@ fn plugin_zoomed_different_target_reads_that_pane_before_forced_client_focus() {
         "dashboard",
         "--placement",
         "zoomed",
-        "--target-pane",
+        "--target-panel",
         &target,
         "--no-focus",
         "--format=json",

@@ -382,22 +382,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
-        spelling: "--target-pane",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::PluginPaneOpen],
-        role: OptionRole::Business,
-        value: Some("filter"),
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, value, _| {
-            options.plugin_target = Some(value);
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--ref",
         values: &[],
         closed_values: false,
@@ -1671,7 +1655,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::PanelMove],
+        commands: &[CommandPath::PanelMove, CommandPath::PluginPaneOpen],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,

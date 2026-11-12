@@ -201,7 +201,7 @@
 							"required": ["kind", "panelId"],
 							"properties": {
 								"kind": {
-									"const": "pane-get"
+									"const": "panel-get"
 								},
 								"panelId": {
 									"type": "string",
@@ -215,13 +215,13 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "pane"],
+							"required": ["kind", "panel"],
 							"properties": {
 								"kind": {
-									"const": "pane-observe"
+									"const": "panel-observe"
 								},
-								"pane": {
-									"$ref": "#/$defs/paneInfo"
+								"panel": {
+									"$ref": "#/$defs/panelInfo"
 								}
 							}
 						},
@@ -416,10 +416,10 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "revision", "pane"],
+							"required": ["kind", "revision", "panel"],
 							"properties": {
 								"kind": {
-									"const": "pane-found"
+									"const": "panel-found"
 								},
 								"revision": {
 									"type": "string",
@@ -429,7 +429,7 @@
 										"const": "0"
 									}
 								},
-								"pane": {
+								"panel": {
 									"type": "object",
 									"additionalProperties": false,
 									"required": [
@@ -442,7 +442,7 @@
 									],
 									"properties": {
 										"selector": {
-											"$ref": "#/$defs/paneSelector"
+											"$ref": "#/$defs/panelSelector"
 										},
 										"terminalContextId": {
 											"type": "string",
@@ -500,17 +500,17 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["kind", "revision", "pane", "settled"],
+							"required": ["kind", "revision", "panel", "settled"],
 							"properties": {
 								"kind": {
-									"const": "pane-observed"
+									"const": "panel-observed"
 								},
 								"revision": {
 									"type": "string",
 									"pattern": "^[1-9][0-9]*$"
 								},
-								"pane": {
-									"$ref": "#/$defs/paneInfo"
+								"panel": {
+									"$ref": "#/$defs/panelInfo"
 								},
 								"settled": {
 									"type": "boolean"
@@ -696,7 +696,7 @@
 						}
 					]
 				},
-				"focusedPaneId": {
+				"focusedPanelId": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -708,7 +708,7 @@
 						}
 					]
 				},
-				"focusedPaneCwd": {
+				"focusedPanelCwd": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -720,7 +720,7 @@
 						}
 					]
 				},
-				"focusedPaneAgent": {
+				"focusedPanelAgent": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -732,7 +732,7 @@
 						}
 					]
 				},
-				"focusedPaneStatus": {
+				"focusedPanelStatus": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -1065,7 +1065,7 @@
 				}
 			}
 		},
-		"paneSelector": {
+		"panelSelector": {
 			"type": "object",
 			"properties": {
 				"pluginId": {
@@ -1080,7 +1080,7 @@
 			"required": ["pluginId", "entrypointId"],
 			"additionalProperties": false
 		},
-		"paneInfo": {
+		"panelInfo": {
 			"type": "object",
 			"additionalProperties": false,
 			"required": [
@@ -1093,7 +1093,7 @@
 			],
 			"properties": {
 				"selector": {
-					"$ref": "#/$defs/paneSelector"
+					"$ref": "#/$defs/panelSelector"
 				},
 				"terminalContextId": {
 					"type": "string",
@@ -1260,7 +1260,7 @@
 						}
 					]
 				},
-				"focusedPaneId": {
+				"focusedPanelId": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -1272,7 +1272,7 @@
 						}
 					]
 				},
-				"focusedPaneCwd": {
+				"focusedPanelCwd": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -1284,7 +1284,7 @@
 						}
 					]
 				},
-				"focusedPaneAgent": {
+				"focusedPanelAgent": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -1296,7 +1296,7 @@
 						}
 					]
 				},
-				"focusedPaneStatus": {
+				"focusedPanelStatus": {
 					"anyOf": [
 						{
 							"type": "string",
@@ -1488,7 +1488,7 @@
 			},
 			"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
 			"additionalProperties": false,
-			"$comment": "Rust and TypeScript additionally require context.tabId and focusedPaneId to equal the source Tab and Panel, and enforce aggregate context/environment UTF-8 budgets."
+			"$comment": "Rust and TypeScript additionally require context.tabId and focusedPanelId to equal the source Tab and Panel, and enforce aggregate context/environment UTF-8 budgets."
 		},
 		"terminalContextId": {
 			"title": "WorkbenchTerminalContextId",

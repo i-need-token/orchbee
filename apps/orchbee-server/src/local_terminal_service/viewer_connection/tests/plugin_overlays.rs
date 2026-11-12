@@ -35,7 +35,7 @@ pub(super) fn enter_isolated_catalog() -> bool {
         u128::from_be_bytes(nonce)
     )));
     std::fs::create_dir(&root.0).unwrap();
-    std::fs::write(root.0.join("orchbee-plugin.toml"), "id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\ncommand=['pane.exe']\n").unwrap();
+    std::fs::write(root.0.join("orchbee-plugin.toml"), "id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\ncommand=['pane.exe']\n").unwrap();
     std::fs::write(
         root.0.join("pane.exe"),
         b"admission fixture; never executed",
@@ -95,12 +95,12 @@ fn observation(fixture: &Fixture) -> PluginRequest {
             _ => None,
         })
         .unwrap();
-    let PluginOutcome::PaneFound { pane, .. } = fixture
+    let PluginOutcome::PanelFound { pane, .. } = fixture
         .service
         .coordinator
         .lock()
         .unwrap()
-        .plugin_pane(&pane)
+        .plugin_panel(&pane)
         .unwrap()
     else {
         panic!("plugin membership");
@@ -109,7 +109,7 @@ fn observation(fixture: &Fixture) -> PluginRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 90_001)).unwrap(),
         session_id: target.session_id,
-        action: PluginAction::PaneObserve { pane },
+        action: PluginAction::PanelObserve { pane },
     }
 }
 
@@ -124,7 +124,7 @@ fn plugin_overlay_observation_releases_the_exact_temporary_viewer_before_settlem
     assert!(result.answers(&request));
     assert!(matches!(
         result.outcome,
-        PluginOutcome::PaneObserved { settled: true, .. }
+        PluginOutcome::PanelObserved { settled: true, .. }
     ));
     let effects = fixture.barrier().unwrap();
     let [
@@ -156,7 +156,7 @@ fn plugin_overlay_uncertain_cleanup_blocks_settlement_and_is_released_before_rep
     let result = fixture.service.execute_plugin(request);
     assert!(matches!(
         result.outcome,
-        PluginOutcome::PaneObserved { settled: true, .. }
+        PluginOutcome::PanelObserved { settled: true, .. }
     ));
     let effects = fixture.barrier().unwrap();
     let [
@@ -186,7 +186,7 @@ fn plugin_overlay_stale_membership_and_session_are_refused_before_any_worker_eff
     }
     let fixture = Fixture::with_plugin_panes(true);
     let mut request = observation(&fixture);
-    let PluginAction::PaneObserve { pane } = &mut request.action else {
+    let PluginAction::PanelObserve { pane } = &mut request.action else {
         unreachable!()
     };
     pane.presentation_id = TerminalPresentationId::parse(&format!("{:032x}", 99_001)).unwrap();

@@ -1,4 +1,4 @@
-//! Session-owned outer title publication, independent of pane metadata.
+//! Session-owned outer title publication, independent of Panel metadata.
 use crate::{ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 
@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 pub struct WindowTitleContext {
     pub workspace: String,
     pub tab: String,
-    pub pane: String,
+    pub panel: String,
     pub terminal_title: String,
 }
 impl WindowTitleContext {
-    pub fn new(workspace: &str, tab: &str, pane: &str, terminal_title: &str) -> Self {
+    pub fn new(workspace: &str, tab: &str, panel: &str, terminal_title: &str) -> Self {
         let bounded = |value: &str| {
             value
                 .chars()
@@ -22,19 +22,23 @@ impl WindowTitleContext {
         Self {
             workspace: bounded(workspace),
             tab: bounded(tab),
-            pane: bounded(pane),
+            panel: bounded(panel),
             terminal_title: bounded(terminal_title),
         }
     }
     fn validate(&self) -> Result<(), ContractError> {
-        if [&self.workspace, &self.tab, &self.pane, &self.terminal_title]
-            .iter()
-            .all(|value| {
-                value.len() <= 800
-                    && value.chars().count() <= 200
-                    && !value.chars().any(char::is_control)
-            })
-        {
+        if [
+            &self.workspace,
+            &self.tab,
+            &self.panel,
+            &self.terminal_title,
+        ]
+        .iter()
+        .all(|value| {
+            value.len() <= 800
+                && value.chars().count() <= 200
+                && !value.chars().any(char::is_control)
+        }) {
             Ok(())
         } else {
             Err(ContractError::InvalidDocument)

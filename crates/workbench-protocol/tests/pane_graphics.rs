@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
 fn graphics_receipts_correlate_publisher_heartbeat_and_allow_an_observed_default_client() {
     use orchbee_workbench_protocol::*;
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json"
+        "../../../schemas/workbench/v1/workbench-panel-graphics-conformance-v1.json"
     ))
     .unwrap();
     let find = |name: &str| {
@@ -53,7 +53,7 @@ fn graphics_receipts_correlate_publisher_heartbeat_and_allow_an_observed_default
         layer_count: 1,
         client_id: Some(WorkbenchClientId::parse(&format!("{:032x}", 4)).unwrap()),
         capabilities: None,
-        pane_visible: None,
+        panel_visible: None,
         drawn_revision: None,
         file_frame_directory: None,
     };
@@ -68,7 +68,7 @@ fn graphics_receipts_correlate_publisher_heartbeat_and_allow_an_observed_default
 #[test]
 fn pane_graphics_conformance_covers_closed_images_receipts_and_direction_limits() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json"
+        "../../../schemas/workbench/v1/workbench-panel-graphics-conformance-v1.json"
     ))
     .unwrap();
     for (group, accepted) in [("valid", true), ("invalid", false)] {

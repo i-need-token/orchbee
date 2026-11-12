@@ -19,7 +19,7 @@ const read = async (name: string) =>
 it('shares graphics image, resource and stream shapes with Rust and JSON Schema', async () => {
 	const corpus = z
 		.strictObject({ contractVersion: z.literal(1), valid: z.array(entry), invalid: z.array(entry) })
-		.parse(await read('workbench-pane-graphics-conformance-v1'));
+		.parse(await read('workbench-panel-graphics-conformance-v1'));
 	const ajv = new Ajv2020({ strict: true, allErrors: true });
 	ajv.addFormat('orchbee-uint64', {
 		type: 'string',
@@ -30,7 +30,7 @@ it('shares graphics image, resource and stream shapes with Rust and JSON Schema'
 	);
 	for (const schema of referenced) ajv.addSchema(z.record(z.string(), z.unknown()).parse(schema));
 	const validate = ajv.compile(
-		z.record(z.string(), z.unknown()).parse(await read('workbench-pane-graphics.schema')),
+		z.record(z.string(), z.unknown()).parse(await read('workbench-panel-graphics.schema')),
 	);
 	for (const [cases, accepted] of [
 		[corpus.valid, true],

@@ -14,7 +14,7 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
         let selector = command
             .creation
             .options
-            .plugin_pane
+            .plugin_panel
             .as_ref()
             .ok_or_else(|| Reason::SelectorUnavailable.failure())?;
         let registry = PluginRegistry::from_environment(|name| std::env::var_os(name))
@@ -34,7 +34,7 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
             .panes
             .iter()
             .find(|pane| pane.id == selector.entrypoint_id)
-            .ok_or_else(|| Reason::PaneNotFound.failure())?;
+            .ok_or_else(|| Reason::PanelNotFound.failure())?;
         if !entry.manifest.supports_windows(&pane.platforms) {
             return Err(Reason::UnsupportedPlatform.failure());
         }

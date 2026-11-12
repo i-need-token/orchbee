@@ -150,7 +150,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             search_aliases: COMMANDS,
         },
         PrefixAction::Client(A::EnterResizeMode) => {
-            built_in("orchbee.native.pane.resize-mode.enter", C::Pane, RESIZE)
+            built_in("orchbee.native.panel.resize-mode.enter", C::Pane, RESIZE)
         }
         PrefixAction::Client(A::ResizePane { .. }) => {
             built_in("workbench.panel.active.resize", C::Pane, RESIZE)
@@ -192,7 +192,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             &[ActionSearchAlias::Workspace, ActionSearchAlias::Close],
         ),
         PrefixAction::Client(A::RequestControlTakeover) => {
-            built_in("orchbee.native.pane.control.takeover", C::Pane, PANE)
+            built_in("orchbee.native.panel.control.takeover", C::Pane, PANE)
         }
         PrefixAction::Client(A::RequestWorkspaceDirectory) => built_in(
             "orchbee.native.workspace.directory.configure",
@@ -349,8 +349,8 @@ const fn split_panel(direction: PanelDirection) -> ActionMetadata<'static> {
     let id = match direction {
         PanelDirection::Down => "workbench.panel.active.split-below",
         PanelDirection::Right => "workbench.panel.active.split-right",
-        PanelDirection::Left => "orchbee.native.pane.split-left",
-        PanelDirection::Up => "orchbee.native.pane.split-above",
+        PanelDirection::Left => "orchbee.native.panel.split-left",
+        PanelDirection::Up => "orchbee.native.panel.split-above",
     };
     built_in(id, ActionCategory::Pane, SPLIT)
 }
@@ -396,11 +396,11 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::SplitPanel(direction) => split_panel(direction),
         A::MovePanel(direction) => move_panel(direction),
         A::Zoom => built_in("workbench.panel.active.maximization.toggle", C::Pane, PANE),
-        A::Resize => built_in("orchbee.native.pane.resize-mode.enter", C::Pane, RESIZE),
+        A::Resize => built_in("orchbee.native.panel.resize-mode.enter", C::Pane, RESIZE),
         A::Copy => built_in("orchbee.native.copy-mode.enter", C::Input, COPY),
         // Shares the GUI terminal catalog identity: the same copy operation, not a new one.
         A::CopySelection => built_in("terminal.selection.copy", C::Pane, COPY),
-        A::Takeover => built_in("orchbee.native.pane.control.takeover", C::Pane, PANE),
+        A::Takeover => built_in("orchbee.native.panel.control.takeover", C::Pane, PANE),
         A::ClosePane => built_in(
             "workbench.terminal.active.close",
             C::Pane,

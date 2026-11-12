@@ -124,18 +124,18 @@ fn plugin_pane_reads_correlate_the_exact_panel_without_mutation_authority() {
             .clone()
     };
     let WorkbenchRequest::Plugin(request) =
-        parse_workbench_request(&serde_json::to_vec(&doc("pane-read")).unwrap()).unwrap()
+        parse_workbench_request(&serde_json::to_vec(&doc("panel-read")).unwrap()).unwrap()
     else {
         panic!()
     };
     let WorkbenchResponse::Plugin(mut reply) =
-        parse_workbench_response(&serde_json::to_vec(&doc("pane-membership")).unwrap()).unwrap()
+        parse_workbench_response(&serde_json::to_vec(&doc("panel-membership")).unwrap()).unwrap()
     else {
         panic!()
     };
     assert!(!request.action.mutating());
     assert!(reply.answers(&request));
-    let PluginOutcome::PaneFound { pane, .. } = &mut reply.outcome else {
+    let PluginOutcome::PanelFound { pane, .. } = &mut reply.outcome else {
         panic!()
     };
     pane.panel_id = WorkbenchPanelId::parse("11111111111111111111111111111111").unwrap();

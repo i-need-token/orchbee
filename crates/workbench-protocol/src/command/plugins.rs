@@ -47,13 +47,13 @@ pub struct PluginInvocationContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tab_label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub focused_pane_id: Option<String>,
+    pub focused_panel_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub focused_pane_cwd: Option<String>,
+    pub focused_panel_cwd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub focused_pane_agent: Option<String>,
+    pub focused_panel_agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub focused_pane_status: Option<String>,
+    pub focused_panel_status: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -103,10 +103,10 @@ impl PluginInvocationContext {
             &self.workspace_cwd,
             &self.tab_id,
             &self.tab_label,
-            &self.focused_pane_id,
-            &self.focused_pane_cwd,
-            &self.focused_pane_agent,
-            &self.focused_pane_status,
+            &self.focused_panel_id,
+            &self.focused_panel_cwd,
+            &self.focused_panel_agent,
+            &self.focused_panel_status,
             &self.invocation_source,
             &self.correlation_id,
             &self.clicked_url,
@@ -145,10 +145,10 @@ impl PluginInvocationContext {
             worktree,
             tab_id,
             tab_label,
-            focused_pane_id,
-            focused_pane_cwd,
-            focused_pane_agent,
-            focused_pane_status,
+            focused_panel_id,
+            focused_panel_cwd,
+            focused_panel_agent,
+            focused_panel_status,
             selected_text,
             invocation_source,
             correlation_id,
@@ -198,10 +198,11 @@ pub enum PluginAction {
     PopupClose {
         popup_id: WorkbenchRequestId,
     },
-    PaneObserve {
+    PanelObserve {
+        #[serde(rename = "panel")]
         pane: Box<PluginPaneInfo>,
     },
-    PaneGet {
+    PanelGet {
         panel_id: crate::WorkbenchPanelId,
     },
     Invoke {
@@ -257,8 +258,8 @@ impl PluginAction {
         match self {
             Self::PopupOpen { spec, .. } => spec.validate(),
             Self::PopupRead { .. } | Self::PopupClose { .. } => Ok(()),
-            Self::PaneGet { .. } => Ok(()),
-            Self::PaneObserve { pane } => pane.validate(),
+            Self::PanelGet { .. } => Ok(()),
+            Self::PanelObserve { pane } => pane.validate(),
             Self::Invoke {
                 operation_id,
                 plugin_id,
@@ -449,13 +450,15 @@ pub enum PluginOutcome {
     PopupUnknown {
         popup_id: WorkbenchRequestId,
     },
-    PaneObserved {
+    PanelObserved {
         revision: WorkbenchRevision,
+        #[serde(rename = "panel")]
         pane: Box<PluginPaneInfo>,
         settled: bool,
     },
-    PaneFound {
+    PanelFound {
         revision: WorkbenchRevision,
+        #[serde(rename = "panel")]
         pane: Box<PluginPaneInfo>,
     },
     Started {
@@ -521,8 +524,8 @@ impl PluginResult {
             | PluginOutcome::PopupClosed { .. }
             | PluginOutcome::PopupUnknown { .. }
             | PluginOutcome::PopupClosing { .. } => {}
-            PluginOutcome::PaneFound { revision, pane }
-            | PluginOutcome::PaneObserved { revision, pane, .. } => {
+            PluginOutcome::PanelFound { revision, pane }
+            | PluginOutcome::PanelObserved { revision, pane, .. } => {
                 if revision.value() == 0 {
                     return Err(ContractError::InvalidDocument);
                 }
@@ -588,12 +591,12 @@ impl PluginResult {
                             || matches!(&self.outcome, PluginOutcome::PopupUnknown { popup_id: actual } if popup_id == actual)
                             || shared_failure
                     }
-                    PluginAction::PaneObserve { pane } => {
-                        matches!(&self.outcome, PluginOutcome::PaneObserved { pane: actual, .. } if pane == actual)
+                    PluginAction::PanelObserve { pane } => {
+                        matches!(&self.outcome, PluginOutcome::PanelObserved { pane: actual, .. } if pane == actual)
                             || shared_failure
                     }
-                    PluginAction::PaneGet { panel_id } => {
-                        matches!(&self.outcome, PluginOutcome::PaneFound { pane, .. } if *panel_id == pane.panel_id)
+                    PluginAction::PanelGet { panel_id } => {
+                        matches!(&self.outcome, PluginOutcome::PanelFound { pane, .. } if *panel_id == pane.panel_id)
                             || shared_failure
                     }
                     PluginAction::Invoke {

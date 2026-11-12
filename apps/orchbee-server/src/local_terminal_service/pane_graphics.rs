@@ -101,7 +101,7 @@ impl LocalTerminalService {
                     layer_count: catalog.len() as u16,
                     client_id: None,
                     capabilities: None,
-                    pane_visible: None,
+                    panel_visible: None,
                     drawn_revision: None,
                     file_frame_directory,
                 })

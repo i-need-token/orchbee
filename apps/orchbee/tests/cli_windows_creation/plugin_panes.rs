@@ -10,7 +10,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
     ] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
-        std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='overlay'\ncommand=['cmd.exe','/d','/c','echo dashboard']\n").unwrap();
+        std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='overlay'\ncommand=['cmd.exe','/d','/c','echo dashboard']\n").unwrap();
         assert!(
             fixture
                 .run(&[
@@ -91,7 +91,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
             assert_eq!(action["direction"], "right");
             assert_eq!(action["label"], "Dashboard");
             assert_eq!(
-                action["options"]["pluginPane"],
+                action["options"]["pluginPanel"],
                 json!({"pluginId":"tools","entrypointId":"dashboard"})
             );
             write_workbench_response(&mut stream, &WorkbenchResponse::Command(WorkbenchCommandResult {
@@ -180,7 +180,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
         });
         let output = fixture.run(&[
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -226,7 +226,7 @@ fn plugin_overlay_target_overrides_and_popup_canonical_geometry_are_refused_befo
         vec![
             "--placement",
             "overlay",
-            "--target-pane",
+            "--target-panel",
             "00000000000000000000000000000001",
         ],
         vec!["--placement", "overlay", "--direction", "down"],
@@ -234,7 +234,7 @@ fn plugin_overlay_target_overrides_and_popup_canonical_geometry_are_refused_befo
     ] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
-        std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\ncommand=['cmd.exe']\n").unwrap();
+        std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\ncommand=['cmd.exe']\n").unwrap();
         assert!(
             fixture
                 .run(&[
@@ -248,7 +248,7 @@ fn plugin_overlay_target_overrides_and_popup_canonical_geometry_are_refused_befo
         );
         let mut args = vec![
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -275,7 +275,7 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
     ] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
-        std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panes]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe','/d','/c','echo dashboard']\n").unwrap();
+        std::fs::write(&manifest, "id='tools'\nname='Tools'\nversion='1'\n[[panels]]\nid='dashboard'\ntitle='Dashboard'\nplacement='tab'\ncommand=['cmd.exe','/d','/c','echo dashboard']\n").unwrap();
         let linked = fixture.run(&[
             "plugin",
             "link",
@@ -309,10 +309,10 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
             };
             let action = json!(command.action);
             assert_eq!(action["options"]["pluginContext"]["tabId"], id(5));
-            assert_eq!(action["options"]["pluginContext"]["focusedPaneId"], id(6));
+            assert_eq!(action["options"]["pluginContext"]["focusedPanelId"], id(6));
             assert!(
                 action["options"]["pluginContext"]
-                    .get("focusedPaneCwd")
+                    .get("focusedPanelCwd")
                     .is_none()
             );
             assert!(
@@ -326,7 +326,7 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
             );
             assert_eq!(action["label"], "Dashboard");
             assert_eq!(
-                action["options"]["pluginPane"],
+                action["options"]["pluginPanel"],
                 json!({"pluginId":"tools","entrypointId":"dashboard"})
             );
             assert_eq!(
@@ -389,7 +389,7 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
         let panel = id(6);
         let mut args = vec![
             "plugin",
-            "pane",
+            "panel",
             "open",
             "--plugin",
             "tools",
@@ -403,13 +403,13 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
             args.extend([
                 "--placement",
                 if zoom { "zoomed" } else { "split" },
-                "--target-pane",
+                "--target-panel",
                 &panel,
                 "--workspace",
                 "ignored-for-splits",
             ]);
         } else {
-            args.extend(["--target-pane", &panel]);
+            args.extend(["--target-panel", &panel]);
         }
         if !focus {
             args.push("--no-focus");
@@ -480,7 +480,7 @@ fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
             };
             assert_eq!(
                 request.action,
-                PluginAction::PaneGet {
+                PluginAction::PanelGet {
                     panel_id: WorkbenchPanelId::parse(&id(6)).unwrap()
                 }
             );
@@ -489,7 +489,7 @@ fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
                     reason: PluginFailure::NotFound,
                 }
             } else {
-                PluginOutcome::PaneFound {
+                PluginOutcome::PanelFound {
                     revision: WorkbenchRevision::new(if case == "stale" { 13 } else { 12 }),
                     pane: Box::new(PluginPaneInfo {
                         selector: PluginPaneSelector::new("tools".into(), "dashboard".into())
@@ -587,7 +587,7 @@ fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
         let panel = id(6);
         let output = fixture.run(&[
             "plugin",
-            "pane",
+            "panel",
             if case == "focus" { "focus" } else { "close" },
             &panel,
             "--format=json",

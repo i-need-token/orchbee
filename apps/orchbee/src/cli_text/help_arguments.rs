@@ -253,7 +253,7 @@ impl super::CliText {
                 Argument::Session => ("<name>", "Local session name; letter case does not tell sessions apart. An explicit --session must match.", "本地会话名称，只差大小写的名称指同一会话；显式 --session 必须与其一致。"),
                 Argument::Title => ("<title>", "Display title as one argument.", "作为一个参数传入的显示标题。"),
                 Argument::ConfiguredCommand => ("<command-id>", "Exact ID returned by orchbee command list; starts with cmd_.", "orchbee command list 返回的精确 ID，以 cmd_ 开头。"),
-                Argument::Pane => ("<pane-id>", "Exact pane ID belonging to a plugin.", "属于插件的精确面板 ID。"),
+                Argument::Pane => ("<panel-id>", "Exact Panel ID belonging to a plugin.", "属于插件的精确面板 ID。"),
                 Argument::Action => ("<action-id>", "Local action ID or qualified plugin.action ID.", "本地操作 ID，或 plugin.action 完整 ID。"),
                 Argument::Repository => ("<owner/repo[/subdir]>", "GitHub repository, optionally with a plugin subdirectory.", "GitHub 仓库，可带插件子目录。"),
                 Argument::InstalledRepository => ("<plugin-id|owner/repo[/subdir]>", "Installed plugin ID or its managed repository reference.", "已安装的插件 ID，或其托管仓库引用。"),

@@ -5,7 +5,7 @@ import {
 import {
 	PaneGraphicsRequestSchema,
 	PaneGraphicsResultSchema,
-} from './workbench-pane-graphics-contract';
+} from './workbench-panel-graphics-contract';
 import { GRAPHICS_REQUEST_BYTES, GRAPHICS_RESULT_BYTES } from './workbench-graphics-image-contract';
 import {
 	ConfiguredCommandRequestSchema,
@@ -233,8 +233,8 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
 		.refine(
-			(value) => !value.options?.pluginPane && !value.options?.pluginContext,
-			'Plugin Pane creation requires tab.create or panel.split',
+			(value) => !value.options?.pluginPanel && !value.options?.pluginContext,
+			'Plugin Panel creation requires tab.create or panel.split',
 		)
 		.refine(
 			(value) => !value.options?.agentStart,
@@ -714,7 +714,7 @@ export const WorkbenchRequestSchema = z
 		if (value.kind === 'workbench.configured-command')
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		if (value.kind === 'workbench.events') maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
-		if (value.kind === 'workbench.pane-graphics') maximum = GRAPHICS_REQUEST_BYTES;
+		if (value.kind === 'workbench.panel-graphics') maximum = GRAPHICS_REQUEST_BYTES;
 		if (value.kind === 'workbench.agent-integration')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
@@ -854,7 +854,7 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
 		} else if (value.kind === 'workbench.configured-command.result') {
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
-		} else if (value.kind === 'workbench.pane-graphics.result') {
+		} else if (value.kind === 'workbench.panel-graphics.result') {
 			maximum = GRAPHICS_RESULT_BYTES;
 		} else if (value.kind === 'workbench.events.result') {
 			maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;

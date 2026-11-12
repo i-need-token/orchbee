@@ -51,7 +51,7 @@ impl Membership {
 
 impl WorkbenchAuthority {
     /// Read membership at the same canonical revision used by a later fenced close.
-    pub fn plugin_pane(&mut self, panel_id: &WorkbenchPanelId) -> PluginOutcome {
+    pub fn plugin_panel(&mut self, panel_id: &WorkbenchPanelId) -> PluginOutcome {
         if self.retired {
             return PluginOutcome::Failed {
                 reason: orchbee_workbench_protocol::PluginFailure::Unavailable,
@@ -66,7 +66,7 @@ impl WorkbenchAuthority {
                         self.plugin_panes.0.get(&presentation.presentation_id)
                     && presentation.binding.as_ref() == Some(binding)
                 {
-                    return PluginOutcome::PaneFound {
+                    return PluginOutcome::PanelFound {
                         revision: snapshot.revision,
                         pane: Box::new(PluginPaneInfo {
                             selector: selector.clone(),

@@ -1040,7 +1040,6 @@ struct Options {
     plugin_id: Option<String>,
     plugin_context: Option<String>,
     plugin_entrypoint: Option<String>,
-    plugin_target: Option<String>,
     plugin_placement: Option<String>,
     plugin_width: Option<String>,
     plugin_height: Option<String>,

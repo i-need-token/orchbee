@@ -466,7 +466,7 @@ granted—the event path never requests it.
 Copy is localized and curated from bounded Agent identity
 and event kind; it never includes prompts, commands, tool content, output, paths, or error text.
 Each semantic event identity is considered once. Activating the notification focuses the
-application and selects its exact Tab and pane but cannot answer a question or grant approval.
+application and selects its exact Tab and Panel but cannot answer a question or grant approval.
 
 The current Workbench unmounts terminal Surfaces that belong entirely to inactive tabs. A mounted
 but unfocused terminal can remind immediately, and reattachment can consider a completion fact

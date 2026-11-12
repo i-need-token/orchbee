@@ -106,7 +106,7 @@ export class ServerConfiguredCommands {
 			invocation: {
 				commandId,
 				context: {
-					...(source === null ? {} : { focusedPaneId: source.panelId, tabId: source.tabId }),
+					...(source === null ? {} : { focusedPanelId: source.panelId, tabId: source.tabId }),
 					invocationSource: 'gui',
 				},
 				expectedRevision,

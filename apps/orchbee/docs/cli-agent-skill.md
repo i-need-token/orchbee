@@ -107,11 +107,11 @@ Typed filters own their scopes and conditions and cannot mix with shorthand sele
 
 ## Plugins
 
-Use `plugin list`, `plugin action list` and `plugin pane open --help` to discover installed capabilities. `plugin link` registers a local manifest; `plugin install` and `plugin update` support `--yes` for the declared noninteractive trust flow. Enabled plugins' startup and event commands run automatically in later Sessions. Registry commands do not start a Session; action invocation and pane commands require an existing Session.
+Use `plugin list`, `plugin action list` and `plugin panel open --help` to discover installed capabilities. `plugin link` registers a local manifest; `plugin install` and `plugin update` support `--yes` for the declared noninteractive trust flow. Enabled plugins' startup and event commands run automatically in later Sessions. Registry commands do not start a Session; action invocation and panel commands require an existing Session.
 
 `plugin action invoke <action-id> --context <json>` accepts display overrides such as `{"selectedText":"example"}`. Inspect `api schema orchbee.plugin.runtime` at `$defs/context`; fields use camelCase and unknown fields are refused. Accepted plugin work can continue after the CLI exits. Use `plugin log list` for retained logs.
 
-Popup placement requires a current ready Client and focus. Remove `--no-focus`, or choose tab/split placement. `popup close` disposes of the popup terminal. Normal pane and popup lifetime rules differ; inspect the relevant receipt.
+Popup placement requires a current ready Client and focus. Remove `--no-focus`, or choose tab/split placement. `popup close` disposes of the popup terminal. Normal Panel and popup lifetime rules differ; inspect the relevant receipt.
 
 <!-- /unreleased -->
 

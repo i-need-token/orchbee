@@ -175,7 +175,7 @@ fn graphics_facts_require_the_publishing_connection_and_an_actual_matching_draw_
         )
     };
     assert!(
-        matches!(info(), Outcome::Info { pane_visible: Some(true), drawn_revision: Some(revision), capabilities: Some(caps), .. }
+        matches!(info(), Outcome::Info { panel_visible: Some(true), drawn_revision: Some(revision), capabilities: Some(caps), .. }
         if revision == WorkbenchRevision::new(1) && caps.transport == PaneGraphicsTransport::CellRaster && caps.cell_pixels.is_none() && !caps.pixel_mouse)
     );
     let mut image = frame();
@@ -199,7 +199,7 @@ fn graphics_facts_require_the_publishing_connection_and_an_actual_matching_draw_
         Outcome::Info {
             client_id: None,
             capabilities: None,
-            pane_visible: None,
+            panel_visible: None,
             drawn_revision: None,
             ..
         }
@@ -214,7 +214,7 @@ fn graphics_facts_require_the_publishing_connection_and_an_actual_matching_draw_
             }
         ),
         Outcome::Info {
-            pane_visible: Some(true),
+            panel_visible: Some(true),
             ..
         }
     ));

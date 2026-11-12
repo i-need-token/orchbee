@@ -22,7 +22,7 @@ type WindowTitleSnapshot = NonNullable<
 
 /** What a Session's title template names as `{workspace}`, `{tab}`, `{panel}` and `{terminal_title}`. */
 interface ServerWindowTitleContext {
-	readonly pane: string;
+	readonly panel: string;
 	readonly tab: string;
 	readonly terminalTitle: string;
 	readonly workspace: string;
@@ -51,7 +51,7 @@ function boundContextText(value: string): string {
 
 function sameContext(left: ServerWindowTitleContext, right: ServerWindowTitleContext): boolean {
 	return (
-		left.pane === right.pane &&
+		left.panel === right.panel &&
 		left.tab === right.tab &&
 		left.terminalTitle === right.terminalTitle &&
 		left.workspace === right.workspace
@@ -91,7 +91,7 @@ export class ServerWindowTitle {
 		if (focused && !this.#focused) this.#shown = null;
 		this.#focused = focused;
 		const bounded: ServerWindowTitleContext = {
-			pane: boundContextText(context.pane),
+			panel: boundContextText(context.panel),
 			tab: boundContextText(context.tab),
 			terminalTitle: boundContextText(context.terminalTitle),
 			workspace: boundContextText(context.workspace),

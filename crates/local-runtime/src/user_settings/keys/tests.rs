@@ -209,19 +209,19 @@ fn ordinal_agent_keys_admit_only_digits_preserve_modifiers_and_roundtrip_disable
 
 #[test]
 fn resize_actions_accept_safe_direct_and_prefix_chords_without_changing_other_defaults() {
-    let keys = read("resize_mode='prefix+P'\nresize_pane_left='ctrl+left'\nresize_pane_right='alt+right'\nresize_pane_up='prefix+up'\nresize_pane_down=[]").unwrap();
+    let keys = read("resize_mode='prefix+P'\nresize_panel_left='ctrl+left'\nresize_panel_right='alt+right'\nresize_panel_up='prefix+up'\nresize_panel_down=[]").unwrap();
     assert_eq!(keys.overrides.len(), 5);
     assert_eq!(keys.prefix, KeySettings::default().prefix);
     assert_eq!(
         keys.overrides
             .iter()
-            .find(|item| item.action == "resize_pane_left")
+            .find(|item| item.action == "resize_panel_left")
             .unwrap()
             .triggers[0]
             .chord,
         parse_chord("ctrl+left").unwrap()
     );
     for unsafe_key in ["left", "right", "up", "down", "x", "ctrl+c"] {
-        assert!(read(&format!("resize_pane_left='{unsafe_key}'")).is_err());
+        assert!(read(&format!("resize_panel_left='{unsafe_key}'")).is_err());
     }
 }

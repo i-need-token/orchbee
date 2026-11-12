@@ -239,12 +239,7 @@ fn source(snapshot: &Snapshot) -> serde_json::Value {
     json!({"kind":"server","sessionId":snapshot.session_id,"revision":snapshot.revision})
 }
 fn public_reply(reply: &SemanticEventsResult) -> Result<serde_json::Value, Failure> {
-    let mut value =
-        serde_json::to_value(reply).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    if let Outcome::Matched { event, .. } = &reply.outcome {
-        value["outcome"]["event"]["event"] = json!(event.event.public_name());
-    }
-    Ok(value)
+    serde_json::to_value(reply).map_err(|_| Failure::new(FailureKind::InternalFailure))
 }
 /// The wait answer: the Server's reply with the subscription's local cleanup beside its members.
 fn with_cleanup(mut reply: serde_json::Value, cleanup: &str) -> serde_json::Value {
@@ -263,7 +258,7 @@ fn finish_reply(
         OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":1,"source":source(snapshot),"result":with_cleanup(public_reply(&reply)?, cleanup)})),
         OutputFormat::Text => {
             let mut text = CliText::new(locale).events_status(status).to_owned();
-            if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", event.event.public_name(), crate::cli_text::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }
+            if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", event.event.as_str(), crate::cli_text::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }
             output::encode_text(&text)
         }
     }.map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;

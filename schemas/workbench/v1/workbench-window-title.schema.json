@@ -70,7 +70,7 @@
 								"context": {
 									"type": "object",
 									"additionalProperties": false,
-									"required": ["workspace", "tab", "pane", "terminalTitle"],
+									"required": ["workspace", "tab", "panel", "terminalTitle"],
 									"properties": {
 										"workspace": {
 											"type": "string",
@@ -82,7 +82,7 @@
 											"maxLength": 200,
 											"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
 										},
-										"pane": {
+										"panel": {
 											"type": "string",
 											"maxLength": 200,
 											"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"

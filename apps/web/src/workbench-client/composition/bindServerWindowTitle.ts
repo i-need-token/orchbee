@@ -70,7 +70,7 @@ export function bindServerWindowTitle({
 		const presentationId = context === null ? null : resolveActiveTerminalPresentationId(runtime);
 		namedPresentationId = presentationId;
 		windowTitle.update(titleWindow.document.hasFocus(), {
-			pane:
+			panel:
 				(presentationId === null
 					? null
 					: findServerPresentation(snapshot, presentationId)?.customLabel) ?? '',

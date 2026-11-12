@@ -98,7 +98,7 @@ const PluginCommandLogSchema = z
 		if (value.failure === 'exit-failure') return value.exitCode !== 0;
 		return value.exitCode === null;
 	});
-const paneInfo = z.strictObject({
+const panelInfo = z.strictObject({
 	selector: WorkbenchPluginPaneSelectorSchema,
 	terminalContextId: WorkbenchTerminalContextIdSchema,
 	tabId: WorkbenchTabIdSchema,
@@ -119,8 +119,8 @@ export const PluginRequestSchema = z
 			}),
 			z.strictObject({ kind: z.literal('popup-read'), popupId: WorkbenchRequestIdSchema }),
 			z.strictObject({ kind: z.literal('popup-close'), popupId: WorkbenchRequestIdSchema }),
-			z.strictObject({ kind: z.literal('pane-get'), panelId: WorkbenchPanelIdSchema }),
-			z.strictObject({ kind: z.literal('pane-observe'), pane: paneInfo }),
+			z.strictObject({ kind: z.literal('panel-get'), panelId: WorkbenchPanelIdSchema }),
+			z.strictObject({ kind: z.literal('panel-observe'), panel: panelInfo }),
 			z.strictObject({
 				kind: z.literal('invoke'),
 				operationId: jobId,
@@ -171,15 +171,15 @@ export const PluginResultSchema = z
 			z.strictObject({ kind: z.literal('popup-closing'), popupId: WorkbenchRequestIdSchema }),
 			z.strictObject({ kind: z.literal('popup-unknown'), popupId: WorkbenchRequestIdSchema }),
 			z.strictObject({
-				kind: z.literal('pane-observed'),
+				kind: z.literal('panel-observed'),
 				revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),
-				pane: paneInfo,
+				panel: panelInfo,
 				settled: z.boolean(),
 			}),
 			z.strictObject({
-				kind: z.literal('pane-found'),
+				kind: z.literal('panel-found'),
 				revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),
-				pane: z.strictObject({
+				panel: z.strictObject({
 					selector: WorkbenchPluginPaneSelectorSchema,
 					terminalContextId: WorkbenchTerminalContextIdSchema,
 					tabId: WorkbenchTabIdSchema,

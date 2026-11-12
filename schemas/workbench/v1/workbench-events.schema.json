@@ -49,7 +49,7 @@
 				}
 			]
 		},
-		"pane": {
+		"panel": {
 			"type": "object",
 			"properties": {
 				"terminalContextId": {
@@ -159,13 +159,13 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "pane"
+							"const": "panel"
 						},
-						"pane": {
-							"$ref": "#/$defs/pane"
+						"panel": {
+							"$ref": "#/$defs/panel"
 						}
 					},
-					"required": ["kind", "pane"],
+					"required": ["kind", "panel"],
 					"additionalProperties": false
 				},
 				{
@@ -232,8 +232,8 @@
 						"kind": {
 							"const": "agent"
 						},
-						"pane": {
-							"$ref": "#/$defs/pane"
+						"panel": {
+							"$ref": "#/$defs/panel"
 						},
 						"report": {
 							"$ref": "urn:orchbee:schema:workbench-panel-agent:v1#/$defs/view"
@@ -242,7 +242,7 @@
 							"const": false
 						}
 					},
-					"required": ["kind", "pane", "report", "exited"],
+					"required": ["kind", "panel", "report", "exited"],
 					"additionalProperties": false
 				},
 				{
@@ -251,8 +251,8 @@
 						"kind": {
 							"const": "output"
 						},
-						"pane": {
-							"$ref": "#/$defs/pane"
+						"panel": {
+							"$ref": "#/$defs/panel"
 						},
 						"contentGeneration": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
@@ -273,7 +273,7 @@
 							]
 						}
 					},
-					"required": ["kind", "pane", "contentGeneration", "contentRevision", "matchedLine"],
+					"required": ["kind", "panel", "contentGeneration", "contentRevision", "matchedLine"],
 					"additionalProperties": false
 				},
 				{
@@ -282,14 +282,14 @@
 						"kind": {
 							"const": "exited"
 						},
-						"pane": {
-							"$ref": "#/$defs/pane"
+						"panel": {
+							"$ref": "#/$defs/panel"
 						},
 						"lifecycleRevision": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": ["kind", "pane", "lifecycleRevision"],
+					"required": ["kind", "panel", "lifecycleRevision"],
 					"additionalProperties": false
 				},
 				{
@@ -301,14 +301,14 @@
 						"clientId": {
 							"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/clientId"
 						},
-						"pane": {
-							"$ref": "#/$defs/pane"
+						"panel": {
+							"$ref": "#/$defs/panel"
 						},
 						"observation": {
 							"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/viewportObservation"
 						}
 					},
-					"required": ["kind", "clientId", "pane", "observation"],
+					"required": ["kind", "clientId", "panel", "observation"],
 					"additionalProperties": false
 				}
 			]
@@ -350,17 +350,17 @@
 						"tab.focused",
 						"tab.renamed",
 						"tab.moved",
-						"pane.created",
-						"pane.closed",
-						"pane.updated",
-						"pane.focused",
-						"pane.moved",
-						"pane.exited",
-						"pane.agent_detected",
-						"pane.agent_status_changed",
-						"pane.output_changed",
-						"pane.output_matched",
-						"pane.scroll_changed",
+						"panel.created",
+						"panel.closed",
+						"panel.updated",
+						"panel.focused",
+						"panel.moved",
+						"panel.exited",
+						"panel.agent_detected",
+						"panel.agent_status_changed",
+						"panel.output_changed",
+						"panel.output_matched",
+						"panel.scroll_changed",
 						"layout.updated"
 					]
 				},
@@ -426,7 +426,7 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "pane"
+							"const": "panel"
 						},
 						"panelId": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
@@ -564,17 +564,17 @@
 								"tab.focused",
 								"tab.renamed",
 								"tab.moved",
-								"pane.created",
-								"pane.closed",
-								"pane.updated",
-								"pane.focused",
-								"pane.moved",
-								"pane.exited",
-								"pane.agent_detected",
-								"pane.agent_status_changed",
-								"pane.output_changed",
-								"pane.output_matched",
-								"pane.scroll_changed",
+								"panel.created",
+								"panel.closed",
+								"panel.updated",
+								"panel.focused",
+								"panel.moved",
+								"panel.exited",
+								"panel.agent_detected",
+								"panel.agent_status_changed",
+								"panel.output_changed",
+								"panel.output_matched",
+								"panel.scroll_changed",
 								"layout.updated"
 							]
 						},

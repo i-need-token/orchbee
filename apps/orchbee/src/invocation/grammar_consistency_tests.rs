@@ -64,7 +64,7 @@ fn panel_targets_and_direction_domains_have_one_spelling() {
 }
 
 #[test]
-fn public_events_use_panel_and_translate_only_at_the_boundary() {
+fn public_events_use_panel_and_refuse_pane() {
     assert!(parse(&["events", "wait", "--event", "panel.created"]).is_ok());
     assert!(parse(&["events", "wait", "--event", "pane.created"]).is_err());
     assert!(

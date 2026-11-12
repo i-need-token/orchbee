@@ -147,7 +147,7 @@ describe('Workbench command contract', () => {
 				),
 				readFile(
 					new URL(
-						'../../../../../schemas/workbench/v1/workbench-pane-graphics.schema.json',
+						'../../../../../schemas/workbench/v1/workbench-panel-graphics.schema.json',
 						import.meta.url,
 					),
 					'utf8',

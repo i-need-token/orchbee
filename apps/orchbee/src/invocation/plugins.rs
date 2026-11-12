@@ -97,7 +97,7 @@ pub(super) fn parse(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    if words.get(1) == Some(&"pane") {
+    if words.get(1) == Some(&"panel") {
         return panes::parse(words, options, envelope);
     }
     let (verb, args) = match words {

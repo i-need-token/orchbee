@@ -991,9 +991,9 @@ Panel presentation reports use OBWP 33/34 under the Session gate, with read/navi
 
 Workbench plugin execution requires read, terminal-creation and lifecycle grants before source resolution. Local terminal service checks Session/Worker identity, enabled manifest availability, action ambiguity and Windows platform support, freezes argv/cwd/context and submits once to Worker. It does not own subprocesses. Read pages remain bound to Worker generation; lost mutation replies preserve uncertainty. A managed Windows Session also runs enabled plugins' startup commands once per start and their event hooks for journaled semantic events through the same Worker jobs; one hook owner per Session stops before the Worker. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns the full contract, including delivered events and dropped overlaps.
 
-Plugin Pane Tab/split admission resolves catalog selectors after grant, revision and replay guards, then freezes an explicit program, plugin-root fallback cwd and protected display environment. Both terminal planning and completion corroborate that environment with the frozen launch, cwd, ordinary environment and Worker generation. Resolution refusal precedes canonical reservation; retained requests replay without reading a changed manifest. Batch entrypoints are refused until a literal Windows shell-wrapper contract is available.
+Plugin Panel Tab/split admission resolves catalog selectors after grant, revision and replay guards, then freezes an explicit program, plugin-root fallback cwd and protected display environment. Both terminal planning and completion corroborate that environment with the frozen launch, cwd, ordinary environment and Worker generation. Resolution refusal precedes canonical reservation; retained requests replay without reading a changed manifest. Batch entrypoints are refused until a literal Windows shell-wrapper contract is available.
 
-Plugin Pane membership is prepared against the candidate canonical snapshot and committed with its terminal reservation. The bounded ephemeral map follows exact Presentation/binding identity; read-only PaneGet prunes lost bindings and returns revision-correlated facts, including when the Worker is unavailable. A retired authority refuses the read.
+Plugin Panel membership is prepared against the candidate canonical snapshot and committed with its terminal reservation. The bounded ephemeral map follows exact Presentation/binding identity; read-only PanelGet prunes lost bindings and returns revision-correlated facts, including when the Worker is unavailable. A retired authority refuses the read.
 
 ## Agent integration admission
 
@@ -1182,7 +1182,7 @@ Worker incarnation and physical target checks before creation and after read-onl
 Worker editor resolution. Read capability never grants controller or resize rights.
 
 The independent popup owner is shared with plugin popups without installed-plugin
-resolution or canonical Pane membership for editors. Admission reserves ownership
+resolution or canonical Panel membership for editors. Admission reserves ownership
 before handoff. Host deferred Create captures immutable text before Start writes
 its exclusive document and spawns the editor. Confirmed creation precedes Start;
 unknown creation/start is retained and never resubmitted. The states are Opening,

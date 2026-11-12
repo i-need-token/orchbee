@@ -77,7 +77,7 @@ export const ConfiguredCommandPopupSpecSchema = z
 	.refine(
 		(value) =>
 			value.context.tabId === value.source.tabId &&
-			value.context.focusedPaneId === value.source.panelId,
+			value.context.focusedPanelId === value.source.panelId,
 	)
 	.readonly();
 const point = z.strictObject({

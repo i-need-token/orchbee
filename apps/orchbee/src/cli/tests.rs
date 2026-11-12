@@ -51,7 +51,7 @@ fn default_config_uses_the_setting_and_client_action_registries() {
             action.action
         );
     }
-    assert!(text.contains("# resize_pane_left = []"));
+    assert!(text.contains("# resize_panel_left = []"));
     assert!(text.contains("# focus_agent = []"));
 }
 
@@ -1275,7 +1275,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     collect(&["help", "plugin", "log", "list"]);
     for (root, family, verbs) in [
         ("terminal", "session", &["observe", "control"][..]),
-        ("plugin", "pane", &["open", "focus", "close"][..]),
+        ("plugin", "panel", &["open", "focus", "close"][..]),
         ("agent", "view", &["get", "set", "clear"][..]),
         ("panel", "graphics", &["set", "clear", "info", "stream"][..]),
     ] {

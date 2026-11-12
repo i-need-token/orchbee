@@ -162,7 +162,7 @@
 								}
 							]
 						},
-						"paneVisible": {
+						"panelVisible": {
 							"oneOf": [
 								{
 									"type": "boolean"
@@ -200,7 +200,7 @@
 						"layerCount",
 						"clientId",
 						"capabilities",
-						"paneVisible",
+						"panelVisible",
 						"drawnRevision",
 						"fileFrameDirectory"
 					],
@@ -217,7 +217,7 @@
 							"capabilities": {
 								"type": "null"
 							},
-							"paneVisible": {
+							"panelVisible": {
 								"type": "null"
 							},
 							"drawnRevision": {

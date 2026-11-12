@@ -17,30 +17,30 @@ impl super::CliText {
                 "插件尚未注册。请用 `orchbee plugin list` 查看并使用其精确 ID。\n"
             }
             (Locale::EnUs, "plugin-disabled") => {
-                "The plugin is disabled or has a registry warning. Inspect `orchbee plugin list` before opening its pane.\n"
+                "The plugin is disabled or has a registry warning. Inspect `orchbee plugin list` before opening its Panel.\n"
             }
             (Locale::ZhCn, "plugin-disabled") => {
                 "插件已禁用或存在注册表警告。请先用 `orchbee plugin list` 查看，再打开其面板。\n"
             }
-            (Locale::EnUs, "pane-not-found") => {
-                "No plugin pane matches this target or entrypoint. Inspect `orchbee plugin list` and `orchbee panel list`.\n"
+            (Locale::EnUs, "panel-not-found") => {
+                "No plugin panel matches this target or entrypoint. Inspect `orchbee plugin list` and `orchbee panel list`.\n"
             }
-            (Locale::ZhCn, "pane-not-found") => {
+            (Locale::ZhCn, "panel-not-found") => {
                 "没有与目标或入口匹配的插件面板。请用 `orchbee plugin list` 和 `orchbee panel list` 查看。\n"
             }
             (Locale::EnUs, "unsupported-platform") => {
-                "This plugin pane does not support the current platform.\n"
+                "This plugin panel does not support the current platform.\n"
             }
             (Locale::ZhCn, "unsupported-platform") => "此插件面板不支持当前平台。\n",
             (Locale::EnUs, "invalid-title") => {
-                "The plugin pane title is invalid. Check its manifest.\n"
+                "The plugin panel title is invalid. Check its manifest.\n"
             }
             (Locale::ZhCn, "invalid-title") => "插件面板标题无效。请检查其清单。\n",
             (Locale::EnUs, "invalid-geometry" | "invalid-popup-spec") => {
-                "The plugin pane geometry or popup specification is invalid. Inspect `orchbee plugin pane open --help`.\n"
+                "The plugin panel geometry or popup specification is invalid. Inspect `orchbee plugin panel open --help`.\n"
             }
             (Locale::ZhCn, "invalid-geometry" | "invalid-popup-spec") => {
-                "插件面板的几何参数或弹窗规格无效。请查看 `orchbee plugin pane open --help`。\n"
+                "插件面板的几何参数或弹窗规格无效。请查看 `orchbee plugin panel open --help`。\n"
             }
             (Locale::EnUs, "popup-focus-required") => {
                 "A popup requires focus. Remove --no-focus, or select a tab or split placement.\n"
@@ -49,10 +49,10 @@ impl super::CliText {
                 "弹窗需要焦点。请移除 --no-focus，或选择 tab／split 放置方式。\n"
             }
             (Locale::EnUs, "popup-target-unsupported") => {
-                "This placement uses the current Client selection. Remove explicit target or launch geometry overrides; inspect `orchbee plugin pane open --help`.\n"
+                "This placement uses the current Client selection. Remove explicit target or launch geometry overrides; inspect `orchbee plugin panel open --help`.\n"
             }
             (Locale::ZhCn, "popup-target-unsupported") => {
-                "此放置方式使用当前客户端选择。请移除显式目标或启动几何覆盖，并查看 `orchbee plugin pane open --help`。\n"
+                "此放置方式使用当前客户端选择。请移除显式目标或启动几何覆盖，并查看 `orchbee plugin panel open --help`。\n"
             }
             (Locale::EnUs, "client-listing-unavailable") => {
                 "The TUI Client selection is unavailable or not ready. Inspect `orchbee client list` and pass --client <id>.\n"
@@ -72,10 +72,10 @@ impl super::CliText {
             (Locale::ZhCn, "binding-unavailable") => {
                 "当前客户端没有可供此弹窗使用的终端绑定。请先选择终端面板。\n"
             }
-            (Locale::EnUs, "client-changed" | "pane-changed") => {
-                "The selected Client or plugin pane changed during preparation. Inspect the current selection before retrying.\n"
+            (Locale::EnUs, "client-changed" | "panel-changed") => {
+                "The selected Client or plugin panel changed during preparation. Inspect the current selection before retrying.\n"
             }
-            (Locale::ZhCn, "client-changed" | "pane-changed") => {
+            (Locale::ZhCn, "client-changed" | "panel-changed") => {
                 "所选客户端或插件面板在准备期间发生变化。请检查当前选择后再重试。\n"
             }
             (Locale::EnUs, "context-invalid") => {
@@ -85,7 +85,7 @@ impl super::CliText {
                 "插件调用上下文无效。请查看 `orchbee plugin action invoke --help`。\n"
             }
             (Locale::EnUs, "transport-loss" | "invalid-reply" | "plugin-unavailable") => {
-                "The local session could not provide the plugin pane information. Inspect its status before retrying.\n"
+                "The local session could not provide the plugin panel information. Inspect its status before retrying.\n"
             }
             (Locale::ZhCn, "transport-loss" | "invalid-reply" | "plugin-unavailable") => {
                 "本地会话无法提供插件面板信息。请检查其状态后再重试。\n"
@@ -192,18 +192,18 @@ impl super::CliText {
                 "在已运行的会话中执行插件操作。ID 可使用本地名称或 plugin.action 完整名称。上下文来自调用者或唯一当前客户端；--client 显式选择客户端，--context 覆盖显示字段。使用 orchbee api schema orchbee.plugin.runtime 查看输入结构（$defs/context）；字段使用 camelCase，例如 selectedText。CLI 退出后，已接纳的任务继续运行；会话关闭时停止。",
             ),
             C::PluginPaneOpen => (
-                "orchbee plugin pane open --plugin <id> --entrypoint <id> [--placement tab|split|zoomed|overlay|popup] [--width <cells|percent%>] [--height <cells|percent%>] [--workspace <id>] [--target-pane <id>] [--direction right|down] [--cwd <path>] [--env NAME=VALUE] [--client <id>] [--focus|--no-focus] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--timeout <ms>] [--format text|json]",
+                "orchbee plugin panel open --plugin <id> --entrypoint <id> [--placement tab|split|zoomed|overlay|popup] [--width <cells|percent%>] [--height <cells|percent%>] [--workspace <id>] [--target-panel <id>] [--direction right|down] [--cwd <path>] [--env NAME=VALUE] [--client <id>] [--focus|--no-focus] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--timeout <ms>] [--format text|json]",
                 "Open a plugin terminal in an existing session. The default working directory is the plugin root.\n\nPopup placement opens an independent terminal in the selected current client and requires focus; --no-focus is refused. Width and height apply only to popups: use terminal cells or percentages. Defaults come from the manifest, otherwise half of the available area. Standard terminal geometry options do not apply. Escape and prefix keys reach the popup program. Click its close button or run orchbee popup close to dispose of it.",
                 "在已运行的会话中打开插件终端，工作目录默认为插件根目录。\n\nPopup 在选中的当前客户端中打开独立终端且需要焦点；拒绝 --no-focus。宽高仅适用于 popup，可使用终端单元格数量或百分比；默认取清单配置，否则占可用区域的一半。不使用普通终端尺寸选项。Esc 和前缀键会传给弹出窗口中的程序；点击关闭按钮或执行 orchbee popup close 可关闭。",
             ),
             C::PluginPaneFocus => (
-                "orchbee plugin pane focus <pane-id> [--client <id>] [--timeout <ms>] [--format text|json]",
-                "Focus a pane with recorded plugin membership in an existing session. Stale or ordinary panes are refused.",
+                "orchbee plugin panel focus <panel-id> [--client <id>] [--timeout <ms>] [--format text|json]",
+                "Focus a Panel with recorded plugin membership in an existing session. Stale or ordinary Panels are refused.",
                 "在已运行的会话中聚焦已记录插件归属的面板；拒绝已失效或普通面板。",
             ),
             C::PluginPaneClose => (
-                "orchbee plugin pane close <pane-id> [--timeout <ms>] [--format text|json]",
-                "Close a pane with recorded plugin membership in an existing session and return its retained close receipt. Stale or ordinary panes are refused.",
+                "orchbee plugin panel close <panel-id> [--timeout <ms>] [--format text|json]",
+                "Close a Panel with recorded plugin membership in an existing session and return its retained close receipt. Stale or ordinary Panels are refused.",
                 "在已运行的会话中关闭已记录插件归属的面板，并返回保留的关闭回执；拒绝已失效或普通面板。",
             ),
             C::PopupClose => (

@@ -134,7 +134,7 @@ refuse the whole candidate. No-op returns `unchanged` without a new revision; a 
 or `alongside { workspaceId, projectLabel }`. Alongside resolves the source's current grouping at
 authoritative commit. An ungrouped source causes one atomic new Project plus membership of both
 source and newly launched Workspace; an already grouped source reuses that group. Launch requires
-an absolute `options.cwd`, excludes Plugin Pane options and conflicting launch/profile selectors,
+an absolute `options.cwd`, excludes Plugin Panel options and conflicting launch/profile selectors,
 and uses the 96 KiB launch command class. Optional `automaticLabel` requests a Workspace name that
 follows its first terminal; `Workspace.automaticLabel` carries it, and both omit `false`.
 Optional `Workspace.terminalDirectory` carries the first terminal's observed directory only while
@@ -293,7 +293,7 @@ Matched cohorts use closed `workbench.configured-command` request/result kinds
 53/54 with a 256 KiB bound. The installed key profile owns catalog IDs and all
 four actions. Invocation carries the expected canonical revision and an optional
 exact Client/source fence, never an executable. Replies distinguish background
-job admission, canonical Pane creation, plugin execution and retained Client
+job admission, canonical Panel creation, plugin execution and retained Client
 popup control; nested receipts preserve their original uncertainty.
 
 Configured popup controls carry a separate typed selector, source, display
@@ -307,13 +307,13 @@ owns configuration, dispatch and Windows lifetime.
 
 Closed plugin invocation/log/get/cancel requests and replies use matched-cohort OBWP kinds 45/46, capped at 32 KiB and 8 MiB respectively. Context carries display data only; admitted Server resolves executable intent and Worker owns processes. Log cursors pin Worker identity/generation and descending sequence; uncertain mutation delivery is explicit. Rust, TypeScript and JSON share the plugin conformance corpus. [Native plugin behavior](../../apps/orchbee/docs/windows-plugins.md) owns runtime lifecycle and remaining integration.
 
-Plugin Pane launch options may carry `pluginPane: { pluginId, entrypointId }` on `tab.create` and `panel.split`. Both identities are bounded ASCII catalog names (120 bytes; entrypoint excludes dots). The selector is exclusive with executable/profile and rejected on Workspace or child-terminal creation. Empty and null optional selectors normalize away; legacy request serialization remains unchanged. Server resolution and protected execution environment belong to terminal admission, not this display-free selector.
+Plugin Panel launch options may carry `pluginPanel: { pluginId, entrypointId }` on `tab.create` and `panel.split`. Both identities are bounded ASCII catalog names (120 bytes; entrypoint excludes dots). The selector is exclusive with executable/profile and rejected on Workspace or child-terminal creation. Empty and null optional selectors normalize away; legacy request serialization remains unchanged. Server resolution and protected execution environment belong to terminal admission, not this display-free selector.
 
-`AgentStartSelector` (`agentStart`) names one startable Agent by its exact canonical provider id from `StartableAgent`'s closed catalog on `tab.create`, `panel.split` and `workspace.launch`. It is exclusive with `pluginPane` and rejected on `panel.create-terminal`; it combines with an explicit launch or profile, since a custom default profile travels as an explicit launch. The Server resolves the catalog command and any launch-time conversation id; the selector never carries command text.
+`AgentStartSelector` (`agentStart`) names one startable Agent by its exact canonical provider id from `StartableAgent`'s closed catalog on `tab.create`, `panel.split` and `workspace.launch`. It is exclusive with `pluginPanel` and rejected on `panel.create-terminal`; it combines with an explicit launch or profile, since a custom default profile travels as an explicit launch. The Server resolves the catalog command and any launch-time conversation id; the selector never carries command text.
 
 A Worktree Create intent may carry the same selector as optional `agentStart` for the first shell of the Workspace it launches; Open and Remove refuse it, explicit null is refused like the intent's other optional fields, and an absent field serializes exactly as before. The selector is part of the intent, so a Start replay with a different selector conflicts and a Resume launches with the original one. Both schemas copy the closed catalog, and a test holds each copy to `STARTABLE_AGENT_PROVIDER_IDS`.
 
-Plugin PaneGet is read-only and returns PaneFound with a nonzero canonical revision, closed selector, exact context/Tab/Panel/Presentation and binding. Response correlation requires the requested Panel; the result is not an action Job receipt or caller display context.
+Plugin PanelGet is read-only and returns PanelFound with a nonzero canonical revision, closed selector, exact context/Tab/Panel/Presentation and binding. Response correlation requires the requested Panel; the result is not an action Job receipt or caller display context.
 
 ## Agent integration jobs
 
@@ -375,9 +375,9 @@ formed; the row model that must produce its rows belongs to the native Client.
 
 ## Plugin overlay observation and Client return identity
 
-Read-only `PaneObserve` carries exact `PluginPaneInfo`; `PaneObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.
+Read-only `PanelObserve` carries exact `PluginPaneInfo`; `PanelObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.
 
-Pane launch options additionally carry optional bounded `pluginContext` only with `pluginPane` on Tab/split creation. The shared command corpus covers null normalization, unknown fields, UTF-8/total context bounds and unsupported creation kinds. Context is display data: the Server validates source membership, supplies canonical labels and fixes invocation source/correlation before freezing protected plugin environment. It never selects executable, launch directory or Worker authority. Omission preserves legacy admission. Rust redacts the context from launch Debug; TypeScript shares its context schema without a launch/plugin import cycle and preserves the existing plugin export. Runtime semantics and acceptance scope belong to [Pane launch source context](../../apps/orchbee/docs/windows-plugins.md#pane-launch-source-context).
+Panel launch options additionally carry optional bounded `pluginContext` only with `pluginPanel` on Tab/split creation. The shared command corpus covers null normalization, unknown fields, UTF-8/total context bounds and unsupported creation kinds. Context is display data: the Server validates source membership, supplies canonical labels and fixes invocation source/correlation before freezing protected plugin environment. It never selects executable, launch directory or Worker authority. Omission preserves legacy admission. Rust redacts the context from launch Debug; TypeScript shares its context schema without a launch/plugin import cycle and preserves the existing plugin export. Runtime semantics and acceptance scope belong to [Pane launch source context](../../apps/orchbee/docs/windows-plugins.md#pane-launch-source-context).
 
 ## Independent plugin popup contract
 
@@ -408,7 +408,7 @@ Focused wire/actor evidence does not establish final GUI/cohort acceptance.
 
 ## Panel image contracts
 
-`PaneGraphicsRequest` and `PaneGraphicsResult` use OBWP 57/58 with independent preallocation bounds (24 MiB request, 512 KiB result). They cover complete PNG/RGB/RGBA/BGRA uploads, static layers, metadata catalogs, revision-pinned pixel chunks and connection-owned producers. Shapes, canonical base64, channel lengths, damage bounds, full-width producer sequences and response correlations are validated without renderer or file effects. Runtime owners supply PNG decoding, source fences, file leases and actual Client capabilities. Shared conformance cases live under `schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json`.
+`PaneGraphicsRequest` and `PaneGraphicsResult` use OBWP 57/58 with independent preallocation bounds (24 MiB request, 512 KiB result). They cover complete PNG/RGB/RGBA/BGRA uploads, static layers, metadata catalogs, revision-pinned pixel chunks and connection-owned producers. Shapes, canonical base64, channel lengths, damage bounds, full-width producer sequences and response correlations are validated without renderer or file effects. Runtime owners supply PNG decoding, source fences, file leases and actual Client capabilities. Shared conformance cases live under `schemas/workbench/v1/workbench-panel-graphics-conformance-v1.json`.
 
 Canonical `PanelNode::Split.ratio` defaults to 0.5 and admits finite 0.1–0.9 values. The identified CAS command `layout.set-split-ratio` returns `split-ratio-configured`; [shared ratio ownership](../../apps/orchbee-server/docs/shared-split-ratios.md) defines its runtime effects.
 

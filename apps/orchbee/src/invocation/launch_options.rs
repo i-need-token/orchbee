@@ -56,7 +56,7 @@ pub(super) fn launch_options_with_directory(
         .collect::<Result<Vec<_>, _>>()?;
     let environment = LaunchEnvironment::new(entries).map_err(|_| invalid_environment())?;
     Ok(LaunchOptions {
-        plugin_pane: None,
+        plugin_panel: None,
         plugin_context: None,
         agent_start: None,
         cwd,

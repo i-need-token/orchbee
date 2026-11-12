@@ -42,7 +42,7 @@
 					"context": {
 						"workspace": "",
 						"tab": "",
-						"pane": "",
+						"panel": "",
 						"terminalTitle": ""
 					}
 				}
@@ -299,7 +299,7 @@
 					"context": {
 						"workspace": "",
 						"tab": "",
-						"pane": "",
+						"panel": "",
 						"terminalTitle": ""
 					}
 				}
@@ -477,7 +477,7 @@
 					"context": {
 						"workspace": "",
 						"tab": "",
-						"pane": "",
+						"panel": "",
 						"terminalTitle": "",
 						"extra": "x"
 					}
@@ -499,7 +499,7 @@
 					"context": {
 						"workspace": "",
 						"tab": "",
-						"pane": "x\u001b",
+						"panel": "x\u001b",
 						"terminalTitle": ""
 					}
 				}
@@ -520,7 +520,7 @@
 					"context": {
 						"workspace": "",
 						"tab": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-						"pane": "",
+						"panel": "",
 						"terminalTitle": ""
 					}
 				}

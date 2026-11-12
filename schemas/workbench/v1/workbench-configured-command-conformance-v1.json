@@ -82,7 +82,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						}
 					}
 				}
@@ -121,7 +121,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"width": {
 							"kind": "percent",
@@ -267,7 +267,7 @@
 			}
 		},
 		{
-			"name": "pane-receipt",
+			"name": "panel-receipt",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -483,7 +483,7 @@
 											},
 											"context": {
 												"tabId": "00000000000000000000000000000005",
-												"focusedPaneId": "00000000000000000000000000000006"
+												"focusedPanelId": "00000000000000000000000000000006"
 											},
 											"width": null,
 											"height": null
@@ -512,7 +512,7 @@
 			}
 		},
 		{
-			"name": "pane-rejection-confirmation-required",
+			"name": "panel-rejection-confirmation-required",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -535,7 +535,7 @@
 			}
 		},
 		{
-			"name": "pane-rejection-invalid-navigation-configuration",
+			"name": "panel-rejection-invalid-navigation-configuration",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -558,7 +558,7 @@
 			}
 		},
 		{
-			"name": "pane-rejection-tab-group-unavailable",
+			"name": "panel-rejection-tab-group-unavailable",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -581,7 +581,7 @@
 			}
 		},
 		{
-			"name": "pane-rejection-split-unavailable",
+			"name": "panel-rejection-split-unavailable",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -606,7 +606,7 @@
 	],
 	"invalid": [
 		{
-			"name": "pane-rejection-unknown-reason",
+			"name": "panel-rejection-unknown-reason",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -629,7 +629,7 @@
 			}
 		},
 		{
-			"name": "pane-rejection-confirmation-extra-field",
+			"name": "panel-rejection-confirmation-extra-field",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -739,7 +739,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						}
 					}
 				}
@@ -747,7 +747,7 @@
 			"boundary": "semantic"
 		},
 		{
-			"name": "cross-pane-context",
+			"name": "cross-panel-context",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.configured-command",
@@ -794,7 +794,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "99999999999999999999999999999999"
+							"focusedPanelId": "99999999999999999999999999999999"
 						}
 					}
 				}
@@ -849,7 +849,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						}
 					}
 				}
@@ -889,7 +889,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"width": {
 							"kind": "percent",
@@ -933,7 +933,7 @@
 						},
 						"context": {
 							"tabId": "00000000000000000000000000000005",
-							"focusedPaneId": "00000000000000000000000000000006"
+							"focusedPanelId": "00000000000000000000000000000006"
 						},
 						"width": {
 							"kind": "percent",
@@ -1105,7 +1105,7 @@
 			"boundary": "semantic"
 		},
 		{
-			"name": "pane-unrelated-nested-outcome",
+			"name": "panel-unrelated-nested-outcome",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.configured-command.result",
@@ -1221,7 +1221,7 @@
 											},
 											"context": {
 												"tabId": "00000000000000000000000000000005",
-												"focusedPaneId": "00000000000000000000000000000006"
+												"focusedPanelId": "00000000000000000000000000000006"
 											},
 											"width": null,
 											"height": null

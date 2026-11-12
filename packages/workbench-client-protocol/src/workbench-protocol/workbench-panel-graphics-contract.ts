@@ -105,7 +105,7 @@ const action = z.discriminatedUnion('kind', [
 				workbenchRevision: WorkbenchRevisionSchema,
 				capabilities: GraphicsCapabilitiesSchema,
 				complete: z.boolean(),
-				panes: z
+				panels: z
 					.array(
 						z.strictObject({
 							target: resolved,
@@ -117,7 +117,7 @@ const action = z.discriminatedUnion('kind', [
 			})
 			.refine(
 				(value) =>
-					new Set(value.panes.map((pane) => pane.target.panelId)).size === value.panes.length,
+					new Set(value.panels.map((panel) => panel.target.panelId)).size === value.panels.length,
 			),
 	}),
 	z.strictObject({
@@ -168,7 +168,7 @@ const action = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('stream-close'), ...stream }),
 ]);
 export const PaneGraphicsRequestSchema = z
-	.strictObject({ kind: z.literal('workbench.pane-graphics'), ...correlation, action })
+	.strictObject({ kind: z.literal('workbench.panel-graphics'), ...correlation, action })
 	.refine((value) => encoder.encode(JSON.stringify(value)).byteLength <= GRAPHICS_REQUEST_BYTES)
 	.readonly();
 const pixels = z
@@ -210,7 +210,7 @@ const info = z
 		layerCount: z.number().int().min(0).max(16),
 		clientId: WorkbenchClientIdSchema.nullable(),
 		capabilities: GraphicsCapabilitiesSchema.nullable(),
-		paneVisible: z.boolean().nullable(),
+		panelVisible: z.boolean().nullable(),
 		drawnRevision: WorkbenchRevisionSchema.nullable(),
 		fileFrameDirectory: file.nullable(),
 	})
@@ -218,7 +218,7 @@ const info = z
 		(value) =>
 			(value.clientId !== null ||
 				(value.capabilities === null &&
-					value.paneVisible === null &&
+					value.panelVisible === null &&
 					value.drawnRevision === null)) &&
 			(value.drawnRevision === null || BigInt(value.drawnRevision) <= BigInt(value.revision)),
 	);
@@ -284,6 +284,6 @@ const outcome = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('failed'), reason: PaneGraphicsFailureSchema }),
 ]);
 export const PaneGraphicsResultSchema = z
-	.strictObject({ kind: z.literal('workbench.pane-graphics.result'), ...correlation, outcome })
+	.strictObject({ kind: z.literal('workbench.panel-graphics.result'), ...correlation, outcome })
 	.refine((value) => encoder.encode(JSON.stringify(value)).byteLength <= GRAPHICS_RESULT_BYTES)
 	.readonly();

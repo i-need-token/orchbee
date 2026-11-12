@@ -1245,8 +1245,8 @@ impl WorkbenchClientConnection<'_> {
                         self.service.policy.manage_terminal_lifecycle
                     }
                     orchbee_workbench_protocol::PluginAction::PopupRead { .. }
-                    | orchbee_workbench_protocol::PluginAction::PaneObserve { .. }
-                    | orchbee_workbench_protocol::PluginAction::PaneGet { .. }
+                    | orchbee_workbench_protocol::PluginAction::PanelObserve { .. }
+                    | orchbee_workbench_protocol::PluginAction::PanelGet { .. }
                     | orchbee_workbench_protocol::PluginAction::Invoke { .. }
                     | orchbee_workbench_protocol::PluginAction::Logs { .. }
                     | orchbee_workbench_protocol::PluginAction::Get { .. }

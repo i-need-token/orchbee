@@ -1,4 +1,4 @@
-//! Select and fence a plugin Pane's canonical source without changing Client navigation.
+//! Select and fence a plugin Panel's canonical source without changing Client navigation.
 use super::{CurrentPanel, infer, infer_context, invalid};
 use crate::{
     cli::{

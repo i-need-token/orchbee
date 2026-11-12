@@ -14,7 +14,7 @@ another Client. The localized message returns to the current Shell; CLI subcomma
 routes to another Session remain usable. Failed and ended terminals retain navigation, creation
 and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-settlement) preserves
 final output and known exit codes. An interactive Shell that exits with code 0 instead closes its
-pane, and its Tab when it was the last pane.
+Panel, and its Tab when it was the last Panel.
 
 Windows `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
 retains one connection and filter through wait slices, distinguishing match, known timeout,
@@ -257,9 +257,9 @@ Workspace on Linux and macOS; launching from another directory does not add a Wo
 and [startup position](docs/native-context-selection.md#windows-startup-preference).
 
 The prefix is `Ctrl+b`, followed by `|` for a side-by-side split, `-` for a stacked split,
-`h/j/k/l` for pane focus, or `d` to detach. Splitting focuses the new pane by default; `terminal.focus_new_panel = false` preserves the current focus once the Session publishes it. Run the executable
+`h/j/k/l` for Panel focus, or `d` to detach. Splitting focuses the new Panel by default; `terminal.focus_new_panel = false` preserves the current focus once the Session publishes it. Run the executable
 again to reattach to the retained Session. Detaching leaves shells running. A shell that exits with
-code 0 closes its pane; any other exit remains observable until its Tab/Panel is explicitly closed.
+code 0 closes its Panel; any other exit remains observable until its Tab/Panel is explicitly closed.
 If every registered Session process has exited,
 running the executable again automatically starts a fresh generation and restores the existing
 checkpoint. Live or uncertain old owners block startup; current recovery does not adopt a live Host.
@@ -268,11 +268,11 @@ retain layout changes and sampled terminal directories without screen
 contents; see the [Windows Workbench checkpoint contract](../orchbee-server/docs/workbench-checkpoint.md).
 `config check --format json` checks local cohort/runtime inputs without starting one.
 
-After attachment, the TooSmall recovery surface withholds pane geometry observations instead of
-reporting that every pane departed. Terminal viewers, controller grants, selection and the last
+After attachment, the TooSmall recovery surface withholds Panel geometry observations instead of
+reporting that every Panel departed. Terminal viewers, controller grants, selection and the last
 valid child geometry survive widths below 20 or heights below 5. Restoring a drawable viewport
 resumes normal observation and navigation without detaching; the 20×5 Minimal boundary still
-reports real pane geometry. This applies with split panes and notification cards as well.
+reports real Panel geometry. This applies with split Panels and notification cards as well.
 
 Validated Windows behavior includes native startup, Unicode rendering, burst and ordinary typing,
 CLI terminal send/read, split/focus/resize, detach/reattach with exact retained terminal identities,
@@ -343,7 +343,7 @@ The Client never restarts or adopts a failed Session. Failed/residual runtimes e
 recovery and are not deleted automatically. `Ctrl+b q` or `Ctrl+b d` closes only this Client;
 reopening attaches to the same retained shell. Additional concurrent Clients are read-only unless
 they acquire an independent controller grant. On Windows, `Ctrl+b t` explicitly takes control of
-the current pane and supplies this window's pane size; ordinary typing and clicks never take over.
+the current Panel and supplies this window's Panel size; ordinary typing and clicks never take over.
 The previous Client keeps viewing and confirms read-only on its next input or resize interaction;
 see [native controller takeover](docs/native-control-takeover.md). TTY admission occurs once, every duplicate is
 CLOEXEC, and the prepared Workbench Client plus that same TTY are handed to the interface. Terminals must
@@ -402,7 +402,7 @@ with its new peer. Other Clients keep their selection. Escape hides observation 
 and retains the operation ID.
 
 Windows `Ctrl+b F2` opens [action menus](docs/native-action-menus.md).
-Right-click a pane, Tab, Workspace, Project or Agent row for its existing actions; an Agent row
+Right-click a Panel, Tab, Workspace, Project or Agent row for its existing actions; an Agent row
 offers Rename and Close. Opening and cancelling preserve focus; addressed organization and Close actions also preserve
 the current terminal. A pointer-opened menu starts at the pressed column below its trigger row,
 else above it, and shifts left to stay inside the viewport; a keyboard-opened row menu opens beside
@@ -434,18 +434,18 @@ Esc cancels. Git directories remain, and canonical removal selects a surviving W
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.
 
-On Windows, drag a visible pane divider with the plain left button to resize panes and controlled
+On Windows, drag a visible Panel divider with the plain left button to resize Panels and controlled
 terminal viewports as the mouse moves, then release to apply one shared, saved ratio. Sidebar
 borders also resize their actual layout while held. Esc, navigation or external viewport changes
 cancel the local draft; Shift stays with the outer terminal. Further drags during submission are not queued.
 [Divider resizing](docs/native-divider-resize.md) shares the keyboard adjustment's acknowledgement
 and leaves terminal control unchanged.
 
-On Windows, unmodified dragging in a pane without application mouse tracking selects live or
+On Windows, unmodified dragging in a Panel without application mouse tracking selects live or
 retained-history text; double press selects a word and release copies the complete Host export to
 the system clipboard. `Shift` dragging stays with the outer terminal. Copy failure is localized
 and never replayed. [Selection and effects](docs/native-terminal-selection-effects.md) owns the
-clipboard dependency and lifecycle; pane-program writes, OSC 52 mode, and clipboard configuration
+clipboard dependency and lifecycle; Panel-program writes, OSC 52 mode, and clipboard configuration
 remain to be connected.
 
 [Windows custom commands](docs/windows-custom-commands.md) share one installed catalog between
@@ -643,13 +643,13 @@ The deterministic Client View transition model is:
 | Prefix + `w` or `?`                             | Leave Prefix and open the Workbench navigator or shortcut Help. Windows navigator captures keyboard/paste: arrows and Tab browse, Enter opens the painted target, Esc or its toggle closes it, and global prefix actions switch through the binding owner. Help captures ordinary input; Esc closes it, `?` closes it when repeated, and other global prefix actions switch surfaces through the same action owner.                                                                                                                                                                                                                                                                                                                        |
 | Prefix + `PageUp` or `PageDown`                 | Leave Prefix and scroll Help by eight rendered lines while its overlay is open; Up/Down scroll one line. Help presents effective global bindings plus local bindings for an active copy, resize, or sidebar-navigation mode in localized action groups, and captures printable input to fuzzy-filter action names and key labels; Backspace edits, Ctrl+u clears, and Esc closes without reaching the terminal. Scroll position is Client-local and settles from the exact rendered viewport. With Help closed, Windows Prefix + PageUp enters retained history; PageDown remains unbound. Other platforms retain the unbound behavior. Outside exclusive capture and retained history, unprefixed keys reach the terminal port unchanged. |
 | Prefix + `g`                                    | Toggle the Agent Board; repeating the binding closes it. Other configured prefix actions switch through the normal Client action owner after modal and confirmation captures keep first refusal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Prefix + `Shift+P` on Windows                   | Enter Client-local resize mode. Arrows and Shift+arrows adjust shared ratios; unknown keys and paste are swallowed, `?` shows mode help, and Esc returns input to the pane unless Help is open, where Esc closes Help.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Prefix + any other complete key or sequence     | Leave Prefix and report an unknown-prefix notice; a complete unknown sequence (a CSI tail, a UTF-8 scalar, a modified key) is exactly one unbound event and can never leave bytes in the pane.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Prefix + `Shift+P` on Windows                   | Enter Client-local resize mode. Arrows and Shift+arrows adjust shared ratios; unknown keys and paste are swallowed, `?` shows mode help, and Esc returns input to the Panel unless Help is open, where Esc closes Help.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Prefix + any other complete key or sequence     | Leave Prefix and report an unknown-prefix notice; a complete unknown sequence (a CSI tail, a UTF-8 scalar, a modified key) is exactly one unbound event and can never leave bytes in the Panel.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Prefix + `c`, `n`, `p`, `1` … `9`, or `h/j/k/l` | Leave Prefix; a connected Workbench Client executes the corresponding Tab or local Panel-focus action, while the unconnected fallback preserves shared state and reports the action as unavailable. No shell-fallback command is submitted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Prefix + `m`                                    | Leave Prefix and release or restore host pointer capture through the leased mode pair; while released the status line shows a persistent indicator and host-native selection and scrolling are unimpaired. Mouse capture, hit testing, pane passthrough, and the wheel fallback are governed by [native mouse input](docs/native-mouse-input.md).                                                                                                                                                                                                                                                                                                                                                                                          |
 | Prefix + `Ctrl+b`                               | Leave Prefix and offer one literal `Ctrl+b` event to the terminal-input port.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Prefix + `q` or `d`                             | Leave Prefix and close this Client shell.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Prefix + `Esc`                                  | Cancel Prefix without changing an overlay. With Help open, `Esc` closes it; native captures use their local close route. Only when the pane owns input does `Esc` reach the terminal as ordinary input.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Prefix + `Esc`                                  | Cancel Prefix without changing an overlay. With Help open, `Esc` closes it; native captures use their local close route. Only when the Panel owns input does `Esc` reach the terminal as ordinary input.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Resize                                          | Query the admitted stdout descriptor, update the fixed backend viewport, and recompute only the Client-local viewport class. Crossing into narrow mode hides the docked sidebar; returning wide closes a sidebar overlay and restores the prior wide-sidebar preference.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Event/draw error, panic, or termination signal  | Stop the loop and attempt cursor, alternate-screen, and raw-mode restoration without starting or stopping another process.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
@@ -834,7 +834,7 @@ Future wiring must add deterministic process tests before claiming the model map
 For an actual TUI invocation, `ORCHBEE_TUI_MEASUREMENTS` may select one new absolute diagnostic
 file in an existing owned directory. Help, version, queries and other non-TUI commands do not read
 it or create diagnostic files. The opt-in collector records bounded timing/count samples in memory
-and writes them after terminal restoration; it records no input bytes or pane text. The
+and writes them after terminal restoration; it records no input bytes or Panel text. The
 [timing contract](docs/native-terminal-environment.md#tui-timing-observations) defines the schema,
 failure and truncation rules, packet correlation, and the limits of internal completion times.
 Compare enabled and disabled runs before attributing delay to the measured runtime. The variable

@@ -53,17 +53,17 @@ const SemanticEventKindSchema = z.enum([
 	'tab.focused',
 	'tab.renamed',
 	'tab.moved',
-	'pane.created',
-	'pane.closed',
-	'pane.updated',
-	'pane.focused',
-	'pane.moved',
-	'pane.exited',
-	'pane.agent_detected',
-	'pane.agent_status_changed',
-	'pane.output_changed',
-	'pane.output_matched',
-	'pane.scroll_changed',
+	'panel.created',
+	'panel.closed',
+	'panel.updated',
+	'panel.focused',
+	'panel.moved',
+	'panel.exited',
+	'panel.agent_detected',
+	'panel.agent_status_changed',
+	'panel.output_changed',
+	'panel.output_matched',
+	'panel.scroll_changed',
 	'layout.updated',
 ]);
 const SemanticEventCursorSchema = z
@@ -128,7 +128,7 @@ const eventData = z.discriminatedUnion('kind', [
 		label: WorkbenchLabelSchema,
 		index: z.number().int().min(0).max(4294967295),
 	}),
-	z.strictObject({ kind: z.literal('pane'), pane: SemanticPaneSchema }),
+	z.strictObject({ kind: z.literal('panel'), panel: SemanticPaneSchema }),
 	z.strictObject({
 		kind: z.literal('layout'),
 		terminalContextId: WorkbenchTerminalContextIdSchema,
@@ -144,13 +144,13 @@ const eventData = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({
 		kind: z.literal('agent'),
-		pane: SemanticPaneSchema,
+		panel: SemanticPaneSchema,
 		report: PanelAgentViewSchema,
 		exited: z.literal(false),
 	}),
 	z.strictObject({
 		kind: z.literal('output'),
-		pane: SemanticPaneSchema,
+		panel: SemanticPaneSchema,
 		contentGeneration: WorkbenchRevisionSchema.refine((value) => value !== '0'),
 		contentRevision: WorkbenchRevisionSchema,
 		matchedLine: z
@@ -160,13 +160,13 @@ const eventData = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({
 		kind: z.literal('exited'),
-		pane: SemanticPaneSchema,
+		panel: SemanticPaneSchema,
 		lifecycleRevision: WorkbenchRevisionSchema,
 	}),
 	z.strictObject({
 		kind: z.literal('scroll'),
 		clientId: WorkbenchClientIdSchema,
-		pane: SemanticPaneSchema,
+		panel: SemanticPaneSchema,
 		observation: ClientViewportObservationSchema,
 	}),
 ]);
@@ -200,8 +200,10 @@ const SemanticEventSchema = z
 				);
 			case 'tab':
 				return ['tab.created', 'tab.closed', 'tab.renamed', 'tab.moved'].includes(value.event);
-			case 'pane':
-				return ['pane.created', 'pane.closed', 'pane.updated', 'pane.moved'].includes(value.event);
+			case 'panel':
+				return ['panel.created', 'panel.closed', 'panel.updated', 'panel.moved'].includes(
+					value.event,
+				);
 			case 'layout':
 				return (
 					value.event === 'layout.updated' &&
@@ -250,24 +252,24 @@ const SemanticEventSchema = z
 			case 'client':
 				return (
 					value.workspaceId === data.workspaceId &&
-					['workspace.focused', 'tab.focused', 'pane.focused', 'layout.updated'].includes(
+					['workspace.focused', 'tab.focused', 'panel.focused', 'layout.updated'].includes(
 						value.event,
 					)
 				);
 			case 'agent':
-				return ['pane.agent_detected', 'pane.agent_status_changed', 'pane.updated'].includes(
+				return ['panel.agent_detected', 'panel.agent_status_changed', 'panel.updated'].includes(
 					value.event,
 				);
 			case 'output':
 				return (
-					data.pane.binding !== null &&
-					['pane.output_changed', 'pane.output_matched', 'pane.updated'].includes(value.event) &&
-					(value.event !== 'pane.output_matched' || data.matchedLine !== null)
+					data.panel.binding !== null &&
+					['panel.output_changed', 'panel.output_matched', 'panel.updated'].includes(value.event) &&
+					(value.event !== 'panel.output_matched' || data.matchedLine !== null)
 				);
 			case 'exited':
-				return data.pane.binding !== null && value.event === 'pane.exited';
+				return data.panel.binding !== null && value.event === 'panel.exited';
 			case 'scroll':
-				return value.event === 'pane.scroll_changed';
+				return value.event === 'panel.scroll_changed';
 		}
 	})
 	.readonly();
@@ -279,7 +281,7 @@ const scope = z.discriminatedUnion('kind', [
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 	}),
 	z.strictObject({ kind: z.literal('tab'), tabId: WorkbenchTabIdSchema }),
-	z.strictObject({ kind: z.literal('pane'), panelId: WorkbenchPanelIdSchema }),
+	z.strictObject({ kind: z.literal('panel'), panelId: WorkbenchPanelIdSchema }),
 	z.strictObject({ kind: z.literal('client'), clientId: WorkbenchClientIdSchema }),
 ]);
 const condition = z.discriminatedUnion('kind', [
@@ -335,15 +337,15 @@ const SemanticEventFilterSchema = z
 		if (filter.kind !== 'event') return true;
 		switch (filter.condition.kind) {
 			case 'any':
-				return !['pane.output_matched', 'pane.scroll_changed'].includes(filter.event);
+				return !['panel.output_matched', 'panel.scroll_changed'].includes(filter.event);
 			case 'label':
-				return ['workspace.renamed', 'tab.renamed', 'pane.updated'].includes(filter.event);
+				return ['workspace.renamed', 'tab.renamed', 'panel.updated'].includes(filter.event);
 			case 'output-revision':
-				return filter.event === 'pane.output_changed';
+				return filter.event === 'panel.output_changed';
 			case 'agent':
-				return filter.event === 'pane.agent_detected';
+				return filter.event === 'panel.agent_detected';
 			case 'agent-state':
-				return filter.event === 'pane.agent_status_changed';
+				return filter.event === 'panel.agent_status_changed';
 		}
 	})
 	.readonly();

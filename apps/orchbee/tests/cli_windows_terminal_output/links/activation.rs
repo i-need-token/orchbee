@@ -297,16 +297,16 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
             assert_eq!(plugin_id.as_deref(), Some("tools"));
             assert_eq!(action_id, "open");
             assert_eq!(
-                context.focused_pane_id.as_deref(),
+                context.focused_panel_id.as_deref(),
                 Some("22222222222222222222222222222222")
             );
             assert_eq!(context.tab_label.as_deref(), Some("tab"));
             if mode == "agent-unavailable" {
-                assert!(context.focused_pane_agent.is_none());
-                assert!(context.focused_pane_status.is_none());
+                assert!(context.focused_panel_agent.is_none());
+                assert!(context.focused_panel_status.is_none());
             } else {
-                assert_eq!(context.focused_pane_agent.as_deref(), Some("codex"));
-                assert_eq!(context.focused_pane_status.as_deref(), Some("working"));
+                assert_eq!(context.focused_panel_agent.as_deref(), Some("codex"));
+                assert_eq!(context.focused_panel_status.as_deref(), Some("working"));
             }
             // The clicked Panel's Context belongs to the bound snapshot's only Workspace.
             assert_eq!(
@@ -325,7 +325,7 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                 context.correlation_id.as_deref(),
                 Some(operation_id.as_str())
             );
-            assert!(context.focused_pane_cwd.is_none() && context.selected_text.is_none());
+            assert!(context.focused_panel_cwd.is_none() && context.selected_text.is_none());
             if mode == "lost" {
                 return;
             }

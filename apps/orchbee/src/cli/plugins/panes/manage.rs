@@ -69,7 +69,7 @@ fn execute(
                 protocol_version: ProtocolVersion,
                 request_id: query::request_id()?,
                 session_id: snapshot.session_id.clone(),
-                action: PluginAction::PaneGet {
+                action: PluginAction::PanelGet {
                     panel_id: panel_id.clone(),
                 },
             },
@@ -79,10 +79,10 @@ fn execute(
         .map_err(|_| super::Reason::TransportLoss.failure())?;
     signals.check_before(deadline)?;
     let (revision, pane) = match reply.outcome {
-        PluginOutcome::PaneFound { revision, pane } => (revision, pane),
+        PluginOutcome::PanelFound { revision, pane } => (revision, pane),
         PluginOutcome::Failed {
             reason: PluginFailure::NotFound,
-        } => return Err(super::Reason::PaneNotFound.failure()),
+        } => return Err(super::Reason::PanelNotFound.failure()),
         PluginOutcome::Failed {
             reason: PluginFailure::Denied,
         } => return Err(Failure::new(FailureKind::Denied)),
@@ -91,7 +91,7 @@ fn execute(
         _ => return Err(super::Reason::InvalidReply.failure()),
     };
     if revision != snapshot.revision {
-        return Err(super::Reason::PaneChanged.failure());
+        return Err(super::Reason::PanelChanged.failure());
     }
     if pane.panel_id != *panel_id
         || pane.tab_id != tab.tab_id

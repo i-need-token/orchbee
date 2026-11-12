@@ -86,7 +86,7 @@ fn graphics_upload_clear_info_and_unknown_submission_keep_closed_receipts_withou
                         layer_count: 0,
                         client_id: None,
                         capabilities: None,
-                        pane_visible: None,
+                        panel_visible: None,
                         drawn_revision: None,
                         file_frame_directory: None,
                     }

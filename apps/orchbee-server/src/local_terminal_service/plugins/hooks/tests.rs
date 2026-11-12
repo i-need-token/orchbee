@@ -105,7 +105,7 @@ const TOOLS: &str = "id='tools'\nname='Tools'\nversion='1'\n\
 [[startup]]\nplatforms=['linux']\ncommand=['true']\n\
 [[events]]\non='tab.created'\ncommand=['cmd.exe','/d','/c','echo tab']\n\
 [[events]]\non='tab.created'\ncommand=['cmd.exe','/d','/c','echo again']\n\
-[[events]]\non='pane.created'\ncommand=['cmd.exe','/d','/c','echo pane']\n\
+[[events]]\non='panel.created'\ncommand=['cmd.exe','/d','/c','echo pane']\n\
 [[events]]\non='panel.output_changed'\ncommand=['cmd.exe','/d','/c','echo output']\n";
 
 #[test]
@@ -179,14 +179,11 @@ fn plugin_event_hooks_run_once_per_occurrence_and_drop_overlaps_without_queueing
 }
 
 #[test]
-fn plugin_hooks_accept_both_panel_spellings_and_never_hook_undelivered_events() {
+fn plugin_hooks_match_the_event_name_and_never_hook_undelivered_events() {
     let root = Root::new();
     let registry = PluginRegistry::at(root.0.join("catalog")).unwrap();
     root.link(&registry, "tools", TOOLS, true);
     let entry = &registry.list(None).unwrap().plugins[0];
-    let public = Kind::PaneCreated.public_name();
-    assert_eq!(public, "panel.created");
-    assert_eq!(hook_commands(entry, Kind::PaneCreated, &public).len(), 1);
-    let output = Kind::PaneOutputChanged.public_name();
-    assert!(hook_commands(entry, Kind::PaneOutputChanged, &output).is_empty());
+    assert_eq!(hook_commands(entry, Kind::PaneCreated).len(), 1);
+    assert!(hook_commands(entry, Kind::PaneOutputChanged).is_empty());
 }
