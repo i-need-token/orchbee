@@ -117,7 +117,7 @@ Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，�
 
 ## 已保存机器
 
-`machine list/add/rename/enable/disable/remove` 管理已保存 SSH 配置。路由选项必须位于第一个位置：`orchbee --machine <name-or-id> <command>`。它与本地 `--session` 冲突；TUI 和终端流不转发。远端 cwd 指向远端路径，文件与 stdin 输入在本地读取。删除配置不会停止远端 Session。
+`machine list/add/rename/enable/disable/remove` 管理已保存的远程机器；rename、remove、enable 和 disable 用 `<id|label>` 指定机器，多台机器同名时须改用 ID。`machine connect/disconnect` 暂不可用，以退出码 4 结束且不产生任何效果。路由选项必须位于第一个位置：`orchbee --machine <name-or-id> <command>`。它与本地 `--session` 冲突；TUI 和终端流不转发。远端 cwd 指向远端路径，文件与 stdin 输入在本地读取。删除机器不会停止远端 Session。
 
 ## 关闭、停止与恢复
 

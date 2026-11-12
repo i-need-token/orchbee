@@ -271,7 +271,8 @@ pub mod application {
 
     pub mod machine_ssh {
         pub use crate::machine_ssh::{
-            AdmissionError, Client, client, command, executable, execute, literal, program,
+            AdmissionError, Client, PROGRAM_NOT_FOUND, client, command, executable, execute,
+            literal, program,
         };
     }
 
@@ -282,7 +283,8 @@ pub mod application {
 
     pub mod machines {
         pub use crate::machines::{
-            Catalog, Draft, Edit, Error, Profile, ProfileId, Store, valid_label, valid_target,
+            Catalog, Connection, Draft, Edit, Error, Profile, ProfileId, RemoteInstall, Store,
+            default_label, valid_label, valid_target,
         };
     }
 

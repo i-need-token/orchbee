@@ -92,7 +92,7 @@ fn preparation_requires_a_fresh_compatible_observation_and_retains_partial_state
     assert_eq!(server(&v), Err(Error::RemoteNotReady));
     let mut v = client_document();
     v["result"]["platform"] = json!("linux");
-    assert!(matches!(super::client(&v), Err(Error::RemoteIncompatible)));
+    assert!(matches!(super::client(&v), Err(Error::RemoteUnsupported)));
     v = client_document();
     v["result"]["executable"]["path"] = json!("relative.exe");
     assert!(matches!(super::client(&v), Err(Error::RemoteProtocol)));

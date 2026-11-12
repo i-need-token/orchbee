@@ -1,21 +1,31 @@
-//! Constructs typed machine-profile commands from admitted options and validates profile
-//! names, remote targets, Session names, and scope. It performs no profile persistence, SSH
-//! connection, or machine discovery.
+//! Constructs typed machine commands from admitted options and validates machine selectors, names,
+//! remote targets, Session names, and scope. It performs no catalog persistence, SSH connection, or
+//! machine discovery.
 
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
     UsageReason, check_scope, missing_command, missing_required, unexpected_argument, usage_with,
 };
-use crate::machines::{Draft, ProfileId, valid_label, valid_target};
+use crate::machines::{Draft, default_label, valid_label, valid_target};
 use orchbee_local_runtime::SessionName;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MachineCommand {
     List,
     Add(Draft),
-    Rename { id: ProfileId, label: String },
-    Remove(ProfileId),
-    Enable { id: ProfileId, enabled: bool },
+    /// `machine` names one saved machine by ID or exact label; the catalog resolves it.
+    Rename {
+        machine: String,
+        label: String,
+    },
+    Remove(String),
+    Enable {
+        machine: String,
+        enabled: bool,
+    },
+    /// A verb or option whose slice has not landed. The whole invocation was parsed and is
+    /// refused before any effect.
+    NotYetAvailable(&'static str),
 }
 impl MachineCommand {
     pub(crate) fn operation(&self) -> &'static str {
@@ -26,8 +36,13 @@ impl MachineCommand {
             Self::Remove(_) => "remove",
             Self::Enable { enabled: true, .. } => "enable",
             Self::Enable { enabled: false, .. } => "disable",
+            Self::NotYetAvailable(operation) => operation,
         }
     }
+}
+/// Whether a word can name a saved machine: the label grammar, as the `--machine` prefix admits.
+pub(crate) fn valid_selector(value: &str) -> bool {
+    valid_label(value) && !value.starts_with('-')
 }
 pub(super) fn parse(
     words: &[&str],
@@ -46,6 +61,8 @@ pub(super) fn parse(
         "remove" => "machine remove",
         "enable" => "machine enable",
         "disable" => "machine disable",
+        "connect" => "machine connect",
+        "disconnect" => "machine disconnect",
         _ => {
             return Err(unexpected_argument(
                 UsageContext::Path("machine"),
@@ -67,66 +84,77 @@ pub(super) fn parse(
             envelope,
         )
     };
-    let command = if verb == "list" {
+    let format = options.format.unwrap_or(OutputFormat::Text);
+    if verb == "list" {
         if let Some(arg) = args.first() {
             return Err(unexpected_argument(context, arg, envelope));
         }
-        MachineCommand::List
+        return Ok(Request::Machine {
+            command: MachineCommand::List,
+            format,
+        });
+    }
+    let operand = if verb == "add" {
+        "<ssh-target>"
     } else {
-        let operand = if verb == "add" {
-            "<ssh-target>"
+        "<id|label>"
+    };
+    let [arg] = args else {
+        return Err(if args.is_empty() {
+            missing_required(context, operand, envelope)
         } else {
-            "<profile-id>"
-        };
-        let [arg] = args else {
-            return Err(if args.is_empty() {
-                missing_required(context, operand, envelope)
-            } else {
-                unexpected_argument(context, args[1], envelope)
-            });
-        };
-        let label = if matches!(verb, "add" | "rename") {
-            let value = options
-                .label
-                .as_deref()
-                .ok_or_else(|| missing_required(context, "'--label'", envelope))?;
-            if !valid_label(value) {
-                return Err(invalid("--label", value, ExpectedValue::MachineLabel));
-            }
-            value
+            unexpected_argument(context, args[1], envelope)
+        });
+    };
+    let label = match (verb, options.label.as_deref()) {
+        (_, Some(value)) if !valid_label(value) => {
+            return Err(invalid("--label", value, ExpectedValue::MachineLabel));
+        }
+        (_, Some(value)) => value.to_owned(),
+        ("rename", None) => return Err(missing_required(context, "'--label'", envelope)),
+        _ => String::new(),
+    };
+    let seen = |flag| options.seen.contains(&flag);
+    let command = if verb == "add" {
+        if !valid_target(arg) {
+            return Err(invalid("<ssh-target>", arg, ExpectedValue::SshTarget));
+        }
+        let session = options.remote_session.as_deref().unwrap_or("default");
+        SessionName::parse(session)
+            .map_err(|_| invalid("--remote-session", session, ExpectedValue::SessionName))?;
+        let label = if label.is_empty() {
+            default_label(arg)
         } else {
-            ""
+            label
         };
-        if verb == "add" {
-            if !valid_target(arg) {
-                return Err(invalid("<ssh-target>", arg, ExpectedValue::SshTarget));
-            }
-            let session = options.remote_session.as_deref().unwrap_or("default");
-            SessionName::parse(session)
-                .map_err(|_| invalid("--remote-session", session, ExpectedValue::SessionName))?;
-            let draft = Draft::parse(label, arg, session)
-                .ok_or_else(|| invalid("<ssh-target>", arg, ExpectedValue::SshTarget))?;
+        let draft = Draft::parse(&label, arg, session)
+            .ok_or_else(|| invalid("<ssh-target>", arg, ExpectedValue::SshTarget))?;
+        if seen("--no-install") {
+            MachineCommand::NotYetAvailable("add")
+        } else {
             MachineCommand::Add(draft)
-        } else {
-            let id = ProfileId::parse(arg)
-                .ok_or_else(|| invalid("<profile-id>", arg, ExpectedValue::MachineId))?;
-            match verb {
-                "rename" => MachineCommand::Rename {
-                    id,
-                    label: label.to_owned(),
-                },
-                "remove" => MachineCommand::Remove(id),
-                _ => MachineCommand::Enable {
-                    id,
-                    enabled: verb == "enable",
-                },
-            }
+        }
+    } else {
+        if !valid_selector(arg) {
+            return Err(invalid("<id|label>", arg, ExpectedValue::MachineSelector));
+        }
+        let machine = (*arg).to_owned();
+        match verb {
+            "rename" => MachineCommand::Rename { machine, label },
+            "remove" if seen("--stop-session") => MachineCommand::NotYetAvailable("remove"),
+            "remove" => MachineCommand::Remove(machine),
+            "enable" | "disable" => MachineCommand::Enable {
+                machine,
+                enabled: verb == "enable",
+            },
+            _ => MachineCommand::NotYetAvailable(if verb == "connect" {
+                "connect"
+            } else {
+                "disconnect"
+            }),
         }
     };
-    Ok(Request::Machine {
-        command,
-        format: options.format.unwrap_or(OutputFormat::Text),
-    })
+    Ok(Request::Machine { command, format })
 }
 #[cfg(test)]
 mod tests;

@@ -47,7 +47,8 @@
 								"ssh-unavailable",
 								"ssh-failed",
 								"remote-protocol",
-								"remote-incompatible",
+								"remote-not-installed",
+								"remote-unsupported",
 								"remote-other-environment",
 								"remote-not-ready",
 								"cancelled",
@@ -56,6 +57,7 @@
 								"internal",
 								"ambiguous-machine",
 								"disabled-machine",
+								"unsupported-machine",
 								"input-source",
 								"remote-rejected-or-interrupted"
 							]

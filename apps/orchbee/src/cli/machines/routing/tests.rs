@@ -27,11 +27,10 @@ fn routed_path_packets_retain_the_exact_unresolved_operand() {
 #[test]
 fn selection_uses_id_before_exact_label_and_rejects_ambiguity_and_disabled() {
     let id = "11111111111111111111111111111111";
-    let a = Profile {
-        id: ProfileId::parse(id).unwrap(),
-        draft: Draft::parse("same", "host", "work").unwrap(),
-        enabled: true,
-    };
+    let a = Profile::new(
+        ProfileId::parse(id).unwrap(),
+        Draft::parse("same", "host", "work").unwrap(),
+    );
     let mut b = a.clone();
     b.id = ProfileId::parse("22222222222222222222222222222222").unwrap();
     let mut catalog = Catalog {

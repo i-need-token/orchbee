@@ -254,8 +254,8 @@ fn routing_help_and_selection_refuse_before_ssh_or_session_effects() {
     let root = fixture.data_root().state();
     let mut cache = PrivateCache::acquire(&root, "machines").unwrap();
     cache.replace("machines.json",&serde_json::to_vec(&json!({"version":1,"revision":1,"profiles":[
-        {"id":"11111111111111111111111111111111","label":"same","target":"example.invalid","session":"work","enabled":false},
-        {"id":"22222222222222222222222222222222","label":"same","target":"example.invalid","session":"work","enabled":true}
+        {"id":"11111111111111111111111111111111","label":"same","connection":{"kind":"ssh","target":"example.invalid"},"session":"work","enabled":false,"remoteInstall":"manual"},
+        {"id":"22222222222222222222222222222222","label":"same","connection":{"kind":"ssh","target":"example.invalid"},"session":"work","enabled":true,"remoteInstall":"manual"}
     ]})).unwrap()).unwrap();
     drop(cache);
     for (selector, reason) in [

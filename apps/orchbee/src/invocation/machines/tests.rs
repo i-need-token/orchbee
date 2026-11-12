@@ -40,8 +40,6 @@ fn machine_grammar_is_complete_before_any_effect() {
         vec!["machine", "list", "--json", "--format=json"],
         vec!["machine", "list", "--json", "--json"],
         vec!["status", "--json"],
-        vec!["machine", "remove", "host"],
-        vec!["machine", "add", "host"],
         vec!["machine", "add", "host", "--label", " "],
         vec!["machine", "add", "host;calc", "--label", "x"],
         vec![

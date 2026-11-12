@@ -117,7 +117,7 @@ Popup placement requires a current ready Client and focus. Remove `--no-focus`, 
 
 ## Saved machines
 
-`machine list/add/rename/enable/disable/remove` manage saved SSH profiles. The routing option must be first: `orchbee --machine <name-or-id> <command>`. It conflicts with local `--session`; TUI and terminal streams are not routed. Remote cwd names remote paths, while file/stdin input is local. Removing a profile does not stop remote sessions.
+`machine list/add/rename/enable/disable/remove` manage saved remote machines; rename, remove, enable and disable name one by `<id|label>`, and a label several machines share must be replaced by its ID. `machine connect/disconnect` are not available yet and exit 4 without effect. The routing option must be first: `orchbee --machine <name-or-id> <command>`. It conflicts with local `--session`; TUI and terminal streams are not routed. Remote cwd names remote paths, while file/stdin input is local. Removing a machine does not stop remote sessions.
 
 ## Close, stop and recover
 

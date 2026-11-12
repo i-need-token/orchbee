@@ -314,10 +314,12 @@ impl super::CliText {
             }
             (Locale::EnUs, ExpectedValue::SendKey) => "one of the accepted '--key' names",
             (Locale::ZhCn, ExpectedValue::SendKey) => "'--key' 接受的按键名之一",
-            (Locale::EnUs, ExpectedValue::MachineId) => {
-                "a nonzero 32-character lowercase hexadecimal machine profile ID"
+            (Locale::EnUs, ExpectedValue::MachineSelector) => {
+                "a saved machine's ID or exact label, not starting with '-'"
             }
-            (Locale::ZhCn, ExpectedValue::MachineId) => "非零、32 字符的小写十六进制机器配置 ID",
+            (Locale::ZhCn, ExpectedValue::MachineSelector) => {
+                "已保存机器的 ID 或完整名称，不以 '-' 开头"
+            }
             (Locale::EnUs, ExpectedValue::MachineLabel) => {
                 "a nonblank label of at most 128 UTF-8 bytes without control characters"
             }

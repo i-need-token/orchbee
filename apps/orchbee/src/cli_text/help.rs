@@ -323,10 +323,9 @@ impl super::CliText {
                 "检查、导入和恢复设置。",
             ),
             HelpTopic::Family(Family::Channel) => ("Choose the release channel.", "选择更新频道。"),
-            HelpTopic::Family(Family::Machine) => (
-                "Manage saved remote SSH machines.",
-                "管理已保存的远程 SSH 机器。",
-            ),
+            HelpTopic::Family(Family::Machine) => {
+                ("Manage saved remote machines.", "管理已保存的远程机器。")
+            }
             HelpTopic::Command(CommandPath::MachineList) => {
                 ("List saved remote machines.", "列出已保存的远程机器。")
             }
@@ -346,6 +345,14 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::MachineDisable) => {
                 ("Disable a saved remote machine.", "停用已保存的远程机器。")
             }
+            HelpTopic::Command(CommandPath::MachineConnect) => (
+                "Connect to a saved remote machine. Not available yet.",
+                "连接已保存的远程机器。暂不可用。",
+            ),
+            HelpTopic::Command(CommandPath::MachineDisconnect) => (
+                "Disconnect from a saved remote machine. Not available yet.",
+                "断开与已保存远程机器的连接。暂不可用。",
+            ),
             HelpTopic::Command(CommandPath::ChannelShow) => {
                 ("Show the configured release channel.", "显示当前更新频道。")
             }
@@ -840,8 +847,8 @@ impl super::CliText {
                 "Windows：--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符，不以点开头或结尾，也不能是 con、nul 等 Windows 设备名。只差大小写的名称指同一会话。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
             ),
             HelpText::MachineRules => (
-                "Use orchbee --machine <name-or-id> <command> for a saved SSH machine. Duplicate names and disabled profiles are refused. --file/--stdin read locally; --cwd names a remote path. TUI and terminal streams are not routed. Removing or disabling a profile leaves remote sessions running.",
-                "使用 orchbee --machine <name-or-id> <command> 选择已保存的 SSH 机器。拒绝重名和已禁用配置。--file/--stdin 在本地读取，--cwd 指向远端路径。不转发 TUI 或终端流。移除或禁用配置不会停止远端会话。",
+                "Use orchbee --machine <name-or-id> <command> for a saved remote machine. Duplicate names, disabled machines and connection kinds this version does not support are refused. --file/--stdin read locally; --cwd names a remote path. TUI and terminal streams are not routed. Removing or disabling a machine leaves remote sessions running.",
+                "使用 orchbee --machine <name-or-id> <command> 选择已保存的远程机器。拒绝重名、已禁用的机器和此版本不支持的连接方式。--file/--stdin 在本地读取，--cwd 指向远端路径。不转发 TUI 或终端流。移除或禁用机器不会停止远端会话。",
             ),
             HelpText::Usage => ("Usage", "用法"),
             HelpText::QuickStart => ("Quick start", "快速开始"),

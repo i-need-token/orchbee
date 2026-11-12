@@ -62,7 +62,6 @@ fn admission_requires_the_same_environment_kind_and_never_compares_versions() {
     for (pointer, value) in [
         ("/result/architecture", serde_json::json!("x86")),
         ("/result/platform", serde_json::json!("linux")),
-        ("/result/cohort", serde_json::json!({"state":"unavailable"})),
     ] {
         let mut document = status(RELEASE);
         *document.pointer_mut(pointer).unwrap() = value;

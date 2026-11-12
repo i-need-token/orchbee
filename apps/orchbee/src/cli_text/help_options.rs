@@ -40,6 +40,26 @@ impl super::CliText {
                 "Reference Panel by its accepted ID or selector; default: the caller's own Panel.",
                 "通过支持的 ID 或选择器指定参照面板；默认是调用者自己的面板。",
             ),
+            (CommandPath::MachineAdd, "--label") => (
+                "<text>",
+                "Machine name; default: the target's host name.",
+                "机器名称；默认使用目标的主机名。",
+            ),
+            (CommandPath::MachineAdd, "--no-install") => (
+                "",
+                "Never install Orchbee on the remote. Not available yet.",
+                "不在远端安装 Orchbee。暂不可用。",
+            ),
+            (CommandPath::MachineRemove, "--stop-session") => (
+                "",
+                "Stop the remote Session first, ending its terminals. Not available yet.",
+                "先停止远端会话，结束其中的终端。暂不可用。",
+            ),
+            (CommandPath::MachineConnect, "--remember") => (
+                "",
+                "Remember the password in the system credential store. Not available yet.",
+                "把密码记在系统的凭据存储里。暂不可用。",
+            ),
             (CommandPath::TerminalRun, "--wait") => (
                 "",
                 "Wait for this command's correlated managed-shell completion.",

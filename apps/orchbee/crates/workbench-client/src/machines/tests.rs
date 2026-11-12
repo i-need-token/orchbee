@@ -101,6 +101,42 @@ fn catalog_trace_retains_opaque_identity_noop_revision_and_duplicate_endpoints()
     assert_eq!(empty.revision, 0);
     assert!(empty.profiles.is_empty());
 }
+/// A later release's connection kind must survive this build's edits byte-for-byte in meaning,
+/// or adding a kind would corrupt older readers' catalogs.
+#[test]
+fn unknown_connection_kind_is_kept_and_leaves_other_machines_usable() {
+    let later = json!({"kind":"pairing-code","code":"x","nested":{"a":[1]}});
+    let mut value = Catalog::default()
+        .edit(&Edit::Add {
+            id: id(1),
+            draft: draft(),
+        })
+        .unwrap()
+        .0
+        .json();
+    value["profiles"].as_array_mut().unwrap().push(json!({
+        "id":id(2).as_str(),"label":"later","connection":later,"session":"default",
+        "enabled":true,"remoteInstall":"managed","extensions":{"x":1}
+    }));
+    let catalog = Catalog::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
+    assert!(catalog.profiles[0].draft.connection.supported());
+    assert!(!catalog.profiles[1].draft.connection.supported());
+    assert_eq!(
+        catalog.profiles[1].json()["connection"],
+        json!({"kind":"unsupported"})
+    );
+    let (edited, _) = catalog
+        .edit(&Edit::Rename {
+            id: id(2),
+            label: "renamed".into(),
+        })
+        .unwrap();
+    let written = edited.json();
+    assert_eq!(written["profiles"][1]["connection"], later);
+    assert_eq!(written["profiles"][1]["extensions"], json!({"x":1}));
+    value["profiles"][1]["remoteInstall"] = json!("later");
+    assert!(Catalog::parse(&serde_json::to_vec(&value).unwrap()).is_none());
+}
 #[test]
 fn invalid_catalog_and_exhaustion_never_mutate_the_source() {
     let (mut full, _) = Catalog::default()
@@ -137,13 +173,7 @@ fn invalid_catalog_and_exhaustion_never_mutate_the_source() {
     assert!(Catalog::parse(&serde_json::to_vec(&value).unwrap()).is_none());
     let full = Catalog {
         revision: 10,
-        profiles: (1..=64)
-            .map(|n| Profile {
-                id: id(n),
-                draft: draft(),
-                enabled: true,
-            })
-            .collect(),
+        profiles: (1..=64).map(|n| Profile::new(id(n), draft())).collect(),
         ..Catalog::default()
     };
     assert_eq!(

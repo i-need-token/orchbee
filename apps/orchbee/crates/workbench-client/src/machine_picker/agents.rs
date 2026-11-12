@@ -78,7 +78,7 @@ impl Picker {
                 observation: None,
                 context: None,
                 agent: None,
-                agent_status: Some(status),
+                fixed_status: Some(status),
             }]
             .into();
             self.reconcile_sidebar_navigation();
@@ -116,7 +116,7 @@ impl Picker {
                 observation: None,
                 context: None,
                 agent: Some(e.row.clone()),
-                agent_status: None,
+                fixed_status: None,
             })
             .collect();
         for machine in self.rows.iter().filter(|m| {
@@ -143,7 +143,7 @@ impl Picker {
                 observation: None,
                 context: None,
                 agent: None,
-                agent_status: Some(status),
+                fixed_status: Some(status),
             });
         }
         self.agent_rows = rows.into();
@@ -270,7 +270,7 @@ impl Picker {
         if self
             .agent_rows
             .iter()
-            .any(|r| r.agent_status == Some("agents-loading"))
+            .any(|r| r.fixed_status == Some("agents-loading"))
         {
             return false;
         }
@@ -285,7 +285,7 @@ impl Picker {
                 && self
                     .agent_rows
                     .iter()
-                    .all(|r| matches!(r.agent_status, Some("no-agents" | "agents-no-matches")))
+                    .all(|r| matches!(r.fixed_status, Some("no-agents" | "agents-no-matches")))
             {
                 self.open = false;
 
@@ -295,7 +295,7 @@ impl Picker {
                 if self
                     .agent_rows
                     .iter()
-                    .all(|r| r.agent_status == Some("agents-unavailable"))
+                    .all(|r| r.fixed_status == Some("agents-unavailable"))
                 {
                     "agents-unavailable"
                 } else {

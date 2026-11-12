@@ -5,7 +5,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         serde_json::from_str(include_str!("../schemas/orchbee.machine.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     let id = ProfileId::parse("11111111111111111111111111111111").unwrap();
-    let command = MachineCommand::Remove(id.clone());
+    let command = MachineCommand::Remove(id.as_str().to_owned());
     let report = Report {
         catalog: Some(Catalog::default()),
         id: Some(id),
@@ -52,7 +52,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         Error::Catalog(CatalogError::NotFound),
         Error::SshFailed,
         Error::PhysicalUnknown,
-        Error::RemoteIncompatible,
+        Error::RemoteUnsupported,
         Error::RemoteOtherEnvironment,
         Error::Timeout,
         Error::Catalog(CatalogError::InvalidCatalog),

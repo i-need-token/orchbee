@@ -402,7 +402,7 @@ impl Picker {
             } else {
                 name.to_owned()
             };
-            let suffix = if let Some(status) = row.agent_status() {
+            let suffix = if let Some(status) = row.fixed_status() {
                 locale.machine_picker_text(status).to_owned()
             } else if let Some(agent) = row.agent() {
                 let fallback = locale.machine_picker_text(agent.state_word_key());

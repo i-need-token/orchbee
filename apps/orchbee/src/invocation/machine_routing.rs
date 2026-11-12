@@ -44,7 +44,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     } else {
         return scan(tokens);
     };
-    if !crate::machines::valid_label(&selector) || selector.starts_with('-') {
+    if !super::machines::valid_selector(&selector) {
         return Err(usage_with(
             UsageReason::MissingValue {
                 option: "--machine",

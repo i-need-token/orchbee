@@ -14,11 +14,13 @@ pub(super) fn prepare(
     remote: &mut Remote,
 ) -> Result<String, Error> {
     context.check()?;
+    // `machine add` builds only SSH drafts; another kind never reaches preparation.
+    let target = draft.ssh_target().ok_or(Error::Internal)?;
     let ssh = crate::machine_ssh::executable().map_err(|_| Error::SshUnavailable)?;
     prepare_session(remote, |path, action| {
         exchange(
             &ssh,
-            &draft.target,
+            target,
             &program(path, draft.session.as_str(), action),
             context,
         )
@@ -52,7 +54,8 @@ fn prepare_session(
 pub(super) fn client(value: &Value) -> Result<Client, Error> {
     crate::machine_ssh::client(value).map_err(|error| match error {
         crate::machine_ssh::AdmissionError::Protocol => Error::RemoteProtocol,
-        crate::machine_ssh::AdmissionError::Unsupported => Error::RemoteIncompatible,
+        crate::machine_ssh::AdmissionError::Unsupported => Error::RemoteUnsupported,
+        crate::machine_ssh::AdmissionError::NotInstalled => Error::RemoteNotInstalled,
         crate::machine_ssh::AdmissionError::OtherEnvironment => Error::RemoteOtherEnvironment,
     })
 }
@@ -93,8 +96,11 @@ pub(super) fn exchange(
         Some(_) => return Err(Error::SshFailed),
         None => {}
     }
-    if result.exit_code != Some(0) {
-        return Err(Error::SshFailed);
+    match result.exit_code {
+        Some(0) => {}
+        // The remote launch line found no Orchbee to run.
+        Some(crate::machine_ssh::PROGRAM_NOT_FOUND) => return Err(Error::RemoteNotInstalled),
+        _ => return Err(Error::SshFailed),
     }
     if result.stdout_truncated {
         return Err(Error::RemoteProtocol);

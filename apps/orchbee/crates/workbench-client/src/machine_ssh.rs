@@ -6,13 +6,17 @@ use base64::Engine as _;
 use serde_json::Value;
 use std::{io, path::Path, process::Command, time::Instant};
 
+/// The exit status of the remote launch line when it finds no Orchbee to run or cannot start it.
+pub const PROGRAM_NOT_FOUND: i32 = 125;
 /// Why a remote Client status document was not admitted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AdmissionError {
     /// The document is malformed or names an executable this rule cannot run.
     Protocol,
-    /// The remote is not Windows on x64 or ARM64, or its installation is unavailable.
+    /// The remote is not Windows on x64 or ARM64.
     Unsupported,
+    /// The remote Client reports no available installation to run.
+    NotInstalled,
     /// The remote Client belongs to another environment kind than this build.
     OtherEnvironment,
 }
@@ -21,7 +25,7 @@ impl AdmissionError {
     pub fn refusal(self) -> Option<Refusal> {
         match self {
             Self::Protocol => None,
-            Self::Unsupported => Some(Refusal::Unsupported),
+            Self::Unsupported | Self::NotInstalled => Some(Refusal::Unsupported),
             Self::OtherEnvironment => Some(Refusal::OtherEnvironment),
         }
     }
@@ -75,7 +79,7 @@ fn client_of_kind(value: &Value, release: bool) -> Result<Client, AdmissionError
         .filter(|version| orchbee_connection_handshake::ProductVersion::new(*version).is_ok())
         .ok_or(AdmissionError::Protocol)?;
     if r["cohort"]["state"] != "available" {
-        return Err(AdmissionError::Unsupported);
+        return Err(AdmissionError::NotInstalled);
     }
     Ok(Client {
         executable: executable.to_owned(),
@@ -113,8 +117,8 @@ pub fn program(executable: Option<&str>, session: &str, action: &str) -> String 
         "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';\
         [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
         $OutputEncoding=[Console]::OutputEncoding;\
-        try{{{resolve};if(-not $program){{exit 125}};\
-        & $program '--session' {} {args} '--format' 'json';exit $LASTEXITCODE}}catch{{exit 125}}",
+        try{{{resolve};if(-not $program){{exit {PROGRAM_NOT_FOUND}}};\
+        & $program '--session' {} {args} '--format' 'json';exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}",
         literal(session)
     );
     let encoded = base64::engine::general_purpose::STANDARD.encode(
@@ -172,11 +176,12 @@ pub(crate) fn probe(
     deadline: Instant,
     interrupted: impl FnMut() -> io::Result<bool>,
 ) -> io::Result<Client> {
+    let target = draft.ssh_target().ok_or(io::ErrorKind::Unsupported)?;
     let ssh = executable()?;
     let result = execute(
         command(
             &ssh,
-            &draft.target,
+            target,
             &program(None, draft.session.as_str(), "client"),
         ),
         Some(deadline),
@@ -216,7 +221,7 @@ pub(crate) fn probe(
 }
 // Inspect bounded diagnostics only to classify retry policy; never surface remote stderr.
 fn probe_exit_kind(code: Option<i32>, stderr: &[u8]) -> io::ErrorKind {
-    if code == Some(125) {
+    if code == Some(PROGRAM_NOT_FOUND) {
         return io::ErrorKind::NotFound;
     }
     let diagnostic = String::from_utf8_lossy(stderr).to_ascii_lowercase();

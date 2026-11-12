@@ -62,11 +62,10 @@ impl TerminalSurface for Busy {
 }
 
 fn remote(n: u8) -> Profile {
-    Profile {
-        id: ProfileId::parse(&format!("{n:032x}")).unwrap(),
-        draft: Draft::parse("remote", &format!("example{n}.invalid"), "default").unwrap(),
-        enabled: true,
-    }
+    Profile::new(
+        ProfileId::parse(&format!("{n:032x}")).unwrap(),
+        Draft::parse("remote", &format!("example{n}.invalid"), "default").unwrap(),
+    )
 }
 
 fn cached(profile: Option<Profile>, surface: Box<dyn TerminalSurface>) -> Cached {

@@ -130,7 +130,7 @@ impl Row {
         self.agent.as_ref()
     }
     pub(crate) fn sidebar_status(&self) -> Option<&'static str> {
-        self.agent_status
+        self.fixed_status
     }
 }
 impl Picker {

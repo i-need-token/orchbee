@@ -127,11 +127,10 @@ impl TerminalSurface for PixelSource {
     }
 }
 pub(super) fn profile() -> Profile {
-    Profile {
-        id: ProfileId::parse("11111111111111111111111111111111").unwrap(),
-        draft: Draft::parse("remote", "example.invalid", "default").unwrap(),
-        enabled: true,
-    }
+    Profile::new(
+        ProfileId::parse("11111111111111111111111111111111").unwrap(),
+        Draft::parse("remote", "example.invalid", "default").unwrap(),
+    )
 }
 pub(super) fn dimensions() -> WindowDimensions {
     WindowDimensions {
@@ -183,7 +182,7 @@ fn targeted_pixel_handoff_uses_only_the_exact_active_or_cached_endpoint() {
     assert_eq!(cached_reads.get(), 1);
 
     let mut replaced = profile();
-    replaced.draft.target = "replacement.invalid".into();
+    replaced.draft.connection = crate::machines::Connection::ssh("replacement.invalid").unwrap();
     assert!(
         retained_frames_for_target(None, &active, &cached, Some(&replaced), true).is_none(),
         "a reused profile id cannot bridge an endpoint replacement"
@@ -343,7 +342,10 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
         view.machines.request = Some(request.clone());
         let mut updated = profile();
         match change {
-            0 => updated.draft.target = "replacement.invalid".into(),
+            0 => {
+                updated.draft.connection =
+                    crate::machines::Connection::ssh("replacement.invalid").unwrap()
+            }
             1 => {
                 updated.draft.session = Draft::parse("remote", "example.invalid", "replacement")
                     .unwrap()
@@ -401,7 +403,8 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
         destination: Destination::Startup(None),
         deadline: now + Duration::from_secs(60),
     });
-    manager.profiles[0].draft.target = "replacement.invalid".into();
+    manager.profiles[0].draft.connection =
+        crate::machines::Connection::ssh("replacement.invalid").unwrap();
     assert!(
         !manager
             .tick(&mut surface, &mut view, dimensions(), now, &mut |_| {})

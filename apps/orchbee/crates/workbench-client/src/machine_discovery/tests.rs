@@ -13,11 +13,10 @@ use orchbee_workbench_protocol::{Snapshot, WorkbenchProjectId};
 use std::{num::NonZeroU64, thread, time::Duration};
 
 fn profile(n: u8) -> Profile {
-    Profile {
-        id: ProfileId::parse(&format!("{n:032x}")).unwrap(),
-        draft: Draft::parse("remote", "example.invalid", "default").unwrap(),
-        enabled: true,
-    }
+    Profile::new(
+        ProfileId::parse(&format!("{n:032x}")).unwrap(),
+        Draft::parse("remote", "example.invalid", "default").unwrap(),
+    )
 }
 fn snapshot() -> Snapshot {
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
@@ -83,7 +82,7 @@ fn startup_budget_and_profile_generations_survive_rename_replacement_and_readd()
     profiles[0].draft.label = "renamed".into();
     d.reconcile(&profiles, now);
     assert_eq!(d.entries[0].generation, generation);
-    profiles[0].draft.target = "replacement.invalid".into();
+    profiles[0].draft.connection = crate::machines::Connection::ssh("replacement.invalid").unwrap();
     d.reconcile(&profiles, now);
     assert_ne!(d.entries[0].generation, generation);
     d.entries[0].accept(Update {
@@ -382,7 +381,7 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
         "projection cannot outlive carrier progress deadline"
     );
     let mut replacement = p.clone();
-    replacement.draft.target = "changed.invalid".into();
+    replacement.draft.connection = crate::machines::Connection::ssh("changed.invalid").unwrap();
     assert!(d.connection(&replacement, observed).is_none());
     gap.send(()).unwrap();
     let reset = next_update(d.entries[0].worker.as_ref().unwrap());

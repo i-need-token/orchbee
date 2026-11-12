@@ -59,7 +59,7 @@ See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and r
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Session. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
-Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profiles with remote Windows readiness checks before add. See [saved Windows machines](docs/machines.md) for persistence, partial outcomes, command routing, and live TUI switching.
+Windows `machine list|add|rename|remove|enable|disable` manages saved remote machines, named by ID or exact label, with remote Windows readiness checks before add; `machine connect|disconnect`, `add --no-install` and `remove --stop-session` are parsed and refused as not yet available. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, and live TUI switching.
 
 Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
 

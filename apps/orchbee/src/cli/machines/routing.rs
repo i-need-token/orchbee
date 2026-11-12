@@ -8,7 +8,7 @@ use crate::{
     },
     invocation::{self, OutputFormat, TerminalSendInput, machine_routing::Route},
     localization::Locale,
-    machines::{Catalog, Profile, Store},
+    machines::{Catalog, Error as CatalogError, Profile, Store},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use orchbee_connection_handshake::{Delivery, Extensions, Generation};
@@ -139,25 +139,27 @@ impl Reply {
         })
     }
 }
+/// The machine `--machine` names, by the catalog's one `<id|label>` rule, when it may be routed to.
 fn select<'a>(catalog: &'a Catalog, selector: &str) -> Result<&'a Profile, &'static str> {
-    let profile = if let Some(profile) = catalog.profiles.iter().find(|p| p.id.as_str() == selector)
-    {
-        profile
-    } else {
-        let mut matches = catalog
-            .profiles
-            .iter()
-            .filter(|p| p.draft.label == selector);
-        let first = matches.next().ok_or("not-found")?;
-        if matches.next().is_some() {
-            return Err("ambiguous-machine");
-        }
-        first
-    };
+    let profile = catalog.resolve(selector).map_err(|error| match error {
+        CatalogError::Ambiguous => "ambiguous-machine",
+        _ => "not-found",
+    })?;
     if !profile.enabled {
         return Err("disabled-machine");
     }
+    if !profile.draft.connection.supported() {
+        return Err("unsupported-machine");
+    }
     Ok(profile)
+}
+/// A machine this build cannot reach is unavailable here; every other selection refusal is 3.
+fn selection_status(reason: &str) -> u8 {
+    if reason == "unsupported-machine" {
+        4
+    } else {
+        3
+    }
 }
 fn failed(
     code: &str,
@@ -195,8 +197,14 @@ fn failed(
         code,
         outcome.token()
     );
-    // SSH admission refused this remote until one side changes, so name what must change.
-    if matches!(code, "remote-incompatible" | "remote-other-environment") {
+    // The remote or this build refused until one side changes, so name what must change.
+    if matches!(
+        code,
+        "unsupported-machine"
+            | "remote-unsupported"
+            | "remote-not-installed"
+            | "remote-other-environment"
+    ) {
         result
             .stderr
             .push_str(CliText::new(locale).cli_machine_message(code));
@@ -241,7 +249,11 @@ fn execute(
     let catalog = Store::configured()
         .and_then(|s| s.read())
         .map_err(|e| mapped(Error::Catalog(e)))?;
-    let profile = select(&catalog, &route.selector).map_err(|e| (e, 3))?;
+    let profile = select(&catalog, &route.selector).map_err(|e| (e, selection_status(e)))?;
+    let target = profile
+        .draft
+        .ssh_target()
+        .ok_or(("unsupported-machine", 4))?;
     let mut arguments = route.arguments.clone();
     let input = if let Some(input) = &route.input {
         let (path, paste) = match input {
@@ -280,7 +292,7 @@ fn execute(
     let ssh_path = platform::ssh_path().map_err(|_| ("ssh-unavailable", 4))?;
     let probe = ssh::exchange(
         &ssh_path,
-        &profile.draft.target,
+        target,
         &ssh::program(None, profile.draft.session.as_str(), "client"),
         context,
     )
@@ -291,11 +303,7 @@ fn execute(
         session: profile.draft.session.as_str().into(),
         arguments,
         input,
-        locale: match locale {
-            Locale::EnUs => "en_US.UTF-8",
-            Locale::ZhCn => "zh_CN.UTF-8",
-        }
-        .into(),
+        locale: locale_name(locale).into(),
         extensions: Extensions::new(),
     };
     let bytes = serde_json::to_vec(&packet).map_err(|_| ("internal", 1))?;
@@ -304,11 +312,7 @@ fn execute(
     }
     context.check().map_err(mapped)?;
     *outcome = Outcome::Unknown;
-    let command = ssh::command(
-        &ssh_path,
-        &profile.draft.target,
-        &relay_program(&client.executable),
-    );
+    let command = ssh::command(&ssh_path, target, &relay_program(&client.executable));
     let result = platform::exchange(command, Some(&bytes), REPLY_LIMIT, None, || {
         context.interrupted()
     })
@@ -408,12 +412,20 @@ enum Admission {
     /// The ordinary usage failure for the routed arguments, rendered without running anything.
     Usage(Output),
 }
-/// The locale of an admitted packet.
+/// The locale of an admitted packet. A language this build does not ship, including one a later
+/// sender adds, reads as en-US rather than refusing the command.
 fn packet_locale(locale: &str) -> Locale {
     if locale == "zh_CN.UTF-8" {
         Locale::ZhCn
     } else {
         Locale::EnUs
+    }
+}
+/// The packet spelling of a locale, which the routed command also runs under.
+const fn locale_name(locale: Locale) -> &'static str {
+    match locale {
+        Locale::EnUs => "en_US.UTF-8",
+        Locale::ZhCn => "zh_CN.UTF-8",
     }
 }
 /// Admits one packet of a generation this build reads; `extensions` content is ignored. The
@@ -427,7 +439,6 @@ fn admit_packet(bytes: &[u8]) -> Option<Admission> {
     if !supported(packet.version)
         || packet.arguments.len() > 1024
         || packet.arguments.iter().map(String::len).sum::<usize>() > ARGUMENT_LIMIT
-        || !matches!(packet.locale.as_str(), "en_US.UTF-8" | "zh_CN.UTF-8")
         || SessionName::parse(&packet.session).is_err()
     {
         return None;
@@ -478,7 +489,7 @@ fn serve_packet(bytes: &[u8], signals: &mut ArmedSignals) -> Reply {
     command
         .args(["--session", &packet.session])
         .args(&packet.arguments)
-        .env("LC_ALL", &packet.locale)
+        .env("LC_ALL", locale_name(packet_locale(&packet.locale)))
         .env_remove("ORCHBEE_TERMINAL_ID")
         .env_remove("ORCHBEE_WORKER_ID");
     let result = match platform::exchange(command, Some(&input), cli::output::LIMIT, None, || {

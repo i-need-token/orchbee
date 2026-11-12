@@ -1,5 +1,5 @@
 //! The only writer of the private saved-machine catalog.
-use super::{Catalog, Edit, Error};
+use super::{Catalog, Edit, Error, ProfileId};
 use orchbee_local_runtime::{DataRoot, OpenedRecord, VersionedFile, VersionedRecord};
 use std::{io, sync::Mutex};
 
@@ -33,18 +33,40 @@ impl Store {
     /// Re-read while holding the writer lock, after remote preparation has ended. Opening under
     /// the lock backs up and persists an earlier record before this edit replaces it.
     pub fn commit(&self, edit: &Edit) -> Result<(Catalog, bool), Error> {
+        self.commit_with(|_| Ok(edit.clone()))
+    }
+    /// Resolves `selector` with [`Catalog::resolve`] under the writer lock, so the machine changed
+    /// is the one the catalog names at commit time, and applies the edit built for its ID.
+    pub fn commit_selected(
+        &self,
+        selector: &str,
+        edit: impl FnOnce(ProfileId) -> Edit,
+    ) -> Result<(Catalog, bool, ProfileId), Error> {
+        let mut chosen = None;
+        let (catalog, changed) = self.commit_with(|catalog| {
+            let id = catalog.resolve(selector)?.id.clone();
+            chosen = Some(id.clone());
+            Ok(edit(id))
+        })?;
+        Ok((catalog, changed, chosen.ok_or(Error::NotFound)?))
+    }
+    fn commit_with(
+        &self,
+        edit: impl FnOnce(&Catalog) -> Result<Edit, Error>,
+    ) -> Result<(Catalog, bool), Error> {
         let (mut writer, opened) = self.record.acquire(MAX_BYTES, admits).map_err(storage)?;
         let current = match decode(opened.map_err(storage)?)? {
             Stored::Current(catalog) => catalog,
             Stored::Unusable => {
-                let (next, changed) = remembered().edit(edit)?;
+                let current = remembered();
+                let (next, changed) = current.edit(&edit(&current)?)?;
                 if let Ok(mut memory) = MEMORY.lock() {
                     *memory = Some(next.clone());
                 }
                 return Ok((next, changed));
             }
         };
-        let (next, changed) = current.edit(edit)?;
+        let (next, changed) = current.edit(&edit(&current)?)?;
         if changed {
             let bytes = serde_json::to_vec_pretty(&next.json()).map_err(|_| Error::Storage)?;
             if bytes.len() > MAX_BYTES {

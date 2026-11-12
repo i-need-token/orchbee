@@ -6,9 +6,11 @@ use ratatui::layout::Rect;
 use std::ops::Deref;
 fn profile(n: u8, label: &str, enabled: bool) -> Profile {
     Profile {
-        id: ProfileId::parse(&format!("{n:032x}")).unwrap(),
-        draft: Draft::parse(label, "example.invalid", "default").unwrap(),
         enabled,
+        ..Profile::new(
+            ProfileId::parse(&format!("{n:032x}")).unwrap(),
+            Draft::parse(label, "example.invalid", "default").unwrap(),
+        )
     }
 }
 struct Paint {

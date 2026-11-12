@@ -50,7 +50,7 @@ fn inserted_and_reordered_rows_retain_the_top_identity_and_removed_rows_use_old_
                     observation: None,
                     context: Some(context.clone()),
                     agent: None,
-                    agent_status: None,
+                    fixed_status: None,
                 }
                 .sidebar_target()
                 .as_ref()

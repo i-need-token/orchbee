@@ -1,4 +1,5 @@
-//! Saved-machine CLI help and result messages; native picker text stays with its surface.
+//! Saved-machine CLI help and result messages; native picker text stays with its surface. Raw
+//! OpenSSH diagnostics never reach this copy; they only classify a failure.
 use super::Locale;
 impl super::CliText {
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
@@ -20,33 +21,43 @@ impl super::CliText {
         let (usage, english, chinese) = match path {
             C::MachineList => (
                 "orchbee machine list [--json | --format text|json]",
-                "Read the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.",
-                "读取已保存的机器目录，不连接 SSH 或创建目录。启用状态是已保存的偏好，不代表实时连接。",
+                "Read the saved machine catalog without contacting any machine or creating directories. Enabled is a saved preference, not a live connection observation. A machine a later version saved with a connection kind this version does not know is listed as unsupported.",
+                "读取已保存的机器目录，不连接任何机器，也不创建目录。启用状态是已保存的偏好，不代表实时连接。更新版本保存的、使用此版本不认识的连接方式的机器显示为此版本不支持。",
             ),
             C::MachineAdd => (
-                "orchbee machine add <ssh-target> --label <label> [--remote-session <name>] [--format text|json]",
-                "The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote session is retained. Automatic remote installation and interactive authentication are not yet supported.",
-                "远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端会话会保留。暂不支持自动安装远端程序及交互认证。",
+                "orchbee machine add <ssh-target> [--label <label>] [--remote-session <name>] [--no-install] [--format text|json]",
+                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation, --no-install and interactive sign-in are not available yet.",
+                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。准备过程总期限为 60 秒。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序、--no-install 和交互登录暂不可用。",
             ),
             C::MachineRename => (
-                "orchbee machine rename <profile-id> --label <label> [--format text|json]",
-                "Rename the exact saved profile. Labels cannot be blank or contain control characters and are limited to 128 UTF-8 bytes.",
-                "重命名精确 ID 对应的配置。标签不能为空白或含控制字符，最多 128 UTF-8 字节。",
+                "orchbee machine rename <id|label> --label <label> [--format text|json]",
+                "Rename the machine with this ID, or the only machine with this exact name. Labels cannot be blank or contain control characters and are limited to 128 UTF-8 bytes.",
+                "重命名具有此 ID 的机器，或唯一使用此完整名称的机器。名称不能为空白或含控制字符，最多 128 UTF-8 字节。",
             ),
             C::MachineRemove => (
-                "orchbee machine remove <profile-id> [--format text|json]",
-                "Remove only the saved profile. Remote sessions and OpenSSH data remain owned by their existing users.",
-                "仅删除已保存的配置。远端会话和 OpenSSH 数据仍由原有用户管理。",
+                "orchbee machine remove <id|label> [--stop-session] [--format text|json]",
+                "Remove only the saved machine. Remote sessions and OpenSSH data remain owned by their existing users. --stop-session is not available yet.",
+                "仅删除已保存的机器。远端会话和 OpenSSH 数据仍由原有用户管理。--stop-session 暂不可用。",
             ),
             C::MachineEnable => (
-                "orchbee machine enable <profile-id> [--format text|json]",
-                "Enable the saved profile. This command does not establish a connection or start a remote session.",
-                "启用已保存的配置。本命令不会建立连接或启动远端会话。",
+                "orchbee machine enable <id|label> [--format text|json]",
+                "Enable the saved machine. This command does not establish a connection or start a remote session.",
+                "启用已保存的机器。本命令不会建立连接或启动远端会话。",
             ),
             C::MachineDisable => (
-                "orchbee machine disable <profile-id> [--format text|json]",
-                "Disable the saved profile without stopping its remote session.",
-                "禁用已保存的配置，不停止远端会话。",
+                "orchbee machine disable <id|label> [--format text|json]",
+                "Disable the saved machine without stopping its remote session.",
+                "禁用已保存的机器，不停止远端会话。",
+            ),
+            C::MachineConnect => (
+                "orchbee machine connect <id|label> [--remember] [--format text|json]",
+                "Not available yet: the command is refused before it reads the catalog or contacts any machine.",
+                "暂不可用：命令在读取机器目录或连接任何机器之前即被拒绝。",
+            ),
+            C::MachineDisconnect => (
+                "orchbee machine disconnect <id|label> [--format text|json]",
+                "Not available yet: the command is refused before it reads the catalog or contacts any machine.",
+                "暂不可用：命令在读取机器目录或连接任何机器之前即被拒绝。",
             ),
             _ => unreachable!("command help ownership"),
         };
@@ -61,16 +72,22 @@ impl super::CliText {
 
     pub(crate) fn cli_machine_message(self, code: &str) -> &'static str {
         match (self.locale, code) {
-            (Locale::EnUs, "empty") => "No saved SSH machines.",
-            (Locale::ZhCn, "empty") => "尚无已保存的 SSH 机器。",
+            (Locale::EnUs, "empty") => "No saved remote machines.",
+            (Locale::ZhCn, "empty") => "尚无已保存的远程机器。",
             (Locale::EnUs, "enabled") => "enabled",
             (Locale::ZhCn, "enabled") => "已启用",
             (Locale::EnUs, "disabled") => "disabled",
             (Locale::ZhCn, "disabled") => "已禁用",
+            (Locale::EnUs, "unsupported") => "unsupported by this version",
+            (Locale::ZhCn, "unsupported") => "此版本不支持",
+            (Locale::EnUs, "unsupported-machine") => {
+                "This version does not support how this machine is connected."
+            }
+            (Locale::ZhCn, "unsupported-machine") => "此版本不支持这台机器的连接方式。",
             (Locale::EnUs, "saved") => "Saved machine catalog change:",
             (Locale::ZhCn, "saved") => "已保存机器目录变更：",
-            (Locale::EnUs, "unchanged") => "Machine profile unchanged:",
-            (Locale::ZhCn, "unchanged") => "机器配置未变化：",
+            (Locale::EnUs, "unchanged") => "Machine unchanged:",
+            (Locale::ZhCn, "unchanged") => "机器未变化：",
             (Locale::EnUs, "already-committed") => {
                 "The catalog change was committed before this interruption or failure."
             }
@@ -96,13 +113,25 @@ impl super::CliText {
             }
             (Locale::ZhCn, "busy") => "另一个机器目录写入者正在运行，请在其结束后重试。",
             (Locale::EnUs, "not-found") => {
-                "The exact machine profile ID was not found. Run 'orchbee machine list'."
+                "No saved machine has this ID or exact name. Run 'orchbee machine list'."
             }
-            (Locale::ZhCn, "not-found") => "未找到精确机器配置 ID，请运行 ‘orchbee machine list’。",
+            (Locale::ZhCn, "not-found") => {
+                "没有已保存的机器使用此 ID 或完整名称，请运行 ‘orchbee machine list’。"
+            }
+            (Locale::EnUs, "ambiguous-machine") => {
+                "Several saved machines share this name. Use the ID from 'orchbee machine list'."
+            }
+            (Locale::ZhCn, "ambiguous-machine") => {
+                "多台已保存的机器使用此名称，请改用 ‘orchbee machine list’ 中的 ID。"
+            }
+            (Locale::EnUs, "not-yet-available") => {
+                "This machine command is not available yet. Nothing was read or changed."
+            }
+            (Locale::ZhCn, "not-yet-available") => "此机器命令暂不可用，未读取或更改任何内容。",
             (Locale::EnUs, "capacity") => {
-                "The machine catalog has reached its capacity of 64 profiles."
+                "The machine catalog has reached its capacity of 64 machines."
             }
-            (Locale::ZhCn, "capacity") => "机器目录已达到 64 个配置的容量上限。",
+            (Locale::ZhCn, "capacity") => "机器目录已达到 64 台机器的容量上限。",
             (Locale::EnUs, "revision-exhausted") => "The machine catalog revision cannot advance.",
             (Locale::ZhCn, "revision-exhausted") => "机器目录修订号无法继续增加。",
             (Locale::EnUs, "ssh-unavailable") => {
@@ -119,12 +148,16 @@ impl super::CliText {
                 "The remote Client returned an invalid or unsupported status document."
             }
             (Locale::ZhCn, "remote-protocol") => "远端客户端返回了无效或不支持的状态文档。",
-            (Locale::EnUs, "remote-incompatible") => {
-                "The remote must run Windows x64 or ARM64 with an available Orchbee installation."
+            (Locale::EnUs, "remote-unsupported") => {
+                "This version supports remote machines running Windows x64 or ARM64 only."
             }
-            (Locale::ZhCn, "remote-incompatible") => {
-                "远端须为 Windows x64 或 ARM64，且 Orchbee 安装可用。"
+            (Locale::ZhCn, "remote-unsupported") => {
+                "此版本只支持运行 Windows x64 或 ARM64 的远程机器。"
             }
+            (Locale::EnUs, "remote-not-installed") => {
+                "The remote machine has no usable Orchbee installation."
+            }
+            (Locale::ZhCn, "remote-not-installed") => "远程机器上没有可用的 Orchbee。",
             (Locale::EnUs, "remote-other-environment") => {
                 "The remote Orchbee belongs to another environment. Use release on both machines, or builds from the same checkout path on both."
             }

@@ -26,9 +26,13 @@ pub(super) fn prepare(
     profile: &Profile,
     admitted: &machine_ssh::Client,
 ) -> io::Result<StartedCarrier> {
+    let target = profile
+        .draft
+        .ssh_target()
+        .ok_or(io::ErrorKind::Unsupported)?
+        .to_owned();
     let ssh = machine_ssh::executable()?;
     let remote = program::command(&admitted.executable, profile.draft.session.as_str());
-    let target = profile.draft.target.clone();
     start(move || Ok(machine_ssh::command(&ssh, &target, &remote)))
 }
 

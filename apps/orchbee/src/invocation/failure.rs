@@ -50,7 +50,7 @@ pub(crate) enum ExpectedValue {
     TerminalContentGeneration,
     AgentViewSpec,
     AgentViewSource,
-    MachineId,
+    MachineSelector,
     MachineLabel,
     SshTarget,
     PluginId,

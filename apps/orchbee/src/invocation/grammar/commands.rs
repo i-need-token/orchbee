@@ -84,6 +84,8 @@ commands! {
     MachineRemove => ["machine", "remove"], 1, Operand, Windows, true, false, false;
     MachineEnable => ["machine", "enable"], 1, Operand, Windows, true, false, false;
     MachineDisable => ["machine", "disable"], 1, Operand, Windows, true, false, false;
+    MachineConnect => ["machine", "connect"], 1, Operand, Windows, true, false, false;
+    MachineDisconnect => ["machine", "disconnect"], 1, Operand, Windows, true, false, false;
     ChannelShow => ["channel", "show"], 0, Operand, Windows, true, false, false;
     ChannelSet => ["channel", "set"], 1, Operand, Windows, true, false, false;
     Update => ["update"], 0, Operand, Windows, true, false, false;

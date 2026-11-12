@@ -1,41 +1,120 @@
-# Saved Windows machines
+# Remote machines
 
-The native Windows Client owns saved SSH machine profiles. The six `machine`
-commands manage labels, SSH targets, explicit remote Session names, and enabled
-state. OpenSSH owns credentials, keys, host trust, and SSH configuration.
+The native Client owns the catalog of saved remote machines. The `machine` commands manage
+labels, connections, explicit remote Session names, and enabled state; the machines themselves
+are reached only from Windows today. The person's own configuration for a connection kind owns
+everything else: for SSH, OpenSSH owns credentials, keys, ports, host trust, and SSH configuration.
 
 ## Catalog and transitions
 
-`internal/state/machines.json` in the data root is a private, atomic document
-with a top-level integer `version` of 1 and an optional `extensions` object that a later release
-fills and this one keeps unread and writes back unchanged; an explicit `ORCHBEE_CONFIG_FILE` does
-not move it. A read keeps a record of an earlier version migrated in memory; the first committed
-edit backs the original up under `internal/backups/` and saves the migration before applying the
-edit. A record with a version this build cannot use, saved by a newer version or not updated from
-an earlier one, is never rewritten: saved machines read as none, edits last only until the process
-ends, and the process shows the record message once. Its revision is a nonnegative safe
-integer; profiles have distinct random 32-character lowercase hexadecimal IDs.
-At most 64 profiles and 128 KiB are admitted. Labels are nonblank, control-free,
-and at most 128 UTF-8 bytes. Targets are at most 1024 ASCII bytes: an SSH host
-alias, `[user@]host`, or `ssh://[user@]host[:port]`; bracketed IPv6 is supported.
-Passwords and shell metacharacters are rejected. Session names use the native
-Windows Session grammar, defaulting to `default`. Duplicate target/session pairs
-may have distinct IDs.
+`internal/state/machines.json` in the data root is a private, atomic document; an explicit
+`ORCHBEE_CONFIG_FILE` does not move it. A read keeps a record of an earlier version migrated in
+memory; the first committed edit backs the original up under `internal/backups/` and saves the
+migration before applying the edit. A record with a version this build cannot use, saved by a
+newer version or not updated from an earlier one, is never rewritten: saved machines read as none,
+edits last only until the process ends, and the process shows the record message once.
 
-| Event          | Guard and transition                                                                                  | Effects                                       |
-| -------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| List           | Missing catalog is empty; invalid data fails                                                          | Read only; no directory creation              |
-| Add            | Validate and check capacity; prepare remote; reload latest catalog under lock; append enabled profile | Remote Session may start before local commit  |
-| Rename         | Exact ID exists; valid label                                                                          | Replace label; same value is unchanged        |
-| Enable/disable | Exact ID exists                                                                                       | Set flag; same value is unchanged             |
-| Remove         | Exact ID exists                                                                                       | Remove profile; never stop its remote Session |
+```json
+{
+	"version": 1,
+	"revision": 7,
+	"profiles": [
+		{
+			"id": "0f3c5a7e9b1d2f4a6c8e0b2d4f6a8c0e",
+			"label": "devbox",
+			"connection": { "kind": "ssh", "target": "luna@10.0.0.8" },
+			"session": "default",
+			"enabled": true,
+			"remoteInstall": "manual",
+			"extensions": {}
+		}
+	],
+	"extensions": {}
+}
+```
 
-Writers use the existing Windows private-cache lock and atomic replacement.
-Revision advances once per actual change. Reads reject unknown fields, invalid
-identities, duplicate IDs, overflow, oversized files, and unsafe filesystem
-objects. Corruption never becomes an empty catalog. A failed local commit does
-not roll back a remotely started Session. Cancellation after commit preserves the
-committed receipt.
+| Member                     | Rule                                                                                                                                                                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`                  | Integer `1`                                                                                                                                                                                                                                                                  |
+| `revision`                 | Nonnegative safe integer; advances once per actual change                                                                                                                                                                                                                    |
+| `profiles`                 | At most 64 machines with distinct random 32-character lowercase hexadecimal IDs                                                                                                                                                                                              |
+| `label`                    | Nonblank, control-free, at most 128 UTF-8 bytes; several machines may share one                                                                                                                                                                                              |
+| `connection`               | An object with a lowercase `kind` of at most 64 letters, digits, or hyphens. `ssh` admits exactly `target`: at most 1024 ASCII bytes, an SSH host alias, `[user@]host`, or `ssh://[user@]host[:port]`, bracketed IPv6 supported, passwords and shell metacharacters rejected |
+| `session`                  | The native Windows Session grammar, defaulting to `default`                                                                                                                                                                                                                  |
+| `enabled`                  | Saved preference, never evidence of a live connection                                                                                                                                                                                                                        |
+| `remoteInstall`            | `managed` when Orchbee installed the remote copy and keeps it in step with this computer; `manual` when the remote copy was installed some other way and is left alone                                                                                                       |
+| `extensions` (both levels) | Objects a later release fills; this one keeps them unread, writes them back unchanged, and writes `{}` when they are absent                                                                                                                                                  |
+
+A connection `kind` this build does not know is kept verbatim with every member it carries and
+written back unchanged. That machine is listed as unsupported by this version, cannot be routed
+to, chosen, or discovered, and leaves every other machine usable. The record never stores a
+credential, password, port, key path, or the remote platform. Duplicate target/session pairs may
+have distinct IDs. At most 128 KiB is admitted.
+
+`machine add` saves `remoteInstall: "manual"`: this release only adds a machine whose Orchbee is
+already installed. Without `--label`, the label is the target's host name, so
+`luna@10.0.0.8` saves as `10.0.0.8` and `ssh://u@[2001:db8::1]:22` as `2001:db8::1`.
+
+Every command that names a saved machine takes `<id|label>` and resolves it with the one rule
+that `--machine` uses: an exact ID first, otherwise the only machine with that exact,
+case-sensitive label. No match is `not-found`; several machines with that label are
+`ambiguous-machine`, and only the ID selects one of them. Edits resolve the operand under the
+writer lock, so the machine changed is the one the catalog names at commit time.
+
+| Event          | Guard and transition                                                                                         | Effects                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| List           | Missing catalog is empty; invalid data fails                                                                 | Read only; no directory creation              |
+| Add            | Validate and check capacity; prepare remote; reload latest catalog under lock; append enabled `manual` entry | Remote Session may start before local commit  |
+| Rename         | Operand resolves; valid label                                                                                | Replace label; same value is unchanged        |
+| Enable/disable | Operand resolves                                                                                             | Set flag; same value is unchanged             |
+| Remove         | Operand resolves                                                                                             | Remove machine; never stop its remote Session |
+
+Writers use the existing Windows private-cache lock and atomic replacement. Reads reject unknown
+members outside `extensions`, a malformed connection, an unknown `remoteInstall`, invalid
+identities, duplicate IDs, overflow, oversized files, and unsafe filesystem objects; a record
+without `connection` or `remoteInstall` is invalid, with no reader for an earlier shape.
+Corruption never becomes an empty catalog and its bytes are preserved. A failed local commit does
+not roll back a remotely started Session. Cancellation after commit preserves the committed
+receipt.
+
+## Commands not available yet
+
+`machine connect <id|label> [--remember]`, `machine disconnect <id|label>`, `machine add
+--no-install`, and `machine remove --stop-session` belong to later slices of remote-machine
+support. They appear in help and completion, marked not available yet, and their whole grammar is
+validated, so a malformed invocation is still a usage failure with exit 2. A well-formed one is
+refused before it reads the catalog, contacts any machine, or changes anything: the
+`orchbee.machine` receipt names the operation (`connect`, `disconnect`, `add`, or `remove`),
+reports `error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`, and the
+command exits 4.
+
+## Machine receipt
+
+`orchbee.machine` version 1 reports each machine as
+`{id, label, connection, session, enabled, remoteInstall}`. `connection` is
+`{ "kind": "ssh", "target": … }`, or the shared `{ "kind": "unsupported" }` for a kind this build
+does not know; the content of an unknown kind is never echoed. `error` is a closed list that grows
+as remote-machine support lands; a reader treats a value it does not know as `unknown`.
+
+| `error`                                             | Exit | Produced by this release                                      |
+| --------------------------------------------------- | ---- | ------------------------------------------------------------- |
+| `configuration`, `invalid-catalog`, `storage`       | 1    | Catalog location, content or storage failure                  |
+| `internal`                                          | 1    | Unexpected local failure                                      |
+| `not-found`, `ambiguous-machine`                    | 3    | `<id\|label>` resolution                                      |
+| `host-untrusted`, `host-key-changed`, `auth-failed` | 3    | Not yet; OpenSSH failures read as `ssh-failed`                |
+| `busy`, `capacity`, `revision-exhausted`            | 4    | Another writer, 64 machines or 128 KiB, revision bound        |
+| `not-yet-available`                                 | 4    | [Commands not available yet](#commands-not-available-yet)     |
+| `ssh-unavailable`                                   | 4    | The system OpenSSH client is missing                          |
+| `remote-not-installed`                              | 4    | The remote launch line finds no Orchbee, or no usable install |
+| `remote-not-ready`                                  | 4    | The remote Session did not report ready                       |
+| `host-unreachable`, `auth-required`                 | 4    | Not yet                                                       |
+| `ssh-failed`, `remote-protocol`                     | 5    | Any other OpenSSH failure; a malformed remote document        |
+| `remote-unsupported`, `remote-other-environment`    | 6    | Remote system or architecture; another environment kind       |
+| `version-incompatible`                              | 6    | Not yet                                                       |
+| `timeout`                                           | 7    | Deadline                                                      |
+| `physical-unknown`                                  | 8    | SSH process cleanup unconfirmed                               |
+| `remote-install-failed`                             | 9    | Not yet                                                       |
+| `cancelled`                                         | 130  | Interrupt                                                     |
 
 ## Remote preparation
 
@@ -55,11 +134,14 @@ rule before starting the selected Session:
 
 | Check            | Rule                                                                                                                           | Refusal                               |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| Platform         | `windows` on `x86_64` or `aarch64`                                                                                             | `remote-incompatible`, exit 3         |
+| Platform         | `windows` on `x86_64` or `aarch64`                                                                                             | `remote-unsupported`, exit 6          |
 | Executable       | An absolute drive path whose file name, ignoring ASCII case, is a valid environment stem plus `.exe`                           | `remote-protocol`, exit 5             |
 | Environment kind | A release build admits only `orchbee.exe`; a development or test build admits any `ob-dev-<16 hex>` or `ob-test-<16 hex>` name | `remote-other-environment`, exit 6    |
 | Product version  | Any version the status document grammar admits; it is reported as `remoteVersion` and never compared                           | `remote-protocol` only when malformed |
-| Installation     | The cohort state is `available`                                                                                                | `remote-incompatible`, exit 3         |
+| Installation     | The cohort state is `available`                                                                                                | `remote-not-installed`, exit 4        |
+
+The remote launch line exits 125 when it resolves no Orchbee program or cannot start it; that
+status reads as `remote-not-installed` rather than an OpenSSH failure.
 
 No protocol version, product version, or cohort is compared across machines: the remote Session
 admits each later tunnel connection through the handshake, and the routed command runs the remote
@@ -92,7 +174,9 @@ their process Jobs are owned by the test and released after the last consumer.
 ## Command routing contract
 
 `orchbee --machine <id-or-exact-label> <command>` selects an enabled saved
-profile. ID takes precedence; duplicate labels are ambiguous. The selector
+machine by the [`<id|label>` rule](#catalog-and-transitions). Selection refuses `not-found`,
+`ambiguous-machine`, and `disabled-machine` with exit 3, and `unsupported-machine`, a connection
+kind this build does not know, with exit 4. The selector
 is a prefix, accepts `--machine=value`, cannot combine with `--session`, and never
 changes the catalog. Help is local. Remote execution admits CLI commands
 for workspace, tab, panel, Client queries/control, terminal queries/send, Agent operations, worktrees,
@@ -108,6 +192,9 @@ reply are closed objects whose `version` is their `machine-route` generation in 
 receiver ignores. Neither carries a cohort. A private relay entry point refuses a generation it
 does not read, then revalidates the Session, argument grammar and command allowlist under its own
 grammar before spawning its own executable with literal arguments in an owned Windows Job.
+The packet's `locale` names the sender's language; a value the receiver does not ship, including
+one a later sender adds, falls back to `en_US.UTF-8` instead of refusing the command, and the
+routed command runs under the resolved locale.
 When the remote grammar cannot parse the routed arguments, the reply carries the remote's ordinary usage failure in the packet's locale and with the usage exit status, rendered by the relay entry point without spawning a command. A parsed request outside the routed scope, a packet that names a Session, and invalid input are refused as not submitted. The existing remote CLI remains the
 business-operation owner. No local peer credential admission is bypassed.
 Terminal file and stdin sources are acquired on the caller once and sent as raw
@@ -229,7 +316,9 @@ SSH network survival, remote installation, or complete two-machine acceptance.
 
 ## Automatic machine discovery
 
-The running Windows TUI reconciles enabled profiles by ID, target and Session. Each
+The running Windows TUI reconciles enabled profiles by ID, connection and Session; a connection
+kind this build does not know is never observed, and the picker lists that machine as unsupported
+by this version without offering it as a choice. Each
 endpoint generation owns one observer, cancellation flag and latest-event slot.
 New connections are limited to four at once; existing online observers do not
 consume that startup budget. A rotating cursor gives later profiles a turn even when earlier endpoints keep failing. Disabled/removed/replaced entries cancel their old

@@ -24,12 +24,17 @@ enum Error {
     SshUnavailable,
     SshFailed,
     RemoteProtocol,
-    RemoteIncompatible,
+    /// The remote runs a system or architecture this build cannot serve.
+    RemoteUnsupported,
+    /// The remote has no usable Orchbee installation.
+    RemoteNotInstalled,
     RemoteOtherEnvironment,
     RemoteNotReady,
     Cancelled,
     Timeout,
     PhysicalUnknown,
+    /// A verb or option this release parses but does not perform yet.
+    NotYetAvailable,
     Internal,
 }
 impl Error {
@@ -41,29 +46,36 @@ impl Error {
                 CatalogError::Storage => "storage",
                 CatalogError::Busy => "busy",
                 CatalogError::NotFound => "not-found",
+                CatalogError::Ambiguous => "ambiguous-machine",
                 CatalogError::Capacity => "capacity",
                 CatalogError::RevisionExhausted => "revision-exhausted",
             },
             Self::SshUnavailable => "ssh-unavailable",
             Self::SshFailed => "ssh-failed",
             Self::RemoteProtocol => "remote-protocol",
-            Self::RemoteIncompatible => "remote-incompatible",
+            Self::RemoteUnsupported => "remote-unsupported",
+            Self::RemoteNotInstalled => "remote-not-installed",
             Self::RemoteOtherEnvironment => "remote-other-environment",
             Self::RemoteNotReady => "remote-not-ready",
             Self::Cancelled => "cancelled",
             Self::Timeout => "timeout",
             Self::PhysicalUnknown => "physical-unknown",
+            Self::NotYetAvailable => "not-yet-available",
             Self::Internal => "internal",
         }
     }
     fn status(self) -> u8 {
         match self {
-            Self::Catalog(CatalogError::NotFound) | Self::RemoteIncompatible => 3,
-            Self::Catalog(CatalogError::Busy | CatalogError::Capacity)
+            Self::Catalog(CatalogError::NotFound | CatalogError::Ambiguous) => 3,
+            Self::Catalog(
+                CatalogError::Busy | CatalogError::Capacity | CatalogError::RevisionExhausted,
+            )
             | Self::SshUnavailable
-            | Self::RemoteNotReady => 4,
+            | Self::RemoteNotInstalled
+            | Self::RemoteNotReady
+            | Self::NotYetAvailable => 4,
             Self::SshFailed | Self::RemoteProtocol => 5,
-            Self::RemoteOtherEnvironment => 6,
+            Self::RemoteUnsupported | Self::RemoteOtherEnvironment => 6,
             Self::Cancelled => 130,
             Self::Timeout => 7,
             Self::PhysicalUnknown => 8,
@@ -179,8 +191,12 @@ fn execute(
     report: &mut Report,
 ) -> Result<(), Error> {
     context.check()?;
+    if matches!(command, MachineCommand::NotYetAvailable(_)) {
+        return Err(Error::NotYetAvailable);
+    }
     let store = Store::configured().map_err(Error::Catalog)?;
     let edit = match command {
+        MachineCommand::NotYetAvailable(_) => return Err(Error::NotYetAvailable),
         MachineCommand::List => {
             report.catalog = Some(store.read().map_err(Error::Catalog)?);
             return context.check();
@@ -200,27 +216,42 @@ fn execute(
             report.remote_version = Some(ssh::prepare(draft, context, &mut report.remote)?);
             edit
         }
-        MachineCommand::Rename { id, label } => {
-            report.id = Some(id.clone());
-            Edit::Rename {
-                id: id.clone(),
+        MachineCommand::Rename { machine, label } => {
+            return commit_selected(&store, machine, context, report, |id| Edit::Rename {
+                id,
                 label: label.clone(),
-            }
+            });
         }
-        MachineCommand::Remove(id) => {
-            report.id = Some(id.clone());
-            Edit::Remove(id.clone())
+        MachineCommand::Remove(machine) => {
+            return commit_selected(&store, machine, context, report, Edit::Remove);
         }
-        MachineCommand::Enable { id, enabled } => {
-            report.id = Some(id.clone());
-            Edit::Enable {
-                id: id.clone(),
+        MachineCommand::Enable { machine, enabled } => {
+            return commit_selected(&store, machine, context, report, |id| Edit::Enable {
+                id,
                 enabled: *enabled,
-            }
+            });
         }
     };
     context.check()?;
     let (catalog, changed) = store.commit(&edit).map_err(Error::Catalog)?;
+    report.catalog = Some(catalog);
+    report.changed = changed;
+    report.committed = changed;
+    Ok(())
+}
+/// Applies an edit to the machine an `<id|label>` operand names when the catalog is committed.
+fn commit_selected(
+    store: &Store,
+    machine: &str,
+    context: &mut Context,
+    report: &mut Report,
+    edit: impl FnOnce(ProfileId) -> Edit,
+) -> Result<(), Error> {
+    context.check()?;
+    let (catalog, changed, id) = store
+        .commit_selected(machine, edit)
+        .map_err(Error::Catalog)?;
+    report.id = Some(id);
     report.catalog = Some(catalog);
     report.changed = changed;
     report.committed = changed;
@@ -259,13 +290,17 @@ fn emit(
                             "{}\t{}\t{}\t{}\t{}\n",
                             profile.id.as_str(),
                             crate::cli_text::escape::escape(&profile.draft.label),
-                            crate::cli_text::escape::escape(&profile.draft.target),
+                            crate::cli_text::escape::escape(
+                                profile.draft.ssh_target().unwrap_or_else(
+                                    || CliText::new(locale).cli_machine_message("unsupported")
+                                )
+                            ),
                             profile.draft.session.as_str(),
                             CliText::new(locale).cli_machine_message(if profile.enabled {
                                 "enabled"
                             } else {
                                 "disabled"
-                            })
+                            }),
                         ));
                     }
                 } else {

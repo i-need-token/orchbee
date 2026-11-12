@@ -225,7 +225,9 @@ pub struct Row {
     pub(crate) observation: Option<Observation>,
     context: Option<Context>,
     agent: Option<crate::machine_agents::checkpoint::Row>,
-    agent_status: Option<&'static str>,
+    /// A status key that replaces any observation: an Agent placeholder row, or a saved machine
+    /// whose connection kind this build does not support.
+    fixed_status: Option<&'static str>,
 }
 impl Row {
     pub(crate) fn context(&self) -> Option<&Context> {
@@ -234,8 +236,8 @@ impl Row {
     pub(crate) fn agent(&self) -> Option<&crate::machine_agents::checkpoint::Row> {
         self.agent.as_ref()
     }
-    pub(crate) const fn agent_status(&self) -> Option<&'static str> {
-        self.agent_status
+    pub(crate) const fn fixed_status(&self) -> Option<&'static str> {
+        self.fixed_status
     }
     pub(crate) fn selection(&self) -> Selection {
         Selection {
@@ -325,7 +327,7 @@ impl Default for Picker {
                 observation: None,
                 context: None,
                 agent: None,
-                agent_status: None,
+                fixed_status: None,
             }],
             busy: false,
             error: None,
@@ -514,7 +516,7 @@ impl Picker {
                 observation: None,
                 context: Some(context.clone()),
                 agent: None,
-                agent_status: None,
+                fixed_status: None,
             }));
         }
         self.cancel_sidebar_scroll();
@@ -611,18 +613,20 @@ impl Picker {
             observation: None,
             context: None,
             agent: None,
-            agent_status: None,
+            fixed_status: None,
         }];
         rows.extend(profiles.iter().map(|p| {
+            // A machine this build cannot reach stays listed but never becomes a choice.
+            let supported = p.draft.connection.supported();
+            let enabled = p.enabled && supported;
             Row {
                 choice: Choice::Remote(p.id.clone()),
                 label: p.draft.label.clone(),
-                enabled: p.enabled,
+                enabled,
                 context: None,
                 agent: None,
-                agent_status: None,
-                observation: p
-                    .enabled
+                fixed_status: (!supported).then_some("unsupported"),
+                observation: enabled
                     .then(|| {
                         self.rows
                             .iter()
@@ -807,7 +811,7 @@ impl Picker {
                     self.error = None;
                 }
             } else {
-                self.error = Some(row.agent_status.unwrap_or("disabled"));
+                self.error = Some(row.fixed_status.unwrap_or("disabled"));
             }
         }
     }

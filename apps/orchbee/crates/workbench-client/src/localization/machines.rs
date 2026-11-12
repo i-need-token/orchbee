@@ -145,6 +145,8 @@ impl Locale {
             (Self::ZhCn, "local") => "本地",
             (Self::EnUs, "disabled") => "Disabled",
             (Self::ZhCn, "disabled") => "已禁用",
+            (Self::EnUs, "unsupported") => "Unsupported",
+            (Self::ZhCn, "unsupported") => "此版本不支持",
             (Self::EnUs, "current") => "Current",
             (Self::ZhCn, "current") => "当前",
             (Self::EnUs, "waiting") => "Waiting",

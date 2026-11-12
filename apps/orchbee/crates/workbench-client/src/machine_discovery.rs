@@ -111,7 +111,7 @@ impl Entry {
     }
 }
 pub fn same_endpoint(a: &Profile, b: &Profile) -> bool {
-    a.id == b.id && a.draft.target == b.draft.target && a.draft.session == b.draft.session
+    a.id == b.id && a.draft.connection == b.draft.connection && a.draft.session == b.draft.session
 }
 #[derive(Default)]
 pub struct Discovery {
@@ -123,7 +123,11 @@ pub struct Discovery {
 impl Discovery {
     pub fn reconcile(&mut self, profiles: &[Profile], now: Instant) {
         let mut old = std::mem::take(&mut self.entries);
-        for profile in profiles.iter().filter(|p| p.enabled) {
+        // A connection kind this build does not know is never contacted.
+        for profile in profiles
+            .iter()
+            .filter(|p| p.enabled && p.draft.connection.supported())
+        {
             if let Some(index) = old.iter().position(|e| same_endpoint(&e.profile, profile)) {
                 let mut entry = old.remove(index);
                 entry.profile = profile.clone();

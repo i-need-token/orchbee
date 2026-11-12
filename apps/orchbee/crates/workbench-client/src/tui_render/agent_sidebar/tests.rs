@@ -1307,11 +1307,10 @@ fn sidebar_shares_source_order_and_never_lists_unavailable_rows() {
         })
         .collect();
     round.view.spec=Some(orchbee_workbench_protocol::parse_agent_view_spec(br#"{"source":"tools","label":"review","sort":[{"field":"state_change_seq","order":"desc"}]}"#).unwrap());
-    let remote = crate::machines::Profile {
-        id: crate::machines::ProfileId::parse(&format!("{:032x}", 1)).unwrap(),
-        draft: crate::machines::Draft::parse("remote", "example.invalid", "default").unwrap(),
-        enabled: true,
-    };
+    let remote = crate::machines::Profile::new(
+        crate::machines::ProfileId::parse(&format!("{:032x}", 1)).unwrap(),
+        crate::machines::Draft::parse("remote", "example.invalid", "default").unwrap(),
+    );
     let choice = Choice::Remote(remote.id.clone());
     view.machines.replace(&[remote]);
     view.machines.observe_agents(vec![
