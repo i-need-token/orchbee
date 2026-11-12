@@ -43,3 +43,4 @@ pub use query::{
     QueryResult,
 };
 pub use registry::{ConnectionKind, Delivery, FrameFormat, PROMPT_GATED_INPUT};
+pub use strict_json::parse_strict_object;

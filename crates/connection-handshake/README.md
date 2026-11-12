@@ -29,6 +29,7 @@ answer, derive the build's environment name, or localize a rejection.
 | `PROMPT_GATED_INPUT`                                                             | The capability name both connections list once a send may ask for a confirmed idle prompt; a peer without it gets no gated send.                                                   |
 | `QueryResult::new`, `UnknownRequest::new`, `BuildEnvironment`, `GenerationRange` | Constructors that enforce cross-member rules, so a value that encodes is a valid message.                                                                                          |
 | `Extensions`                                                                     | The open `extensions` member; later records that admit extensions may reuse it.                                                                                                    |
+| `parse_strict_object`                                                            | The strict JSON object parser of the payload rules, for connections whose records follow them, such as `machine-hub` and `machine-link`.                                           |
 
 Decoding rejects every rule of the contract: duplicate members, nesting deeper than 32, integer
 members spelled with a fraction, exponent, or minus sign, `null` members, unknown members, and

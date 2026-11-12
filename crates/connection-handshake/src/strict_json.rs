@@ -1,6 +1,7 @@
-//! Strict JSON reading for unnegotiated messages: one object, no duplicate member at any depth,
-//! and at most [`MAXIMUM_DEPTH`] nested arrays and objects. `serde_json` supplies RFC 8259 syntax,
-//! UTF-8, finite numbers, and the rejection of lone surrogate escapes.
+//! Strict JSON reading for unnegotiated messages and for the payloads of connections that adopt
+//! the same rules: one object, no duplicate member at any depth, and at most [`MAXIMUM_DEPTH`]
+//! nested arrays and objects. `serde_json` supplies RFC 8259 syntax, UTF-8, finite numbers, and the
+//! rejection of lone surrogate escapes.
 
 use std::fmt;
 
@@ -11,8 +12,16 @@ use serde_json::{Map, Number, Value};
 /// depth 1.
 pub(crate) const MAXIMUM_DEPTH: usize = 32;
 
-/// Parses `payload` as one strict JSON object.
-pub(crate) fn parse_object(payload: &[u8]) -> Option<Map<String, Value>> {
+/// Parses `payload` as one strict JSON object under the `OBHS` payload rules: UTF-8 under RFC 8259
+/// without a byte order mark, an object root, no second value, no repeated member name at any
+/// depth, nesting at most 32 deep counting the object as depth 1, finite numbers, and no lone
+/// surrogate escape. Returns `None` for any other bytes. Integer spelling, `null`, and closed
+/// members are the rules of the record the caller decodes.
+///
+/// Other negotiated connections whose payloads follow the `OBHS` rules reuse this parser instead
+/// of keeping a second one.
+#[must_use]
+pub fn parse_strict_object(payload: &[u8]) -> Option<Map<String, Value>> {
     let text = std::str::from_utf8(payload).ok()?;
     let mut deserializer = serde_json::Deserializer::from_str(text);
     let value = StrictValue { depth: 1 }

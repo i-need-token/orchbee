@@ -261,7 +261,7 @@ fn decode_acceptor_payload(payload: &[u8]) -> Result<AcceptorMessage, DecodeErro
 
 /// Parses the strict object and its grammatical `type`.
 fn message_object(payload: &[u8]) -> Result<(String, Map<String, Value>), DecodeError> {
-    let object = strict_json::parse_object(payload).ok_or(DecodeError::Encoding)?;
+    let object = strict_json::parse_strict_object(payload).ok_or(DecodeError::Encoding)?;
     match object.get("type") {
         Some(Value::String(name)) if is_name(name) => Ok((name.clone(), object)),
         _ => Err(DecodeError::Message),
