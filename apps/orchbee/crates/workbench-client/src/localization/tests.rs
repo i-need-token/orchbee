@@ -396,3 +396,26 @@ fn handshake_refusals_name_the_older_side_in_both_locales() {
         }
     }
 }
+
+/// A notice is built without the binding owner, so it names a key through a slot. The rule: what
+/// the status line draws carries the effective label in the one label spelling, never the slot.
+#[test]
+fn a_start_notice_names_the_picker_key_by_its_effective_label() {
+    use super::{AgentStartStatus, WorkbenchClientNotice};
+    use crate::terminal_events::keys::tests::host_label;
+    let notice = WorkbenchClientNotice::AgentStart(AgentStartStatus::NotFound("Codex"));
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let keys = crate::client_view::ClientView::new(80)
+            .bindings()
+            .shell_bindings(locale.shell().binding_unbound);
+        let mut forms = locale.native_notice_forms(notice, None);
+        for form in &mut forms {
+            keys.fill_notice(form);
+            assert!(!form.contains(super::shell::START_AGENT_KEY_SLOT), "{form}");
+        }
+        assert!(
+            forms[0].contains(&host_label("Ctrl+b Shift+G")),
+            "{forms:?}"
+        );
+    }
+}

@@ -227,7 +227,8 @@ pub fn render_terminal_shell_with_resize<'a>(
     let capture_owner = project_capture(client_claims, native_claims);
     let native_top = |owner| capture_owner == Some(CaptureOwner::Native(owner));
     let shell_text = locale.shell();
-    let bound_text = shell_text.bind(&view.bindings().shell_bindings(shell_text.binding_unbound));
+    let shell_bindings = view.bindings().shell_bindings(shell_text.binding_unbound);
+    let bound_text = shell_text.bind(&shell_bindings);
     let text = bound_text.text();
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
 
@@ -362,6 +363,12 @@ pub fn render_terminal_shell_with_resize<'a>(
                     .is_none()
             {
                 sidebar_status_role = Role::StatusSuccess;
+            }
+            // A notice names a key through a slot; its label is the one dispatch resolves.
+            let mut status = status;
+            shell_bindings.fill_notice(&mut status);
+            for form in status_shorter.iter_mut().chain(&mut secondary_notice) {
+                shell_bindings.fill_notice(form);
             }
             status_text = status;
             if secondary_notice.is_empty()

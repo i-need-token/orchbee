@@ -64,7 +64,20 @@ from that value; no surface stores a separate label string.
 | Fallback   | Arrow glyphs use `Up`, `Down`, `Left`, `Right` under simplified glyphs                                            |
 
 Letters display in lowercase unless `Shift` is part of the binding. A digit range displays as
-`1..9`, never as nine entries.
+`1..9`, never as nine entries. A label never leaves `Shift` to the letter's case alone: with a
+`Ctrl+b` prefix, the chord for an unshifted `g` reads `Ctrl+b g` and the chord for a shifted one
+reads `Ctrl+b Shift+G`.
+
+- Every surface that names a key to a person formats the binding through the one label formatter:
+  menus, hints, footers, help, notices, tooltips, onboarding, and command-line text that names a
+  TUI key. One binding reads the same on all of them.
+- Localized text carries a slot for the label and never a typed key name, so a rebound key and an
+  Apple host read correctly in every locale. Text that cannot read the configuration, such as
+  static command help or a screen drawn before the configuration loads, names the default binding
+  in the same spelling.
+- The configuration spelling is not a label. The text a person types to configure a key, and the
+  value a text setting row shows and edits, follow the configuration grammar (`ctrl+b`); a machine
+  report keeps its own stable key vocabulary.
 
 - A binding resolves to a scoped semantic intent, not directly to a renderer mutation. Keyboard and
   pointer routes for one committed operation use the same intent identity, target, availability

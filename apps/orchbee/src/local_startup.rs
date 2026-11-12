@@ -144,6 +144,7 @@ fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Insta
     let mut output = output;
     let mut viewport = InheritedWaitViewport::new(inherited);
     let mut presentable = startup_presentable_area;
+    let exit_hint = locale.startup_wait_hint();
     startup_wait::await_presentable_geometry(
         || TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone())),
         startup_wait::StartupWaitDeps {
@@ -155,7 +156,7 @@ fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Insta
             deadline,
             prompt: WaitPrompt {
                 notice: locale.startup_wait_notice(),
-                exit_hint: locale.startup_wait_hint(),
+                exit_hint: &exit_hint,
             },
             presentable: &mut presentable,
         },

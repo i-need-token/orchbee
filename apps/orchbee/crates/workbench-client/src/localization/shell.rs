@@ -56,21 +56,21 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     board: Locale::EnUs.agent_board_text(),
     backend_status: "Backend unavailable",
     business_section: "BUSINESS",
-    exit_hint: "Ctrl+B q · exit",
-    hint_short: "Ctrl+B ? · help",
+    exit_hint: "{exit} · exit",
+    hint_short: "{help} · help",
     overlay_refused: "Not enough room to show this view · resize the terminal",
     overlay_refused_short: "Not enough room to show this view",
     navigator_title: "Workbench navigator",
     no_client_connection: "No Orchbee session is connected.",
     binding_unbound: "Unbound",
     panel_title: "Terminal",
-    pointer_released: "mouse released · Ctrl+B m restores",
-    prefix_active: "PREFIX Ctrl+B",
+    pointer_released: "mouse released · {pointer} restores",
+    prefix_active: "PREFIX {prefix}",
     prefix_desc: en_us_prefix_desc,
     projects: "Projects",
     shell_only_detail: "Connect to a session to use terminals and agents.",
     shortcut_title: "Keyboard shortcuts",
-    sidebar_hint: "Ctrl+B b · sidebar",
+    sidebar_hint: "{sidebar} · sidebar",
     session_section: "SESSION",
     no_workspace: "No workspace",
     tabs_unavailable: "No shared Tabs · session unavailable",
@@ -80,7 +80,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     pinned_tab: "Pinned",
     unnamed_tab_group: "Unnamed group",
     workspaces: "Workspaces",
-    zoom_badge: "maximized · Ctrl+B z restores",
+    zoom_badge: "maximized · {zoom} restores",
 };
 
 const ZH_CN_SHELL: ShellText<'static> = ShellText {
@@ -89,21 +89,21 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     board: Locale::ZhCn.agent_board_text(),
     backend_status: "后端不可用",
     business_section: "业务",
-    exit_hint: "Ctrl+B q · 退出",
-    hint_short: "Ctrl+B ? · 帮助",
+    exit_hint: "{exit} · 退出",
+    hint_short: "{help} · 帮助",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
     overlay_refused_short: "空间不足，无法显示此视图",
     navigator_title: "Workbench 导航器",
     no_client_connection: "当前未连接 Orchbee 会话。",
     binding_unbound: "未绑定",
     panel_title: "终端",
-    pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
-    prefix_active: "前缀 Ctrl+B",
+    pointer_released: "鼠标已释放 · {pointer} 恢复",
+    prefix_active: "前缀 {prefix}",
     prefix_desc: zh_cn_prefix_desc,
     projects: "项目",
     shell_only_detail: "连接会话后即可使用终端和智能体。",
     shortcut_title: "键盘快捷键",
-    sidebar_hint: "Ctrl+B b · 边栏",
+    sidebar_hint: "{sidebar} · 边栏",
     session_section: "会话",
     no_workspace: "未打开工作区",
     tabs_unavailable: "无共享标签页 · 会话不可用",
@@ -113,10 +113,11 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     pinned_tab: "固定",
     unnamed_tab_group: "未命名分组",
     workspaces: "工作区",
-    zoom_badge: "已最大化 · Ctrl+B z 还原",
+    zoom_badge: "已最大化 · {zoom} 还原",
 };
 
-/// Effective labels selected by the binding owner; text only substitutes these frozen strings.
+/// Effective key labels selected by the binding owner. Localized text names a key only through
+/// one of these slots, so every surface shows the label dispatch resolves, in one spelling.
 #[derive(Clone, Debug)]
 pub(crate) struct ShellBindings {
     pub(crate) prefix: String,
@@ -124,10 +125,23 @@ pub(crate) struct ShellBindings {
     pub(crate) exit: String,
     pub(crate) sidebar: String,
     pub(crate) zoom: String,
-    pub(crate) navigator: String,
-    pub(crate) create_tab: String,
-    pub(crate) close_tab: String,
+    pub(crate) pointer: String,
+    pub(crate) start_agent: String,
 }
+
+impl ShellBindings {
+    /// Fills the key slot a status notice carries, for the texts the status line draws.
+    pub(crate) fn fill_notice(&self, notice: &mut String) {
+        if notice.contains(START_AGENT_KEY_SLOT) {
+            *notice = notice.replace(START_AGENT_KEY_SLOT, &self.start_agent);
+        }
+    }
+}
+
+/// The slot a notice built without the binding owner leaves for the Start Agent picker's key;
+/// [`ShellBindings::fill_notice`] fills it when the status line is drawn. Private-use characters
+/// keep it apart from any text a person typed.
+pub(crate) const START_AGENT_KEY_SLOT: &str = "\u{e000}start-agent\u{e001}";
 
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {
@@ -163,33 +177,21 @@ impl<'a> ShellText<'a> {
         BoundShellText { base: self, hints }
     }
 
+    /// Fills the key slots of `hint` with the labels of the entries dispatch resolves, including
+    /// the unbound label of a disabled action. Text without a slot is returned as it is.
     pub(crate) fn bound_hint(&self, bindings: &ShellBindings, hint: &str) -> String {
-        let mut result = hint.to_owned();
-        // Substitute complete default chords before the standalone prefix. The replacement
-        // values come from the same resolved entries dispatch uses, including disabled actions.
-        let replacements = [
-            ("Ctrl+B ?", bindings.help.as_str()),
-            ("Ctrl+B q", bindings.exit.as_str()),
-            ("Ctrl+B b", bindings.sidebar.as_str()),
-            ("Ctrl+B z", bindings.zoom.as_str()),
-            ("Ctrl+B w", bindings.navigator.as_str()),
-            ("Ctrl+B c", bindings.create_tab.as_str()),
-            ("Ctrl+B x", bindings.close_tab.as_str()),
-            ("Ctrl+B then q", bindings.exit.as_str()),
-            ("Ctrl+B 后按 q", bindings.exit.as_str()),
-            ("Ctrl+B 后按 c", bindings.create_tab.as_str()),
-            ("Ctrl+B 后按 x", bindings.close_tab.as_str()),
-            ("Ctrl+B 后按 w", bindings.navigator.as_str()),
-        ];
-        // Placeholders prevent one configured chord from being rewritten by a later replacement.
-        for (index, (old, _)) in replacements.iter().enumerate() {
-            result = result.replace(old, &format!("\u{e000}{index}\u{e001}"));
-        }
-        result = result.replace("Ctrl+B", &bindings.prefix);
-        for (index, (_, actual)) in replacements.iter().enumerate() {
-            result = result.replace(&format!("\u{e000}{index}\u{e001}"), actual);
-        }
-        result
+        [
+            ("{prefix}", &bindings.prefix),
+            ("{help}", &bindings.help),
+            ("{exit}", &bindings.exit),
+            ("{sidebar}", &bindings.sidebar),
+            ("{zoom}", &bindings.zoom),
+            ("{pointer}", &bindings.pointer),
+        ]
+        .into_iter()
+        .fold(hint.to_owned(), |text, (slot, label)| {
+            text.replace(slot, label)
+        })
     }
 }
 

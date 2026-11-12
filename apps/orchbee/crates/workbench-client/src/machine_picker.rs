@@ -6,6 +6,11 @@ use crate::machines::{Profile, ProfileId};
 use crate::startup_directory::ClientStartupTarget;
 use crate::workbench_projection::{ClientContextTarget, ClientMemberTarget};
 use std::{num::NonZeroU64, sync::Arc};
+
+/// The key that copies the selected remote computer's ID; the handler and the painted hint both
+/// read it.
+pub(crate) const COPY_ID_KEY: crate::terminal_events::keys::Binding =
+    crate::terminal_events::keys::Binding::new(KeyCode::Char('y'), Modifiers::CTRL);
 mod agents;
 mod navigation;
 mod pointer;
@@ -738,7 +743,7 @@ impl Picker {
         self.pending_navigation = None;
         let hidden = self.reveal_selection();
         let (code, mods) = key.normalized();
-        if code == KeyCode::Char('y') && mods == Modifiers::CTRL {
+        if COPY_ID_KEY.matches(key) {
             self.copy_id_request = self.row_id(self.selected).map(str::to_owned);
             return;
         }

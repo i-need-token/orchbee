@@ -214,7 +214,7 @@ impl Harness {
                 deadline: self.deadline,
                 prompt: WaitPrompt {
                     notice: Locale::EnUs.startup_wait_notice(),
-                    exit_hint: Locale::EnUs.startup_wait_hint(),
+                    exit_hint: &Locale::EnUs.startup_wait_hint(),
                 },
                 presentable,
             },
@@ -283,7 +283,7 @@ fn waiting_draws_prompt_once_then_admits_valid_geometry() {
     assert_eq!(harness.ops(), expected);
     let drawn = String::from_utf8_lossy(&harness.output);
     assert!(drawn.contains("too small"));
-    assert!(drawn.contains("Ctrl+b"));
+    assert!(drawn.contains(Locale::EnUs.startup_wait_hint().trim_end()));
     assert!(drawn.starts_with("\u{1b}[2J\u{1b}[1;1H"));
     assert_eq!(input.timeouts.len(), 2);
 }
@@ -295,10 +295,7 @@ fn localized_prompt_pairs_exist() {
     // Drawn key hints display the prefix letter in lowercase, as every TUI key hint does.
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let hint = locale.startup_wait_hint();
-        assert!(
-            hint.contains("Ctrl+b") && !hint.contains("Ctrl+B"),
-            "{hint}"
-        );
+        assert!(!hint.contains("Ctrl+B"), "{hint}");
     }
 }
 

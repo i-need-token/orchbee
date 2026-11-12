@@ -190,7 +190,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         place_hint: "place",
     },
     start_failed: "Agent did not start. Check its Panel and try again.",
-    start_not_found: "{product} not found · Ctrl+B G choose another",
+    start_not_found: "{product} not found · {key} choose another",
     start_exited: "{product} exited · see its Tab",
     start_unsupported_shell: "{product} not started · this shell takes no start command",
     start_not_at_prompt: "Nothing was typed: the shell is not at an empty prompt. Finish the running command, or clear the line and press Enter for a new prompt, then try again.",
@@ -268,7 +268,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         place_hint: "位置",
     },
     start_failed: "智能体未启动，请检查其面板后重试。",
-    start_not_found: "未找到 {product} · Ctrl+B G 换一个",
+    start_not_found: "未找到 {product} · {key} 换一个",
     start_exited: "{product} 已退出 · 请查看其标签页",
     start_unsupported_shell: "{product} 未启动 · 这个 shell 不接受启动命令",
     start_not_at_prompt: "未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令，或清空输入行后按回车获得新的提示符，再重试。",
@@ -483,7 +483,13 @@ impl Locale {
         let text = self.agent_board_text();
         match status.into() {
             Status::Failed => text.start_failed,
-            Status::NotFound(product) => return text.start_not_found.replace("{product}", product),
+            Status::NotFound(product) => {
+                // The status line fills the key slot from the effective binding when it draws.
+                return text
+                    .start_not_found
+                    .replace("{product}", product)
+                    .replace("{key}", super::shell::START_AGENT_KEY_SLOT);
+            }
             Status::Exited(product) => return text.start_exited.replace("{product}", product),
             Status::UnsupportedShell(product) => {
                 return text.start_unsupported_shell.replace("{product}", product);

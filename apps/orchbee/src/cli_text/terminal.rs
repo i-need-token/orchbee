@@ -77,13 +77,13 @@ pub(super) const HELP_TERMINAL_CONTROL_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_TERMINAL_ATTACH_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:0x<hex>; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+B then q detaches; Ctrl+B twice sends a literal Ctrl+B. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
+        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:0x<hex>; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+b q detaches; Ctrl+b twice sends a literal Ctrl+b. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
     );
 
 pub(super) const HELP_TERMINAL_ATTACH_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench 面板。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
+        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench 面板。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+b q 脱离；连续两次 Ctrl+b 发送字面 Ctrl+b。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
     );
 
 pub(super) const HELP_TERMINAL_READ_EN: crate::cli_text::HelpDetails =

@@ -324,8 +324,8 @@ impl Locale {
                 "起始文件夹：路径，或 follow、home、current、workspace；留空用默认。",
             ),
             Row::PrefixKey => self.setting(
-                "Press it before a command key, as in Ctrl+B c for a new tab.",
-                "先按它再按命令键，例如 Ctrl+B c 新建标签页。",
+                "Press it first, then a command key.",
+                "先按它，再按命令键。",
             ),
             Row::AgentIntegrations => self.setting(
                 "Shows each Agent’s status. Turning one on changes one of its files.",

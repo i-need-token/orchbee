@@ -425,9 +425,8 @@ impl Bindings {
             exit: label(PrefixDesc::Exit),
             sidebar: label(PrefixDesc::SidebarToggle),
             zoom: label(PrefixDesc::PanelZoom),
-            navigator: label(PrefixDesc::NavigatorToggle),
-            create_tab: label(PrefixDesc::CreateTab),
-            close_tab: label(PrefixDesc::CloseTab),
+            pointer: label(PrefixDesc::PointerCapture),
+            start_agent: label(PrefixDesc::StartAgent),
         }
     }
 }

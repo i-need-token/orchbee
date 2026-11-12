@@ -14,7 +14,7 @@ synthesizing a session. Maintain this reference with the private
 
 Each row uses the shared six-state presentation: a stationary white-to-gray breathing `⬢` for working (two seconds), a pulsing yellow `⬢` for attention, green `⬢` for succeeded, red `⬢` for failed/canceled/interrupted, gray `⬡` for idle and gray `•` for unknown. The Board shares the Sidebar animation phase; it also requests animation when only its own rows need it. ASCII and monochrome keep distinct outcome glyphs. A separate trailing blue dot reflects this Client’s unread observation. Reading clears only that dot; selected-row backgrounds preserve semantic foregrounds. Freshness remains a separate label.
 
-`Ctrl+B g` toggles the board. Opening creates a stable episode and claims the top input slot before
+`Ctrl+b g` toggles the board. Opening creates a stable episode and claims the top input slot before
 the first paint, so no keystroke falls through to the terminal shell. The first evaluated draw
 either admits that episode or refuses it when geometry cannot present the surface. A refused new
 episode closes and reports the refusal separately. Once admitted, a temporary small viewport
@@ -22,7 +22,7 @@ suspends presentation instead: rows, selection, manual reading position and alre
 remain owned for the same episode. While covered or suspended, ordinary keys, paste, wheel and
 activation are consumed without an effect; `Esc` remains the board's local close route. After modal
 and confirmation owners decline a configured prefix, its binding runs through the normal Client
-action owner: `Ctrl+B g` closes the board, and other prefix actions close or replace it through their
+action owner: `Ctrl+b g` closes the board, and other prefix actions close or replace it through their
 destination. A doubled prefix is consumed by the board instead of reaching the covered terminal. A
 later complete paint resumes the episode, while a receipt from an older episode can neither reopen
 it nor restore input authority. Accepted lane work may settle into the same hidden episode, but staged
@@ -37,20 +37,20 @@ closes. Up from the first row selects the **+ Start Agent** row, where `Enter` o
 with no rows that row is the selection. A row press selects, while the
 inner wheel scrolls the reading viewport without changing selection. The outer wheel, unknown keys
 and paste are consumed; nothing reaches the terminal shell. Modal or confirmation ownership
-refuses opening; prefix chords still resolve, so `Ctrl+B g` closes the board too. Both ownership
+refuses opening; prefix chords still resolve, so `Ctrl+b g` closes the board too. Both ownership
 edges — open and close — invalidate the published pointer hit map, so a click can never land on a
 vanished board row or pass through the overlay onto a stale foreground region. Notifications,
 task sending, scheduling and persistence are excluded.
 
-One action, `agent.start`, opens the Start Agent picker: `Ctrl+B G`, the action menu's
+One action, `agent.start`, opens the Start Agent picker: `Ctrl+b Shift+G`, the action menu's
 **Start Agent…**, the Board's always-present **+ Start Agent** row above its sessions, `s` anywhere
 in the Board, the empty Workspace hint beside new Tab, and the new-Tab button's More Agents…, which
 opens it with new Tab as its place. That menu's Agent rows start directly instead: they list up to
 four of this picker's Recent then Installed providers, fixed when the menu opens, and start one as
 the new-Tab place does, with the same notices
 ([action menus](native-action-menus.md)). From the Board the picker replaces the
-Board's content in the same owner, episode and hit map; `Ctrl+B G` opens it alone without a Board
-read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
+Board's content in the same owner, episode and hit map; `Ctrl+b Shift+G` opens it alone without a
+Board read. It is a Medium dialog of 56 content cells: the title with its close control, where the Agent
 opens, a search field, a divider, the grouped list, a status row only while there is something to
 report (the lookup running, a lookup that could not check, no match, or a host or Session that
 cannot start Agents) and the hint row
@@ -114,7 +114,7 @@ previous one, wrapping, in the order this Panel, new Tab, split right, split dow
 click on the place row acts like `Tab`. This Panel is offered only when it is the automatic place,
 the two splits only while a Panel is focused, and new Worktree only while the
 [New Worktree form](native-worktrees.md) could open a fresh create for the focused Workspace, under
-the refusals `Ctrl+B W` meets; the offer is fixed when the picker opens. The chosen place holds
+the refusals `Ctrl+b Shift+W` meets; the offer is fixed when the picker opens. The chosen place holds
 while the picker stays open, also across filtering, and is forgotten when it closes. The place row
 is never removed under height pressure; a row too narrow for the label and the place drops the
 label "Opens in" first, then truncates the place name, and the hint row drops `Tab place` before
@@ -144,7 +144,8 @@ command", and `prompt-unconfirmed` and `terminal-too-old` show the not-at-prompt
 starts in a new Tab instead and says "Panel busy · opened a new Tab". The workflow
 never installs a provider, inspects an integration or changes configuration. Success shows no
 notice; the Panel's Agent row shows the Agent opening. A failure is a short status notice, such as
-"Codex not found · Ctrl+B G choose another" or "Codex exited · see its Tab", and a provider not
+"Codex not found · Ctrl+b Shift+G choose another" or "Codex exited · see its Tab"; the key it names
+is the effective Start Agent binding's label, and its shorter form drops the key. A provider not
 found is listed under not found afterwards: the Server marks its catalog row for a new Panel, and
 the Client marks it for the focused Panel until the connection ends. Recent follows the catalog,
 which moves a provider to the front when one of its runs starts, typed or not. See

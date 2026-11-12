@@ -90,13 +90,13 @@ pub(super) const HELP_AGENT_WAIT_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_AGENT_ATTACH_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent attach (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Resolve a unique live Agent terminal, then use the Windows terminal attach\ninterface. Target may be a name, session or Panel; --name, --agent-session and\n--panel are explicit alternatives to the positional target. No focus or launch.\nCtrl+B then q detaches; Ctrl+C reaches the application. Console stdin/stdout\nare required. Default duration unlimited and mouse on. See help terminal attach\nfor takeover, timeout, cleanup and input semantics.",
+        "Resolve a unique live Agent terminal, then use the Windows terminal attach\ninterface. Target may be a name, session or Panel; --name, --agent-session and\n--panel are explicit alternatives to the positional target. No focus or launch.\nCtrl+b q detaches; Ctrl+C reaches the application. Console stdin/stdout\nare required. Default duration unlimited and mouse on. See help terminal attach\nfor takeover, timeout, cleanup and input semantics.",
     );
 
 pub(super) const HELP_AGENT_ATTACH_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent attach (<target> | --agent-session <id> | --name <name> | --panel <panel> | --terminal <terminal>) [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "解析唯一的活动智能体终端，再进入 Windows terminal attach 界面。目标可为名称、会话或面板；--name、--agent-session 和 --panel 可显式替代位置参数。不聚焦或启动资源。Ctrl+B 后按 q 脱离，Ctrl+C 交付应用；必须使用控制台\nstdin/stdout。默认不限总时长、启用鼠标。接管、超时、清理和输入语义见\nhelp terminal attach。",
+        "解析唯一的活动智能体终端，再进入 Windows terminal attach 界面。目标可为名称、会话或面板；--name、--agent-session 和 --panel 可显式替代位置参数。不聚焦或启动资源。Ctrl+b q 脱离，Ctrl+C 交付应用；必须使用控制台\nstdin/stdout。默认不限总时长、启用鼠标。接管、超时、清理和输入语义见\nhelp terminal attach。",
     );
 
 pub(super) const HELP_AGENT_OUTPUT_EN: crate::cli_text::HelpDetails =

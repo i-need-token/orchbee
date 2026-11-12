@@ -97,11 +97,11 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::SessionAttach) => crate::cli_text::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",
-                "Activate the selected local session if needed and attach the Windows TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+B q detaches the client while the session and child processes continue.",
+                "Activate the selected local session if needed and attach the Windows TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+b q (default keys) detaches the client; session and child processes continue.",
             ),
             (Locale::ZhCn, CommandPath::SessionAttach) => crate::cli_text::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",
-                "按需激活所选本地会话并连接 Windows TUI。鼠标默认开启。需要交互终端，不接受 --format。\nCtrl+B q 脱离客户端，会话和子进程继续运行。",
+                "按需激活所选本地会话并连接 Windows TUI。鼠标默认开启。需要交互终端，不接受 --format。\n默认按 Ctrl+b q 脱离客户端，会话和子进程继续运行。",
             ),
             (Locale::EnUs, CommandPath::SessionStop) => crate::cli_text::HelpDetails::new(
                 "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",

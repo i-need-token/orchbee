@@ -82,7 +82,7 @@ Group color ▸, then Ungroup and the red Close; a click on the header already f
 and dragging moves it. Right-clicking the new-Tab button lists the saved launch profiles, the
 default first and marked Default, then a separated Agents section under its heading: up to four
 Agents by product name, the picker's Recent then Installed rows in its order, and More Agents… with
-the `Ctrl+B G` key. An Agent row starts that Agent in a new Tab of the current Workspace without a
+the `Ctrl+b Shift+G` key. An Agent row starts that Agent in a new Tab of the current Workspace without a
 question, through the [Start Agent picker](agent-board.md)'s new-Tab place; More Agents… opens the
 picker with new Tab as its place. The rows come from the Session's Agent catalog as already held:
 opening the menu never asks the Server to look again, and the rows are fixed when the menu opens,

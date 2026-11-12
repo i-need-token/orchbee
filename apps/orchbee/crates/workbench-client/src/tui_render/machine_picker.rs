@@ -668,8 +668,16 @@ impl Picker {
                 lines.extend(o.labels.iter().take(3).map(|label| format!("  {label}")));
             }
             if self.row_id(self.selected()).is_some() {
-                let label = locale.machine_picker_text("copy-id");
-                let copy_width = display_width(label) as u16;
+                let label = format!(
+                    "[{} {}]",
+                    format_binding_with_glyphs(
+                        &crate::machine_picker::COPY_ID_KEY,
+                        LabelStyle::for_host(),
+                        theme.glyphs.key_labels(),
+                    ),
+                    locale.machine_picker_text("copy-id"),
+                );
+                let copy_width = display_width(&label) as u16;
                 if copy_width <= inner.width {
                     let rect = Rect::new(
                         inner.right() - copy_width,

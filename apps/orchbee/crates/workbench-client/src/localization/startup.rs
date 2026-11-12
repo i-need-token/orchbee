@@ -30,10 +30,17 @@ impl Locale {
         }
     }
 
-    pub const fn startup_wait_hint(self) -> &'static str {
+    /// The startup wait's exit line. The wait runs before any configuration loads, so the key is
+    /// the default exit binding, formatted as every other key label is.
+    pub fn startup_wait_hint(self) -> String {
+        let exit = crate::client_view::Bindings::default()
+            .labels(crate::client_view::PrefixDesc::Exit)
+            .into_iter()
+            .next()
+            .unwrap_or_default();
         match self {
-            Self::EnUs => "Press Ctrl+b then q to exit.\n",
-            Self::ZhCn => "按 Ctrl+b 再按 q 退出。\n",
+            Self::EnUs => format!("Press {exit} to exit.\n"),
+            Self::ZhCn => format!("按 {exit} 退出。\n"),
         }
     }
 
