@@ -10,7 +10,12 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         static SERIAL: AtomicU64 = AtomicU64::new(0);
-        let root = std::env::temp_dir().join(format!(
+        // Git names a repository by its real path; macOS's temporary folder sits behind /var.
+        #[cfg(unix)]
+        let parent = std::env::temp_dir().canonicalize().unwrap();
+        #[cfg(windows)]
+        let parent = std::env::temp_dir();
+        let root = parent.join(format!(
             "orchbee-worktree-source-{}-{}",
             std::process::id(),
             SERIAL.fetch_add(1, Ordering::Relaxed)
