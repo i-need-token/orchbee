@@ -103,12 +103,15 @@ enum Schema {
 struct Record<P> {
     schema: Schema,
     version: u32,
+    /// Fields a later release added, kept unread and written back unchanged.
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    extensions: serde_json::Map<String, serde_json::Value>,
     position: P,
 }
 
 const MAXIMUM_BYTES: usize = 4096;
 
-fn decode(bytes: &[u8]) -> std::io::Result<Position> {
+fn decode_record(bytes: &[u8]) -> std::io::Result<Record<Position>> {
     if bytes.len() > MAXIMUM_BYTES {
         return Err(std::io::ErrorKind::FileTooLarge.into());
     }
@@ -117,7 +120,11 @@ fn decode(bytes: &[u8]) -> std::io::Result<Position> {
     if record.version != 1 {
         return Err(std::io::ErrorKind::InvalidData.into());
     }
-    Ok(record.position)
+    Ok(record)
+}
+
+fn decode(bytes: &[u8]) -> std::io::Result<Position> {
+    decode_record(bytes).map(|record| record.position)
 }
 
 #[cfg(test)]

@@ -23,6 +23,7 @@ fn startup_preference_codec_rejects_future_incomplete_unknown_and_oversized_reco
     let bytes = serde_json::to_vec(&Record {
         schema: Schema::Position,
         version: 1,
+        extensions: serde_json::Map::new(),
         position: position.clone(),
     })
     .unwrap();
@@ -72,6 +73,7 @@ fn current_position_rejects_historical_shape_and_requires_member() {
     let bytes = serde_json::to_vec(&Record {
         schema: Schema::Position,
         version: 1,
+        extensions: serde_json::Map::new(),
         position: expected.clone(),
     })
     .unwrap();

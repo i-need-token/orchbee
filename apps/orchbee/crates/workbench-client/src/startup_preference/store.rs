@@ -1,7 +1,7 @@
 //! The optional position cache: platform storage identity, load, and the single background writer.
 //! The TUI is the record's only writer: a load keeps an earlier record migrated in memory, and the
 //! writer backs it up and persists the migration under its lock before its first replacement.
-use super::{MAXIMUM_BYTES, Position, Record, Schema, decode};
+use super::{MAXIMUM_BYTES, Position, Record, Schema, decode, decode_record};
 use crate::background_thread::BackgroundThread;
 use orchbee_local_runtime::{OpenedRecord, VersionedFile};
 
@@ -163,21 +163,36 @@ impl Writer {
     }
 }
 /// Opens the record under its writer lock, which backs up and persists an earlier version first,
-/// and replaces it unless its version is one this build cannot use.
+/// and replaces it unless its version is one this build cannot use. The replacement keeps the
+/// current record's `extensions`.
 fn write(record: &VersionedFile, position: Position) -> std::io::Result<Written> {
-    let bytes = serde_json::to_vec(&Record {
-        schema: Schema::Position,
-        version: 1,
-        position,
-    })
-    .map_err(std::io::Error::other)?;
+    let encode = |extensions, position| {
+        serde_json::to_vec(&Record {
+            schema: Schema::Position,
+            version: 1,
+            extensions,
+            position,
+        })
+        .map_err(std::io::Error::other)
+    };
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
     loop {
         match record.acquire(MAXIMUM_BYTES, admits) {
             Ok((_, Ok(OpenedRecord::Unusable(_)))) => return Ok(Written::Kept),
+            // A malformed record counts as unsaved and is replaced without extensions.
+            Ok((mut writer, Ok(opened))) => {
+                let extensions = match opened {
+                    OpenedRecord::Readable(bytes) => decode_record(&bytes)
+                        .map(|current| current.extensions)
+                        .unwrap_or_default(),
+                    OpenedRecord::Absent | OpenedRecord::Unusable(_) => serde_json::Map::new(),
+                };
+                let bytes = encode(extensions, position)?;
+                return writer.replace(&bytes).map(|()| Written::Replaced);
+            }
             // A record too large to read counts as unsaved, like a malformed one, and is replaced.
-            Ok((mut writer, Ok(_))) => return writer.replace(&bytes).map(|()| Written::Replaced),
             Ok((mut writer, Err(error))) if error.kind() == std::io::ErrorKind::FileTooLarge => {
+                let bytes = encode(serde_json::Map::new(), position)?;
                 return writer.replace(&bytes).map(|()| Written::Replaced);
             }
             Ok((_, Err(error))) => return Err(error),

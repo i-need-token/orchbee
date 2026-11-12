@@ -154,7 +154,8 @@ presentation for the current Windows user and local Session runtime. This is Cli
 advice, separate from Server checkpoints and terminal lifetime. Its versioned, bounded JSON record
 is the Session folder's `tui-position.json`, `sessions/<session>/tui-position.json` in the data root, and is removed with
 its Session. Only schema `orchbee.tui.position`, version 1, with required position/location/member fields is
-readable; member is explicitly nullable. Workspace/context identity excludes mutable Project membership.
+readable; member is explicitly nullable. An optional `extensions` object holds members a later
+release adds; the TUI keeps it unread and writes it back unchanged. Workspace/context identity excludes mutable Project membership.
 Only the TUI writes the record: an earlier version loads migrated in memory, and the position writer
 backs the original up under `internal/backups/` and saves the migration before its first
 replacement. A record with a version this build cannot use, saved by a newer version or not updated from an

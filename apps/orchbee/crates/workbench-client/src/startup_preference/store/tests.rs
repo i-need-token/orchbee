@@ -110,3 +110,36 @@ fn a_record_a_newer_version_saved_counts_as_unsaved_and_is_never_rewritten() {
     assert!(preferences.writer().unwrap().is_none());
     assert_eq!(std::fs::read(path.join(FILE)).unwrap(), newer);
 }
+#[test]
+fn a_rewrite_keeps_the_extensions_a_later_release_added() {
+    let root = Root::new();
+    let record = record(&root);
+    let path = record.folder().to_owned();
+    let mut saved = serde_json::to_value(crate::startup_preference::Record {
+        schema: crate::startup_preference::Schema::Position,
+        version: 1,
+        extensions: serde_json::Map::new(),
+        position: position(1),
+    })
+    .unwrap();
+    saved["extensions"] = serde_json::json!({"later": {"nested": [1]}});
+    orchbee_local_runtime::PrivateCache::acquire(&path, RECORD)
+        .unwrap()
+        .replace(FILE, &serde_json::to_vec(&saved).unwrap())
+        .unwrap();
+    let preferences = Preferences::load_from(record);
+    assert_eq!(preferences.position, Some(position(1)));
+    let mut writer = preferences.writer().unwrap().unwrap();
+    writer.publish(position(2));
+    writer
+        .stop_before(std::time::Instant::now() + std::time::Duration::from_secs(5))
+        .unwrap();
+    let raw = orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
+        .unwrap()
+        .unwrap();
+    assert_eq!(decode(&raw).unwrap(), position(2));
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&raw).unwrap()["extensions"],
+        serde_json::json!({"later": {"nested": [1]}})
+    );
+}
