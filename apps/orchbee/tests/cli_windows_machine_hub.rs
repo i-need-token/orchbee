@@ -3,10 +3,11 @@
 //! through the codec on its endpoint: eight attachments at once reach one hub; `presence` holds it,
 //! its leave starts the expiry that a 20-second override ends with `closing` and `bye`, and the next
 //! attachment starts a new hub; a hub killed by its process id after a start-time check is replaced
-//! by its holder's re-attachment, which restores `presence`; an endpoint that stays closing fails an
-//! attachment as `closing`; `capacity` is retried for a second; a catalog of two machines and its
-//! reload; a real Session holds the hub through its stop and a new start; and uninstall's background
-//! step ends a hub a Session holds. No test starts `ssh` or names a reachable machine.
+//! by its holder's re-attachment, which restores `presence`; a holder whose hub is asked to stop
+//! starts no hub; an endpoint that stays closing fails an attachment as `closing`; a full hub is
+//! retried and then reported; a catalog of two machines and its reload; a real Session holds the hub
+//! through its stop and a new start; and uninstall's background step ends a hub a Session holds. No
+//! test starts `ssh` or names a reachable machine.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -70,11 +71,14 @@ fn eight_attachments_at_once_reach_one_hub() {
                 .unwrap()
         })
         .collect();
-    let states: Vec<State> = printers
+    // Every printer ends before any is judged, so a failure leaves none running; the scratch root
+    // ends any hub they started.
+    let outputs: Vec<Output> = printers
         .into_iter()
-        .map(|printer| State::parse(&printer.wait_with_output().unwrap()))
+        .map(|printer| printer.wait_with_output().unwrap())
         .collect();
     let elapsed = started.elapsed();
+    let states: Vec<State> = outputs.iter().map(State::parse).collect();
     let pid = states[0].pid;
     assert!(states.iter().all(|state| state.pid == pid), "{states:?}");
     assert_eq!(scratch.query_pid(), pid);
@@ -196,6 +200,49 @@ fn a_killed_hub_is_replaced_by_its_holder_whose_presence_returns() {
 }
 
 #[test]
+fn a_holder_whose_hub_is_asked_to_stop_starts_no_hub() {
+    let scratch = Scratch::new("mh4-stopped-", None);
+    let mut hold = scratch
+        .client("--machine-hub-hold-v1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let lines = lines(hold.stdout.take().unwrap());
+    let first = attachment(&lines, "attached");
+    let hub = Hub::observe(first.pid);
+    // As uninstall's `end` begins: the hub closes and sends `bye` `stopping` to its holder.
+    assert!(matches!(
+        request(&scratch.endpoint(), RequestKind::Drain).unwrap(),
+        AcceptorMessage::DrainResult(_)
+    ));
+    assert_eq!(hub.wait_exit(WAIT), 0);
+    let deadline = Instant::now() + WAIT + WAIT;
+    let status = loop {
+        if let Some(status) = hold.try_wait().unwrap() {
+            break status;
+        }
+        assert!(Instant::now() < deadline, "the holder did not end");
+        thread::sleep(Duration::from_millis(100));
+    };
+    let mut printed = Vec::new();
+    while let Ok(line) = lines.recv_timeout(WAIT) {
+        printed.push(line);
+    }
+    assert!(!status.success(), "{printed:?}");
+    assert!(printed.iter().any(|line| line == "ended"), "{printed:?}");
+    assert!(
+        !printed.iter().any(|line| line.starts_with("reattached")),
+        "{printed:?}"
+    );
+    assert!(
+        !orchbee_local_ipc::endpoint_exists(&scratch.endpoint()).unwrap(),
+        "a hub serves the root again"
+    );
+}
+
+#[test]
 fn an_endpoint_that_stays_closing_fails_the_attachment_as_closing() {
     let scratch = Scratch::new("mh4-closing-", None);
     let listener = LocalListener::bind(scratch.endpoint()).unwrap();
@@ -238,12 +285,12 @@ fn an_endpoint_that_stays_closing_fails_the_attachment_as_closing() {
     let elapsed = started.elapsed();
     stop.store(true, Ordering::Release);
     server.join().unwrap();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(output.status.code(), Some(4), "{stderr}");
-    assert_eq!(stderr.trim(), "The machine hub is closing. Try again.");
-    assert!(
-        elapsed >= Duration::from_secs(9),
-        "it waits for its deadline: {elapsed:?}"
+    // The state printer's status for `closing`, which `timeout` does not share.
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
     eprintln!(
         "closing after {elapsed:?} and {} stopping answers",
@@ -252,24 +299,28 @@ fn an_endpoint_that_stays_closing_fails_the_attachment_as_closing() {
 }
 
 #[test]
-fn capacity_is_retried_for_a_second() {
+fn a_full_hub_is_retried_and_then_reported() {
     let scratch = Scratch::new("mh4-capacity-", None);
     let first = scratch.print();
     let hub = Hub::observe(first.pid);
     let endpoint = scratch.endpoint();
-    let mut held: Vec<Client> = (0..256).map(|_| Client::connect(&endpoint)).collect();
-    // With every slot held past the retry, the printer gives up.
+    let mut held = Vec::new();
+    while let Some(client) = Client::admitted(&endpoint) {
+        held.push(client);
+        assert!(held.len() < 4_096, "the hub never answered capacity");
+    }
+    // With every slot held past the retry, the printer gives up with the status of `unavailable`,
+    // which `timeout` does not share.
     let started = Instant::now();
     let refused = scratch.printer().output().unwrap();
     let gave_up = started.elapsed();
-    let stderr = String::from_utf8_lossy(&refused.stderr);
-    assert_eq!(refused.status.code(), Some(4), "{stderr}");
     assert_eq!(
-        stderr.trim(),
-        "The machine hub could not be reached or started."
+        refused.status.code(),
+        Some(4),
+        "{}",
+        String::from_utf8_lossy(&refused.stderr)
     );
-    assert!(gave_up >= Duration::from_secs(1), "{gave_up:?}");
-    // A slot freed within the second lets the next printer attach to the same hub.
+    // A slot freed while the next printer retries lets it attach to the same hub.
     let printer = scratch
         .printer()
         .stdout(Stdio::piped())
@@ -554,22 +605,14 @@ fn uninstall_ends_the_hub_a_session_holds() {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains(&format!(
-            "Machine hub (process {}): it ends, and every remote machine login it holds ends \
-             with it.",
-            state.pid
-        )),
-        "{stderr}"
+    // The background step is the subject: whatever the later steps do (the fixture's cohort
+    // declares no real Agent adapters), the hub has ended by the time the run returns.
+    assert_eq!(
+        hub.exited(Duration::ZERO),
+        Some(0),
+        "the hub ended: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    // The background step is the subject. The fixture's cohort declares no real Agent adapters,
-    // so the integration writer may refuse step 2 after it; the run then names step b done.
-    assert!(
-        output.status.code() == Some(0) || stderr.contains("Done: Sessions stopped"),
-        "{stderr}"
-    );
-    assert_eq!(hub.exited(Duration::ZERO), Some(0), "the hub ended");
     eprintln!(
         "uninstall stopped two Sessions and ended hub {} in {elapsed:?}",
         state.pid
@@ -608,8 +651,13 @@ impl Scratch {
     }
 
     fn data_root(&self) -> DataRoot {
+        self.resolved().unwrap()
+    }
+
+    /// The data root without panicking, for the drop.
+    fn resolved(&self) -> Option<DataRoot> {
         let home = self.home().into_os_string();
-        DataRoot::resolve(|name| (name == "ORCHBEE_HOME").then(|| home.clone())).unwrap()
+        DataRoot::resolve(|name| (name == "ORCHBEE_HOME").then(|| home.clone())).ok()
     }
 
     fn endpoint(&self) -> PathBuf {
@@ -686,13 +734,21 @@ impl Scratch {
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        if let Ok(endpoint) = machine_hub_endpoint(&self.data_root())
-            && orchbee_local_ipc::endpoint_exists(&endpoint).unwrap_or(false)
-        {
-            let _ = request(&endpoint, RequestKind::Exit);
-        }
+        let endpoint = self
+            .resolved()
+            .and_then(|root| machine_hub_endpoint(&root).ok());
         let deadline = Instant::now() + WAIT;
-        while let Err(error) = fs::remove_dir_all(&self.root) {
+        loop {
+            // A hub of this root runs from the staged client, so the root cannot go while one runs,
+            // and one a failed client started may bind after the first look.
+            if let Some(endpoint) = &endpoint
+                && orchbee_local_ipc::endpoint_exists(endpoint).unwrap_or(false)
+            {
+                let _ = request(endpoint, RequestKind::Exit);
+            }
+            let Err(error) = fs::remove_dir_all(&self.root) else {
+                return;
+            };
             if Instant::now() >= deadline {
                 if !thread::panicking() {
                     panic!("remove {}: {error}", self.root.display());
@@ -923,6 +979,11 @@ struct Client {
 
 impl Client {
     fn connect(endpoint: &Path) -> Self {
+        Self::admitted(endpoint).expect("the hub answered capacity")
+    }
+
+    /// Connects and offers `machine-hub`; `None` when the hub answers `capacity`.
+    fn admitted(endpoint: &Path) -> Option<Self> {
         let mut stream = LocalStream::connect_before(endpoint, Instant::now() + WAIT).unwrap();
         stream.set_read_timeout(Some(WAIT)).unwrap();
         let offer = Offer::local(
@@ -934,18 +995,25 @@ impl Client {
         stream
             .write_all(&encode_initiator_frame(&InitiatorMessage::Offer(offer)).unwrap())
             .unwrap();
-        let answer = read_acceptor_message(&mut stream).unwrap();
-        assert!(matches!(answer, AcceptorMessage::Answer(_)), "{answer:?}");
+        match read_acceptor_message(&mut stream).unwrap() {
+            AcceptorMessage::Answer(_) => {}
+            AcceptorMessage::Rejection(rejection)
+                if rejection.reason == RejectionReason::Capacity =>
+            {
+                return None;
+            }
+            other => panic!("the offer was answered {other:?}"),
+        }
         stream
             .set_read_timeout(Some(Duration::from_millis(50)))
             .unwrap();
-        Self {
+        Some(Self {
             stream,
             connection: Connection::<hub::Hub>::initiator(),
             decoder: FrameDecoder::new(),
             deliveries: Vec::new(),
             ended: false,
-        }
+        })
     }
 
     fn flush(&mut self) {

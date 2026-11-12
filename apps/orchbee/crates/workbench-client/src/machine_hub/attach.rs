@@ -18,10 +18,15 @@ use orchbee_machine_protocol::{
 use std::{
     ffi::OsStr,
     io::{self, Read, Write},
+    net::Shutdown,
     path::{Path, PathBuf},
+    sync::{Mutex, MutexGuard, PoisonError},
     thread,
     time::{Duration, Instant},
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Hubs one call may start.
 const STARTS: u8 = 8;
@@ -33,6 +38,9 @@ const CLOSING_PAUSE_MAX: Duration = Duration::from_millis(250);
 /// has not bound yet, before it starts one again; it doubles with each loss up to the maximum.
 const RESTART_PAUSE: Duration = Duration::from_millis(200);
 const RESTART_PAUSE_MAX: Duration = Duration::from_millis(1_600);
+/// How long a call that may start no hub waits, once the endpoint is gone, for a hub somebody else
+/// starts.
+const GONE_WAIT: Duration = Duration::from_secs(10);
 /// One connection attempt's bound, within the call's deadline.
 pub(super) const CONNECT: Duration = Duration::from_secs(2);
 /// How long a call tries again, every [`PAUSE`], after its first `capacity` answer.
@@ -50,6 +58,80 @@ pub(super) struct Link {
     pub(super) attached: Attached,
 }
 
+/// Whether a call may start a hub.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Start {
+    /// Whenever no endpoint exists, once a closing hub is gone too: `open`.
+    Always,
+    /// Whenever no endpoint exists, until a hub this call did not drain answers `stopping`, which
+    /// ends the call `closing` at once: the owner's re-attachment after a lost connection, whose
+    /// hub may have been asked to stop.
+    UntilStopping,
+    /// Never: the owner's re-attachment after its hub was asked to stop. The call attaches to a hub
+    /// somebody else starts, reports a hub of another version without replacing it, and fails
+    /// `closing` at its deadline or [`GONE_WAIT`] after the endpoint is gone.
+    Never,
+}
+
+/// Ends an attach or start early, for the owner's `close`. It is checked before every attempt, it
+/// ends the reads of the attempt in flight at once, and a hub starts only under its lock, so once
+/// [`Cancel::cancel`] returns no start is under way and none begins.
+#[derive(Default)]
+pub(super) struct Cancel(Mutex<Cancelling>);
+
+#[derive(Default)]
+struct Cancelling {
+    cancelled: bool,
+    /// A handle to the carrier the attempt in flight reads.
+    reading: Option<LocalStream>,
+}
+
+impl Cancel {
+    fn lock(&self) -> MutexGuard<'_, Cancelling> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Cancels every call that takes this, now and later, after a start under way has finished.
+    pub(super) fn cancel(&self) {
+        let mut cancelling = self.lock();
+        cancelling.cancelled = true;
+        if let Some(stream) = cancelling.reading.take() {
+            let _ended = stream.shutdown(Shutdown::Both);
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.lock().cancelled
+    }
+
+    /// Runs `start` unless cancelled, holding the lock throughout, so `cancel` waits for it.
+    fn start<T>(&self, start: impl FnOnce() -> T) -> Option<T> {
+        let cancelling = self.lock();
+        let started = (!cancelling.cancelled).then(start);
+        drop(cancelling);
+        started
+    }
+
+    /// Lets `cancel` end the reads of `stream` until the guard drops; `None` once cancelled.
+    fn watch(&self, stream: &LocalStream) -> Option<Watch<'_>> {
+        let mut cancelling = self.lock();
+        if cancelling.cancelled {
+            return None;
+        }
+        cancelling.reading = stream.try_clone().ok();
+        Some(Watch(self))
+    }
+}
+
+/// The attempt in flight, whose reads [`Cancel::cancel`] ends.
+struct Watch<'a>(&'a Cancel);
+
+impl Drop for Watch<'_> {
+    fn drop(&mut self) {
+        self.0.lock().reading = None;
+    }
+}
+
 /// The endpoint of `root`, after creating `internal/machines/` privately.
 fn endpoint(root: &DataRoot) -> Result<PathBuf, AttachFailure> {
     drop(create_private_directory(&root.machines()).map_err(|_| AttachFailure::DataRoot)?);
@@ -57,12 +139,14 @@ fn endpoint(root: &DataRoot) -> Result<PathBuf, AttachFailure> {
 }
 
 /// Connects to the hub of `root`, offers `machine-hub` and attaches as `attachment`, starting the
-/// hub when none runs, within `deadline`. `cancelled` ends the call early with `timeout`.
+/// hub when none runs and `start` allows it, within `deadline`. `cancel` ends the call early with
+/// `timeout`.
 pub(super) fn attach(
     root: &DataRoot,
     attachment: Attachment,
     deadline: Instant,
-    cancelled: &dyn Fn() -> bool,
+    start: Start,
+    cancel: &Cancel,
 ) -> Result<Link, AttachFailure> {
     let endpoint = endpoint(root)?;
     let executable = std::env::current_exe().map_err(|_| AttachFailure::Unavailable)?;
@@ -76,31 +160,34 @@ pub(super) fn attach(
     let mut closing_pause = PAUSE;
     // An incompatible hub this call drained answers as before until it exits.
     let mut replaced = false;
+    // Under `Never`: when the endpoint was found gone after the last `stopping` answer.
+    let mut gone_since: Option<Instant> = None;
     loop {
-        if Instant::now() >= deadline || cancelled() {
-            return Err(if closing {
+        if cancel.is_cancelled() {
+            return Err(AttachFailure::Timeout);
+        }
+        if Instant::now() >= deadline {
+            return Err(if closing || start == Start::Never {
                 AttachFailure::Closing
             } else {
                 AttachFailure::Timeout
             });
         }
         let mut stopping = false;
-        match offer(&endpoint, deadline) {
-            Ok(stream) => match exchange_attach(stream, attachment, deadline) {
-                Ok((stream, connection, decoder, early, hub)) => {
-                    return Ok(Link {
-                        stream,
-                        connection,
-                        decoder,
-                        early,
-                        attached: Attached { hub, starts },
-                    });
-                }
-                Err(Exchange::Stopping) => stopping = true,
-                Err(Exchange::Lost) => {}
-                Err(Exchange::Violation) => return Err(AttachFailure::Lost),
-            },
-            Err(Reached::Refused(rejection)) => match rejection.reason {
+        match attempt(&endpoint, attachment, deadline, cancel) {
+            Ok((stream, connection, decoder, early, hub)) => {
+                return Ok(Link {
+                    stream,
+                    connection,
+                    decoder,
+                    early,
+                    attached: Attached { hub, starts },
+                });
+            }
+            Err(Attempt::Stopping) => stopping = true,
+            Err(Attempt::Lost) => {}
+            Err(Attempt::Violation) => return Err(AttachFailure::Lost),
+            Err(Attempt::Refused(rejection)) => match rejection.reason {
                 RejectionReason::Stopping => stopping = true,
                 RejectionReason::Capacity => {
                     closing = false;
@@ -111,8 +198,12 @@ pub(super) fn attach(
                 RejectionReason::InitiatorTooOld
                 | RejectionReason::InitiatorTooNew
                 | RejectionReason::FingerprintMismatch => {
+                    if start == Start::Never {
+                        // Somebody else's hub: this owner may not replace what it cannot start.
+                        return Err(held(&rejection));
+                    }
                     if !replaced {
-                        replace(&endpoint, &rejection, deadline)?;
+                        replace(&endpoint, &rejection, deadline, cancel)?;
                         replaced = true;
                     }
                     stopping = true;
@@ -124,12 +215,17 @@ pub(super) fn attach(
                 }
                 _ => return Err(AttachFailure::Incompatible(Incompatible::Protocol)),
             },
-            Err(Reached::Foreign) => {
+            Err(Attempt::Foreign) => {
                 return Err(AttachFailure::Incompatible(Incompatible::Protocol));
             }
-            Err(Reached::Lost) => {}
-            Err(Reached::Denied) => return Err(AttachFailure::Denied),
-            Err(Reached::Nothing) => {
+            Err(Attempt::Denied) => return Err(AttachFailure::Denied),
+            Err(Attempt::Nothing) if start == Start::Never => {
+                closing = false;
+                if gone_since.get_or_insert_with(Instant::now).elapsed() >= GONE_WAIT {
+                    return Err(AttachFailure::Closing);
+                }
+            }
+            Err(Attempt::Nothing) => {
                 closing = false;
                 if let Some(running) = child.as_mut() {
                     match running.try_wait() {
@@ -148,16 +244,22 @@ pub(super) fn attach(
                     if starts == STARTS {
                         return Err(AttachFailure::Unavailable);
                     }
+                    let Some(spawned) =
+                        cancel.start(|| spawn_retained(&executable, &[OsStr::new(HUB_ENTRY)]))
+                    else {
+                        return Err(AttachFailure::Timeout);
+                    };
                     starts += 1;
-                    child = Some(
-                        spawn_retained(&executable, &[OsStr::new(HUB_ENTRY)])
-                            .map_err(|_| AttachFailure::Unavailable)?,
-                    );
+                    child = Some(spawned.map_err(|_| AttachFailure::Unavailable)?);
                 }
             }
         }
         let pause = if stopping {
+            if start == Start::UntilStopping && !replaced {
+                return Err(AttachFailure::Closing);
+            }
             closing = true;
+            gone_since = None;
             let pause = closing_pause;
             closing_pause = (closing_pause * 2).min(CLOSING_PAUSE_MAX);
             pause
@@ -169,39 +271,91 @@ pub(super) fn attach(
     }
 }
 
+/// The failure that names a hub of another version this call leaves running.
+fn held(rejection: &Rejection) -> AttachFailure {
+    AttachFailure::Incompatible(Incompatible::Held {
+        version: rejection.product_version.as_str().to_owned(),
+    })
+}
+
 /// Drains an incompatible hub of this environment when nothing holds it; otherwise reports it.
-fn replace(endpoint: &Path, rejection: &Rejection, deadline: Instant) -> Result<(), AttachFailure> {
-    let held = || {
-        AttachFailure::Incompatible(Incompatible::Held {
-            version: rejection.product_version.as_str().to_owned(),
-        })
-    };
+fn replace(
+    endpoint: &Path,
+    rejection: &Rejection,
+    deadline: Instant,
+    cancel: &Cancel,
+) -> Result<(), AttachFailure> {
     let Ok(Some(process_id)) = control::hub_process(endpoint, deadline) else {
         // Whatever cannot be proved unheld stays.
-        return Err(held());
+        return Err(held(rejection));
     };
     if holders::held(process_id, deadline) {
-        return Err(held());
+        return Err(held(rejection));
+    }
+    // A closed owner leaves the hub as it found it.
+    if cancel.is_cancelled() {
+        return Err(AttachFailure::Timeout);
     }
     control::drain(endpoint, deadline).map_err(|_| AttachFailure::Unavailable)
 }
 
-/// What one connection attempt reached.
+/// What connecting to the endpoint reached, short of a connection.
 pub(super) enum Reached {
     /// No endpoint: no hub runs, or one has taken the lock and not yet bound.
     Nothing,
-    /// The hub refused the offer.
-    Refused(Rejection),
-    /// The answer was not a handshake answer to this offer.
-    Foreign,
-    /// The connection or its answer failed; another attempt may succeed.
+    /// The connection failed; another attempt may succeed.
     Lost,
     /// The endpoint refused this process: no attempt can succeed.
     Denied,
 }
 
-fn offer(endpoint: &Path, deadline: Instant) -> Result<LocalStream, Reached> {
-    let stream = connect(endpoint, deadline)?;
+/// How one attempt ended, short of `attached`.
+enum Attempt {
+    /// No endpoint.
+    Nothing,
+    /// The endpoint refused this process.
+    Denied,
+    /// The hub refused the offer.
+    Refused(Rejection),
+    /// The answer was not a handshake answer to this offer.
+    Foreign,
+    /// The hub answered the attachment `stopping`, sent `bye`, or closed in `closing`.
+    Stopping,
+    /// The carrier failed, the deadline passed, or the call was cancelled; another attempt may
+    /// succeed.
+    Lost,
+    /// Either side broke the protocol.
+    Violation,
+}
+
+type Exchanged = (
+    LocalStream,
+    Connection<hub::Hub>,
+    FrameDecoder,
+    Vec<Delivery<hub::Hub>>,
+    hub::HubState,
+);
+
+/// One connection: connect, offer `machine-hub`, and attach, with its reads ended by `cancel`.
+fn attempt(
+    endpoint: &Path,
+    attachment: Attachment,
+    deadline: Instant,
+    cancel: &Cancel,
+) -> Result<Exchanged, Attempt> {
+    let stream = connect(endpoint, deadline).map_err(|reached| match reached {
+        Reached::Nothing => Attempt::Nothing,
+        Reached::Lost => Attempt::Lost,
+        Reached::Denied => Attempt::Denied,
+    })?;
+    let Some(_watch) = cancel.watch(&stream) else {
+        return Err(Attempt::Lost);
+    };
+    offer(&stream, deadline)?;
+    exchange_attach(stream, attachment, deadline)
+}
+
+fn offer(stream: &LocalStream, deadline: Instant) -> Result<(), Attempt> {
     let offer = Offer::local(
         ConnectionKind::MachineHub,
         ProductVersion::new(env!("CARGO_PKG_VERSION"))
@@ -209,12 +363,12 @@ fn offer(endpoint: &Path, deadline: Instant) -> Result<LocalStream, Reached> {
         Build::default(),
         orchbee_local_runtime::environment_name(),
     );
-    let reply = exchange(&stream, &InitiatorMessage::Offer(offer.clone()), deadline)
-        .map_err(|_| Reached::Lost)?;
+    let reply = exchange(stream, &InitiatorMessage::Offer(offer.clone()), deadline)
+        .map_err(|_| Attempt::Lost)?;
     match conclude_offer(&offer, reply) {
-        Ok(_) => Ok(stream),
-        Err(OfferFailure::Rejected(rejection)) => Err(Reached::Refused(rejection)),
-        Err(OfferFailure::InvalidAnswer | OfferFailure::UnexpectedReply) => Err(Reached::Foreign),
+        Ok(_) => Ok(()),
+        Err(OfferFailure::Rejected(rejection)) => Err(Attempt::Refused(rejection)),
+        Err(OfferFailure::InvalidAnswer | OfferFailure::UnexpectedReply) => Err(Attempt::Foreign),
     }
 }
 
@@ -248,31 +402,13 @@ pub(super) fn exchange(
     read_acceptor_message(&mut input).map_err(io::Error::other)
 }
 
-/// How the `attach` request on an answered connection ended, short of `attached`.
-enum Exchange {
-    /// The hub answered `stopping`, sent `bye`, or closed in `closing`.
-    Stopping,
-    /// The carrier failed or the deadline passed; another attempt may succeed.
-    Lost,
-    /// Either side broke the protocol.
-    Violation,
-}
-
-type Exchanged = (
-    LocalStream,
-    Connection<hub::Hub>,
-    FrameDecoder,
-    Vec<Delivery<hub::Hub>>,
-    hub::HubState,
-);
-
 /// Sends `attach` on an answered connection and reads until its reply; later deliveries read with
 /// it are kept for the owner.
 fn exchange_attach(
     stream: LocalStream,
     attachment: Attachment,
     deadline: Instant,
-) -> Result<Exchanged, Exchange> {
+) -> Result<Exchanged, Attempt> {
     let mut connection = Connection::<hub::Hub>::initiator();
     let id = connection
         .request(Request::Attach(hub::Attach {
@@ -280,13 +416,13 @@ fn exchange_attach(
             asks: attachment.asks,
             watch: attachment.watch,
         }))
-        .map_err(|_| Exchange::Violation)?;
+        .map_err(|_| Attempt::Violation)?;
     let mut bytes = Vec::new();
     while let Some(frame) = connection.poll_transmit() {
         bytes.extend_from_slice(&frame.encode());
     }
     let mut output = &stream;
-    output.write_all(&bytes).map_err(|_| Exchange::Lost)?;
+    output.write_all(&bytes).map_err(|_| Attempt::Lost)?;
     let mut decoder = FrameDecoder::new();
     let mut buffer = vec![0; READ_BUFFER_BYTES];
     let mut early = Vec::new();
@@ -294,24 +430,24 @@ fn exchange_attach(
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            return Err(Exchange::Lost);
+            return Err(Attempt::Lost);
         }
         stream
             .set_read_timeout(Some(remaining))
-            .map_err(|_| Exchange::Lost)?;
+            .map_err(|_| Attempt::Lost)?;
         let mut input = &stream;
         let read = match input.read(&mut buffer) {
-            Ok(0) | Err(_) => return Err(Exchange::Lost),
+            Ok(0) | Err(_) => return Err(Attempt::Lost),
             Ok(read) => read,
         };
         let mut offset = 0;
         while let Some(rest) = buffer.get(offset..read).filter(|rest| !rest.is_empty()) {
-            let (consumed, frame) = decoder.decode(rest).map_err(|_| Exchange::Violation)?;
+            let (consumed, frame) = decoder.decode(rest).map_err(|_| Attempt::Violation)?;
             offset += consumed;
             if let Some(frame) = frame {
                 let delivery = connection
                     .receive(&frame)
-                    .map_err(|_| Exchange::Violation)?
+                    .map_err(|_| Attempt::Violation)?
                     .delivery;
                 match delivery {
                     Some(Delivery::Message(Message::Reply {
@@ -321,11 +457,11 @@ fn exchange_attach(
                     })) if answered == id => match outcome {
                         AttachOutcome::Attached { hub: state } => hub = Some(state),
                         AttachOutcome::Stopping | AttachOutcome::Unknown => {
-                            return Err(Exchange::Stopping);
+                            return Err(Attempt::Stopping);
                         }
                     },
                     Some(Delivery::Message(Message::Bye { .. })) if hub.is_none() => {
-                        return Err(Exchange::Stopping);
+                        return Err(Attempt::Stopping);
                     }
                     Some(delivery) if hub.is_some() => early.push(delivery),
                     _ => {}
@@ -336,8 +472,8 @@ fn exchange_attach(
             }
         }
         if let Some(hub) = hub {
-            stream.set_read_timeout(None).map_err(|_| Exchange::Lost)?;
-            stream.set_write_timeout(None).map_err(|_| Exchange::Lost)?;
+            stream.set_read_timeout(None).map_err(|_| Attempt::Lost)?;
+            stream.set_write_timeout(None).map_err(|_| Attempt::Lost)?;
             return Ok((stream, connection, decoder, early, hub));
         }
     }

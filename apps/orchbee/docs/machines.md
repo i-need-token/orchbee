@@ -373,7 +373,8 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   deletion is running, which counts as live; otherwise the hub holds the activation lock for the
   instant of `observe_session_lifetime_lock`, which opens the existing `session-lifetime.lock` the
   same way. Neither lock file is replaced by rename: each is created once and removed only with its
-  folder. A probe takes a few system calls and never waits.
+  folder. A probe takes a few system calls and never waits; a Session operation that meets it tries
+  again, as the next race below describes.
 - **A read never meets a Server.** A Server takes its lifetime lock once, at start, while its
   activator holds the activation lock, and releases it during its stop under the same lock, so the
   read can never take a free lifetime lock at the moment a Server takes it. The bare
@@ -402,13 +403,13 @@ carries no client's route or context. A client starts the hub with its own envir
 starts any detached helper; at start the hub takes one view of that environment, reads every
 variable from the view and nothing from the process environment afterwards:
 
-| Variable                                                          | In the hub's view                                                                                                                                                          |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ORCHBEE_HOME`, `ORCHBEE_INSTALL_DIR`, `ORCHBEE_CONFIG_FILE`      | Unchanged: they select the data root, the store, and the settings file, which every client shares                                                                          |
-| `ORCHBEE_RUNTIME_BASE`                                            | Only when it applies to this build, as a Session route does; the hub reads its Sessions there                                                                              |
-| `ORCHBEE_MACHINE_HUB_EXPIRY_MS`, `ORCHBEE_MACHINE_HUB_TEST_CHILD` | Unchanged in a development or test build; never in a release                                                                                                               |
-| Every other `ORCHBEE_*`                                           | Never: `ORCHBEE_RUNTIME_SCOPE`, `ORCHBEE_ENVIRONMENT`, `ORCHBEE_SESSION`, terminal, Worker, Workspace, Tab, Panel, command, Agent, plugin, Desktop, TUI and test variables |
-| Every other variable                                              | Unchanged                                                                                                                                                                  |
+| Variable                                                     | In the hub's view                                                                                                                                                          |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ORCHBEE_HOME`, `ORCHBEE_INSTALL_DIR`, `ORCHBEE_CONFIG_FILE` | Unchanged: they select the data root, the store, and the settings file, which every client shares                                                                          |
+| `ORCHBEE_RUNTIME_BASE`                                       | Only when it applies to this build, as a Session route does; the hub reads its Sessions there                                                                              |
+| `ORCHBEE_MACHINE_HUB_EXPIRY_MS`                              | Unchanged in a development or test build; never in a release                                                                                                               |
+| Every other `ORCHBEE_*`                                      | Never: `ORCHBEE_RUNTIME_SCOPE`, `ORCHBEE_ENVIRONMENT`, `ORCHBEE_SESSION`, terminal, Worker, Workspace, Tab, Panel, command, Agent, plugin, Desktop, TUI and test variables |
+| Every other variable                                         | Unchanged                                                                                                                                                                  |
 
 Names compare without letter case, as Windows does. A variable whose name or value is not valid
 Unicode is left out of the view.
@@ -417,9 +418,8 @@ A child of the hub receives the view without any `ORCHBEE_*` variable, plus only
 hub sets for that child, through one spawn path that clears the inherited environment first. The
 child has no console, null standard streams and the system folder as working directory. No child
 exists in this slice; `ssh` is the first, and an askpass program inherits `ssh`'s whole environment,
-so whatever the hub passes to `ssh` also reaches the askpass. In a development or test build,
-`ORCHBEE_MACHINE_HUB_TEST_CHILD` names an absolute program the hub starts once through that path
-after it binds, with no argument, so a test can read what a child receives.
+so whatever the hub passes to `ssh` also reaches the askpass. The slice that starts `ssh` brings
+that spawn path together with a process test that reads what a child receives.
 
 ### Admission and requests
 
@@ -490,7 +490,7 @@ connection, so nothing changed for the link.
 | A Session ends                                | The next read, at most 30 seconds later, finds it; `expiring` when nothing else holds                                                                                                                                                              |
 | The expiry fires while a request is in flight | Requests are answered under the hub state's lock, before or after the change; a `reload` reads its file outside the lock and, applied in `closing`, replies `stopping`, and the closing waits for it before `bye`                                  |
 | A second hub starts                           | It cannot take the lock, writes and binds nothing, and exits 0; the client that started it attaches to the running hub                                                                                                                             |
-| A client connects during `closing`            | Its offer is rejected `stopping`; attach-or-start waits and starts a new hub once the old one is gone, or fails `closing` at its deadline                                                                                                          |
+| A client connects during `closing`            | Its offer is rejected `stopping`; attach-or-start waits and starts a new hub once the old one is gone, or fails `closing` at its deadline; an owner [re-attaching](#re-attachment) after its hub was asked to stop starts none                     |
 | The hub is killed                             | The system releases the lock and closes the pipe; the next attach finds no endpoint and starts a hub, which locks the same file                                                                                                                    |
 | A hub thread panics                           | The hub reports the panic and aborts the whole process, which then ends as a killed hub does; no thread unwinds alone                                                                                                                              |
 | The data root is unavailable                  | Attach-or-start fails before starting a hub, or the hub exits 1 when it cannot create `internal/machines/` or open the lock; a running hub keeps its catalog, answers `reload` `storage`, finds no Session, and expires unless `presence` holds it |
@@ -513,10 +513,12 @@ connection, so nothing changed for the link.
   once.
 - **A read beside a Session start, stop, or deletion.** The activation lock excludes a Server's
   lifetime acquire and release, and the read holds no file a Server writes or replaces. What
-  remains is the probe's own instant: an activation or a stop that meets the activation lock
-  retries 10 ms later; a `session delete` that meets it before marking the Session `deleting` is
-  refused `in-use`; one that meets the probe's folder or lock handles after the mark stops midway,
-  an accepted limit. A Server still starting when its activator gave up at its deadline takes its
+  remains is the probe's own instant, which every Session operation outlasts: an activation or a
+  stop that meets the activation lock retries 10 ms later, and deletion's activation and lifetime
+  takes and its removals try again for up to half a second, the
+  [momentary hold](../../../crates/local-runtime/README.md#durable-session-catalog) every Session
+  writer allows a reader. Only a machine that stalls a probe past that bound refuses a deletion, an
+  accepted limit. A Server still starting when its activator gave up at its deadline takes its
   lifetime lock without the activation lock; a read at that instant is the one meeting left open.
 - **Admission beside closing.** A candidate's slot and decision are taken together under the hub
   state's lock, so an accepted connection is registered before `closing` can begin and receives its
@@ -532,14 +534,17 @@ connection, so nothing changed for the link.
   once it can connect, can expire under a live Session.
 - **A Session outside the runtime base is not read.** A Session whose record names a runtime folder
   elsewhere, started under another `ORCHBEE_RUNTIME_BASE`, never holds this hub.
-- **A deletion that meets a probe stops midway.** When `session delete` removes a Session's runtime
-  folder while a probe holds that folder or one of its lock files, the removal fails and the Session
-  stays marked `deleting`; running `session delete` again completes it.
+- **A deletion that meets a stalled probe stops.** When a probe holds a Session's activation lock,
+  runtime folder or one of its lock files for longer than deletion's half-second retry, as only a
+  stalled machine would, `session delete` is refused `in-use` before it marks the Session
+  `deleting`, or its removal fails after the mark and the Session stays marked `deleting`; running
+  `session delete` again completes it.
 - **A Server that outlives its activator's deadline** takes its lifetime lock without the
   activation lock, so a read at that instant is the one meeting with a Server left open.
-- **The incompatible-hub scan errs toward holding.** No record shows an incompatible client a
-  hub's `presence` attachments, so any other run of the hub's program counts as a holder and the
-  hub stays; the person closes that program, or uninstall ends the hub.
+- **The incompatible-hub check errs toward holding.** No record shows an incompatible client a
+  hub's `presence` attachments, so every process that could be a client of that version counts as
+  a holder, as do a process whose program file cannot be read and a Session read that cannot
+  finish, and the hub stays; the person closes that program, or uninstall ends the hub.
 
 ### Client owner
 
@@ -553,14 +558,14 @@ Client crate is the lowest crate that both the CLI and the TUI reach, and it alr
 saved-machine catalog the hub serves. The hub process stays in the application, as a Server stays
 apart from its clients. No second client loop exists: the state printer is a caller of the owner.
 
-| Operation                    | Effect                                                                                                                           |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `open(attachment, deadline)` | Attaches or starts with the caller's `presence`, `asks` and `watch`; returns the owner, the hub's state, and the hubs it started |
-| `request(request, deadline)` | Sends one request and waits for its reply; an `attach` also becomes what a re-attachment restores                                |
-| `next(deadline)`             | The next notice: a hub event, a re-attachment, or the owner's end                                                                |
-| `close`                      | Sends `bye` `done`, gives it at most 2 seconds, and ends the owner's threads; dropping the owner does this too                   |
-| `running(root, deadline)`    | The running hub's process id through `query`; starts nothing                                                                     |
-| `end(root, deadline)`        | [Ends](#ending-a-hub) the running hub through `drain` and `exit`                                                                 |
+| Operation                    | Effect                                                                                                                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `open(attachment, deadline)` | Attaches or starts with the caller's `presence`, `asks` and `watch`; returns the owner, the hub's state, and the hubs it started                                                       |
+| `request(request, deadline)` | Sends one request and waits for its reply; one that cannot be sent, such as one too large for a frame, fails at once; an `attach` also becomes what a re-attachment restores           |
+| `next(deadline)`             | The next notice: a hub event, a re-attachment, or the owner's end                                                                                                                      |
+| `close`                      | Sends `bye` `done`, cancels a re-attachment in progress, which then starts no hub, gives `bye` and the threads at most 2 seconds, and ends the owner; dropping the owner does this too |
+| `running(root, deadline)`    | The running hub's process id through `query`; starts nothing                                                                                                                           |
+| `end(root, deadline)`        | [Ends](#ending-a-hub) the running hub through `drain` and `exit`                                                                                                                       |
 
 #### Attach or start
 
@@ -590,13 +595,17 @@ will work. The owner's re-attachment, which no person waits on, covers the whole
 
 #### Re-attachment
 
-After `bye` `stopping`, `bye` `idle`, or a lost connection, the owner re-attaches by the same
-rules, starting a hub when none runs, and restores the caller's last `presence`, `asks` and
-`watch`.
+After `bye` `idle` or a lost connection, the owner re-attaches by the same rules, starting a hub
+when none runs, and restores the caller's last `presence`, `asks` and `watch`.
 
-- **Bound.** One attempt has 10 seconds. While the answer is `closing`, attempts continue until 75
-  seconds after the loss: the allowance, the writers' bound, and a margin. A fifth loss within 60
-  seconds ends the owner `unavailable` instead, so a hub that drops every connection cannot keep it
+- **A stopped hub stays stopped.** A hub that sends `bye` `stopping` or a `closing` state event,
+  or answers an attachment or the re-attachment `stopping`, was asked to stop or expired with
+  nothing holding it. The owner never starts a hub in reaction: it waits for that hub to go and
+  attaches to one somebody else starts. Ten seconds after the endpoint is gone it ends
+  `closing`; a hub of another version that appears is reported `incompatible` and left running.
+- **Bound.** One attempt has 10 seconds. A hub that is stopping is waited for until 75 seconds
+  after the loss: the allowance, the writers' bound, and a margin. A fifth loss within 60 seconds
+  ends the owner `unavailable` instead, so a hub that drops every connection cannot keep it
   looping.
 - **Telling the caller.** Once attached again, the next notice is `reattached` with the new hub's
   state. Everything the caller read before must be read again: the hub state, the catalog and each
@@ -606,7 +615,8 @@ rules, starting a hub when none runs, and restores the caller's last `presence`,
 - **Ending.** When re-attachment fails, the owner's last notice is `ended` with the failure, and
   every later request fails with it. A protocol violation by either side, or `bye` `violation`,
   ends the owner at once as `lost` without re-attaching: the next connection would fail the same
-  way.
+  way. `close` ends a re-attachment in progress: its connection attempt ends at once, and it starts
+  no hub.
 - **Pace.** Events wait in the owner for `next`. While 256 wait, the owner stops reading, so a
   watcher that never calls `next` also stops its requests' replies; the hub's own queue holds the
   rest under its bound.
@@ -617,42 +627,50 @@ A hub of another version of this environment refuses the offer but answers contr
 owner replaces it only when nothing holds it:
 
 1. `query` proves the endpoint is a `machine-hub` of this environment and gives its process id.
-2. The holder check reads every Session as the hub does, in the same runtime base. It also scans
-   the processes: any process other than the hub and the caller whose program file name equals the
-   hub's may be an interface of that version attached with `presence`, so it counts as a holder.
+2. The holder check reads every Session as the hub does, in the same runtime base; a read that
+   cannot finish counts as a holder. It also scans the processes whose program file name equals
+   the hub's: each may be a client of that version attached with `presence`, so it counts as a
+   holder, except the hub, the caller and the caller's ancestors, a launcher in a store's `bin\`
+   folder, which only waits for the client it started, and any process running the caller's own
+   program file. A process whose program file cannot be read, or a scan that fails, counts as a
+   holder.
 3. With no holder, the owner sends `drain` once and continues attach or start: `stopping`, then no
    endpoint, then a start of its own version's hub. With a holder, it fails `incompatible` with the
    running version and leaves the hub alone.
 
 #### Ending a hub
 
-`end` is the one path that ends a hub on purpose. Uninstall and the replacement above use it, and
-nothing ends a hub with holders unless the person asked for that.
+`end` ends a hub on purpose and waits for its process; uninstall uses it. The replacement above
+sends one `drain` and lets attach or start wait out the closing. Nothing ends a hub with holders
+unless the person asked for that.
 
 1. `query` gives the process id; no endpoint means no hub runs.
 2. The owner opens the process for waiting, then queries again: the same id proves that the handle
-   is the hub's and not a reused id's.
+   is the hub's and not a reused id's. A process already gone is queried again; one this process
+   may not wait for, such as an elevated hub, fails `denied` at once.
 3. `drain` puts the hub in `closing`. The owner waits up to 10 seconds for the process to exit,
    then sends `exit` and waits up to 5 seconds more.
 4. It queries once more: a hub that a client started meanwhile is ended the same way, within the
    caller's deadline.
 
-When `end` returns success, the hub's program file is free. A hub of another environment refuses
-`drain` and `exit`; `end` reports it and leaves it.
+When `end` returns success, the hub's program file is free. An owner whose hub `end` drains starts
+none in reaction, so a hub found afterwards was started by a client that was starting anyway. A
+hub of another environment refuses `drain` and `exit`; `end` reports it and leaves it.
 
 `orchbee uninstall` treats the hub of its data root as a background process kind, ended after the
-Sessions so that no interface of theirs re-attaches. Its listing names the hub's process id and
-says that every machine login the hub holds ends with it; the run ends it with `end`, and the
-store wait then covers its program file. The uninstall document is unchanged: the hub has no
-member of its own, and a hub that will not end stops the run at the store wait, which names it.
+Sessions; an interface still running starts no hub in reaction to that ending. Its listing names
+the hub's process id and says that every machine login the hub holds ends with it; the run ends it
+with `end`, and the store wait then covers its program file and any hub a client started anyway.
+The uninstall document is unchanged: the hub has no member of its own, and a hub that will not end
+stops the run at the store wait, which names it.
 
 The exercise in `tests/cli_windows_machine_hub.rs` starts eight attachments at once on a fresh
 data root, follows `held`, `expiring` and `closing` with a 20-second expiry, keeps a hub `held`
 by a real scratch Session through its stop and a new start, reads a catalog of two machines, and
 reloads it. It also kills the hub under a holder and finds the holder's `presence` restored on a
-new hub, retries `capacity` until a slot frees, reports
-`closing` for a hub that stays closing, and has uninstall's background step end a hub a Session
-holds. It starts no `ssh`.
+new hub, drains the hub under a holder and finds that the holder starts none, retries a full hub
+until a slot frees, reports `closing` for a hub that stays closing, and has uninstall's background
+step end a hub a Session holds. It starts no `ssh`.
 
 ## Persistent TUI connections
 

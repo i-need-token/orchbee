@@ -260,7 +260,8 @@ pub mod application {
     pub mod machine_hub {
         pub use crate::machine_hub::{
             AttachFailure, Attached, Attachment, EndFailure, HUB_ENTRY, HubClient, Incompatible,
-            Notice, RequestFailure, any_live, data_root, end, running, runtime_base,
+            Notice, RequestFailure, SessionRead, data_root, end, read_sessions, running,
+            runtime_base,
         };
     }
 

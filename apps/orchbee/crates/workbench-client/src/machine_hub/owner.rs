@@ -1,19 +1,20 @@
 //! The owner of one attachment to the hub. A reader thread hands frames to the connection's state
-//! machine and re-attaches after the hub goes away; a writer thread writes what the state machine
-//! queues; callers send requests and take notices. One lock guards the owner's state, with one
-//! signal for callers and one for the writer; no thread holds it while it reads or writes the
-//! carrier or attaches.
+//! machine and re-attaches after the hub goes away, starting a hub only when that hub was not asked
+//! to stop and the owner is not closing; a writer thread writes what the state machine queues;
+//! callers send requests and take notices. One lock guards the owner's state, with one signal for
+//! callers and one for the writer; no thread holds it while it reads or writes the carrier or
+//! attaches.
 
 use super::{
     AttachFailure, Attached, Attachment,
-    attach::{self, Link, READ_BUFFER_BYTES},
+    attach::{self, Cancel, Link, READ_BUFFER_BYTES, Start},
     data_root,
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
-    ByeReason, Connection, Delivery, FrameDecoder, Id, Message,
-    hub::{self, AttachOutcome, Event, Reply, Request},
+    ByeReason, Connection, Delivery, FrameDecoder, Id, Message, SendError,
+    hub::{self, AttachOutcome, Event, HubState, Reply, Request},
 };
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -54,6 +55,8 @@ pub enum Notice {
 /// Why a request has no reply.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestFailure {
+    /// The request cannot be sent, such as one too large for a frame; the hub never saw it.
+    Unsendable,
     /// The connection was lost with the request in flight; whether the hub acted on it is unknown.
     Lost,
     /// The hub does not serve the request.
@@ -72,6 +75,8 @@ pub struct HubClient {
 
 struct Inner {
     root: DataRoot,
+    /// Ends a re-attachment in progress when `close` begins.
+    cancel: Cancel,
     state: Mutex<State>,
     /// Wakes callers waiting for a reply, a notice or a connection, the paused reader, and `close`.
     changed: Condvar,
@@ -89,6 +94,9 @@ struct State {
     answers: BTreeMap<u64, Option<Result<Reply, RequestFailure>>>,
     next_ticket: u64,
     losses: VecDeque<Instant>,
+    /// The attached hub was seen stopping: its state event said `closing`, or it answered an
+    /// `attach` `stopping`. A loss after that is its ending, not a crash.
+    stopping: bool,
     ended: Option<AttachFailure>,
     closing: bool,
     reader_done: bool,
@@ -106,7 +114,9 @@ struct Current {
 /// Why the reader stopped reading a connection.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Loss {
-    /// `bye` other than `violation`, or the carrier ended.
+    /// `bye` `stopping`: the hub was asked to stop, or expired.
+    Stopped,
+    /// `bye` other than `stopping` or `violation`, or the carrier ended.
     Gone,
     /// Either side broke the protocol.
     Violation,
@@ -134,10 +144,17 @@ impl HubClient {
         deadline: Instant,
     ) -> Result<(Self, Attached), AttachFailure> {
         let root = data_root()?;
-        let link = attach::attach(&root, attachment, deadline, &|| false)?;
+        let link = attach::attach(
+            &root,
+            attachment,
+            deadline,
+            Start::Always,
+            &Cancel::default(),
+        )?;
         let attached = link.attached;
         let inner = Arc::new(Inner {
             root,
+            cancel: Cancel::default(),
             state: Mutex::new(State {
                 current: None,
                 attachment,
@@ -145,6 +162,7 @@ impl HubClient {
                 answers: BTreeMap::new(),
                 next_ticket: 0,
                 losses: VecDeque::new(),
+                stopping: false,
                 ended: None,
                 closing: false,
                 reader_done: false,
@@ -188,7 +206,7 @@ impl HubClient {
     ///
     /// # Errors
     ///
-    /// [`RequestFailure`] when no reply arrives.
+    /// [`RequestFailure`] when no reply arrives; at once when the request cannot be sent.
     pub fn request(&self, request: Request, deadline: Instant) -> Result<Reply, RequestFailure> {
         let attachment = match &request {
             Request::Attach(attach) => Some(Attachment {
@@ -204,17 +222,26 @@ impl HubClient {
                 return Err(RequestFailure::Ended(failure.clone()));
             }
             let ticket = state.next_ticket;
-            let sent = state.current.as_mut().and_then(|current| {
-                let id = current.connection.request(request.clone()).ok()?;
-                current.pending.insert(id, (ticket, attachment));
-                Some(())
-            });
-            if sent.is_some() {
+            let sent = match state.current.as_mut() {
+                Some(current) => match current.connection.request(request.clone()) {
+                    Ok(id) => {
+                        current.pending.insert(id, (ticket, attachment));
+                        true
+                    }
+                    // 64 requests already wait, or the connection is ending.
+                    Err(SendError::TooManyRequests | SendError::Closed) => false,
+                    // No connection would send it.
+                    Err(_) => return Err(RequestFailure::Unsendable),
+                },
+                None => false,
+            };
+            if sent {
                 state.next_ticket += 1;
                 state.answers.insert(ticket, None);
                 break ticket;
             }
-            // Re-attaching, or 64 requests already wait: a reply or a connection wakes this.
+            // Re-attaching, 64 requests already wait, or the connection is ending: a reply or a
+            // connection wakes this.
             let (next, waited_out) = self.inner.wait(state, deadline);
             state = next;
             if waited_out {
@@ -262,7 +289,8 @@ impl HubClient {
         }
     }
 
-    /// Sends `bye` `done`, gives it and the threads at most 2 seconds, and ends the owner.
+    /// Sends `bye` `done`, cancels a re-attachment in progress, which then starts no hub, gives
+    /// `bye` and the threads at most 2 seconds, and ends the owner.
     pub fn close(mut self) {
         self.shut();
     }
@@ -279,6 +307,8 @@ impl HubClient {
                 let _farewell = current.connection.bye(ByeReason::Done);
             }
         }
+        // After `closing` is set, so a reader whose attempt this ends finds the owner closed.
+        self.inner.cancel.cancel();
         self.inner.transmit.notify_all();
         self.inner.changed.notify_all();
         let mut state = self.inner.lock();
@@ -289,8 +319,7 @@ impl HubClient {
                 break;
             }
         }
-        // Cancels the reader's read; a reader still attaching notices `closing` within one
-        // connection attempt.
+        // Cancels the reader's read of the attached connection.
         if let Some(current) = state.current.as_ref() {
             let _cancelled = current.stream.shutdown(Shutdown::Both);
         }
@@ -423,9 +452,11 @@ impl Inner {
         }
     }
 
-    /// After a loss: ends the owner, or re-attaches and returns the new connection to read.
+    /// After a loss: ends the owner, or re-attaches and returns the new connection to read. A hub
+    /// that was stopping is never restarted in reaction: the owner attaches only to a hub somebody
+    /// else starts, and ends `closing` when none appears.
     fn recover(&self, loss: Loss) -> Option<Reading> {
-        let attachment = {
+        let (attachment, stopped) = {
             let mut state = self.lock();
             if let Some(current) = state.current.take() {
                 let _closed = current.stream.shutdown(Shutdown::Both);
@@ -458,14 +489,17 @@ impl Inner {
                 self.changed.notify_all();
                 return None;
             }
-            state.attachment
+            (state.attachment, loss == Loss::Stopped || state.stopping)
         };
         self.changed.notify_all();
         let lost = Instant::now();
-        let mut deadline = lost + ATTEMPT;
-        let cancelled = || self.lock().closing;
+        let (mut start, mut deadline) = if stopped {
+            (Start::Never, lost + CLOSING_ALLOWANCE)
+        } else {
+            (Start::UntilStopping, lost + ATTEMPT)
+        };
         loop {
-            let attached = attach::attach(&self.root, attachment, deadline, &cancelled);
+            let attached = attach::attach(&self.root, attachment, deadline, start, &self.cancel);
             let mut state = self.lock();
             if state.closing {
                 if let Ok(link) = attached {
@@ -488,8 +522,14 @@ impl Inner {
                     self.transmit.notify_all();
                     return Some(reading);
                 }
-                Err(AttachFailure::Closing) if Instant::now() < lost + CLOSING_ALLOWANCE => {
-                    deadline = (Instant::now() + ATTEMPT).min(lost + CLOSING_ALLOWANCE);
+                // The hub that answered is closing, so it was asked to stop: wait it out, starting
+                // none.
+                Err(AttachFailure::Closing)
+                    if start == Start::UntilStopping
+                        && Instant::now() < lost + CLOSING_ALLOWANCE =>
+                {
+                    start = Start::Never;
+                    deadline = lost + CLOSING_ALLOWANCE;
                 }
                 Err(failure) => {
                     state.end(failure);
@@ -555,10 +595,12 @@ impl State {
                     .as_mut()
                     .and_then(|current| current.pending.remove(&id))
                 {
-                    if let (Some(attachment), Reply::Attach(AttachOutcome::Attached { .. })) =
-                        (attachment, &reply)
-                    {
-                        self.attachment = attachment;
+                    match (attachment, &reply) {
+                        (Some(attachment), Reply::Attach(AttachOutcome::Attached { .. })) => {
+                            self.attachment = attachment;
+                        }
+                        (_, Reply::Attach(AttachOutcome::Stopping)) => self.stopping = true,
+                        _ => {}
                     }
                     if let Some(answer) = self.answers.get_mut(&ticket) {
                         *answer = Some(Ok(reply));
@@ -578,16 +620,17 @@ impl State {
                 None
             }
             Delivery::Message(Message::Event { event, .. }) => {
+                if matches!(event, Event::Hub(HubState::Closing)) {
+                    self.stopping = true;
+                }
                 self.notices.push_back(Notice::Event(event));
                 None
             }
-            Delivery::Message(Message::Bye { reason, .. }) => {
-                Some(if reason == ByeReason::Violation {
-                    Loss::Violation
-                } else {
-                    Loss::Gone
-                })
-            }
+            Delivery::Message(Message::Bye { reason, .. }) => Some(match reason {
+                ByeReason::Stopping => Loss::Stopped,
+                ByeReason::Violation => Loss::Violation,
+                _ => Loss::Gone,
+            }),
             _ => None,
         }
     }
@@ -619,6 +662,7 @@ impl State {
 /// the carrier cannot be shared between the reader and the writer.
 fn install(state: &mut State, link: Link) -> Option<Reading> {
     let writer = link.stream.try_clone().ok()?;
+    state.stopping = false;
     state.current = Some(Current {
         connection: link.connection,
         stream: Arc::new(writer),

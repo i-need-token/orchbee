@@ -3,7 +3,8 @@
 //! starting, stopping or deleting Session writes or replaces: it takes the Session names from the
 //! folder names in the runtime base, then probes each folder's existing activation lock and, under
 //! it, the lifetime lock, so that it never takes a free lifetime lock at the instant a Server takes
-//! it.
+//! it. A read that cannot finish says so, and each caller decides what that means: the hub finds no
+//! live Session, and the replacement check counts the hub held.
 
 use orchbee_local_runtime::{
     ModeCheckedLocalSessionRendezvous, SessionHolderObservation, SessionLifetimeObservation,
@@ -16,8 +17,20 @@ use std::{
 };
 
 /// The most Session folders one read probes, as many Sessions as the catalog admits; a base that
-/// holds more reads as holding no live Session.
+/// holds more cannot be read.
 const SESSIONS: usize = 256;
+
+/// What one read of the Sessions found.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionRead {
+    /// A Session lives.
+    Live,
+    /// No Session lives; a base that does not exist yet holds none.
+    NoneLive,
+    /// The read could not tell: the base could not be listed, it holds more than 256 Session
+    /// folders, a probe failed with no live Session found, or the deadline passed.
+    Unknown,
+}
 
 /// The runtime base Sessions run in under `environment`: `ORCHBEE_RUNTIME_BASE` when it applies to
 /// this build, otherwise the data root's default. The hub keeps that variable under the same rule,
@@ -29,15 +42,17 @@ pub fn runtime_base(environment: impl Fn(&str) -> Option<OsString>) -> Option<Pa
         .or_else(|| orchbee_local_runtime::default_runtime_base(|name| environment(name)))
 }
 
-/// Whether any Session in `base` lives; a base that does not exist yet holds none, and a read that
-/// fails or reaches `deadline` finds none.
-pub fn any_live(base: &Path, deadline: Instant) -> bool {
-    let Some(names) = folder_names(base, deadline) else {
-        return false;
+/// Reads whether any Session in `base` lives, within `deadline`.
+pub fn read_sessions(base: &Path, deadline: Instant) -> SessionRead {
+    let names = match folder_names(base, deadline) {
+        Listing::Absent => return SessionRead::NoneLive,
+        Listing::Unreadable => return SessionRead::Unknown,
+        Listing::Names(names) => names,
     };
+    let mut unknown = false;
     for name in names {
         if Instant::now() >= deadline {
-            return false;
+            return SessionRead::Unknown;
         }
         // The probe pins the folder only while it lives; a folder that is gone, not private, or
         // not a directory holds no Server.
@@ -46,27 +61,47 @@ pub fn any_live(base: &Path, deadline: Instant) -> bool {
         else {
             continue;
         };
-        if matches!(
-            session.observe_session_holder(),
-            Ok(SessionHolderObservation::ActivationHeld
-                | SessionHolderObservation::Lifetime(SessionLifetimeObservation::Held))
-        ) {
-            return true;
+        match session.observe_session_holder() {
+            Ok(
+                SessionHolderObservation::ActivationHeld
+                | SessionHolderObservation::Lifetime(SessionLifetimeObservation::Held),
+            ) => return SessionRead::Live,
+            Ok(_) => {}
+            Err(_) => unknown = true,
         }
     }
-    false
+    if unknown {
+        SessionRead::Unknown
+    } else {
+        SessionRead::NoneLive
+    }
 }
 
-/// The names of `base`'s folders that spell a Session name, read whole before any folder is
-/// opened; `None` when the base cannot be listed, the listing reaches `deadline`, or it holds more
-/// than [`SESSIONS`] of them.
-fn folder_names(base: &Path, deadline: Instant) -> Option<Vec<String>> {
+/// What listing the runtime base found.
+enum Listing {
+    /// The base does not exist yet.
+    Absent,
+    /// The base could not be listed, the listing reached its deadline, or it holds more than
+    /// [`SESSIONS`] Session folders.
+    Unreadable,
+    /// The names of its folders that spell a Session name, read whole before any folder is opened.
+    Names(Vec<String>),
+}
+
+fn folder_names(base: &Path, deadline: Instant) -> Listing {
+    let entries = match std::fs::read_dir(base) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Listing::Absent,
+        Err(_) => return Listing::Unreadable,
+    };
     let mut names = Vec::new();
-    for entry in std::fs::read_dir(base).ok()? {
+    for entry in entries {
         if Instant::now() >= deadline {
-            return None;
+            return Listing::Unreadable;
         }
-        let entry = entry.ok()?;
+        let Ok(entry) = entry else {
+            return Listing::Unreadable;
+        };
         if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
             continue;
         }
@@ -79,9 +114,9 @@ fn folder_names(base: &Path, deadline: Instant) -> Option<Vec<String>> {
             continue;
         };
         if names.len() == SESSIONS {
-            return None;
+            return Listing::Unreadable;
         }
         names.push(name);
     }
-    Some(names)
+    Listing::Names(names)
 }

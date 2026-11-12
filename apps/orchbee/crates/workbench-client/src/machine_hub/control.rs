@@ -24,14 +24,16 @@ const ROUNDS: usize = 3;
 /// Why `running` or `end` could not finish.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EndFailure {
-    /// The endpoint refused this process, or its server runs as another user.
+    /// The endpoint refused this process, or its server runs as another user; for `end`, also a
+    /// hub process this one may not wait for, such as an elevated one.
     Denied,
     /// A build of another environment serves this data root and refuses control requests.
     Foreign {
         /// That build's environment name.
         environment: String,
     },
-    /// The hub answered outside the contract or kept answering `capacity`.
+    /// The hub answered outside the contract or kept answering `capacity`; for `end`, also a hub
+    /// process that could not be opened for another reason.
     Unavailable,
     /// The deadline passed with the hub still running.
     Timeout {
@@ -54,13 +56,14 @@ pub fn running(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFai
     hub_process(&endpoint, deadline)
 }
 
-/// Ends the hub running for `root`: `drain`, a wait for the process to exit, then `exit`. A hub that
-/// a client started meanwhile is ended the same way. Returns the last hub ended, or `None` when
-/// none ran; once it returns, no hub's program file is held by that process.
+/// Ends the hub running for `root`: `drain`, a wait for the process to exit, then `exit`. An owner
+/// whose hub this ends starts none in reaction, so a hub found afterwards was started by a client
+/// that was starting anyway, and it is ended the same way. Returns the last hub ended, or `None`
+/// when none ran; once it returns, no hub's program file is held by that process.
 ///
 /// # Errors
 ///
-/// [`EndFailure`] when a hub refuses or outlasts `deadline`.
+/// [`EndFailure`] when a hub refuses, cannot be waited for, or outlasts `deadline`.
 pub fn end(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFailure> {
     let Ok(endpoint) = machine_hub_endpoint(root) else {
         return Ok(None);
@@ -70,14 +73,21 @@ pub fn end(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFailure
         let Some(process_id) = hub_process(&endpoint, deadline)? else {
             return Ok(ended);
         };
-        let Ok(process) = w::HPROCESS::OpenProcess(
+        let process = match w::HPROCESS::OpenProcess(
             co::PROCESS::SYNCHRONIZE | co::PROCESS::QUERY_LIMITED_INFORMATION,
             false,
             process_id,
-        ) else {
-            // Gone already, or not ours to wait for: the next query tells.
-            pause(deadline)?;
-            continue;
+        ) {
+            Ok(process) => process,
+            // Gone already: the next query tells.
+            Err(error) if error == co::ERROR::INVALID_PARAMETER => {
+                pause(deadline)?;
+                continue;
+            }
+            // An elevated hub, or one of another user: without waiting for its exit this process
+            // could not tell when its program file is free, so it leaves the hub as it is.
+            Err(error) if error == co::ERROR::ACCESS_DENIED => return Err(EndFailure::Denied),
+            Err(_) => return Err(EndFailure::Unavailable),
         };
         // The same id once the handle is open proves the handle is the hub's, not a reused id's.
         match hub_process(&endpoint, deadline)? {

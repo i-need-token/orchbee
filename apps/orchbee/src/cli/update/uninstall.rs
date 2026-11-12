@@ -75,8 +75,9 @@ const STORE_VARIABLE: &str = "ORCHBEE_INSTALL_DIR";
 #[derive(Clone, Copy)]
 enum Background {
     Sessions,
-    /// The machine hub of the data root, ended after the Sessions so that no interface of theirs
-    /// attaches to it again.
+    /// The machine hub of the data root, ended after the Sessions. An interface of theirs still
+    /// running then starts no hub in reaction to that ending, and the store wait that follows
+    /// covers the interfaces and any hub a client started otherwise.
     Hub,
 }
 

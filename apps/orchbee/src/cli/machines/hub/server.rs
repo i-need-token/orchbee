@@ -73,7 +73,6 @@ pub(super) fn serve() -> u8 {
     let Some(listener) = bind(&endpoint) else {
         return CANNOT_SERVE;
     };
-    environment.start_test_child();
     let machines = Machines::read(&root).unwrap_or_else(|_| Machines::empty());
     let base = machine_hub::runtime_base(|name| environment.get(name));
     let live = any_live(base.as_deref());
@@ -99,9 +98,13 @@ pub(super) fn serve() -> u8 {
     CLOSED
 }
 
-/// Whether any Session in the runtime base lives, within the read's bound.
+/// Whether any Session in the runtime base lives, within the read's bound; a read that cannot tell
+/// finds none, an accepted limit of the lifetime.
 fn any_live(base: Option<&Path>) -> bool {
-    base.is_some_and(|base| machine_hub::any_live(base, Instant::now() + SESSION_READ))
+    base.is_some_and(|base| {
+        machine_hub::read_sessions(base, Instant::now() + SESSION_READ)
+            == machine_hub::SessionRead::Live
+    })
 }
 
 /// Makes a panic in any of the hub's threads end the process after the usual report, as a kill

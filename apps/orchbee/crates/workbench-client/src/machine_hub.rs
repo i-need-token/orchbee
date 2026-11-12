@@ -11,7 +11,7 @@ mod sessions;
 
 pub use control::{EndFailure, end, running};
 pub use owner::{HubClient, Notice, RequestFailure};
-pub use sessions::{any_live, runtime_base};
+pub use sessions::{SessionRead, read_sessions, runtime_base};
 
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::hub::HubState;
@@ -50,7 +50,8 @@ pub enum AttachFailure {
     Unavailable,
     /// The endpoint refused this process, or its server runs as another user.
     Denied,
-    /// The hub was still closing at the deadline.
+    /// The hub was still closing at the deadline; for the owner, also a hub that was asked to stop
+    /// when no other took its place.
     Closing,
     /// A hub this client cannot use serves the data root.
     Incompatible(Incompatible),
@@ -68,8 +69,9 @@ pub enum Incompatible {
         /// That build's environment name.
         environment: String,
     },
-    /// Another version of this environment's hub runs, and a Session or another run of its
-    /// program may hold it, so it was not replaced.
+    /// Another version of this environment's hub runs, and a Session or a client of its version
+    /// may hold it, so it was not replaced; for the owner whose hub was asked to stop, somebody
+    /// else started it.
     Held {
         /// The running hub's product version.
         version: String,
