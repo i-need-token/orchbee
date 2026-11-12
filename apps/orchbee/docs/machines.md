@@ -221,6 +221,76 @@ Private requests are at most 2 MiB and replies at most 24 MiB; raw stdout and
 stderr are each at most 8 MiB. Arguments are bounded to 64 KiB and 1024 entries.
 PowerShell completion supports the selector prefix and routed command scope.
 
+## Link helper
+
+`orchbee --machine-link-v1`, with no other argument, is the remote end of the
+[`machine-link`](../../../schemas/machine/README.md) connection: the hub starts it over `ssh` and
+speaks to it on its standard input and output. One pair of pipes carries several Sessions' byte
+streams, routed commands, and Session starts at once. Windows serves it; elsewhere it answers
+unsupported before reading a byte, as `--machine-tunnel-v1` and `--machine-relay-v1` do. Those two
+helpers stay until their last caller moves to the link. The contract owns every byte; this section
+owns how the helper meets it.
+
+A console on standard input or output refuses the start: the helper writes nothing and exits 5.
+Otherwise it answers the `OBHS` frame within the 2-second candidate deadline counted from its
+start. A `machine-link` offer gets the answer and then the `facts` event: `platform`
+`windows`, the build's `architecture`, the running `executable`, and `storeRoot`, the release
+store root `ORCHBEE_INSTALL_DIR` or the build's folder under `%LOCALAPPDATA%\Programs`, when that
+resolves. The control request `query` gets one `machine-link` process entry with `terminals` 0;
+`drain` gets state `stopping` and `exit` its reply, and both end the helper. Any other frame gets
+the handshake's own answer: a rejection, or `unsupported` for an unknown request.
+
+| Channel          | Accept                                | Responder data and result                                                                                                                                                             |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session`        | Once the named Session's pipe is open | Bytes from that pipe, then `close` `ended` when it closes or `failed` on a read error. A Session that is not running resets `session-not-running`; an unopenable pipe `unavailable`   |
+| `route`          | At once                               | After the opener's `end`, the reply packet of the [routed command](#command-routing-contract), under the same admission and allowlist as `--machine-relay-v1`, then `replied`         |
+| `ensure-session` | At once                               | `ready` with `started` once the Session admits a Client, as `server start` would; `unknown` when a start ran out of its 30 seconds or its Server may have started; `failed` otherwise |
+
+A name the Windows Session grammar refuses resets `invalid-session` before `accept`. The pipe is
+found as a local Client finds it, through the data root's Session catalog spelling, and must
+belong to the same user. `ensure-session` uses the same activation as `server start`; the Server it
+starts outlives the helper. `install` is answered as an unknown kind until its capability ships.
+
+### Ownership and bounds
+
+The helper is one reader of standard input, one writer of standard output, a supervisor, and
+workers per channel. One lock guards the connection state machine of `crates/machine-protocol` and
+the channel table; no thread holds it across I/O, and no thread is started per frame.
+
+| Resource                        | Owner                                                     | Bound                                                                                            |
+| ------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Standard input                  | Reader thread                                             | One 64 KiB read buffer and one partial frame of at most 65,552 bytes; an `OBHS` frame 1 MiB      |
+| Queued frames other than `data` | Connection state machine                                  | The reader stops reading while 256 wait, so a peer that does not read cannot grow the queue      |
+| Committed `data` of a channel   | Connection state machine, filled by the channel's workers | Workers commit only while less than 64 KiB of the channel is unwritten: at most 96 KiB           |
+| Standard output                 | Writer thread                                             | One frame at a time, written in full before the next is taken                                    |
+| `session` bytes for the pipe    | Channel table, drained by the channel's pipe writer       | 262,144 bytes: credit is granted again only for bytes written to the pipe                        |
+| `session` bytes from the pipe   | The channel's pipe reader                                 | One 32 KiB buffer, read again only once all of it is committed                                   |
+| `route` request packet          | Channel table until `end`, then the command worker        | 2,097,152 bytes; beyond it the state machine resets `too-large`                                  |
+| `route` reply packet            | The command worker                                        | 25,165,824 bytes, built once from output capped at 8 MiB per stream                              |
+| Channels                        | Connection state machine                                  | 256 open; the next `open` is reset `capacity`                                                    |
+| Channel table entries           | Channel table                                             | 512, counting closed channels whose workers still settle; the next `open` is reset `unavailable` |
+| Threads                         | Process                                                   | Three, plus two per `session` channel and one per started `route` or `ensure-session` channel    |
+
+| Event                               | Effect                                                                                                                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Standard input ends or fails        | Every open channel is reset `stopping` and its work ends; best-effort `bye` `done`; exit 0                                                                       |
+| The hub's `bye`                     | The same as the end of standard input                                                                                                                            |
+| A frame breaks the contract         | The reader stops; only `bye` `violation` is written; every channel ends; exit 5                                                                                  |
+| 90 seconds without a received frame | As at the end of standard input, with `bye` `idle`                                                                                                               |
+| Standard output fails               | Every channel ends; exit 0                                                                                                                                       |
+| The opener's `end` on `session`     | What the channel holds is written to the pipe, then the pipe is closed, which ends the channel `ended`                                                           |
+| The opener's `reset`                | The pipe is closed, a running routed command is ended through its Job, an activation finishes unobserved                                                         |
+| A Session pipe closes or fails      | What was read is committed, then `close` `ended` or `failed`                                                                                                     |
+| The hub reads slowly                | The writer blocks; workers stop committing at the 64 KiB mark; the pipe reader stops reading, so the Session sees its pipe fill; other channels keep their turns |
+| A Session pipe reads slowly         | The pipe writer blocks, no credit returns, and the hub stops sending on that channel only                                                                        |
+| Exit                                | At most 2 seconds to write `bye` and 5 seconds for routed commands to end; a Session start runs to its own 30-second deadline, never abandoned halfway           |
+
+Ending a channel never stops a Session, its Server, Worker, Host or terminals: the helper only
+closes its own pipe connection. The exercise in `tests/cli_windows_machine_link.rs` starts the
+helper with pipes against a real scratch Session, two Session streams, a routed `workspace list`
+while another stream is stalled at its window, both `ensure-session` outcomes, `bye`, and pipe
+closure, and the console refusal. It does not start `ssh`.
+
 ## Persistent TUI connections
 
 The Windows TUI discovers the saved catalog while open and offers a machine
