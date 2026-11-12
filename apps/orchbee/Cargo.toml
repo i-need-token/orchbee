@@ -188,6 +188,12 @@ path = "tests/cli_windows_output_replay.rs"
 name = "cli_windows_machine_link"
 path = "tests/cli_windows_machine_link.rs"
 
+# Keep its hub processes, a 20-second expiry and a real Session's stop and start away from
+# aggregate suite deadlines.
+[[test]]
+name = "cli_windows_machine_hub"
+path = "tests/cli_windows_machine_hub.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"
