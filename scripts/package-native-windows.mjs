@@ -1,6 +1,8 @@
 // Produce the updater's version 2 release manifest from a completed staged Windows cohort. Signing
 // is a separate step, `scripts/sign-release-manifest.mjs`, which writes `release.json.sig`.
-// No upload, application launch, installation or PATH mutation occurs here.
+// No upload, application launch, installation or PATH mutation occurs here. A release feed packages
+// a cohort staged with `--artifact-stem orchbee`; a test cohort (`ob-test-<16 hex>`) packages the
+// same way for rehearsals signed with the test key. Development cohorts are refused.
 import { createHash } from 'node:crypto';
 import {
 	closeSync,
@@ -18,7 +20,14 @@ import { fileURLToPath } from 'node:url';
 import { verifiedCapsuleDigest } from './stage-local-runtime.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
-const peers = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
+// Each cohort role's key in `cohort.json` and the suffix its file adds to the environment stem.
+const peers = [
+	['orchbee', ''],
+	['orchbee-server', '-server'],
+	['orchbee-worker', '-worker'],
+	['orchbee-terminal-host', '-terminal-host'],
+];
+const packagedStem = /^(?:orchbee|ob-test-[0-9a-f]{16})$/u;
 const maximumFile = 512 * 1024 * 1024;
 const maximumTotal = 2 * 1024 * 1024 * 1024;
 // The updater reads at most 1 MiB of manifest; this bound never shrinks.
@@ -28,22 +37,22 @@ const frames = ['obkg', 'obpb', 'obrw', 'obtf'];
 const components = [
 	{
 		id: 'client',
-		files: (file) => file === 'orchbee.exe',
+		files: (file, stem) => file === `${stem}.exe`,
 		contracts: ['client-server', ...frames, 'machine-route'],
 	},
 	{
 		id: 'server',
-		files: (file) => file === 'orchbee-server.exe',
+		files: (file, stem) => file === `${stem}-server.exe`,
 		contracts: ['client-server', 'agent-hook'],
 	},
 	{
 		id: 'worker',
-		files: (file) => file === 'orchbee-worker.exe',
+		files: (file, stem) => file === `${stem}-worker.exe`,
 		contracts: ['worker-host', ...frames],
 	},
 	{
 		id: 'terminal-host',
-		files: (file) => file === 'orchbee-terminal-host.exe' || file.startsWith('conpty/'),
+		files: (file, stem) => file === `${stem}-terminal-host.exe` || file.startsWith('conpty/'),
 		contracts: ['worker-host', ...frames],
 	},
 	{
@@ -71,14 +80,17 @@ function generationRanges() {
 	return ranges;
 }
 
-/** The manifest's component entries; every registry contract must belong to a component. */
-export function componentEntries(files, version) {
+/**
+ * The manifest's component entries for a cohort whose executables carry `stem`; every registry
+ * contract must belong to a component.
+ */
+export function componentEntries(files, version, stem = 'orchbee') {
 	const ranges = generationRanges();
 	const listed = new Set(components.flatMap((component) => component.contracts));
 	for (const name of ranges.keys())
 		if (!listed.has(name)) throw new Error(`No component lists the registry contract ${name}`);
 	return components.map((component) => {
-		const paths = files.map((file) => file.path).filter(component.files);
+		const paths = files.map((file) => file.path).filter((file) => component.files(file, stem));
 		if (paths.length === 0) throw new Error(`Component ${component.id} has no files`);
 		const connections = Object.fromEntries(
 			component.contracts.map((name) => {
@@ -188,12 +200,17 @@ export function packageWindows(cohort, channel, version, buildId) {
 		Object.keys(manifest.artifacts ?? {}).length !== 5
 	)
 		throw new Error('Invalid native cohort manifest');
-	for (const peer of peers) {
-		const file = files.find((entry) => entry.path === peer + '.exe');
-		if (!file)
-			throw new Error(
-				`Missing ${peer}.exe: a release feed packages a cohort staged with --artifact-stem orchbee`,
-			);
+	const stems = files
+		.map((entry) => /^([0-9a-z-]+)\.exe$/u.exec(entry.path)?.[1])
+		.filter((stem) => stem !== undefined && packagedStem.test(stem));
+	if (stems.length !== 1)
+		throw new Error(
+			'Expected one orchbee.exe or ob-test-<16 hex>.exe: a release feed packages a cohort staged with --artifact-stem orchbee',
+		);
+	const stem = stems[0];
+	for (const [peer, suffix] of peers) {
+		const file = files.find((entry) => entry.path === `${stem}${suffix}.exe`);
+		if (!file) throw new Error(`Missing ${stem}${suffix}.exe`);
 		if (file.sha256 !== manifest.artifacts[peer]) throw new Error('Cohort binary digest mismatch');
 	}
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
@@ -209,7 +226,7 @@ export function packageWindows(cohort, channel, version, buildId) {
 			version,
 			buildId,
 			files,
-			components: componentEntries(files, version),
+			components: componentEntries(files, version, stem),
 		}) + '\n';
 	if (Buffer.byteLength(bytes) > maximumManifest) throw new Error('Release manifest exceeds 1 MiB');
 	const fd = openSync(destination, 'wx');

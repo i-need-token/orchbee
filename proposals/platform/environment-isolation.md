@@ -106,7 +106,9 @@ command.
 
 - A build without an explicit stem uses `ob-test-<checkout digest>`, so only release staging produces
   release names and a plain Cargo build cannot act on the release installation.
-- Release packaging refuses a cohort whose stem is not `orchbee`.
+- Release packaging refuses a development cohort. It packages an `orchbee` cohort for a release
+  feed and an `ob-test-<checkout digest>` cohort only for rehearsals signed with the test key,
+  which a release build never trusts.
 - Tests start every Session from a staged copy named by `CohortArtifact` file names, never from
   Cargo's output directory, so no test process carries a release image name.
 
