@@ -8,7 +8,7 @@ use std::{
     collections::{BTreeMap, VecDeque},
     net::Shutdown,
     sync::{
-        Arc, Condvar, Mutex, MutexGuard, PoisonError,
+        Arc, Condvar,
         atomic::{AtomicBool, Ordering},
     },
     time::Instant,
@@ -76,48 +76,9 @@ impl State {
     }
 }
 
-/// The state under its lock and the signal that wakes the writer, the reader's pause, and the
+/// The state under its lock, and the signal that wakes the writer, the reader's pause, and the
 /// supervisor.
-pub(super) struct Shared {
-    state: Mutex<State>,
-    carrier: Condvar,
-}
-
-impl Shared {
-    pub(super) fn new(state: State) -> Self {
-        Self {
-            state: Mutex::new(state),
-            carrier: Condvar::new(),
-        }
-    }
-
-    pub(super) fn lock(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Wakes the writer, the reader, and the supervisor to look at the state again.
-    pub(super) fn wake(&self) {
-        self.carrier.notify_all();
-    }
-
-    pub(super) fn wait<'a>(&self, state: MutexGuard<'a, State>) -> MutexGuard<'a, State> {
-        self.carrier
-            .wait(state)
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
-    pub(super) fn wait_until<'a>(
-        &self,
-        state: MutexGuard<'a, State>,
-        deadline: Instant,
-    ) -> MutexGuard<'a, State> {
-        let timeout = deadline.saturating_duration_since(Instant::now());
-        self.carrier
-            .wait_timeout(state, timeout)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0
-    }
-}
+pub(super) type Shared = super::super::shared_carrier::Shared<State>;
 
 /// What a channel's workers do.
 #[derive(Clone, Copy, Eq, PartialEq)]

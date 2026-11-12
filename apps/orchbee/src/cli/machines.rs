@@ -2,6 +2,8 @@
 use crate::cli_text::CliText;
 pub(crate) mod link;
 pub(crate) mod routing;
+#[cfg(windows)]
+mod shared_carrier;
 mod ssh;
 use super::{
     Failure, FailureKind, Output,

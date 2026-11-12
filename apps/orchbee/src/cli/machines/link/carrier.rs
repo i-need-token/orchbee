@@ -2,18 +2,17 @@
 //! one reader of standard input, the one writer of standard output, and the supervisor that ends
 //! the link on idleness and settles what its channels started.
 
+use super::super::shared_carrier::{acceptor_profile, answer, frames, query};
 use super::state::{End, Shared, State};
 use orchbee_connection_handshake::{
-    AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE, ConnectionEntry,
-    ConnectionKind, Decision, DrainResult, ExitResult, Extensions, ProcessEntry, ProcessRole,
-    ProcessState, ProductVersion, QueryResult, RejectionReason, RequestKind, encode_acceptor_frame,
+    AcceptorLoad, AcceptorMessage, CANDIDATE_DEADLINE, ConnectionKind, Decision, DrainResult,
+    ExitResult, Extensions, ProcessRole, ProcessState, RejectionReason, RequestKind,
     read_initiator_message,
 };
 use orchbee_machine_protocol::{Connection, Frame, FrameDecoder, FrameKind, PathText, Token, link};
 use std::{
     fs::File,
     io::{self, IsTerminal, Read, Write},
-    num::NonZeroU32,
     os::windows::io::{AsHandle, BorrowedHandle},
     sync::{Arc, mpsc},
     thread,
@@ -88,13 +87,7 @@ enum Admission {
 
 /// Reads one `OBHS` frame within the candidate deadline counted from `started` and answers it.
 fn admit(mut input: File, output: &mut File, started: Instant) -> Admission {
-    let profile = AcceptorProfile::local(
-        ConnectionKind::MachineLink,
-        ProductVersion::new(env!("CARGO_PKG_VERSION"))
-            .expect("the package version is printable ASCII"),
-        Build::default(),
-        orchbee_local_runtime::environment_name(),
-    );
+    let profile = acceptor_profile(ConnectionKind::MachineLink);
     let (sender, received) = mpsc::sync_channel(1);
     // A pipe read cannot time out, so a thread reads and the deadline is kept here; on timeout the
     // process exits with that read still pending.
@@ -147,7 +140,7 @@ fn admit(mut input: File, output: &mut File, started: Instant) -> Admission {
             Admission::Done(ENDED)
         }
         Decision::Serve(RequestKind::Query) => {
-            if let Some(result) = query(&profile) {
+            if let Some(result) = query(&profile, ProcessRole::MachineLink, ProcessState::Ready) {
                 answer(output, &AcceptorMessage::QueryResult(result));
             }
             Admission::Done(ENDED)
@@ -165,34 +158,6 @@ fn admit(mut input: File, output: &mut File, started: Instant) -> Admission {
             Admission::Done(ENDED)
         }
     }
-}
-
-/// The one process entry a `query` reports: this helper, holding no terminal.
-fn query(profile: &AcceptorProfile) -> Option<QueryResult> {
-    let entry = ProcessEntry {
-        role: ProcessRole::MachineLink,
-        product_version: profile.product_version.clone(),
-        build: profile.build.clone(),
-        environment: profile.environment.name().clone(),
-        pid: NonZeroU32::new(std::process::id())?,
-        state: ProcessState::Ready,
-        terminals: 0,
-        connections: vec![ConnectionEntry {
-            kind: ConnectionKind::MachineLink.contract_name(),
-            generations: profile.generations,
-            capabilities: Some(profile.capabilities.clone()),
-        }],
-    };
-    QueryResult::new(vec![entry], None, Extensions::new()).ok()
-}
-
-fn answer(output: &mut File, message: &AcceptorMessage) -> bool {
-    encode_acceptor_frame(message).is_ok_and(|frame| {
-        output
-            .write_all(&frame)
-            .and_then(|()| output.flush())
-            .is_ok()
-    })
 }
 
 /// Runs the admitted link until it ends and its farewell and commands settle.
@@ -282,27 +247,16 @@ fn read(link: &Arc<Shared>, mut input: File) {
             link.wake();
             return;
         }
-        let mut offset = 0;
-        while let Some(rest) = buffer.get(offset..read).filter(|rest| !rest.is_empty()) {
-            match decoder.decode(rest) {
-                Ok((consumed, frame)) => {
-                    offset += consumed;
-                    if let Some(frame) = frame
-                        && !receive(link, &frame)
-                    {
-                        return;
-                    }
-                    if consumed == 0 {
-                        break;
-                    }
-                }
-                Err(_) => {
-                    let mut state = link.lock();
-                    state.connection.frame_failed();
-                    state.end(End::Violation);
-                    link.wake();
-                    return;
-                }
+        let bytes = buffer.get(..read).unwrap_or_default();
+        match frames(&mut decoder, bytes, |frame| receive(link, frame)) {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(_) => {
+                let mut state = link.lock();
+                state.connection.frame_failed();
+                state.end(End::Violation);
+                link.wake();
+                return;
             }
         }
     }
