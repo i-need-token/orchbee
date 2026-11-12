@@ -31,7 +31,11 @@ const corpus = z
 				expected: z.strictObject({
 					rows: z.array(
 						z.discriminatedUnion('kind', [
-							z.strictObject({ group: groupSchema, kind: z.literal('heading') }),
+							z.strictObject({
+								group: groupSchema,
+								holds: z.enum(['both', 'cant-check', 'not-found']).optional(),
+								kind: z.literal('heading'),
+							}),
 							z.strictObject({
 								detail: z.enum(['cant-check', 'command', 'not-found']),
 								group: groupSchema,

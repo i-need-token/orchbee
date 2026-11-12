@@ -18,7 +18,7 @@ use super::super::modal::{
     paint_dialog,
 };
 use super::{interaction_state, pointer_presentation, render_header_close};
-use crate::agent_board::picker::{Folded, Group, Item, Meta, Status};
+use crate::agent_board::picker::{Group, Holds, Item, Meta, Status};
 use crate::agent_board::start::StartPlace;
 use crate::agent_board::{AgentBoardControl, AgentBoardDraw, AgentBoardView};
 use crate::client_view::{Binding, KeyCode, Modifiers};
@@ -238,12 +238,14 @@ fn paint_item(
     let copy = &text.board.picker;
     let ellipsis = theme.glyphs.ellipsis;
     let (label, meta, enabled) = match item {
-        Item::Heading(group) => {
-            let heading = match group {
-                Group::Recent => copy.recent,
-                Group::Installed => copy.installed,
-                Group::NotFound => copy.not_found,
-                Group::NotChecked => copy.not_checked,
+        Item::Heading { group, holds } => {
+            let heading = match (group, holds) {
+                (Group::Recent, _) => copy.recent,
+                (Group::Installed, _) => copy.installed,
+                (Group::NotFound, Some(Holds::CantCheck)) => copy.not_found_cant_check,
+                (Group::NotFound, Some(Holds::Both)) => copy.not_found_both,
+                (Group::NotFound, _) => copy.not_found,
+                (Group::NotChecked, _) => copy.not_checked,
             };
             frame.render_widget(
                 Paragraph::new(truncate_display(heading, usize::from(row.width), ellipsis))
@@ -271,9 +273,9 @@ fn paint_item(
             format!(
                 "{} {}",
                 match holds {
-                    Folded::NotFound => copy.fold_not_found,
-                    Folded::CantCheck => copy.fold_cant_check,
-                    Folded::Both => copy.fold_both,
+                    Holds::NotFound => copy.fold_not_found,
+                    Holds::CantCheck => copy.fold_cant_check,
+                    Holds::Both => copy.fold_both,
                 }
                 .replace("{count}", &count.to_string()),
                 theme.glyphs.navigation_marker

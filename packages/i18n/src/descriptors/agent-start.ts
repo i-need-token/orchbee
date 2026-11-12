@@ -28,6 +28,10 @@ export const agentStartMessages = defineMessages({
 		'agentStart.fold.notFound',
 		'Row that opens the folded list when every Agent in it was not found. {count} is how many it holds.',
 	),
+	groupCantCheck: message(
+		'agentStart.group.cantCheck',
+		'Heading of the opened fold or matching rows when every Agent under it could not be checked.',
+	),
 	groupInstalled: message(
 		'agentStart.group.installed',
 		'Heading of the Agents the Session’s machine found, apart from the Recent ones.',
@@ -38,7 +42,11 @@ export const agentStartMessages = defineMessages({
 	),
 	groupNotFound: message(
 		'agentStart.group.notFound',
-		'Heading of the Agents the Session’s machine did not find or cannot check.',
+		'Heading of the opened fold or matching rows when every Agent under it was not found.',
+	),
+	groupNotFoundOrCantCheck: message(
+		'agentStart.group.notFoundOrCantCheck',
+		'Heading of the opened fold or matching rows when it lists both Agents not found and Agents that could not be checked.',
 	),
 	groupRecent: message('agentStart.group.recent', 'Heading of the Agents started most recently.'),
 	list: message('agentStart.list', 'Accessible name of the list of Agents to start.'),

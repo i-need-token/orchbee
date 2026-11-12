@@ -17,6 +17,7 @@ const corpusSchema = z.strictObject({
 	invalid: z.array(caseSchema),
 });
 const groupSchema = z.enum(['recent', 'installed', 'not-checked', 'not-found']);
+const holdsSchema = z.enum(['not-found', 'cant-check', 'both']);
 const rowsCorpusSchema = z.strictObject({
 	contractVersion: z.literal(1),
 	cases: z
@@ -30,7 +31,11 @@ const rowsCorpusSchema = z.strictObject({
 					status: z.enum(['looking', 'couldnt-check']).nullable(),
 					rows: z.array(
 						z.discriminatedUnion('kind', [
-							z.strictObject({ kind: z.literal('heading'), group: groupSchema }),
+							z.strictObject({
+								kind: z.literal('heading'),
+								group: groupSchema,
+								holds: holdsSchema.optional(),
+							}),
 							z.strictObject({
 								kind: z.literal('provider'),
 								providerId: WorkbenchAgentStartProviderSchema,
@@ -40,7 +45,7 @@ const rowsCorpusSchema = z.strictObject({
 							z.strictObject({
 								kind: z.literal('fold'),
 								count: z.number().int().min(1),
-								holds: z.enum(['not-found', 'cant-check', 'both']),
+								holds: holdsSchema,
 							}),
 						]),
 					),
@@ -139,6 +144,9 @@ describe('Agent catalog', () => {
 			test.expected.rows.forEach((row, at) => {
 				if (row.kind === 'heading') {
 					if (headings.includes(row.group)) found.push(`heading ${row.group} repeated`);
+					if ((row.holds !== undefined) !== (row.group === 'not-found')) {
+						found.push(`heading ${row.group} holds`);
+					}
 					headings.push(row.group);
 				} else if (row.kind === 'provider') {
 					const detailFits = (row.detail === 'command') === (row.group !== 'not-found');
@@ -153,6 +161,19 @@ describe('Agent catalog', () => {
 					found.push('fold');
 				}
 			});
+			// The Not found heading names the details listed under it.
+			const details = test.expected.rows.flatMap((row) =>
+				row.kind === 'provider' && row.group === 'not-found' ? [row.detail] : [],
+			);
+			const notFound = details.filter((detail) => detail === 'not-found').length;
+			let named: z.infer<typeof holdsSchema> = 'both';
+			if (notFound === 0) named = 'cant-check';
+			else if (notFound === details.length) named = 'not-found';
+			for (const row of test.expected.rows) {
+				if (row.kind === 'heading' && row.holds !== undefined && row.holds !== named) {
+					found.push('Not found heading');
+				}
+			}
 			return found.map((problem) => `${test.name}: ${problem}`);
 		});
 		expect(problems).toEqual([]);

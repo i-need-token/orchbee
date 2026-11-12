@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use super::super::start::{Phase, StartPlace, place_after, test_catalog};
 use super::{
-    Escape, Folded, Group, Item, Meta, Picker, Places, Sources, Status, escape, items, menu_agents,
+    Escape, Group, Holds, Item, Meta, Picker, Places, Sources, Status, escape, items, menu_agents,
     status,
 };
 use crate::workbench_state::AgentStartRefusal;
@@ -62,6 +62,7 @@ fn the_picker_lists_every_corpus_case_as_the_shared_rule_says() {
     enum Row {
         Heading {
             group: String,
+            holds: Option<String>,
         },
         Provider {
             #[serde(rename = "providerId")]
@@ -80,9 +81,15 @@ fn the_picker_lists_every_corpus_case_as_the_shared_rule_says() {
         Group::NotChecked => "not-checked",
         Group::NotFound => "not-found",
     };
+    let holds_name = |holds: Holds| match holds {
+        Holds::NotFound => "not-found",
+        Holds::CantCheck => "cant-check",
+        Holds::Both => "both",
+    };
     let shown = |item: Item| match item {
-        Item::Heading(group) => Row::Heading {
+        Item::Heading { group, holds } => Row::Heading {
             group: group_name(group).to_owned(),
+            holds: holds.map(|holds| holds_name(holds).to_owned()),
         },
         Item::Provider { id, group, meta } => Row::Provider {
             provider_id: id.to_owned(),
@@ -96,12 +103,7 @@ fn the_picker_lists_every_corpus_case_as_the_shared_rule_says() {
         },
         Item::Fold { count, holds } => Row::Fold {
             count,
-            holds: match holds {
-                Folded::NotFound => "not-found",
-                Folded::CantCheck => "cant-check",
-                Folded::Both => "both",
-            }
-            .to_owned(),
+            holds: holds_name(holds).to_owned(),
         },
     };
 

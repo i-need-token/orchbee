@@ -16,7 +16,7 @@ import type {
 } from '../../../types/workbench-agent-start';
 import {
 	projectWorkbenchAgentStartRows,
-	type WorkbenchAgentStartFolded,
+	type WorkbenchAgentStartHolds,
 	type WorkbenchAgentStartGroup,
 	type WorkbenchAgentStartRows,
 } from '../model/projectWorkbenchAgentStartRows';
@@ -83,14 +83,22 @@ interface WorkbenchAgentStartDialogView {
 	readonly title: string;
 }
 
-const GROUP_MESSAGES: Readonly<Record<WorkbenchAgentStartGroup, MessageDescriptor>> = {
+const GROUP_MESSAGES: Readonly<
+	Record<Exclude<WorkbenchAgentStartGroup, 'not-found'>, MessageDescriptor>
+> = {
 	installed: agentStartMessages.groupInstalled,
 	'not-checked': agentStartMessages.groupNotChecked,
-	'not-found': agentStartMessages.groupNotFound,
 	recent: agentStartMessages.groupRecent,
 };
 
-const FOLD_LABELS: Readonly<Record<WorkbenchAgentStartFolded, MessageDescriptor>> = {
+/** The Not found group's heading, named by the rows it lists as the fold row is. */
+const NOT_FOUND_HEADINGS: Readonly<Record<WorkbenchAgentStartHolds, MessageDescriptor>> = {
+	both: agentStartMessages.groupNotFoundOrCantCheck,
+	'cant-check': agentStartMessages.groupCantCheck,
+	'not-found': agentStartMessages.groupNotFound,
+};
+
+const FOLD_LABELS: Readonly<Record<WorkbenchAgentStartHolds, MessageDescriptor>> = {
 	both: agentStartMessages.foldBoth,
 	'cant-check': agentStartMessages.foldCantCheck,
 	'not-found': agentStartMessages.foldNotFound,
@@ -229,7 +237,9 @@ export function useWorkbenchAgentStartDialog({
 					headingId: `${idPrefix}-heading-${row.group}`,
 					key: row.group,
 					kind: 'section',
-					label: intl.formatMessage(GROUP_MESSAGES[row.group]),
+					label: intl.formatMessage(
+						row.group === 'not-found' ? NOT_FOUND_HEADINGS[row.holds] : GROUP_MESSAGES[row.group],
+					),
 					rows: groupRows,
 				});
 				break;

@@ -916,7 +916,9 @@ neither reads the other's source.
   Agent list shows: `heading` rows naming a group (`recent`, `installed`, `not-checked`,
   `not-found`), `provider` rows with their group and right-hand `detail` (`command`, `not-found`,
   `cant-check`), and a closing `fold` row with its count and `holds`, which names the row: `not-found`
-  when every folded row is `not-found`, `cant-check` when none is, `both` otherwise. The rule is the
+  when every folded row is `not-found`, `cant-check` when none is, `both` otherwise. The `not-found`
+  heading, and only it, carries `holds` too, named the same way by the provider rows listed under it,
+  so the opened fold or a query titles that group as the fold row would. The rule is the
   one display rule for both Clients: Recent (the first three `recent` providers that are `found`),
   Installed (every other `found` row, A–Z by product name) and the fold holding every row neither
   `found` nor `checking`, A–Z, as `not-found` or `cant-check`. While any row is `checking` there is

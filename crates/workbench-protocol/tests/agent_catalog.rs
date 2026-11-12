@@ -104,6 +104,7 @@ fn agent_start_rows_parity_corpus_is_well_formed() {
     enum Row {
         Heading {
             group: Group,
+            holds: Option<Holds>,
         },
         Provider {
             provider_id: AgentStartSelector,
@@ -115,8 +116,8 @@ fn agent_start_rows_parity_corpus_is_well_formed() {
             holds: Holds,
         },
     }
-    /// Which right-hand texts the folded rows carry, which names the fold row.
-    #[derive(Clone, Copy, Deserialize)]
+    /// Which right-hand texts the Not found rows carry, which names the fold row and the heading.
+    #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
     #[serde(rename_all = "kebab-case")]
     enum Holds {
         NotFound,
@@ -163,8 +164,11 @@ fn agent_start_rows_parity_corpus_is_well_formed() {
         let mut headings: Vec<Group> = Vec::new();
         for (at, row) in case.expected.rows.iter().enumerate() {
             match row {
-                Row::Heading { group } => {
-                    assert!(!headings.contains(group), "{context}: heading {group:?}");
+                Row::Heading { group, holds } => {
+                    assert!(
+                        !headings.contains(group) && holds.is_some() == (*group == Group::NotFound),
+                        "{context}: heading {group:?}"
+                    );
                     headings.push(*group);
                 }
                 Row::Provider {
@@ -193,6 +197,37 @@ fn agent_start_rows_parity_corpus_is_well_formed() {
                         "{context}: fold"
                     );
                 }
+            }
+        }
+        // The Not found heading names the details listed under it.
+        let details: Vec<Detail> = case
+            .expected
+            .rows
+            .iter()
+            .filter_map(|row| match row {
+                Row::Provider {
+                    group: Group::NotFound,
+                    detail,
+                    ..
+                } => Some(*detail),
+                _ => None,
+            })
+            .collect();
+        for row in &case.expected.rows {
+            if let Row::Heading {
+                holds: Some(holds), ..
+            } = row
+            {
+                let not_found = details
+                    .iter()
+                    .filter(|detail| matches!(detail, Detail::NotFound))
+                    .count();
+                let named = match not_found {
+                    0 => Holds::CantCheck,
+                    all if all == details.len() => Holds::NotFound,
+                    _ => Holds::Both,
+                };
+                assert_eq!(*holds, named, "{context}: Not found heading");
             }
         }
     }

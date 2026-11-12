@@ -115,7 +115,12 @@ pub(crate) struct AgentPickerText {
     pub(crate) new_worktree: &'static str,
     pub(crate) recent: &'static str,
     pub(crate) installed: &'static str,
+    /// The Not found group's heading over providers that are all not found.
     pub(crate) not_found: &'static str,
+    /// The same heading over providers that all can't be checked.
+    pub(crate) not_found_cant_check: &'static str,
+    /// The same heading over some of each.
+    pub(crate) not_found_both: &'static str,
     pub(crate) not_checked: &'static str,
     /// The fold row over providers that are all not found; `{count}` is how many it holds.
     pub(crate) fold_not_found: &'static str,
@@ -176,6 +181,8 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         recent: "Recent",
         installed: "Installed",
         not_found: "Not found",
+        not_found_cant_check: "Not checked",
+        not_found_both: "Not found or not checked",
         not_checked: "Not checked on this machine",
         fold_not_found: "{count} more not found on this computer",
         fold_cant_check: "{count} more couldn’t be checked",
@@ -254,6 +261,8 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         recent: "最近使用",
         installed: "已安装",
         not_found: "未找到",
+        not_found_cant_check: "无法检查",
+        not_found_both: "未找到或无法检查",
         not_checked: "未在此机器上检查",
         fold_not_found: "另有 {count} 个未在此电脑上找到",
         fold_cant_check: "另有 {count} 个无法检查",

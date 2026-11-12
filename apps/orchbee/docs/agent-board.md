@@ -81,7 +81,9 @@ catalog's recent providers that were found; **Installed** holds every other foun
 product name; the rest fold into one row that expands on `Enter` or a click and scrolls the N
 providers into view with the cursor on the first. The row says what it holds: "N more not found on
 this computer" when every folded provider is not found, "N more couldn't be checked" when none is,
-and "N more not found or not checked" for some of each. A provider in
+and "N more not found or not checked" for some of each. Opened, or listed by a query, the group's
+heading follows the rows it lists the same way: "Not found", "Not checked", or "Not found or not
+checked". A provider in
 Recent never repeats in another group. Any query also searches the folded providers. Each row shows
 the product name and, in secondary text, its command, "not found", or "can't check" for a command
 the Server cannot check, such as a generic one (`agent` for Cursor, `snow` for Snow CLI), or one a

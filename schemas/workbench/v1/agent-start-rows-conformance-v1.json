@@ -119,7 +119,7 @@
 			"expected": {
 				"status": "looking",
 				"rows": [
-					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "heading", "group": "not-found", "holds": "both" },
 					{
 						"kind": "provider",
 						"providerId": "cursor",
@@ -189,7 +189,7 @@
 			"expected": {
 				"status": "looking",
 				"rows": [
-					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "heading", "group": "not-found", "holds": "cant-check" },
 					{ "kind": "provider", "providerId": "snow", "group": "not-found", "detail": "cant-check" }
 				]
 			}
@@ -372,7 +372,7 @@
 					},
 					{ "kind": "heading", "group": "installed" },
 					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
-					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "heading", "group": "not-found", "holds": "both" },
 					{
 						"kind": "provider",
 						"providerId": "cursor",
@@ -579,7 +579,7 @@
 			"expected": {
 				"status": null,
 				"rows": [
-					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "heading", "group": "not-found", "holds": "cant-check" },
 					{
 						"kind": "provider",
 						"providerId": "cursor",
@@ -962,7 +962,7 @@
 						"group": "not-checked",
 						"detail": "command"
 					},
-					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "heading", "group": "not-found", "holds": "not-found" },
 					{ "kind": "provider", "providerId": "pi", "group": "not-found", "detail": "not-found" }
 				]
 			}
@@ -1023,7 +1023,7 @@
 					{ "kind": "heading", "group": "recent" },
 					{ "kind": "provider", "providerId": "snow", "group": "recent", "detail": "command" },
 					{ "kind": "provider", "providerId": "gemini", "group": "recent", "detail": "command" },
-					{ "kind": "heading", "group": "not-found" },
+					{ "kind": "heading", "group": "not-found", "holds": "not-found" },
 					{ "kind": "provider", "providerId": "pi", "group": "not-found", "detail": "not-found" }
 				]
 			}

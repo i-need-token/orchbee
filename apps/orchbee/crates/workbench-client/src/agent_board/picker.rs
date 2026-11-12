@@ -52,38 +52,56 @@ pub(crate) enum Meta {
 /// One list row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Item {
-    Heading(Group),
+    /// A group's heading; the Not found group's says which kinds the rows under it are.
+    Heading {
+        group: Group,
+        /// `Some` exactly for [`Group::NotFound`].
+        holds: Option<Holds>,
+    },
     Provider {
         id: &'static str,
         group: Group,
         meta: Meta,
     },
     /// The folded Not found group, how many providers it holds and which kinds, which name it.
-    Fold {
-        count: usize,
-        holds: Folded,
-    },
+    Fold { count: usize, holds: Holds },
 }
 
-/// Which right-hand texts the folded providers carry, so the fold row says what it hides.
+/// Which right-hand texts the Not found providers carry, so the fold row and the group's heading
+/// say what they hold.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Folded {
-    /// Every folded provider is [`Meta::NotFound`].
+pub(crate) enum Holds {
+    /// Every provider is [`Meta::NotFound`].
     NotFound,
-    /// Every folded provider is [`Meta::CantCheck`].
+    /// Every provider is [`Meta::CantCheck`].
     CantCheck,
     /// Some of each.
     Both,
 }
 
+impl Holds {
+    /// The kinds a non-empty list of Not found group rows holds.
+    fn of(rows: &[Row<'_>]) -> Self {
+        let not_found = rows
+            .iter()
+            .filter(|row| row.state == AgentCatalogEntryState::NotFound)
+            .count();
+        match not_found {
+            0 => Self::CantCheck,
+            all if all == rows.len() => Self::NotFound,
+            _ => Self::Both,
+        }
+    }
+}
+
 impl Item {
     const fn selectable(self) -> bool {
-        !matches!(self, Self::Heading(_))
+        !matches!(self, Self::Heading { .. })
     }
 
     const fn target(self) -> Option<Target> {
         match self {
-            Self::Heading(_) => None,
+            Self::Heading { .. } => None,
             Self::Provider { id, .. } => Some(Target::Provider(id)),
             Self::Fold { .. } => Some(Target::Fold),
         }
@@ -190,7 +208,8 @@ fn by_product(rows: &mut [Row<'_>]) {
 /// The picker's rows: Recent (at most three that may start, most recent first), then the rest.
 /// After a completed lookup the rest is Installed A–Z and a Not found group that stays folded into
 /// one row, named by whether it holds not found rows, rows that can't be checked or both, until it
-/// is opened or a query searches it. While no lookup has completed and the last
+/// is opened or a query searches it; its heading is named the same way by the rows it lists. While
+/// no lookup has completed and the last
 /// one failed or cannot run, it is one Not checked group, then Not found. A provider whose check
 /// is still running is never listed, and the fold waits for every check.
 pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
@@ -229,12 +248,19 @@ pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<I
 
     let mut rows = Vec::new();
     let group = |rows: &mut Vec<Item>, group: Group, listed: &[Row<'_>]| {
-        let mut heading = false;
-        for row in listed.iter().filter(|row| row.matches(&query)) {
-            if !heading {
-                rows.push(Item::Heading(group));
-                heading = true;
-            }
+        let listed: Vec<Row<'_>> = listed
+            .iter()
+            .filter(|row| row.matches(&query))
+            .copied()
+            .collect();
+        if listed.is_empty() {
+            return;
+        }
+        rows.push(Item::Heading {
+            group,
+            holds: (group == Group::NotFound).then(|| Holds::of(&listed)),
+        });
+        for row in listed {
             let meta = match (group, row.state) {
                 (Group::NotFound, State::NotFound) => Meta::NotFound,
                 (Group::NotFound, _) => Meta::CantCheck,
@@ -256,18 +282,9 @@ pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<I
         if query.is_empty() && !expanded {
             // While a check runs the count is not known; the status row says so instead.
             if !unavailable.is_empty() && !sources.checking() {
-                let not_found = unavailable
-                    .iter()
-                    .filter(|row| row.state == State::NotFound)
-                    .count();
-                let holds = match not_found {
-                    0 => Folded::CantCheck,
-                    all if all == unavailable.len() => Folded::NotFound,
-                    _ => Folded::Both,
-                };
                 rows.push(Item::Fold {
                     count: unavailable.len(),
-                    holds,
+                    holds: Holds::of(&unavailable),
                 });
             }
         } else {
@@ -409,7 +426,7 @@ impl Picker {
         if let Some(index) = self.cursor_index(items)
             && index > 0
             && index - 1 < self.scroll
-            && matches!(items.get(index - 1), Some(Item::Heading(_)))
+            && matches!(items.get(index - 1), Some(Item::Heading { .. }))
             && index < self.scroll + visible
         {
             self.scroll = index - 1;
