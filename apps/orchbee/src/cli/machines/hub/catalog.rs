@@ -171,9 +171,9 @@ impl Machines {
     }
 
     /// Replaces the catalog with `next`. A record whose id stays keeps its Machine, reconciled to
-    /// its new content; a removed record's carrier ends and its waiters read `not-found`. Watchers
-    /// receive `catalog` and every Machine that is new or reads differently, or nothing when
-    /// neither changed.
+    /// its new content; a removed record's carrier ends and its waiters read `not-found`; a new or
+    /// changed one [arrives](Machine::arrived). Watchers receive `catalog` and every Machine that
+    /// is new or reads differently, or nothing when neither changed.
     pub(super) fn replace(&mut self, next: Self, conditions: Conditions) -> Outcome {
         let listed = |machines: &Self| -> Vec<MachineId> {
             machines
@@ -204,13 +204,16 @@ impl Machines {
                         &mut self.carriers,
                         conditions,
                         &mut outcome,
-                        |machine, _| machine.reconcile(kind),
+                        |machine, cx| machine.reconcile(kind, cx),
                     );
                     self.entries.push(machine);
                 }
                 None => {
-                    outcome.events.push(incoming.event());
-                    self.entries.push(incoming);
+                    let mut machine = incoming;
+                    let mut cx = context(conditions, &mut self.carriers);
+                    outcome.effects.extend(machine.arrived(&mut cx));
+                    outcome.events.push(machine.event());
+                    self.entries.push(machine);
                 }
             }
         }
@@ -239,15 +242,20 @@ fn step(
     transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
 ) {
     let before = machine.event();
-    let mut cx = Context {
+    outcome
+        .effects
+        .extend(transition(machine, &mut context(conditions, carriers)));
+    let after = machine.event();
+    if after != before {
+        outcome.events.push(after);
+    }
+}
+
+fn context(conditions: Conditions, carriers: &mut u64) -> Context<'_> {
+    Context {
         now: conditions.now,
         presence: conditions.presence,
         closing: conditions.closing,
         carriers,
-    };
-    outcome.effects.extend(transition(machine, &mut cx));
-    let after = machine.event();
-    if after != before {
-        outcome.events.push(after);
     }
 }

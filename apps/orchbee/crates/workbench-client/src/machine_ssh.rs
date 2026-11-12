@@ -172,12 +172,16 @@ fn probe_names() -> (Vec<String>, Vec<String>) {
         )
     }
 }
+/// Every `ssh` Orchbee starts: batch mode, strict host keys that `ssh` never rewrites in
+/// `known_hosts` by itself, no forwarding, no multiplexing and no askpass.
 pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {
     let mut command = Command::new(ssh);
     command.arg("-T");
     for option in [
         "BatchMode=yes",
         "StrictHostKeyChecking=yes",
+        // OpenSSH 8.5 and later otherwise add and remove a host's keys after a login.
+        "UpdateHostKeys=no",
         "ConnectionAttempts=1",
         "ConnectTimeout=10",
         "ServerAliveInterval=5",

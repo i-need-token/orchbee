@@ -1,7 +1,8 @@
 //! `machine connect` and `machine disconnect`: the machine hub of this data root carries the
-//! Machine, and the command asks it through one attachment that holds and watches nothing. An
-//! interrupt ends the wait, not the hub's attempt. A hub closing under the request is asked once
-//! more, through the hub that takes its place.
+//! Machine, and the command asks it through one attachment that holds and watches nothing, after
+//! the hub has taken the current catalog. An interrupt ends the wait, not the hub's attempt. A hub
+//! closing under the request is asked once more, through the hub that takes its place. Every
+//! committed catalog edit also asks a running hub to take the catalog, starting none.
 
 #[cfg(not(windows))]
 use super::{Context, Error, Report};
@@ -9,7 +10,13 @@ use super::{Context, Error, Report};
 use crate::machines::Store;
 
 #[cfg(windows)]
-pub(super) use windows::{connect, disconnect};
+pub(super) use windows::{connect, disconnect, reload_running};
+
+/// No hub runs where it is not built, so an edit has nothing to tell.
+#[cfg(not(windows))]
+pub(super) fn reload_running(_context: &mut Context) -> Result<(), Error> {
+    Ok(())
+}
 
 #[cfg(not(windows))]
 pub(super) fn connect(
@@ -39,7 +46,7 @@ mod windows {
         MachineId,
         hub::{
             Connect, ConnectFailure, ConnectOutcome, ConnectResult, DisconnectOutcome, Origin,
-            Reply, Request,
+            ReloadOutcome, Reply, Request,
         },
     };
     use orchbee_workbench_client::application::machine_hub::{
@@ -81,9 +88,9 @@ mod windows {
         for round in 1..=ROUNDS {
             // The hub reads the catalog this command resolved, so a machine saved after the hub
             // started is known to it; an unchanged record keeps its connection.
-            match ask(client, Request::Reload, context)? {
-                Ok(_) | Err(RequestFailure::Lost) => {}
-                Err(failure) => return Err(request_error(failure)),
+            match reload(client, context)? {
+                Reloaded::Current => {}
+                Reloaded::Stopping | Reloaded::Lost => continue,
             }
             report.remote = Remote::PossiblyStarted;
             let request = Request::Connect(Connect {
@@ -126,36 +133,48 @@ mod windows {
     }
 
     /// Ends the hub's connection to the Machine `selector` names. With no hub running there is no
-    /// connection, and none is started.
+    /// connection, and none is started. A running hub first takes the current catalog, so a record
+    /// that was removed or changed without telling it ends there before the selector resolves.
     pub(in super::super) fn disconnect(
         store: &Store,
         selector: &str,
         context: &mut Context,
         report: &mut Report,
     ) -> Result<(), Error> {
-        let machine = resolve(store, selector, report)?;
         context.check()?;
         let root = data_root().map_err(attach_error)?;
         let running = wait(context, move |deadline| running(&root, deadline))?;
         if running.map_err(end_error)?.is_none() {
+            resolve(store, selector, report)?;
             return Ok(());
         }
         let client = open(context)?;
-        let result = ask_disconnect(&client, &machine, context, report);
+        let result = ask_disconnect(&client, store, selector, context, report);
         close(client);
         result
     }
 
     fn ask_disconnect(
         client: &Arc<HubClient>,
-        machine: &MachineId,
+        store: &Store,
+        selector: &str,
         context: &mut Context,
         report: &mut Report,
     ) -> Result<(), Error> {
         for round in 1..=ROUNDS {
-            let request = Request::Disconnect {
-                machine: machine.clone(),
-            };
+            match reload(client, context)? {
+                Reloaded::Current => {}
+                Reloaded::Stopping | Reloaded::Lost if round < ROUNDS => continue,
+                // A closing hub ends every connection it carries.
+                Reloaded::Stopping => {
+                    resolve(store, selector, report)?;
+                    report.remote = Remote::Unchanged;
+                    return Ok(());
+                }
+                Reloaded::Lost => return Err(Error::HubUnavailable),
+            }
+            let machine = resolve(store, selector, report)?;
+            let request = Request::Disconnect { machine };
             match ask(client, request, context)? {
                 // A hub whose catalog does not list the machine carries nothing for it.
                 Ok(Reply::Disconnect(
@@ -176,6 +195,58 @@ mod windows {
             }
         }
         Err(Error::HubUnavailable)
+    }
+
+    /// How the hub answered `reload`, when it answered in a way the command goes on from.
+    enum Reloaded {
+        /// The hub serves the catalog as it is now.
+        Current,
+        /// The hub is closing; the one that takes its place reads the catalog at its start.
+        Stopping,
+        /// The connection was lost with the request in flight.
+        Lost,
+    }
+
+    /// Asks the hub to take the current catalog. A hub that could not read it keeps the one it
+    /// had and would act on a record that may since have changed, so that ends the command
+    /// before it asks for anything else.
+    fn reload(client: &Arc<HubClient>, context: &mut Context) -> Result<Reloaded, Error> {
+        match ask(client, Request::Reload, context)? {
+            Ok(Reply::Reload(ReloadOutcome::Reloaded { .. })) => Ok(Reloaded::Current),
+            Ok(Reply::Reload(ReloadOutcome::Stopping)) => Ok(Reloaded::Stopping),
+            Err(RequestFailure::Lost) => Ok(Reloaded::Lost),
+            Ok(Reply::Reload(ReloadOutcome::InvalidCatalog)) => {
+                Err(Error::Catalog(CatalogError::InvalidCatalog))
+            }
+            Ok(Reply::Reload(ReloadOutcome::Storage)) => Err(Error::Catalog(CatalogError::Storage)),
+            Ok(_) => Err(Error::Internal),
+            Err(failure) => Err(request_error(failure)),
+        }
+    }
+
+    /// After a committed catalog edit, asks the hub of this data root to take the catalog when
+    /// one runs; it starts none. The edit stands whatever the hub answers, so only an interrupt
+    /// ends the command differently.
+    pub(in super::super) fn reload_running(context: &mut Context) -> Result<(), Error> {
+        let interrupted = |error: Error| match error {
+            Error::Cancelled => Err(Error::Cancelled),
+            _ => Ok(()),
+        };
+        let Ok(root) = data_root() else {
+            return Ok(());
+        };
+        match wait(context, move |deadline| running(&root, deadline)) {
+            Ok(Ok(Some(_))) => {}
+            Ok(_) => return Ok(()),
+            Err(error) => return interrupted(error),
+        }
+        let client = match open(context) {
+            Ok(client) => client,
+            Err(error) => return interrupted(error),
+        };
+        let asked = ask(&client, Request::Reload, context);
+        close(client);
+        asked.map(drop).or_else(interrupted)
     }
 
     /// The saved machine `selector` names, recorded in the report with the catalog it was read
@@ -288,7 +359,7 @@ mod windows {
             ConnectFailure::VersionIncompatible => Error::VersionIncompatible,
             ConnectFailure::RemoteOtherEnvironment => Error::RemoteOtherEnvironment,
             ConnectFailure::NotFound => Error::Catalog(CatalogError::NotFound),
-            ConnectFailure::Cancelled => Error::Disconnected,
+            ConnectFailure::Cancelled => Error::AttemptEnded,
             ConnectFailure::Timeout => Error::Timeout,
             ConnectFailure::RemoteInstallFailed => Error::RemoteInstallFailed,
             ConnectFailure::Stopping => Error::HubUnavailable,

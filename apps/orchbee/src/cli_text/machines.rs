@@ -41,8 +41,8 @@ impl super::CliText {
             ),
             C::MachineEnable => (
                 "orchbee machine enable <id|label> [--format text|json]",
-                "Enable the saved machine. This command does not establish a connection or start a remote session.",
-                "启用已保存的机器。本命令不会建立连接或启动远端会话。",
+                "Enable the saved machine. The command itself connects nothing; a running background machine hub that keeps machines connected then connects it, which may start its remote session.",
+                "启用已保存的机器。本命令本身不连接机器；正在运行且保持机器连接的后台连接进程随后会连接它，这可能启动其远端会话。",
             ),
             C::MachineDisable => (
                 "orchbee machine disable <id|label> [--format text|json]",
@@ -172,10 +172,12 @@ impl super::CliText {
             (Locale::ZhCn, "remote-not-ready") => "无法通过新的 SSH 连接确认远端会话已就绪。",
             (Locale::EnUs, "cancelled") => "Machine operation interrupted.",
             (Locale::ZhCn, "cancelled") => "机器操作已中断。",
-            (Locale::EnUs, "disconnect-cancelled") => {
-                "A disconnect of this machine ended the connection attempt."
+            (Locale::EnUs, "attempt-ended") => {
+                "The connection attempt was ended by a disconnect of this machine or by a change to its saved target or Session."
             }
-            (Locale::ZhCn, "disconnect-cancelled") => "对这台机器的断开操作结束了本次连接尝试。",
+            (Locale::ZhCn, "attempt-ended") => {
+                "本次连接尝试已结束：这台机器被断开，或其已保存的目标或会话被更改。"
+            }
             (Locale::EnUs, "disabled-machine") => {
                 "This machine is disabled. Run 'orchbee machine enable' first."
             }

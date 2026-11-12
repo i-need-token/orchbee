@@ -707,6 +707,30 @@ fn connect_carries_one_child_that_reconnects_and_ends_with_disconnect_and_the_hu
 }
 
 #[test]
+fn removing_a_connected_machine_ends_its_carrier_in_the_running_hub() {
+    let carried = Carried::new("mh4-remove-", false);
+    let connected = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(connected.code, Some(0), "{connected}");
+    let endpoint = carried.endpoint();
+    let hub = Hub::observe(query_pid(&endpoint));
+    let child = one_child(&hub, None);
+
+    // The edit is committed in the file the hub does not watch; the command tells the hub.
+    let removed = carried.run(&["machine", "remove", FIRST]);
+    assert_eq!(removed.code, Some(0), "{removed}");
+    assert_eq!(removed.document["result"]["committed"], true, "{removed}");
+    assert!(
+        child.exited(WAIT).is_some(),
+        "the removed Machine kept its carrier"
+    );
+    assert!(carried.state().machines.is_empty());
+    assert_eq!(query_pid(&endpoint), hub.pid, "the edit replaced the hub");
+
+    exit_hub(&endpoint);
+    hub.wait_exit(WAIT);
+}
+
+#[test]
 fn a_carrier_child_receives_no_orchbee_or_terminal_variable() {
     let carried = Carried::new("mh4-environment-", true);
     // The client that starts the hub carries every excluded kind: the runtime base and the two hub

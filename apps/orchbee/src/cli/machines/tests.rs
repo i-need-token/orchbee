@@ -66,7 +66,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         Error::HostKeyChanged,
         Error::VersionIncompatible,
         Error::RemoteInstallFailed,
-        Error::Disconnected,
+        Error::AttemptEnded,
     ] {
         let output = emit(
             &command,

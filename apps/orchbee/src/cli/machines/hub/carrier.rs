@@ -2,7 +2,8 @@
 //! and output, started inside a Job only the hub holds. Its owner thread starts it, waits for its
 //! root process, settles the Job and reaps it, and reports the end after its reader, writer and
 //! standard-error threads have ended. The reader hands each link event to the Machine under the
-//! hub state's lock; the writer writes the offer at once and then the link's frames.
+//! hub state's lock and pauses while 256 frames other than `data` wait to be written; the writer
+//! writes the offer at once and then the link's frames.
 //! `docs/machines.md#the-carrier-child` owns the rules.
 
 use super::super::shared_carrier::frames;
@@ -39,6 +40,8 @@ const LINK_ENTRY: &str = "--machine-link-v1";
 const STDERR_TAIL: usize = 4 * 1024;
 /// One read of the link.
 const READ_BUFFER_BYTES: usize = 64 * 1024;
+/// The reader stops reading while this many frames other than `data` wait to be written.
+const BACKLOG: usize = 256;
 /// The most bytes of whole frames one write carries.
 const WRITE_BATCH_BYTES: usize = 64 * 1024;
 /// How long one wait for the root process lasts before the owner waits again.
@@ -354,16 +357,23 @@ fn write(line: &LinkLine, mut input: PipeWriter, offer: &[u8]) {
                 wire = line.wait(wire);
             }
         };
+        // A reader paused at the backlog may read again.
+        line.wake();
         let Some(bytes) = bytes else {
             return;
         };
         if input.write_all(&bytes).is_err() {
+            // Nothing will drain the queue, so a reader paused at the backlog stops too.
+            line.lock().open = false;
+            line.wake();
             return;
         }
     }
 }
 
-/// The reader: the helper's `OBHS` answer, then the link's frames until its output ends.
+/// The reader: the helper's `OBHS` answer, then the link's frames until its output ends. It
+/// pauses while the replies the helper provoked wait to be written, so a helper that stops reading
+/// cannot grow the link's queue.
 fn read(shared: &Shared, carrier: u64, line: &LinkLine, mut output: PipeReader) {
     let answer = read_acceptor_message(&mut output);
     let answered = {
@@ -402,6 +412,16 @@ fn read(shared: &Shared, carrier: u64, line: &LinkLine, mut output: PipeReader) 
     let mut decoder = FrameDecoder::new();
     let mut buffer = vec![0; READ_BUFFER_BYTES];
     loop {
+        {
+            let mut wire = line.lock();
+            while wire.open && wire.connection.queued_frames() >= BACKLOG {
+                wire = line.wait(wire);
+            }
+            // The carrier is ending; its owner reports the end.
+            if !wire.open {
+                break;
+            }
+        }
         let read = match output.read(&mut buffer) {
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Ok(read) => read,

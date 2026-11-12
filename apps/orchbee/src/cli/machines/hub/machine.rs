@@ -230,6 +230,16 @@ impl Machine {
         }
     }
 
+    /// A reload added the record, or changed it into this Machine: while a `presence` connection
+    /// is attached it is attempted as if that connection had just attached.
+    pub(super) fn arrived(&mut self, cx: &mut Context<'_>) -> Vec<Effect> {
+        if cx.presence {
+            self.attach(cx)
+        } else {
+            Vec::new()
+        }
+    }
+
     /// The timed transitions due at `cx.now`.
     pub(super) fn tick(&mut self, cx: &mut Context<'_>) -> Vec<Effect> {
         if cx.closing {
@@ -448,8 +458,9 @@ impl Machine {
     }
 
     /// A reread catalog holds the Machine as `kind`. A change ends the carrier and the history;
-    /// waiters are `cancelled`, or told the record is disabled or unsupported now.
-    pub(super) fn reconcile(&mut self, kind: Kind) -> Vec<Effect> {
+    /// waiters are `cancelled`, the outcome a `disconnect` also gives, or told the record is
+    /// disabled or unsupported now. The changed Machine then [arrives](Self::arrived).
+    pub(super) fn reconcile(&mut self, kind: Kind, cx: &mut Context<'_>) -> Vec<Effect> {
         if kind == self.kind {
             return Vec::new();
         }
@@ -468,6 +479,7 @@ impl Machine {
         if !waiters.is_empty() {
             effects.push(self.reply(waiters, not_online(outcome)));
         }
+        effects.extend(self.arrived(cx));
         effects
     }
 

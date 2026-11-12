@@ -59,8 +59,9 @@ enum Error {
     RemoteInstallFailed,
     /// An interrupt ended the command.
     Cancelled,
-    /// A `disconnect` ended the connection attempt this command waited for.
-    Disconnected,
+    /// A `disconnect`, or a reload that changed the record, ended the connection attempt this
+    /// command waited for; the hub's reply does not say which.
+    AttemptEnded,
     Timeout,
     PhysicalUnknown,
     /// A verb or option this release parses but does not perform yet.
@@ -97,18 +98,17 @@ impl Error {
             Self::HostKeyChanged => "host-key-changed",
             Self::VersionIncompatible => "version-incompatible",
             Self::RemoteInstallFailed => "remote-install-failed",
-            Self::Cancelled | Self::Disconnected => "cancelled",
+            Self::Cancelled | Self::AttemptEnded => "cancelled",
             Self::Timeout => "timeout",
             Self::PhysicalUnknown => "physical-unknown",
             Self::NotYetAvailable => "not-yet-available",
             Self::Internal => "internal",
         }
     }
-    /// The standard-error message: a `cancelled` a `disconnect` caused reads differently from an
-    /// interrupt.
+    /// The standard-error message: a `cancelled` the hub gave reads differently from an interrupt.
     fn message(self) -> &'static str {
         match self {
-            Self::Disconnected => "disconnect-cancelled",
+            Self::AttemptEnded => "attempt-ended",
             _ => self.code(),
         }
     }
@@ -133,7 +133,7 @@ impl Error {
             Self::SshFailed | Self::RemoteProtocol => 5,
             Self::RemoteUnsupported | Self::RemoteOtherEnvironment | Self::VersionIncompatible => 6,
             Self::Cancelled => 130,
-            Self::Timeout | Self::Disconnected => 7,
+            Self::Timeout | Self::AttemptEnded => 7,
             Self::PhysicalUnknown => 8,
             Self::RemoteInstallFailed => 9,
             _ => 1,
@@ -302,7 +302,7 @@ fn execute(
     report.catalog = Some(catalog);
     report.changed = changed;
     report.committed = changed;
-    Ok(())
+    committed(context, report)
 }
 /// Applies an edit to the machine an `<id|label>` operand names when the catalog is committed.
 fn commit_selected(
@@ -320,6 +320,14 @@ fn commit_selected(
     report.catalog = Some(catalog);
     report.changed = changed;
     report.committed = changed;
+    committed(context, report)
+}
+/// A committed edit reaches a running machine hub, which would otherwise carry the record as it
+/// was; an unchanged catalog has nothing to tell.
+fn committed(context: &mut Context, report: &Report) -> Result<(), Error> {
+    if report.committed {
+        connect::reload_running(context)?;
+    }
     Ok(())
 }
 fn emit(
