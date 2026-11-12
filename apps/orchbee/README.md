@@ -234,7 +234,7 @@ node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 Staging prints the Client path, for example `...\OrchbeeNative\ob-dev-<16 lowercase hex>.exe`; run it in
 Windows Terminal. Development and test Clients stay off `PATH`, since staging changes no `PATH`:
 run one by the path staging prints, or let `pnpm desktop` stage and start its own. The directory
-contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter capsule. Keep them together. The file names start with the artifact stem. Native
+contains the four exact `.exe` siblings, the Windows launcher `<stem>-launcher.exe` that a release installs as `bin\<stem>.exe`, a hash manifest, and the observation-adapter capsule. Keep them together. The file names start with the artifact stem. Native
 Windows staging defaults to this checkout's development stem, `ob-dev-<16 lowercase hex>`, the same
 one `pnpm desktop` uses, so a development cohort never shares image names with the installed release.
 `--artifact-stem orchbee` stages the release names and `ob-test-<16 lowercase hex>` a test cohort.

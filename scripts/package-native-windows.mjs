@@ -213,6 +213,9 @@ export function packageWindows(cohort, channel, version, buildId) {
 		if (!file) throw new Error(`Missing ${stem}${suffix}.exe`);
 		if (file.sha256 !== manifest.artifacts[peer]) throw new Error('Cohort binary digest mismatch');
 	}
+	// The launcher `install` copies to `bin\<stem>.exe`; it belongs to no component.
+	if (!files.some((entry) => entry.path === `${stem}-launcher.exe`))
+		throw new Error(`Missing ${stem}-launcher.exe`);
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
 	if (capsule === null || capsule !== manifest.artifacts['agent-observation-adapters'])
 		throw new Error('Cohort adapter capsule digest mismatch');

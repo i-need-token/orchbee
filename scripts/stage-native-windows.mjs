@@ -129,6 +129,8 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 				'orchbee-server',
 				'-p',
 				'orchbee-worker',
+				'-p',
+				'orchbee-launcher',
 			],
 			{
 				cwd: root,
@@ -165,6 +167,13 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 			copyFileSync(source, staged, constants.COPYFILE_EXCL);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
+		// The Windows launcher a release installs as `bin\<stem>.exe`. It is no cohort role, so
+		// `cohort.json` does not list it; the release manifest inventories it like every file.
+		copyFileSync(
+			path.join(target, 'release', 'orchbee-launcher.exe'),
+			path.join(prepared, artifactStem + '-launcher.exe'),
+			constants.COPYFILE_EXCL,
+		);
 		const licenses = path.join(prepared, 'licenses', 'agent-detection');
 		mkdirSync(licenses, { recursive: true });
 		for (const name of ['LICENSE', 'NOTICE']) {
