@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, error::Error, fmt};
 use orchbee_connection_handshake::Extensions;
 
 use crate::{
-    ByeReason, EncodeError, Frame, FrameKind, Id, MAXIMUM_CREDIT, MAXIMUM_DATA_PAYLOAD_BYTES,
+    ByeReason, EncodeError, Frame, FrameKind, Id, MAXIMUM_CREDIT, MAXIMUM_DATA_PAYLOAD_BYTES, Name,
     RecordError, ResetReason, Role,
     hub::Hub,
     link::{Event as LinkEvent, Facts, Link},
@@ -1057,6 +1057,29 @@ impl<P: Protocol> Connection<P> {
         let frame = Record::<P>::Message(Message::Reply {
             id,
             reply,
+            extensions: Extensions::new(),
+        })
+        .encode(0)?;
+        self.received_requests.remove(&id.get());
+        self.outbox.push(frame);
+        Ok(())
+    }
+
+    /// Answers the peer's request `id` with `unsupported`: this end knows the request type but
+    /// does not serve it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SendError`] when the connection is closed for sending or no request `id` awaits a
+    /// reply.
+    pub fn unsupported(&mut self, id: Id) -> Result<(), SendError> {
+        self.sendable()?;
+        let Some(&name) = self.received_requests.get(&id.get()) else {
+            return Err(SendError::UnknownRequest);
+        };
+        let frame = Record::<P>::Message(Message::Unsupported {
+            id,
+            request: Name::literal(name),
             extensions: Extensions::new(),
         })
         .encode(0)?;
