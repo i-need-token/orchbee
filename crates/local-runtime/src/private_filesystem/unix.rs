@@ -161,11 +161,16 @@ pub(crate) fn move_aside(source: &Path, target: &Path) -> io::Result<()> {
     };
     match renameat_with(CWD, source, CWD, target, RenameFlags::NOREPLACE) {
         Ok(()) => {}
-        Err(RustixErrno::INVAL | RustixErrno::NOSYS) => match fs::symlink_metadata(target) {
-            Ok(_) => return Err(io::ErrorKind::AlreadyExists.into()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => fs::rename(source, target)?,
-            Err(error) => return Err(error),
-        },
+        // Linux answers EINVAL or ENOSYS without renameat2 support; macOS answers ENOTSUP.
+        Err(RustixErrno::INVAL | RustixErrno::NOSYS | RustixErrno::NOTSUP) => {
+            match fs::symlink_metadata(target) {
+                Ok(_) => return Err(io::ErrorKind::AlreadyExists.into()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    fs::rename(source, target)?
+                }
+                Err(error) => return Err(error),
+            }
+        }
         Err(error) => return Err(error.into()),
     }
     sync_parent(target);
