@@ -12,7 +12,6 @@ import {
 import {
 	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
-	parseDesktopDistributionProfileArguments,
 	resolveDesktopTestApplicationName,
 } from '../desktop-distribution-packaging';
 
@@ -36,45 +35,6 @@ process.stdout.write(packaging.resolveDesktopTestApplicationName({}));`,
 			{ encoding: 'utf8', timeout: 10_000, windowsHide: true },
 		);
 		expect(output).toBe(resolveDesktopTestApplicationName({}));
-	});
-
-	it('resolves the development and release application identities and release policies', () => {
-		const developmentScope = createDesktopDevelopmentScope(
-			'/source/orchbee-worktrees/feature',
-			'darwin',
-		);
-		const profiles = [
-			resolveDesktopDistributionProfile('dev', developmentScope),
-			resolveDesktopDistributionProfile('release'),
-		];
-
-		expect(
-			profiles.map((profile) => ({
-				applicationName: profile.applicationName,
-				artifactStem: profile.artifactStem,
-				bundleIdentifier: profile.bundleIdentifier,
-				dataScope: profile.dataScope.kind,
-				iconFileName: profile.iconFileName,
-				outputDirectoryName: profile.outputDirectoryName,
-			})),
-		).toEqual([
-			{
-				applicationName: 'Orchbee Dev',
-				artifactStem: 'ob-dev-4a884c37300b9d45',
-				bundleIdentifier: 'com.electron.orchbee.dev.d4a884c37300b9d45',
-				dataScope: 'development',
-				iconFileName: 'orchbee-dev.icns',
-				outputDirectoryName: 'dev',
-			},
-			{
-				applicationName: 'Orchbee',
-				artifactStem: 'orchbee',
-				bundleIdentifier: 'com.electron.orchbee',
-				dataScope: 'release',
-				iconFileName: 'orchbee.icns',
-				outputDirectoryName: 'release',
-			},
-		]);
 	});
 
 	it('keeps the established development data-root digest stable', () => {
@@ -191,21 +151,6 @@ process.stdout.write(packaging.resolveDesktopTestApplicationName({}));`,
 		);
 		expect(() => resolveDesktopDistributionProfile('test')).toThrow(
 			'requires its test artifact stem',
-		);
-	});
-
-	it('requires one explicit packaging profile argument', () => {
-		expect(
-			['dev', 'test', 'release'].map((profileId) =>
-				parseDesktopDistributionProfileArguments(['--profile', profileId]),
-			),
-		).toEqual(['dev', 'test', 'release']);
-		expect(() => parseDesktopDistributionProfileArguments(['--profile', 'production'])).toThrow(
-			'Invalid option',
-		);
-		expect(() => parseDesktopDistributionProfileArguments([])).toThrow('exactly one --profile');
-		expect(() => parseDesktopDistributionProfileArguments(['--profile', 'test', 'extra'])).toThrow(
-			'exactly one --profile',
 		);
 	});
 

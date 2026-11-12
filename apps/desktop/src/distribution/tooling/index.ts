@@ -1,6 +1,7 @@
 export {
 	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
-	parseDesktopDistributionProfileArguments,
+	parseDesktopPackagingArguments,
 	resolveDesktopTestApplicationName,
+	resolveDesktopWindowsInstallerIdentity,
 } from './desktop-distribution-packaging.ts';

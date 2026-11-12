@@ -5,6 +5,8 @@
 	"scripts": {
 		"desktop": "pnpm --filter @orchbee/web... build && pnpm --parallel --filter @orchbee/web --filter @orchbee/desktop dev",
 		"desktop:build": "pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build",
+		"desktop:installer:release": "pnpm --filter @orchbee/desktop installer:release",
+		"desktop:installer:test": "pnpm --filter @orchbee/desktop installer:test",
 		"desktop:package:dev": "pnpm --filter @orchbee/desktop package:dev",
 		"desktop:package:release": "pnpm --filter @orchbee/desktop package:release",
 		"desktop:package:test": "pnpm --filter @orchbee/desktop package:test",

@@ -9,6 +9,8 @@
 		"build:package-inputs": "pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build",
 		"dev": "rsbuild dev --config-loader jiti",
 		"build": "rsbuild build --log-level error",
+		"installer:release": "pnpm build:package-inputs && node scripts/package.mjs --profile release --installer",
+		"installer:test": "pnpm build:package-inputs && node scripts/package.mjs --profile test --installer",
 		"package:dev": "pnpm build:package-inputs && node scripts/package.mjs --profile dev",
 		"package:release": "pnpm build:package-inputs && node scripts/package.mjs --profile release",
 		"package:test": "pnpm build:package-inputs && node scripts/package.mjs --profile test",

@@ -75,6 +75,12 @@ const automationEnvironment: NodeJS.ProcessEnv =
 	packaged && distribution.dataScope.kind === 'release' ? {} : process.env;
 const windowHidden = automationEnvironment[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined;
 app.setName(distribution.applicationName);
+// The installer's Start menu shortcut carries the same identity, so Windows groups the window,
+// its taskbar button, its Jump List and its notifications under that shortcut; a checkout's
+// Electron has no shortcut of its own and keeps Electron's identity.
+if (process.platform === 'win32' && packaged) {
+	app.setAppUserModelId(distribution.bundleIdentifier);
+}
 const dataRoot = prepareOrRefuseDesktopDataRoot();
 app.setPath('userData', dataRoot.electronDirectory);
 // The natives write the same daily logs on Windows only until ORC-328, and so does Main.

@@ -232,13 +232,17 @@ Runtime identity and descriptor parsing belong to `src/distribution/desktop-dist
 
 Desktop owns exactly three explicit distribution profiles:
 
-| Command                        | Application        | Bundle identifier                          | Data root                  | Icon             | Output                      |
-| ------------------------------ | ------------------ | ------------------------------------------ | -------------------------- | ---------------- | --------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`  | `com.electron.orchbee.dev.d<scope-digest>` | `~/.ob-dev-<scope-digest>` | Purple Dev badge | `apps/desktop/out/dev/`     |
-| `pnpm desktop:package:test`    | `Orchbee Test.app` | `com.electron.orchbee.test`                | `~/.ob-test-<home-digest>` | Green Test badge | `apps/desktop/out/test/`    |
-| `pnpm desktop:package:release` | `Orchbee.app`      | `com.electron.orchbee`                     | `~/.orchbee`               | Orchbee mark     | `apps/desktop/out/release/` |
+| Command                        | Application        | Bundle identifier                         | Data root                  | Icon             | Output                      |
+| ------------------------------ | ------------------ | ----------------------------------------- | -------------------------- | ---------------- | --------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`  | `com.orchbee.desktop.dev.d<scope-digest>` | `~/.ob-dev-<scope-digest>` | Purple Dev badge | `apps/desktop/out/dev/`     |
+| `pnpm desktop:package:test`    | `Orchbee Test.app` | `com.orchbee.desktop.test`                | `~/.ob-test-<home-digest>` | Green Test badge | `apps/desktop/out/test/`    |
+| `pnpm desktop:package:release` | `Orchbee.app`      | `com.orchbee.desktop`                     | `~/.orchbee`               | Orchbee mark     | `apps/desktop/out/release/` |
 
-On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
+The bundle identifier is also the Windows AppUserModelID: a packaged Windows application sets it at
+startup and the installer's Start menu shortcut carries it, so Windows groups the window, its
+taskbar button and its notifications under that shortcut.
+
+On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`; Linux packages still use the Electron default icon.
 
 Packages name their native cohort by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>` and `ob-dev-<scope-digest>-server`, with `.exe` on Windows. The packaged Windows Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. Every cohort also compiles in the stem, which the handshake compares, so a release Client in a development or test Desktop's terminal is refused.
 
@@ -266,9 +270,91 @@ Server, Worker, Terminal Host, the observation Capsule, and the platform's termi
 window's Session runs that cohort, so the application carries it. The cohort and the Web resources
 stay outside `app.asar` as `resources/cohort` and `resources/dist`.
 
+On Windows the test and release commands then make the cohort a signed release directory before
+packaging it: `scripts/package-native-windows.mjs` writes its `release.json` for the `stable`
+channel, the workspace version (which must equal this package's version) and a build id, and
+`scripts/sign-release-manifest.mjs` signs it. `--build-id <id>` sets the build id, which the release
+workflow passes as `<commit>.<run number>`; otherwise it is `<commit>.local`. `--key-file <absolute
+PEM>` or `--key-env <VARIABLE>`, repeatable, choose the signing keys; otherwise a test build signs
+with the repository's test key and a release with the key in `ORCHBEE_RELEASE_SIGNING_KEY`. A
+development cohort is never signed, so the bundled Client of a dev package cannot install it.
+
 All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
-They do not perform Electron code signing, notarization, installer creation, publication, or update
-distribution.
+They do not perform Electron code signing, notarization, publication, or update distribution; the
+Windows installer below is built from the test and release packages.
+
+### Windows installer
+
+`pnpm desktop:installer:test` and `pnpm desktop:installer:release` package their profile as above
+and then compile `installer/windows/orchbee.iss` with Inno Setup into
+`apps/desktop/out/<profile>/installer/`. Extra arguments after `--` reach `scripts/package.mjs`, for
+example `pnpm desktop:installer:release -- --build-id <id> --key-env <VARIABLE>`. The compiler is
+`ORCHBEE_INNO_SETUP_COMPILER`, an absolute path to `ISCC.exe`, or else `ISCC.exe` in the default
+Inno Setup 6 folder. The script refuses every compiler but Inno Setup 6.7.1, the version the release
+workflow installs and checks. Next to the setup file, `<setup name>.files.txt` lists every compiled
+file with its SHA-256, so a release can compare it with the signed `release.json`.
+
+| Profile | Setup file                                                 | Start menu and Settings › Apps | Store root folder       | Registration                            |
+| ------- | ---------------------------------------------------------- | ------------------------------ | ----------------------- | --------------------------------------- |
+| release | `Orchbee-<version>-windows-x86_64-setup.exe`               | `Orchbee`                      | `Orchbee`               | `com.orchbee.desktop_is1`               |
+| test    | `ob-test-<home-digest>-<version>-windows-x86_64-setup.exe` | `ob-test-<home-digest>`        | `ob-test-<home-digest>` | `com.ob-test-<home-digest>.desktop_is1` |
+
+The store root is `%LOCALAPPDATA%\Programs\<store root folder>`, or `ORCHBEE_INSTALL_DIR` when that
+names an absolute path, as for `orchbee install`. A development checkout has no installer. A test
+installer uses none of the release names, so it installs beside a release one.
+
+Setup runs for the current user without administrator rights. It shows no welcome, folder,
+component, Start menu folder or licence page: only Ready to Install, progress, and a finish page with
+a Launch box, in English or Simplified Chinese by the Windows display language. The Chinese messages
+are Orchbee's reviewed copy of Inno Setup's unofficial `ChineseSimplified.isl`, kept beside the
+script under the Inno Setup License; the installer's own messages are in the script in both
+languages.
+
+An install changes exactly this:
+
+1. `<store root>\desktop\` receives the packaged window application. A previous version's folder
+   first moves aside to `desktop.previous`, which goes once the new one is in place and comes back if
+   the install fails.
+2. The Start menu entry `%APPDATA%\Microsoft\Windows\Start Menu\Programs\<name>.lnk` points at
+   the window executable with the profile's AppUserModelID.
+3. The registration `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\<registration>`
+   gives Settings › Apps the name, version, publisher `Orchbee`, icon, size and the uninstaller
+   `<store root>\unins000.exe`, which Setup writes with `unins000.dat`.
+4. Setup runs `<store root>\desktop\resources\cohort\<client>.exe install --format json` with
+   `ORCHBEE_INSTALL_DIR` set to the store root. That bundled Client verifies its signed release
+   directory, copies it to `versions\<version>`, activates it unless a higher version is active,
+   puts the launcher at `bin\<client>.exe` and adds `bin` to the user `Path`. Setup copies nothing
+   into the store itself and edits no `Path`; it only broadcasts the environment change at the end,
+   so a terminal opened afterwards finds the command.
+
+Installing a newer setup over an older one replaces it in place: one Settings entry, one Start menu
+entry, the new window application, and the new version active in the store. Setup never ends
+Orchbee. While the window, or a Session it started from the runtime in `desktop\`, still runs,
+Setup stops before changing anything, asks the person to quit Orchbee and end its terminals, and
+exits with code 7. Sessions the command started run from the store and keep running, because
+installing only adds a version directory; the new window joins them while they are compatible and
+otherwise says they are too old.
+
+Removal from Settings › Apps runs the uninstaller, which asks once and then, in this order:
+
+1. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, or the bundled Client when no
+   launcher is left. It ends no terminal: while one is open it changes nothing, and the uninstaller
+   shows its reason and stops. Otherwise it removes the store's versions, `bin`, `desktop\`, the
+   `Path` entry, the Agent integrations, the Start menu entry and the registration, keeps the data
+   root, and leaves `unins000.exe` and `unins000.dat`;
+2. removes whatever it installed that is still there, then its own two files and the empty store
+   root.
+
+A second removal finds no Client and nothing of Orchbee's, and removes only what remains of its
+own. The data root (`~/.orchbee` for release) stays until `orchbee uninstall --delete-data`.
+
+For workflows, `<setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="<file>"` installs
+without a window, and `<store root>\unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+/LOG="<file>"` removes. Without `/LOG`, Setup still writes `Setup Log <date> #<n>.txt` in `%TEMP%`,
+with the exit code and output of each Client command. Setup exits 0 on success, 7 while Orchbee runs
+from the installation, 10 when the window application was installed but `orchbee install` failed,
+and otherwise with Inno Setup's own codes, such as 2 when cancelled before installing. The
+uninstaller exits non-zero when the removal stopped.
 
 ### Verification
 

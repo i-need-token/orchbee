@@ -23,13 +23,87 @@ function parseDesktopDistributionProfileId(value: unknown): DesktopDistributionP
 	return desktopDistributionProfileIdSchema.parse(value);
 }
 
-export function parseDesktopDistributionProfileArguments(
+const PACKAGING_USAGE =
+	'Usage: package.mjs --profile dev|test|release [--installer] [--build-id <id>] ' +
+	'[--key-file <absolute PEM> | --key-env <VARIABLE>]...';
+
+interface DesktopPackagingArguments {
+	readonly profileId: DesktopDistributionProfileId;
+	/** Also compile the Windows installer from the packaged application. */
+	readonly installer: boolean;
+	/** The release manifest's `buildId`; the release workflow passes `<commit>.<run number>`. */
+	readonly buildId: string | undefined;
+	/** `--key-file` and `--key-env` pairs, in order, passed on to the manifest signing script. */
+	readonly signingKeys: readonly string[];
+}
+
+export function parseDesktopPackagingArguments(
 	arguments_: readonly string[],
-): DesktopDistributionProfileId {
-	if (arguments_.length !== 2 || arguments_[0] !== '--profile') {
-		throw new Error('Desktop packaging requires exactly one --profile dev|test|release selection.');
+): DesktopPackagingArguments {
+	let profileId: DesktopDistributionProfileId | undefined;
+	let installer = false;
+	let buildId: string | undefined;
+	const signingKeys: string[] = [];
+	for (let index = 0; index < arguments_.length; index += 1) {
+		const option = arguments_[index];
+		if (option === '--installer' && !installer) {
+			installer = true;
+			continue;
+		}
+		const value = arguments_[index + 1];
+		if (value === undefined || value.startsWith('--')) throw new Error(PACKAGING_USAGE);
+		index += 1;
+		if (option === '--profile' && profileId === undefined) {
+			profileId = parseDesktopDistributionProfileId(value);
+		} else if (option === '--build-id' && buildId === undefined) {
+			buildId = value;
+		} else if (option === '--key-file' || option === '--key-env') {
+			signingKeys.push(option, value);
+		} else {
+			throw new Error(PACKAGING_USAGE);
+		}
 	}
-	return parseDesktopDistributionProfileId(arguments_[1]);
+	if (profileId === undefined) throw new Error(PACKAGING_USAGE);
+	return { buildId, installer, profileId, signingKeys };
+}
+
+/**
+ * The names the Windows installer gives a profile, from the release distribution freeze sheet: a
+ * release is `Orchbee` in `%LOCALAPPDATA%\Programs\Orchbee`, registered as
+ * `com.orchbee.desktop_is1`; a test build replaces `orchbee` and `Orchbee` by its stem in every one,
+ * as `orchbee uninstall` of that build expects. A checkout's build has no installer.
+ */
+interface DesktopWindowsInstallerIdentity {
+	/** Inno Setup's `AppId`; the uninstall registration is this name plus `_is1`. */
+	readonly appId: string;
+	/** The Start menu shortcut and the name Settings › Apps shows. */
+	readonly displayName: string;
+	/** The store root's folder under `%LOCALAPPDATA%\Programs`. */
+	readonly storeFolderName: string;
+	/** The Client's file name without `.exe`, in the bundled runtime and as the store launcher. */
+	readonly clientName: string;
+	/** The setup file's name without `.exe`. */
+	readonly setupBaseName: string;
+}
+
+export function resolveDesktopWindowsInstallerIdentity(
+	profile: DesktopDistributionProfile,
+	version: string,
+): DesktopWindowsInstallerIdentity {
+	if (profile.profileId === 'dev') {
+		throw new Error('A development checkout has no Windows installer; package test or release.');
+	}
+	const [name, displayName] =
+		profile.profileId === 'release'
+			? ['orchbee', 'Orchbee']
+			: [profile.artifactStem, profile.artifactStem];
+	return {
+		appId: `com.${name}.desktop`,
+		clientName: name,
+		displayName,
+		setupBaseName: `${displayName}-${version}-windows-x86_64-setup`,
+		storeFolderName: displayName,
+	};
 }
 
 export function resolveDesktopTestApplicationName(
