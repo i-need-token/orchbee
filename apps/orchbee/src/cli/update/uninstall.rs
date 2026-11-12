@@ -34,6 +34,7 @@ use super::super::{
     console_interrupt::{ArmedSignals, Finish},
     destructive_request, execution, failure_output, output,
 };
+use crate::release_store::read_pointer;
 use crate::{
     agent_integrations::{IntegrationId, Refusal, State, Verdict, model::Availability},
     invocation::OutputFormat,
@@ -41,8 +42,10 @@ use crate::{
 };
 use orchbee_connection_handshake::{CohortIdentity, ProcessState};
 use orchbee_local_runtime::{
-    Cohort, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionCatalog,
+    Cohort, DataRoot, HOME_VARIABLE, ModeCheckedLocalSessionRendezvous as Rendezvous,
+    SessionCatalog,
 };
+use orchbee_release_records::Pointer;
 use plan::{Presence, Roots, Target};
 use report::{
     IntegrationLine, IntegrationOutcome, Outcome, Report, SessionLine, SessionOutcome, Stop,
@@ -60,6 +63,8 @@ const INVENTORY_BUDGET: Duration = Duration::from_secs(10);
 const STOP_BUDGET: Duration = Duration::from_secs(65);
 /// How long the processes of stopped Sessions and their Clients may take to leave the store.
 const EXIT_BUDGET: Duration = Duration::from_secs(10);
+/// The variable that chooses the store root instead of the default, as install reads it.
+const STORE_VARIABLE: &str = "ORCHBEE_INSTALL_DIR";
 
 /// The kinds of background process of this environment that run from the store root, in the order
 /// step b ends them. Each kind has one inventory arm in [`background`] and one stop arm in
@@ -186,20 +191,60 @@ fn inventory(report: &mut Report, delete_data: bool) -> Option<Inventory> {
         data: data.path().to_owned(),
         protected: platform::protected_folders(),
     };
-    let plan = match plan::plan(&roots, delete_data, removal::presence) {
+    let store_contents = contents(&store, || {
+        read_pointer(&store)
+            .ok()
+            .flatten()
+            .is_some_and(|bytes| Pointer::parse(&bytes).is_some())
+    });
+    let data_contents = contents(data.path(), || data.carries_layout_record());
+    let plan = match plan::plan(
+        &roots,
+        delete_data,
+        &store_contents,
+        &data_contents,
+        removal::presence,
+    ) {
         Ok(plan) => plan,
         Err(refusal) => {
             let subject = refusal.path().map(report::display).unwrap_or_default();
-            report.stop(Stop::Plan(refusal.reason()), subject, "");
+            // The variable that chose an unmarked root, when one did, is the likely mistake.
+            let variable = match refusal {
+                plan::Refusal::UnmarkedStore(_) => Some(STORE_VARIABLE),
+                plan::Refusal::UnmarkedData(_) => Some(HOME_VARIABLE),
+                _ => None,
+            }
+            .filter(|variable| std::env::var_os(variable).is_some());
+            report.stop(
+                Stop::Plan(refusal.reason()),
+                subject,
+                variable.unwrap_or_default(),
+            );
             return None;
         }
     };
     report.data = plan
         .data
+        .targets
         .iter()
         .map(|target| (target.path.clone(), initial(target)))
         .collect();
-    report.store = initial(&plan.store);
+    report.store = if plan
+        .store
+        .targets
+        .iter()
+        .chain(&plan.store.mark)
+        .all(|target| target.presence == Presence::Missing)
+    {
+        Outcome::Absent
+    } else {
+        Outcome::NotReached
+    };
+    report.kept = [&plan.store, &plan.data]
+        .into_iter()
+        .filter(|part| part.kept > 0)
+        .map(|part| (part.root.clone(), part.kept))
+        .collect();
     report.path_entry = match platform::path_entry_present(&locations, &store) {
         Ok(false) => Outcome::Absent,
         _ => Outcome::NotReached,
@@ -225,6 +270,22 @@ fn inventory(report: &mut Report, delete_data: bool) -> Option<Inventory> {
         plan,
         launcher,
     })
+}
+
+/// What `root` holds for the plan: its names and whether `marked` finds its mark, read only when
+/// it is a real folder.
+fn contents(root: &Path, marked: impl FnOnce() -> bool) -> plan::Contents {
+    if removal::presence(root) == Presence::Directory {
+        plan::Contents {
+            names: removal::names(root),
+            marked: marked(),
+        }
+    } else {
+        plan::Contents {
+            names: Some(Vec::new()),
+            marked: false,
+        }
+    }
 }
 
 fn initial(target: &Target) -> Outcome {
@@ -602,13 +663,15 @@ fn remove_path_entry(locations: &platform::Locations, root: &Path) -> io::Result
     })
 }
 
-/// Step e.
+/// Step e: the plan's data entries in order, the layout record last with `--delete-data`, then
+/// the data root when nothing else is left in it.
 fn remove_data(
     report: &mut Report,
     inventory: &Inventory,
     signals: &mut ArmedSignals,
 ) -> Result<(), ()> {
-    for (index, target) in inventory.plan.data.iter().enumerate() {
+    let part = &inventory.plan.data;
+    for (index, target) in part.targets.iter().enumerate() {
         check(report, signals)?;
         // Read again: admission's destructive record may have created `logs` since the plan.
         if removal::presence(&target.path) == Presence::Missing {
@@ -630,20 +693,32 @@ fn remove_data(
             return Err(());
         }
     }
+    if part.remove_root {
+        remove_root(report, &part.root, Stop::Data)?;
+    }
     Ok(())
 }
 
-/// Step f: everything in the store root that this process and its launcher do not hold goes now;
-/// what they hold goes once both have exited. While another program runs from the store nothing in
-/// it is touched, so the installation stays whole and a second run finishes; a removal that still
-/// leaves files another program holds names that program and never reports success.
+/// Step f: the store's entries go now except what this process and its launcher hold, the pointer
+/// after them, and the root when nothing else is left in it; what the two hold, the pointer and the
+/// root go once both have exited. While another program runs from the store nothing in it is
+/// touched, so the installation stays whole and a second run finishes; a removal that still leaves
+/// files another program holds names that program and never reports success.
 fn remove_store(
     report: &mut Report,
     inventory: &Inventory,
     signals: &mut ArmedSignals,
 ) -> Result<(), ()> {
     check(report, signals)?;
-    if removal::presence(&inventory.plan.store.path) == Presence::Missing {
+    let part = &inventory.plan.store;
+    let present = |target: &&Target| removal::presence(&target.path) != Presence::Missing;
+    if !part
+        .targets
+        .iter()
+        .chain(&part.mark)
+        .any(|target| present(&target))
+    {
+        // Nothing of the store's layout is left: an earlier run finished, or the root held none.
         report.store = Outcome::Absent;
         return Ok(());
     }
@@ -655,12 +730,25 @@ fn remove_store(
         );
         return Err(());
     }
-    let target = &inventory.plan.store;
-    let leftovers = fenced_removal(report, inventory, target)?;
-    report.changed = true;
+    let mut leftovers = removal::Leftovers::default();
+    for target in part.targets.iter().filter(present) {
+        check(report, signals)?;
+        leftovers.extend(fenced_removal(report, inventory, target)?);
+        report.changed = true;
+    }
+    let mark = part.mark.as_ref().filter(present);
     if leftovers.is_empty() {
-        report.store = Outcome::Removed;
-        return Ok(());
+        if let Some(mark) = mark {
+            leftovers.extend(fenced_removal(report, inventory, mark)?);
+        }
+        if leftovers.is_empty() {
+            if part.remove_root && remove_root(report, &part.root, Stop::Store).is_err() {
+                report.store = Outcome::Failed;
+                return Err(());
+            }
+            report.store = Outcome::Removed;
+            return Ok(());
+        }
     }
     // Only the folders of the running Client and of the launcher may still hold anything.
     let held: Vec<PathBuf> = std::env::current_exe()
@@ -673,7 +761,7 @@ fn remove_store(
                 .map(|launcher| launcher.image.clone()),
         )
         .filter_map(|image| image.parent().map(Path::to_owned))
-        .filter(|folder| platform::inside(folder, &target.path))
+        .filter(|folder| platform::inside(folder, &part.root))
         .collect();
     // The running program's path may spell letter case differently from the folder walk.
     let same = platform::same;
@@ -681,16 +769,21 @@ fn remove_store(
         file.parent()
             .is_some_and(|parent| held.iter().any(|folder| same(parent, folder)))
     }) && leftovers.folders.iter().all(|folder| {
-        same(folder, &target.path)
-            || held
-                .iter()
-                .any(|held| same(held, folder) || platform::inside(held, folder))
+        held.iter()
+            .any(|held| same(held, folder) || platform::inside(held, folder))
     });
     // A program started since the check may hold a file the removal would wait for in vain.
     let running = still_running(inventory);
+    let marks: Vec<PathBuf> = mark.iter().map(|mark| mark.path.clone()).collect();
     if explained
         && running.is_none()
-        && platform::schedule_removal(&leftovers.files, &leftovers.folders, &target.path).is_ok()
+        && platform::schedule_removal(
+            &leftovers.files,
+            &leftovers.folders,
+            &marks,
+            part.remove_root.then_some(part.root.as_path()),
+        )
+        .is_ok()
     {
         report.store = Outcome::Scheduled;
         return Ok(());
@@ -707,27 +800,51 @@ fn remove_store(
             report::display(&process.image),
             process.pid.to_string(),
         ),
-        None => report.stop(Stop::Store, report::display(&target.path), ""),
+        None => report.stop(Stop::Store, report::display(&part.root), ""),
     }
     Err(())
 }
 
-/// Fences `target` again against what exists now, then removes it without following a link.
+/// Removes a root that carried its mark, once nothing is left in it; whatever else it holds stays,
+/// and the plan counted it.
+fn remove_root(report: &mut Report, root: &Path, stop: Stop) -> Result<(), ()> {
+    if removal::remove_empty_folder(root).is_err() {
+        report.remaining = vec![root.to_owned()];
+        report.stop(stop, report::display(root), "");
+        return Err(());
+    }
+    Ok(())
+}
+
+/// Fences `target`, and the entry it removes last, again against what exists now, then removes it
+/// without following a link.
 fn fenced_removal(
     report: &mut Report,
     inventory: &Inventory,
     target: &Target,
 ) -> Result<removal::Leftovers, ()> {
-    let current = Target {
-        path: target.path.clone(),
-        presence: removal::presence(&target.path),
+    let current = |path: PathBuf| Target {
+        presence: removal::presence(&path),
+        path,
+        last: None,
     };
-    if let Err(refusal) = plan::fence(&inventory.roots, [&current], &removal::presence) {
+    let checked = [
+        Some(current(target.path.clone())),
+        target.last.map(|last| current(target.path.join(last))),
+    ];
+    if let Err(refusal) = plan::fence(
+        &inventory.roots,
+        checked.iter().flatten(),
+        &removal::presence,
+    ) {
         let subject = refusal.path().map(report::display).unwrap_or_default();
         report.stop(Stop::Plan(refusal.reason()), subject, "");
         return Err(());
     }
-    Ok(removal::remove_tree(&target.path))
+    Ok(match target.last {
+        Some(last) => removal::remove_tree_last(&target.path, last),
+        None => removal::remove_tree(&target.path),
+    })
 }
 
 /// The run's output: the document under JSON, the final message under text, and the diagnostic on

@@ -1,9 +1,44 @@
-//! The uninstall plan: every folder one run removes, computed as a value from the two resolved roots
-//! and what exists before anything is removed, then fenced. The fence refuses the whole run when a
-//! root is unsafe to remove, when a target is not one of the roots or strictly inside one, when a
-//! target is a parent of a root, or when a target is reached through a link or junction. A target
-//! that is itself a link stays admitted: removal never follows a link and removes the link alone.
+//! The uninstall plan: what one run removes, computed as a value from the two resolved roots and
+//! what they hold before anything is removed, then checked and fenced.
+//!
+//! Ownership: a run removes only the entries each root's layout names, and only from a root that
+//! carries its layout's mark: the store's pointer `active.json`, the data root's layout record
+//! `internal\version.json`. A root that holds anything this run would remove but not the mark
+//! refuses the whole run. Anything else in a root stays and is counted. Each mark goes after
+//! everything else of its layout, and a root goes only when it carried the mark and is empty by
+//! then, so an interrupted run leaves a root that the next run still recognizes.
+//!
+//! The fence refuses the whole run when a root is unsafe to remove, when the roots overlap, when a
+//! root is itself a link or junction, when a target is not strictly inside a root, or when a target
+//! is reached through a link or junction. A target that is itself a link stays admitted: removal
+//! never follows a link and removes the link alone.
 use std::path::{Component, Path, PathBuf};
+
+/// The store root's entries, as install, update, the PATH step and the platform installer's
+/// Desktop leave them, in removal order; staging folders `.stage-<process>-<number>` follow. The
+/// pointer goes after all of them.
+const STORE_ENTRIES: [&str; 5] = [
+    "bin",
+    "desktop",
+    "active.pending",
+    "versions",
+    "install.lock",
+];
+/// The store's mark.
+pub(super) const STORE_MARK: &str = "active.json";
+/// The prefix of a publication's staging folder in the store root.
+const STAGE_PREFIX: &str = ".stage-";
+
+/// The data root's entries, the data-root layout's top level, in removal order.
+const DATA_ENTRIES: [&str; 5] = [
+    "config.toml",
+    "sessions",
+    "logs",
+    "agent-detection",
+    "internal",
+];
+/// The data root's mark, in its last entry.
+pub(super) const DATA_MARK: [&str; 2] = ["internal", "version.json"];
 
 /// The data-root entries a default uninstall removes, in removal order; everything else stays.
 pub(super) const REMOVED_DATA: [&[&str]; 5] = [
@@ -36,19 +71,46 @@ pub(super) struct Roots {
     pub(super) protected: Vec<PathBuf>,
 }
 
+/// What one root holds, read before anything changes and without following a link.
+#[derive(Clone, Debug)]
+pub(super) struct Contents {
+    /// The names directly inside the root; `None` when the folder could not be listed. A missing
+    /// root holds none.
+    pub(super) names: Option<Vec<String>>,
+    /// Whether the root's mark reads as its layout's record.
+    pub(super) marked: bool,
+}
+
 /// One folder or file the run removes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Target {
     pub(super) path: PathBuf,
     pub(super) presence: Presence,
+    /// A name directly below `path` removed after everything else below it, before `path` itself:
+    /// the data root's mark in `internal`.
+    pub(super) last: Option<&'static str>,
 }
 
-/// The data targets in removal order and the store root, which goes last. A data target that is
-/// missing is kept so that the report can say it was already absent.
+/// One root's part of the plan.
+#[derive(Debug, Eq, PartialEq)]
+pub(super) struct RootPlan {
+    pub(super) root: PathBuf,
+    /// The layout's entries this run removes, in removal order, missing ones included so that the
+    /// report can say they were already absent.
+    pub(super) targets: Vec<Target>,
+    /// The store's pointer, removed after every target; the data root's mark is a target's `last`.
+    pub(super) mark: Option<Target>,
+    /// Whether the root itself goes once nothing is left in it: it carried the mark and this run
+    /// removes everything of its layout, or it did not exist when the run began.
+    pub(super) remove_root: bool,
+    /// How many entries the root holds that its layout does not name; they stay.
+    pub(super) kept: usize,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct Plan {
-    pub(super) data: Vec<Target>,
-    pub(super) store: Target,
+    pub(super) data: RootPlan,
+    pub(super) store: RootPlan,
 }
 
 /// Why the plan was refused; nothing was changed.
@@ -61,10 +123,15 @@ pub(super) enum Refusal {
     RootsOverlap,
     /// A target is neither one of the roots nor strictly inside one.
     OutsideRoots(PathBuf),
-    /// A target is a parent of a root.
+    /// A target is a root or a parent of one; a root goes only as an empty folder.
     RootParent(PathBuf),
-    /// A target is reached through a link or junction, or through a path that could not be read.
+    /// A root is a link or junction, or a target is reached through one or through a path that
+    /// could not be read.
     ThroughLink(PathBuf),
+    /// The store root holds what this run would remove but not a readable pointer.
+    UnmarkedStore(PathBuf),
+    /// The data root holds what this run would remove but not a readable layout record.
+    UnmarkedData(PathBuf),
 }
 
 impl Refusal {
@@ -76,6 +143,8 @@ impl Refusal {
             Self::OutsideRoots(_) => "outside-roots",
             Self::RootParent(_) => "root-parent",
             Self::ThroughLink(_) => "through-link",
+            Self::UnmarkedStore(_) => "not-orchbee-store",
+            Self::UnmarkedData(_) => "not-orchbee-data",
         }
     }
 
@@ -85,47 +154,168 @@ impl Refusal {
             Self::UnsafeRoot(path)
             | Self::OutsideRoots(path)
             | Self::RootParent(path)
-            | Self::ThroughLink(path) => Some(path),
+            | Self::ThroughLink(path)
+            | Self::UnmarkedStore(path)
+            | Self::UnmarkedData(path) => Some(path),
             Self::RootsOverlap => None,
         }
     }
 }
 
-/// The fenced plan for one run: with `delete_data` the whole data root, otherwise the entries of
-/// [`REMOVED_DATA`], and the store root last. `presence` answers what exists without following a
-/// link; nothing else is read.
+/// The checked and fenced plan for one run: with `delete_data` every data-root entry, otherwise
+/// the entries of [`REMOVED_DATA`], and every store entry with the pointer last. `store` and
+/// `data` say what each root holds; `presence` answers what one path holds without following a
+/// link.
 pub(super) fn plan(
     roots: &Roots,
     delete_data: bool,
+    store: &Contents,
+    data: &Contents,
     presence: impl Fn(&Path) -> Presence,
 ) -> Result<Plan, Refusal> {
-    let data_paths = if delete_data {
-        vec![roots.data.clone()]
+    fence(roots, [], &presence)?;
+    let store_names = names(&roots.store, store, &presence, Refusal::UnmarkedStore)?;
+    let data_names = names(&roots.data, data, &presence, Refusal::UnmarkedData)?;
+    let target = |path: PathBuf, last| Target {
+        presence: presence(&path),
+        path,
+        last,
+    };
+
+    let mut stages: Vec<&String> = store_names.iter().filter(|name| stage(name)).collect();
+    stages.sort();
+    let store_targets: Vec<Target> = STORE_ENTRIES
+        .iter()
+        .map(|name| target(roots.store.join(name), None))
+        .chain(
+            stages
+                .into_iter()
+                .map(|name| target(roots.store.join(name), None)),
+        )
+        .collect();
+    let pointer = target(roots.store.join(STORE_MARK), None);
+    let store_marked = store.marked && pointer.presence == Presence::File;
+    let store_plan = RootPlan {
+        root: roots.store.clone(),
+        targets: store_targets,
+        mark: Some(pointer),
+        remove_root: store_marked,
+        kept: store_names
+            .iter()
+            .filter(|name| !stage(name) && !named(name, &STORE_ENTRIES) && !same(name, STORE_MARK))
+            .count(),
+    };
+
+    let data_targets: Vec<Target> = if delete_data {
+        DATA_ENTRIES
+            .iter()
+            .map(|name| {
+                let last = (*name == DATA_MARK[0]).then_some(DATA_MARK[1]);
+                target(roots.data.join(name), last)
+            })
+            .collect()
     } else {
         REMOVED_DATA
             .iter()
             .map(|parts| {
-                parts
-                    .iter()
-                    .fold(roots.data.clone(), |path, part| path.join(part))
+                target(
+                    parts
+                        .iter()
+                        .fold(roots.data.clone(), |path, part| path.join(part)),
+                    None,
+                )
             })
             .collect()
     };
-    let plan = Plan {
-        data: data_paths
-            .into_iter()
-            .map(|path| Target {
-                presence: presence(&path),
-                path,
-            })
-            .collect(),
-        store: Target {
-            presence: presence(&roots.store),
-            path: roots.store.clone(),
-        },
+    let record = DATA_MARK
+        .iter()
+        .fold(roots.data.clone(), |path, part| path.join(part));
+    let data_marked = data.marked
+        && presence(&roots.data.join(DATA_MARK[0])) == Presence::Directory
+        && presence(&record) == Presence::File;
+    let data_plan = RootPlan {
+        root: roots.data.clone(),
+        targets: data_targets,
+        mark: None,
+        // A root missing now is one this run creates only to record the request; it goes again.
+        remove_root: (delete_data && data_marked) || presence(&roots.data) == Presence::Missing,
+        kept: data_names
+            .iter()
+            .filter(|name| !named(name, &DATA_ENTRIES))
+            .count(),
     };
-    fence(roots, plan.data.iter().chain([&plan.store]), &presence)?;
-    Ok(plan)
+
+    // A mark removed last is a target too: nothing reaches it through a link either.
+    let lasts: Vec<Target> = data_plan
+        .targets
+        .iter()
+        .filter_map(|t| t.last.map(|last| target(t.path.join(last), None)))
+        .collect();
+    fence(
+        roots,
+        store_plan
+            .targets
+            .iter()
+            .chain(&store_plan.mark)
+            .chain(&data_plan.targets)
+            .chain(&lasts),
+        &presence,
+    )?;
+    // Ownership: nothing is removed from a root that lacks its mark.
+    let holds = |part: &RootPlan| {
+        part.targets
+            .iter()
+            .chain(&part.mark)
+            .any(|target| target.presence != Presence::Missing)
+    };
+    if holds(&store_plan) && !store_marked {
+        return Err(Refusal::UnmarkedStore(roots.store.clone()));
+    }
+    if holds(&data_plan) && !data_marked {
+        return Err(Refusal::UnmarkedData(roots.data.clone()));
+    }
+    Ok(Plan {
+        data: data_plan,
+        store: store_plan,
+    })
+}
+
+/// The names in one root: none when it is missing; a root that is a link or cannot be listed is
+/// refused as on the way to its entries, and a root that is a file as unmarked.
+fn names(
+    root: &Path,
+    contents: &Contents,
+    presence: &impl Fn(&Path) -> Presence,
+    unmarked: fn(PathBuf) -> Refusal,
+) -> Result<Vec<String>, Refusal> {
+    match presence(root) {
+        Presence::Missing => Ok(Vec::new()),
+        Presence::Directory => contents
+            .names
+            .clone()
+            .ok_or_else(|| Refusal::ThroughLink(root.to_owned())),
+        Presence::File => Err(unmarked(root.to_owned())),
+        Presence::Link | Presence::Unreadable => Err(Refusal::ThroughLink(root.to_owned())),
+    }
+}
+
+/// Whether `name` is a publication's staging folder: `.stage-<digits>-<digits>`.
+fn stage(name: &str) -> bool {
+    name.strip_prefix(STAGE_PREFIX)
+        .and_then(|rest| rest.split_once('-'))
+        .is_some_and(|(process, number)| {
+            [process, number]
+                .iter()
+                .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+        })
+}
+
+fn named(name: &str, entries: &[&str]) -> bool {
+    entries.iter().any(|entry| same(name, entry))
+}
+
+fn same(left: &str, right: &str) -> bool {
+    fold(left) == fold(right)
 }
 
 /// Admits every target or refuses the whole set; see the module documentation.
@@ -156,7 +346,7 @@ pub(super) fn fence<'a>(
         let path = key(&target.path).ok_or_else(|| Refusal::OutsideRoots(target.path.clone()))?;
         if [&store, &data]
             .iter()
-            .any(|root| path.len() < root.len() && starts_with(root, &path))
+            .any(|root| path.len() <= root.len() && starts_with(root, &path))
         {
             return Err(Refusal::RootParent(target.path.clone()));
         }

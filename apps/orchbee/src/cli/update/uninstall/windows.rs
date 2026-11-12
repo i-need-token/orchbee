@@ -4,10 +4,11 @@
 //!
 //! A running executable cannot be deleted on Windows, so the last files of the store, the Client's
 //! own file, the launcher waiting for it and their folders, are removed by a detached `cmd.exe`
-//! from the system folder after both exit. It inherits no handle, works in the system folder,
-//! deletes only those exact files and folders without recursion, and ends once the store root is
-//! gone or after about a minute. Interrupted, it leaves only those files and folders inside the
-//! store root.
+//! from the system folder after both exit. It inherits no handle, works in the system folder and
+//! deletes only exact files and empty folders, without recursion: the held files, then their
+//! folders, and once those are gone the pointer and the empty store root, which stays when anything
+//! else is in it. It ends once the held files and the pointer are gone, or after about a minute.
+//! Interrupted, it leaves the pointer while any held file or folder remains.
 use super::super::path_value::{self, Edit};
 use orchbee_local_runtime::{EnvironmentKind, environment_kind, environment_stem, is_release};
 use std::{
@@ -323,13 +324,14 @@ pub(super) fn npm_carrier(parent: Option<&StoreProcess>) -> bool {
     })
 }
 
-/// Starts the detached removal of `files` and `folders`, the store's last entries, which this
-/// process and its launcher hold until they exit; see the module documentation. `folders` are
-/// deepest first and end with `root`.
+/// Starts the detached removal of `files` and `folders`, the store's entries this process and its
+/// launcher hold until they exit, then of `marks` and the empty `root`; see the module
+/// documentation. `folders` are deepest first.
 pub(super) fn schedule_removal(
     files: &[PathBuf],
     folders: &[PathBuf],
-    root: &Path,
+    marks: &[PathBuf],
+    root: Option<&Path>,
 ) -> io::Result<()> {
     let quoted = |path: &Path| -> io::Result<String> {
         let text = path.to_str().ok_or(io::ErrorKind::InvalidInput)?;
@@ -339,20 +341,45 @@ pub(super) fn schedule_removal(
         }
         Ok(format!("\"{text}\""))
     };
+    // A trailing separator makes `exist` test for a folder.
+    let folder = |path: &Path| -> io::Result<String> {
+        let text = path.to_str().ok_or(io::ErrorKind::InvalidInput)?;
+        quoted(Path::new(&format!("{}\\", text.trim_end_matches('\\'))))
+    };
+    // A chain of conditions that holds once every one of `paths` is gone.
+    let gone = |paths: Vec<io::Result<String>>| -> io::Result<String> {
+        paths
+            .into_iter()
+            .map(|path| Ok(format!("if not exist {} ", path?)))
+            .collect()
+    };
     let mut body = String::new();
     for file in files {
         body.push_str(&format!("del /f /q {} 2>nul & ", quoted(file)?));
     }
-    for folder in folders {
-        body.push_str(&format!("rd {} 2>nul & ", quoted(folder)?));
+    for path in folders {
+        body.push_str(&format!("rd {} 2>nul & ", quoted(path)?));
     }
-    let root_text = root.to_str().ok_or(io::ErrorKind::InvalidInput)?;
+    let mut last = Vec::new();
+    for mark in marks {
+        last.push(format!("del /f /q {} 2>nul", quoted(mark)?));
+    }
+    if let Some(root) = root {
+        last.push(format!("rd {} 2>nul", quoted(root)?));
+    }
+    if !last.is_empty() {
+        let held = gone(
+            files
+                .iter()
+                .map(|file| quoted(file))
+                .chain(folders.iter().map(|path| folder(path)))
+                .collect(),
+        )?;
+        body.push_str(&format!("({held}({})) & ", last.join(" & ")));
+    }
+    let finished = gone(files.iter().chain(marks).map(|file| quoted(file)).collect())?;
     let script = format!(
-        "for /l %i in (1,1,{REMOVAL_ATTEMPTS}) do @({body}(if not exist {} exit 0) & ping -n 2 127.0.0.1 >nul)",
-        quoted(&PathBuf::from(format!(
-            "{}\\",
-            root_text.trim_end_matches('\\')
-        )))?
+        "for /l %i in (1,1,{REMOVAL_ATTEMPTS}) do @({body}({finished}exit 0) & ping -n 2 127.0.0.1 >nul)"
     );
     let system = w::GetSystemDirectory().map_err(io::Error::other)?;
     let shell = format!("{system}\\cmd.exe");

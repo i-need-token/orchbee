@@ -211,7 +211,9 @@ new name, as with [`--machine-tunnel-v1`](../../apps/orchbee/docs/machines.md).
 - Every process starts its children from its own version directory. Installing only adds
   directories. A version directory is deleted only under `install.lock`, by the active version or a
   newer one, when it is neither `active` nor `previous`, no process runs from it, and no Session,
-  Host, or Capsule references it. Uninstall removes the whole root.
+  Host, or Capsule references it. Uninstall removes only the store's own entries, and only from a
+  root whose `active.json` reads as a pointer: the entries above, `active.pending` and publication
+  stages, then the pointer, then the root when nothing else is in it.
 - This replaces the directories named by manifest SHA-256 and the `Path` entry that named one.
   The pointer cannot be that entry, because the npm and remote routes add none. Built on Windows:
   `versions\<version>`, `active.json`, `install.lock`, the completion helper, the pointer readers,

@@ -26,6 +26,7 @@
 				"installerEntries",
 				"data",
 				"store",
+				"kept",
 				"remaining",
 				"npmCarrier",
 				"error",
@@ -149,6 +150,24 @@
 				"store": {
 					"$ref": "#/$defs/outcome"
 				},
+				"kept": {
+					"description": "Each root that holds entries its layout does not name; they stay.",
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["path", "items"],
+						"properties": {
+							"path": {
+								"type": "string"
+							},
+							"items": {
+								"type": "integer",
+								"minimum": 1
+							}
+						}
+					}
+				},
 				"remaining": {
 					"type": "array",
 					"items": {
@@ -185,7 +204,9 @@
 						"roots-overlap",
 						"outside-roots",
 						"root-parent",
-						"through-link"
+						"through-link",
+						"not-orchbee-store",
+						"not-orchbee-data"
 					]
 				},
 				"interrupted": {

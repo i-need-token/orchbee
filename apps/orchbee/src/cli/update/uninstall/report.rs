@@ -126,6 +126,8 @@ pub(super) struct Report {
     pub(super) registration_outcome: Outcome,
     pub(super) data: Vec<(PathBuf, Outcome)>,
     pub(super) store: Outcome,
+    /// Each root that holds entries its layout does not name, with their count; they stay.
+    pub(super) kept: Vec<(PathBuf, usize)>,
     pub(super) remaining: Vec<PathBuf>,
     pub(super) npm_carrier: bool,
     pub(super) stop: Option<Stop>,
@@ -156,6 +158,7 @@ impl Report {
             registration_outcome: Outcome::NotReached,
             data: Vec::new(),
             store: Outcome::NotReached,
+            kept: Vec::new(),
             remaining: Vec::new(),
             npm_carrier: false,
             stop: None,
@@ -243,6 +246,9 @@ impl Report {
                     "path": path_text(path), "result": outcome.token(),
                 })).collect::<Vec<_>>(),
                 "store": self.store.token(),
+                "kept": self.kept.iter().map(|(path, items)| json!({
+                    "path": path_text(path), "items": items,
+                })).collect::<Vec<_>>(),
                 "remaining": self.remaining.iter().map(|path| path_text(path)).collect::<Vec<_>>(),
                 "npmCarrier": self.npm_carrier,
                 "error": self.stop.map(Stop::token),
@@ -308,17 +314,11 @@ impl Report {
         if self.delete_data {
             lines.push(format!("  {}{data_root}", phrase("data-folder")));
         } else {
-            let names: Vec<String> = super::plan::REMOVED_DATA
-                .iter()
-                .map(|parts| parts.join("\\"))
-                .collect();
-            lines.push(format!(
-                "  {}{}",
-                phrase("data-entries"),
-                names.join(separator)
-            ));
-            lines.push(format!("{}{data_root}", phrase("keeps")));
+            // The document names the exact entries; a person reads what they hold.
+            lines.push(format!("  {}", text.cli_uninstall_data_entries(&data_root)));
+            lines.push(phrase("keeps-settings").to_owned());
         }
+        lines.extend(self.kept_lines(text));
         if self.sessions.is_empty() {
             lines.push(phrase("no-sessions").to_owned());
         } else {
@@ -339,23 +339,30 @@ impl Report {
         let phrase = |key| text.cli_uninstall_phrase(key);
         let separator = phrase("separator");
         let mut lines = vec![phrase("done").to_owned()];
+        // A root that keeps other items stays, so the line says Orchbee's files went from it.
+        let keeps = |root: &Option<PathBuf>| {
+            root.as_ref()
+                .is_some_and(|root| self.kept.iter().any(|(path, _)| path == root))
+        };
         if let Some(store) = &self.store_root {
-            match self.store {
-                Outcome::Scheduled => {
-                    lines.push(format!("{}{}", phrase("store-scheduled"), display(store)));
-                }
-                Outcome::Removed => {
-                    lines.push(format!("{}{}", phrase("store-removed"), display(store)))
-                }
-                _ => {}
+            let key = match (self.store, keeps(&self.store_root)) {
+                (Outcome::Scheduled, false) => Some("store-scheduled"),
+                (Outcome::Scheduled, true) => Some("store-files-scheduled"),
+                (Outcome::Removed, false) => Some("store-removed"),
+                (Outcome::Removed, true) => Some("store-files-removed"),
+                _ => None,
+            };
+            if let Some(key) = key {
+                lines.push(format!("{}{}", phrase(key), display(store)));
             }
         }
         let data_root = self.data_root.as_deref().map(display).unwrap_or_default();
-        lines.push(if self.delete_data {
-            format!("{}{data_root}", phrase("data-deleted"))
-        } else {
-            format!("{}{data_root}", phrase("keeps"))
+        lines.push(match (self.delete_data, keeps(&self.data_root)) {
+            (true, false) => format!("{}{data_root}", phrase("data-deleted")),
+            (true, true) => format!("{}{data_root}", phrase("data-files-deleted")),
+            (false, _) => format!("{}{data_root}", phrase("keeps")),
         });
+        lines.extend(self.kept_lines(text));
         for (outcome, key) in [
             (IntegrationOutcome::Disabled, "disabled"),
             (IntegrationOutcome::ProgramNotFound, "program-not-found"),
@@ -377,6 +384,14 @@ impl Report {
             lines.push(phrase("npm").to_owned());
         }
         lines.join("\n") + "\n"
+    }
+
+    /// One line per root that keeps entries its layout does not name.
+    fn kept_lines(&self, text: CliText) -> Vec<String> {
+        self.kept
+            .iter()
+            .map(|(root, items)| text.cli_uninstall_kept(&display(root), *items))
+            .collect()
     }
 
     /// The diagnostic of a run that stopped: the cause, then what was done and what remains when

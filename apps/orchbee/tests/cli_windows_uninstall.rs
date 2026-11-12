@@ -1,8 +1,9 @@
 //! Uninstall of an installed test package, in both modes, in a scratch profile: one Agent
 //! integration enabled and one Session running beforehand; afterwards the program folder, the
 //! user `Path` entry, the installer entries, the integration and the removed data entries are gone,
-//! and the person's settings and Sessions stay unless all data was deleted. The Agent's own file
-//! returns byte for byte.
+//! and the person's settings and Sessions stay unless all data was deleted. With all data deleted,
+//! an item Orchbee did not write stays in each root, which then stays too, and a second run still
+//! finds nothing to refuse. The Agent's own file returns byte for byte.
 //!
 //! It needs `ORCHBEE_TEST_UNINSTALL_CLIENT` naming the Client of a staged, packaged and test-signed
 //! release directory (see the application's Windows CLI configuration). Every process gets its own
@@ -230,6 +231,14 @@ impl Profile {
 
     fn uninstall_once(&self, delete_data: bool) {
         let launcher = self.prepare();
+        // With all data deleted, an item Orchbee did not write stays in each root, as the platform
+        // uninstaller's own file does in the store.
+        let other: &[&str] = if delete_data { &["unins000.dat"] } else { &[] };
+        for root in [self.store(), self.data()] {
+            for name in other {
+                fs::write(root.join(name), b"not Orchbee's").unwrap();
+            }
+        }
         let mut arguments = vec!["uninstall", "--confirm", "--format", "json"];
         if delete_data {
             arguments.push("--delete-data");
@@ -273,11 +282,23 @@ impl Profile {
                 .iter()
                 .all(|entry| entry["result"] == "removed")
         );
-        // The program folder goes once the Client and the launcher have exited.
-        while self.store().exists() {
+        let kept: Vec<Value> = if delete_data {
+            [self.store(), self.data()]
+                .iter()
+                .map(|root| serde_json::json!({"path": root.display().to_string(), "items": 1}))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        assert_eq!(result["kept"], Value::Array(kept), "{document}");
+        // Orchbee's program files go once the Client and the launcher have exited; the folder goes
+        // with them unless it keeps another item.
+        let expected = (!other.is_empty()).then(|| names(other));
+        while entries(&self.store()) != expected {
             assert!(
                 started.elapsed() < Duration::from_secs(30),
-                "the program folder stays"
+                "the program folder holds {:?}",
+                entries(&self.store())
             );
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -289,7 +310,7 @@ impl Profile {
         assert!(!self.registered());
         assert!(!self.shortcut().exists());
         if delete_data {
-            assert!(!self.data().exists());
+            assert_eq!(entries(&self.data()), Some(names(other)));
         } else {
             for removed in [
                 "logs",
@@ -319,6 +340,22 @@ impl Profile {
         let _ = self.reg(&["delete", &format!(r"HKCU\{}", self.key), "/f"]);
         let _ = fs::remove_dir_all(&self.root);
     }
+}
+
+/// The names in `folder`, sorted; `None` when it is gone.
+fn entries(folder: &Path) -> Option<Vec<String>> {
+    let mut names: Vec<String> = fs::read_dir(folder)
+        .ok()?
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    Some(names)
+}
+
+fn names(list: &[&str]) -> Vec<String> {
+    let mut names: Vec<String> = list.iter().map(|name| (*name).to_owned()).collect();
+    names.sort();
+    names
 }
 
 fn system_folder() -> PathBuf {

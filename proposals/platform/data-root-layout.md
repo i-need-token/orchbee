@@ -210,8 +210,12 @@ ships, and the person removes it.
   `internal/integrations/`, `internal/cache/`, `internal/runtime/`, and `internal/tmp/`. Everything
   else stays, so a reinstall finds settings and Sessions again; the person enables Agent
   integrations again.
-- Deleting all data additionally removes the whole data root.
-- Uninstall acts only on its own environment's root.
+- Deleting all data additionally removes every top-level entry the Tree names, `internal/version.json`
+  last, then the root when nothing else is in it.
+- Uninstall acts only on its own environment's root, and only when the root carries the layout
+  record: a root that holds anything uninstall would remove but no readable `internal/version.json`
+  refuses the run before anything changes, naming the folder and the variable that chose it.
+  Anything else found in the root stays and is reported.
 - One CLI command performs these steps; each platform's uninstaller runs it, and ORC-381 decides how
   macOS, which has no uninstaller, offers it.
 
@@ -363,6 +367,7 @@ the phase that applies it ships.
 - Every name under the root reads as words, versions, dates, times, Session names, plugin ids, or
   sequence numbers.
 - A development checkout and the test package produce the same tree under their roots.
-- The default uninstall leaves exactly the kept entries, and deleting all data leaves no root.
+- The default uninstall leaves exactly the kept entries, and deleting all data leaves no root unless
+  the root holds items that are not Orchbee's, which stay.
 - A record from the previous format version migrates with a backup; a failed step leaves the
   original unchanged and shows the message; a newer record is refused and left unchanged.

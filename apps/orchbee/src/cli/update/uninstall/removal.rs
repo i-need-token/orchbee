@@ -46,6 +46,14 @@ impl Leftovers {
         self.files.is_empty() && self.folders.is_empty()
     }
 
+    pub(super) fn extend(&mut self, other: Self) {
+        self.files.extend(other.files);
+        self.folders.extend(other.folders);
+        if let Some(error) = other.error {
+            self.error.get_or_insert(error);
+        }
+    }
+
     fn keep_file(&mut self, path: &Path, error: &io::Error) {
         self.files.push(path.to_owned());
         self.error.get_or_insert(error.kind());
@@ -57,12 +65,87 @@ impl Leftovers {
     }
 }
 
+/// The names directly inside a folder that is not a link; `None` when it cannot be listed.
+pub(super) fn names(folder: &Path) -> Option<Vec<String>> {
+    fs::read_dir(folder)
+        .ok()?
+        .map(|entry| {
+            entry
+                .ok()
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        })
+        .collect()
+}
+
 /// Removes `path` and everything below it without following any link, continuing past entries
 /// that cannot be removed so that the leftovers name everything that remains.
 pub(super) fn remove_tree(path: &Path) -> Leftovers {
     let mut leftovers = Leftovers::default();
     remove_into(path, &mut leftovers);
     leftovers
+}
+
+/// Removes `path` like [`remove_tree`], except that its entry `last` goes only once everything
+/// else below `path` is gone, and `path` right after it, so an interruption leaves `last` while
+/// anything else of `path` remains.
+pub(super) fn remove_tree_last(path: &Path, last: &str) -> Leftovers {
+    let mut leftovers = Leftovers::default();
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() && !is_link(&metadata) => {}
+        // A link or a file holds no entry to keep for last.
+        _ => return remove_tree(path),
+    }
+    match fs::read_dir(path) {
+        Ok(entries) => {
+            for entry in entries {
+                match entry {
+                    Ok(entry) if same_name(&entry.file_name().to_string_lossy(), last) => {}
+                    Ok(entry) => remove_into(&entry.path(), &mut leftovers),
+                    Err(error) => {
+                        leftovers.error.get_or_insert(error.kind());
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            leftovers.error.get_or_insert(error.kind());
+        }
+    }
+    if leftovers.is_empty() && leftovers.error.is_none() {
+        remove_into(&path.join(last), &mut leftovers);
+        remove_into(path, &mut leftovers);
+    } else {
+        leftovers.folders.push(path.to_owned());
+    }
+    leftovers
+}
+
+/// Removes a root that is a real, empty folder; one that still holds anything stays, which is
+/// `Ok(false)`.
+pub(super) fn remove_empty_folder(path: &Path) -> io::Result<bool> {
+    if presence(path) != Presence::Directory {
+        return Ok(false);
+    }
+    match fs::remove_dir(path) {
+        Ok(()) => Ok(true),
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::DirectoryNotEmpty | io::ErrorKind::NotFound
+            ) =>
+        {
+            Ok(false)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn same_name(left: &str, right: &str) -> bool {
+    if cfg!(windows) {
+        left.to_lowercase() == right.to_lowercase()
+    } else {
+        left == right
+    }
 }
 
 fn remove_into(path: &Path, leftovers: &mut Leftovers) {

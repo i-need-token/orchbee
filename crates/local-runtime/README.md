@@ -164,7 +164,9 @@ it. Later releases only add entries, which every rewrite keeps. `DataRoot::admit
 this record and refuses a root whose `layout` is higher than `LAYOUT`, or whose record cannot be
 read, and every process that opens a root calls it before any other read: the Client before it
 dispatches any command that opens the root, and the Server and Worker before their first log
-record. The first writer of each process also refuses such a root before it creates anything, and
+record. `DataRoot::carries_layout_record` answers whether a folder holds a readable record of any
+layout, which uninstall requires before it removes anything from the folder. The first writer of
+each process also refuses such a root before it creates anything, and
 raises `newestVersion` to `PRODUCT_VERSION` under `internal/version.lock` when the record names an
 older version, using Semantic Versioning precedence, so a refusal can name the newest version.
 `compare_product_versions` exposes that one precedence; the release store's lower-version refusal

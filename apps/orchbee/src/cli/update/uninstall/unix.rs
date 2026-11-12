@@ -77,7 +77,8 @@ pub(super) fn npm_carrier(_parent: Option<&StoreProcess>) -> bool {
 pub(super) fn schedule_removal(
     _files: &[PathBuf],
     _folders: &[PathBuf],
-    _root: &Path,
+    _marks: &[PathBuf],
+    _root: Option<&Path>,
 ) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }

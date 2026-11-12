@@ -49,6 +49,16 @@ impl DataRoot {
             .refusal()
             .map_or(Ok(()), Err)
     }
+
+    /// Whether this root carries its layout record: `internal/version.json` is a safe file that
+    /// reads as a layout record of any layout. Every writer that creates the root or `internal/`
+    /// writes the record in the same step, so it marks a folder Orchbee wrote; nothing is created.
+    pub fn carries_layout_record(&self) -> bool {
+        read_record(&self.version_file())
+            .ok()
+            .flatten()
+            .is_some_and(|bytes| VersionRecord::parse(&bytes).is_some())
+    }
 }
 
 /// The record as this build reads it, with every entry kept so that raising `newestVersion`

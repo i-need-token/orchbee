@@ -15,12 +15,12 @@ impl super::CliText {
             "uninstall-registration" => ("uninstall registration", "卸载登记"),
             "integrations" => ("Agent integrations: ", "智能体集成："),
             "integrations-none" => ("none found enabled", "未发现已启用的"),
-            "data-entries" => ("From the data folder: ", "数据文件夹中的："),
             "data-folder" => (
                 "Data folder, settings and Sessions included: ",
                 "数据文件夹（含设置和会话）：",
             ),
             "keeps" => ("Kept: settings and Sessions in ", "保留：设置和会话，位于 "),
+            "keeps-settings" => ("Kept: settings and Sessions", "保留：设置和会话"),
             "sessions" => ("Sessions it stops:", "将停止的会话："),
             "no-sessions" => ("No Session is running.", "没有正在运行的会话。"),
             "agents-unknown" => ("Agents not known", "智能体数未知"),
@@ -34,7 +34,19 @@ impl super::CliText {
                 "本命令结束几秒后移除程序文件夹：",
             ),
             "store-removed" => ("Removed the program folder ", "已移除程序文件夹 "),
+            "store-files-scheduled" => (
+                "Orchbee's program files in this folder go a few seconds after this command ends: ",
+                "本命令结束几秒后移除此文件夹中 Orchbee 的程序文件：",
+            ),
+            "store-files-removed" => (
+                "Removed Orchbee's program files from ",
+                "已移除 Orchbee 的程序文件，位于 ",
+            ),
             "data-deleted" => ("Deleted the data folder ", "已删除数据文件夹 "),
+            "data-files-deleted" => (
+                "Deleted Orchbee's data from ",
+                "已删除 Orchbee 的数据，位于 ",
+            ),
             "disabled" => ("Disabled Agent integrations: ", "已停用智能体集成："),
             "program-not-found" => (
                 "Not checked, their program is not on PATH: ",
@@ -103,6 +115,25 @@ impl super::CliText {
         }
     }
 
+    /// The listing's line for what a default uninstall removes from the data folder `data`, already
+    /// rendered for display.
+    pub(crate) fn cli_uninstall_data_entries(self, data: &str) -> String {
+        match self.locale {
+            Locale::EnUs => format!("From {data}: logs, caches and temporary files"),
+            Locale::ZhCn => format!("{data} 中的日志、缓存和临时文件"),
+        }
+    }
+
+    /// The line for `items` entries of `folder` that are not Orchbee's and stay; `folder` is
+    /// already rendered for display.
+    pub(crate) fn cli_uninstall_kept(self, folder: &str, items: usize) -> String {
+        match (self.locale, items) {
+            (Locale::EnUs, 1) => format!("Kept 1 other item in {folder}"),
+            (Locale::EnUs, _) => format!("Kept {items} other items in {folder}"),
+            (Locale::ZhCn, _) => format!("保留 {folder} 中的其他 {items} 项"),
+        }
+    }
+
     /// How to continue after a stop; `program` is the full path to run once `orchbee` may no longer
     /// be on `Path`, already rendered for display.
     pub(crate) fn cli_uninstall_again(self, program: Option<&str>) -> String {
@@ -152,6 +183,14 @@ impl super::CliText {
             (Locale::ZhCn, "roots-overlap") => "程序文件夹与数据文件夹相互重叠，无法单独移除其中之一。".to_owned(),
             (Locale::EnUs, "through-link") => format!("{subject} is a link or junction on the way to what uninstall removes, and uninstall never follows one."),
             (Locale::ZhCn, "through-link") => format!("{subject} 是通往卸载移除内容的链接或联接点，卸载从不经由链接操作。"),
+            (Locale::EnUs, "not-orchbee-store") if !detail.is_empty() => format!("{subject} does not look like an Orchbee program folder: it has no readable active.json. {detail} chose this folder; check that variable."),
+            (Locale::EnUs, "not-orchbee-store") => format!("{subject} does not look like an Orchbee program folder: it has no readable active.json."),
+            (Locale::ZhCn, "not-orchbee-store") if !detail.is_empty() => format!("{subject} 看起来不是 Orchbee 的程序文件夹：其中没有可读的 active.json。该文件夹由 {detail} 指定，请检查这个变量。"),
+            (Locale::ZhCn, "not-orchbee-store") => format!("{subject} 看起来不是 Orchbee 的程序文件夹：其中没有可读的 active.json。"),
+            (Locale::EnUs, "not-orchbee-data") if !detail.is_empty() => format!("{subject} does not look like an Orchbee data folder: it has no readable internal\\version.json. {detail} chose this folder; check that variable."),
+            (Locale::EnUs, "not-orchbee-data") => format!("{subject} does not look like an Orchbee data folder: it has no readable internal\\version.json."),
+            (Locale::ZhCn, "not-orchbee-data") if !detail.is_empty() => format!("{subject} 看起来不是 Orchbee 的数据文件夹：其中没有可读的 internal\\version.json。该文件夹由 {detail} 指定，请检查这个变量。"),
+            (Locale::ZhCn, "not-orchbee-data") => format!("{subject} 看起来不是 Orchbee 的数据文件夹：其中没有可读的 internal\\version.json。"),
             (Locale::EnUs, "unsafe-root" | "outside-roots" | "root-parent") => format!("{subject} is not a folder uninstall may remove."),
             (Locale::ZhCn, "unsafe-root" | "outside-roots" | "root-parent") => format!("{subject} 不是卸载可以移除的文件夹。"),
             (Locale::EnUs, "inventory") => "The Sessions or the Agent integrations of this environment could not be read.".to_owned(),
