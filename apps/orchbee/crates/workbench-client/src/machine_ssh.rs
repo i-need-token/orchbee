@@ -94,16 +94,31 @@ fn same_environment_kind(stem: &str, release: bool) -> bool {
 pub fn literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
+/// The remote command that runs `action` through the given executable or, without one, through the
+/// active version a remote store's pointer names. An unreadable pointer names none, and nothing is
+/// inferred from `Path`.
 pub fn program(executable: Option<&str>, session: &str, action: &str) -> String {
     let resolve = executable.map_or_else(
         || {
-            format!(
-                "$program=$null;foreach($name in {}){{$found=Get-Command $name -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1;if($found){{$program=$found.Path;break}}}}",
-                probe_names()
+            let (roots, names) = probe_names();
+            let list = |items: Vec<String>| {
+                items
                     .iter()
-                    .map(|name| literal(name))
+                    .map(|item| literal(item))
                     .collect::<Vec<_>>()
                     .join(",")
+            };
+            format!(
+                "$program=$null;\
+                $roots=if($env:ORCHBEE_INSTALL_DIR){{,$env:ORCHBEE_INSTALL_DIR}}else{{foreach($name in {}){{Join-Path $env:LOCALAPPDATA ('Programs\\'+$name)}}}};\
+                foreach($root in $roots){{if($program){{break}};try{{\
+                $pointer=[IO.File]::ReadAllText((Join-Path $root 'active.json'))|ConvertFrom-Json;\
+                $version=$pointer.active.product;\
+                if($pointer.version -eq 1 -and $version -is [string] -and $version -cmatch '^[0-9][0-9A-Za-z.-]{{0,63}}$'){{\
+                foreach($name in {}){{$candidate=Join-Path (Join-Path (Join-Path $root 'versions') $version) $name;\
+                if(Test-Path -LiteralPath $candidate -PathType Leaf){{$program=$candidate;break}}}}}}}}catch{{}}}}",
+                list(roots),
+                list(names)
             )
         },
         |path| format!("$program={}", literal(path)),
@@ -129,18 +144,19 @@ pub fn program(executable: Option<&str>, session: &str, action: &str) -> String 
     );
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
 }
-/// The remote PATH names a probe tries in order. A development or test build first looks for its
-/// own name and then for release, so a release remote reads as another environment instead of a
-/// missing installation.
-fn probe_names() -> Vec<String> {
+/// The remote store folders under `%LOCALAPPDATA%\Programs` and the Client names a probe tries in
+/// order. A development or test build first looks for its own store and name and then for
+/// release, so a release remote reads as another environment instead of a missing installation.
+fn probe_names() -> (Vec<String>, Vec<String>) {
     let release = format!("{}.exe", orchbee_connection_handshake::RELEASE_ENVIRONMENT);
     if orchbee_local_runtime::is_release() {
-        vec![release]
+        (vec!["Orchbee".to_owned()], vec![release])
     } else {
-        vec![
-            format!("{}.exe", orchbee_local_runtime::environment_stem()),
-            release,
-        ]
+        let stem = orchbee_local_runtime::environment_stem();
+        (
+            vec![stem.to_owned(), "Orchbee".to_owned()],
+            vec![format!("{stem}.exe"), release],
+        )
     }
 }
 pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {

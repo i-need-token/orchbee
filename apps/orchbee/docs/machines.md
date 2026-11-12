@@ -145,10 +145,14 @@ status reads as `remote-not-installed` rather than an OpenSSH failure.
 
 No protocol version, product version, or cohort is compared across machines: the remote Session
 admits each later tunnel connection through the handshake, and the routed command runs the remote
-Client under its own grammar. The probe resolves the remote program on the remote `PATH`. A
-release build looks for `orchbee.exe`; a development or test build first looks for its own
-`<stem>.exe` and then for `orchbee.exe`, so a remote with only the release installation reads as
-another environment rather than a missing one.
+Client under its own grammar. The probe resolves the remote program through the remote store's
+`active.json`, never through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
+`%LOCALAPPDATA%\Programs`) it reads the active version and runs `versions\<version>\<name>.exe`. A
+missing or unreadable pointer names no installation. A release build reads the `Orchbee` store
+and looks for `orchbee.exe`; a development or test build reads its own `<stem>` store and then the
+`Orchbee` store, looking for `<stem>.exe` and then `orchbee.exe` in each, so a remote with only
+the release installation reads as another environment rather than a missing one. See
+[Windows release installation](windows-cli-configuration.md#windows-release-installation).
 
 A second SSH invocation, after the first has ended, requires the remote Client's
 `orchbee.status.server` document to report the Session running with a ready Server process. Only
