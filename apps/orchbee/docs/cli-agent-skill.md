@@ -101,7 +101,7 @@ For a typed filter, inspect `api schema orchbee.events.stream` at `$defs/filter`
 
 Typed filters own their scopes and conditions and cannot mix with shorthand selectors. Use the simple `--event` form unless you need the typed surface.
 
-`terminal session observe` emits bounded NDJSON frames without control. `terminal session control` accepts NDJSON input; inspect its declared input schema before writing records. `terminal attach` and `agent attach` require real console stdin/stdout. `Ctrl+B`, then `q`, detaches; a doubled prefix sends one literal prefix. Attachment does not start a Session, reconnect or replay input.
+`terminal session observe` emits bounded NDJSON frames without control. `terminal session control` accepts NDJSON input; inspect its declared input schema before writing records. `terminal attach` and `agent attach` require real console stdin/stdout. `Ctrl+b q` detaches; a doubled prefix sends one literal prefix. Attachment does not start a Session, reconnect or replay input.
 
 <!-- unreleased -->
 

@@ -101,7 +101,7 @@ Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受
 
 结构化筛选独占作用域与条件，不能混用简写 selector。只有需要结构化能力时才使用它，普通发现可用简单的 `--event`。
 
-`terminal session observe` 输出有界 NDJSON 帧且不取得控制权。`terminal session control` 接受 NDJSON 输入；编写记录前先查看其声明的输入 Schema。`terminal attach` 和 `agent attach` 要求真实控制台 stdin/stdout。`Ctrl+B` 后按 `q` 可脱离；连续两次前缀发送一个字面前缀。Attach 不启动 Session、不重连，也不重放输入。
+`terminal session observe` 输出有界 NDJSON 帧且不取得控制权。`terminal session control` 接受 NDJSON 输入；编写记录前先查看其声明的输入 Schema。`terminal attach` 和 `agent attach` 要求真实控制台 stdin/stdout。按 `Ctrl+b q` 可脱离；连续两次前缀发送一个字面前缀。Attach 不启动 Session、不重连，也不重放输入。
 
 <!-- unreleased -->
 
