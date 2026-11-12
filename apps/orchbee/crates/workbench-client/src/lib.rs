@@ -157,7 +157,8 @@ pub mod application {
         };
         #[cfg(windows)]
         pub use crate::local_activation::{
-            inside_selected_session, select_session, target_session_name,
+            activate_named_session, inside_selected_session, select_session,
+            session_client_endpoint, target_session_name,
         };
         pub use crate::startup_status::RefusedVersions;
     }

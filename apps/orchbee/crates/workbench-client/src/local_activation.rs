@@ -103,6 +103,41 @@ pub struct StartedSession {
 /// runtime-base/scope resolution, `prepare_mode_checked`, the derived
 /// socket-path budget check, then the activation loop.
 pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, ActivationFailure> {
+    activate(
+        deadline,
+        #[cfg(windows)]
+        windows_selection::location,
+    )
+}
+
+/// [`activate_local_session`] for the Session `name` rather than the invocation's selection, so one
+/// process can start several Sessions: the link helper serves one `ensure-session` per channel.
+#[cfg(windows)]
+pub fn activate_named_session(
+    name: &orchbee_local_runtime::SessionName,
+    deadline: Instant,
+) -> Result<StartedSession, ActivationFailure> {
+    activate(deadline, || windows_selection::location_of(Some(name)))
+}
+
+/// The Client endpoint of the existing Session `name` of this user and environment, found as a
+/// local Client finds it. A Session whose runtime folder is absent fails with `NotFound`.
+#[cfg(windows)]
+pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io::Result<PathBuf> {
+    let location = windows_selection::location_of(Some(name))?;
+    let scope = SessionScope::parse(location.scope()).map_err(io::Error::other)?;
+    let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&location.base, scope)
+        .map_err(|error| match error {
+            orchbee_local_runtime::RendezvousError::System { source, .. } => source,
+            other => io::Error::other(other),
+        })?;
+    Ok(session.client_socket_path().to_owned())
+}
+
+fn activate(
+    deadline: Instant,
+    #[cfg(windows)] locate: impl FnOnce() -> io::Result<windows_selection::Location>,
+) -> Result<StartedSession, ActivationFailure> {
     let cohort = Cohort::current_with_diagnostic(deadline).map_err(|error| {
         ActivationFailure::caused(
             failure(error.kind(), StartupFailure::Cohort),
@@ -110,7 +145,7 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
         )
     })?;
     #[cfg(windows)]
-    let selection = windows_selection::location().map_err(runtime_location_failure)?;
+    let selection = locate().map_err(runtime_location_failure)?;
     // The default base lives in the data root, which may not exist yet; an explicit
     // `ORCHBEE_RUNTIME_BASE` must already exist, as before.
     #[cfg(windows)]

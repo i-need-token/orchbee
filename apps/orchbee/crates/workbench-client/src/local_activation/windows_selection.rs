@@ -37,11 +37,13 @@ impl Location {
 /// The selected Session, spelled as its existing folder is, so `work` reaches the Session created
 /// as `Work` through the same runtime folder.
 pub(super) fn location() -> io::Result<Location> {
-    let mut location = resolve(
-        SELECTED.get().and_then(Option::as_ref),
-        routed_environment(),
-        default_base()?,
-    )?;
+    location_of(SELECTED.get().and_then(Option::as_ref))
+}
+
+/// The Session `selected` names, or the invocation's inherited or default one when absent, spelled
+/// as [`location`] spells it. The link helper names a Session per channel, not per invocation.
+pub(super) fn location_of(selected: Option<&SessionName>) -> io::Result<Location> {
+    let mut location = resolve(selected, routed_environment(), default_base()?)?;
     let root = orchbee_local_runtime::DataRoot::resolve(|key| std::env::var_os(key))
         .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?;
     location.name = orchbee_local_runtime::SessionCatalog::spelling(&root, &location.name)?;
