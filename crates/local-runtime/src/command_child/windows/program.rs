@@ -1,8 +1,20 @@
 //! Resolves a Windows command operand using its literal path, caller cwd, and absolute PATH
-//! entries with PATHEXT candidates. It returns a program path without starting a process or
-//! admitting an artifact as an Orchbee cohort executable.
+//! entries with PATHEXT candidates, and names programs that ship in the Windows system folder.
+//! It returns a program path without starting a process or admitting an artifact as an Orchbee
+//! cohort executable.
 
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
+
+/// The full path of a program that ships in the Windows system folder, such as `cmd.exe` or
+/// `WindowsPowerShell/v1.0/powershell.exe`. The folder comes from the operating system, never from
+/// `PATH` or `SystemRoot`, so a same-named program earlier on the search path cannot stand in.
+pub fn windows_system_program(relative: &str) -> io::Result<PathBuf> {
+    let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
+    Ok(PathBuf::from(system).join(relative))
+}
 
 pub fn resolve_windows_program(value: &str, cwd: &Path) -> PathBuf {
     let path = Path::new(value);

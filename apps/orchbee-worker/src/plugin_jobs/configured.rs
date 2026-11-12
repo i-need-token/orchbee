@@ -154,11 +154,9 @@ fn run(
     let shell = std::env::var_os("ComSpec")
         .filter(|path| std::path::Path::new(path).is_absolute())
         .or_else(|| {
-            std::env::var_os("SystemRoot").map(|root| {
-                std::path::PathBuf::from(root)
-                    .join("System32/cmd.exe")
-                    .into_os_string()
-            })
+            orchbee_local_runtime::windows_system_program("cmd.exe")
+                .ok()
+                .map(std::path::PathBuf::into_os_string)
         });
     let Some(shell) = shell else {
         let _delivered = spawned.send(Err(false));

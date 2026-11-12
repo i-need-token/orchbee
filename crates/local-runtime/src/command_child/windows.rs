@@ -12,7 +12,7 @@ use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
 mod capture;
 mod program;
 pub use capture::{run_windows_command, run_windows_command_exchange};
-pub use program::resolve_windows_program;
+pub use program::{resolve_windows_program, windows_system_program};
 
 enum Settlement {
     Running,

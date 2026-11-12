@@ -8,15 +8,16 @@ pub(in crate::local_terminal_service) fn launch(
     command: &str,
     environment: &[(String, String)],
 ) -> Result<LaunchSelection, Failure> {
-    let root = std::env::var_os("SystemRoot")
+    use orchbee_local_runtime::windows_system_program;
+    let shell = match std::env::var_os("ComSpec")
         .map(std::path::PathBuf::from)
         .filter(|path| path.is_absolute())
-        .ok_or(Failure::Unavailable)?;
-    let shell = std::env::var_os("ComSpec")
-        .map(std::path::PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .unwrap_or_else(|| root.join("System32/cmd.exe"));
-    let program = root.join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    {
+        Some(shell) => shell,
+        None => windows_system_program("cmd.exe").map_err(|_| Failure::Unavailable)?,
+    };
+    let program = windows_system_program("WindowsPowerShell/v1.0/powershell.exe")
+        .map_err(|_| Failure::Unavailable)?;
     let encoded = orchbee_local_runtime::windows_raw_command_encoded(
         shell.to_str().ok_or(Failure::Unavailable)?,
         command,

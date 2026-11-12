@@ -95,6 +95,12 @@ Linux-only and thread-scoped. Output pipes still close then, so a writer receive
 error. Unix tests cover root exit, cancellation, ignored `SIGTERM`, dropped owners and missing
 programs with a real descendant in the group.
 
+On Windows, a program Orchbee itself chooses from the system folder, such as `cmd.exe` or Windows
+PowerShell, is named by its full path from `windows_system_program`, which reads the folder from
+the operating system rather than from `PATH` or `SystemRoot`. A same-named program earlier on the
+search path, such as a tool manager's shim, cannot stand in for it. Programs the person chooses,
+such as an Agent, Git or a configured shell, keep their own resolution.
+
 ## Data root
 
 `DataRoot` is the one owner of every path in an environment's data root, the folder that holds

@@ -16,4 +16,5 @@ pub use unix::CommandChild;
 #[cfg(windows)]
 pub use windows::{
     CommandChild, resolve_windows_program, run_windows_command, run_windows_command_exchange,
+    windows_system_program,
 };
