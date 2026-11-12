@@ -10,12 +10,13 @@ const LOCK_EXTENSION: &str = "lock";
 const PENDING_EXTENSION: &str = "pending";
 
 /// Pins private cache ancestors and holds the cross-process writer lock of one record until
-/// dropped. The record's lock `<record>.lock` and staging file `<record>.pending` belong to this
-/// owner, not user inputs; both sit beside the record's files unless the owner keeps the lock
-/// elsewhere.
+/// dropped. The lock `<lock>.lock`, normally `<record>.lock`, and the staging file
+/// `<record>.pending` belong to this owner, not user inputs; both sit beside the record's files
+/// unless the owner keeps the lock elsewhere.
 pub struct PrivateCache {
     path: PathBuf,
     record: String,
+    lock: String,
     pending: PathBuf,
     _lock: File,
     _pins: Vec<File>,
@@ -44,6 +45,12 @@ impl PrivateCache {
     pub fn acquire(directory: &Path, record: &str) -> io::Result<Self> {
         Self::acquire_with_lock_in(directory, record, directory)
     }
+    /// Like [`Self::acquire`], but takes the folder's lock `<lock>.lock` instead of
+    /// `<record>.lock`, for a folder whose one writer lock guards more than this record:
+    /// `install` and `active` guard `active.json` with `install.lock` and `active.pending`.
+    pub fn acquire_with_lock(directory: &Path, lock: &str, record: &str) -> io::Result<Self> {
+        Self::acquire_parts(directory, record, directory, lock)
+    }
     /// Like [`Self::acquire`], but keeps the persistent lock in `lock_directory`, so a record in a
     /// folder a person reads gains only a staging file, and only while a write runs.
     pub(crate) fn acquire_with_lock_in(
@@ -51,14 +58,22 @@ impl PrivateCache {
         record: &str,
         lock_directory: &Path,
     ) -> io::Result<Self> {
-        if !valid_record(record) {
+        Self::acquire_parts(directory, record, lock_directory, record)
+    }
+    fn acquire_parts(
+        directory: &Path,
+        record: &str,
+        lock_directory: &Path,
+        lock_name: &str,
+    ) -> io::Result<Self> {
+        if !valid_record(record) || !valid_record(lock_name) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
         let mut pins = crate::data_root::create_state_directory(directory)?;
         if lock_directory != directory {
             pins.extend(crate::data_root::create_state_directory(lock_directory)?);
         }
-        let lock_path = lock_directory.join(format!("{record}.{LOCK_EXTENSION}"));
+        let lock_path = lock_directory.join(format!("{lock_name}.{LOCK_EXTENSION}"));
         let lock = match permissions::open_file(&lock_path, true, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -74,6 +89,7 @@ impl PrivateCache {
         let mut cache = Self {
             path: directory.to_owned(),
             record: record.to_owned(),
+            lock: lock_name.to_owned(),
             pending: directory.join(format!("{record}.{PENDING_EXTENSION}")),
             _lock: lock,
             _pins: pins,
@@ -150,9 +166,13 @@ impl PrivateCache {
     }
     /// The lock and staging file are this owner's, never a record a caller reads or replaces.
     fn require_unreserved(&self, name: &str) -> io::Result<()> {
-        let reserved = [LOCK_EXTENSION, PENDING_EXTENSION]
-            .iter()
-            .any(|extension| name.eq_ignore_ascii_case(&format!("{}.{extension}", self.record)));
+        let reserved = [
+            format!("{}.{LOCK_EXTENSION}", self.record),
+            format!("{}.{LOCK_EXTENSION}", self.lock),
+            format!("{}.{PENDING_EXTENSION}", self.record),
+        ]
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved));
         if reserved {
             Err(io::ErrorKind::InvalidInput.into())
         } else {

@@ -12,8 +12,7 @@ use std::{
 
 mod state;
 mod version_record;
-pub(crate) use version_record::compare_product_versions;
-pub use version_record::{LAYOUT, LayoutRefusal, PRODUCT_VERSION};
+pub use version_record::{LAYOUT, LayoutRefusal, PRODUCT_VERSION, compare_product_versions};
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]

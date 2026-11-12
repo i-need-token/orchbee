@@ -150,9 +150,9 @@ pub(crate) fn newer_product_version(candidate: &str, than: &str) -> bool {
     }
 }
 
-/// Orders two product versions by [`newer_product_version`]'s precedence; a version that cannot be
-/// read orders below every readable one.
-pub(crate) fn compare_product_versions(left: &str, right: &str) -> Ordering {
+/// Orders two product versions by SemVer precedence with build metadata ignored, as
+/// [`newer_product_version`] does; a version that cannot be read orders below every readable one.
+pub fn compare_product_versions(left: &str, right: &str) -> Ordering {
     match (Precedence::parse(left), Precedence::parse(right)) {
         (Some(left), Some(right)) => left.cmp(&right),
         (Some(_), None) => Ordering::Greater,

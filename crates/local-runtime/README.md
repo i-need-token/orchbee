@@ -168,7 +168,9 @@ read, and every process that opens a root calls it before any other read: the Cl
 dispatches any command that opens the root, and the Server and Worker before their first log
 record. The first writer of each process also refuses such a root before it creates anything, and
 raises `newestVersion` to `PRODUCT_VERSION` under `internal/version.lock` when the record names an
-older version, using Semantic Versioning precedence, so a refusal can name the newest version. Nothing migrates or removes what an earlier build
+older version, using Semantic Versioning precedence, so a refusal can name the newest version.
+`compare_product_versions` exposes that one precedence; the release store's lower-version refusal
+uses it too. Nothing migrates or removes what an earlier build
 left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee` (its Session catalogs, checkpoints, TUI
 positions and audit log), `internal/session-catalog/`, `internal/native-sessions/` and
 `internal/tui-position/` of a development or test root, the `%TEMP%\orchbee-native-*` and
@@ -1085,7 +1087,9 @@ Removal deletes only an admitted leaf under the writer lock; an absent leaf is a
 The caller names the record: `<record>.lock` beside it is the persistent writer lock and
 `<record>.pending` the one owned staging leaf, removed after settlement or recovered under the next
 exclusive lock. Both names are reserved and refused as leaves; another record in the same folder
-locks independently. The default settings file keeps its lock in `internal/config.lock`, so its
+locks independently. `acquire_with_lock` names the lock separately, for a folder whose one writer
+lock guards more than the record: the release store's `install.lock` guards `active.json`, staged
+in `active.pending`. The default settings file keeps its lock in `internal/config.lock`, so its
 folder gains only `config.pending` while a write runs. `prepare` creates a private folder without a
 lock, for a folder whose contents another program owns. Cleanup failures are returned, never converted into successful publication.
 Applications own what each record holds; this adapter alone implements no update policy.
