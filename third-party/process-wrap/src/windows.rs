@@ -246,7 +246,9 @@ pub(crate) fn wait_on_job(
 	completion_port: PortHandle,
 	timeout: Option<Duration>,
 ) -> Result<ControlFlow<()>> {
+	const QUEUED_NOTIFICATION_BOUND: u32 = 64;
 	let started = std::time::Instant::now();
+	let mut drained_after_timeout = 0;
 	loop {
 		let mut code: u32 = 0;
 		let mut key: usize = 0;
@@ -286,8 +288,14 @@ pub(crate) fn wait_on_job(
 		if code == 4 && key != 0 {
 			return Ok(ControlFlow::Break(()));
 		}
+		// Past the timeout, keep reading only notifications already queued: the next read
+		// waits zero milliseconds, so an empty port returns at once. The bound keeps a Job
+		// that starts processes without pause from holding this call indefinitely.
 		if timeout.is_some_and(|limit| started.elapsed() >= limit) {
-			return Ok(ControlFlow::Continue(()));
+			drained_after_timeout += 1;
+			if drained_after_timeout > QUEUED_NOTIFICATION_BOUND {
+				return Ok(ControlFlow::Continue(()));
+			}
 		}
 	}
 }

@@ -1,5 +1,8 @@
 //! Canonical Workspace Git reads fenced around a settled Worker discovery job.
-use super::LocalTerminalService;
+use super::{
+    LocalTerminalService,
+    worktree_list::{WORKTREE_JOB_MAXIMUM_REQUESTS, worktree_job_poll_pause},
+};
 use crate::worker_obcn_carrier::{ExchangeWait, WorkerOperationResult, WorkerRequestHandle};
 use orchbee_capability_node_protocol as node;
 use orchbee_workbench_protocol::{
@@ -141,18 +144,15 @@ impl Driver {
         }
         let job = result.job_id;
         self.job = Some(job);
-        for _ in 0..100 {
+        let started = Instant::now();
+        for _ in 1..WORKTREE_JOB_MAXIMUM_REQUESTS {
             if Instant::now() >= deadline {
                 return Err(Failure::Timeout);
             }
             let result = self.call(node::WorktreeJobAction::Poll { job_id: job }, deadline)?;
             match result.outcome {
                 node::WorktreeJobOutcome::Poll(node::WorktreeJobPollOutcome::Pending) => {
-                    std::thread::sleep(
-                        deadline
-                            .saturating_duration_since(Instant::now())
-                            .min(Duration::from_millis(50)),
-                    )
+                    std::thread::sleep(worktree_job_poll_pause(started, deadline))
                 }
                 node::WorktreeJobOutcome::Poll(node::WorktreeJobPollOutcome::StatusCompleted {
                     status,

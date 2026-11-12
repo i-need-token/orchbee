@@ -8,6 +8,7 @@ use std::{
 
 use ::windows::Win32::System::Threading::CREATE_NO_WINDOW;
 use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
+use winsafe::{HPROCESS, co};
 
 mod capture;
 mod program;
@@ -73,6 +74,29 @@ impl CommandChild {
         self.settle().map(Some)
     }
 
+    /// Waits at most `timeout` for the root process to exit and wakes at that exit. It reports
+    /// root exit only: `try_wait` still owns the Job settlement and the exit status.
+    pub fn wait_root_exit(&mut self, timeout: Duration) -> io::Result<bool> {
+        if !matches!(self.settlement, Settlement::Running) {
+            return Ok(true);
+        }
+        self.wait_root(timeout)
+    }
+
+    fn wait_root(&mut self, timeout: Duration) -> io::Result<bool> {
+        if self.child.inner_mut().try_wait()?.is_some() {
+            return Ok(true);
+        }
+        // The retained root handle keeps this process ID from being reused while we wait.
+        let root = HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, self.child.id())
+            .map_err(io::Error::other)?;
+        let milliseconds = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX - 1);
+        Ok(root
+            .WaitForSingleObject(Some(milliseconds))
+            .map_err(io::Error::other)?
+            == co::WAIT::OBJECT_0)
+    }
+
     /// Terminates remaining members, then observes the corrected wrapper's
     /// root-and-Job completion with a bounded cleanup budget.
     pub fn settle(&mut self) -> io::Result<ExitStatus> {
@@ -85,6 +109,7 @@ impl CommandChild {
         self.settlement = Settlement::Failed;
         self.child.start_kill()?;
         let deadline = Instant::now() + Duration::from_secs(5);
+        let mut root_exited = false;
         loop {
             if let Some(status) = self.child.try_wait()? {
                 self.settlement = Settlement::Complete(status);
@@ -94,7 +119,13 @@ impl CommandChild {
             if remaining.is_zero() {
                 return Err(io::ErrorKind::TimedOut.into());
             }
-            thread::sleep(remaining.min(Duration::from_millis(10)));
+            // Sleep only while the Job's final notification trails the root's exit; each
+            // read drains every notification already queued.
+            if root_exited {
+                thread::sleep(remaining.min(Duration::from_millis(1)));
+            } else {
+                root_exited = self.wait_root(remaining)?;
+            }
         }
     }
 }

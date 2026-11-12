@@ -81,7 +81,9 @@ The pure Windows command encoder is shared by CLI Agent start and Server restart
 bound output, deadlines and cancellation; the owner gives them one contract: `try_wait` reports a
 status only after every owned process has ended, `settle` ends them all within five seconds or
 fails, a failed settlement never later turns into a status, and spawn failure says whether a
-process was created. Drop starts termination and never waits.
+process was created. Drop starts termination and never waits. On Windows, settlement and
+`wait_root_exit` wake when the root process exits instead of sleeping in steps; `wait_root_exit`
+reports root exit only and leaves the status to `try_wait`.
 
 | Platform | Ownership                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

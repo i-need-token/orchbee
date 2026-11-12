@@ -185,7 +185,8 @@ struct SpawnedChild {
 }
 
 struct JobCommands {
-    source: Option<CommandSpec>,
+    /// The probe prints the checkout root on a second line after the common directory.
+    source: bool,
     probe: CommandSpec,
     list: Option<CommandSpec>,
     status: bool,
@@ -226,7 +227,7 @@ struct JobWitness {
 fn git_commands(directory: &Path) -> JobCommands {
     let directory: OsString = directory.as_os_str().to_owned();
     JobCommands {
-        source: None,
+        source: false,
         probe: CommandSpec {
             git_context: None,
             program: "git".into(),
@@ -263,13 +264,15 @@ fn source_commands(directory: &Path, trust: bool) -> JobCommands {
         program: crate::git_repository::GIT_PROGRAM.into(),
         args: args.iter().map(OsString::from).collect(),
     };
+    // One Git start answers both questions: every start pays for process creation.
     JobCommands {
-        probe: git(&["rev-parse", "--path-format=absolute", "--git-common-dir"]),
-        source: Some(git(&[
+        probe: git(&[
             "rev-parse",
             "--path-format=absolute",
+            "--git-common-dir",
             "--show-toplevel",
-        ])),
+        ]),
+        source: true,
         list: Some(git(&["worktree", "list", "--porcelain", "-z"])),
         status: false,
         test_hooks: None,
@@ -278,7 +281,7 @@ fn source_commands(directory: &Path, trust: bool) -> JobCommands {
 
 fn status_commands(directory: &Path) -> JobCommands {
     JobCommands {
-        source: None,
+        source: false,
         probe: CommandSpec {
             git_context: Some((directory.to_owned(), false)),
             program: crate::git_repository::GIT_PROGRAM.into(),
@@ -547,11 +550,9 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
     let mut stderr = Vec::new();
     let mut probe_stdout: Option<Vec<u8>> = None;
     let mut list_stdout: Option<Vec<u8>> = None;
-    let mut source_stdout: Option<Vec<u8>> = None;
-    for (stage, spec, source) in [
-        (Stage::Probe, Some(&commands.probe), false),
-        (Stage::Probe, commands.source.as_ref(), true),
-        (Stage::List, commands.list.as_ref(), false),
+    for (stage, spec) in [
+        (Stage::Probe, Some(&commands.probe)),
+        (Stage::List, commands.list.as_ref()),
     ] {
         let Some(spec) = spec else { continue };
         if cancel.load(Ordering::Relaxed) {
@@ -604,7 +605,6 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
             } => {
                 if status_code == Some(0) {
                     match stage {
-                        Stage::Probe if source => source_stdout = Some(stdout),
                         Stage::Probe => probe_stdout = Some(stdout),
                         Stage::List => list_stdout = Some(stdout),
                     }
@@ -631,9 +631,10 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
             stderr,
         });
     }
-    if let Some(source_checkout) = source_stdout {
+    if commands.source {
+        let (common_dir, source_checkout) = split_source(probe_stdout.unwrap_or_default());
         return owner_report(JobOutcome::SourceCompleted {
-            common_dir: probe_stdout.unwrap_or_default(),
+            common_dir,
             source_checkout,
             listing: list_stdout.unwrap_or_default(),
             stderr,
@@ -644,6 +645,17 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
         listing: list_stdout.unwrap_or_default(),
         stderr,
     })
+}
+
+/// Splits the probe after its first line feed, which each part keeps. Output without a second
+/// line leaves the checkout empty, which the Server rejects as a malformed listing.
+fn split_source(mut stdout: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
+    let checkout = stdout
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map(|end| stdout.split_off(end + 1))
+        .unwrap_or_default();
+    (stdout, checkout)
 }
 
 fn owner_report(outcome: JobOutcome) -> OwnerReport {
@@ -881,7 +893,19 @@ fn drain_child(spawned: SpawnedChild, ctx: &mut StageCtx<'_>) -> StageEnd {
         if out.is_none() && err.is_none() {
             // Both pipes at EOF but try_wait saw no exit yet; loop back
             // so try_wait is re-observed instead of blocking on pipes.
+            #[cfg(unix)]
             thread::sleep(POLL_SLICE);
+            // Windows wakes at the root's exit instead of sleeping a whole slice.
+            #[cfg(windows)]
+            if child.wait_root_exit(remaining.min(POLL_SLICE)).is_err() {
+                return kill_reap(
+                    child,
+                    out.take(),
+                    err.take(),
+                    JobOutcome::OwnerIo { stage: Some(stage) },
+                    hooks,
+                );
+            }
         }
     }
 }

@@ -1122,9 +1122,11 @@ reply waits. The sole wire owner consumes and validates late replies even after
 the reader returns. An admitted Start keeps its exact operation/job identity for
 Cancel even when acceptance arrives late. Foreground readers may retry only a
 definite `Busy` Start refusal while an abandoned physical job settles, with fresh
-operation IDs, at most 50 ms between attempts and no deadline renewal. Starts and
-polls share a 101-request bound within the reserved 128-identity block, with room
-for cancellation. Accepted starts, unknown outcomes and Git mutations are never
+operation IDs and no deadline renewal. Each retry or poll waits a quarter of the time
+the reader has run, from 2 ms up to 50 ms, so a Git job of tens of milliseconds is
+seen within a few milliseconds of finishing. Starts and polls share a 120-request
+bound within the reserved 128-identity block, with room for cancellation; the
+schedule spends about 113 of them across the five seconds. Accepted starts, unknown outcomes and Git mutations are never
 replayed. Physical cleanup and progress still depend on the existing Worker TTL,
 carrier and process scheduling; this policy does not promise successful reads
 after a Worker loss or a deadline exhausted by an earlier job.

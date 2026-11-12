@@ -18,7 +18,9 @@ corrections introduce no unsafe block or change to the authored unsafe-code poli
 The upstream Windows completion-port reader accepts any Job notification as
 completion. The correction waits for `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` (code 4)
 from the private Job port, propagates API errors, and respects the original timeout
-across unrelated notifications. The standard child caches its exit status only after
+across unrelated notifications. Once that timeout has passed, including a zero timeout, it
+still reads the notifications already queued, up to a bound of 64, so one nonblocking poll
+observes a completion that is already queued behind process start and exit notices. The standard child caches its exit status only after
 that event. Its nonblocking poll reports `None` until root and Job exit both hold,
 then returns the retained result without consuming another notification.
 

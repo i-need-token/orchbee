@@ -27,7 +27,7 @@ fn shell(script: &str) -> CommandSpec {
 
 fn commands(probe: &str, list: &str) -> JobCommands {
     JobCommands {
-        source: None,
+        source: false,
         probe: shell(probe),
         list: Some(shell(list)),
         status: false,

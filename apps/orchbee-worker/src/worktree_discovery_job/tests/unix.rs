@@ -31,7 +31,7 @@ fn sh(script: &str) -> super::super::CommandSpec {
 
 fn commands(probe: &str, list: &str) -> super::super::JobCommands {
     super::super::JobCommands {
-        source: None,
+        source: false,
         probe: sh(probe),
         list: Some(sh(list)),
         status: false,
@@ -309,7 +309,7 @@ fn owner_deadline_is_shared_across_both_commands() -> TestResult {
 fn spawn_unavailable_is_distinct_from_other_failures() -> TestResult {
     let slot = WorktreeDiscoverySlot::new();
     let cmds = super::super::JobCommands {
-        source: None,
+        source: false,
         probe: super::super::CommandSpec {
             git_context: None,
             program: OsString::from("/nonexistent-orchbee-fixture"),

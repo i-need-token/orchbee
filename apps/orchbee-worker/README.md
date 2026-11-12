@@ -193,7 +193,8 @@ Explicit-endpoint mode retains its existing two-peer readiness semantics.
 The serialized request loop admits OBCN worktree-job requests (start/poll/cancel) for the
 `worktree list` Server flow both before the first Launch and after Host admission. One process-level slot runs one discovery job at a time — a
 `git rev-parse --path-format=absolute --git-common-dir` probe followed by `git worktree list
---porcelain -z` inside the Server-supplied directory — under a fixed five-second TTL counted
+--porcelain -z` inside the Server-supplied directory; a source query adds `--show-toplevel`
+to the same probe and splits its two lines, so one Git start answers both — under a fixed five-second TTL counted
 from admission and one shared 64 KiB stdout budget across both stages; the stage that crosses
 the combined budget owns the `too-large` attribution. Every request is fenced by the exact
 `{workerId, generation, jobId}` tuple and answers a typed result frame; `rejected-fencing`,

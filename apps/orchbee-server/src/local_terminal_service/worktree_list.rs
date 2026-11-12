@@ -23,11 +23,22 @@ use crate::worker_obcn_carrier::{
 use super::LocalTerminalService;
 
 const SERVER_WORKTREE_LIST_BUDGET: Duration = Duration::from_secs(5);
-const WORKTREE_LIST_POLL_INTERVAL: Duration = Duration::from_millis(50);
+const WORKTREE_JOB_FIRST_POLL: Duration = Duration::from_millis(2);
+const WORKTREE_JOB_LAST_POLL: Duration = Duration::from_millis(50);
 // Starts (including definite Busy refusals) and polls share this bound, leaving
-// room in the reserved identity block for exact-job cancellation.
-const WORKTREE_LIST_MAXIMUM_REQUESTS: u32 = 101;
+// room in the reserved identity block for exact-job cancellation. The poll
+// schedule spends about 113 requests across the whole budget.
+pub(super) const WORKTREE_JOB_MAXIMUM_REQUESTS: u32 = 120;
 const WORKTREE_LIST_IDENTITY_RESERVE: u128 = 128;
+
+/// The pause before the next poll of a Worker job: a quarter of the time the job has
+/// run, so a short Git job is seen within a few milliseconds of finishing and a slow
+/// one costs few requests. The Worker cannot signal completion without a protocol change.
+pub(super) fn worktree_job_poll_pause(started: Instant, deadline: Instant) -> Duration {
+    (started.elapsed() / 4)
+        .clamp(WORKTREE_JOB_FIRST_POLL, WORKTREE_JOB_LAST_POLL)
+        .min(deadline.saturating_duration_since(Instant::now()))
+}
 
 #[derive(Default)]
 struct DiscoveryAdmission {
@@ -165,6 +176,7 @@ struct JobDriver {
     directory_path: Vec<u8>,
     requests: u32,
     job: Option<OperationId>,
+    started: Instant,
 }
 
 impl JobDriver {
@@ -188,7 +200,7 @@ impl JobDriver {
         action: WorktreeJobAction,
         operation_id: OperationId,
     ) -> Result<WorkerOperationResult, JobFailure> {
-        if self.expired() || self.requests >= WORKTREE_LIST_MAXIMUM_REQUESTS {
+        if self.expired() || self.requests >= WORKTREE_JOB_MAXIMUM_REQUESTS {
             return Err(JobFailure::Timeout);
         }
         self.requests += 1;
@@ -290,11 +302,7 @@ impl JobDriver {
     }
 
     fn pause(&self) {
-        sleep(
-            self.deadline
-                .saturating_duration_since(Instant::now())
-                .min(WORKTREE_LIST_POLL_INTERVAL),
-        );
+        sleep(worktree_job_poll_pause(self.started, self.deadline));
     }
 
     fn poll(&mut self, job_id: OperationId) -> Result<PollStep, JobFailure> {
@@ -356,6 +364,7 @@ pub(super) fn discover_source(
         directory_path,
         requests: 0,
         job: None,
+        started: Instant::now(),
     }
     .execute(Some(trust))
 }
@@ -410,6 +419,7 @@ impl LocalTerminalService {
             directory_path: target.directory.path.as_str().as_bytes().to_vec(),
             requests: 0,
             job: None,
+            started: Instant::now(),
         };
 
         match driver.execute(None) {
