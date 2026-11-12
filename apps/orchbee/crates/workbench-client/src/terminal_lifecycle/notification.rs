@@ -1,17 +1,15 @@
-//! Shared notification framing; host admission and physical output belong to the OS port.
-use crate::{notifications::terminal, terminal_device::InheritedTerminal};
+//! Outer-terminal notification framing from the terminal capability variables, written through
+//! the already admitted output on every platform.
+use crate::{
+    notifications::terminal::{self, Host},
+    terminal_device::InheritedTerminal,
+};
 use orchbee_workbench_protocol::Notification;
-use std::io;
-
-#[cfg(windows)]
-#[path = "notification/windows.rs"]
-mod platform;
-#[cfg(not(windows))]
-#[path = "notification/unix.rs"]
-mod platform;
+use std::io::{self, Write as _};
 
 pub(super) fn send(terminal: &InheritedTerminal, message: &Notification) -> io::Result<()> {
-    let host = platform::host()?;
-    let bytes = terminal::sequence(message, &host)?;
-    platform::write(terminal, &bytes)
+    let bytes = terminal::sequence(message, &Host::detect(|name| std::env::var_os(name)))?;
+    let mut output = terminal.output()?;
+    output.write_all(&bytes)?;
+    output.flush()
 }

@@ -1,5 +1,6 @@
 //! Pane effect intake and post-flush dispatch through one lifecycle-owned FIFO.
 use super::{ClientProjectionStatus, WorkbenchClientUi};
+use crate::terminal_input::ModeRequest;
 use crate::workbench_client::terminal_effects::{Kind, Outcome, Payload, Scope};
 use crate::workbench_state::ClientNotice;
 use std::io;
@@ -130,7 +131,12 @@ impl WorkbenchClientUi {
             && let Some(job) = self.effects.dispatch()
         {
             match job.kind() {
-                Kind::Clipboard => self.clipboard.submit(job),
+                // A clipboard route through the outer terminal hands the job back for its writer.
+                Kind::Clipboard => {
+                    if let Some(job) = self.clipboard.submit(job) {
+                        self.terminal_effect = Some(job);
+                    }
+                }
                 Kind::Bell => self.terminal_effect = Some(job),
             }
         }
@@ -138,7 +144,7 @@ impl WorkbenchClientUi {
 
     pub(in crate::workbench_client) fn deliver_terminal_effect(
         &mut self,
-        emit_bell: &mut dyn FnMut() -> io::Result<()>,
+        emit: &mut dyn FnMut(ModeRequest) -> io::Result<()>,
     ) -> io::Result<()> {
         self.reconcile_effects();
         let Some(job) = self.terminal_effect.take() else {
@@ -147,7 +153,10 @@ impl WorkbenchClientUi {
         if !job.begin() {
             return Ok(());
         }
-        let result = emit_bell();
+        let result = emit(match job.text() {
+            Some(text) => ModeRequest::Clipboard(text.to_owned()),
+            None => ModeRequest::Bell,
+        });
         job.settle(if result.is_ok() {
             Outcome::Delivered
         } else {

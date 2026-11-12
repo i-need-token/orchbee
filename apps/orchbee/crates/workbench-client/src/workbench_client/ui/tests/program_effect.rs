@@ -104,7 +104,7 @@ fn program_effect_before_first_frame_survives_starting_and_uses_no_feedback() {
         }
         ui.after_draw();
         let mut bells = 0;
-        ui.deliver_terminal_effect(&mut || {
+        ui.deliver_terminal_effect(&mut |_| {
             bells += 1;
             Ok(())
         })
@@ -135,7 +135,7 @@ fn bell_delivery_is_once_and_projection_retirement_cancels_before_dispatch() {
             if cancel_before {
                 ui.clear_projections();
             }
-            let mut emit = || {
+            let mut emit = |_: crate::terminal_input::ModeRequest| {
                 attempts += 1;
                 if fail_write {
                     Err(io::ErrorKind::BrokenPipe.into())
@@ -164,7 +164,7 @@ fn bell_delivery_is_once_and_projection_retirement_cancels_before_dispatch() {
             );
             assert!(!ui.effects.has_pending());
             ui.after_draw();
-            ui.deliver_terminal_effect(&mut || panic!("a settled effect must never replay"))
+            ui.deliver_terminal_effect(&mut |_| panic!("a settled effect must never replay"))
                 .unwrap();
         }
     }

@@ -3,20 +3,27 @@ use super::Locale;
 use crate::host_capabilities::Capability;
 
 impl Locale {
+    /// A session-dependent adapter refuses for this session (no desktop, a remote login, or an
+    /// outer terminal without the feature), not for the platform.
     pub(crate) fn unsupported_capability(self, capability: Capability) -> String {
         let name = self.capability_name(capability);
-        match self {
-            Self::EnUs => format!("{name} is not supported on this platform"),
-            Self::ZhCn => format!("此平台尚不支持{name}"),
+        match (self, capability.session_dependent()) {
+            (Self::EnUs, false) => format!("{name} is not supported on this platform"),
+            (Self::ZhCn, false) => format!("此平台尚不支持{name}"),
+            (Self::EnUs, true) => format!("{name} isn't available in this session"),
+            (Self::ZhCn, true) => format!("当前会话不支持{name}"),
         }
     }
 
-    /// The status line's shorter form of the refusal, which leaves the platform implied.
+    /// The status line's shorter form of the refusal, which leaves the platform or session
+    /// implied.
     pub(crate) fn unsupported_capability_shorter(self, capability: Capability) -> String {
         let name = self.capability_name(capability);
-        match self {
-            Self::EnUs => format!("{name} not supported"),
-            Self::ZhCn => format!("不支持{name}"),
+        match (self, capability.session_dependent()) {
+            (Self::EnUs, false) => format!("{name} not supported"),
+            (Self::ZhCn, false) => format!("不支持{name}"),
+            (Self::EnUs, true) => format!("{name} unavailable"),
+            (Self::ZhCn, true) => format!("{name}不可用"),
         }
     }
 

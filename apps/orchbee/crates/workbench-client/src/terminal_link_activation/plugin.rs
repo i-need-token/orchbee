@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use orchbee_local_runtime::{PluginRegistry, PluginRegistryEntry};
+use orchbee_local_runtime::{PluginRegistry, PluginRegistryEntry, PluginRegistryError};
 use orchbee_workbench_protocol::{
     PluginAction, PluginFailure, PluginInvocationContext, PluginLinkCatalogGuard, PluginOutcome,
     PluginRequest, PluginWorker, Snapshot, WorkbenchRequestId,
@@ -291,8 +291,42 @@ pub fn select<G: Guard>(
     deadline: Instant,
     guard: &mut G,
 ) -> Result<SelectionSnapshot, Error<G::Error>> {
+    select_in(url, deadline, guard, false)
+}
+
+/// Selection for the Client's own link clicks. A build without plugin storage holds no handler to
+/// prefer, so its selection is a definite none under one fixed empty catalog and the browser
+/// route stays open; every other registry fault still refuses. Command-line selection keeps
+/// reporting the missing store.
+pub(crate) fn select_click<G: Guard>(
+    url: &str,
+    deadline: Instant,
+    guard: &mut G,
+) -> Result<SelectionSnapshot, Error<G::Error>> {
+    select_in(url, deadline, guard, true)
+}
+
+fn select_in<G: Guard>(
+    url: &str,
+    deadline: Instant,
+    guard: &mut G,
+    storeless_selects_none: bool,
+) -> Result<SelectionSnapshot, Error<G::Error>> {
     guard.check(deadline).map_err(Error::Gate)?;
-    let catalog = registry()?
+    let registry = match PluginRegistry::from_environment(|name| std::env::var_os(name)) {
+        Ok(registry) => registry,
+        Err(PluginRegistryError::Unsupported) if storeless_selects_none => {
+            return Ok(SelectionSnapshot {
+                selection: None,
+                catalog: PluginLinkCatalogGuard {
+                    revision: 0,
+                    fingerprint: String::new(),
+                },
+            });
+        }
+        Err(_) => return Err(Error::RegistryUnavailable),
+    };
+    let catalog = registry
         .list_registered()
         .map_err(|_| Error::RegistryUnavailable)?;
     let mut selection = select_entries(&catalog.plugins, url, || guard.check(deadline))?;

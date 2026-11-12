@@ -1,12 +1,23 @@
 //! Pure host selection and bounded OSC payload construction; lifecycle owns writes.
 use orchbee_workbench_protocol::Notification;
 
-/// Frozen host facts supplied only after the terminal-notification capability is admitted.
+/// Outer-terminal facts that select the notification sequence.
 pub(crate) struct Host {
     pub(crate) program: Option<String>,
     pub(crate) term: Option<String>,
     pub(crate) kitty: bool,
     pub(crate) tmux: bool,
+}
+impl Host {
+    /// The outer terminal named by the terminal capability variables.
+    pub(crate) fn detect(env: impl Fn(&str) -> Option<std::ffi::OsString>) -> Self {
+        Self {
+            program: env("TERM_PROGRAM").and_then(|value| value.into_string().ok()),
+            term: env("TERM").and_then(|value| value.into_string().ok()),
+            kitty: env("KITTY_WINDOW_ID").is_some(),
+            tmux: env("TMUX").is_some(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,6 +38,11 @@ fn backend(program: Option<&str>, term: Option<&str>, kitty: bool) -> Option<Bac
         Some(value) if value.contains("wezterm") => Some(Backend::Osc9),
         _ => None,
     }
+}
+/// Whether `sequence` can frame a notification for this host.
+#[cfg(not(windows))]
+pub(crate) fn admits(host: &Host) -> bool {
+    backend(host.program.as_deref(), host.term.as_deref(), host.kitty).is_some()
 }
 pub(crate) fn sequence(message: &Notification, host: &Host) -> std::io::Result<Vec<u8>> {
     let selected = backend(host.program.as_deref(), host.term.as_deref(), host.kitty)

@@ -385,7 +385,7 @@ fn execute(
     if plugin::validate_url::<()>(url).is_err() {
         return Notice::Failed;
     }
-    let selection = match plugin::select(url, job.deadline, &mut guard) {
+    let selection = match plugin::select_click(url, job.deadline, &mut guard) {
         Ok(selection) => selection,
         Err(_) => return Notice::Failed,
     };
@@ -473,7 +473,7 @@ fn execute(
         None if browser_url(url) => {
             if guard.check(job.deadline).is_err() {
                 Notice::Failed
-            } else if let Ok(current) = plugin::select(url, job.deadline, &mut guard) {
+            } else if let Ok(current) = plugin::select_click(url, job.deadline, &mut guard) {
                 // No-handler is an effect-handoff fact. A newly matching
                 // entry or any catalog publication refuses the browser route
                 // instead of bypassing frozen plugin priority.

@@ -190,10 +190,10 @@ impl super::super::TerminalSurface for Surface {
     }
     fn deliver_terminal_effect(
         &mut self,
-        bell: &mut dyn FnMut() -> io::Result<()>,
+        emit: &mut dyn FnMut(ModeRequest) -> io::Result<()>,
     ) -> io::Result<()> {
         if std::mem::take(&mut self.pending) {
-            bell()?;
+            emit(ModeRequest::Bell)?;
         }
         Ok(())
     }

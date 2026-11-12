@@ -23,9 +23,10 @@ impl Writer {
         Self::default()
     }
 
-    pub(in crate::workbench_client) fn submit(&mut self, job: Job) {
+    /// Every job stays with this owner; none is handed back for the outer terminal.
+    pub(in crate::workbench_client) fn submit(&mut self, job: Job) -> Option<Job> {
         if self.stop.load(Ordering::Acquire) {
-            return;
+            return None;
         }
         if self.sender.is_none() {
             let (sender, receiver) = mpsc::sync_channel(1);
@@ -33,7 +34,7 @@ impl Writer {
             let Ok(task) =
                 BackgroundThread::spawn("orchbee-clipboard", move || run(receiver, stop, deliver))
             else {
-                return;
+                return None;
             };
             self.task = task;
             self.sender = Some(sender);
@@ -43,6 +44,7 @@ impl Writer {
             .as_ref()
             .expect("initialized sender")
             .try_send(job);
+        None
     }
     pub(in crate::workbench_client) fn close(&mut self) {
         self.request_stop();

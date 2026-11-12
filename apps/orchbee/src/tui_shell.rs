@@ -447,6 +447,7 @@ fn run_prepared_surface(
             let started = measurements.start();
             let result = match request {
                 ModeRequest::Bell => modes.ring_bell(),
+                ModeRequest::Clipboard(text) => modes.write_clipboard(&text),
                 ModeRequest::HostBackground(rgb) => {
                     if host_background_admitted {
                         modes.set_host_background(rgb)
@@ -461,6 +462,9 @@ fn run_prepared_surface(
                     use orchbee_local_runtime::NotificationDelivery as Delivery;
                     let result = match effect.delivery {
                         Delivery::Terminal => modes.notify_terminal(&effect.message),
+                        Delivery::System if system_notifications.through_terminal() => {
+                            modes.notify_terminal(&effect.message)
+                        }
                         Delivery::System => system_notifications.submit(effect.message.clone()),
                         Delivery::Off | Delivery::Tui => Ok(()),
                     };
@@ -1291,7 +1295,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     surface.after_close_draw(receipt);
     surface.after_draw();
     surface
-        .deliver_terminal_effect(&mut || mode(ModeRequest::Bell))
+        .deliver_terminal_effect(&mut |request| mode(request))
         .map_err(LoopFailure::Input)?;
     Ok(pointer_projection_redraw)
 }
@@ -1538,7 +1542,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     }
     fn deliver_terminal_effect(
         &mut self,
-        _emit_bell: &mut dyn FnMut() -> io::Result<()>,
+        _emit: &mut dyn FnMut(ModeRequest) -> io::Result<()>,
     ) -> io::Result<()> {
         Ok(())
     }
@@ -1667,9 +1671,9 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     }
     fn deliver_terminal_effect(
         &mut self,
-        emit_bell: &mut dyn FnMut() -> io::Result<()>,
+        emit: &mut dyn FnMut(ModeRequest) -> io::Result<()>,
     ) -> io::Result<()> {
-        self.deliver_terminal_effect(emit_bell)
+        self.deliver_terminal_effect(emit)
     }
     fn observe_panes(
         &mut self,

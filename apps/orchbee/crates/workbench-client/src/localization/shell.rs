@@ -250,7 +250,28 @@ impl Locale {
     }
 
     pub const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
+        use crate::host_capabilities::Capability;
         match (self, notice) {
+            (Self::EnUs, Some(Notice::NotificationUnsupported))
+                if Capability::SystemNotification.session_dependent() =>
+            {
+                "Host notification delivery isn't available in this session"
+            }
+            (Self::ZhCn, Some(Notice::NotificationUnsupported))
+                if Capability::SystemNotification.session_dependent() =>
+            {
+                "当前会话不支持宿主通知投递"
+            }
+            (Self::EnUs, Some(Notice::WindowTitleUnsupported))
+                if Capability::WindowTitle.session_dependent() =>
+            {
+                "Setting the host window title isn't available in this session"
+            }
+            (Self::ZhCn, Some(Notice::WindowTitleUnsupported))
+                if Capability::WindowTitle.session_dependent() =>
+            {
+                "当前会话不支持设置宿主窗口标题"
+            }
             (Self::EnUs, Some(Notice::NotificationUnsupported)) => {
                 "Host notification delivery is not supported on this platform"
             }
@@ -535,12 +556,25 @@ impl Locale {
                 "Settings file can't be used · using last values",
                 "无法使用设置文件 · 继续使用上次有效的设置",
             ),
+            Notice::WindowTitleUnsupported
+                if crate::host_capabilities::Capability::WindowTitle.session_dependent() =>
+            {
+                (
+                    "Setting the host window title unavailable",
+                    "无法设置宿主窗口标题",
+                )
+            }
             Notice::WindowTitleUnsupported => (
                 "Setting the host window title not supported",
                 "不支持设置宿主窗口标题",
             ),
             Notice::NotificationUnavailable => {
                 ("Notification transport unavailable", "通知投递方式不可用")
+            }
+            Notice::NotificationUnsupported
+                if crate::host_capabilities::Capability::SystemNotification.session_dependent() =>
+            {
+                ("Host notification delivery unavailable", "无法投递宿主通知")
             }
             Notice::NotificationUnsupported => (
                 "Host notification delivery not supported",

@@ -43,20 +43,24 @@ and SSH-guard retirement scheduling keep their original cadence.
 
 ## Current adapters
 
-| Responsibility                                                                       | Windows                                      | Linux and macOS                     |
-| ------------------------------------------------------------------------------------ | -------------------------------------------- | ----------------------------------- |
-| Inherited terminal admission, raw mode, output, signals and pointer capture          | Retained console adapter                     | Existing POSIX TTY adapter          |
-| Workbench protocol, local selection, pane layout, menus, help and Agent observations | Shared Client implementation                 | Shared Client implementation        |
-| Settings drafts and confirmed settings                                               | Server settings snapshots and edits          | Server settings snapshots and edits |
-| Keyboard copy-mode navigation, selection and search                                  | Shared Client implementation                 | Shared Client implementation        |
-| System clipboard writes                                                              | Hidden Win32 owner                           | Unsupported                         |
-| Browser link activation and saved-machine SSH carriers                               | Windows shell and owned OpenSSH processes    | Unsupported                         |
-| Saved-machine catalog, remembered position and first-run dismissal storage           | Private Windows cache                        | Unsupported                         |
-| Local directory entry and Agent launch/provider probing                              | Existing Windows adapters                    | Unsupported                         |
-| Legacy TOML configuration and plugin registry persistence                            | Existing Windows adapters                    | Unsupported                         |
-| Host window title, terminal/system notification transport and terminal graphics      | Existing Windows adapters and host admission | Unsupported                         |
-| Notification cards and ordinary terminal bell                                        | Shared TUI / admitted terminal               | Shared TUI / admitted terminal      |
-| Login-shell preference                                                               | Unsupported by the Windows shell adapter     | Existing POSIX shell adapter        |
+| Responsibility                                                                       | Windows                                     | Linux and macOS                                                                          |
+| ------------------------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Inherited terminal admission, raw mode, output, signals and pointer capture          | Retained console adapter                    | Existing POSIX TTY adapter                                                               |
+| Workbench protocol, local selection, pane layout, menus, help and Agent observations | Shared Client implementation                | Shared Client implementation                                                             |
+| Settings drafts and confirmed settings                                               | Server settings snapshots and edits         | Server settings snapshots and edits                                                      |
+| Keyboard copy-mode navigation, selection and search                                  | Shared Client implementation                | Shared Client implementation                                                             |
+| System clipboard writes                                                              | Hidden Win32 owner                          | Desktop clipboard program or OSC 52, by [session route](#linux-and-macos-session-routes) |
+| Browser link activation                                                              | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
+| Saved-machine SSH carriers                                                           | Owned OpenSSH processes                     | Unsupported                                                                              |
+| Saved-machine catalog, remembered position and first-run dismissal storage           | Private Windows cache                       | Unsupported                                                                              |
+| Local directory entry and Agent launch/provider probing                              | Existing Windows adapters                   | Unsupported                                                                              |
+| Legacy TOML configuration and plugin registry persistence                            | Existing Windows adapters                   | Unsupported                                                                              |
+| Host window title                                                                    | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
+| Terminal notification transport                                                      | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
+| System notification transport                                                        | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
+| Terminal graphics                                                                    | Existing Windows adapter and host admission | Unsupported                                                                              |
+| Notification cards and ordinary terminal bell                                        | Shared TUI / admitted terminal              | Shared TUI / admitted terminal                                                           |
+| Login-shell preference                                                               | Unsupported by the Windows shell adapter    | Existing POSIX shell adapter                                                             |
 
 The optional-capability list does not gate the whole TUI. In particular, an absent saved-machine
 adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
@@ -80,7 +84,8 @@ shortcut help, the status line and the Agent board; its binding opens the picker
 localized unsupported explanation. Copy-mode navigation
 and search remain usable without a clipboard; the copy button and copy hint are absent. The UI
 revalidates capability at invocation, so a stale or explicitly entered operation reports an
-`en-US` or `zh-CN` unsupported-platform notice through the ordinary noncapturing notice owner.
+`en-US` or `zh-CN` unsupported-platform notice, or the session notice of a
+[session route](#linux-and-macos-session-routes), through the ordinary noncapturing notice owner.
 Settings receive the login-shell capability as draft input, including presentation and edits.
 
 Adapters independently refuse unsupported effects before opening files, launching processes or
@@ -90,18 +95,60 @@ no-effect result. Missing support never becomes success or an unknown commit, ne
 replay, and never clears a copy selection as if clipboard delivery had succeeded. Existing accepted
 plugin ambiguity still cannot fall through to a browser launch.
 
-Terminal notification selection and OSC framing consume frozen host facts through one shared
-workflow. Its OS port owns environment capture and output; Unix refuses before either access.
-Clipboard jobs likewise share text selection, cancellation admission and terminal settlement.
-The Windows hidden-owner pump supplies the actual write, while the Unix port supplies the typed
-unsupported outcome without a worker or clipboard effect. Cancellation before dispatch never
-invokes either delivery port; a begun job settles without replay.
+Terminal notification selection and OSC framing read the terminal capability variables and write
+through the lifecycle output in one workflow on every platform. Clipboard jobs share text
+selection, cancellation admission and terminal settlement. The Windows hidden-owner pump supplies
+the actual write; the Linux and macOS port runs the session's clipboard program on one owned
+thread or hands the job back for the lifecycle writer's OSC 52 write after the frame flush, like
+the bell, and settles it as unsupported when the session has no route. Cancellation before
+dispatch never invokes a delivery port; a begun job settles without replay.
+
+## Linux and macOS session routes
+
+Clipboard, browser, window title and system notification depend on the session as well as the
+platform. The Client detects their routes once, at first use, from the terminal capability
+variables and the programs present, and admits each effect only when a route exists. An effect
+without a route is absent like an unsupported one, and an invoked one reports that it is not
+available in this session; the Windows wording and admission do not change.
+
+- A remote login is `SSH_CONNECTION`, `SSH_CLIENT` or `SSH_TTY`. Its desktop belongs to the remote
+  machine, so only the outer terminal and an X11 clipboard program over X forwarding reach the
+  user's screen.
+- A desktop session is macOS outside a remote login, or Linux with `WAYLAND_DISPLAY` (local only)
+  or `DISPLAY`. WSL without WSLg has neither.
+- macOS uses `/usr/bin/pbcopy`, `/usr/bin/open` and `/usr/bin/osascript`. Linux resolves
+  `wl-copy`, `xclip`, `xsel`, `xdg-open` and `notify-send` from absolute `PATH` entries only.
+
+| Effect              | Route, in order                                                                                                                                                                                | Without a route                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Clipboard           | Local: `pbcopy`, or `wl-copy` under Wayland, else `xclip` then `xsel` under X11; then OSC 52. Remote: OSC 52, then an X11 program over X forwarding                                            | Copy button and hint absent; copy reports the session notice          |
+| Browser link        | `open` or `xdg-open` with the URL as its only argument, in a local desktop session                                                                                                             | A link click reports the session notice                               |
+| Window title        | OSC 0, after saving the terminal's own title with `CSI 22;0 t`; restored with `CSI 23;0 t` on exit. Not on the Linux virtual console or a dumb terminal                                        | The title notice                                                      |
+| System notification | The outer terminal's notification sequence when terminal delivery can frame one, which also reaches a remote login's own desktop; else `osascript` or `notify-send` in a local desktop session | The notification notice; card presentation follows the delivery rules |
+
+OSC 52 is admitted only for an outer terminal that applies an application's clipboard write
+under its default settings: Ghostty, kitty, WezTerm, foot, Alacritty or Windows Terminal, named by
+`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `ALACRITTY_WINDOW_ID`, `WT_SESSION` or `TERM`, with no
+multiplexer or host pane (`TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV`, `ORCHBEE_PANE_ID`) in between.
+iTerm2 leaves clipboard access off by default, Terminal.app and VTE terminals have none, and tmux
+ignores an application's OSC 52 under its default `set-clipboard external`, so none of them is
+admitted. A copy above 1 MiB on the OSC 52 route fails before any byte is written; a written
+sequence settles as delivered, like the bell.
+
+Each program receives an exact argument vector with no shell; the clipboard text goes to its
+standard input, and its output is discarded. A clipboard program has three seconds before it is
+killed and delivery is unconfirmed, and a notification program five. An opener gets two seconds
+for its verdict; one still running then is showing the page, keeps running under a detached
+reaping thread, and the link counts as opened. The Client never reads the system clipboard on any
+platform: paste is the outer terminal's bracketed paste. Without a Unix plugin store, a Client
+link click selects no plugin handler and an `http` or `https` link takes the browser route; the
+command-line link selection keeps reporting the missing store.
 
 The shared runtime exposes settings/manifest types, command outcome types, Windows path syntax
 and literal command encoding on every platform. A Windows path is parsed with the Windows wire
 grammar rather than the host `std::path` grammar; the execution owner supplies frozen environment
 and current-directory inputs. This does not add Unix Windows-path filesystem access, named-Session
-registration, plugin installation, SSH, clipboard or browser implementations.
+registration, plugin installation or SSH implementations.
 
 ## Verification ownership
 

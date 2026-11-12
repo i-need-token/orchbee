@@ -1,6 +1,9 @@
 //! Names optional host effects and their current platform admission.
 //! View action selection and feature state stay with the composition owner.
 
+#[cfg(not(windows))]
+pub(crate) mod unix;
+
 /// An optional operating-system effect; this is independent of Server action availability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Capability {
@@ -35,19 +38,20 @@ impl Capability {
         Self::Graphics,
     ];
 
-    pub const fn available(self) -> bool {
+    pub fn available(self) -> bool {
         // These capabilities currently have Windows adapters. The terminal, local transport,
         // shared Workbench operations and client-local interaction are separate capabilities.
+        // Linux and macOS adapters of the session-dependent effects admit what this session's
+        // frozen facts support.
         match self {
-            Self::Clipboard
-            | Self::Browser
-            | Self::SavedMachines
+            Self::Clipboard | Self::Browser | Self::SystemNotification | Self::WindowTitle => {
+                session_admits(self)
+            }
+            Self::SavedMachines
             | Self::DirectoryInput
             | Self::AgentLaunch
             | Self::PositionStorage
             | Self::ConfigurationFile
-            | Self::SystemNotification
-            | Self::WindowTitle
             | Self::Graphics => cfg!(windows),
         }
     }
@@ -55,6 +59,25 @@ impl Capability {
     pub fn require(self) -> Result<(), Unsupported> {
         self.available().then_some(()).ok_or(Unsupported(self))
     }
+
+    /// Whether this build's adapter depends on the session (a desktop, a remote login or the
+    /// outer terminal), so a refusal describes the session rather than the platform.
+    pub(crate) const fn session_dependent(self) -> bool {
+        !cfg!(windows)
+            && matches!(
+                self,
+                Self::Clipboard | Self::Browser | Self::SystemNotification | Self::WindowTitle
+            )
+    }
+}
+
+#[cfg(windows)]
+const fn session_admits(_capability: Capability) -> bool {
+    true
+}
+#[cfg(not(windows))]
+fn session_admits(capability: Capability) -> bool {
+    unix::admits(capability)
 }
 
 /// The existing default-shell adapter admits POSIX login mode only.

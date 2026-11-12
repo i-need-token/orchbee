@@ -675,16 +675,17 @@ impl WorkbenchClient {
         }
     }
 
-    /// Delivers the admitted bell after a successful draw; an uncertain write is never replayed.
+    /// Delivers the admitted bell, or a copy routed through the outer terminal, after a successful
+    /// draw; an uncertain write is never replayed.
     ///
     /// # Errors
     /// Returns the terminal writer's failure after settling this attempt as unknown.
     pub fn deliver_terminal_effect(
         &mut self,
-        emit_bell: &mut dyn FnMut() -> io::Result<()>,
+        emit: &mut dyn FnMut(crate::terminal_input::ModeRequest) -> io::Result<()>,
     ) -> io::Result<()> {
         if let Some(native) = self.backend.native_mut() {
-            native.deliver_terminal_effect(emit_bell)?;
+            native.deliver_terminal_effect(emit)?;
         }
         Ok(())
     }

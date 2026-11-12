@@ -41,6 +41,11 @@ impl SystemNotifications {
         self.task.join_before(deadline)
     }
 
+    /// System delivery always uses the native owner here, never an outer-terminal sequence.
+    pub const fn through_terminal(&self) -> bool {
+        false
+    }
+
     pub fn submit(&mut self, message: Notification) -> io::Result<()> {
         crate::tui_capabilities::Capability::SystemNotification.require()?;
         if self.sender.is_none() {

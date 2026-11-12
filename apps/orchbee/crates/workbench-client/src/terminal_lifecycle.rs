@@ -26,6 +26,8 @@ use crate::terminal_device::InheritedTerminal;
 
 mod command;
 pub use command::write_ansi_command;
+#[cfg(unix)]
+mod host_sequences;
 mod notification;
 
 const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
@@ -202,6 +204,9 @@ pub trait TerminalModes: Send + Sync + 'static {
         Err(io::ErrorKind::Unsupported.into())
     }
     fn ring_bell(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    fn write_clipboard(&self, _text: &str) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
     fn cleanup_graphics(&self, _sequence: &str) -> io::Result<()> {
@@ -545,6 +550,23 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         result
     }
 
+    /// Emits one OSC 52 clipboard write only outside a successfully closed frame, under the bell's
+    /// rules: a write failure fences subsequent frame output and nothing is retried.
+    pub fn write_clipboard(&self, text: &str) -> io::Result<()> {
+        let lease = &self.state.synchronized_update;
+        if !self.state.raw_mode.restoration_required() || lease.frame_output_blocked() {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        if lease.frame_open() {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let result = self.control.write_clipboard(text);
+        if result.is_err() {
+            lease.block_frame_output();
+        }
+        result
+    }
+
     pub fn query_graphics(&self, query: crate::terminal_graphics::Query) -> io::Result<()> {
         if !self.state.raw_mode.restoration_required()
             || self.state.synchronized_update.frame_output_blocked()
@@ -880,6 +902,9 @@ fn restore_mode(
 pub struct InheritedTerminalModes {
     #[cfg(unix)]
     original_termios: Arc<Mutex<Option<Termios>>>,
+    /// The outer terminal's own title is on its title stack, to be restored on exit.
+    #[cfg(unix)]
+    title_saved: Arc<AtomicBool>,
     #[cfg(windows)]
     original_console: Arc<Mutex<Option<SavedConsoleModes>>>,
     #[cfg(windows)]
@@ -1086,6 +1111,8 @@ impl InheritedTerminalModes {
         Self {
             #[cfg(unix)]
             original_termios: Arc::new(Mutex::new(None)),
+            #[cfg(unix)]
+            title_saved: Arc::new(AtomicBool::new(false)),
             #[cfg(windows)]
             original_console: Arc::new(Mutex::new(None)),
             #[cfg(windows)]
@@ -1172,6 +1199,18 @@ impl TerminalModes for InheritedTerminalModes {
             Some(title) => win32console::console::WinConsole::set_title(&title),
             None => Ok(()),
         }
+    }
+    #[cfg(unix)]
+    fn set_window_title(&self, title: &str) -> io::Result<()> {
+        host_sequences::set_window_title(&self.terminal, &self.title_saved, title)
+    }
+    #[cfg(unix)]
+    fn restore_window_title(&self) -> io::Result<()> {
+        host_sequences::restore_window_title(&self.terminal, &self.title_saved)
+    }
+    #[cfg(unix)]
+    fn write_clipboard(&self, text: &str) -> io::Result<()> {
+        host_sequences::write_clipboard(&self.terminal, text)
     }
 
     fn disable_focus_reporting(&self) -> io::Result<()> {

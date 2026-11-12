@@ -48,6 +48,9 @@ pub enum PointerCaptureRequest {
 pub enum ModeRequest {
     /// One pane bell, emitted after the completed frame has flushed.
     Bell,
+    /// One copied text for the outer terminal's clipboard (OSC 52), emitted after the completed
+    /// frame has flushed. Only a session whose clipboard route is the outer terminal sends it.
+    Clipboard(String),
     /// Match admitted outer-terminal padding to the current canvas; None restores it.
     HostBackground(Option<u32>),
     /// Bounded metadata queries on the already-admitted host terminal.

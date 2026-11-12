@@ -121,6 +121,9 @@ enabling.
 | UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                                         | ASCII glyph fallbacks                             |
 | Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                                    | Not inside a multiplexer                          |
 | Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                                     | No vendor-specific workaround applied             |
+| Remote login         | `SSH_CONNECTION`, `SSH_CLIENT`, and `SSH_TTY` presence                                                                                                                  | Local session                                     |
+| Desktop session      | `WAYLAND_DISPLAY` and `DISPLAY` on Linux; macOS outside a remote login                                                                                                  | No desktop                                        |
+| Host-effect programs | Fixed system paths on macOS; absolute `PATH` entries on Linux, never relative ones                                                                                      | Program absent                                    |
 
 - Every query has a deadline that fits inside the Client's startup budget. A late reply is
   discarded, never applied.
