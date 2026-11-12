@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 6;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 7;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -227,8 +227,13 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 36] = {
                 &grammar::GROK,
             )
         },
+        // The native Windows installer puts `hermes.exe` in `%LOCALAPPDATA%\hermes\bin`, and the
+        // bundled Python it starts runs that launcher as its script.
         AgentProviderEntry {
-            install_roots: &[AgentInstallRoot(&["hermes-agent"])],
+            install_roots: &[
+                AgentInstallRoot(&["hermes-agent"]),
+                AgentInstallRoot(&["AppData", "Local", "hermes", "bin"]),
+            ],
             python_modules: &["hermes_cli"],
             ..entry(P::Hermes, &[shared("hermes")], NONE, &grammar::HERMES)
         },

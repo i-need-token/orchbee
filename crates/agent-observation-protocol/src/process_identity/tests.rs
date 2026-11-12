@@ -439,6 +439,42 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["python.exe", HERMES, "chat"]),
             interactive(P::Hermes, S::PackageEntry),
         ),
+        // The native Windows installer: its launcher starts the bundled Python, which runs the
+        // launcher itself as its script and later starts the gateway as a module.
+        (
+            "python launcher",
+            r"{home}\AppData\Local\hermes\bin\hermes.exe",
+            Some(vec![r"{home}\AppData\Local\hermes\bin\hermes.exe"]),
+            interactive(P::Hermes, S::NativeImage),
+        ),
+        (
+            "python launcher",
+            r"{home}\AppData\Local\hermes\tools\python-3.14.9-win32-x64\python.exe",
+            Some(vec![
+                r"{home}\AppData\Local\hermes\tools\python-3.14.9-win32-x64\python.exe",
+                "-I",
+                r"{home}\AppData\Local\hermes\bin\hermes.exe",
+            ]),
+            interactive(P::Hermes, S::PackageEntry),
+        ),
+        (
+            "python module",
+            r"{home}\AppData\Local\hermes\tools\python-3.14.9-win32-x64\python.exe",
+            Some(vec![
+                r"{home}\AppData\Local\hermes\tools\python-3.14.9-win32-x64\python.exe",
+                "-m",
+                "hermes_cli.main",
+                "gateway",
+                "run",
+            ]),
+            NOT,
+        ),
+        (
+            "shared alias",
+            r"C:\tools\hermes\bin\hermes.exe",
+            Some(vec!["hermes"]),
+            unresolved(Some(P::Hermes), U::UnverifiedProvenance),
+        ),
         (
             "python module",
             "python3.12.exe",

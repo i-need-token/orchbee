@@ -115,7 +115,9 @@ reuse it rather than keeping their own tables.
   provider alone; `Shared` and `Generic` names need one of the entry's install roots in the path.
   Bare `agent` is generic for Cursor and Grok, so it is never Cursor by name alone; `snow` is a
   generic word, and `amp`, `mimo`, `mcode` and CodeBuddy's `cbc` are shared, so each needs its
-  package's install root. The same classes decide which startable providers a search-path lookup
+  package's install root. `hermes` is shared too: a `uv` tool install proves it by its
+  `hermes-agent` root, and the native Windows installer by `AppData\Local\hermes\bin`, where the
+  bundled Python that the launcher starts runs `hermes.exe` itself as its script. The same classes decide which startable providers a search-path lookup
   can check: `StartableAgent::checkable` is false when the start command is a generic alias of any
   provider, so Cursor (`agent`) and Snow are never looked up. Command Code's `cmd` command is never
   an alias. Desktop and IDE application names that share a report label (`cursor`, `kiro`, `qoder`,
@@ -148,8 +150,9 @@ reuse it rather than keeping their own tables.
 - Runtime entries: the runtime skips its own listed options before the script, including the
   value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
   files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
-- `AGENT_PROVIDER_REGISTRY_VERSION` is 6. It changes whenever an entry's recognition meaning
-  changes: a provider, alias, package entry or grammar option joining or leaving the registry.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 7. It changes whenever an entry's recognition meaning
+  changes: a provider, alias, install root, package entry or grammar option joining or leaving the
+  registry.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is
