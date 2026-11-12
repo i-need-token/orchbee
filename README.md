@@ -4,103 +4,125 @@
 
 # Orchbee
 
-**A terminal for running and coordinating AI agents.**
+**A modern, multiplexed terminal for running and orchestrating AI agents.**
 
-[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+Sessions persist in the background and remain accessible from the terminal, the desktop, and the command line simultaneously, giving people and agents a shared environment to work in.
+
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE) [![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org) [![Zig](https://img.shields.io/badge/Zig-F7A41D?style=flat-square&logo=zig&logoColor=white)](https://ziglang.org) [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Electron](https://img.shields.io/badge/Electron-47848C?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-[What it does](#what-it-does) · [Status](#status) · [Try it from source](#try-it-from-source) · [Documentation](#documentation)
+[Features](#features) · [Install](#install) · [Tech Stack](#tech-stack) · [Community](#community)
+
+<img src="resources/readme/hero.png" alt="The Orchbee terminal interface: a sidebar of Workspaces and agents, a shell, and two agents running in split Panels" width="880" />
 
 </div>
 
 ---
 
-> [!IMPORTANT]
-> Orchbee is pre-release. The first public beta, `0.1.0-beta.1` for Windows x64, is being prepared, and there is nothing to download yet. Until then you can [run it from source](#try-it-from-source). macOS and Linux follow the Windows beta.
+Orchbee is a modern terminal built for the age of AI agents. It is a complete terminal first, built on the core of [Ghostty](https://ghostty.org), and everything else is built around it.
 
-Orchbee is a terminal built for working with AI agents. You run the agent CLIs you already use, such as Claude Code, Codex, OpenCode and Pi, exactly as before. Orchbee adds what a plain terminal lacks: one place that shows what every agent is doing, and a way for agents to work with each other.
+**Its core is multiplexing.** A conventional terminal session ends when its window closes. An Orchbee Session persists in the background and can be attached from several clients at once: the terminal interface, the desktop application, and the command line present and control the same Session in real time.
 
-The name joins **orch**estrator and **bee**: independent workers that coordinate as one.
+**This makes Orchbee a shared environment for people and agents.** Every operation available to a person is equally available to an agent through the `orchbee` command line. CLI agents such as Claude Code, Codex, OpenCode, and Pi run unchanged and gain a capability they lack on their own: **the ability to work together**.
 
-## What it does
+Orchbee recognizes more than 30 agent CLIs, presents the status of each at a glance, and organizes work by project in the sidebar.
 
-- **Every agent at a glance.** The sidebar lists the agents in all your Workspaces with their state: working, waiting for you, or done. You stop cycling through terminals to find the one that needs you.
-- **Sessions that stay.** Close the window or detach, and your shells and agents keep running. Start Orchbee again and you are back where you left off.
-- **Workspaces, Tabs, Panels and Worktrees.** Keep one Workspace per project folder, split it into Panels, and open a Git worktree as its own Workspace when an agent should work on a separate branch.
-- **Agents that work together.** Through the `orchbee` command, an agent can start another agent, send it a prompt, wait until it has finished and read its output. Commands answer in JSON on request, for scripts.
-- **Two interfaces, one experience.** A terminal interface that runs inside the terminal you already have, and a desktop window. Both show the same Session with the same words and shortcuts.
-- **Local and private.** Orchbee runs on your computer, needs no account and sends no analytics. It leaves an agent's own configuration alone unless you turn an integration on.
+The name combines **orch**estrator with **bee**—independent workers coordinating as one.
 
-Orchbee does not replace your agents. It gives them a shared place to work, so that you supervise the whole instead of driving every step.
+> [!NOTE]
+> Orchbee does not replace your existing CLI agents; it provides the terminal environment in which they can work together. It shifts your role from **human-in-the-loop** to **human-on-the-loop**: instead of driving every step, you supervise the system and step in when needed.
 
-## Agents working together
+## Features
 
-These commands are what an agent, a script or you can run from any terminal inside Orchbee. `review` is the name of an agent, as `orchbee agent list` shows it.
+### High-Performance Terminal
 
-```powershell
+<!-- TODO: Add GIF showing fast rendering with heavy output (e.g. build logs, large git diffs) -->
+
+Terminal emulation runs in a lightweight native process built on the core of Ghostty. The terminal interface and the desktop application receive the finished screen from that process and only draw it. The desktop application renders with WebGPU, with a Canvas 2D fallback.
+
+### Multiplexed Sessions
+
+![The terminal interface and the desktop application attached to the same Session; a command typed in one appears in the other](resources/readme/multiplex.gif)
+
+A Session keeps running in the background after its window is closed, along with the shells and agents in it. The terminal interface, the desktop application, and the command line can attach to the same Session at the same time, and input from one is visible in the others.
+
+### Agent-to-Agent Collaboration
+
+![An agent started, prompted, awaited, and read with orchbee commands from a shell Panel](resources/readme/agents-cli.gif)
+
+Stop managing agents one terminal at a time. Agents can prompt and spawn other agents, read each other's output, send commands across terminals, delegate tasks, and coordinate work—while you stay in control from one place.
+
+Each step is one `orchbee` command:
+
+```bash
 orchbee agent start codex --split right
-orchbee agent prompt review "Review the current changes"
-orchbee agent wait review --until idle --timeout 30000
-orchbee agent read review --source recent --lines 40
+orchbee agent list
+orchbee agent prompt @panel:0x36 "Review the current changes"
+orchbee agent wait @panel:0x36 --until idle --timeout 120000
+orchbee agent read @panel:0x36 --source recent --lines 40
 ```
 
-`orchbee --help` lists every command. The [native application guide](apps/orchbee/README.md) describes them in detail.
+`orchbee agent list` prints the handle of each agent, such as `@panel:0x36`.
 
-## Status
+### Agent Status and Organization
 
-| Area                                      | State                             |
-| ----------------------------------------- | --------------------------------- |
-| Terminal interface and `orchbee` commands | Works on Windows, from source     |
-| Desktop window                            | Works on Windows, from source     |
-| Installer and npm package                 | In preparation for the first beta |
-| Other computers over SSH                  | In progress                       |
-| macOS and Linux                           | Planned, after the Windows beta   |
-| Web and mobile                            | Later                             |
+![The Orchbee desktop application: the sidebar lists agents by project and Workspace with their states](resources/readme/desktop.png)
 
-Interfaces are available in English and Simplified Chinese.
+Orchbee recognizes more than 30 agent CLIs without any setup and shows the state of each one: working, needs attention, or done. The sidebar lists every agent across all projects and organizes work by project, Workspace, and Git worktree.
 
-## Try it from source
+### Remote Machines
 
-Windows 11 with [Windows Terminal](https://aka.ms/terminal) is the supported setup today.
+<!-- TODO: Add a visual showing the local machine connected to several remote machines -->
 
-**You need:** Git, Node.js 22 or later with Corepack, Rust 1.97.0 through rustup, and Zig 0.16.0.
+When local resources are not enough, other computers can be added over SSH to extend the compute and execution environments available to agents. Remote machines act as an extension of the local machine, and agents use them without changing their workflow. This feature is in development and is planned for the first release.
 
-```powershell
+## Install
+
+> [!IMPORTANT]
+> Orchbee is in active early development. Pre-built applications are not yet available; the source checkout is currently intended for contributors.
+
+<details>
+<summary>Build from source</summary>
+
+**Prerequisites:** Windows 11, Git, Node.js >=22, Corepack, Rust 1.97.0 through rustup, Zig 0.16.0
+
+```bash
 git clone https://github.com/i-need-token/orchbee.git
 cd orchbee
 corepack enable
 pnpm install
 ```
 
-Open the desktop window. This builds the native programs and starts the window on them:
+Start the desktop application:
 
-```powershell
+```bash
 pnpm desktop
 ```
 
-Or build the terminal interface into a new folder and run the program the command prints:
+Build the terminal interface into a folder, then run the program that the command prints:
 
 ```powershell
 node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 ```
 
-In the terminal interface the prefix key is `Ctrl+B`. Follow it with `|` or `-` to split, `h` `j` `k` `l` to move between Panels, and `d` to detach. Mouse input works too.
+</details>
 
-A build from source is a development build: it keeps its data apart from an installed release and never changes your `PATH`.
+## Tech Stack
 
-## Documentation
+- **Rust** — terminal interface, command line, and background services
+- **Zig** — native terminal process
+- **Ghostty VT** — terminal emulation
+- **Electron** — desktop application shell
+- **React** — desktop interface
+- **TypeScript** — desktop application and shared package code
+- **WebGPU** — GPU-accelerated terminal rendering
+- **Node.js** — repository tooling
 
-- [Native application guide](apps/orchbee/README.md): Sessions, commands, keys and configuration
-- [Architecture](docs/ARCHITECTURE.md): the programs Orchbee is made of and how they talk
-- [Glossary](docs/GLOSSARY.md): what Session, Workspace, Tab, Panel and Agent mean here
-- [Development](docs/DEVELOPMENT.md) and [Verification](docs/VERIFICATION.md): how changes are made and checked
+## Community
 
-Orchbee is written in Rust (terminal interface, commands, Server and Worker), Zig with Ghostty's terminal emulation (Terminal Host), and TypeScript with React and Electron (desktop window).
-
-## Contributing and security
-
-Bug reports and ideas are welcome in [GitHub Issues](https://github.com/i-need-token/orchbee/issues). Please report a vulnerability privately, as the [security policy](SECURITY.md) describes.
+- [GitHub Issues](https://github.com/i-need-token/orchbee/issues) — bug reports and feature requests
+- [Security Policy](SECURITY.md) — private vulnerability reporting
 
 ## License
 

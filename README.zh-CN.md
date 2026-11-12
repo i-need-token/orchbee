@@ -4,106 +4,126 @@
 
 # Orchbee
 
-**一个用来运行和协调 AI 智能体的终端。**
+**一个运行和编排 AI Agent 的现代多路复用终端。**
 
-[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+会话在后台持续运行，可同时从终端界面、桌面应用和命令行访问，为人与 Agent 提供共同的工作环境。
+
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE) [![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org) [![Zig](https://img.shields.io/badge/Zig-F7A41D?style=flat-square&logo=zig&logoColor=white)](https://ziglang.org) [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Electron](https://img.shields.io/badge/Electron-47848C?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org)
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-[它能做什么](#它能做什么) · [当前状态](#当前状态) · [从源码试用](#从源码试用) · [文档](#文档)
+[核心特性](#核心特性) · [安装](#安装) · [技术栈](#技术栈) · [社区](#社区)
+
+<img src="resources/readme/hero.png" alt="Orchbee 终端界面：侧边栏列出工作区与 Agent，分屏面板中运行着 Shell 和两个 Agent" width="880" />
 
 </div>
 
 ---
 
-> [!IMPORTANT]
-> Orchbee 尚未正式发布。首个公开测试版 `0.1.0-beta.1`（Windows x64）正在准备中，目前还没有可下载的安装包。在此之前可以[从源码运行](#从源码试用)。macOS 和 Linux 排在 Windows 测试版之后。
+Orchbee 是为 AI Agent 时代打造的现代终端。它首先是一个完整的终端，基于 [Ghostty](https://ghostty.org) 的核心构建，其余能力都围绕终端展开。
 
-Orchbee 是为使用 AI 智能体（Agent）而做的终端。Claude Code、Codex、OpenCode、Pi 这些你已经在用的命令行智能体，照原样运行即可。Orchbee 补上普通终端没有的两样东西：在一个地方看清每个智能体在做什么，以及让智能体之间可以互相配合。
+**多路复用是它的核心。** 传统终端的会话随窗口关闭而结束。Orchbee 的会话在后台持续运行，并可由多个客户端同时接入：终端界面、桌面应用与命令行实时呈现并控制同一个会话。
 
-名字由 **orch**estrator（编排者）和 **bee**（蜜蜂）组成：各自独立的个体，协同如一。
+**由此，Orchbee 成为人与 Agent 共享的工作环境。** 人可以执行的每一项操作，Agent 都可以通过 `orchbee` 命令行完成。Claude Code、Codex、OpenCode、Pi 等 CLI Agent 以原有方式运行，并获得一项自身不具备的能力：**协同工作**。
 
-## 它能做什么
+Orchbee 可识别 30 余种 CLI Agent，直观呈现每个 Agent 的状态，并在侧边栏按项目组织工作。
 
-- **所有智能体一目了然。** 边栏列出所有工作区里的智能体和它们的状态：工作中、等你处理、已完成。不用再逐个终端翻找是哪个在等你。
-- **会话一直都在。** 关掉窗口或分离之后，Shell 和智能体继续运行。再次启动 Orchbee，就回到离开时的位置。
-- **工作区、标签页、面板和工作树。** 一个项目文件夹一个工作区，可以分屏成多个面板；需要让智能体在单独的分支上工作时，把一个 Git 工作树作为独立的工作区打开。
-- **智能体互相配合。** 通过 `orchbee` 命令，一个智能体可以启动另一个智能体、给它发提示词、等它完成、读取它的输出。命令可以按需以 JSON 输出，供脚本使用。
-- **两种界面，同一种体验。** 一个运行在你现有终端里的终端界面，和一个桌面窗口。两者显示同一个会话，用词和快捷键一致。
-- **本地运行，数据不外传。** Orchbee 运行在你自己的电脑上，不需要账号，不发送任何统计数据。除非你主动开启某项集成，否则不改动智能体自己的配置。
+名字由 **orch**estrator（编排者）和 **bee**（蜜蜂）组合而来，寓意独立个体协同如一。
 
-Orchbee 不取代你的智能体。它给它们一个共同工作的地方，让你从逐步操作变为总览全局、必要时介入。
+> [!NOTE]
+> Orchbee 不替代你现有的 CLI Agent，而是提供让它们协同工作的终端环境。它让你的角色从 **human-in-the-loop** 转向 **human-on-the-loop**：不再亲自推动每一步，而是监督整个系统，并在必要时介入。
 
-## 智能体互相配合
+## 核心特性
 
-下面的命令，智能体、脚本或你自己都可以在 Orchbee 里的任何终端中运行。`review` 是一个智能体的名字，与 `orchbee agent list` 显示的一致。
+### 高性能终端
 
-```powershell
+<!-- TODO: 添加 GIF 展示大量输出（如构建日志、大型 git diff）下的流畅渲染 -->
+
+终端模拟运行在一个基于 Ghostty 核心构建的轻量原生进程中。终端界面与桌面应用从该进程接收处理好的画面，只负责绘制。桌面应用使用 WebGPU 渲染，并提供 Canvas 2D 后备。
+
+### 会话多路复用
+
+![终端界面与桌面应用接入同一个会话，在一处输入的命令同步出现在另一处](resources/readme/multiplex.gif)
+
+会话在窗口关闭后继续在后台运行，其中的 Shell 与 Agent 不会中断。终端界面、桌面应用与命令行可以同时接入同一个会话，在一处输入，其他各处同步可见。
+
+### Agent 间协作
+
+![在 Shell 面板中用 orchbee 命令启动 Agent、发送 prompt、等待并读取输出](resources/readme/agents-cli.gif)
+
+不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。
+
+每一步都是一条 `orchbee` 命令：
+
+```bash
 orchbee agent start codex --split right
-orchbee agent prompt review "Review the current changes"
-orchbee agent wait review --until idle --timeout 30000
-orchbee agent read review --source recent --lines 40
+orchbee agent list
+orchbee agent prompt @panel:0x36 "Review the current changes"
+orchbee agent wait @panel:0x36 --until idle --timeout 120000
+orchbee agent read @panel:0x36 --source recent --lines 40
 ```
 
-`orchbee --help` 列出全部命令。[原生应用指南](apps/orchbee/README.md)（英文）有详细说明。
+`orchbee agent list` 会列出每个 Agent 的句柄，例如 `@panel:0x36`。
 
-## 当前状态
+### Agent 状态与组织
 
-| 部分                      | 状态                          |
-| ------------------------- | ----------------------------- |
-| 终端界面和 `orchbee` 命令 | 可在 Windows 上从源码运行     |
-| 桌面窗口                  | 可在 Windows 上从源码运行     |
-| 安装包和 npm 包           | 正在为首个测试版准备          |
-| 通过 SSH 使用其他电脑     | 开发中                        |
-| macOS 和 Linux            | 计划中，在 Windows 测试版之后 |
-| 网页版和移动端            | 以后                          |
+![Orchbee 桌面应用：侧边栏按项目和工作区列出 Agent 及其状态](resources/readme/desktop.png)
 
-界面提供英文和简体中文。
+Orchbee 无需任何配置即可识别 30 余种 CLI Agent，并显示每个 Agent 的状态：运行中、需要处理或完成。侧边栏列出所有项目中的每个 Agent，并按项目、工作区和 Git 工作树组织工作。
 
-## 从源码试用
+### 远程机器
 
-目前支持的环境是 Windows 11 加 [Windows Terminal](https://aka.ms/terminal)。
+<!-- TODO: 添加示意图，展示本机与多台远程机器的连接 -->
 
-**需要：** Git、Node.js 22 或更高版本（含 Corepack）、通过 rustup 安装的 Rust 1.97.0、Zig 0.16.0。
+当本机资源不足时，可通过 SSH 添加其他机器，为 Agent 扩展算力和运行环境。远程机器是本机能力的延伸，Agent 无需改变原有使用方式。该功能正在开发中，计划随首个版本提供。
 
-```powershell
+## 安装
+
+> [!IMPORTANT]
+> Orchbee 正处于积极开发的早期阶段，暂未提供预编译应用；当前源码主要面向贡献者。
+
+<details>
+<summary>从源码构建</summary>
+
+**前置条件：** Windows 11、Git、Node.js >=22、Corepack、通过 rustup 安装的 Rust 1.97.0、Zig 0.16.0
+
+```bash
 git clone https://github.com/i-need-token/orchbee.git
 cd orchbee
 corepack enable
 pnpm install
 ```
 
-打开桌面窗口。这条命令会构建原生程序，并在它们之上启动窗口：
+启动桌面应用：
 
-```powershell
+```bash
 pnpm desktop
 ```
 
-或者把终端界面构建到一个新文件夹，然后运行命令打印出的那个程序：
+将终端界面构建到一个文件夹，然后运行命令输出的程序：
 
 ```powershell
 node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 ```
 
-在终端界面里，前缀键是 `Ctrl+B`。之后按 `|` 或 `-` 分屏，按 `h` `j` `k` `l` 在面板间移动，按 `d` 分离。也可以用鼠标操作。
+</details>
 
-从源码构建的是开发版：它的数据与已安装的正式版分开存放，也不会改动你的 `PATH`。
+## 技术栈
 
-## 文档
+- **Rust** — 终端界面、命令行与后台服务
+- **Zig** — 原生终端进程
+- **Ghostty VT** — 终端模拟
+- **Electron** — 桌面应用外壳
+- **React** — 桌面端界面
+- **TypeScript** — 桌面应用与共享包代码
+- **WebGPU** — GPU 加速终端渲染
+- **Node.js** — 仓库工具
 
-以下文档为英文。
+## 社区
 
-- [原生应用指南](apps/orchbee/README.md)：会话、命令、按键和配置
-- [架构](docs/ARCHITECTURE.md)：Orchbee 由哪些程序组成，它们如何通信
-- [术语表](docs/GLOSSARY.md)：会话、工作区、标签页、面板、智能体在这里各指什么
-- [开发](docs/DEVELOPMENT.md)和[验证](docs/VERIFICATION.md)：改动如何进行、如何检查
+- [GitHub Issues](https://github.com/i-need-token/orchbee/issues) — Bug 报告与功能请求
+- [安全政策](SECURITY.md) — 私下报告安全漏洞
 
-Orchbee 使用 Rust（终端界面、命令、Server 和 Worker）、Zig 加 Ghostty 的终端仿真（Terminal Host），以及 TypeScript 加 React 和 Electron（桌面窗口）编写。
-
-## 参与和安全
-
-欢迎在 [GitHub Issues](https://github.com/i-need-token/orchbee/issues) 提交问题和想法。发现安全漏洞请按[安全策略](SECURITY.md)私下报告。
-
-## 许可
+## 许可证
 
 [MIT](LICENSE)。第三方组件见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
