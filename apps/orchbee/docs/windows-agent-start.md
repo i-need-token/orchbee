@@ -55,8 +55,9 @@ Agent integrations are opt-in, so starting never inspects one and never refuses 
 missing: neither the CLI nor the TUI runs a provider command or reads provider configuration
 before it types. A start without a name reserves nothing. A named start without an integration is
 confirmed by [observation](#workflow-and-invariants) and binds no name. On success the text result
-is one outcome line that names the place and Panel, such as
-`Started Codex in a new Tab (Panel <id>).`, then the next step:
+is one outcome line that names the place and the Panel by the handle `agent list` prints, such as
+`Started Codex in a new Tab (Panel @panel:0x36).`, while JSON keeps the canonical `panelId`; then
+the next step, with the same handle:
 `agent wait --panel <panel> --until idle` after a start without a name,
 `agent prompt --name <name>` after a canonical confirmation, or `agent prompt --panel <panel>`
 after an observed one, whose name was not bound.

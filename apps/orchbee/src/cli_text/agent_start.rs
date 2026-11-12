@@ -158,7 +158,9 @@ impl super::CliText {
         };
         let created = match field("createdPanelId") {
             "" => String::new(),
-            panel => self.cli_agent_created_panel(field("place"), panel),
+            panel => {
+                self.cli_agent_created_panel(field("place"), &crate::cli::handles::panel(panel))
+            }
         };
         if field("reason") == "place-failed" {
             let message = self.cli_agent_place_failed(failure, field("place"), !created.is_empty());

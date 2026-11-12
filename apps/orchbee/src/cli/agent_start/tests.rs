@@ -479,15 +479,11 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
             locale,
             None,
         );
+        // Text names the Panel by the handle a person types next, never by its canonical ID.
+        let handle = format!("@panel:0x{panel}");
         let text = String::from_utf8(text.stdout).unwrap();
-        assert!(
-            text.starts_with(&match locale {
-                Locale::EnUs => format!("Started Codex in a new Tab (Panel {panel}).\n"),
-                Locale::ZhCn => format!("已在新标签页（面板 {panel}）中启动 Codex。\n"),
-            }),
-            "{text}"
-        );
-        assert!(text.contains(&format!("orchbee agent wait --panel {panel} --until idle")));
+        assert!(text.contains(&format!("--panel {handle} ")), "{text}");
+        assert!(!text.replace(&handle, "").contains(&panel), "{text}");
 
         // Arguments were typed at the split's first prompt.
         let placed = new(AgentStartPlace::SplitDown);
@@ -519,10 +515,12 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
         assert!(failure_schema.is_valid(&document), "{document}");
         assert_eq!(document["failure"]["details"]["createdPanelId"], panel);
         assert_eq!(document["failure"]["details"]["place"], "split-down");
-        assert!(answer.stderr.contains(&match locale {
-            Locale::EnUs => format!("The new Panel stays open as Panel {panel}."),
-            Locale::ZhCn => format!("新面板保留为面板 {panel}。"),
-        }));
+        assert!(answer.stderr.contains(&handle), "{}", answer.stderr);
+        assert!(
+            !answer.stderr.replace(&handle, "").contains(&panel),
+            "{}",
+            answer.stderr
+        );
 
         // A refused split names the Server's reason and keeps the creation's exit.
         let rejected = Failure::new(FailureKind::Rejected).details(serde_json::Map::from_iter([

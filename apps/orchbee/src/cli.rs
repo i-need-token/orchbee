@@ -44,7 +44,7 @@ mod agent_projection;
 mod agent_prompt;
 mod agent_start;
 mod agent_view;
-mod handles;
+pub(crate) mod handles;
 mod panel_list;
 pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;

@@ -1,8 +1,15 @@
 //! Lossless compact identities. Membership changes never alter printed handles.
 pub(super) fn stable(kind: &str, ids: &[&str]) -> Vec<String> {
-    ids.iter()
-        .map(|id| format!("@{kind}:0x{}", id.trim_start_matches('0')))
-        .collect()
+    ids.iter().map(|id| compact(kind, id)).collect()
+}
+
+/// The handle a person types for the Panel with canonical ID `id`.
+pub(crate) fn panel(id: &str) -> String {
+    compact("panel", id)
+}
+
+fn compact(kind: &str, id: &str) -> String {
+    format!("@{kind}:0x{}", id.trim_start_matches('0'))
 }
 
 #[cfg(test)]

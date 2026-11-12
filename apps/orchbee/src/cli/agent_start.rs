@@ -343,18 +343,20 @@ fn project(
         Verdict::Started { .. } => placed.panel.as_ref(),
         Verdict::Failed { .. } => None,
     };
+    // Text names the Panel by the handle a person types next; the document keeps its canonical ID.
+    let handle = |panel: &WorkbenchPanelId| super::handles::panel(panel.as_str());
     let started = match (&report.verdict, panel) {
         (Verdict::Started { session }, Some(panel)) => Some((
             "session",
             Some(session),
             panel,
-            text.cli_agent_started(name, session.as_str(), place, panel.as_str()),
+            text.cli_agent_started(name, session.as_str(), place, &handle(panel)),
         )),
         (Verdict::Observed { .. }, Some(panel)) => Some((
             "observed",
             None,
             panel,
-            text.cli_agent_observed(name, place, panel.as_str()),
+            text.cli_agent_observed(name, place, &handle(panel)),
         )),
         // A new shell that ran the Agent as its first command had nothing typed into it.
         (Verdict::Sent { .. }, Some(panel)) => Some((
@@ -368,7 +370,7 @@ fn project(
             text.cli_agent_sent(
                 crate::agent_provider::product_name(report.provider.as_str()),
                 place,
-                panel.as_str(),
+                &handle(panel),
             ),
         )),
         _ => None,
