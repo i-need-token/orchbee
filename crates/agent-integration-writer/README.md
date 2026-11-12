@@ -49,14 +49,13 @@ is reused. `capsule.json` keeps the digest as the identity. Publishing writes th
 excludes, so every copy a provider makes of `bundle/` names the environment that installed it.
 
 An Agent entry belongs to the environment whose Capsule root it names. A root in another data
-root's Capsule folder is that environment's, and a folder of `~/.orchbee/agent-observation-adapters`,
-where every environment installed before each kept its own, is release's. A copied scripts folder
+root's Capsule folder is that environment's. A folder of `~/.orchbee/agent-observation-adapters`,
+where every environment installed before each kept its own, belongs to no environment:
+every build leaves an entry naming it as it is. A copied scripts folder
 belongs to the environment its owner record names, and to release when it has none. Enable and
 disable add, update and remove only this environment's entries: hook-configuration documents keep
 other environments' entries in place, while a provider that admits one entry reports another
-environment's entry as `conflict` and refuses to replace it. Release treats the shared folder's
-entries as outdated, so its explicit enable replaces them and its disable removes them; no
-environment ever deletes that folder.
+environment's entry as `conflict` and refuses to replace it. No environment ever deletes the shared folder.
 
 At hook time the transport reads the owner record beside it and reports only when the inherited
 `ORCHBEE_ENVIRONMENT` equals the owner, or when the variable is absent and the owner is release;

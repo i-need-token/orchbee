@@ -17,7 +17,6 @@ fn patch(
 fn options(root: &Path) -> ResourceOptions<'_> {
     ResourceOptions {
         resource_root: root,
-        legacy_capsules: None,
     }
 }
 
@@ -93,17 +92,6 @@ fn entries_of_other_environments_stay_as_they_are() {
                 "{kind:?}"
             );
         }
-        // The shared folder's entries are release's, so release replaces them.
-        let theirs = patch(kind, None, shared, true).unwrap();
-        let release_options = ResourceOptions {
-            resource_root: release,
-            legacy_capsules: shared.parent(),
-        };
-        let replaced = super::patch(kind, Some(&theirs), &release_options, true).unwrap();
-        assert!(
-            matches!(scan_hook_configuration(kind, &replaced), HookConfigurationScan::Owned(found) if found == release),
-            "{kind:?}"
-        );
     }
     let theirs = patch(HookConfigurationKind::Antigravity, None, release, true).unwrap();
     for enable in [true, false] {

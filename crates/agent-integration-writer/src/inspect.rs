@@ -48,19 +48,15 @@ pub(crate) const OPENCODE_CLIENT_FILES: [&str; 2] = ["server.js", "tui.js"];
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ResourceOwnership {
     Current,
-    /// Another Capsule this environment installed: a sibling version, or in release a folder of
-    /// the shared location every environment used before each kept its own.
+    /// Another Capsule this environment installed: a sibling version.
     Outdated,
     /// Another environment's Capsule, or content Orchbee does not own.
     Foreign,
 }
 
-/// The classifier's current capsule root and the earlier location this environment owns.
+/// The classifier's current capsule root.
 pub(crate) struct ResourceOptions<'a> {
     pub(crate) resource_root: &'a Path,
-    /// `~/.orchbee/agent-observation-adapters` in release, where every environment installed its
-    /// Capsules before each kept its own; `None` in every other environment.
-    pub(crate) legacy_capsules: Option<&'a Path>,
 }
 
 /// Exact current root or another Capsule of this environment; paths outside its Capsule folders
@@ -75,11 +71,7 @@ pub(crate) fn classify_resource_root(value: &str, options: &ResourceOptions) -> 
     if resolved == current {
         return ResourceOwnership::Current;
     }
-    if resolved.parent() == current.parent()
-        || options
-            .legacy_capsules
-            .is_some_and(|legacy| resolved.parent() == Some(normalize(legacy).as_path()))
-    {
+    if resolved.parent() == current.parent() {
         return ResourceOwnership::Outdated;
     }
     ResourceOwnership::Foreign
@@ -96,7 +88,7 @@ pub(crate) fn owned_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
         && crate::hook_configuration::owned_by_another_environment(
             &root,
             current.parent(),
-            options.legacy_capsules.is_some(),
+            orchbee_local_runtime::is_release(),
         )
 }
 

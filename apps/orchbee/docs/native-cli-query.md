@@ -1343,8 +1343,7 @@ root, where an entry's root names the environment owning it, as the
 [writer](../../../crates/agent-integration-writer/README.md#capsule-location-and-ownership)
 describes. A recorded root in `~/.orchbee/agent-observation-adapters`, the folder every
 environment shared before, is the asset-root state `stale` with hook reason
-`recorded-root-stale`: `update-required` in release, which alone changes it, and `conflict`
-elsewhere. A recorded root in another data root is `other-environment`, with hook
+`recorded-root-stale` and hook `conflict` in every build, which leaves it as it is. A recorded root in another data root is `other-environment`, with hook
 `conflict`/`other-environment`, and is not probed; guarded and Cline copies compare their owner
 record the same way, and hook-configuration scans leave other environments' entries out.
 Marketplace inspection uses `absent|current|update-required`; old-root aliases are not admitted.

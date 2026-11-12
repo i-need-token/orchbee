@@ -289,27 +289,19 @@ impl DataRoot {
     }
 }
 
-/// `~/.orchbee/agent-observation-adapters`, where every environment installed Agent observation
-/// Capsules before each kept its own in its data root. Only release Orchbee owns it, so other
-/// environments have none.
-pub fn legacy_agent_observation_capsules(home: &Path) -> Option<PathBuf> {
-    crate::is_release().then(|| home.join(".orchbee").join("agent-observation-adapters"))
-}
-
 /// Cheap local evidence, without running provider commands or reading their configuration, that an
 /// Agent integration may have been enabled for this environment: enabling installs a Capsule in its
-/// data root, and release Orchbee once installed them in the legacy folder. `false` means neither
-/// folder exists, so no provider entry can name this environment. `true` proves nothing about
-/// current entries; an unreadable location also answers `true`.
+/// data root. `false` means that folder does not exist, so no provider entry can name this
+/// environment. `true` proves nothing about current entries; an unreadable location also answers
+/// `true`.
 pub fn agent_integration_may_have_been_enabled() -> bool {
-    let present = |path: &Path| !matches!(path.try_exists(), Ok(false));
     let Ok(data_root) = DataRoot::resolve(|name| std::env::var_os(name)) else {
         return true;
     };
-    present(&data_root.agent_observation_capsules())
-        || std::env::home_dir().map_or(crate::is_release(), |home| {
-            legacy_agent_observation_capsules(&home).is_some_and(|legacy| present(&legacy))
-        })
+    !matches!(
+        data_root.agent_observation_capsules().try_exists(),
+        Ok(false)
+    )
 }
 
 /// The runtime base this environment uses when `ORCHBEE_RUNTIME_BASE` does not name one: the data

@@ -482,10 +482,7 @@ impl RootState {
             Self::UpdateRequired => Some((HookState::UpdateRequired, HookReason::MarkerMismatch)),
             Self::Inconsistent => Some((HookState::Conflict, HookReason::RecordedRootInconsistent)),
             Self::Absent => Some((HookState::Conflict, HookReason::RecordedRootAbsent)),
-            // Release replaces or removes its stale entry; any other environment leaves it.
-            Self::Stale if orchbee_local_runtime::is_release() => {
-                Some((HookState::UpdateRequired, HookReason::RecordedRootStale))
-            }
+            // No environment owns the shared folder, so every build leaves its entries.
             Self::Stale => Some((HookState::Conflict, HookReason::RecordedRootStale)),
             Self::OtherEnvironment => Some((HookState::Conflict, HookReason::OtherEnvironment)),
             Self::Unreadable

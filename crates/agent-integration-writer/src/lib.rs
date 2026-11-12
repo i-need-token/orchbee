@@ -129,9 +129,6 @@ mod imp {
         pub(crate) capsule_root: PathBuf,
         /// The payload identity the Capsule folder holds.
         pub(crate) payload_sha256: String,
-        /// `~/.orchbee/agent-observation-adapters`, the folder every environment shared before
-        /// each kept its own Capsules, in release only: release owns the entries naming it.
-        pub(crate) legacy_capsules: Option<PathBuf>,
         pub(crate) source: AdapterSource,
         pub(crate) deadline: Instant,
         path_env: Option<OsString>,
@@ -145,7 +142,6 @@ mod imp {
             providers::ProviderContext {
                 home: &self.home,
                 capsule_root: &self.capsule_root,
-                legacy_capsules: self.legacy_capsules.as_deref(),
                 adapter_source: self.source.directory(),
                 path_env: self.path_env.as_deref(),
                 deadline: self.deadline,
@@ -241,12 +237,10 @@ mod imp {
             &version,
             &payload_sha256,
         );
-        let legacy_capsules = orchbee_local_runtime::legacy_agent_observation_capsules(&home);
         Ok(IntegrationContext {
             home,
             capsule_root,
             payload_sha256,
-            legacy_capsules,
             source,
             deadline,
             path_env: std::env::var_os("PATH"),

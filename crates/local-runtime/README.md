@@ -150,11 +150,8 @@ admits the root, `internal/` and `internal/runtime/`, and returns the runtime ba
 root's canonical path; `create_private_directory` does the same for a folder whose files a writer in
 another crate places.
 
-Release Orchbee once installed Capsules for every environment in `~/.orchbee/agent-observation-adapters`;
-`legacy_agent_observation_capsules` names that folder for release only.
-`agent_integration_may_have_been_enabled` answers `false` only when neither this environment's
-Capsule folder nor that legacy folder exists, which proves that no provider entry names this
-environment; an unresolved root or unreadable folder answers `true`. It runs no provider command
+`agent_integration_may_have_been_enabled` answers `false` only when this environment's Capsule
+folder does not exist, which proves that no provider entry names this environment; an unresolved root or unreadable folder answers `true`. It runs no provider command
 and reads no provider configuration, so implicit callers use it to skip integration inspection
 and to give an enabled integration's Session a head start over observed Agent startup.
 

@@ -1204,7 +1204,6 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
-        legacy_capsules: None,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline,
@@ -2074,7 +2073,6 @@ fn run_static(case: &Case, cli_status: CliStatus) {
             let context = ProviderContext {
                 home: &dirs.home,
                 capsule_root: &dirs.capsule_root,
-                legacy_capsules: None,
                 adapter_source: Some(dirs.adapter_source.as_path()),
                 path_env: Some(dirs.bin.as_os_str()),
                 deadline: inject::now() + Duration::from_secs(40),
@@ -2139,7 +2137,6 @@ fn drive_provider_at(
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
-        legacy_capsules: None,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline: inject::now() + Duration::from_secs(40),

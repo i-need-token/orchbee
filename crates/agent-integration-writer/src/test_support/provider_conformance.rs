@@ -960,7 +960,6 @@ fn run_case(case: &Case, cli_status: CliStatus) {
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
-        legacy_capsules: None,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline,
