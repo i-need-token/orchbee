@@ -12,15 +12,21 @@ pub enum ProcessRole {
     Worker,
     /// A Terminal Host.
     TerminalHost,
+    /// The remote-machine hub of one user and environment.
+    MachineHub,
+    /// The remote helper `orchbee --machine-link-v1` at the far end of a machine link.
+    MachineLink,
     /// A role this build does not know.
     Unknown,
 }
 
 impl ProcessRole {
-    const NAMES: [(Self, &'static str); 4] = [
+    const NAMES: [(Self, &'static str); 6] = [
         (Self::Server, "server"),
         (Self::Worker, "worker"),
         (Self::TerminalHost, "terminal-host"),
+        (Self::MachineHub, "machine-hub"),
+        (Self::MachineLink, "machine-link"),
         (Self::Unknown, "unknown"),
     ];
 

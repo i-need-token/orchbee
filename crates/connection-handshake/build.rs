@@ -11,8 +11,10 @@ use serde_json::Value;
 
 const REGISTRY: &str = "schemas/connection/v1/connections.json";
 /// Registry connection names and the constant prefix `src/registry.rs` includes for each.
-const CONNECTIONS: [(&str, &str); 2] = [
+const CONNECTIONS: [(&str, &str); 4] = [
     ("client-server", "CLIENT_SERVER"),
+    ("machine-hub", "MACHINE_HUB"),
+    ("machine-link", "MACHINE_LINK"),
     ("worker-host", "WORKER_HOST"),
 ];
 

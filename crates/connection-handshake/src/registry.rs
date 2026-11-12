@@ -15,19 +15,30 @@ pub const PROMPT_GATED_INPUT: &str = "prompt-gated-input";
 pub enum ConnectionKind {
     /// Client → Server's Client endpoint.
     ClientServer,
+    /// A TUI, a CLI command, or Desktop's bundled Client → the remote-machine hub.
+    MachineHub,
+    /// The remote-machine hub → `orchbee --machine-link-v1` on a remote machine, through `ssh`.
+    MachineLink,
     /// Worker → Terminal Host's broker endpoint.
     WorkerHost,
 }
 
 impl ConnectionKind {
     /// Every negotiated connection the registry declares.
-    pub const ALL: [Self; 2] = [Self::ClientServer, Self::WorkerHost];
+    pub const ALL: [Self; 4] = [
+        Self::ClientServer,
+        Self::MachineHub,
+        Self::MachineLink,
+        Self::WorkerHost,
+    ];
 
     /// The registry and wire name.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::ClientServer => "client-server",
+            Self::MachineHub => "machine-hub",
+            Self::MachineLink => "machine-link",
             Self::WorkerHost => "worker-host",
         }
     }
@@ -49,6 +60,8 @@ impl ConnectionKind {
     pub const fn supported_generations(self) -> GenerationRange {
         match self {
             Self::ClientServer => const { GenerationRange::declared(1, 1) },
+            Self::MachineHub => const { GenerationRange::declared(1, 1) },
+            Self::MachineLink => const { GenerationRange::declared(1, 1) },
             Self::WorkerHost => const { GenerationRange::declared(1, 1) },
         }
     }
@@ -58,6 +71,7 @@ impl ConnectionKind {
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
             Self::ClientServer | Self::WorkerHost => &[PROMPT_GATED_INPUT],
+            Self::MachineHub | Self::MachineLink => &[],
         };
         CapabilitySet::new(names.iter().map(|name| {
             CapabilityName::new(*name).expect("registry capability names follow the name grammar")
@@ -71,6 +85,8 @@ impl ConnectionKind {
     pub const fn development_fingerprint(self) -> Fingerprint {
         Fingerprint::from_bytes(match self {
             Self::ClientServer => CLIENT_SERVER_FINGERPRINT,
+            Self::MachineHub => MACHINE_HUB_FINGERPRINT,
+            Self::MachineLink => MACHINE_LINK_FINGERPRINT,
             Self::WorkerHost => WORKER_HOST_FINGERPRINT,
         })
     }

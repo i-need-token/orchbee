@@ -169,7 +169,7 @@
 			],
 			"properties": {
 				"role": {
-					"description": "server, worker, or terminal-host; a receiver reads any other name as unknown.",
+					"description": "server, worker, terminal-host, machine-hub, or machine-link; a receiver reads any other name as unknown.",
 					"$ref": "#/$defs/name"
 				},
 				"productVersion": { "$ref": "#/$defs/productVersion" },

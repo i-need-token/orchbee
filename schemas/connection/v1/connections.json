@@ -17,6 +17,26 @@
 				"schemas/workbench"
 			]
 		},
+		"machine-hub": {
+			"generations": { "lowest": 1, "highest": 1 },
+			"capabilities": [],
+			"fingerprintInputs": [
+				"crates/connection-handshake/src",
+				"crates/machine-protocol/src",
+				"schemas/connection",
+				"schemas/machine"
+			]
+		},
+		"machine-link": {
+			"generations": { "lowest": 1, "highest": 1 },
+			"capabilities": [],
+			"fingerprintInputs": [
+				"crates/connection-handshake/src",
+				"crates/machine-protocol/src",
+				"schemas/connection",
+				"schemas/machine"
+			]
+		},
 		"worker-host": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"capabilities": [{ "name": "prompt-gated-input", "addedIn": "0.1.0" }],

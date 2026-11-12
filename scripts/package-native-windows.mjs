@@ -38,7 +38,7 @@ const components = [
 	{
 		id: 'client',
 		files: (file, stem) => file === `${stem}.exe`,
-		contracts: ['client-server', ...frames, 'machine-route'],
+		contracts: ['client-server', 'machine-hub', 'machine-link', ...frames, 'machine-route'],
 	},
 	{
 		id: 'server',

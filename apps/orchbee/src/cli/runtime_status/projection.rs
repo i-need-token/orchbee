@@ -165,7 +165,9 @@ fn role_label(role: ProcessRole) -> &'static str {
         ProcessRole::Server => "role-server",
         ProcessRole::Worker => "role-worker",
         ProcessRole::TerminalHost => "role-terminal-host",
-        ProcessRole::Unknown => "role-unknown",
+        // A Session's query lists only its Server, Worker, and Hosts; machine processes answer
+        // their own queries, which this status report does not send.
+        ProcessRole::MachineHub | ProcessRole::MachineLink | ProcessRole::Unknown => "role-unknown",
     }
 }
 impl Report {
