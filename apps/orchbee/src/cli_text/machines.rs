@@ -201,6 +201,12 @@ impl super::CliText {
             }
             (Locale::EnUs, F::Unavailable) => "The machine hub could not be reached or started.",
             (Locale::ZhCn, F::Unavailable) => "无法连接或启动连接进程。",
+            (Locale::EnUs, F::Denied) => {
+                "Access to the machine hub was denied; it may belong to another user or an elevated process."
+            }
+            (Locale::ZhCn, F::Denied) => {
+                "访问连接进程被拒绝；它可能属于其他用户或以管理员身份运行的进程。"
+            }
             (Locale::EnUs, F::Closing) => "The machine hub is closing. Try again.",
             (Locale::ZhCn, F::Closing) => "连接进程正在关闭，请重试。",
             (Locale::EnUs, F::Lost) => "The connection to the machine hub was lost.",

@@ -39,6 +39,8 @@ pub(super) enum AttachFailure {
     DataRoot,
     /// The hub refused `capacity`, or the call could not start one.
     Unavailable,
+    /// The endpoint refused to open, or its server runs as another user.
+    Denied,
     /// The running hub belongs to another environment or version.
     Incompatible,
     /// The deadline passed.
@@ -73,6 +75,7 @@ pub(super) fn attach_or_start(deadline: Instant) -> Result<LocalStream, AttachFa
                 return Err(AttachFailure::Unavailable);
             }
             Err(Reached::Refused(_)) => return Err(AttachFailure::Incompatible),
+            Err(Reached::Denied) => return Err(AttachFailure::Denied),
             Err(Reached::Nothing) => {
                 if let Some(running) = child.as_mut() {
                     match running.try_wait() {
@@ -111,6 +114,8 @@ enum Reached {
     Refused(RejectionReason),
     /// The connection or its answer failed; another attempt may succeed.
     Lost,
+    /// The endpoint refused this process: no attempt can succeed.
+    Denied,
 }
 
 fn offer(endpoint: &Path, deadline: Instant) -> Result<LocalStream, Reached> {
@@ -138,12 +143,12 @@ fn offer(endpoint: &Path, deadline: Instant) -> Result<LocalStream, Reached> {
 
 fn connect(endpoint: &Path, deadline: Instant) -> Result<LocalStream, Reached> {
     let bound = deadline.min(Instant::now() + CONNECT);
-    LocalStream::connect_before(endpoint, bound).map_err(|error| {
-        if error.kind() == io::ErrorKind::NotFound {
-            Reached::Nothing
-        } else {
-            Reached::Lost
-        }
+    LocalStream::connect_before(endpoint, bound).map_err(|error| match error.kind() {
+        io::ErrorKind::NotFound => Reached::Nothing,
+        // The pipe's DACL or an elevated creator's integrity label refused this process, or the
+        // same-user proof found another user's server.
+        io::ErrorKind::PermissionDenied => Reached::Denied,
+        _ => Reached::Lost,
     })
 }
 
@@ -169,7 +174,10 @@ fn exchange(
 /// The running hub's `query` answer, on a control connection of its own.
 pub(super) fn query(deadline: Instant) -> Result<QueryResult, AttachFailure> {
     let endpoint = endpoint()?;
-    let stream = connect(&endpoint, deadline).map_err(|_| AttachFailure::Unavailable)?;
+    let stream = connect(&endpoint, deadline).map_err(|reached| match reached {
+        Reached::Denied => AttachFailure::Denied,
+        Reached::Nothing | Reached::Refused(_) | Reached::Lost => AttachFailure::Unavailable,
+    })?;
     let request = InitiatorMessage::Request(ControlRequest {
         kind: RequestKind::Query,
         environment: orchbee_local_runtime::environment_name(),

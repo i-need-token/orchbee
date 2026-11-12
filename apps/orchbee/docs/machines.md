@@ -483,8 +483,10 @@ environment, and a new process group. A hub it started that exits 0 lost the loc
 the call connects again and starts one more only after a pause of 200 ms that doubles with each
 loss up to 1.6 seconds, at most eight times per call. `stopping` means a hub is closing: it tries
 again 20 ms later. `capacity` is unavailable; `environment-mismatch` and any other rejection are
-incompatible. A hub it started that exits 1 ends the call at once. The hub belongs to no Session's
-Server and outlives its starter.
+incompatible. An endpoint that refuses to open, by its DACL or an elevated creator's integrity
+level, or whose server proves to run as another user, ends the call at once as denied. A hub it
+started that exits 1 ends the call at once. The hub belongs to no Session's Server and outlives its
+starter.
 
 The exercise in `tests/cli_windows_machine_hub.rs` starts eight attachments at once on a fresh
 data root, follows `held`, `expiring` and `closing` with a 20-second expiry, keeps a hub `held`

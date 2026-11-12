@@ -27,6 +27,7 @@ const READ: Duration = Duration::from_secs(5);
 pub(crate) enum StateFailure {
     DataRoot,
     Unavailable,
+    Denied,
     Closing,
     Lost,
     Incompatible,
@@ -37,6 +38,7 @@ impl StateFailure {
     const fn status(self) -> u8 {
         match self {
             Self::DataRoot => 1,
+            Self::Denied => 3,
             Self::Unavailable | Self::Closing => 4,
             Self::Lost => 5,
             Self::Incompatible => 6,
@@ -50,6 +52,7 @@ impl From<AttachFailure> for StateFailure {
         match failure {
             AttachFailure::DataRoot => Self::DataRoot,
             AttachFailure::Unavailable => Self::Unavailable,
+            AttachFailure::Denied => Self::Denied,
             AttachFailure::Incompatible => Self::Incompatible,
             AttachFailure::Timeout => Self::Timeout,
         }
