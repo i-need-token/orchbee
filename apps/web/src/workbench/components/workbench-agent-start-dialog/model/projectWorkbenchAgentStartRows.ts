@@ -26,7 +26,10 @@ type WorkbenchAgentStartRow<Provider extends string = string> =
 			readonly kind: 'provider';
 			readonly providerId: Provider;
 	  }
-	| { readonly count: number; readonly kind: 'fold' };
+	| { readonly count: number; readonly holds: WorkbenchAgentStartFolded; readonly kind: 'fold' };
+
+/** Which right-hand texts the folded rows carry, which names the fold row. */
+export type WorkbenchAgentStartFolded = 'both' | 'cant-check' | 'not-found';
 
 export interface WorkbenchAgentStartRows<Provider extends string = string> {
 	readonly rows: readonly WorkbenchAgentStartRow<Provider>[];
@@ -40,7 +43,8 @@ const RECENT_LIMIT = 3;
 /**
  * The rows of Start Agent, as the TUI's picker lists them and the shared Agent start rows corpus
  * states them. A found Agent is listed first among Recent, then among Installed; the rest wait
- * behind one fold row, which a query or an opened fold replaces with their own group. Without any
+ * behind one fold row, named by whether it holds not found rows, rows that can't be checked or
+ * both, which a query or an opened fold replaces with their own group. Without any
  * lookup result every Agent stays startable, listed as not checked. A query matches the product
  * name, command or provider id, ignoring case and surrounding space.
  */
@@ -107,7 +111,13 @@ export function projectWorkbenchAgentStartRows<Provider extends string>(
 	);
 	const folded = rest.filter((entry) => entry.state !== 'found' && entry.state !== 'checking');
 	if (checked && needle === '' && !expanded) {
-		if (folded.length > 0) rows.push({ count: folded.length, kind: 'fold' });
+		if (folded.length > 0) {
+			const notFound = folded.filter((entry) => entry.state === 'not-found').length;
+			let holds: WorkbenchAgentStartFolded = 'both';
+			if (notFound === 0) holds = 'cant-check';
+			else if (notFound === folded.length) holds = 'not-found';
+			rows.push({ count: folded.length, holds, kind: 'fold' });
+		}
 	} else if (!checked && needle === '' && !expanded) {
 		// The first lookup runs: its fold holds rows still to come, so it is not offered yet.
 	} else {

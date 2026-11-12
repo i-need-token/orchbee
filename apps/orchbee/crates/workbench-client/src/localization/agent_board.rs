@@ -117,8 +117,12 @@ pub(crate) struct AgentPickerText {
     pub(crate) installed: &'static str,
     pub(crate) not_found: &'static str,
     pub(crate) not_checked: &'static str,
-    /// `{count}` is the number of folded providers.
-    pub(crate) fold: &'static str,
+    /// The fold row over providers that are all not found; `{count}` is how many it holds.
+    pub(crate) fold_not_found: &'static str,
+    /// The fold row over providers that all can't be checked; `{count}` is how many it holds.
+    pub(crate) fold_cant_check: &'static str,
+    /// The fold row over some of each; `{count}` is how many it holds.
+    pub(crate) fold_both: &'static str,
     pub(crate) meta_not_found: &'static str,
     pub(crate) meta_cant_check: &'static str,
     pub(crate) no_match: &'static str,
@@ -173,7 +177,9 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
         installed: "Installed",
         not_found: "Not found",
         not_checked: "Not checked on this machine",
-        fold: "{count} more not found on this computer",
+        fold_not_found: "{count} more not found on this computer",
+        fold_cant_check: "{count} more couldn’t be checked",
+        fold_both: "{count} more not found or not checked",
         meta_not_found: "not found",
         meta_cant_check: "can’t check",
         no_match: "No Agent matches.",
@@ -249,7 +255,9 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
         installed: "已安装",
         not_found: "未找到",
         not_checked: "未在此机器上检查",
-        fold: "另有 {count} 个未在此电脑上找到",
+        fold_not_found: "另有 {count} 个未在此电脑上找到",
+        fold_cant_check: "另有 {count} 个无法检查",
+        fold_both: "另有 {count} 个未找到或无法检查",
         meta_not_found: "未找到",
         meta_cant_check: "无法检查",
         no_match: "没有匹配的智能体。",

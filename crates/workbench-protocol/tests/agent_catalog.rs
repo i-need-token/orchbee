@@ -112,7 +112,16 @@ fn agent_start_rows_parity_corpus_is_well_formed() {
         },
         Fold {
             count: std::num::NonZeroUsize,
+            holds: Holds,
         },
+    }
+    /// Which right-hand texts the folded rows carry, which names the fold row.
+    #[derive(Clone, Copy, Deserialize)]
+    #[serde(rename_all = "kebab-case")]
+    enum Holds {
+        NotFound,
+        CantCheck,
+        Both,
     }
 
     let corpus: Corpus = serde_json::from_str(include_str!(
@@ -174,9 +183,13 @@ fn agent_start_rows_parity_corpus_is_well_formed() {
                         "{context}: row {at}"
                     );
                 }
-                Row::Fold { count } => {
+                Row::Fold { count, holds } => {
+                    // Both kinds need at least two rows.
+                    let fits = !matches!(holds, Holds::Both) || count.get() >= 2;
                     assert!(
-                        at + 1 == case.expected.rows.len() && count.get() <= providers.len(),
+                        at + 1 == case.expected.rows.len()
+                            && count.get() <= providers.len()
+                            && fits,
                         "{context}: fold"
                     );
                 }

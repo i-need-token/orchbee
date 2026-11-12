@@ -38,7 +38,11 @@ const corpus = z
 								kind: z.literal('provider'),
 								providerId: z.string(),
 							}),
-							z.strictObject({ count: z.number(), kind: z.literal('fold') }),
+							z.strictObject({
+								count: z.number(),
+								holds: z.enum(['both', 'cant-check', 'not-found']),
+								kind: z.literal('fold'),
+							}),
 						]),
 					),
 					status: z.enum(['couldnt-check', 'looking']).nullable(),

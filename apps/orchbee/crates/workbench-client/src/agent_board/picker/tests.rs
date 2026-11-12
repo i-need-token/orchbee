@@ -3,7 +3,8 @@ use serde::Deserialize;
 
 use super::super::start::{Phase, StartPlace, place_after, test_catalog};
 use super::{
-    Escape, Group, Item, Meta, Picker, Places, Sources, Status, escape, items, menu_agents, status,
+    Escape, Folded, Group, Item, Meta, Picker, Places, Sources, Status, escape, items, menu_agents,
+    status,
 };
 use crate::workbench_state::AgentStartRefusal;
 
@@ -70,6 +71,7 @@ fn the_picker_lists_every_corpus_case_as_the_shared_rule_says() {
         },
         Fold {
             count: usize,
+            holds: String,
         },
     }
     let group_name = |group: Group| match group {
@@ -92,7 +94,15 @@ fn the_picker_lists_every_corpus_case_as_the_shared_rule_says() {
             }
             .to_owned(),
         },
-        Item::Fold(count) => Row::Fold { count },
+        Item::Fold { count, holds } => Row::Fold {
+            count,
+            holds: match holds {
+                Folded::NotFound => "not-found",
+                Folded::CantCheck => "cant-check",
+                Folded::Both => "both",
+            }
+            .to_owned(),
+        },
     };
 
     let corpus: Corpus = serde_json::from_str(include_str!(

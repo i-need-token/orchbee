@@ -258,7 +258,7 @@
 					},
 					{ "kind": "heading", "group": "installed" },
 					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
-					{ "kind": "fold", "count": 4 }
+					{ "kind": "fold", "count": 4, "holds": "both" }
 				]
 			}
 		},
@@ -454,7 +454,7 @@
 					},
 					{ "kind": "heading", "group": "installed" },
 					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
-					{ "kind": "fold", "count": 4 }
+					{ "kind": "fold", "count": 4, "holds": "both" }
 				]
 			}
 		},
@@ -522,7 +522,7 @@
 					},
 					{ "kind": "heading", "group": "installed" },
 					{ "kind": "provider", "providerId": "gemini", "group": "installed", "detail": "command" },
-					{ "kind": "fold", "count": 4 }
+					{ "kind": "fold", "count": 4, "holds": "both" }
 				]
 			}
 		},
@@ -814,6 +814,69 @@
 						"group": "installed",
 						"detail": "command"
 					}
+				]
+			}
+		},
+		{
+			"name": "a fold of only not found rows says not found",
+			"catalog": {
+				"revision": "3",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": [],
+				"agents": [
+					{ "providerId": "pi", "productName": "Pi", "command": "pi", "state": "not-found" },
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "gemini",
+						"productName": "Gemini CLI",
+						"command": "gemini",
+						"state": "not-found"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "installed" },
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{ "kind": "fold", "count": 2, "holds": "not-found" }
+				]
+			}
+		},
+		{
+			"name": "a fold of only rows that cannot be checked says so",
+			"catalog": {
+				"revision": "3",
+				"startable": true,
+				"lookup": { "status": "complete", "checkedAt": 1794300000000 },
+				"recent": [],
+				"agents": [
+					{ "providerId": "codex", "productName": "Codex", "command": "codex", "state": "found" },
+					{
+						"providerId": "cursor",
+						"productName": "Cursor",
+						"command": "agent",
+						"state": "cant-check"
+					},
+					{
+						"providerId": "openclaw",
+						"productName": "OpenClaw",
+						"command": "openclaw chat",
+						"state": "unknown"
+					}
+				]
+			},
+			"query": "",
+			"expanded": false,
+			"expected": {
+				"status": null,
+				"rows": [
+					{ "kind": "heading", "group": "installed" },
+					{ "kind": "provider", "providerId": "codex", "group": "installed", "detail": "command" },
+					{ "kind": "fold", "count": 2, "holds": "cant-check" }
 				]
 			}
 		},

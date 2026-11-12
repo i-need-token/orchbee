@@ -18,7 +18,7 @@ use super::super::modal::{
     paint_dialog,
 };
 use super::{interaction_state, pointer_presentation, render_header_close};
-use crate::agent_board::picker::{Group, Item, Meta, Status};
+use crate::agent_board::picker::{Folded, Group, Item, Meta, Status};
 use crate::agent_board::start::StartPlace;
 use crate::agent_board::{AgentBoardControl, AgentBoardDraw, AgentBoardView};
 use crate::client_view::{Binding, KeyCode, Modifiers};
@@ -72,7 +72,7 @@ pub(super) fn render(
         )),
         None if !items
             .iter()
-            .any(|item| matches!(item, Item::Provider { .. } | Item::Fold(_))) =>
+            .any(|item| matches!(item, Item::Provider { .. } | Item::Fold { .. })) =>
         {
             Some(DialogRow::Item(copy.no_match.into(), Role::TextSecondary))
         }
@@ -267,10 +267,15 @@ fn paint_item(
                 board.can_start_agent(),
             )
         }
-        Item::Fold(count) => (
+        Item::Fold { count, holds } => (
             format!(
                 "{} {}",
-                copy.fold.replace("{count}", &count.to_string()),
+                match holds {
+                    Folded::NotFound => copy.fold_not_found,
+                    Folded::CantCheck => copy.fold_cant_check,
+                    Folded::Both => copy.fold_both,
+                }
+                .replace("{count}", &count.to_string()),
                 theme.glyphs.navigation_marker
             ),
             String::new(),

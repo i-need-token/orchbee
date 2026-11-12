@@ -16,6 +16,7 @@ import type {
 } from '../../../types/workbench-agent-start';
 import {
 	projectWorkbenchAgentStartRows,
+	type WorkbenchAgentStartFolded,
 	type WorkbenchAgentStartGroup,
 	type WorkbenchAgentStartRows,
 } from '../model/projectWorkbenchAgentStartRows';
@@ -87,6 +88,12 @@ const GROUP_MESSAGES: Readonly<Record<WorkbenchAgentStartGroup, MessageDescripto
 	'not-checked': agentStartMessages.groupNotChecked,
 	'not-found': agentStartMessages.groupNotFound,
 	recent: agentStartMessages.groupRecent,
+};
+
+const FOLD_LABELS: Readonly<Record<WorkbenchAgentStartFolded, MessageDescriptor>> = {
+	both: agentStartMessages.foldBoth,
+	'cant-check': agentStartMessages.foldCantCheck,
+	'not-found': agentStartMessages.foldNotFound,
 };
 
 const PLACE_MESSAGES: Readonly<Record<WorkbenchAgentStartPlace, MessageDescriptor>> = {
@@ -250,7 +257,7 @@ export function useWorkbenchAgentStartDialog({
 					...option('fold'),
 					key: 'fold',
 					kind: 'fold',
-					label: intl.formatMessage(agentStartMessages.fold, { count: row.count }),
+					label: intl.formatMessage(FOLD_LABELS[row.holds], { count: row.count }),
 				});
 				break;
 		}

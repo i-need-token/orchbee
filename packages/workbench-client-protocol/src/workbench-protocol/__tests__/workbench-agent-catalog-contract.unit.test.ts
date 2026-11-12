@@ -37,7 +37,11 @@ const rowsCorpusSchema = z.strictObject({
 								group: groupSchema,
 								detail: z.enum(['command', 'not-found', 'cant-check']),
 							}),
-							z.strictObject({ kind: z.literal('fold'), count: z.number().int().min(1) }),
+							z.strictObject({
+								kind: z.literal('fold'),
+								count: z.number().int().min(1),
+								holds: z.enum(['not-found', 'cant-check', 'both']),
+							}),
 						]),
 					),
 				}),
@@ -141,7 +145,11 @@ describe('Agent catalog', () => {
 					if (headings.at(-1) !== row.group || !providers.includes(row.providerId) || !detailFits) {
 						found.push(`row ${at}`);
 					}
-				} else if (at !== test.expected.rows.length - 1 || row.count > providers.length) {
+				} else if (
+					at !== test.expected.rows.length - 1 ||
+					row.count > providers.length ||
+					(row.holds === 'both' && row.count < 2)
+				) {
 					found.push('fold');
 				}
 			});

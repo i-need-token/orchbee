@@ -16,9 +16,17 @@ export const agentStartMessages = defineMessages({
 		'agentStart.detail.notFound',
 		'Secondary text of an Agent row whose command the Session’s machine did not find.',
 	),
-	fold: message(
-		'agentStart.fold',
-		'Row that opens the folded list of Agents not found or not checkable. {count} is how many it holds.',
+	foldBoth: message(
+		'agentStart.fold.both',
+		'Row that opens the folded list when it holds both Agents not found and Agents that could not be checked. {count} is how many it holds.',
+	),
+	foldCantCheck: message(
+		'agentStart.fold.cantCheck',
+		'Row that opens the folded list when every Agent in it could not be checked. {count} is how many it holds.',
+	),
+	foldNotFound: message(
+		'agentStart.fold.notFound',
+		'Row that opens the folded list when every Agent in it was not found. {count} is how many it holds.',
 	),
 	groupInstalled: message(
 		'agentStart.group.installed',

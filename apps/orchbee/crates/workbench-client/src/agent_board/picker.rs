@@ -1,7 +1,7 @@
 //! The Start Agent picker: one nested task inside the Agent board's modal owner.
 //!
 //! The picker lists the Session's Agent catalog in groups — recent, installed, then one folded
-//! row for the providers its machine did not find — filters them as the query changes, and hands
+//! row for the providers its machine did not find or cannot check — filters them as the query changes, and hands
 //! the chosen provider and its place to the composition. It never starts anything itself and
 //! keeps no record: rows, their state and recency come from the catalog the Server sends.
 
@@ -58,8 +58,22 @@ pub(crate) enum Item {
         group: Group,
         meta: Meta,
     },
-    /// The folded Not found group and how many providers it holds.
-    Fold(usize),
+    /// The folded Not found group, how many providers it holds and which kinds, which name it.
+    Fold {
+        count: usize,
+        holds: Folded,
+    },
+}
+
+/// Which right-hand texts the folded providers carry, so the fold row says what it hides.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Folded {
+    /// Every folded provider is [`Meta::NotFound`].
+    NotFound,
+    /// Every folded provider is [`Meta::CantCheck`].
+    CantCheck,
+    /// Some of each.
+    Both,
 }
 
 impl Item {
@@ -71,7 +85,7 @@ impl Item {
         match self {
             Self::Heading(_) => None,
             Self::Provider { id, .. } => Some(Target::Provider(id)),
-            Self::Fold(_) => Some(Target::Fold),
+            Self::Fold { .. } => Some(Target::Fold),
         }
     }
 }
@@ -175,7 +189,8 @@ fn by_product(rows: &mut [Row<'_>]) {
 
 /// The picker's rows: Recent (at most three that may start, most recent first), then the rest.
 /// After a completed lookup the rest is Installed A–Z and a Not found group that stays folded into
-/// one row until it is opened or a query searches it. While no lookup has completed and the last
+/// one row, named by whether it holds not found rows, rows that can't be checked or both, until it
+/// is opened or a query searches it. While no lookup has completed and the last
 /// one failed or cannot run, it is one Not checked group, then Not found. A provider whose check
 /// is still running is never listed, and the fold waits for every check.
 pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<Item> {
@@ -241,7 +256,19 @@ pub(crate) fn items(sources: &Sources<'_>, query: &str, expanded: bool) -> Vec<I
         if query.is_empty() && !expanded {
             // While a check runs the count is not known; the status row says so instead.
             if !unavailable.is_empty() && !sources.checking() {
-                rows.push(Item::Fold(unavailable.len()));
+                let not_found = unavailable
+                    .iter()
+                    .filter(|row| row.state == State::NotFound)
+                    .count();
+                let holds = match not_found {
+                    0 => Folded::CantCheck,
+                    all if all == unavailable.len() => Folded::NotFound,
+                    _ => Folded::Both,
+                };
+                rows.push(Item::Fold {
+                    count: unavailable.len(),
+                    holds,
+                });
             }
         } else {
             group(&mut rows, Group::NotFound, &unavailable);
@@ -732,7 +759,7 @@ impl AgentBoard {
                 }
                 PickerOutcome::Handled
             }
-            Some(Item::Fold(_)) => {
+            Some(Item::Fold { .. }) => {
                 if let Some(picker) = self.picker.as_mut() {
                     picker.expanded = true;
                     picker.cursor = None;

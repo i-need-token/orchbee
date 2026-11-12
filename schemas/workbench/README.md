@@ -915,10 +915,12 @@ neither reads the other's source.
   with the expected status row (`looking`, `couldnt-check` or none) and the ordered rows the Start
   Agent list shows: `heading` rows naming a group (`recent`, `installed`, `not-checked`,
   `not-found`), `provider` rows with their group and right-hand `detail` (`command`, `not-found`,
-  `cant-check`), and a closing `fold` row with its count. The rule is the one display rule for both
-  Clients: Recent (the first three `recent` providers that are `found`), Installed (every other
-  `found` row, A–Z by product name) and the fold holding every row neither `found` nor `checking`,
-  A–Z, as `not-found` or `cant-check`. While any row is `checking` there is no fold row, but a
+  `cant-check`), and a closing `fold` row with its count and `holds`, which names the row: `not-found`
+  when every folded row is `not-found`, `cant-check` when none is, `both` otherwise. The rule is the
+  one display rule for both Clients: Recent (the first three `recent` providers that are `found`),
+  Installed (every other `found` row, A–Z by product name) and the fold holding every row neither
+  `found` nor `checking`, A–Z, as `not-found` or `cant-check`. While any row is `checking` there is
+  no fold row, but a
   query or an opened fold still lists the rows already known as the Not found group; a `checking`
   row is never listed. This holds from the first lookup on and keeps the last rows while a later
   lookup runs or fails (`running` or `failed` with `checkedAt` set). After a `failed` or
