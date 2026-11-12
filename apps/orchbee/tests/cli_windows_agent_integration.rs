@@ -1963,6 +1963,44 @@ fn claude_repairs_outdated_identities_and_preserves_foreign_sources() {
 /// wrote it.
 const SUPERSEDED_OPENCODE_BODY: &str = "export async function OrchbeeAgentObservation(...arguments_) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {};\n\t} catch {\n\t\treturn {};\n\t}\n}\n";
 
+/// The defect this pins: a read-only check started the Agent's own program, which created its
+/// first-run files. Each fake program leaves a marker whenever it starts.
+#[test]
+fn list_starts_no_agent_program_and_explain_does() {
+    let fixture = Fixture::new();
+    for (provider, executable) in [
+        ("claude-code", "claude"),
+        ("grok", "grok"),
+        ("github-copilot", "copilot"),
+        ("hermes", "hermes"),
+    ] {
+        let marker = fixture.config_home().join(format!("{executable}-started"));
+        fs::write(
+            fixture.0.join(format!("bin/{executable}.cmd")),
+            format!("@echo.>\"%CODEX_HOME%\\{executable}-started\"\r\n@exit /b 99\r\n"),
+        )
+        .unwrap();
+        let listed = fixture.provider_document("list", provider, 0);
+        let item = &listed["result"]["integrations"][0];
+        assert_eq!(item["availability"], "available", "{provider}: {listed}");
+        assert_eq!(item["state"], "unknown", "{provider}: {listed}");
+        assert_eq!(item["issue"], Value::Null, "{provider}: {listed}");
+        assert!(!marker.exists(), "{provider}: list started the Agent");
+        // Windows Hermes reads its own entry files first and starts only when they exist.
+        if provider != "hermes" {
+            let plan = fixture.provider_document("explain", provider, 0);
+            assert_eq!(
+                plan["result"]["issue"], "inspection-failed",
+                "{provider}: {plan}"
+            );
+            assert!(
+                marker.exists(),
+                "{provider}: explain reads through the Agent"
+            );
+        }
+    }
+}
+
 #[test]
 fn javascript_modules_load_and_deliver_ordered_windows_observations() {
     use std::os::windows::process::CommandExt;

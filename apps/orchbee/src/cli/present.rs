@@ -1761,7 +1761,7 @@ fn doctor_summary(result: &Value, locale: Locale) -> String {
     let next = enable
         .map(|id| ("enable", id))
         .or_else(|| explain.map(|id| ("explain", id)));
-    CliText::new(locale).cli_integration_summary(counts, next)
+    CliText::new(locale).cli_integration_summary(counts, 0, next)
 }
 
 /// Re-derives a hint's subject list from its `evidence` rows for localized

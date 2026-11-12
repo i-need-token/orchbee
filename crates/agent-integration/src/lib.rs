@@ -1,9 +1,11 @@
 //! Agent integration ownership shared by every native process: the language-neutral operation
-//! contract and managed provider identities. Clients and Server consume only this contract; the
-//! node-local writer executes it under Server authorization.
+//! contract, managed provider identities, and which operations start an Agent's own program.
+//! Clients and Server consume only this contract; the node-local writer executes it under Server
+//! authorization.
 
 mod contract;
 mod identity;
+mod reading;
 
 pub use contract::{
     AttemptedStep, Availability, CAPSULE_SOURCE_KINDS, CapsuleStatus, ContractError, Direction,
@@ -15,3 +17,4 @@ pub use contract::{
     encode_request,
 };
 pub use identity::IntegrationId;
+pub use reading::{CommandPurpose, explain_starts_agent};

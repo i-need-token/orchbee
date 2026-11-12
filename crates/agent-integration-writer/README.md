@@ -14,6 +14,17 @@ retained mutation outcomes. Values and report vocabularies come from the
   for its Session, and `orchbee`, which reuses the read-only configuration helpers for offline
   `agent doctor` and Windows update verification.
 
+## What each operation starts
+
+Most providers are read from files. Claude Code, Grok and GitHub Copilot report their plugins only
+through `plugin list` and `plugin marketplace list` commands of their own program, and Windows
+Hermes through `plugins list`; a provider's program may create its own first-run files whenever it
+starts. `list` reads files only and starts no provider program, so those rows stay `unknown` with
+no issue, not checked, unless Orchbee's own Hermes entry files already prove a conflict.
+`explain` is the explicit check of one provider and runs those read commands; `enable` and
+`disable` run them before and after their effects. The
+[reading rule](../agent-integration/README.md#reading-rule) names the providers for Clients.
+
 ## Observation adapter Capsule
 
 [`agent-observation-adapters/`](agent-observation-adapters/README.md) is the source of the Capsule

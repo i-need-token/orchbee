@@ -4,10 +4,12 @@ import * as React from 'react';
 
 import {
 	AGENT_INTEGRATION_NAME_MESSAGES,
+	explainStartsAgent,
 	type AgentIntegrationId,
 	type AgentIntegrationManagementControl,
 } from '../../../../agent-integration-management';
 import {
+	resolveAgentIntegrationConsentView,
 	resolveAgentIntegrationDiagnosisView,
 	resolveAgentIntegrationFailureMessage,
 	resolveAgentIntegrationStatusView,
@@ -26,6 +28,8 @@ export function useAgentIntegrationSettings(
 	);
 	// Which Agent's diagnosis this mount shows; the diagnosis itself belongs to the control.
 	const [shownDiagnosis, setShownDiagnosis] = React.useState<AgentIntegrationId | null>(null);
+	// The Agent whose check would start its program and waits for a second Explain; nothing runs yet.
+	const [asking, setAsking] = React.useState<AgentIntegrationId | null>(null);
 	const format = (
 		descriptor: MessageDescriptor,
 		values?: Readonly<Record<string, string>>,
@@ -61,14 +65,19 @@ export function useAgentIntegrationSettings(
 			diagnosis?.integrationId === integration.integrationId
 				? diagnosis
 				: null;
+		let diagnosisView: AgentIntegrationSettingsRowView['diagnosis'] = null;
+		if (asking === integration.integrationId) {
+			diagnosisView = resolveAgentIntegrationConsentView(agentName, format);
+		} else if (shown !== null) {
+			diagnosisView = resolveAgentIntegrationDiagnosisView(shown, format, formatList);
+		}
 		return {
 			agentName,
 			checked: enabled,
 			description: intl.formatMessage(agentIntegrationMessages.providerDescription, {
 				agent: agentName,
 			}),
-			diagnosis:
-				shown === null ? null : resolveAgentIntegrationDiagnosisView(shown, format, formatList),
+			diagnosis: diagnosisView,
 			diagnosisTitle: intl.formatMessage(agentIntegrationMessages.diagnosisTitle, {
 				agent: agentName,
 			}),
@@ -86,6 +95,18 @@ export function useAgentIntegrationSettings(
 			},
 			onExplain: (): void => {
 				if (snapshot.pending) return;
+				// A check that starts the Agent's program first says so; Explain on that question,
+				// or on the open diagnosis it produced, is the consent that runs it.
+				if (
+					shown === null &&
+					asking !== integration.integrationId &&
+					explainStartsAgent(integration)
+				) {
+					setAsking(integration.integrationId);
+					setShownDiagnosis(null);
+					return;
+				}
+				setAsking(null);
 				setShownDiagnosis(integration.integrationId);
 				void control.explain(integration.integrationId);
 			},
@@ -106,7 +127,10 @@ export function useAgentIntegrationSettings(
 				? null
 				: intl.formatMessage(resolveAgentIntegrationFailureMessage(snapshot.failureCode)),
 		localSection: intl.formatMessage(agentIntegrationMessages.localSection),
-		onCloseDiagnosis: (): void => setShownDiagnosis(null),
+		onCloseDiagnosis: (): void => {
+			setAsking(null);
+			setShownDiagnosis(null);
+		},
 		onRefresh: (): void => {
 			if (!snapshot.pending) void control.refresh();
 		},

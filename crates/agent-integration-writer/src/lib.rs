@@ -272,7 +272,8 @@ mod imp {
         }
     }
 
-    /// `agent integration list` — inspect all providers inside one deadline.
+    /// `agent integration list` — inspect all providers inside one deadline from files only; it
+    /// never starts an Agent's program.
     pub fn list(
         context: &IntegrationContext,
         provider: Option<IntegrationId>,
@@ -280,15 +281,16 @@ mod imp {
         let provider_context = context.provider_context();
         (
             match provider {
-                Some(id) => vec![providers::inspect_provider(id, &provider_context)],
-                None => providers::snapshot(&provider_context),
+                Some(id) => vec![providers::list_provider(id, &provider_context)],
+                None => providers::list_snapshot(&provider_context),
             },
             capsule_status(context),
         )
     }
 
     /// `agent integration explain --provider <id>` — the snapshot row, the
-    /// provider's guard dimensions, and the guard-evaluated enable vector.
+    /// provider's guard dimensions, and the guard-evaluated enable vector. It starts the Agent's
+    /// program when only that program reports the state.
     pub fn explain(
         context: &IntegrationContext,
         id: IntegrationId,

@@ -1,13 +1,16 @@
 import { agentIntegrationMessages, type MessageDescriptor } from '@orchbee/i18n';
 
-import type {
-	AgentIntegrationDiagnosis,
-	AgentIntegrationEntryState,
-	AgentIntegrationExplanation,
-	AgentIntegrationId,
-	AgentIntegrationManagementFailureCode,
-	AgentIntegrationMarketplace,
-	AgentIntegrationSnapshotItem,
+import {
+	AGENT_INTEGRATION_NAME_MESSAGES,
+	explainStartsAgent,
+	type AgentIntegrationCommandPurpose,
+	type AgentIntegrationDiagnosis,
+	type AgentIntegrationEntryState,
+	type AgentIntegrationExplanation,
+	type AgentIntegrationId,
+	type AgentIntegrationManagementFailureCode,
+	type AgentIntegrationMarketplace,
+	type AgentIntegrationSnapshotItem,
 } from '../../../../agent-integration-management';
 
 type AgentIntegrationStatusTone = 'danger' | 'neutral' | 'positive' | 'warning';
@@ -66,6 +69,12 @@ export function resolveAgentIntegrationStatusView(
 	if (integration.availability === 'not-found') {
 		return {
 			status: format(agentIntegrationMessages.statusNotFound),
+			statusTone: 'neutral',
+		};
+	}
+	if (integration.notChecked === true) {
+		return {
+			status: format(agentIntegrationMessages.statusNotChecked),
 			statusTone: 'neutral',
 		};
 	}
@@ -153,8 +162,24 @@ export interface AgentIntegrationDiagnosisView {
 	readonly facts: readonly AgentIntegrationDiagnosisFact[];
 	readonly headline: string;
 	readonly pending: boolean;
-	readonly readOnly: string;
+	/** What the check changed and started, or null while nothing has run. */
+	readonly readOnly: string | null;
 	readonly tone: AgentIntegrationStatusTone;
+}
+
+/** The question before a check that starts the Agent's program; nothing has run yet. */
+export function resolveAgentIntegrationConsentView(
+	agentName: string,
+	format: Format,
+): AgentIntegrationDiagnosisView {
+	return {
+		detail: format(agentIntegrationMessages.consentDetail, { agent: agentName }),
+		facts: [],
+		headline: format(agentIntegrationMessages.consentTitle, { agent: agentName }),
+		pending: false,
+		readOnly: null,
+		tone: 'warning',
+	};
 }
 
 function resolveAgentIntegrationFinding(
@@ -214,7 +239,11 @@ export function resolveAgentIntegrationDiagnosisView(
 				facts: explanationFacts(explanation, format, formatList),
 				headline: format(FINDING_HEADLINES[finding]),
 				pending: false,
-				readOnly,
+				readOnly: explainStartsAgent(explanation.item)
+					? format(agentIntegrationMessages.diagnosisStarted, {
+							agent: format(AGENT_INTEGRATION_NAME_MESSAGES[diagnosis.integrationId]),
+						})
+					: readOnly,
 				tone: FINDING_TONES[finding],
 			};
 		}
@@ -308,18 +337,63 @@ function explanationFacts(
 		case 'plain':
 			break;
 	}
-	const plan =
-		explanation.plan.length === 0
-			? format(agentIntegrationMessages.planNone)
-			: formatList(
-					explanation.plan.map((step) =>
-						step.kind === 'command'
-							? format(agentIntegrationMessages.planCommand, { command: step.command })
-							: format(PLAN_STEPS[step.kind]),
-					),
-				);
-	facts.push(fact(agentIntegrationMessages.factPlan, plan));
+	facts.push(
+		fact(agentIntegrationMessages.factPlan, planText(explanation.plan, format, formatList)),
+	);
 	return facts;
+}
+
+const PLAN_PURPOSES: Readonly<Record<AgentIntegrationCommandPurpose, MessageDescriptor>> = {
+	'add-plugin-source': agentIntegrationMessages.planPurposeAddPluginSource,
+	'confirm-plugin': agentIntegrationMessages.planPurposeConfirmPlugin,
+	'enable-plugin': agentIntegrationMessages.planPurposeEnablePlugin,
+	'install-plugin': agentIntegrationMessages.planPurposeInstallPlugin,
+	'remove-plugin': agentIntegrationMessages.planPurposeRemovePlugin,
+	'remove-plugin-source': agentIntegrationMessages.planPurposeRemovePluginSource,
+};
+
+/**
+ * The enable plan as one sentence fragment, as the TUI writes it: consecutive commands of one
+ * program name it once and list what they do, and a repeated step shows once.
+ */
+function planText(
+	plan: AgentIntegrationExplanation['plan'],
+	format: Format,
+	formatList: FormatList,
+): string {
+	if (plan.length === 0) return format(agentIntegrationMessages.planNone);
+	const steps: string[] = [];
+	for (let index = 0; index < plan.length;) {
+		const step = plan[index];
+		index += 1;
+		if (step === undefined) break;
+		let text: string;
+		if (step.kind === 'command') {
+			const purposes: string[] = [];
+			const add = (purpose: AgentIntegrationCommandPurpose | null): void => {
+				const purposeText = format(
+					purpose === null ? agentIntegrationMessages.planPurposeOther : PLAN_PURPOSES[purpose],
+				);
+				if (!purposes.includes(purposeText)) purposes.push(purposeText);
+			};
+			add(step.purpose);
+			for (let next = plan[index]; next?.kind === 'command' && next.command === step.command;) {
+				add(next.purpose);
+				index += 1;
+				next = plan[index];
+			}
+			text = format(agentIntegrationMessages.planCommand, {
+				command: step.command,
+				purposes: formatList(purposes),
+			});
+		} else {
+			text = format(PLAN_STEPS[step.kind]);
+		}
+		if (steps.at(-1) !== text) steps.push(text);
+	}
+	return steps.reduceRight((rest, first) =>
+		format(agentIntegrationMessages.planJoin, { first, rest }),
+	);
 }
 
 const PRESENCE: Readonly<Record<AgentIntegrationSnapshotItem['availability'], MessageDescriptor>> =

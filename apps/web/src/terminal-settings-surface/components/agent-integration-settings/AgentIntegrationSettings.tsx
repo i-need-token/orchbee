@@ -143,7 +143,9 @@ function AgentIntegrationDiagnosis({ row, view }: AgentIntegrationDiagnosisProps
 					))}
 				</dl>
 			)}
-			{diagnosis.pending ? null : <p className={styles['diagnosisText']}>{diagnosis.readOnly}</p>}
+			{diagnosis.pending || diagnosis.readOnly === null ? null : (
+				<p className={styles['diagnosisText']}>{diagnosis.readOnly}</p>
+			)}
 		</section>
 	);
 }

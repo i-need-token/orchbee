@@ -14,6 +14,13 @@ inspects, the diagnostics bundle inspects only when a Capsule folder exists, and
 when the person opens its Agent integrations page. These commands and that page are the explicit
 requests.
 
+`list`, and so Settings' page and Refresh and the diagnostics bundle, reads files only and starts
+no Agent program. Claude Code, Grok, GitHub Copilot and Hermes report their plugins only through
+their own `claude`, `grok`, `copilot` and `hermes` programs, which may create their own first-run
+files whenever they start, so `list` reports them not checked unless Hermes's entry files already
+prove a conflict. `explain` of one of them starts its program, and Settings asks first; `enable`
+and `disable` start it by design.
+
 ## Model and boundaries
 
 | Field          | Contract                                                                                                                                                                                                                                                                                                      |
@@ -70,7 +77,7 @@ action remains outside this cooperative teardown claim.
 
 ## Maintenance filtering
 
-Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflicting and uninspectable entries are not replaced.
+Windows `agent integration list --outdated-only` performs the usual files-only local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflicting and uninspectable entries are not replaced.
 
 Filtered lists use v1 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflicting entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v1. The current schema admits all 20 canonical providers. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
 

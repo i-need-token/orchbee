@@ -2,7 +2,9 @@
 //! (`packages/i18n`, `agent-integrations` and `agent-observation`); diagnosis copy restates the
 //! facts that `orchbee agent integration explain` reports, without paths or command output.
 use super::super::Locale;
-use orchbee_agent_integration::{Availability, IntegrationId, Issue, Marketplace, TargetState};
+use orchbee_agent_integration::{
+    Availability, CommandPurpose, IntegrationId, Issue, Marketplace, TargetState,
+};
 
 /// One Agent row's bounded status, in the GUI's precedence, plus the pending label.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -11,6 +13,7 @@ pub(crate) enum IntegrationStatus {
     ManualOnly,
     InspectionFailed,
     NotFound,
+    NotChecked,
     Enabled,
     Disabled,
     NotInstalled,
@@ -37,6 +40,7 @@ pub(crate) enum IntegrationBlock {
     Pending,
     ManualOnly,
     Conflict,
+    NotChecked,
     Unknown,
     AgentMissing,
 }
@@ -70,11 +74,14 @@ pub(crate) enum IntegrationAdapter {
     BindingFailed,
 }
 
-/// One step of the enable plan; a command keeps only its executable's file name.
+/// One step of the enable plan; a command keeps only its executable's file name and what it does.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum IntegrationStep {
     PublishAdapter,
-    Command(String),
+    Command {
+        program: String,
+        purpose: Option<CommandPurpose>,
+    },
     WriteEntry,
     RemoveEntry,
 }
@@ -163,8 +170,8 @@ impl Locale {
 
     pub(crate) fn integrations_refresh_description(self) -> &'static str {
         self.integration(
-            "Reads every integration's state on this device; nothing is changed.",
-            "读取本设备上每个集成的状态；不会做任何更改。",
+            "Reads every integration's state from files on this device; nothing is changed and no Agent is started.",
+            "从本设备上的文件读取每个集成的状态；不做任何更改，也不启动任何智能体。",
         )
     }
 
@@ -203,6 +210,7 @@ impl Locale {
                 self.integration("Status unavailable", "状态不可用")
             }
             IntegrationStatus::NotFound => self.integration("Agent not found", "未找到智能体"),
+            IntegrationStatus::NotChecked => self.integration("Not checked", "未检查"),
             IntegrationStatus::Enabled => self.integration("Enabled", "已开启"),
             IntegrationStatus::Disabled => self.integration("Disabled", "已关闭"),
             IntegrationStatus::NotInstalled => self.integration("Not enabled", "未开启"),
@@ -255,6 +263,10 @@ impl Locale {
                 "Orchbee 不在此管理该集成；请在智能体中手动设置。",
             ),
             IntegrationBlock::Conflict => self.integration_failure(IntegrationFailure::Conflict),
+            IntegrationBlock::NotChecked => self.integration(
+                "Not checked: reading this state starts the Agent's own program. Choose Explain to check it.",
+                "未检查：读取此状态需要启动智能体自己的程序。选择“诊断”进行检查。",
+            ),
             IntegrationBlock::Unknown => self.integration(
                 "The state is unknown. Choose Refresh status, or Explain to see why.",
                 "状态未知。请选择“刷新状态”，或选择“诊断”查看原因。",
@@ -272,11 +284,43 @@ impl Locale {
         )
     }
 
+    /// The closing sentence of a check that read files only.
     pub(crate) fn integration_diagnosis_read_only(self) -> &'static str {
         self.integration(
-            "Read-only check; nothing was changed.",
-            "只读检查；未做任何更改。",
+            "Read-only check: nothing was changed and no Agent program was started.",
+            "只读检查：未做任何更改，也未启动任何智能体程序。",
         )
+    }
+
+    /// The closing sentence of a check that may start the Agent's program.
+    pub(crate) fn integration_diagnosis_started(self, agent: &str) -> String {
+        match self {
+            Self::EnUs => format!(
+                "Orchbee changed nothing. This check starts {agent} when needed to read its plugins, and {agent} may create its own files."
+            ),
+            Self::ZhCn => format!(
+                "Orchbee 未做任何更改。此检查会在需要时启动 {agent} 读取其插件，{agent} 可能会创建自己的文件。"
+            ),
+        }
+    }
+
+    /// The question before a check that starts the Agent's program.
+    pub(crate) fn integration_consent_title(self, agent: &str) -> String {
+        match self {
+            Self::EnUs => format!("Check {agent}?"),
+            Self::ZhCn => format!("检查 {agent}？"),
+        }
+    }
+
+    pub(crate) fn integration_consent(self, agent: &str) -> String {
+        match self {
+            Self::EnUs => format!(
+                "This check starts {agent} to read its plugins, and {agent} may create its own files when it starts. Orchbee changes nothing. Choose Explain to start the check."
+            ),
+            Self::ZhCn => format!(
+                "此检查会启动 {agent} 读取其插件，{agent} 启动时可能会创建自己的文件。Orchbee 不做任何更改。选择“诊断”开始检查。"
+            ),
+        }
     }
 
     /// The headline: a definite finding is named as such; an unknown result says it is unknown.
@@ -433,29 +477,88 @@ impl Locale {
         }
     }
 
-    /// The enable plan as one sentence fragment; an empty plan makes no change.
+    fn integration_command_purpose(self, purpose: Option<CommandPurpose>) -> &'static str {
+        match purpose {
+            Some(CommandPurpose::AddPluginSource) => {
+                self.integration("add Orchbee's plugin source", "添加 Orchbee 插件来源")
+            }
+            Some(CommandPurpose::RemovePluginSource) => {
+                self.integration("remove the old plugin source", "移除旧插件来源")
+            }
+            Some(CommandPurpose::InstallPlugin) => {
+                self.integration("install the Orchbee plugin", "安装 Orchbee 插件")
+            }
+            Some(CommandPurpose::RemovePlugin) => {
+                self.integration("remove the old plugin", "移除旧插件")
+            }
+            Some(CommandPurpose::EnablePlugin) => {
+                self.integration("turn the plugin on", "开启插件")
+            }
+            Some(CommandPurpose::ConfirmPlugin) => {
+                self.integration("confirm the plugin is on", "确认插件已开启")
+            }
+            None => self.integration("run a plugin command", "执行插件命令"),
+        }
+    }
+
+    /// A conjunction list as the GUI's `Intl.ListFormat` writes it for each locale.
+    fn integration_conjunction(self, items: &[&str]) -> String {
+        match (self, items) {
+            (_, []) => String::new(),
+            (_, [only]) => (*only).to_owned(),
+            (Self::EnUs, [first, second]) => format!("{first} and {second}"),
+            (Self::ZhCn, [first, second]) => format!("{first}和{second}"),
+            (Self::EnUs, [head @ .., last]) => format!("{}, and {last}", head.join(", ")),
+            (Self::ZhCn, [head @ .., last]) => format!("{}和{last}", head.join("、")),
+        }
+    }
+
+    /// The enable plan as one sentence fragment; an empty plan makes no change. Consecutive
+    /// commands of one program name it once and list what they do; a repeated step shows once.
     pub(crate) fn integration_plan(self, plan: &[IntegrationStep]) -> String {
         if plan.is_empty() {
             return self.integration("make no changes", "不做任何更改").into();
         }
-        let steps: Vec<String> = plan
-            .iter()
-            .map(|step| match step {
+        let mut steps: Vec<String> = Vec::new();
+        let mut index = 0;
+        while index < plan.len() {
+            let step = &plan[index];
+            index += 1;
+            let text = match step {
                 IntegrationStep::PublishAdapter => self
                     .integration("publish the Orchbee adapter", "发布 Orchbee 适配器")
-                    .into(),
-                IntegrationStep::Command(name) => match self {
-                    Self::EnUs => format!("run {name}"),
-                    Self::ZhCn => format!("运行 {name}"),
-                },
+                    .to_owned(),
+                IntegrationStep::Command { program, purpose } => {
+                    let mut purposes = vec![self.integration_command_purpose(*purpose)];
+                    while let Some(IntegrationStep::Command {
+                        program: next,
+                        purpose,
+                    }) = plan.get(index)
+                        && next == program
+                    {
+                        let text = self.integration_command_purpose(*purpose);
+                        if !purposes.contains(&text) {
+                            purposes.push(text);
+                        }
+                        index += 1;
+                    }
+                    let purposes = self.integration_conjunction(&purposes);
+                    match self {
+                        Self::EnUs => format!("use {program} to {purposes}"),
+                        Self::ZhCn => format!("用 {program} {purposes}"),
+                    }
+                }
                 IntegrationStep::WriteEntry => self
                     .integration("write the integration entry", "写入集成条目")
-                    .into(),
+                    .to_owned(),
                 IntegrationStep::RemoveEntry => self
                     .integration("remove an obsolete entry", "移除过时条目")
-                    .into(),
-            })
-            .collect();
+                    .to_owned(),
+            };
+            if steps.last() != Some(&text) {
+                steps.push(text);
+            }
+        }
         steps.join(self.integration("; ", "；"))
     }
 }

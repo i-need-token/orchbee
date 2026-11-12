@@ -673,17 +673,24 @@ fn list_text(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) ->
     out
 }
 
-/// Classify each row once — ready, needs `enable`, needs `explain`, or not on
-/// PATH — and name the first provider an `enable` or `explain` would move on.
-/// Enabling also publishes an unready capsule.
+/// Classify each row once — ready, needs `enable`, needs `explain`, not checked
+/// because reading it starts the Agent, or not on PATH — and name the first
+/// provider an `enable` or `explain` would move on. Enabling also publishes an
+/// unready capsule.
 #[cfg(any(unix, windows))]
 fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) -> String {
     use crate::agent_integrations::model::Availability;
     let mut counts = [0; 4];
+    let mut not_checked = 0;
     let mut enable = None;
     let mut explain = None;
     for item in items {
         let id = item.integration_id.provider();
+        if item.not_checked() {
+            explain.get_or_insert(id);
+            not_checked += 1;
+            continue;
+        }
         let slot = match (item.availability, item.state) {
             (Availability::NotFound, _) => 3,
             (_, State::Enabled) if capsule.ready => 0,
@@ -701,7 +708,7 @@ fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale)
     let next = enable
         .map(|id| ("enable", id))
         .or_else(|| explain.map(|id| ("explain", id)));
-    CliText::new(locale).cli_integration_summary(counts, next)
+    CliText::new(locale).cli_integration_summary(counts, not_checked, next)
 }
 
 #[cfg(any(unix, windows))]
@@ -745,6 +752,15 @@ fn explain_text(
             out.push_str(&format!("  {}. {}\n", index + 1, planned_step_text(step)));
         }
     }
+    let starts_agent = orchbee_agent_integration::explain_starts_agent(
+        item.integration_id,
+        item.availability,
+        item.management_mode,
+    );
+    out.push_str(
+        &CliText::new(locale)
+            .cli_integration_explain_effects(starts_agent.then(|| item.integration_id.provider())),
+    );
     out
 }
 

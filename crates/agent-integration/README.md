@@ -1,9 +1,21 @@
 # orchbee-agent-integration
 
 Managed Agent integration identities and the language-neutral operation contract exchanged by
-native Clients, the Server relay, and the node-local writer. The crate owns values and codecs
-only; the [writer](../agent-integration-writer/README.md) inspects and changes provider
-configuration.
+native Clients, the Server relay, and the node-local writer. The crate owns values, codecs and the
+reading rule below; the [writer](../agent-integration-writer/README.md) inspects and changes
+provider configuration.
+
+## Reading rule
+
+Claude Code, Grok, GitHub Copilot and Hermes report their plugin state only through their own
+program, and the Agent's program may create its own files whenever it starts.
+`IntegrationId::read_by_starting_agent` names them. `list` never starts an Agent's program: such a
+found, managed row reports `unknown` with no issue and no timeout, which `SnapshotItem::not_checked`
+reads as not checked. `explain`, `enable` and `disable` start it, and `explain_starts_agent` says
+whether an `explain` of a row does. Every other integration is read from files only.
+`PlannedStep::command_purpose` names what a planned plugin command does, so a Client states each
+step once instead of repeating the program. The TypeScript Client mirrors these rules in
+`apps/web/src/agent-integration-management`.
 
 ## Identity
 

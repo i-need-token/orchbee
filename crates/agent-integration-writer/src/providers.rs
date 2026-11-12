@@ -2,7 +2,8 @@
 //! The CLI-command providers gate their state on the executable being
 //! resolvable; codex, cline, and the guarded entries inspect the filesystem
 //! regardless. The capsule fold (`enabled` + capsule-not-ready →
-//! `update-required`) wraps every provider.
+//! `update-required`) wraps every provider. A `list` row never starts an
+//! Agent's program: providers read only through it stay not checked.
 
 use std::{
     ffi::OsStr,
@@ -450,11 +451,25 @@ pub(crate) fn executable_available(id: IntegrationId, context: &ProviderContext)
     exec::resolve_executable(spec(id).executable, context.path_env).is_some()
 }
 
+/// Whether an inspection may start the Agent's own program to read state that only the program
+/// reports. The program may create its own files when it starts, so `list` skips it.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum AgentReads {
+    Start,
+    Skip,
+}
+
 /// One provider's snapshot row — canonical `inspect()` semantics plus the
 /// capsule fold. CLI-command providers report `unknown` (no issue) when the
 /// executable is unresolvable; filesystem providers inspect regardless.
 pub(crate) fn inspect_provider(id: IntegrationId, context: &ProviderContext) -> SnapshotItem {
     inspect_full(id, context).0
+}
+
+/// One provider's `list` row: the files-only inspection. A provider whose state only its own
+/// program reports stays `unknown` with no issue — not checked — unless its files alone decide.
+pub(crate) fn list_provider(id: IntegrationId, context: &ProviderContext) -> SnapshotItem {
+    inspect_with(id, context, AgentReads::Skip).0
 }
 
 /// The single read pass every consumer shares: one scripted queue slot per
@@ -464,6 +479,14 @@ pub(crate) fn inspect_provider(id: IntegrationId, context: &ProviderContext) -> 
 pub(crate) fn inspect_full(
     id: IntegrationId,
     context: &ProviderContext,
+) -> (SnapshotItem, InspectionDetail) {
+    inspect_with(id, context, AgentReads::Start)
+}
+
+fn inspect_with(
+    id: IntegrationId,
+    context: &ProviderContext,
+    reads: AgentReads,
 ) -> (SnapshotItem, InspectionDetail) {
     let management_mode = management_mode(id, context.management_mode);
     let spec = spec(id);
@@ -492,6 +515,29 @@ pub(crate) fn inspect_full(
             InspectionDetail::Cli {
                 marketplace: None,
                 plugin_present: None,
+            },
+        );
+    }
+
+    if reads == AgentReads::Skip
+        && id.read_by_starting_agent()
+        && management_mode == ManagementMode::ManagedLocal
+    {
+        return (
+            SnapshotItem {
+                availability,
+                integration_id: id,
+                issue: None,
+                management_mode,
+                state: unread_state(id, context, &options),
+                timed_out: false,
+            },
+            match spec.kind {
+                Kind::Cli(CliKind::Hermes) => InspectionDetail::Plain {},
+                _ => InspectionDetail::Cli {
+                    marketplace: None,
+                    plugin_present: None,
+                },
             },
         );
     }
@@ -714,12 +760,34 @@ pub(crate) fn inspect_full(
     )
 }
 
+/// The state of a provider left unread: `unknown`, except that Orchbee's own Hermes entry files
+/// alone prove a conflict.
+fn unread_state(id: IntegrationId, context: &ProviderContext, options: &ResourceOptions) -> State {
+    #[cfg(windows)]
+    if id == IntegrationId::Hermes
+        && super::hermes_windows::local(context.home, options)
+            .is_some_and(|local| local.state == State::Conflict)
+    {
+        return State::Conflict;
+    }
+    let _ = (id, context, options);
+    State::Unknown
+}
+
 /// The whole snapshot — canonical order, each provider inspected in turn
 /// inside the shared deadline.
 pub(crate) fn snapshot(context: &ProviderContext) -> Vec<SnapshotItem> {
     IntegrationId::ALL
         .iter()
         .map(|id| inspect_provider(*id, context))
+        .collect()
+}
+
+/// The `list` snapshot: every provider's files-only row, in canonical order.
+pub(crate) fn list_snapshot(context: &ProviderContext) -> Vec<SnapshotItem> {
+    IntegrationId::ALL
+        .iter()
+        .map(|id| list_provider(*id, context))
         .collect()
 }
 

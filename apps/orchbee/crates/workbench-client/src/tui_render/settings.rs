@@ -1303,22 +1303,42 @@ fn render_child_row(
     hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
 }
 
-/// The integration lane's state: a running job, the last failure, or what Orchbee changes.
-fn integration_fact(page: PageView<'_>, locale: Locale) -> (&'static str, Role) {
+/// The integration lane's state: a running job, the last failure, or what a check changed and
+/// started.
+fn integration_fact(page: PageView<'_>, locale: Locale) -> (std::borrow::Cow<'static, str>, Role) {
     let integrations = page.integrations();
     let working = locale.integration_status(crate::localization::IntegrationStatus::Working);
     match (page.page(), integrations.failure()) {
         (Page::Diagnosis(id), _) => match integrations.diagnosis(id) {
-            Some(Diagnosis::Pending) => (working, Role::StatusPending),
-            Some(Diagnosis::Failed(failure)) => {
-                (locale.integration_failure(*failure), Role::StatusError)
-            }
-            _ => (locale.integration_diagnosis_read_only(), Role::TextMuted),
+            Some(Diagnosis::Pending) => (working.into(), Role::StatusPending),
+            Some(Diagnosis::Failed(failure)) => (
+                locale.integration_failure(*failure).into(),
+                Role::StatusError,
+            ),
+            Some(Diagnosis::Confirm) => (
+                locale
+                    .integration_consent_title(locale.agent_integration_name(id))
+                    .into(),
+                Role::StatusWarning,
+            ),
+            Some(Diagnosis::Explained(explanation)) if explanation.started_agent() => (
+                locale
+                    .integration_diagnosis_started(locale.agent_integration_name(id))
+                    .into(),
+                Role::TextMuted,
+            ),
+            _ => (
+                locale.integration_diagnosis_read_only().into(),
+                Role::TextMuted,
+            ),
         },
-        (_, Some(failure)) => (locale.integration_failure(failure), Role::StatusError),
-        _ if integrations.pending() => (working, Role::StatusPending),
-        _ if !integrations.reported() => (locale.integrations_unchecked(), Role::TextMuted),
-        _ => (locale.integrations_disclosure(), Role::TextMuted),
+        (_, Some(failure)) => (
+            locale.integration_failure(failure).into(),
+            Role::StatusError,
+        ),
+        _ if integrations.pending() => (working.into(), Role::StatusPending),
+        _ if !integrations.reported() => (locale.integrations_unchecked().into(), Role::TextMuted),
+        _ => (locale.integrations_disclosure().into(), Role::TextMuted),
     }
 }
 
@@ -1384,6 +1404,17 @@ fn render_diagnosis(
         .style(theme.style(Role::TextPrimary))
     };
     match integrations.diagnosis(id) {
+        Some(Diagnosis::Confirm) => {
+            lines.push(super::modal::status_line(
+                locale.integration_consent_title(locale.agent_integration_name(id)),
+                Role::StatusWarning,
+                theme,
+            ));
+            wrap(
+                &locale.integration_consent(locale.agent_integration_name(id)),
+                &mut lines,
+            );
+        }
         Some(Diagnosis::Pending) => lines.push(super::modal::status_line(
             locale.integration_diagnosis_pending(),
             Role::StatusPending,

@@ -31,6 +31,8 @@ const AgentIntegrationSnapshotItemSchema = z.strictObject({
 	integrationId: AgentIntegrationIdSchema,
 	issue: AgentIntegrationIssueSchema.nullable(),
 	managementMode: AgentIntegrationManagementModeSchema,
+	/** Present when the report left the state unread because reading it starts the Agent. */
+	notChecked: z.literal(true).optional(),
 	state: AgentIntegrationStateSchema,
 });
 
@@ -108,12 +110,28 @@ type AgentIntegrationInspectionDetail =
 	  }
 	| { readonly kind: 'plain' };
 
-/** One step turning the integration on would take; a command is named by its file name only. */
+/** What one planned provider command does; mirrors `CommandPurpose` in the Rust contract. */
+export type AgentIntegrationCommandPurpose =
+	| 'add-plugin-source'
+	| 'confirm-plugin'
+	| 'enable-plugin'
+	| 'install-plugin'
+	| 'remove-plugin'
+	| 'remove-plugin-source';
+
+/**
+ * One step turning the integration on would take; a command is named by its file name only, with
+ * what it does.
+ */
 type AgentIntegrationPlanStep =
-	| { readonly command: string; readonly kind: 'command' }
+	| {
+			readonly command: string;
+			readonly kind: 'command';
+			readonly purpose: AgentIntegrationCommandPurpose | null;
+	  }
 	| { readonly kind: 'publish-adapter' | 'remove-entry' | 'write-entry' };
 
-/** What one read-only explain job established about one Agent, without paths or command lines. */
+/** What one explain job established about one Agent, without paths or command lines. */
 export interface AgentIntegrationExplanation {
 	readonly adapter: 'binding-failed' | 'not-ready' | 'ready' | 'source-absent';
 	readonly detail: AgentIntegrationInspectionDetail;
@@ -155,7 +173,10 @@ export interface AgentIntegrationManagementControl {
 	enable(
 		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult>;
-	/** Runs the read-only diagnosis for one Agent; it changes nothing. */
+	/**
+	 * Runs the diagnosis for one Agent; it changes nothing. For an Agent read only through its own
+	 * program it starts that program, so a caller asks first.
+	 */
 	explain(
 		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult>;

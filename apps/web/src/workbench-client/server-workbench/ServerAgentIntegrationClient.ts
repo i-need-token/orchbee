@@ -16,6 +16,8 @@ import {
 	type AgentIntegrationManagementFailureCode,
 	type AgentIntegrationManagementSnapshot,
 	type AgentIntegrationSnapshotItem,
+	agentIntegrationCommandPurpose,
+	reportedNotChecked,
 } from '../../agent-integration-management';
 import {
 	type ServerConnection,
@@ -442,7 +444,11 @@ function explanation(
 				case 'capsule-publish':
 					return { kind: 'publish-adapter' };
 				case 'command':
-					return { command: commandName(step.executable), kind: 'command' };
+					return {
+						command: commandName(step.executable),
+						kind: 'command',
+						purpose: agentIntegrationCommandPurpose(step.argv),
+					};
 				case 'guarded-write':
 					return { kind: 'write-entry' };
 				case 'guarded-remove':
@@ -569,27 +575,45 @@ function reportedRow(
 	item: ReportedItem,
 	integrationId: AgentIntegrationId,
 ): AgentIntegrationSnapshotItem {
-	return {
+	const row: AgentIntegrationSnapshotItem = {
 		availability: item.availability,
 		integrationId,
 		issue: item.issue ?? null,
 		managementMode: item.managementMode,
 		state: item.state,
 	};
+	return reportedNotChecked({ ...row, timedOut: item.timedOut })
+		? { ...row, notChecked: true }
+		: row;
 }
 
 function listedRows(items: readonly ReportedItem[], rows: Rows): Rows {
 	return rows.map((row) => {
 		const item = items.find((candidate) => candidate.integrationId === row.integrationId);
 		return item === undefined
-			? { ...row, availability: 'unknown', issue: 'inspection-failed', state: 'unknown' }
+			? {
+					availability: 'unknown',
+					integrationId: row.integrationId,
+					issue: 'inspection-failed',
+					managementMode: row.managementMode,
+					state: 'unknown',
+				}
 			: reportedRow(item, row.integrationId);
 	});
 }
 
+/** A change that may have begun leaves its row unknown, not unchecked, until the next report. */
 function uncertainRows(rows: Rows, integrationId: AgentIntegrationId): Rows {
 	return rows.map((row) =>
-		row.integrationId === integrationId ? { ...row, issue: null, state: 'unknown' } : row,
+		row.integrationId === integrationId
+			? {
+					availability: row.availability,
+					integrationId,
+					issue: null,
+					managementMode: row.managementMode,
+					state: 'unknown',
+				}
+			: row,
 	);
 }
 

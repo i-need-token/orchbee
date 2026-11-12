@@ -8,7 +8,7 @@ use crate::localization::{
 use orchbee_agent_integration::{
     Availability, CapsuleStatus, Direction, FailureCode, InspectionDetail, IntegrationId,
     IntegrationOperation, IntegrationReport, Issue, ManagementMode, MutationReport, PlannedStep,
-    Refusal, SnapshotItem, State, Verdict,
+    Refusal, SnapshotItem, State, Verdict, explain_starts_agent,
 };
 use orchbee_workbench_protocol::AgentIntegrationFailure;
 
@@ -22,6 +22,8 @@ pub(crate) struct Integration {
     pub(crate) issue: Option<Issue>,
     pub(crate) management: ManagementMode,
     pub(crate) state: State,
+    /// The report left the state unread because reading it starts the Agent's program.
+    pub(crate) not_checked: bool,
 }
 
 impl Integration {
@@ -31,6 +33,7 @@ impl Integration {
         issue: None,
         management: ManagementMode::ManagedLocal,
         state: State::Unknown,
+        not_checked: false,
     };
 
     const fn reported(item: &SnapshotItem) -> Self {
@@ -39,14 +42,16 @@ impl Integration {
             issue: item.issue,
             management: item.management_mode,
             state: item.state,
+            not_checked: item.not_checked(),
         }
     }
 
-    /// A change that may have begun leaves its row unknown until the next report.
+    /// A change that may have begun leaves its row unknown, not unchecked, until the next report.
     const fn uncertain(self) -> Self {
         Self {
             issue: None,
             state: State::Unknown,
+            not_checked: false,
             ..self
         }
     }
@@ -133,11 +138,12 @@ impl Explanation {
             .iter()
             .map(|step| match step {
                 PlannedStep::CapsulePublish { .. } => IntegrationStep::PublishAdapter,
-                PlannedStep::Command { executable, .. } => IntegrationStep::Command(
-                    std::path::Path::new(executable)
+                PlannedStep::Command { executable, .. } => IntegrationStep::Command {
+                    program: std::path::Path::new(executable)
                         .file_name()
                         .map_or_else(|| executable.clone(), |name| name.to_string_lossy().into()),
-                ),
+                    purpose: step.command_purpose(),
+                },
                 PlannedStep::GuardedWrite { .. } => IntegrationStep::WriteEntry,
                 PlannedStep::GuardedRemove { .. } => IntegrationStep::RemoveEntry,
             })
@@ -175,11 +181,22 @@ impl Explanation {
             State::Unknown => IntegrationFinding::Unknown(IntegrationUnknown::Undetermined),
         }
     }
+
+    /// Whether this check could start the Agent's program, which decides its closing sentence.
+    pub(crate) const fn started_agent(&self) -> bool {
+        explain_starts_agent(
+            self.item.integration_id,
+            self.item.availability,
+            self.item.management_mode,
+        )
+    }
 }
 
-/// One Agent's diagnosis: waiting for its explain job, explained, or not answered.
+/// One Agent's diagnosis: asking before a check that starts the Agent's program, waiting for its
+/// explain job, explained, or not answered.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Diagnosis {
+    Confirm,
     Pending,
     Explained(Box<Explanation>),
     Failed(IntegrationFailure),
@@ -266,6 +283,9 @@ impl Integrations {
         if row.availability == Availability::NotFound {
             return IntegrationStatus::NotFound;
         }
+        if row.not_checked {
+            return IntegrationStatus::NotChecked;
+        }
         match row.state {
             State::Enabled => IntegrationStatus::Enabled,
             State::Disabled => IntegrationStatus::Disabled,
@@ -285,6 +305,8 @@ impl Integrations {
             Some(IntegrationBlock::ManualOnly)
         } else if row.state == State::Conflict {
             Some(IntegrationBlock::Conflict)
+        } else if row.not_checked {
+            Some(IntegrationBlock::NotChecked)
         } else if row.state == State::Unknown {
             Some(IntegrationBlock::Unknown)
         } else if row.state != State::Enabled && row.availability != Availability::Available {
@@ -308,6 +330,21 @@ impl Integrations {
                 Direction::Enable
             },
         })
+    }
+
+    /// Whether explaining this Agent starts its program, so the page asks first.
+    pub(crate) fn explain_needs_consent(&self, id: IntegrationId) -> bool {
+        let row = self.row(id);
+        explain_starts_agent(id, row.availability, row.management)
+    }
+
+    /// Opens the question before a check that starts the Agent's program; nothing runs yet.
+    pub(super) fn ask_to_explain(&mut self, id: IntegrationId) -> bool {
+        if self.running.is_some() {
+            return false;
+        }
+        self.diagnosis = Some((id, Diagnosis::Confirm));
+        true
     }
 
     /// Admits one job; a running job refuses another, as in the GUI.
@@ -357,6 +394,7 @@ impl Integrations {
                         availability: Availability::Unknown,
                         issue: Some(Issue::InspectionFailed),
                         state: State::Unknown,
+                        not_checked: false,
                         ..*row
                     },
                     Integration::reported,

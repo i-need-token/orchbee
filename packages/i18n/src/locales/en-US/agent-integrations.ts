@@ -5,9 +5,15 @@ export const enUSAgentIntegrationMessages = {
 	'agent.integrations.category': 'Agent integrations',
 	'agent.integrations.description':
 		'Manage the optional local adapters that let Orchbee show rich Agent status.',
+	'agent.integrations.consent.detail':
+		'This check starts {agent} to read its plugins, and {agent} may create its own files when it starts. Orchbee changes nothing. Choose Explain to start the check.',
+	'agent.integrations.consent.title': 'Check {agent}?',
 	'agent.integrations.diagnosis.close': 'Close',
 	'agent.integrations.diagnosis.pending': 'Checking this integration on this device…',
-	'agent.integrations.diagnosis.readOnly': 'Read-only check; nothing was changed.',
+	'agent.integrations.diagnosis.readOnly':
+		'Read-only check: nothing was changed and no Agent program was started.',
+	'agent.integrations.diagnosis.started':
+		'Orchbee changed nothing. This check starts {agent} when needed to read its plugins, and {agent} may create its own files.',
 	'agent.integrations.diagnosis.title': '{agent} diagnosis',
 	'agent.integrations.disclosure':
 		'Orchbee changes an integration only when you change its switch. It never installs adapters automatically.',
@@ -62,8 +68,16 @@ export const enUSAgentIntegrationMessages = {
 	'agent.integrations.issue.unsupportedPlatform': 'Not supported on this platform',
 	'agent.integrations.issue.unsupportedVersion': 'This Agent version is not supported',
 	'agent.integrations.localSection': 'Local Agent status adapters',
-	'agent.integrations.plan.command': 'run {command}',
+	'agent.integrations.plan.command': 'use {command} to {purposes}',
+	'agent.integrations.plan.join': '{first}; {rest}',
 	'agent.integrations.plan.none': 'make no changes',
+	'agent.integrations.plan.purpose.addPluginSource': "add Orchbee's plugin source",
+	'agent.integrations.plan.purpose.confirmPlugin': 'confirm the plugin is on',
+	'agent.integrations.plan.purpose.enablePlugin': 'turn the plugin on',
+	'agent.integrations.plan.purpose.installPlugin': 'install the Orchbee plugin',
+	'agent.integrations.plan.purpose.other': 'run a plugin command',
+	'agent.integrations.plan.purpose.removePlugin': 'remove the old plugin',
+	'agent.integrations.plan.purpose.removePluginSource': 'remove the old plugin source',
 	'agent.integrations.plan.publishAdapter': 'publish the Orchbee adapter',
 	'agent.integrations.plan.removeEntry': 'remove an obsolete entry',
 	'agent.integrations.plan.writeEntry': 'write the integration entry',
@@ -77,6 +91,7 @@ export const enUSAgentIntegrationMessages = {
 	'agent.integrations.status.enabled': 'Enabled',
 	'agent.integrations.status.inspectionFailed': 'Status unavailable',
 	'agent.integrations.status.manualOnly': 'Manual setup',
+	'agent.integrations.status.notChecked': 'Not checked',
 	'agent.integrations.status.notFound': 'Agent not found',
 	'agent.integrations.status.notInstalled': 'Not enabled',
 	'agent.integrations.status.unknown': 'Unknown',

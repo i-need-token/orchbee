@@ -1,5 +1,6 @@
 export { AGENT_INTEGRATION_IDS } from './agent-integration-management-control';
 export type {
+	AgentIntegrationCommandPurpose,
 	AgentIntegrationDiagnosis,
 	AgentIntegrationEntryState,
 	AgentIntegrationExplanation,
@@ -13,3 +14,8 @@ export type {
 	AgentIntegrationSnapshotItem,
 } from './agent-integration-management-control';
 export { AGENT_INTEGRATION_NAME_MESSAGES } from './agent-integration-names';
+export {
+	agentIntegrationCommandPurpose,
+	explainStartsAgent,
+	reportedNotChecked,
+} from './agent-integration-reading';

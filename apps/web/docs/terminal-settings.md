@@ -406,14 +406,26 @@ report reads as unverified, marks its row unknown, and is never repeated. Remote
 manual-only and the renderer never writes terminal input or attempts remote setup. The
 [writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
 
-Each row's Explain button runs one read-only `explain` job for that Agent, under the same one-job
-rule, and opens its diagnosis beneath the row until Close. The headline separates a definite
+A `list` reads files only and starts no Agent program, so an Agent whose plugins only its own
+program reports, under the contract's
+[reading rule](../../../crates/agent-integration/README.md#reading-rule), reads Not checked and its
+switch stays disabled until Explain checks it; a change the window could not follow still reads
+Unknown.
+
+Each row's Explain button runs one `explain` job for that Agent, under the same one-job rule, and
+opens its diagnosis beneath the row until Close. For an Agent read only through its own program,
+the first Explain only opens the question "Check <Agent>?" beneath the row: the check starts that
+program, which may create its own files, and Orchbee changes nothing. Explain again runs it, and
+Explain on an open diagnosis reruns it. Every result closes with what the check did: "Read-only
+check: nothing was changed and no Agent program was started.", or, for those Agents, that Orchbee
+changed nothing and the check starts the Agent when needed. The headline separates a definite
 finding (Ready, Manual setup, "Definitely missing: the Agent", "Definitely missing: the
 integration", Turned off, Update needed, Blocked by a conflict) from "Result unknown", which a
 timed-out, unreadable or undetermined inspection and an unfinished job produce. The facts follow
 `orchbee agent integration explain`: Agent presence, integration status, any issue, the Orchbee
 adapter, the provider's marketplace and plugin or guarded entry and adapter source, and what
-turning it on would do, naming a command by its executable file name only. The control drops paths
+turning it on would do: consecutive commands of one program name its executable file name once and
+list what they do. The control drops paths
 and command arguments before publishing the diagnosis; a report also refreshes that Agent's row,
 and an explain failure stays in the diagnosis rather than the page alert. The TUI's
 [Agent integrations page](../../orchbee/docs/native-settings.md#agent-integrations) offers the same

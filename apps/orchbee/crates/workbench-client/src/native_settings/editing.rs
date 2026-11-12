@@ -143,7 +143,16 @@ impl Editor {
                     (Page::Diagnosis(id), _) => id,
                     _ => return None,
                 };
-                if !self.integrations.begin(IntegrationJob::Explain(id)) {
+                // A check that starts the Agent's program first says so; Explain on that
+                // question is the consent that runs it.
+                let admitted = if page.page == Page::Integrations
+                    && self.integrations.explain_needs_consent(id)
+                {
+                    self.integrations.ask_to_explain(id)
+                } else {
+                    self.integrations.begin(IntegrationJob::Explain(id))
+                };
+                if !admitted {
                     return None;
                 }
                 if page.page == Page::Integrations {
