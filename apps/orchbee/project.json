@@ -3,7 +3,7 @@
 	"domain": "orchbee",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Native Rust CLI and TUI entry point for command-line grammar and output, typed Workbench and terminal operations, Agent doctor diagnostics and projections, the terminal shell loop and backend, Windows saved-machine SSH routing, and complete-cohort release installation and updates, composed over the application-private Workbench Client runtime.",
+	"responsibility": "Native Rust CLI and TUI entry point for command-line grammar and output, typed Workbench and terminal operations, Agent doctor diagnostics and projections, the terminal shell loop and backend, Windows saved-machine SSH routing, complete-cohort release installation and updates, and the launcher of its npm carrier, composed over the application-private Workbench Client runtime.",
 	"nonGoals": [
 		"Automatically replaying ambiguous effects or restarting failed Sessions.",
 		"Replacing the Desktop launcher or owning Desktop and Browser Client presentation.",

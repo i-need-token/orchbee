@@ -92,9 +92,13 @@ the [feed](#release-feed).
   active one, it runs the carried `orchbee install --no-path`; then it runs the active `orchbee`
   with the same arguments, streams, and signals and returns its exit code. On a platform without a
   sub-package it prints one line naming the supported platforms.
+- Built, not published: `scripts/package-npm.mjs` writes `orchbee` and the sub-packages of the
+  release directories it is given from the templates in `apps/orchbee/npm/`. The launcher reads the
+  store root by the rule `orchbee install` uses, waits while another start's install answers
+  `busy`, and stops when the install reports a version directory outside that root.
 - These packages are carriers of the product, not libraries under `packages/*`: their version is
-  always the product version, and the slice that first publishes them states that exception in
-  [Packages](../../docs/PACKAGES.md#versioning).
+  always the product version, an exception that [Packages](../../docs/PACKAGES.md#versioning)
+  states.
 - `npm rm -g orchbee` removes only the carrier; `orchbee uninstall` comes first.
 
 ## Commands

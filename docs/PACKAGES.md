@@ -9,7 +9,7 @@
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
 - Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
 
-Repository-only scripts, Cargo crates, and application entry points are not npm library packages and do not belong under `packages/*`.
+Repository-only scripts, Cargo crates, application entry points, and the product's npm carriers ([Versioning](#versioning)) are not npm library packages and do not belong under `packages/*`.
 
 ## Naming
 
@@ -184,6 +184,8 @@ Orchbee packages follow Semantic Versioning with a Babel-style shared release li
 - Deprecate public API before removing it when a practical migration path exists.
 - Use `<version>-beta.<n>` for coordinated prereleases. Publish prereleases under a non-`latest` npm dist-tag; stable releases use `latest`.
 - Release planning assigns each changed publishable package `major`, `minor`, `patch`, or `none`. The highest required bump wins for that package.
+
+The npm carriers of the product, `orchbee` and its platform sub-packages `@orchbee/cli-<platform>-<arch>`, are the exception. They are not libraries and do not live under `packages/*`: `scripts/package-npm.mjs` writes them from signed release directories and the templates in `apps/orchbee/npm/`. Their version is always the product version, every carrier of one release carries it, and a release publishes all of them together, under `next` for a pre-release and `latest` otherwise; the shared release line above does not apply to them.
 
 Renaming a published package creates a new package identity. Deprecate the old npm package with a migration message instead of publishing unrelated code under the old name.
 
