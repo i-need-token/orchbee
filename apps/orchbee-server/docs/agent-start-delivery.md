@@ -27,12 +27,12 @@ it. The Terminal generation the binding names at that moment is the launch's gen
 What the candidate does depends on the Host's launch kind of the new terminal, read from its first
 process sample:
 
-| Launch kind        | Delivery                                                                                       | Watch, then fact                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Managed PowerShell | Nothing typed: the shell runs the first command itself.                                        | 10 seconds from the launch's acceptance.                                                  |
-| Marked cmd         | One gated send of the bare line, retried after a refusal that typed nothing, up to 30 seconds. | 3 seconds from the accepted send; no accepted send by the deadline: `prompt-unconfirmed`. |
-| Any other program  | Nothing typed.                                                                                 | `unsupported-shell` at once.                                                              |
-| None (older Host)  | Nothing typed.                                                                                 | `terminal-too-old` at once.                                                               |
+| Launch kind        | Delivery                                                                                       | Watch, then fact                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Managed PowerShell | Nothing typed: the shell runs the first command itself.                                        | 10 seconds from the launch's acceptance, then [overtime](#overtime) while the command runs with no Agent seen.    |
+| Marked cmd         | One gated send of the bare line, retried after a refusal that typed nothing, up to 30 seconds. | 3 seconds from the accepted send, then overtime likewise; no accepted send by the deadline: `prompt-unconfirmed`. |
+| Any other program  | Nothing typed.                                                                                 | `unsupported-shell` at once.                                                                                      |
+| None (older Host)  | Nothing typed.                                                                                 | `terminal-too-old` at once.                                                                                       |
 
 The module comment of `local_terminal_service::agent_start_delivery` holds the states and
 transitions; its decision is a pure function of the launch kind, the reads and the send's answers,
@@ -44,8 +44,10 @@ One thread carries every candidate, each due at its own next read, so one start 
 another's watch. Each read first checks, under the registry and coordinator locks, that the
 Presentation keeps the launch's binding and generation and whether Client input or a shell command
 reached the terminal. It then reads the terminal through the process observer's on-demand lane:
-one fresh frame for the shell's report, then one process sample. Reads are 250 milliseconds apart.
-A terminal that shows no sample for 30 seconds ends with no fact.
+one fresh frame for the shell's report, then one process sample. Reads are 250 milliseconds apart,
+and 1 second apart in overtime, where a slow command may be read for minutes across several
+candidates. A terminal that shows no sample for 30 seconds ends with no fact: from the launch's
+acceptance before its first sample, and from the last read that had one in overtime.
 
 ### Typed line
 
@@ -70,8 +72,28 @@ the Agent and end nothing.
 
 The watch reads the terminal like a Client's early check. The shell idle again after a process of
 the provider was seen ends `exited`. The shell idle at the end of the watch with none seen ends
-`not-found`. Anything else, an unreadable sample included, ends with no fact. Idle means a complete
-sample with nothing but the root shell and console hosts.
+`not-found`. The shell still busy then with none seen goes into overtime. Anything else, an
+unreadable sample included, ends with no fact. Idle means a complete sample with nothing but the
+root shell and console hosts.
+
+### Overtime
+
+A first command or typed line can run long before it starts the Agent, such as a version manager's
+shim that installs tools first. While it still runs at the end of its watch with no process of the
+provider seen, the candidate reads on until 3 minutes from the launch's acceptance:
+
+- A process of the provider: the early check above applies for 3 seconds from that read, so an
+  Agent still running then ends nothing, and a shell idle again before then ends `exited`.
+- The shell back at its prompt with none seen ends `not-found` at that read, so the fact's `at` is
+  when the command gave up. Back at its prompt means what the readiness rule admits: idle, and the
+  shell's own prompt marks say it waits for input. Idle alone does not count here, since a script
+  runs its children from the shell one after another, and between two of them the shell looks idle
+  while its command still runs.
+- The cap ends with no fact, as does a terminal without a sample for 30 seconds.
+
+Client input and shell commands end nothing in overtime either: whatever the person types into a
+command that still runs is theirs, and the watch only reads. The guards still end it silently when
+the Presentation leaves or rebinds or its terminal stops answering.
 
 ### Abnormal ends
 
@@ -81,6 +103,7 @@ sample with nothing but the root shell and console hosts.
 | Panel or Tab closed, Presentation moved | The next read's guard finds it gone or rebound; ends with no fact.                                       |
 | Worker lost or terminal fenced          | The guard finds no started terminal of the launch's generation; ends with no fact.                       |
 | Host never reports a prompt             | A marked cmd ends `prompt-unconfirmed` at 30 seconds; a shell never sampled ends with no fact.           |
+| Command outlasts overtime               | No Agent seen and no prompt back within 3 minutes of the launch's acceptance; ends with no fact.         |
 | Thread not running                      | The offer is refused and the start is dropped; nothing is typed.                                         |
 
 ## Outcomes
@@ -124,9 +147,13 @@ Client that connects later says nothing. The notices themselves belong to the Cl
 ## Evidence
 
 A decision-table test drives the candidate on a controlled clock across launch kinds and read
-sequences: PowerShell running, idle, exiting, busy and unread; cmd typing once, not found, exiting,
+sequences: PowerShell running, idle, exiting and unread; cmd typing once, not found, exiting,
 waiting for its prompt, never confirmed, retrying refusals, refused to the deadline, without the
 gate and with a failed send; another shell, an older Host, a terminal never sampled and a
-Presentation that leaves. A guard test shows that Client input seen by a read or by the send's
-admission types nothing, while input after the line or into PowerShell's Agent ends nothing. The
-gate's own refusal, settling and acceptance rules are resume's, and so is their evidence.
+Presentation that leaves. An overtime table checks the fact and when it ends: PowerShell's first
+command failing after its watch, through idle moments without its prompt and reads without a
+sample; starting the Agent after its watch; an Agent that then exits at once; a command busy until
+the cap; and cmd's typed command failing after its watch. A guard test shows that Client input seen
+by a read or by the send's admission types nothing, while input after the line, into PowerShell's
+Agent, or into a first command in overtime ends nothing. The gate's own refusal, settling and
+acceptance rules are resume's, and so is their evidence.

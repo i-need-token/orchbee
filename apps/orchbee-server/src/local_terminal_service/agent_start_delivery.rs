@@ -12,6 +12,8 @@
 //! - `Sending`: the one line is at the Host's prompt gate.
 //! - `Watching`: managed PowerShell runs the start as its first command, or the Host typed the
 //!   line; the early check reads the terminal until the watch ends.
+//! - `Overtime`: that command still runs past its watch with no process of the provider seen;
+//!   slower reads wait for it to start the Agent or return to the prompt.
 //! - `Ended`.
 //!
 //! Transitions, with the launch's acceptance as `accepted`:
@@ -27,8 +29,14 @@
 //!   reaches `accepted` + 30 s, which ends `prompt-unconfirmed`. A Host without the gate: ends
 //!   `terminal-too-old`. Any other result: ends with no fact, never sent again.
 //! - `Watching`, the shell idle after a process of the provider was seen: ends `exited`. Idle at
-//!   the end of the watch with none seen: ends `not-found`. The end of the watch otherwise: ends
-//!   with no fact. Client input and shell commands are not refutations here.
+//!   the end of the watch with none seen: ends `not-found`. Busy then with none seen: `Overtime`.
+//!   The end of the watch otherwise, an unread sample included: ends with no fact. Client input
+//!   and shell commands are not refutations here.
+//! - `Overtime`, read every 1 s: a process of the provider: `Watching` until 3 s from then, with
+//!   it seen. The shell back at its own prompt, by the readiness rule, so a moment between two of
+//!   a script's children never counts: ends `not-found` at that read. A read at `accepted` + 3 min,
+//!   or one without a sample 30 s after the last read that had one: ends with no fact. Client
+//!   input and shell commands are not refutations here either; the watch only reads.
 //! - Any state, the Presentation left or rebound, its terminal of the launch's generation stopped
 //!   answering, or a guard refused the send before anything was typed: ends with no fact.
 //!

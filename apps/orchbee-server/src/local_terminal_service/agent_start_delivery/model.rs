@@ -10,11 +10,18 @@ use std::time::{Duration, Instant};
 pub(super) const FIRST_COMMAND_WATCH: Duration = Duration::from_secs(10);
 /// How long a typed line is watched from its accepted send.
 pub(super) const TYPED_WATCH: Duration = Duration::from_secs(3);
+/// How long, from the launch's acceptance, a first command or typed line that still runs past its
+/// watch with no process of the provider seen is waited for.
+pub(super) const OVERTIME: Duration = Duration::from_secs(180);
+/// How long a process of the provider first seen in overtime is watched for an early exit.
+pub(super) const LATE_WATCH: Duration = Duration::from_secs(3);
 /// How long, from the launch's acceptance, a marked cmd may take to accept the line, and a
-/// terminal may take to be read at all.
+/// terminal may take to be read at all; in overtime, how long it may go without a sample.
 pub(super) const DEADLINE: Duration = Duration::from_secs(30);
 /// The time between two reads, and after a refused send before the next read.
 pub(super) const POLL: Duration = Duration::from_millis(250);
+/// The time between two reads in overtime, where a slow command is worth fewer process samples.
+pub(super) const OVERTIME_POLL: Duration = Duration::from_secs(1);
 /// The wait after the Host found the prompt younger than its quiet period.
 pub(super) const SETTLING: Duration =
     Duration::from_millis(orchbee_terminal_protocol::PROMPT_LINE_QUIET_MILLISECONDS);
@@ -28,7 +35,8 @@ pub(super) struct Observation {
     pub(super) idle: bool,
     /// A process of the started provider runs.
     pub(super) provider: bool,
-    /// The shell is worth one gated send now, by the readiness rule resume uses.
+    /// The shell is worth one gated send now, by the readiness rule resume uses: idle, and its own
+    /// prompt marks say it waits for input.
     pub(super) prompt: bool,
 }
 
@@ -69,6 +77,7 @@ enum State {
     Offering { not_before: Instant },
     Sending,
     Watching { until: Instant, seen: bool },
+    Overtime { sampled: Instant },
     Ended,
 }
 
@@ -169,6 +178,9 @@ impl Delivery {
             (State::Watching { .. }, Event::Read { observation, .. }) => {
                 self.watch(observation, now)
             }
+            (State::Overtime { .. }, Event::Read { observation, .. }) => {
+                self.overtime(observation, now)
+            }
             // A send's answer outside a send, a read during one, or a failed send: whatever was
             // typed stays as it is, and nothing is sent again.
             _ => Command::End(None),
@@ -195,8 +207,8 @@ impl Delivery {
     }
 
     /// The early check: the shell idle again after a process of the provider was seen is
-    /// `exited`; idle at the end of the watch with none seen is `not-found`; anything else, an
-    /// unread sample included, ends with no fact.
+    /// `exited`; idle at the end of the watch with none seen is `not-found`; busy then with none
+    /// seen goes into overtime; anything else, an unread sample included, ends with no fact.
     fn watch(&mut self, observation: Option<Observation>, now: Instant) -> Command {
         let State::Watching { until, seen } = &mut self.state else {
             return Command::End(None);
@@ -217,10 +229,45 @@ impl Delivery {
                 AgentStartFailureReason::NotFound
             }));
         }
-        if settled {
+        if !settled {
+            return Command::ReadAt(now + POLL);
+        }
+        if *seen {
+            return Command::End(None);
+        }
+        self.state = State::Overtime { sampled: now };
+        Command::ReadAt(now + OVERTIME_POLL)
+    }
+
+    /// Overtime, while the command still runs past its watch with no process of the provider
+    /// seen: a process of the provider is watched for an early exit like one seen in time; the
+    /// shell back at its own prompt is `not-found` at that read; the cap, or a terminal without a
+    /// sample for the deadline's length since `sampled`, the last read that had one, ends with no
+    /// fact. Only the prompt counts, not idle alone: a script runs its children from the shell one
+    /// after another, and between two of them the shell looks idle while its command still runs.
+    fn overtime(&mut self, observation: Option<Observation>, now: Instant) -> Command {
+        let State::Overtime { sampled } = &mut self.state else {
+            return Command::End(None);
+        };
+        match observation {
+            Some(observation) if observation.provider => {
+                self.state = State::Watching {
+                    until: now + LATE_WATCH,
+                    seen: true,
+                };
+                return Command::ReadAt(now + POLL);
+            }
+            Some(observation) if observation.prompt => {
+                return Command::End(Some(AgentStartFailureReason::NotFound));
+            }
+            Some(_) => *sampled = now,
+            None if now >= *sampled + DEADLINE => return Command::End(None),
+            None => {}
+        }
+        if now >= self.accepted + OVERTIME {
             Command::End(None)
         } else {
-            Command::ReadAt(now + POLL)
+            Command::ReadAt(now + OVERTIME_POLL)
         }
     }
 }

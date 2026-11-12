@@ -210,7 +210,9 @@ inherited from its environment never runs. The Server
 carried one, and no Client types it. Per the Host's `launchKind`, managed PowerShell gets nothing
 typed, only an early check counted from the start's acceptance over 10000 ms that also covers the
 shell's own startup. A cmd the Host marks gets the bare line typed once at its first confirmed
-prompt within a 30000 ms deadline, then a 3000 ms early check. Any other shell, such as a custom
+prompt within a 30000 ms deadline, then a 3000 ms early check. A command still running at the end
+of its check with no Agent process seen is watched on until the Agent appears or the shell is back
+at its prompt, up to 180000 ms from the start's acceptance. Any other shell, such as a custom
 launch profile, gets nothing typed. A start that did not happen publishes a one-shot
 `agentStartFailure` on the Presentation: `not-found`, `exited`, `unsupported-shell`,
 `prompt-unconfirmed` or `terminal-too-old`. Such a start reserves nothing and offers no name.
