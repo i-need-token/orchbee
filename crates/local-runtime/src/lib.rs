@@ -155,7 +155,7 @@ pub use rendezvous::{
 pub use rendezvous::{
     EntryKind, EntryObservation, HOST_SCOPE_NAME, LockAttempt, LockKind,
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
-    SessionLifetimeObservation, SessionScope,
+    SessionLifetimeObservation, SessionScope, acquire_past_probes,
 };
 pub use retained_child::RetainedChild;
 

@@ -180,25 +180,43 @@ fn require_regular_private(file: &File) -> io::Result<()> {
     require_private(file)
 }
 
-/// Moves a flushed staging file over `target`, replacing it atomically.
+/// Moves a flushed staging file over `target`, replacing it atomically. Windows refuses to replace
+/// a file that another handle holds open, with access denied even when that handle shares delete
+/// access, so the move outlasts a reader's momentary hold.
 pub(crate) fn replace(staged: &Path, target: &Path) -> io::Result<()> {
-    winsafe::MoveFileEx(
-        text(staged)?,
-        Some(text(target)?),
-        winsafe::co::MOVEFILE::REPLACE_EXISTING,
+    let (staged, target) = (text(staged)?, text(target)?);
+    super::outlast_momentary_hold(
+        |outcome: &winsafe::SysResult<()>| {
+            outcome.as_ref().is_err_and(|error| {
+                *error == winsafe::co::ERROR::ACCESS_DENIED
+                    || *error == winsafe::co::ERROR::SHARING_VIOLATION
+            })
+        },
+        || {
+            winsafe::MoveFileEx(
+                staged,
+                Some(target),
+                winsafe::co::MOVEFILE::REPLACE_EXISTING,
+            )
+        },
     )
     .map_err(io::Error::other)
 }
 
+/// A sharing violation: another handle holds the object without sharing the access asked for.
+pub(super) fn held(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(32)
+}
+
 /// Moves `source` to the absent `target`, never over an existing object, and returns only once
-/// the move is on disk.
+/// the move is on disk. An existing `target` answers `AlreadyExists`.
 pub(crate) fn move_aside(source: &Path, target: &Path) -> io::Result<()> {
     winsafe::MoveFileEx(
         text(source)?,
         Some(text(target)?),
         winsafe::co::MOVEFILE::WRITE_THROUGH,
     )
-    .map_err(io::Error::other)
+    .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))
 }
 
 fn text(path: &Path) -> io::Result<&str> {

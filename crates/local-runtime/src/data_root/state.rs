@@ -54,22 +54,28 @@ pub(crate) fn settle_version_record(root: &DataRoot) -> io::Result<()> {
         return Ok(());
     };
     if record.raised(PRODUCT_VERSION).is_some() {
-        let lock_path = root.internal().join("version.lock");
-        let lock = match permissions::open_file(&lock_path, true, true) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                permissions::open_file(&lock_path, false, true)?
-            }
-            Err(error) => return Err(error),
-        };
-        lock.lock()?;
+        let _lock = version_lock(root)?;
         if let Some(bytes) = read_settled(&path)?.and_then(|record| record.raised(PRODUCT_VERSION))
         {
-            replace_record(&root.internal().join("version.pending"), &path, &bytes)?;
+            publish_record(root, &path, &bytes, permissions::replace)?;
         }
     }
     mark_settled(root);
     Ok(())
+}
+
+/// Takes the record's writer lock, `internal/version.lock`, waiting for another writer.
+fn version_lock(root: &DataRoot) -> io::Result<File> {
+    let lock_path = root.internal().join("version.lock");
+    let lock = match permissions::open_file(&lock_path, true, true) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            permissions::open_file(&lock_path, false, true)?
+        }
+        Err(error) => return Err(error),
+    };
+    lock.lock()?;
+    Ok(lock)
 }
 
 /// The record at `path`, refused when this build cannot read its layout.
@@ -85,7 +91,15 @@ fn read_settled(path: &Path) -> io::Result<Option<VersionRecord>> {
     Ok(Some(record))
 }
 
-fn replace_record(pending: &Path, target: &Path, bytes: &[u8]) -> io::Result<()> {
+/// Writes `bytes` beside the record as `internal/version.pending` and moves them to `target` with
+/// `publish`, so a reader sees the record whole or not at all. The caller holds the writer lock.
+fn publish_record(
+    root: &DataRoot,
+    target: &Path,
+    bytes: &[u8],
+    publish: fn(&Path, &Path) -> io::Result<()>,
+) -> io::Result<()> {
+    let pending = &root.internal().join("version.pending");
     match permissions::open_file(pending, false, false) {
         Ok(file) => {
             drop(file);
@@ -97,7 +111,7 @@ fn replace_record(pending: &Path, target: &Path, bytes: &[u8]) -> io::Result<()>
     let mut file = permissions::open_file(pending, true, true)?;
     let written = file.write_all(bytes).and_then(|()| file.sync_all());
     drop(file);
-    let replaced = written.and_then(|()| permissions::replace(pending, target));
+    let replaced = written.and_then(|()| publish(pending, target));
     if replaced.is_err() {
         let _ = fs::remove_file(pending);
     }
@@ -111,19 +125,31 @@ fn mark_settled(root: &DataRoot) {
 }
 
 /// Writes `internal/version.json` when it is absent: the layout and the version that created it.
-/// An existing record was settled before any folder was created.
+/// Processes that start together on a fresh root race to write it, and every one of them, and every
+/// reader, must find it whole: the first writer under the writer lock moves a complete record into
+/// place, never over a record another writer (Desktop Main among them) already placed, and every
+/// other writer settles the record it finds. An existing record was settled before any folder was
+/// created.
 fn write_version_record(root: &DataRoot, roots: &[PathBuf]) -> io::Result<()> {
     let path = root.version_file();
     let _pins = create_below_roots(&root.internal(), roots)?;
-    let mut file = match permissions::open_file(&path, true, true) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            return settle_version_record(root);
+    if read_record(&path)?.is_none() {
+        let _lock = version_lock(root)?;
+        if read_record(&path)?.is_none() {
+            match publish_record(
+                root,
+                &path,
+                &VersionRecord::initial(),
+                permissions::move_aside,
+            ) {
+                Ok(()) => {
+                    mark_settled(root);
+                    return Ok(());
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error),
+            }
         }
-        Err(error) => return Err(error),
-    };
-    file.write_all(&VersionRecord::initial())
-        .and_then(|()| file.sync_all())?;
-    mark_settled(root);
-    Ok(())
+    }
+    settle_version_record(root)
 }

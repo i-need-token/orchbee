@@ -38,9 +38,10 @@ pub(super) fn run(
     if !session.activation_started()? {
         return Err(io::Error::other("Session activation was not committed"));
     }
-    let LockAttempt::Acquired(_lifetime) = session
-        .try_acquire_session_lifetime_lock()
-        .map_err(io::Error::other)?
+    // An observer probes this lock for an instant; only a lock still held past that is owned.
+    let LockAttempt::Acquired(_lifetime) =
+        orchbee_local_runtime::acquire_past_probes(|| session.try_acquire_session_lifetime_lock())
+            .map_err(io::Error::other)?
     else {
         return Err(io::Error::other("Session lifetime is already owned"));
     };

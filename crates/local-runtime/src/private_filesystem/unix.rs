@@ -151,6 +151,11 @@ pub(crate) fn replace(staged: &Path, target: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Never: an open descriptor blocks no open, rename or removal here.
+pub(super) fn held(_: &io::Error) -> bool {
+    false
+}
+
 /// Moves `source` to the absent `target` in the same folder and never over an existing object,
 /// then flushes the folder. A file system without an exclusive rename falls back to checking the
 /// name first, which the caller's writer lock keeps free of other Orchbee writers.

@@ -137,7 +137,7 @@ fn encode(entries: &serde_json::Map<String, serde_json::Value>) -> Vec<u8> {
 /// Reads the record without creating anything, refusing an unsafe file as every storage owner
 /// refuses one.
 pub(crate) fn read_record(path: &Path) -> io::Result<Option<Vec<u8>>> {
-    let file: File = match crate::private_filesystem::open_file(path, false, false) {
+    let file: File = match crate::private_filesystem::open_published(path) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),

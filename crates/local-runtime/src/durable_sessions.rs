@@ -227,7 +227,7 @@ impl Directory {
     }
     fn read_bytes(&self, scope: &str) -> io::Result<Option<Vec<u8>>> {
         let path = self.record_path(scope, RECORD_FILE)?;
-        let file = match permissions::open_file(&path, false, false) {
+        let file = match permissions::open_published(&path) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
@@ -442,7 +442,7 @@ pub(crate) fn remove_empty_folder(path: &Path) -> io::Result<()> {
     match permissions::open_tree(path) {
         Ok(pins) => {
             drop(pins);
-            fs::remove_dir(path)
+            permissions::remove_dir(path)
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
@@ -453,7 +453,7 @@ fn remove_private(path: &Path) -> io::Result<()> {
     match permissions::open_file(path, false, false) {
         Ok(file) => {
             drop(file);
-            fs::remove_file(path)
+            permissions::remove_file(path)
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),

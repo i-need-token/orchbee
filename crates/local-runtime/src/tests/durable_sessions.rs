@@ -217,6 +217,28 @@ fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() 
     );
 }
 
+// A catalog reader holds a Session's record open for one read, which on Windows refuses its
+// replacement; the stop's publication outlasts that hold instead of failing the stop.
+#[cfg(windows)]
+#[test]
+fn a_stop_outlasts_a_catalog_readers_hold_of_the_record() {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, _session, mut owner) = start(&base, &local, "held-record", 1);
+    let reader = permissions::open_file(&record_path(&local, &name), false, false).unwrap();
+    let released = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        drop(reader);
+    });
+    owner.complete([1; 16]).unwrap();
+    released.join().unwrap();
+    let directory = Directory::open(&local.root()).unwrap().unwrap();
+    assert!(matches!(
+        directory.read(name.as_str()).unwrap().unwrap().lifecycle,
+        Lifecycle::Stopped { .. }
+    ));
+}
+
 #[test]
 fn sessions_remain_discoverable_and_restart_by_any_letter_case_after_runtime_loss() {
     let base = Fixture::new();

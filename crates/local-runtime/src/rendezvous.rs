@@ -24,3 +24,16 @@ pub use windows::{
     CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME, HOST_SCOPE_NAME, LockAttempt,
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock,
 };
+
+/// Tries `acquire` until it takes the lock or `MOMENTARY_HOLD` passes. An observer (`session list`,
+/// `server diagnose`, `server stop` waiting for a release, the machine hub) takes a Session lock
+/// only for the instant of one probe, so a lock still contended after that has an owner. Lock order
+/// and who may take each lock are the caller's, as for one attempt.
+pub fn acquire_past_probes(
+    acquire: impl FnMut() -> Result<LockAttempt, RendezvousError>,
+) -> Result<LockAttempt, RendezvousError> {
+    crate::private_filesystem::outlast_momentary_hold(
+        |outcome| matches!(outcome, Ok(LockAttempt::Contended)),
+        acquire,
+    )
+}

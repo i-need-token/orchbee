@@ -158,7 +158,9 @@ and to give an enabled integration's Session a head start over observed Agent st
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
-Orchbee wrote records its layout. The record is `{"layout":1,"newestVersion":"<version>"}`, and
+Orchbee wrote records its layout. It writes the record under `internal/version.lock` as
+`version.pending` and moves it into place without replacing one another writer placed, so processes
+that start together on a fresh root, and every reader, find the record whole or absent, never empty. The record is `{"layout":1,"newestVersion":"<version>"}`, and
 Desktop Main reads and writes the same shape; search for `data-root-version-record` before changing
 it. Later releases only add entries, which every rewrite keeps. `DataRoot::admit_layout` reads only
 this record and refuses a root whose `layout` is higher than `LAYOUT`, or whose record cannot be
@@ -397,6 +399,23 @@ child is created suspended and released only after its identity is flushed. Expl
 named-session deletion can replace an unreadable record with its deletion fence only after the
 existing owner, endpoint and storage guards pass; ordinary publication cannot overwrite it.
 Live Host adoption remains separate.
+
+An instant's hold never fails a Session's start, stop, deletion or read. A reader of the catalog
+(`SessionCatalog::list`, `session list`, `server diagnose`, `server stop` waiting for the release,
+the machine hub, a Client reading its restore notice) holds a record, a folder or a Session lock
+only for one read or probe, and a writer holds a record only while it moves it into place. On
+Windows such a hold refuses the other side: a file another handle holds open cannot be replaced,
+even when that handle shares delete access; a file or folder held or pinned without delete sharing
+cannot be removed; and a record being moved into place cannot be opened by a reader that shares no
+delete access. A lock probe on either platform makes a taker's `try_lock` contend. So every atomic
+replacement, every removal in deletion, every read of a Session or layout record, the namespace
+lock's owners, deletion's activation and lifetime takes, and the Server's and the activator's
+lifetime takes (`acquire_past_probes`) try again every 5 ms for at most half a second
+(`MOMENTARY_HOLD`) before the refusal stands. A hold lasts well under a millisecond, tens of
+milliseconds on a loaded machine, so the bound outlasts it many times over while an owner's hold is
+still refused promptly, inside the 5 s deletion, 20 s start and 60 s stop deadlines; an operation
+nobody holds never waits. POSIX opens, renames and removals ignore open descriptors, so only the
+lock takes retry there.
 
 The [Windows crash-recovery contract](docs/windows-crash-recovery.md) owns guards, interrupted
 publication, compatibility and evidence limits. Check the registered bounded model with:
@@ -808,7 +827,8 @@ The marker must be regular, single-link, privately owned and contain a valid act
 activation lock is inspected without locking. The lifetime observation opens only
 an existing admitted file, tries one nonblocking exclusive lock, and immediately
 releases it: absent/free/held/unsafe are observations, not service health. A probe
-can briefly contend with startup; failure never authorizes repair or deletion.
+contends with startup only for its instant, which the lifetime's takers outlast (see the
+[durable session catalog](#durable-session-catalog)); failure never authorizes repair or deletion.
 Invalid parents prevent descendant inspection. Tests cover zero creation,
 free/held transitions, malformed markers and hard-link rejection.
 

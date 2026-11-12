@@ -93,7 +93,12 @@ impl SessionCatalog {
             }
             Err(error) => return Err(error),
         };
-        match lock.try_lock() {
+        // A `session list` probes this lock for an instant; only a lock still held past that has
+        // an owner.
+        match permissions::outlast_momentary_hold(
+            |attempt| matches!(attempt, Err(TryLockError::WouldBlock)),
+            || lock.try_lock(),
+        ) {
             Ok(()) => Ok(Self {
                 durable: Directory::create(root)?,
                 base,
@@ -464,19 +469,20 @@ impl SessionCatalog {
             let mut lifetime = None;
             let mut stopped = durable.as_ref().and_then(Record::stopped_id);
             if let Some(session) = &session {
-                activation = match session
-                    .try_acquire_activation_lock()
-                    .map_err(io::Error::other)?
-                {
-                    LockAttempt::Acquired(lock) => Some(lock),
-                    LockAttempt::Contended => {
-                        refused = Some(Reason::InUse);
-                        return Err(io::ErrorKind::WouldBlock.into());
-                    }
-                };
-                lifetime = match session
-                    .try_acquire_session_lifetime_lock()
-                    .map_err(io::Error::other)?
+                activation =
+                    match crate::acquire_past_probes(|| session.try_acquire_activation_lock())
+                        .map_err(io::Error::other)?
+                    {
+                        LockAttempt::Acquired(lock) => Some(lock),
+                        LockAttempt::Contended => {
+                            refused = Some(Reason::InUse);
+                            return Err(io::ErrorKind::WouldBlock.into());
+                        }
+                    };
+                lifetime = match crate::acquire_past_probes(|| {
+                    session.try_acquire_session_lifetime_lock()
+                })
+                .map_err(io::Error::other)?
                 {
                     LockAttempt::Acquired(lock) => Some(lock),
                     LockAttempt::Contended => {
@@ -971,7 +977,7 @@ impl OwnedDirectory {
             match permissions::open_file(&path, false, false) {
                 Ok(file) => {
                     drop(file);
-                    fs::remove_file(path)?;
+                    permissions::remove_file(&path)?;
                 }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => return Err(error),
@@ -991,10 +997,10 @@ impl OwnedDirectory {
                             }
                             check()?;
                             permissions::open_file(&owned.path(), false, false)?;
-                            fs::remove_file(owned.path())?;
+                            permissions::remove_file(&owned.path())?;
                         }
                         drop(pins);
-                        fs::remove_dir(path)?;
+                        permissions::remove_dir(&path)?;
                     }
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                     Err(error) => return Err(error),
@@ -1007,13 +1013,13 @@ impl OwnedDirectory {
         match permissions::open_tree(&path) {
             Ok(pins) => {
                 drop(pins);
-                fs::remove_dir(path)?;
+                permissions::remove_dir(&path)?;
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
         }
         check()?;
         self.pins.pop();
-        fs::remove_dir(&self.path)
+        permissions::remove_dir(&self.path)
     }
 }

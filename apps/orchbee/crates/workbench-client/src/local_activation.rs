@@ -251,9 +251,12 @@ fn connect_or_activate(
         if let Some(client) = connect(session, cohort, deadline)? {
             return Ok((client, false));
         }
-        let mut child = match session
-            .try_acquire_session_lifetime_lock()
-            .map_err(lock_failure)?
+        // An observer probes the lifetime lock for an instant without the activation lock; only a
+        // lock still held past that has an owner.
+        let mut child = match orchbee_local_runtime::acquire_past_probes(|| {
+            session.try_acquire_session_lifetime_lock()
+        })
+        .map_err(lock_failure)?
         {
             LockAttempt::Acquired(lifetime) => {
                 #[cfg(windows)]
