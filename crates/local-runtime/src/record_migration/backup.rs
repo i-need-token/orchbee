@@ -1,4 +1,4 @@
-//! Windows effects of migration: upgrade backups below the data root's
+//! Effects of migration: upgrade backups below the data root's
 //! `internal/backups/`, each a private folder holding copies at the records' paths relative to the
 //! root.
 //!

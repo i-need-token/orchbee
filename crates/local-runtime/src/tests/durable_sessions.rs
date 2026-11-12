@@ -24,7 +24,7 @@ fn rewrite_record_version(local: &Fixture, name: &SessionName, version: u8) {
     let path = record_path(local, name);
     let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     value["version"] = serde_json::json!(version);
-    fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+    write_private(path, serde_json::to_vec(&value).unwrap()).unwrap();
 }
 /// Starts `text` the way activation does: spelled as its existing folder is.
 fn start(
@@ -99,7 +99,7 @@ fn unreadable_record_refuses_only_its_own_name() {
     remove_runtime(&base, &runtime);
     let path = record_path(&local, &name);
     let bytes = br#"{"version":1,"name":"work""#.to_vec();
-    fs::write(&path, &bytes).unwrap();
+    write_private(&path, &bytes).unwrap();
     let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     assert_eq!(
         catalog.prepare_activation(&name).unwrap_err().kind(),
@@ -160,14 +160,14 @@ fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_gen
         }
         let path = store.directory.join(crate::checkpoint_restore_notice::FILE);
         let stale = b"orchbee-checkpoint-restore-v1:02020202020202020202020202020202:E";
-        fs::write(&path, stale).unwrap();
+        write_private(&path, stale).unwrap();
         assert_eq!(
             session.checkpoint_restore_notice(&local.root()).unwrap(),
             None
         );
         assert_eq!(fs::read(&path).unwrap(), stale);
         let invalid = [b'X'; 128];
-        fs::write(&path, invalid).unwrap();
+        write_private(&path, invalid).unwrap();
         assert_eq!(
             session
                 .checkpoint_restore_notice(&local.root())
@@ -186,6 +186,8 @@ fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_gen
     }
 }
 
+// A Windows reader without delete sharing blocks the replacement; a POSIX reader does not.
+#[cfg(windows)]
 #[test]
 fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() {
     use crate::CheckpointRestoreNotice as Notice;
@@ -567,7 +569,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     )
     .unwrap();
     for bytes in cases {
-        fs::write(&path, &bytes).unwrap();
+        write_private(&path, &bytes).unwrap();
         if let Ok(entries) = Catalog::list(&base.0, &local.root(), deadline()) {
             assert!(
                 entries
@@ -581,7 +583,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
         assert!(directory.publish(name.as_str(), &valid).is_err());
         assert_eq!(fs::read(&path).unwrap(), bytes);
     }
-    fs::write(&path, &original).unwrap();
+    write_private(&path, &original).unwrap();
     let alias = local.0.join("foreign-link");
     fs::hard_link(&path, &alias).unwrap();
     assert!(directory.read(name.as_str()).is_err());
@@ -609,7 +611,7 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
             record["version"] = serde_json::json!(5);
         }
         let bytes = serde_json::to_vec(&record).unwrap();
-        fs::write(&path, &bytes).unwrap();
+        write_private(&path, &bytes).unwrap();
         let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
         let entry = entries.iter().find(|entry| entry.name == name).unwrap();
         assert!(entry.unreadable);

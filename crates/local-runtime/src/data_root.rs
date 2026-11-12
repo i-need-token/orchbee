@@ -3,29 +3,30 @@
 //! reads, edits, or keeps; everything Orchbee manages for itself lives under `internal/`. Every
 //! Orchbee state path derives from here, so callers never spell a folder or choose a home variable
 //! themselves. Resolving touches no file; the platform adapters create private folders on first
-//! write, and the Windows adapter records the root's layout. Every process that opens a root admits its layout first,
-//! before any other read.
+//! write, and the first writer records the root's layout. Every process that opens a root admits its
+//! layout first, before any other read.
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
 };
 
+mod state;
 mod version_record;
-#[cfg(windows)]
 pub(crate) use version_record::compare_product_versions;
 pub use version_record::{LAYOUT, LayoutRefusal, PRODUCT_VERSION};
-#[cfg(windows)]
-mod windows;
-#[cfg(all(test, windows))]
-pub(crate) use windows::settle_version_record;
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
-pub use unix::{create_private_directory, prepare_default_runtime_base};
+use unix as platform;
 #[cfg(windows)]
-pub use windows::{create_private_directory, prepare_default_runtime_base};
+mod windows;
+pub(crate) use platform::open_state_root;
+pub use platform::{create_private_directory, prepare_default_runtime_base};
+pub(crate) use state::create_state_directory;
+#[cfg(test)]
+pub(crate) use state::settle_version_record;
 #[cfg(windows)]
-pub(crate) use windows::{create_state_directory, open_state_root};
+use windows as platform;
 
 /// The variable that names another data root for every environment that reads it.
 pub const HOME_VARIABLE: &str = "ORCHBEE_HOME";

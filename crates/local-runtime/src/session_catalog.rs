@@ -49,11 +49,5 @@ pub struct UnrecognizedRecord {
     pub path: std::path::PathBuf,
 }
 
-#[cfg(not(windows))]
-mod unsupported;
-#[cfg(windows)]
-mod windows;
-#[cfg(not(windows))]
-pub use unsupported::{NamedSessionEntry, SessionCatalog};
-#[cfg(windows)]
-pub use windows::{NamedSessionEntry, SessionCatalog};
+mod catalog;
+pub use catalog::{NamedSessionEntry, SessionCatalog};

@@ -7,7 +7,8 @@ their domain meaning and owns capture, restoration and scheduling. This contract
 accepted retention and recovery policy: keep three valid snapshots, fall back to a valid copy,
 retain unreadable originals, and report an empty restoration when every copy is invalid. It does
 not authorize starting beside an unknown or living Session owner. Windows crash admission remains
-the local Session runtime's responsibility.
+the local Session runtime's responsibility. macOS and Linux run the same store and records through the
+[POSIX storage mapping](../README.md#private-storage-on-macos-and-linux), without the process registry.
 
 The bounded Workbench payload, durable catalog and private frame each use their current version 1
 shape. Checkpoint payloads retain shared ratios and optional Project organization with global

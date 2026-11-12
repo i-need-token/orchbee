@@ -180,6 +180,32 @@ fn require_regular_private(file: &File) -> io::Result<()> {
     require_private(file)
 }
 
+/// Moves a flushed staging file over `target`, replacing it atomically.
+pub(crate) fn replace(staged: &Path, target: &Path) -> io::Result<()> {
+    winsafe::MoveFileEx(
+        text(staged)?,
+        Some(text(target)?),
+        winsafe::co::MOVEFILE::REPLACE_EXISTING,
+    )
+    .map_err(io::Error::other)
+}
+
+/// Moves `source` to the absent `target`, never over an existing object, and returns only once
+/// the move is on disk.
+pub(crate) fn move_aside(source: &Path, target: &Path) -> io::Result<()> {
+    winsafe::MoveFileEx(
+        text(source)?,
+        Some(text(target)?),
+        winsafe::co::MOVEFILE::WRITE_THROUGH,
+    )
+    .map_err(io::Error::other)
+}
+
+fn text(path: &Path) -> io::Result<&str> {
+    path.to_str()
+        .ok_or_else(|| io::ErrorKind::InvalidInput.into())
+}
+
 /// Retains the exact volume and file identity of an already admitted Windows handle.
 pub fn file_identity(file: &File) -> io::Result<(u64, u64)> {
     let value = winapi_util::file::information(file)?;

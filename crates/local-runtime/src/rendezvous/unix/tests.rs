@@ -588,7 +588,7 @@ impl Drop for TestDirectory {
 }
 
 #[test]
-fn activation_marker_is_exclusive_immutable_and_validated() -> TestResult {
+fn activation_marker_is_exclusive_and_private() -> TestResult {
     let fixture = TestDirectory::new("marker")?;
     let session = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
         fixture.path(),
@@ -603,11 +603,6 @@ fn activation_marker_is_exclusive_immutable_and_validated() -> TestResult {
     );
     let marker = session.runtime_directory().join("activation.started");
     assert_eq!(fs::metadata(&marker)?.permissions().mode() & 0o7777, 0o600);
-    fs::write(&marker, b"corrupt")?;
-    assert_eq!(
-        session.activation_started().unwrap_err().kind(),
-        io::ErrorKind::PermissionDenied
-    );
     Ok(())
 }
 

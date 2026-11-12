@@ -49,6 +49,11 @@ const MARKER_OPEN_FLAGS: OFlag = OFlag::O_RDONLY
     .union(OFlag::O_CLOEXEC)
     .union(OFlag::O_NOFOLLOW)
     .union(OFlag::O_NONBLOCK);
+/// The activation record is written in place, as on Windows, so its writers open it read-write.
+const MARKER_WRITE_FLAGS: OFlag = OFlag::O_RDWR
+    .union(OFlag::O_CLOEXEC)
+    .union(OFlag::O_NOFOLLOW)
+    .union(OFlag::O_NONBLOCK);
 
 #[derive(Debug)]
 pub enum LockAttempt {
@@ -59,6 +64,9 @@ pub enum LockAttempt {
 #[derive(Debug)]
 pub struct ModeCheckedSessionLock {
     _file: File,
+    runtime: PathBuf,
+    /// The runtime lock this is, or `None` for the shared hold on the socket folder.
+    kind: Option<LockKind>,
 }
 
 #[derive(Debug)]
@@ -283,7 +291,11 @@ impl ModeCheckedLocalSessionRendezvous {
         // A descriptor of its own, so dropping the lock releases it.
         let file = File::from(openat(sockets, ".", DIRECTORY_OPEN_FLAGS, Mode::empty())?);
         file.lock_shared()?;
-        Ok(ModeCheckedSessionLock { _file: file })
+        Ok(ModeCheckedSessionLock {
+            _file: file,
+            runtime: self.paths.runtime_directory.clone(),
+            kind: None,
+        })
     }
 
     /// Validates an existing managed runtime without creating directories.
@@ -296,15 +308,115 @@ impl ModeCheckedLocalSessionRendezvous {
         Self::validate_mode_checked(base, SessionScope::parse(scope)?)
     }
 
+    /// The Session this runtime folder belongs to, spelled as the folder is.
+    pub fn session_name(&self) -> std::io::Result<crate::SessionName> {
+        self.paths
+            .runtime_directory
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))
+            .and_then(crate::SessionName::parse)
+    }
+
     pub fn activation_started(&self) -> std::io::Result<bool> {
+        self.activation_state()
+            .map(|state| state == crate::ActivationState::Active)
+    }
+
+    /// Reads the bounded existing activation record without creating or repairing it. Invalid or
+    /// partial records return InvalidData; absence remains a distinct state.
+    pub fn activation_state(&self) -> std::io::Result<crate::ActivationState> {
+        match self.open_marker(MARKER_OPEN_FLAGS) {
+            Ok(mut file) => crate::activation_record::read(&mut file),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Ok(crate::ActivationState::Absent)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Retains a validated active record for the lifetime owner's later completion publication.
+    /// Missing, unsafe or non-active records fail admission and are never replaced.
+    pub fn retain_active_record(&self) -> std::io::Result<crate::RetainedActivationRecord> {
+        crate::RetainedActivationRecord::new(self.open_marker(MARKER_WRITE_FLAGS)?)
+    }
+
+    /// Commits one attempt as an empty active record. An existing active or unreadable record is
+    /// never overwritten or removed; a completed Stopped or Crashed receipt is cleared in place.
+    pub fn commit_activation(&self) -> std::io::Result<()> {
+        match self.create_marker() {
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let mut file = self.open_marker(MARKER_WRITE_FLAGS)?;
+                if !matches!(
+                    crate::activation_record::read(&mut file)?,
+                    crate::ActivationState::Stopped { .. } | crate::ActivationState::Crashed { .. }
+                ) {
+                    return Err(error);
+                }
+                file.set_len(0)?;
+                file.sync_data()
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub(crate) fn reconcile_crashed(
+        &self,
+        activation: &ModeCheckedSessionLock,
+        lifetime: &ModeCheckedSessionLock,
+        activation_id: [u8; 16],
+        retry: bool,
+        allow_previous_receipt: bool,
+    ) -> std::io::Result<()> {
+        self.require_lock(activation, LockKind::Activation)?;
+        self.require_lock(lifetime, LockKind::SessionLifetime)?;
+        let mut file = match self.create_marker() {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                self.open_marker(MARKER_WRITE_FLAGS)?
+            }
+            Err(error) => return Err(error),
+        };
+        crate::activation_record::publish_crashed(
+            &mut file,
+            activation_id,
+            retry,
+            allow_previous_receipt,
+        )
+    }
+
+    pub(crate) fn require_lock(
+        &self,
+        lock: &ModeCheckedSessionLock,
+        kind: LockKind,
+    ) -> std::io::Result<()> {
+        if lock.runtime != self.paths.runtime_directory || lock.kind != Some(kind) {
+            Err(std::io::ErrorKind::PermissionDenied.into())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Inspects the existing activation lock without creating or acquiring it.
+    pub fn activation_lock_exists(&self) -> std::io::Result<bool> {
         match openat(
             &self.directory,
-            ACTIVATION_MARKER_NAME,
-            MARKER_OPEN_FLAGS,
+            ACTIVATION_LOCK_NAME,
+            LOCK_OPEN_FLAGS,
             Mode::empty(),
         ) {
-            Ok(fd) => {
-                self.validate_marker(&fd)?;
+            Ok(descriptor) => {
+                validate_lock_file(
+                    &descriptor,
+                    LockKind::Activation,
+                    &self.paths.activation_lock,
+                    self.expected_uid,
+                    false,
+                )
+                .map_err(|error| {
+                    std::io::Error::new(std::io::ErrorKind::PermissionDenied, error)
+                })?;
                 Ok(true)
             }
             Err(Errno::ENOENT) => Ok(false),
@@ -312,16 +424,29 @@ impl ModeCheckedLocalSessionRendezvous {
         }
     }
 
-    /// Commits one attempt. An existing marker is never overwritten or removed.
-    pub fn commit_activation(&self) -> std::io::Result<()> {
+    /// Creates the empty active record exclusively, as a private 0600 file.
+    fn create_marker(&self) -> std::io::Result<File> {
         let fd = openat(
             &self.directory,
             ACTIVATION_MARKER_NAME,
-            MARKER_OPEN_FLAGS | OFlag::O_CREAT | OFlag::O_EXCL,
+            MARKER_WRITE_FLAGS | OFlag::O_CREAT | OFlag::O_EXCL,
             exact_mode(LOCK_FILE_MODE),
         )?;
         fchmod(&fd, exact_mode(LOCK_FILE_MODE))?;
-        self.validate_marker(&fd)
+        self.validate_marker(&fd)?;
+        Ok(File::from(fd))
+    }
+
+    /// Opens the existing record and admits it before anything reads it.
+    fn open_marker(&self, flags: OFlag) -> std::io::Result<File> {
+        let fd = openat(
+            &self.directory,
+            ACTIVATION_MARKER_NAME,
+            flags,
+            Mode::empty(),
+        )?;
+        self.validate_marker(&fd)?;
+        Ok(File::from(fd))
     }
 
     fn validate_marker(&self, fd: &OwnedFd) -> std::io::Result<()> {
@@ -335,7 +460,6 @@ impl ModeCheckedLocalSessionRendezvous {
             || status.st_uid != self.expected_uid
             || permission_bits(status.st_mode) != LOCK_FILE_MODE
             || status.st_nlink != 1
-            || status.st_size != 0
         {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
@@ -408,6 +532,8 @@ impl ModeCheckedLocalSessionRendezvous {
         match file.try_lock() {
             Ok(()) => Ok(LockAttempt::Acquired(ModeCheckedSessionLock {
                 _file: file,
+                runtime: self.paths.runtime_directory.clone(),
+                kind: Some(kind),
             })),
             Err(TryLockError::WouldBlock) => Ok(LockAttempt::Contended),
             Err(TryLockError::Error(source)) => Err(RendezvousError::System {
@@ -603,6 +729,16 @@ enum DirectoryRole {
 
 fn effective_uid() -> u32 {
     geteuid().as_raw()
+}
+
+/// Whether any object occupies a socket path, observed without following it or connecting; a
+/// missing socket folder holds none.
+pub(crate) fn endpoint_exists(path: &Path) -> std::io::Result<bool> {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 /// The socket name prefix of a runtime directory, from its canonical base and its Session name.

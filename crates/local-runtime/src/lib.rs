@@ -102,20 +102,15 @@ pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_req
 mod editor_documents;
 #[cfg(windows)]
 pub use editor_documents::{EditorDocumentRemoval, remove_stale_editor_documents};
-#[cfg(windows)]
 mod process_observation;
-#[cfg(windows)]
 mod process_registration;
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, spawn_session_child};
 mod durable_sessions;
 pub use durable_sessions::RetainedSessionRecord;
-#[cfg(windows)]
 mod checkpoint_restore_notice;
-#[cfg(windows)]
 mod checkpoint_rotation;
-#[cfg(windows)]
 mod layout_history;
 mod rendezvous;
 mod rendezvous_types;
@@ -123,9 +118,7 @@ mod retained_child;
 mod session_catalog;
 mod session_name;
 mod session_store;
-#[cfg(windows)]
 mod terminal_output;
-#[cfg(windows)]
 mod time_name;
 pub use session_catalog::{
     NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
@@ -137,7 +130,7 @@ pub mod private_filesystem;
 pub use session_store::{
     CheckpointLoad, CheckpointRestoreNotice, LayoutHistoryEntry, SessionStore,
 };
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]

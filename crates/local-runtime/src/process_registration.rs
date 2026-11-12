@@ -9,12 +9,14 @@ pub(crate) struct ProcessIdentity {
     creation_time: NonZeroU64,
 }
 impl ProcessIdentity {
+    #[cfg(any(windows, test))]
     pub(crate) fn new(pid: u32, creation_time: u64) -> Option<Self> {
         Some(Self {
             pid: NonZeroU32::new(pid)?,
             creation_time: NonZeroU64::new(creation_time)?,
         })
     }
+    #[cfg(any(windows, test))]
     pub(crate) fn pid(self) -> u32 {
         self.pid.get()
     }
@@ -32,6 +34,7 @@ pub(crate) enum ProcessRole {
 }
 const ROLES: [ProcessRole; 3] = [ProcessRole::Server, ProcessRole::Worker, ProcessRole::Host];
 
+#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Creator {
     Activator,
@@ -99,6 +102,7 @@ impl<'de> Deserialize<'de> for SessionProcesses {
     }
 }
 
+#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RegistrationError {
     WrongCreator,
@@ -107,6 +111,10 @@ pub(crate) enum RegistrationError {
     DuplicateIdentity,
 }
 
+#[cfg_attr(
+    not(any(windows, test)),
+    allow(dead_code, reason = "POSIX observes no registered process")
+)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProcessObservation {
     Gone,
@@ -135,6 +143,7 @@ impl SessionProcesses {
             ProcessRole::Host => self.host,
         }
     }
+    #[cfg(any(windows, test))]
     fn registration_mut(&mut self, role: ProcessRole) -> &mut Registration {
         match role {
             ProcessRole::Server => &mut self.server,
@@ -142,6 +151,7 @@ impl SessionProcesses {
             ProcessRole::Host => &mut self.host,
         }
     }
+    #[cfg(any(windows, test))]
     pub(crate) fn reserve(
         &mut self,
         role: ProcessRole,
@@ -161,6 +171,7 @@ impl SessionProcesses {
         *self.registration_mut(role) = Registration::Spawning;
         Ok(())
     }
+    #[cfg(any(windows, test))]
     pub(crate) fn identify(
         &mut self,
         role: ProcessRole,

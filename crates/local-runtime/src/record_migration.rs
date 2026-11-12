@@ -19,32 +19,11 @@ use std::{
     sync::Mutex,
 };
 
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-pub use windows::inspect_records;
-#[cfg(windows)]
-pub(crate) use windows::persist_migration;
-#[cfg(all(test, windows))]
-pub(crate) use windows::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
-
-/// Migration backups are Windows effects until ORC-328, so POSIX refuses before any effect and the
-/// record stays as it is.
-#[cfg(not(windows))]
-pub(crate) fn persist_migration(
-    _root: &DataRoot,
-    _path: &Path,
-    _original: &[u8],
-    _replace: impl FnOnce() -> io::Result<()>,
-) -> io::Result<PathBuf> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
-/// The versioned stores are Windows effects until ORC-328, so POSIX inspects none.
-#[cfg(not(windows))]
-pub fn inspect_records(_root: &DataRoot, _session: Option<&str>) -> Vec<RecordNotice> {
-    Vec::new()
-}
+mod backup;
+pub use backup::inspect_records;
+pub(crate) use backup::persist_migration;
+#[cfg(test)]
+pub(crate) use backup::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
 
 /// A record whose format carries a top-level integer `version`. Checkpoint slots, the restore
 /// notice, earlier layouts and kept terminal output carry theirs in their frame header instead.
@@ -120,7 +99,7 @@ impl VersionedRecord {
     /// the first public release, so every record has none yet; the first change adds its step here
     /// and nowhere else.
     fn steps(self) -> &'static [MigrationStep] {
-        #[cfg(all(test, windows))]
+        #[cfg(test)]
         if let Some(steps) = crate::tests::record_migration::injected_steps(self) {
             return steps;
         }
@@ -156,7 +135,6 @@ pub(crate) enum RecordOpening {
 
 impl RecordOpening {
     /// The problem a process reports for this opening, when the record cannot be used.
-    #[cfg(windows)]
     pub(crate) const fn problem(&self) -> Option<(RecordProblem, u64)> {
         match self {
             Self::Newer { version } => Some((RecordProblem::Newer, *version)),
@@ -502,7 +480,6 @@ pub fn take_unshown_record_notices() -> Vec<RecordNotice> {
 
 /// The folder-name spelling of a product version: ASCII letters, digits, `.`, `_`, and `-` stay
 /// and every other character becomes `-`.
-#[cfg(windows)]
 pub(crate) fn version_folder_name(version: &str) -> String {
     version
         .chars()

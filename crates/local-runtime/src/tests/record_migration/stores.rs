@@ -1,7 +1,10 @@
 //! Every store's migration wiring, driven through one scenario: a synthetic step from version 0
 //! reaches the store through its ordinary opening, its writer backs the record up and persists the
 //! migration, and its readers never write.
-use super::{super::Fixture, inject};
+use super::{
+    super::{Fixture, write_private},
+    inject,
+};
 use crate::{
     DataRoot, OpenedRecord, PRODUCT_VERSION, PluginRegistry, RecordProblem, SessionName,
     VersionedFile, VersionedRecord,
@@ -53,7 +56,7 @@ fn make_earlier(path: &Path) -> Vec<u8> {
     value["version"] = json!(0);
     value["legacy"] = json!(true);
     let bytes = serde_json::to_vec(&value).unwrap();
-    fs::write(path, &bytes).unwrap();
+    write_private(path, &bytes).unwrap();
     bytes
 }
 
@@ -146,7 +149,7 @@ fn scenario(record: VersionedRecord, open: impl Fn(&DataRoot) -> Box<dyn Store>)
         let original = make_earlier(&path);
         if backup_fails {
             fs::create_dir_all(root.internal()).unwrap();
-            fs::write(root.backups(), b"not a folder").unwrap();
+            write_private(root.backups(), b"not a folder").unwrap();
         }
         let _steps = inject(record, if backup_fails { MIGRATE } else { FAIL });
         assert!(!store.write(), "{record:?} backup_fails={backup_fails}");

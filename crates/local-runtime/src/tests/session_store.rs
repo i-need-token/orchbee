@@ -1,4 +1,6 @@
-use super::{Fixture, Rendezvous, fs, permissions};
+#[cfg(windows)]
+use super::permissions;
+use super::{Fixture, Rendezvous, fs, write_private};
 use crate::SessionStore;
 use sha2::{Digest, Sha256};
 use std::io;
@@ -51,7 +53,7 @@ fn invalid_latest_digest_falls_back_without_modifying_the_invalid_original() {
     let path = directory(&fixture, &session).join("checkpoint.previous-2.json");
     let mut invalid = fs::read(&path).unwrap();
     *invalid.last_mut().unwrap() ^= 1;
-    fs::write(&path, &invalid).unwrap();
+    write_private(&path, &invalid).unwrap();
     assert_eq!(store.read().unwrap(), Some(b"second".to_vec()));
     assert_eq!(fs::read(&path).unwrap(), invalid);
     store.publish(b"fourth").unwrap();
@@ -138,7 +140,7 @@ fn missing_empty_exact_limit_and_oversized_files_remain_distinct() {
     let latest = directory(&fixture, &session).join("checkpoint.previous-1.json");
     assert_eq!(&fs::read(&latest).unwrap()[45..], &[2; 64]);
     let oversized = vec![4; 110];
-    fs::write(&latest, &oversized).unwrap();
+    write_private(&latest, &oversized).unwrap();
     let loaded = store.read_validated(|bytes| Some(bytes.to_vec())).unwrap();
     assert_eq!(loaded.checkpoint, Some(Vec::new()));
     assert_eq!(
@@ -163,6 +165,8 @@ fn missing_empty_exact_limit_and_oversized_files_remain_distinct() {
     assert_eq!(originals, vec![oversized]);
 }
 
+// Windows handles refuse delete sharing and junctions redirect; POSIX has neither.
+#[cfg(windows)]
 #[test]
 fn failed_replacement_keeps_the_prior_checkpoint_and_reclaims_staging() {
     let fixture = Fixture::new();
@@ -307,7 +311,7 @@ fn interrupt_after_preserving_invalid_originals_never_recovers_a_complete_pendin
     digest.update(&pending[..13]);
     digest.update(&pending[45..]);
     pending[13..45].copy_from_slice(&digest.finalize());
-    fs::write(state.join("checkpoint.pending"), pending).unwrap();
+    write_private(state.join("checkpoint.pending"), pending).unwrap();
     drop(store);
     let reopened = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     let loaded = reopened
@@ -326,7 +330,7 @@ fn a_crashed_pending_file_is_reclaimed_without_becoming_committed_data() {
     let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     store.publish(b"committed").unwrap();
     let pending = directory(&fixture, &session).join("checkpoint.pending");
-    fs::write(&pending, b"uncommitted").unwrap();
+    write_private(&pending, b"uncommitted").unwrap();
     drop(store);
     let reopened = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     assert!(!pending.exists());
@@ -340,7 +344,7 @@ fn linked_checkpoint_and_pending_files_are_refused_without_touching_their_target
     let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     let state = directory(&fixture, &session);
     let target = fixture.0.join("outside-data");
-    fs::write(&target, b"preserve me").unwrap();
+    write_private(&target, b"preserve me").unwrap();
     fs::hard_link(&target, state.join("checkpoint.json")).unwrap();
     assert!(store.read().is_err());
     assert!(store.publish(b"replacement").is_err());
@@ -353,6 +357,8 @@ fn linked_checkpoint_and_pending_files_are_refused_without_touching_their_target
     assert!(state.join("checkpoint.pending").exists());
 }
 
+// Windows handles refuse delete sharing and junctions redirect; POSIX has neither.
+#[cfg(windows)]
 #[test]
 fn private_ancestor_handles_fence_rename_until_the_store_is_dropped() {
     let fixture = Fixture::new();
@@ -365,6 +371,8 @@ fn private_ancestor_handles_fence_rename_until_the_store_is_dropped() {
     assert!(SessionStore::open(&crate::DataRoot::at(fixture.0.join(".")), &session, 64).is_err());
 }
 
+// Windows handles refuse delete sharing and junctions redirect; POSIX has neither.
+#[cfg(windows)]
 #[test]
 fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
     use std::os::windows::process::CommandExt;

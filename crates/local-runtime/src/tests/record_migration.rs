@@ -223,7 +223,10 @@ fn a_migration_backs_up_the_original_before_replacing_it() {
     assert!(failed.is_err());
     assert_eq!(fs::read(&record).unwrap(), original);
 
-    let copy = persist_migration(&root, &record, original, || fs::write(&record, &bytes)).unwrap();
+    let copy = persist_migration(&root, &record, original, || {
+        super::write_private(&record, &bytes)
+    })
+    .unwrap();
     assert_eq!(fs::read(&record).unwrap(), bytes);
     assert_eq!(fs::read(&copy).unwrap(), original);
     let upgrade = folders(&root.backups());

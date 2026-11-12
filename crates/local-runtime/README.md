@@ -24,14 +24,14 @@ This crate owns admitted shared capabilities and stable runtime lifecycle contra
 Settings and plugin schemas, command outcome types, named-Session syntax, Windows path operands
 and literal command encoding are available on every supported platform. Windows path admission
 uses its explicit grammar even on Unix; environment and cwd are supplied by the execution owner.
-OS effects stay in their owning adapter. The Windows private cache and plugin registry refuse
-unsupported Unix operations before opening a path or spawning a process; private-cache errors use
-`io::ErrorKind::Unsupported` and the registry uses `PluginRegistryError::Unsupported`. The
+OS effects stay in their owning adapter. The plugin registry refuses unsupported Unix operations
+before opening a path or spawning a process with `PluginRegistryError::Unsupported`; the
+[private update cache](#private-update-cache) runs on every host. The
 [user settings](#user-settings) reader and editor run on every host.
 Applications decide action visibility and localized feedback through their
 [TUI platform contract](../../apps/orchbee/docs/tui-platforms.md).
 
-Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules; unimplemented named lifecycle, checkpoint and registered-child operations return `io::ErrorKind::Unsupported` before effects. `CommandChild` retains one command and everything it starts: a Job on Windows, its own process group on Unix (see [retained commands](#retained-commands)). Deletion uses `NamedSessionDeleteReason::Unsupported`; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
+Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules. The Session catalog, durable and activation records, checkpoint store and persisted-data versions share one implementation over the [private storage seam](#private-storage-on-macos-and-linux); unimplemented registered-child operations return `io::ErrorKind::Unsupported` before effects. `CommandChild` retains one command and everything it starts: a Job on Windows, its own process group on Unix (see [retained commands](#retained-commands)). `NamedSessionDeleteReason::Unsupported` stays for a host without a catalog, which no supported host is now; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
 
 ## Shared launch and notification policy
 
@@ -200,8 +200,8 @@ Desktop Main backs its window state record up into the same folders; search for
 `upgrade-backup-folders` before changing the naming, the copies, or retention. A failed step, backup,
 or replacement leaves the record byte-identical, and the store treats it as not updated: the notice
 is reported, and the process keeps treating that record so until it ends, so its readers and writers
-agree. Backups are Windows effects; on POSIX a writer's opening reports an earlier record as not updated
-until ORC-328.
+agree. The folder's date is the local date on Windows and the UTC date on macOS and Linux, where
+the crate reads no time zone.
 
 | Record                            | Version and extension object | While its version is one this build cannot use                                                          |
 | --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -223,6 +223,39 @@ whether this was the first time, so the process shows one of the two localized m
 hands over only those no surface has shown yet: the CLI prints them on stderr after its command, and
 `config check` takes the ones it lists. Applications own the message text and each record's
 consequence.
+
+## Private storage on macOS and Linux
+
+The private update cache, persisted-data versions, the Session catalog, the durable and activation
+records and the checkpoint store are one implementation on every host. They reach the file system
+only through `private_filesystem` (opening, admission, `protect_new`, `replace` and `move_aside`)
+and `data_root` (`create_state_directory` and `open_state_root`), whose Windows and Unix adapters
+sit side by side, so the records, their shapes and their names are the same on every host. Each
+Windows mechanism maps to a POSIX one:
+
+| Guarantee                   | Windows                                                                                   | macOS and Linux                                                                                                                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No one else reads or writes | The token user owns it; a protected DACL grants only that user, SYSTEM and Administrators | The effective user owns it; a new folder is set to 0700 and a new file to 0600 by descriptor and read back, or refused as `PermissionsNotKept`; an existing one with any group or other bit is refused           |
+| No redirection              | Reparse points are refused                                                                | Every component is opened from `/` relative to its parent with `O_NOFOLLOW`, folders with `O_DIRECTORY`; a link below the data root is refused as `SymbolicLink`; the root is reached through its canonical path |
+| No alias                    | A regular file with one link                                                              | A regular file with one link                                                                                                                                                                                     |
+| Pinned ancestors            | Handles held without delete sharing, so no folder on the path can be renamed              | Descriptors held for the same lifetime; every folder below the root is private, so no other user can rename an entry in it, and the same user's writers take the lock                                            |
+| Writer lock                 | `File::try_lock` on the record's lock file                                                | The same `File::try_lock`, an `flock`; a file system that refuses it is refused                                                                                                                                  |
+| Replace a record            | Flush the staging file, then `MoveFileEx(REPLACE_EXISTING)`                               | Flush the staging file (`F_FULLFSYNC` on macOS), then `rename`, then flush the folder where the file system allows it                                                                                            |
+| Move a file aside           | `MoveFileEx(WRITE_THROUGH)`, which fails when the target exists                           | `renameat2(RENAME_NOREPLACE)` on Linux and `renameatx_np(RENAME_EXCL)` on macOS; a file system without that flag takes a check and `rename` under the store's writer lock; then the folder is flushed            |
+| Consistent reader           | A snapshot handle without delete sharing blocks a replacement while it is open            | A held descriptor keeps reading the version it opened, since no writer changes a published file in place; a reader never blocks a writer                                                                         |
+| Other platform checks       | None                                                                                      | macOS also refuses an extended ACL and a volume mounted to ignore ownership; Linux checks no ACL                                                                                                                 |
+
+A writer stopped at any point leaves the published name holding a complete flushed version; only
+its staging file can be partial, and the next writer reclaims it under the lock. Two records are
+written in place on every host and fail closed instead: a `version.json` cut short makes the root's
+layout unreadable, so the root is refused until the file is removed, and a cut-short activation
+record reads as invalid and grants no restart. Neither host claims power-loss durability: a folder
+flush is best effort.
+
+Process registration is not ported. On macOS and Linux a durable record's Server, Worker and Host
+registry stays `not-started`, no observation ever reports a role absent, and `spawn_server` and
+`spawn_session_child` return `io::ErrorKind::Unsupported`. Recovering an Active Session there rests
+on its free lifetime lock and absent endpoints alone.
 
 ## Windows user path operands
 
@@ -303,14 +336,15 @@ different letter case (`letter-case`), which only a case-sensitive directory can
 Windows rendezvous refuse runtimes containing the obsolete `site-lifetime.lock`, never creating a
 parallel `session-lifetime.lock`. There is no old-name alias, dual reader or automatic migration.
 
-## Windows durable session catalog
+## Durable session catalog
 
-Native Windows named and default Sessions keep one bounded private lifecycle record each,
+Named and default Sessions keep one bounded private lifecycle record each,
 `sessions/<session>/session.json`, with its writer lock `session.lock` and staging file
 `session.pending` beside it and the Session's checkpoints in the same folder. Each record binds the
 name, which matches its folder without letter case, and the runtime folder in use to Active,
 Crashed, Stopped with a nonzero stop identity, or Deleting. Only current numeric version 1 with all
-fields, including the Server/Worker/Host PID and creation-FILETIME registry, is admitted. Other
+fields, including the Server/Worker/Host PID and creation-FILETIME registry, which macOS and Linux
+leave unstarted (see [process registration](#private-storage-on-macos-and-linux)), is admitted. Other
 versions or shapes return InvalidData; reads never migrate records. Effect paths derive from
 admitted inputs, never serialized paths.
 
@@ -355,7 +389,7 @@ publication, compatibility and evidence limits. Check the registered bounded mod
 node scripts/tla/run-models.mjs --models session-crash-recovery
 ```
 
-## Windows named session lifecycle
+## Named session lifecycle
 
 `SessionCatalog` serializes default/named activation and named deletion with one private per-user
 namespace lock, `internal/sessions.lock`. Activation holds it from before runtime creation through
@@ -375,6 +409,37 @@ that deletion; absent state succeeds. It never recursively deletes arbitrary tre
 process. The shared namespace lock intentionally outlives individual sessions. This covers
 cooperating current-user invocations and ordinary process interruption; power-loss durability and
 inventory recovery after external removal of the runtime base are unclaimed.
+
+## Session checkpoint store
+
+`SessionStore` retains bounded checkpoint bytes in the Session folder,
+`<data root>/sessions/<session>`, named by the admitted Session's runtime folder. Its caller supplies
+the data root and admitted Session; the Server owns checkpoint validation and recovery. Each Session
+has its own store. Private ancestor handles, private new folders, no-link admission and single-link
+file checks apply on every host. A private `state.lock`
+is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
+
+The store retains three versioned, integrity-checked slots, ordered by their private generation.
+The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain
+intact and produce an explicit recovered/empty startup notice. Unframed files and unsupported
+payloads use this same recovery policy. Missing data and invalid data remain distinct;
+filesystem/private-path admission errors still refuse startup. Current durable and checkpoint
+formats each use version 1 and reject preceding numeric versions without migration. See the
+[Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
+
+Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid
+original as `checkpoint.corrupt-<UTC second>.raw`, with `-2`, `-3` and on when that name is taken, then atomically replaces a slot in the same directory
+(`MoveFileEx(REPLACE_EXISTING)` on Windows, `rename` elsewhere; see the
+[mapping](#private-storage-on-macos-and-linux)). Pending bytes never supply recovery authority; failure keeps
+prior valid slots and reports any unconfirmed staging cleanup. Unchanged payloads do not consume
+history. Raw originals are user recovery data retained until explicit Session deletion or authorized
+repair. Other users are excluded by the private ACL or mode; same-user writers respect the lock. The
+adapter does not claim directory-entry write-through; the acknowledged pending-file flush and
+atomic replacement do not prove power-loss or hardware durability.
+
+The store does not interpret JSON, select a default data directory, relaunch a process, replay an
+operation or grant Session restart authority. The Server owns startup/stop use of this primitive;
+native process-crash/restart and machine-restart witnesses remain separate evidence obligations.
 
 ## Windows editor documents
 
@@ -672,12 +737,12 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | Provide shared path, permission, lock and attempt-marker admission; applications own launch, readiness and recovery policy.                                                                                                                                                                                                                           |
 | Inputs       | A trusted existing exactly normalized absolute base, canonical scope, effective UID, and potentially invalid directory, lock, marker or socket entries.                                                                                                                                                                                               |
-| Data         | Stable paths, retained scope descriptor, owned advisory-lock guards, and an immutable empty attempt marker. No PID or process-health inference.                                                                                                                                                                                                       |
+| Data         | Stable paths, retained scope descriptor, owned advisory-lock guards, and the bounded activation record in the attempt marker. No PID or process-health inference.                                                                                                                                                                                     |
 | Outputs      | Validated rendezvous or typed failure; Acquired/Contended lock outcome; marker and socket existence with metadata validation. Path getters perform no I/O.                                                                                                                                                                                            |
 | Invariants   | Descriptor-relative no-follow traversal; exact final type, owner, mode and regular-file link count; new directory identity matches its inspected inode and its mode reads back. macOS final objects have no extended ACL on a volume that keeps ownership. Existing invalid entries are never repaired or removed. Guard drop only releases its lock. |
 | Decisions    | Normalized path and scope syntax, create-versus-existing metadata, lock kind, one nonblocking lock outcome, and exclusive marker creation determine results.                                                                                                                                                                                          |
 | Model        | Atomic POSIX primitives without application retry or process observation. LocalSessionStartup composes these facts with Client/Server/Worker state; Client implementation tests exercise the connect-first behavior.                                                                                                                                  |
-| Transitions  | Missing scope/lock becomes a validated durable inode. Lock creation and lock acquisition may have different winners. Guard acquisition/drop changes only lock ownership. An absent marker can be committed once and is never cleared.                                                                                                                 |
+| Transitions  | Missing scope/lock becomes a validated durable inode. Lock creation and lock acquisition may have different winners. Guard acquisition/drop changes only lock ownership. An absent marker is committed as Active; only a Stopped or Crashed receipt is cleared back to Active.                                                                        |
 | Dependencies | Safe nix filesystem wrappers and File::try_lock; macOS mount-flag and extended ACL inspection. No child-process or service dependency in rendezvous.                                                                                                                                                                                                  |
 | Ownership    | This crate owns derivation and admission. Client chooses the development base/scope and owns the activation guard and marker commit; Server owns the lifetime guard.                                                                                                                                                                                  |
 | Verification | Scope/path partitions, symlink/hardlink/FIFO rejection, wrong owner/mode, restrictive-umask initialization, concurrent owner-preserving creation, stale inode preservation, contention/reacquisition, marker exclusivity, socket impostors, and the longest socket name across every legal stem and a 10-digit user ID.                               |
@@ -691,34 +756,6 @@ it only before the Worker can create a Host; later cleanup belongs to the Worker
 Dropping `RetainedChild` continues to release observation ownership without terminating anything.
 `RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in
 the handshake's `query` reply.
-
-`SessionStore` retains bounded checkpoint bytes in the Session folder,
-`<data root>/sessions/<session>`, named by the admitted Session's runtime folder. Its caller supplies
-the data root and admitted Session; the Server owns checkpoint validation and recovery. Each Session
-has its own store. Private ancestor handles, protected
-new-directory ACLs, no-reparse admission and single-link file checks apply. A private `state.lock`
-is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
-
-The store retains three versioned, integrity-checked slots, ordered by their private generation.
-The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain
-intact and produce an explicit recovered/empty startup notice. Unframed files and unsupported
-payloads use this same recovery policy. Missing data and invalid data remain distinct;
-filesystem/private-path admission errors still refuse startup. Current durable and checkpoint
-formats each use version 1 and reject preceding numeric versions without migration. See the
-[Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
-
-Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid
-original as `checkpoint.corrupt-<UTC second>.raw`, with `-2`, `-3` and on when that name is taken, then atomically replaces a slot in the same directory
-with `MoveFileEx(REPLACE_EXISTING)`. Pending bytes never supply recovery authority; failure keeps
-prior valid slots and reports any unconfirmed staging cleanup. Unchanged payloads do not consume
-history. Raw originals are user recovery data retained until explicit Session deletion or authorized
-repair. Other users are excluded by the private ACL; same-user writers respect the lock. The
-adapter does not claim directory-entry write-through; the acknowledged pending-file flush and
-atomic replacement do not prove power-loss or hardware durability.
-
-The store does not interpret JSON, select a default data directory, relaunch a process, replay an
-operation or grant Session restart authority. The Server owns startup/stop use of this primitive;
-native process-crash/restart and machine-restart witnesses remain separate evidence obligations.
 
 The native Windows adapter retains activation/lifetime-lock ownership; the explicit
 stop record below refines the original immutable attempt marker. It admits an absolute local path only after
@@ -758,7 +795,9 @@ with a bounded record in the same admitted `activation.started` file. Empty byte
 mean Active; the exact ASCII prefix `orchbee-stopped-v1:` followed by a nonzero
 32-character lowercase hexadecimal stop request ID means Stopped. Absence remains
 distinct. Every other size, prefix or encoding is invalid and grants no restart.
-Linux retains its immutable empty-marker contract.
+macOS and Linux read and write the same record in the same file, with the same commit, completion
+and consumption rules; there a retained descriptor pins the file, and the private runtime folder
+keeps other users from renaming it.
 
 The managed Server retains an existing Active file handle without delete sharing.
 Only its lifecycle owner may complete that record, after exact terminal containment,
@@ -1024,7 +1063,7 @@ values, and a commented example line; the application supplies each Client actio
 default keys. `config check` accepts it unchanged, and parsing it gives the same settings as an
 absent file.
 
-## Windows private update cache
+## Private update cache
 
 `PrivateCache` owns pinned private ancestors, no-follow regular single-link files and a
 cross-process writer lock for one named record in a folder. Applications retain logical

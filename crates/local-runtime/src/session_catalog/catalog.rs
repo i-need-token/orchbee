@@ -1,4 +1,4 @@
-//! Cooperating native Windows activators and stopped-session deletion share one namespace owner,
+//! Cooperating native activators and stopped-session deletion share one namespace owner,
 //! `internal/sessions.lock`. Each Session keeps its records in `sessions/<session>/` and its
 //! runtime in `<base>/<session>/`, both folders named by the Session.
 use crate::{
@@ -783,7 +783,7 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
         .into_iter()
         .chain([Rendezvous::observation_endpoint_path(runtime)])
     {
-        if orchbee_local_ipc::endpoint_exists(&endpoint)? {
+        if crate::rendezvous::endpoint_exists(&endpoint)? {
             return Err(io::ErrorKind::WouldBlock.into());
         }
     }

@@ -23,3 +23,17 @@ pub fn spawn_session_child(
 ) -> std::io::Result<crate::RetainedChild> {
     Err(std::io::ErrorKind::Unsupported.into())
 }
+
+/// POSIX registers no process identities, so it creates no registered child and refuses before any
+/// effect.
+#[cfg(not(windows))]
+pub(crate) fn spawn_registered(
+    _directory: &crate::durable_sessions::Directory,
+    _scope: &str,
+    _role: crate::process_registration::ProcessRole,
+    _executable: &std::path::Path,
+    _arguments: &[&std::ffi::OsStr],
+    _deadline: std::time::Instant,
+) -> std::io::Result<crate::RetainedChild> {
+    Err(std::io::ErrorKind::Unsupported.into())
+}

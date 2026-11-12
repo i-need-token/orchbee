@@ -308,6 +308,11 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 }
 
+/// Whether a pipe of this name exists, observed without connecting.
+pub(crate) fn endpoint_exists(path: &Path) -> io::Result<bool> {
+    orchbee_local_ipc::endpoint_exists(path)
+}
+
 fn endpoint_id(runtime: &Path) -> String {
     let mut hash = Sha256::new();
     hash.update(b"orchbee-windows-runtime-v1\0");
