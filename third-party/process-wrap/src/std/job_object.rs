@@ -18,8 +18,8 @@ use windows::Win32::{
 use crate::{
 	ChildExitStatus,
 	windows::{
-		JobPort, job_creation_flags, make_job_object_with_breakaway, resume_threads, terminate_job,
-		wait_on_job,
+		JobPort, job_creation_flags_for, make_job_object_with_breakaway, resume_threads,
+		terminate_job, wait_on_job,
 	},
 };
 
@@ -59,7 +59,9 @@ impl CommandWrapper for KillOnJobClose {}
 /// This enables Windows' `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` policy, so the Job holds only the
 /// spawned process: [`KillOnJobClose`] then ends that process alone, waiting completes when it
 /// exits, and the processes it starts outlive the Job. A Job further up an existing hierarchy keeps
-/// its own policy for them.
+/// its own policy for them. Since no descendant stays in the Job, the process is not created
+/// suspended: it starts at once and is assigned right after it is created, unless
+/// `CREATE_SUSPENDED` was requested explicitly, which leaves it suspended as before.
 #[derive(Clone, Copy, Debug)]
 pub struct SilentBreakaway;
 
@@ -95,7 +97,10 @@ fn child_process_handle(child: &dyn ChildWrapper) -> Option<BorrowedHandle<'_>> 
 impl CommandWrapper for JobObject {
 	#[cfg_attr(feature = "tracing", instrument(level = "debug", skip(self)))]
 	fn pre_spawn(&mut self, command: &mut Command, core: &CommandWrap) -> Result<()> {
-		let policy = job_creation_flags(user_creation_flags(core));
+		let policy = job_creation_flags_for(
+			user_creation_flags(core),
+			!core.has_wrap::<SilentBreakaway>(),
+		);
 		command.creation_flags(policy.flags.0);
 		Ok(())
 	}
@@ -108,7 +113,7 @@ impl CommandWrapper for JobObject {
 	) -> Result<Box<dyn ChildWrapper>> {
 		let kill_on_close = core.has_wrap::<KillOnJobClose>();
 		let silent_breakaway = core.has_wrap::<SilentBreakaway>();
-		let policy = job_creation_flags(user_creation_flags(core));
+		let policy = job_creation_flags_for(user_creation_flags(core), !silent_breakaway);
 
 		#[cfg(feature = "tracing")]
 		debug!(
@@ -133,6 +138,11 @@ impl CommandWrapper for JobObject {
 		let made = make_job_object_with_breakaway(handle, kill_on_close, silent_breakaway);
 		let job_port = match made {
 			Ok(job_port) => job_port,
+			// A process that was not suspended may end before it could be assigned. Nothing is left
+			// to contain, and waiting on the process alone reports its status.
+			Err(_) if silent_breakaway && matches!(inner.try_wait(), Ok(Some(_))) => {
+				return Ok(inner);
+			}
 			Err(error) => {
 				terminate_child(&mut *inner);
 				return Err(error);

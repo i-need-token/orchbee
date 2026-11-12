@@ -101,10 +101,11 @@
 //! command.wrap(CreationFlags(CREATE_NO_WINDOW));
 //! ```
 //!
-//! Internally the `JobObject` wrapper always sets the `CREATE_SUSPENDED` flag, but as it is able to
+//! Internally the `JobObject` wrapper sets the `CREATE_SUSPENDED` flag, but as it is able to
 //! access the `CreationFlags` value it will either resume the process after setting up, or leave it
 //! suspended if `CREATE_SUSPENDED` was explicitly set. `CreationFlags` and `JobObject` may be
-//! registered in either order.
+//! registered in either order. With `SilentBreakaway`, whose Job keeps no descendant, it does not
+//! suspend the process and assigns it right after creation.
 //!
 //! # Extension
 //!

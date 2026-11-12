@@ -38,10 +38,13 @@ cannot be confirmed.
 
 The explicit `SilentBreakaway` marker opts one command into
 `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK`, in either registration order with `JobObject`, so the
-Job holds only the spawned process and the processes it starts are created outside it. The
+Job holds only the spawned process and the processes it starts are created outside it. Since no
+descendant stays in the Job, the process is not created suspended: it starts at once and is
+assigned right after creation, which spares the system-wide thread snapshot that resuming a
+suspended process takes (about 36 ms per start on the development machine, 2026-11-12). The
 Windows launcher combines it with `KillOnJobClose`: ending the launcher ends the Client it
 started, while the Server, Worker and Terminal Host that Client starts keep running. Without the
-marker, the Job's limit flags are unchanged.
+marker, the Job's limit flags and suspension are unchanged.
 
 ## Maintenance and evidence
 

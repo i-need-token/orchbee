@@ -55,7 +55,24 @@ pub(crate) struct JobCreationFlags {
 	pub resume_after_assignment: bool,
 }
 
+#[cfg(any(feature = "tokio1", test))]
 pub(crate) fn job_creation_flags(user_flags: PROCESS_CREATION_FLAGS) -> JobCreationFlags {
+	job_creation_flags_for(user_flags, true)
+}
+
+/// The creation flags of a Job's process. Suspension keeps a process from creating children before
+/// it is assigned, so that none of them escapes the Job; a Job whose descendants all leave it
+/// (`suspend_for_assignment` false) starts the process at once and assigns it right after.
+pub(crate) fn job_creation_flags_for(
+	user_flags: PROCESS_CREATION_FLAGS,
+	suspend_for_assignment: bool,
+) -> JobCreationFlags {
+	if !suspend_for_assignment {
+		return JobCreationFlags {
+			flags: user_flags,
+			resume_after_assignment: false,
+		};
+	}
 	JobCreationFlags {
 		flags: user_flags | CREATE_SUSPENDED,
 		resume_after_assignment: !user_flags.contains(CREATE_SUSPENDED),
