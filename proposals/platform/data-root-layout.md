@@ -51,6 +51,7 @@
     ├── desktop/
     ├── backups/<date>-<reason>/
     ├── cache/agent-detection/
+    ├── machines/hub.lock
     ├── runtime/<session>/
     ├── tmp/
     └── plugins/
@@ -72,6 +73,7 @@
 | `internal/desktop`      | Electron `userData`, in Chromium's own layout                                                              | Kept                           | While Desktop is closed; resets Desktop preferences |
 | `internal/backups`      | Copies taken before a migration or a reset                                                                 | Kept                           | Yes                                                 |
 | `internal/cache`        | Downloaded detection rules                                                                                 | Removed                        | Yes; rebuilt on demand                              |
+| `internal/machines`     | The machine hub's single-instance lock, whose location freezes at the first public release                 | Removed                        | While no hub runs                                   |
 | `internal/runtime`      | Locks, markers, Host registrations, and frame files of live Sessions                                       | Removed                        | Only a stopped Session's folder                     |
 | `internal/tmp`          | Scrollback documents opened in an editor                                                                   | Removed                        | While no such document is open                      |
 | `internal/plugins`      | Plugin registry, managed sources, and each plugin's own configuration and data                             | Kept                           | No                                                  |

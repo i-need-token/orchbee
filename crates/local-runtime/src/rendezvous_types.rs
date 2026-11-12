@@ -87,6 +87,18 @@ pub enum SessionLifetimeObservation {
     Unsafe,
 }
 
+/// What a read of a Session's lifetime holder under its activation lock found.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionHolderObservation {
+    /// The folder has no activation lock, so no Session was ever activated there.
+    NoActivation,
+    /// An activation, a stop, or a deletion holds the activation lock.
+    ActivationHeld,
+    /// The lifetime lock as read while holding the activation lock.
+    Lifetime(SessionLifetimeObservation),
+}
+
 #[derive(Debug)]
 pub enum RendezvousError {
     InvalidSessionScope,

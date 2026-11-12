@@ -3,6 +3,8 @@
 mod unix;
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+pub use crate::rendezvous_types::SessionHolderObservation;
 pub use crate::rendezvous_types::{
     EntryKind, EntryObservation, LockKind, RendezvousError, SessionLifetimeObservation,
     SessionScope,

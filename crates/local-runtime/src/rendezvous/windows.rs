@@ -2,7 +2,7 @@
 //! filesystem socket leaves and are authenticated only at connection admission.
 use crate::private_filesystem as permissions;
 use crate::rendezvous_types::{
-    LockKind, RendezvousError, SessionLifetimeObservation, SessionScope,
+    LockKind, RendezvousError, SessionHolderObservation, SessionLifetimeObservation, SessionScope,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -299,6 +299,32 @@ impl ModeCheckedLocalSessionRendezvous {
             Err(TryLockError::WouldBlock) => Ok(SessionLifetimeObservation::Held),
             Err(TryLockError::Error(error)) => Err(error),
         }
+    }
+    /// Whether a Server holds this Session's lifetime, read so that it never meets a Server taking
+    /// or releasing it: the existing activation lock, which a Server's activation and its stop
+    /// hold around that acquire and release, is held for the instant of the lifetime read. Neither
+    /// lock file is created, and a held activation lock is reported, never waited for.
+    pub fn observe_session_holder(&self) -> io::Result<SessionHolderObservation> {
+        let activation = match permissions::open_file(
+            &self.runtime.join(LockKind::Activation.name()),
+            false,
+            true,
+        ) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok(SessionHolderObservation::NoActivation);
+            }
+            Err(error) => return Err(error),
+        };
+        let observation = match activation.try_lock() {
+            Ok(()) => self
+                .observe_session_lifetime_lock()
+                .map(SessionHolderObservation::Lifetime),
+            Err(TryLockError::WouldBlock) => Ok(SessionHolderObservation::ActivationHeld),
+            Err(TryLockError::Error(error)) => Err(error),
+        };
+        drop(activation);
+        observation
     }
     pub fn client_socket_exists(&self) -> io::Result<bool> {
         orchbee_local_ipc::endpoint_exists(&self.client)

@@ -130,6 +130,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
 | `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |
 | `internal/integrations/agent-observation/<version>/` | Agent observation Capsules the [integration writer](../agent-integration-writer/README.md#capsule-location-and-ownership) installs and names |
+| `internal/machines/hub.lock`                         | The machine hub's single-instance lock; it and `machine_hub_endpoint` freeze at the first public release                                     |
 | `internal/runtime/<session>/`                        | A Session's runtime folder in every environment, unless `ORCHBEE_RUNTIME_BASE` names another base                                            |
 | `internal/tmp/`                                      | Scrollback documents the Terminal Host writes for an editor, removed a day after their last write                                            |
 
@@ -322,7 +323,10 @@ default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BAS
 exist. Until then, read-only `session list`, `server diagnose` and `config check` report
 nothing started.
 Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
-its own endpoint id. Data written under earlier non-release locations is not migrated.
+its own endpoint id. `machine_hub_endpoint` names the machine hub's pipe the same way from the
+data root's canonical path, with the role `hub`, and the
+[machines guide](../../apps/orchbee/docs/machines.md#names-that-freeze) owns why. Data written
+under earlier non-release locations is not migrated.
 
 A managed terminal's `ORCHBEE_ENVIRONMENT` names the environment of its inherited
 `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE`. `session_route_environment` is the single
@@ -738,6 +742,12 @@ creates the leaf: only an entry already stat-checked as an owned regular `0600` 
 opened, probed with one `try_lock`, and released on the same descriptor — `Held` is a lock fact at
 that instant, never a process claim. No observation connects, creates, writes, unlinks, repairs, or
 infers process health.
+
+On Windows `observe_session_holder` reads the lifetime lock only while it holds the folder's
+existing activation lock, which a Server's activation and its stop hold around the lifetime
+acquire and release, so a reader that repeats never takes a free lifetime lock at the instant a
+Server takes it. A missing activation lock is `NoActivation`, a held one `ActivationHeld`; neither
+file is created. The machine hub reads Sessions this way.
 
 Socket metadata and same-user peer proof are enforced by the managed consumers. Client, Server, and
 Worker share this crate, and Server owns the lifetime guard. The primitive does not itself select

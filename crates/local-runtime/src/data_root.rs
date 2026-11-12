@@ -287,6 +287,18 @@ impl DataRoot {
     pub fn tmp(&self) -> PathBuf {
         self.internal().join("tmp")
     }
+
+    /// The machine hub's folder.
+    pub fn machines(&self) -> PathBuf {
+        self.internal().join("machines")
+    }
+
+    /// The machine hub's single-instance lock. Its location freezes at the first public release,
+    /// because an older hub and a newer interface meet after an update; holding it is a lock on
+    /// an open handle, never the file's existence, and nothing deletes it.
+    pub fn machine_hub_lock(&self) -> PathBuf {
+        self.machines().join("hub.lock")
+    }
 }
 
 /// Cheap local evidence, without running provider commands or reading their configuration, that an

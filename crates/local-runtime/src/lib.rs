@@ -112,6 +112,8 @@ pub use durable_sessions::RetainedSessionRecord;
 mod checkpoint_restore_notice;
 mod checkpoint_rotation;
 mod layout_history;
+mod machine_hub;
+pub use machine_hub::machine_hub_endpoint;
 mod rendezvous;
 mod rendezvous_types;
 mod retained_child;
@@ -147,7 +149,9 @@ pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
 
 pub use cohort::{Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar};
 #[cfg(windows)]
-pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
+pub use rendezvous::{
+    CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME, SessionHolderObservation,
+};
 pub use rendezvous::{
     EntryKind, EntryObservation, HOST_SCOPE_NAME, LockAttempt, LockKind,
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
