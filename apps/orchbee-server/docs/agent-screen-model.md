@@ -263,7 +263,9 @@ contain local paths and account details, so a regression fixture must be redacte
 
 ## Remote update ownership
 
-Orchbee ships no default rule catalog. Remote maintenance runs only when the Server starts with
+The remote catalog is experimental and unstable: Orchbee ships no default source, rules are not
+signed, and its variable, format and cache may change in any release without migration. Remote
+maintenance runs only when the Server starts with
 `ORCHBEE_AGENT_DETECTION_CATALOG_URL` set to a valid HTTP(S) catalog URL; the value is
 frozen for the Session. Without it the Server uses only bundled rules and local overrides: it
 schedules no check, refuses explicit Update as unavailable, makes no network request and ignores any

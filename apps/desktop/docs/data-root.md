@@ -29,6 +29,10 @@ runtime; a relative value fails startup instead of falling back. Desktop keeps i
 | `internal/development-checkout.json` | Development scope marker                                        |
 | `internal/version.json`              | Layout record and the newest version that opened the root       |
 
+Browser storage under `internal/desktop/` holds view state, such as terminal focus recovery, and
+the keyboard shortcut overrides. None of it is a stable contract: a release may reset or reshape it
+without migration.
+
 On Windows Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason,
 diagnostic bundle outcomes, and `exited` to the data root's
 [daily diagnostic log](../../../crates/local-runtime/README.md#windows-diagnostic-log), creating

@@ -477,7 +477,9 @@ eight camelCase fields. Event names and text values are `&'static str` tokens of
 `.`, `_` and `-`, at most 64 bytes, and other values are counts and flags; a token outside the
 grammar is written as `invalid`. A record therefore cannot carry terminal content, typed input,
 prompts, arguments, environment or configuration values, file contents or credentials. Host
-diagnostics reach the log only as the Worker's Terminal Host start and failure records.
+diagnostics reach the log only as the Worker's Terminal Host start and failure records. Event names
+and record fields are unstable: a release may add, rename or drop them without migration, so read
+the log as diagnostics, not as an interface.
 
 A writer holds the day's file without write sharing while it appends, waiting up to 500 ms for
 another writer, so Desktop Main's exclusive open and the natives admit one record at a time. The
@@ -883,6 +885,14 @@ Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd
 `worktrees.directory`, `agents.resume_on_restore`, `agent_detection.auto_update`, `update.channel`)
 and are read from the attached Server's file. With a local Server both are the same file.
 
+### Compatibility
+
+`config.toml` has no version field. From the first public release a key is never removed or
+reshaped in place: a key that must change gets a new name, and the old name stays an alias that
+still applies and reports a deprecation diagnostic. A key this version does not know, such as one
+a later release added, is reported as a warning and ignored, so an older Orchbee keeps working with
+a newer file. Orchbee never rewrites the file to migrate it; only an explicit edit changes it.
+
 ### Published key file
 
 [`schemas/workbench/v1/setting-keys-v1.json`](../../schemas/workbench/v1/setting-keys-v1.json)
@@ -1093,23 +1103,23 @@ Applications own what each record holds; this adapter alone implements no update
 
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
 
-Windows settings also admit `[agent_detection] auto_update` (default true) and retain default/file provenance plus explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
+Settings also admit `[agent_detection] auto_update` (default true) and retain default/file provenance plus explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
 
-## Windows keybinding configuration repair
+## Keybinding configuration repair
 
-The Windows settings owner exposes bounded offline keybinding reset with semantic preservation, exclusive-file admission, a flushed private backup and explicit recovery results. The application owns CLI receipts and localization; [the configuration contract](../../apps/orchbee/docs/windows-cli-configuration.md#reset-custom-keybindings) owns policy, failure behavior and backup lifecycle. The library does not reload or launch a process.
+The settings owner exposes bounded offline keybinding reset with semantic preservation, exclusive-file admission, a flushed private backup and explicit recovery results. The application owns CLI receipts and localization; [the configuration contract](../../apps/orchbee/docs/windows-cli-configuration.md#reset-custom-keybindings) owns policy, failure behavior and backup lifecycle. The library does not reload or launch a process.
 
 The same keys owner encodes and validates canonical `[keys]` profiles for live Client publication, capped at 64 KiB and 144 expanded triggers per action. User files keep the 16-alternative bound; Server and Client own publication and installation.
 
 The Windows plugin catalog boundary supplies bounded manifest parsing, normalized identifiers, platform inheritance, source availability and atomic private user registration for native plugin management. Reads do not create storage; unavailable sources retain explicitly marked inspection metadata. Each plugin's folder is spelled from its ID, recorded in the registry, and keeps its `config` and `data` folders after unlink. The shared Windows command owner provides bounded output capture and descendant settlement for Worker commands and offline provisioning; applications own execution policy. Managed provisioning owns serialized source download/build/commit/cleanup, including update from a recorded source, through an application-supplied executor, with one strict version 1 catalog including required provenance/recovery fields; see the [native plugin contract](../../apps/orchbee/docs/windows-plugins.md).
 
-## Windows update channel writes
+## Update channel writes
 
 `set_update_channel` saves the channel through the [settings editor](#editing), so it shares its lock, validation, digest check and atomic replacement, and may create the absent file. It never downloads, and never rolls back the saved channel after a caller's update failure.
 
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 
-## Windows sidebar presentation settings
+## Sidebar presentation settings
 
 The shared settings owner admits separate `appearance.sidebar.agents` and
 `appearance.sidebar.workspaces` layouts. Token styling/raw-value first-match rules have one common admission owner;
