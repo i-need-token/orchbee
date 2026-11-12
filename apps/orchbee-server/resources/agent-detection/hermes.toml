@@ -1,7 +1,7 @@
 id = "hermes"
-version = "2026.07.24.1"
+version = "2026.11.11.1"
 min_engine_version = 2
-updated_at = "2026-07-24T19:12:54Z"
+updated_at = "2026-11-11T00:00:00Z"
 aliases = ["hermes-agent"]
 
 [[rules]]
@@ -161,6 +161,17 @@ region = "bottom_non_empty_lines(5)"
 visible_working = true
 any = [{ contains = ["msg=interrupt"] }, { contains = ["ctrl+c to interrupt"] }]
 
+# Orchbee extension from Windows captures of the Hermes TUI, for a title that carries no state:
+# while a turn runs the composer reads "type to redirect this turn" and the footer beneath it
+# offers "enter interrupt · tab queue · ctrl+c stop".
+[[rules]]
+id = "redirect_footer_working"
+state = "working"
+priority = 940
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+any = [{ contains = ["enter interrupt"] }, { contains = ["type to redirect this turn"] }]
+
 [[rules]]
 id = "classic_cancel_working"
 state = "working"
@@ -176,3 +187,24 @@ priority = 100
 region = "osc_title"
 visible_idle = true
 regex = ['^✓[\u{fe0e}\u{fe0f}]?(?:\s|$)']
+
+# Orchbee extension: at rest the composer row starts with ❯ under a rule, and the ☤ status footer
+# lies beneath it without the busy hints.
+[[rules]]
+id = "composer_footer_idle"
+state = "idle"
+priority = 90
+region = "bottom_non_empty_lines(3)"
+visible_idle = true
+line_regex = ['^\s*❯', '^\s*─{3,}', '^\s*☤ ']
+not = [
+	{ contains = [
+		"enter interrupt",
+	] },
+	{ contains = [
+		"type to redirect",
+	] },
+	{ contains = [
+		"ctrl+c stop",
+	] },
+]

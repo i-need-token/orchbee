@@ -1,5 +1,5 @@
 id = "mimo"
-version = "2026.11.11.2"
+version = "2026.11.11.3"
 min_engine_version = 1
 updated_at = "2026-11-11T00:00:00Z"
 aliases = ["mimocode", "mimo-code"]
@@ -7,9 +7,9 @@ aliases = ["mimocode", "mimo-code"]
 # MiMo Code 0.1.x is built on OpenCode 1.x, so these are opencode.toml's OpenCode 1.x rules adapted
 # to it. MiMo's busy spinner is a UFO with a dot trail instead of OpenCode's progress squares, and
 # its brand replaces OpenCode's in the interrupt hint. Its OSC title (`MC | <session>`) names the
-# session and does not change while a turn runs, so it carries no state. Two rules are MiMo's own:
-# the startup workspace trust question, whose live choices carry ●/○ bullets until it is answered,
-# and idle, which the OpenCode 1.x rules do not detect.
+# session and does not change while a turn runs, so it carries no state. Three rules are MiMo's
+# own: the startup workspace trust question, whose live choices carry ●/○ bullets until it is
+# answered, the busy footer's interrupt hint, and idle, which the OpenCode 1.x rules do not detect.
 
 [[rules]]
 id = "permission_required"
@@ -82,16 +82,35 @@ region = "whole_recent"
 visible_working = true
 regex = ['[∙·˙]🛸|🛸[∙·˙]']
 
-# Idle needs the live prompt box bottom and the key-hint footer that ends in "commands". Narrow
-# panes wrap each footer hint into two rows, so a busy footer can leave "interrupt" alone on the
-# second row.
+# The busy footer under the prompt box starts with the spinner and "esc interrupt"; the spinner
+# has frames without a dot beside the UFO, so the hint decides on its own. A narrow pane wraps the
+# hint and leaves "interrupt" alone on the next row.
+[[rules]]
+id = "interrupt_footer_working"
+state = "working"
+priority = 110
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+any = [
+	{ line_regex = [
+		'(?i)\besc (?:again to )?interrupt\b',
+	] },
+	{ line_regex = [
+		'^\s*interrupt\s*$',
+	] },
+]
+
+# Idle needs the live prompt box bottom with the key-hint footer that ends in "commands" beneath
+# it, on the next row or, in a narrow pane that wraps each hint into two rows, on the row after.
+# The start screen centres the box above a tip and draws twinkling stars and a shooting star of
+# braille dots in the rows around it, so the rule finds the box anywhere instead of counting rows.
 [[rules]]
 id = "prompt_footer_idle"
 state = "idle"
 priority = 50
-region = "bottom_non_empty_lines(10)"
+region = "whole_recent"
 visible_idle = true
-line_regex = ['^\s*╹▀{3,}', '(?:^|\s)commands(?:\s|$)']
+regex = ['(?m)^[ \t]*╹▀{3,}[^\n]*\n(?:[^\n]*\n)?[^\n]*\scommands(?:[ \t][^\n]*)?\r?$']
 not = [
 	{ line_regex = [
 		'(?i)\besc (?:again to )?interrupt\b',

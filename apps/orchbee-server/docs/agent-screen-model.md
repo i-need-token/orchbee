@@ -14,10 +14,23 @@ The bundled Devin Thinking rule requires an anchored live footer with elapsed ti
 
 MiMo Code is built on OpenCode 1.x, so its rules are the OpenCode 1.x rules of `opencode.toml`: the
 permission blocker, the interrupt hints and the busy spinner, which MiMo draws as a UFO with a dot
-trail instead of progress squares. The OpenCode 1.x rules have no idle rule, so MiMo adds one: the
-prompt-box bottom and a key-hint footer ending in `commands`, without an interrupt hint or the
-spinner; a narrow pane wraps each hint, so a lone `interrupt` row is busy chrome. Its `MC |`-prefixed
-title only names the session.
+trail instead of progress squares. Some spinner frames show the UFO without a dot beside it, so
+MiMo adds the OpenCode 2.x footer rule: `esc interrupt` in the last three rows is working, and so is
+a lone `interrupt` row there, which a narrow pane leaves when it wraps the hint. The OpenCode 1.x
+rules have no idle rule, so MiMo adds one: the prompt-box bottom with a key-hint footer ending in
+`commands` on the next row, or on the row after when a narrow pane wraps each hint, without an
+interrupt hint or the spinner. The start screen centres the box above a tip and draws twinkling
+stars and a shooting star of braille dots in the rows around it, so the rule finds the box anywhere
+on the screen instead of within a fixed count of nonempty rows. Its `MC |`-prefixed title only
+names the session.
+
+The status line under a Kimi Code 2.5 answer reads `⠋ Working…` with an ellipsis character, which
+the spinner rule accepts beside three dots.
+
+Hermes writes its state into the OSC title (`⏳`, `✓`, `⚠`). For a title that carries none, Orchbee
+adds two screen rules from Windows captures: the composer's `type to redirect this turn` or the
+footer's `enter interrupt` in the last three rows is working, and a `❯` composer row under a rule
+with the `☤` status footer beneath it, without those hints, is idle.
 
 Kilo CLI 7.x is also built on OpenCode 1.x and keeps Herdr's permission and interrupt-hint rules.
 Its idle rule needs the prompt-box bottom with the key-hint footer ending in `commands` on the row
@@ -33,7 +46,8 @@ the title decides: AtomCode's green or yellow status light, MiniMax Code's `Read
 busy line still outranks an idle title that lags. Reasonix, MothX and Prime Agent leave
 the title to the shell, and titles that only name the session carry no state, so screens decide: a
 braille or glyph spinner status with elapsed time, or a footer interrupt hint, is working, and the
-CLI's composer or key-hint footer without it is idle. A startup question that waits for an answer is a visible
+CLI's composer or key-hint footer without it is idle. Elapsed time past a minute has several
+units, such as MothX's `1m02s`. A startup question that waits for an answer is a visible
 blocker: workspace trust (MiMo Code, DevEco Code, CodeBuddy Code), sign-in or login method (Command
 Code, CodeBuddy Code), the agreements page (DevEco Code), telemetry or trace sharing (Reasonix,
 Prime Agent) and J-Code's y/n/d setup questions. Each needs its live choices or empty answer row, so

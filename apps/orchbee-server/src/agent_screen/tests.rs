@@ -208,7 +208,7 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
 }
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
 /// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code, deveco
-/// 0.3.0, gemini 0.67.0 and 0.68.0, kilo 7.8.27 and openclaw 2026.11. Busy chrome outranks the composer that stays on screen, a startup question blocks only
+/// 0.3.0, gemini 0.67.0 and 0.68.0, kilo 7.8.27, openclaw 2026.11, kimi 2.5.3 and the Hermes TUI. Busy chrome outranks the composer that stays on screen, a startup question blocks only
 /// while its live choices or empty answer row are shown, and stray words stay unknown.
 #[test]
 fn new_provider_rules_follow_redacted_windows_captures() {
@@ -347,6 +347,32 @@ fn new_provider_rules_follow_redacted_windows_captures() {
         "agent main | session main |\n model medium | deliver:off\n | tokens 15k/1.0m (1%)",
         "",
     );
+    // Kimi Code 2.5.3 mid-answer: the status word ends with an ellipsis character.
+    let kimi_busy = |status: &str| {
+        format!(
+            "   12 — Twelve strokes of the clock.\n   13\n\n  ⠋ {status} · Tip: /tasks to check progress and status for background tasks\n ╭─────────╮\n │ >       │\n ╰─────────╯\n model thinking: high  ~\\src\\app\n                              context: 0% (0/977k)"
+        )
+    };
+    // MiMo Code 0.1.16 start screen: stars twinkle and a shooting star of braille dots crosses the
+    // rows around the centred prompt box.
+    const MIMO_STARS: &str = "\n                 ✧\n\n    ● Tip Press Tab or Shift+Tab to cycle between Build and Plan agents\n\n                                                      ✦\n                                    ✧\n  ✦\n\n                                                   ✶                         ✧\n";
+    const MIMO_SHOOTING_STAR: &str = "\n                 ✧\n                    ⡠⠖⠁\n    ● Tip Press Tab⠋or Shift+Tab to cycle between Build and Plan agents\n              ⢀⡤⠚⠁\n            ⣠⠖⠉                                       ✦\n         ⣀⠴⠋                                ✧\n  ✦     ⢀⡤⠞⠁\n      ⣠⠖⠉\n   ⣀⠴⠋                                       ✶                         ✧\n ⢀⡤⠞⠁\n⣠⠖⠋";
+    let mimo_home = |around: &str| {
+        format!(
+            "       ┃\n       ┃  Type your message... (type / for commands)            ✶\n       ┃\n       ┃  Build · Model                                ✦\n       ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n        tab switch mode  ctrl+p settings⠔⠋   @ attach file  $ subagent  / commands\n{around}\n  ~\\src\\app                                                 0.1.16"
+        )
+    };
+    // A spinner frame with no dot beside the UFO; the footer's interrupt hint still shows.
+    let mimo_busy_bare = format!(
+        "{MIMO_BOX}   🛸           esc interrupt                          tab switch mode  ctrl+p settings"
+    );
+    // Hermes TUI on Windows with a title that carries no state.
+    const HERMES_FOOT: &str = " ☤ Model · ctx -- · [░░░░░░░░░░] -- · 1m · ⏱ 1s           ";
+    let hermes_busy = format!(
+        "─────────\n❯ Count to forty.\n─────────\n── ⠙ Working… · 2s ─────────\n☤ ❯ type to redirect this turn · Tab queues it for after\n─────────────────\n{HERMES_FOOT}enter interrupt · tab queue · ctrl+c stop"
+    );
+    let hermes_ready = "Welcome to Hermes Agent! Type your message or /help for commands.\n\n─────────────────\n❯ Type / to browse commands, or Ctrl+P for the palette\n─────────────────\n ☤ Model · ctx -- · [░░░░░░░░░░] -- · 23s · ⏲ 0s · …\\src\\app  / commands · @ files · ! shell".to_owned();
+    let hermes_done = "─ 16.4s · 10:30 PM\n─────────── Count to forty… ─\n❯ Type / to browse commands, or Ctrl+P for the palette\n─────────────────\n ☤ Model · 14.2K/131.1K · [█░░░░░░░░░] 11% · ◷ 10.7s · ↑ 42 t/s · 1m · ⏲ 15s · ✓ 0s".to_owned();
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, title, expected) in [
         (P::Gemini, gemini_trust_first.as_str(), "", Blocked),
@@ -442,7 +468,30 @@ fn new_provider_rules_follow_redacted_windows_captures() {
             "",
             Working,
         ),
+        (
+            P::Mothx,
+            &format!("{MOTH} ⠧ 1m02s · esc to cancel     🔓 No sandbox"),
+            "",
+            Working,
+        ),
         (P::Mothx, "the docs say esc to cancel", "", Unknown),
+        (P::Kimi, &kimi_busy("Working…"), "", Working),
+        (P::Kimi, &kimi_busy("Thinking…"), "", Working),
+        (P::Kimi, &kimi_busy("Working..."), "", Working),
+        (P::Kimi, "the log says Working…", "", Unknown),
+        (P::Mimo, &mimo_home(MIMO_STARS), "", Idle),
+        (P::Mimo, &mimo_home(MIMO_SHOOTING_STAR), "", Idle),
+        (P::Mimo, &mimo_busy_bare, "MC | Summary", Working),
+        (P::Hermes, &hermes_busy, "", Working),
+        (P::Hermes, &hermes_ready, "", Idle),
+        (P::Hermes, &hermes_done, "", Idle),
+        (P::Hermes, &hermes_ready, "⏳ Hermes", Working), // The title outranks the screen.
+        (
+            P::Hermes,
+            "❯ a prompt quoted in the transcript",
+            "",
+            Unknown,
+        ),
         (
             P::PrimeAgent,
             &format!(" Operation aborted · 3s\n{PRIME}"),
