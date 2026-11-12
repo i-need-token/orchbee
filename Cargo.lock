@@ -1027,6 +1027,7 @@ version = "0.1.0"
 dependencies = [
  "interprocess",
  "nix",
+ "rustix",
  "widestring",
  "winsafe",
 ]

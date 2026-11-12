@@ -106,7 +106,9 @@ peer closure, and keep the byte order and the full-buffer timeout across those w
 uses both without changing inherited user handle modes. The process owner must bound
 reads/writes, close pipes and stop/join its child; transport writes never imply consumption.
 
-On Linux and macOS, `ChildOutputReader::pipe` alone is available: a Unix socket pair whose
-nonblocking parent end reads what the blocking child end receives, with the same read and
-would-block contract. The standard library opens both ends close-on-exec, so only the child's
-standard stream inherits the writer.
+On Linux and macOS, `ChildOutputReader::pipe` alone is available: an anonymous pipe, as a shell
+pipeline gives a child, so a child that opens `/dev/stderr` or checks its output's type behaves as
+it does there; a socket would refuse that open on Linux. Only the parent's read end is nonblocking, with the same read and
+would-block contract; the child's write end stays blocking. The standard library opens both ends
+close-on-exec, so only the child's standard stream inherits the writer. rustix supplies the
+nonblocking switch the standard library lacks for a pipe.

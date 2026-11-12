@@ -1,27 +1,26 @@
-//! Unix child-output reader: a connected socket pair stands in for the Windows pipe pair, so one
-//! nonblocking capture loop serves both platforms.
+//! Unix child-output reader over an anonymous pipe, as a shell pipeline gives a child: a child may
+//! open `/dev/stderr` or probe its output's type, which a socket would break. One nonblocking
+//! capture loop serves both platforms.
 use std::{
-    io::{self, Read},
-    os::{
-        fd::{AsFd, BorrowedFd, OwnedFd},
-        unix::net::UnixStream,
-    },
+    io::{self, PipeReader, Read},
+    os::fd::{AsFd, BorrowedFd},
     process::Stdio,
 };
 
 /// A nonblocking reader for a child process's owned stdout or stderr.
 /// It grants no duplex or peer-authenticated protocol capability.
 #[derive(Debug)]
-pub struct ChildOutputReader(UnixStream);
+pub struct ChildOutputReader(PipeReader);
 
 impl ChildOutputReader {
     /// Creates an owned channel for Command::stdout/stderr. The child writer is blocking; only
     /// the parent's reader is nonblocking, so output is not lost when the child fills its buffer.
-    /// Both ends are close-on-exec; spawning duplicates the writer onto the child's descriptor.
+    /// The two ends are separate open files, so the reader's flag never reaches the writer. Both
+    /// ends are close-on-exec; spawning duplicates the writer onto the child's descriptor.
     pub fn pipe() -> io::Result<(Self, Stdio)> {
-        let (reader, writer) = UnixStream::pair()?;
-        reader.set_nonblocking(true)?;
-        Ok((Self(reader), Stdio::from(OwnedFd::from(writer))))
+        let (reader, writer) = io::pipe()?;
+        rustix::io::ioctl_fionbio(&reader, true)?;
+        Ok((Self(reader), Stdio::from(writer)))
     }
 }
 
