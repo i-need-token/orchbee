@@ -145,6 +145,9 @@ fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add
     known.push(opened);
     fixture.settle_ready(&tui.client);
     open_menu(&fixture, &tui, &mut control, "source");
+    // Known Git facts enable New Worktree… while Open Worktree ▸ still checks. The answer that
+    // enables Open Worktree ▸ redraws the menu under a fresh token, which voids a click spanning it.
+    enabled_row(&fixture, &tui, OPEN_WORKTREE);
     choose(&fixture, &tui, &mut control, NEW_WORKTREE, form_ready);
     submit_form(&fixture, &tui, &mut control);
     let created = added(&fixture, &tui, &known);
@@ -632,8 +635,27 @@ fn open_menu(fixture: &Fixture, tui: &Tui, control: &mut Control, label: &str) {
     control.input(format!("\x1b[<2;3;{row}m").as_bytes());
 }
 
-/// Clicks the menu row that shows `text` until `effect` shows. A row that waits for Git discovery
-/// differs from an enabled one only in color, and a click on it does nothing, so the click repeats.
+/// Waits for the menu row that shows `text` to color as enabled and returns its position.
+fn enabled_row(fixture: &Fixture, tui: &Tui, text: &str) -> (usize, usize) {
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let read = MenuRead::take(fixture, tui);
+        if let Some(position) = read.enabled_row(text) {
+            return position;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the menu row {text} never enabled:\n{}",
+            read.text()
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Clicks the menu row that shows `text` once it colors as enabled, then waits for `effect`. A row
+/// that waits for Git discovery differs from an enabled one only in color, and a click on it does
+/// nothing. One click: on a busy machine a click lands late, and a second one could act on
+/// whatever the first opened.
 fn choose(
     fixture: &Fixture,
     tui: &Tui,
@@ -642,6 +664,10 @@ fn choose(
     effect: impl Fn(&str) -> bool,
 ) {
     let deadline = Instant::now() + DISCOVERY;
+    let (row, column) = enabled_row(fixture, tui, text);
+    control.input(format!("\x1b[<35;{column};{row}M\x1b[<0;{column};{row}M").as_bytes());
+    thread::sleep(HOLD);
+    control.input(format!("\x1b[<0;{column};{row}m").as_bytes());
     loop {
         let screen = fixture.screen(&tui.terminal);
         if effect(&screen) {
@@ -649,15 +675,9 @@ fn choose(
         }
         assert!(
             Instant::now() < deadline,
-            "the menu row {text} never took effect:
-{screen}"
+            "the menu row {text} never took effect:\n{screen}"
         );
-        if let Some((row, column)) = menu_row(&screen, text) {
-            control.input(format!("[<35;{column};{row}M[<0;{column};{row}M").as_bytes());
-            thread::sleep(HOLD);
-            control.input(format!("[<0;{column};{row}m").as_bytes());
-        }
-        thread::sleep(Duration::from_millis(500));
+        thread::sleep(Duration::from_millis(100));
     }
 }
 
@@ -741,6 +761,14 @@ impl MenuRead {
             style_of(row, text)
         };
         style(text) == style("Rename")
+    }
+
+    /// The position `menu_row` gives for `text`, once that row colors as Rename.
+    fn enabled_row(&self, text: &str) -> Option<(usize, usize)> {
+        let (row, column) = menu_row(&self.text(), text)?;
+        let line = self.0.lines().nth(row - 1)?;
+        let rename = self.row("Rename")?;
+        (style_of(line, text) == style_of(rename, "Rename")).then_some((row, column))
     }
 }
 

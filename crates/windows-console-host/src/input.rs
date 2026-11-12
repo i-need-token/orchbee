@@ -161,7 +161,7 @@ impl ConsoleInput {
     /// Waits for console input, `wake`, or `timeout`, whichever comes first.
     ///
     /// The caller must provide one serialized reader for this endpoint, as for
-    /// [`Self::read_ready_record`], which then reports whether a record really is ready.
+    /// [`Self::read_ready_records`], which then reports whether a record really is ready.
     ///
     /// # Errors
     ///
@@ -175,25 +175,27 @@ impl ConsoleInput {
         )
     }
 
-    /// Returns one currently ready record without reading after an observed zero count.
+    /// Returns the records that are ready now, at most `limit`, in console order, without reading
+    /// after an observed zero count or when `limit` is zero.
     ///
     /// The caller must provide one serialized reader for this endpoint. Once readiness is positive,
-    /// this method requests exactly one record and requires Win32 to report exactly one result.
+    /// this method requests at most that many records in one read, so a burst costs one console
+    /// round trip, and admits only a result count Win32 can report for that buffer.
     ///
     /// # Errors
     ///
     /// Returns a raw Win32 error or `InvalidData` when Win32 reports an impossible read count.
-    pub fn read_ready_record(&self) -> io::Result<Option<InputRecord>> {
+    pub fn read_ready_records(&self, limit: usize) -> io::Result<Vec<InputRecord>> {
         let mut port = NativeInputPort {
             handle: self.handle.as_handle(),
         };
-        read_ready_record(&mut port)
+        read_ready_records(&mut port, limit)
     }
 }
 
 trait InputPort {
     fn ready_count(&mut self) -> io::Result<u32>;
-    fn read_one(&mut self) -> io::Result<(InputRecord, u32)>;
+    fn read(&mut self, capacity: usize) -> io::Result<Vec<InputRecord>>;
 }
 
 struct NativeInputPort<'handle> {
@@ -205,23 +207,31 @@ impl InputPort for NativeInputPort<'_> {
         crate::sys::console_input_count(self.handle)
     }
 
-    fn read_one(&mut self) -> io::Result<(InputRecord, u32)> {
-        crate::sys::read_console_input(self.handle).map(|record| (record, 1))
+    fn read(&mut self, capacity: usize) -> io::Result<Vec<InputRecord>> {
+        crate::sys::read_console_inputs(self.handle, capacity)
     }
 }
 
-fn read_ready_record(port: &mut impl InputPort) -> io::Result<Option<InputRecord>> {
-    if port.ready_count()? == 0 {
-        return Ok(None);
+fn read_ready_records(port: &mut impl InputPort, limit: usize) -> io::Result<Vec<InputRecord>> {
+    if limit == 0 {
+        return Ok(Vec::new());
     }
-    let (record, count) = port.read_one()?;
-    if count != 1 {
+    let ready = usize::try_from(port.ready_count()?).unwrap_or(usize::MAX);
+    if ready == 0 {
+        return Ok(Vec::new());
+    }
+    let capacity = ready.min(limit);
+    let records = port.read(capacity)?;
+    if records.is_empty() || records.len() > capacity {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("ReadConsoleInputW returned {count} records for a one-record buffer"),
+            format!(
+                "ReadConsoleInputW returned {} records for a {capacity}-record buffer",
+                records.len()
+            ),
         ));
     }
-    Ok(Some(record))
+    Ok(records)
 }
 
 #[cfg(test)]

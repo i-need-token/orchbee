@@ -2,7 +2,7 @@
 
 use super::{
     create_wait_timer, create_wake_event, decode_input_record, signal_wake_event,
-    validated_input_record, wait_input, win32_io_error,
+    validated_input_records, wait_input, win32_io_error,
 };
 use crate::{InputRecord, InputWait, KeyRecord, MouseRecord};
 use std::{os::windows::io::AsHandle, time::Duration};
@@ -146,11 +146,10 @@ fn unknown_tag_does_not_require_a_union_arm() {
 
 #[test]
 fn invalid_read_count_is_rejected_before_record_admission() {
-    for count in [0, 2, u32::MAX] {
+    let records = [INPUT_RECORD::default(); 2];
+    for count in [0, 3, u32::MAX] {
         assert_eq!(
-            validated_input_record(INPUT_RECORD::default(), count)
-                .unwrap_err()
-                .kind(),
+            validated_input_records(&records, count).unwrap_err().kind(),
             std::io::ErrorKind::InvalidData
         );
     }

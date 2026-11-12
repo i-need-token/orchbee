@@ -7,12 +7,16 @@ use orchbee_windows_console_host::{
     ConsoleInput, ConsoleOutput, InputRecord, InputWait, InputWake,
 };
 use std::{
+    collections::VecDeque,
     fmt, io,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 const BURST: usize = 4096;
+/// Records taken from the console in one read. Every console call is a round trip to the console
+/// host, so a burst read in one call still arrives whole when that round trip is slow.
+const READ_BATCH: usize = 256;
 const MOUSE_MOVED: u32 = 0x0001;
 const DOUBLE_CLICK: u32 = 0x0002;
 const MOUSE_WHEELED: u32 = 0x0004;
@@ -38,6 +42,7 @@ impl Reader {
                 wake: None,
                 wait_slice: None,
                 signalled_without_record: false,
+                ready: VecDeque::new(),
             },
             codec: Codec::default(),
             pending: None,
@@ -80,6 +85,8 @@ struct NativeRecordSource {
     /// Bounds an interruptible wait whose notification has no event to end it.
     wait_slice: Option<Duration>,
     signalled_without_record: bool,
+    /// Records already read from the console, in order, that no collection has taken yet.
+    ready: VecDeque<InputRecord>,
 }
 
 // Isolate console readiness and waiting so the same bounded read loop can be
@@ -96,9 +103,13 @@ trait RecordSource {
 
 impl RecordSource for NativeRecordSource {
     fn read_ready(&mut self) -> io::Result<Option<InputRecord>> {
-        // No other application-owned reader races this endpoint. External OS
-        // aliases remain outside that single-reader guarantee.
-        let record = self.input.read_ready_record()?;
+        if self.ready.is_empty() {
+            // No other application-owned reader races this endpoint. External OS
+            // aliases remain outside that single-reader guarantee.
+            self.ready
+                .extend(self.input.read_ready_records(READ_BATCH)?);
+        }
+        let record = self.ready.pop_front();
         self.signalled_without_record &= record.is_none();
         Ok(record)
     }
@@ -148,7 +159,6 @@ fn collect_input(
         if work.is_some_and(|deadline| source.now() >= deadline) {
             break;
         }
-        let observed_at = source.now();
         let Some(record) = source.read_ready()? else {
             if !output.is_empty() || interrupted() || source.now() >= wait {
                 break;
@@ -158,7 +168,9 @@ fn collect_input(
             source.park(wait.saturating_duration_since(source.now()));
             continue;
         };
-        work.get_or_insert(observed_at + Duration::from_millis(4));
+        // The burst bound starts once the first record is in hand: the console read that brought
+        // it, slow on a busy machine, must not leave the rest of its batch to a later frame.
+        work.get_or_insert_with(|| source.now() + Duration::from_millis(4));
         let window_origin = if matches!(&record, InputRecord::Mouse(_)) {
             Some(source.window_origin()?)
         } else {

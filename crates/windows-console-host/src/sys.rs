@@ -45,15 +45,19 @@ pub(super) fn console_input_count(handle: BorrowedHandle<'_>) -> io::Result<u32>
     Ok(count)
 }
 
-pub(super) fn read_console_input(handle: BorrowedHandle<'_>) -> io::Result<InputRecord> {
-    let mut records = [INPUT_RECORD::default()];
+/// Reads at most `capacity` records, which must be at least one.
+pub(super) fn read_console_inputs(
+    handle: BorrowedHandle<'_>,
+    capacity: usize,
+) -> io::Result<Vec<InputRecord>> {
+    let mut records = vec![INPUT_RECORD::default(); capacity];
     let mut count = 0;
-    // SAFETY: `handle` is live, the one-element slice is writable for its reported length, and
-    // `count` remains live through the call. This module validates the returned count before it
-    // reads any tagged-union arm.
+    // SAFETY: `handle` is live, the slice is writable for its reported length, and `count`
+    // remains live through the call. This module validates the returned count against that
+    // length before it reads any tagged-union arm.
     unsafe { ReadConsoleInputW(raw_handle(handle), &mut records, &mut count) }
         .map_err(win32_io_error)?;
-    validated_input_record(records[0], count)
+    validated_input_records(&records, count)
 }
 
 pub(super) fn console_window(handle: BorrowedHandle<'_>) -> io::Result<(i16, i16, i16, i16)> {
@@ -231,14 +235,21 @@ fn decode_input_record(record: INPUT_RECORD) -> InputRecord {
     }
 }
 
-fn validated_input_record(record: INPUT_RECORD, count: u32) -> io::Result<InputRecord> {
-    if count != 1 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("ReadConsoleInputW returned {count} records for a one-record buffer"),
-        ));
-    }
-    Ok(decode_input_record(record))
+fn validated_input_records(records: &[INPUT_RECORD], count: u32) -> io::Result<Vec<InputRecord>> {
+    let admitted = usize::try_from(count)
+        .ok()
+        .and_then(|read| records.get(..read))
+        .filter(|admitted| !admitted.is_empty())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "ReadConsoleInputW returned {count} records for a {}-record buffer",
+                    records.len()
+                ),
+            )
+        })?;
+    Ok(admitted.iter().copied().map(decode_input_record).collect())
 }
 
 #[cfg(test)]

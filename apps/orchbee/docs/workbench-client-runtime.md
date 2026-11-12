@@ -920,6 +920,11 @@ publication, lease release and closure signal it. The Windows console reader blo
 console handle and an `InputWake` together, so input and a publication each end the wait at
 once. A reader with no bound wake parks for at most 1 ms between console probes. Existing pending records, UTF-16 state, repeat tails and bracketed-paste
 bytes remain owned by the same reader, with the existing 4096-byte/record and 4 ms burst bounds.
+The reader takes every record already queued, up to 256, in one console read and keeps those it
+has not yet decoded for the next burst; the 4 ms bound starts once a burst's first record is in
+hand, so the read that brought it does not count against the rest of its batch. Each console call is a round trip to the console host, so
+on a busy machine one record per call let the 4 ms bound end a burst after one character: a mouse
+report then reached the decoder one byte per frame and a click landed a second or more late.
 Replacing or leaving a surface unregisters its waiter. Notification carries no input, output,
 request identity or acknowledgement: the ordered mailbox and its single causal cell remain
 authoritative. Unix polls the input descriptor and the notification's pipe together, with the same

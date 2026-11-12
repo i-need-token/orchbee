@@ -17,16 +17,18 @@ startup and TUI phases.
 
 ## Input records
 
-`read_ready_record` first asks `GetNumberOfConsoleInputEvents`. A zero count returns `None` without
-calling `ReadConsoleInputW`; a positive count requests one record and admits it only when Win32
-reports exactly one result. The readiness observation and synchronous read are not an atomic
-reservation against an external process or another independently aliased OS reader. The caller
-must ensure single-reader ownership; competing readers can consume the observed record and make
-the subsequent Win32 read block.
+`read_ready_records` first asks `GetNumberOfConsoleInputEvents`. A zero count, or a zero limit,
+returns no records without calling `ReadConsoleInputW`; a positive count requests at most that many
+records, capped by the caller's limit, in one read, and admits them only when Win32 reports between
+one and the requested number. One read per burst keeps a multi-byte terminal report from costing
+one console round trip per character when the machine is busy. The readiness observation and
+synchronous read are not an atomic reservation against an external process or another
+independently aliased OS reader. The caller must ensure single-reader ownership; competing readers
+can consume the observed records and make the subsequent Win32 read block.
 
 `wait_ready` blocks until the console signals input, an `InputWake` is signalled, or the timeout
 passes, and consumes nothing. A signalled console may still hold no record a read returns, so the
-caller asks `read_ready_record` next. An `InputWake` signal with no current wait is held for the next
+caller asks `read_ready_records` next. An `InputWake` signal with no current wait is held for the next
 one, so a signal cannot be lost between the caller's last check and its wait; repeated signals
 coalesce. Each `ConsoleInput` may own one private high-resolution waitable timer, because a timed
 wait alone rounds up to the system tick. `SetWaitableTimer` re-arms it for each wait, which clears

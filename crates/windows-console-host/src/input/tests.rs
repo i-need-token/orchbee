@@ -1,11 +1,11 @@
-use super::{InputPort, InputRecord, KeyRecord, read_ready_record};
+use super::{InputPort, InputRecord, KeyRecord, read_ready_records};
 use std::{collections::VecDeque, io};
 
 #[derive(Default)]
 struct FakeInput {
     counts: VecDeque<io::Result<u32>>,
-    reads: VecDeque<io::Result<(InputRecord, u32)>>,
-    read_calls: usize,
+    reads: VecDeque<io::Result<Vec<InputRecord>>>,
+    capacities: Vec<usize>,
 }
 
 impl InputPort for FakeInput {
@@ -15,8 +15,8 @@ impl InputPort for FakeInput {
             .unwrap_or_else(|| Err(io::Error::other("unexpected readiness query")))
     }
 
-    fn read_one(&mut self) -> io::Result<(InputRecord, u32)> {
-        self.read_calls += 1;
+    fn read(&mut self, capacity: usize) -> io::Result<Vec<InputRecord>> {
+        self.capacities.push(capacity);
         self.reads
             .pop_front()
             .unwrap_or_else(|| Err(io::Error::other("unexpected record read")))
@@ -41,36 +41,36 @@ fn zero_readiness_never_starts_a_blocking_read() {
         ..FakeInput::default()
     };
 
-    assert_eq!(read_ready_record(&mut input).unwrap(), None);
-    assert_eq!(input.read_calls, 0);
+    assert_eq!(read_ready_records(&mut input, 8).unwrap(), Vec::new());
+    assert_eq!(read_ready_records(&mut input, 0).unwrap(), Vec::new());
+    assert!(input.capacities.is_empty());
 }
 
 #[test]
-fn positive_readiness_returns_exactly_one_plain_record() {
-    let record = key_record();
+fn a_read_requests_no_more_than_is_ready_or_allowed() {
     let mut input = FakeInput {
-        counts: [Ok(7)].into(),
-        reads: [Ok((record, 1))].into(),
+        counts: [Ok(7), Ok(3)].into(),
+        reads: [Ok(vec![key_record(); 4]), Ok(vec![key_record(); 3])].into(),
         ..FakeInput::default()
     };
 
-    assert_eq!(read_ready_record(&mut input).unwrap(), Some(record));
-    assert_eq!(input.read_calls, 1);
+    assert_eq!(read_ready_records(&mut input, 4).unwrap().len(), 4);
+    assert_eq!(read_ready_records(&mut input, 4).unwrap().len(), 3);
+    assert_eq!(input.capacities, [4, 3]);
 }
 
 #[test]
 fn hostile_read_counts_are_rejected() {
-    for count in [0, 2, u32::MAX] {
+    for records in [0, 3] {
         let mut input = FakeInput {
-            counts: [Ok(1)].into(),
-            reads: [Ok((key_record(), count))].into(),
+            counts: [Ok(2)].into(),
+            reads: [Ok(vec![key_record(); records])].into(),
             ..FakeInput::default()
         };
 
         assert_eq!(
-            read_ready_record(&mut input).unwrap_err().kind(),
+            read_ready_records(&mut input, 8).unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
-        assert_eq!(input.read_calls, 1);
     }
 }
