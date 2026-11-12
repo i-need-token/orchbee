@@ -141,6 +141,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::MachineRoute(route)) => {
                 cli::machines::routing::run(route, locale)
             }
+            Ok(invocation::Request::MachineLink) => cli::machines::link::serve(locale),
             Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
             #[cfg(windows)]
             Ok(invocation::Request::MachineTunnel) => cli::Output {

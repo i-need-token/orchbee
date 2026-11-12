@@ -908,6 +908,7 @@ dependencies = [
  "orchbee-local-ipc",
  "orchbee-local-runtime",
  "orchbee-local-worker-protocol",
+ "orchbee-machine-protocol",
  "orchbee-terminal-protocol",
  "orchbee-workbench-client",
  "orchbee-workbench-protocol",

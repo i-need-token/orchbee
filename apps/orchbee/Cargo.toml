@@ -25,6 +25,8 @@ orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
 # Handshake refusals and Session process queries the CLI reports.
 orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
+# The `machine-link` connection the remote helper `--machine-link-v1` accepts.
+orchbee-machine-protocol = { path = "../../crates/machine-protocol" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 ratatui.workspace = true
 # Release installation and `agent doctor` digests are canonical sha256.

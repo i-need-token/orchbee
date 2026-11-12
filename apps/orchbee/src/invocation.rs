@@ -820,6 +820,7 @@ pub(crate) enum Request {
         format: OutputFormat,
     },
     MachineRoute(machine_routing::Route),
+    MachineLink,
     MachineRelay,
     MachineTunnel,
     Machine {

@@ -1,5 +1,6 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
 use crate::cli_text::CliText;
+pub(crate) mod link;
 pub(crate) mod routing;
 mod ssh;
 use super::{

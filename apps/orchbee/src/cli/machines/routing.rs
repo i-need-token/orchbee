@@ -15,6 +15,7 @@ use orchbee_connection_handshake::{Delivery, Extensions, Generation};
 use orchbee_local_runtime::{CommandFailure, SessionName};
 use serde::{Deserialize, Serialize};
 use std::{
+    io,
     process::Command,
     time::{Duration, Instant},
 };
@@ -378,7 +379,7 @@ pub(crate) fn serve(locale: Locale) -> Output {
     };
     let deadline = Instant::now() + Duration::from_secs(60);
     let reply = match source::acquire_document(None, REQUEST_LIMIT, deadline, &mut signals) {
-        Ok(bytes) => serve_packet(&bytes, &mut signals),
+        Ok(bytes) => serve_packet(&bytes, || signals.take().map(|v| v.is_some())),
         Err(_) => Reply::failure(Outcome::NotSubmitted),
     };
     let _ = locale; // Packet locale belongs to the spawned business CLI.
@@ -474,7 +475,19 @@ fn admit_packet(bytes: &[u8]) -> Option<Admission> {
     };
     Some(Admission::Run(packet, input))
 }
-fn serve_packet(bytes: &[u8], signals: &mut ArmedSignals) -> Reply {
+/// One request packet answered as the `machine-link` `route` channel carries it: the reply
+/// packet's JSON without the line end of `--machine-relay-v1`, at most 24 MiB. `cancelled` is
+/// polled while the command runs and ends it through its process tree when it turns true.
+pub(crate) fn answer_packet(bytes: &[u8], mut cancelled: impl FnMut() -> bool) -> Vec<u8> {
+    let reply = serve_packet(bytes, || Ok(cancelled()));
+    let mut packet = encoded(reply).stdout;
+    if packet.pop() != Some(b'\n') {
+        packet = serde_json::to_vec(&Reply::failure(Outcome::Unknown))
+            .expect("a failure reply encodes");
+    }
+    packet
+}
+fn serve_packet(bytes: &[u8], mut interrupted: impl FnMut() -> io::Result<bool>) -> Reply {
     let (packet, input) = match admit_packet(bytes) {
         Some(Admission::Run(packet, input)) => (packet, input),
         Some(Admission::Usage(usage)) => {
@@ -492,9 +505,13 @@ fn serve_packet(bytes: &[u8], signals: &mut ArmedSignals) -> Reply {
         .env("LC_ALL", locale_name(packet_locale(&packet.locale)))
         .env_remove("ORCHBEE_TERMINAL_ID")
         .env_remove("ORCHBEE_WORKER_ID");
-    let result = match platform::exchange(command, Some(&input), cli::output::LIMIT, None, || {
-        signals.take().map(|v| v.is_some())
-    }) {
+    let result = match platform::exchange(
+        command,
+        Some(&input),
+        cli::output::LIMIT,
+        None,
+        &mut interrupted,
+    ) {
         Ok(result) => result,
         Err(_) => return Reply::failure(Outcome::NotSubmitted),
     };

@@ -26,6 +26,14 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             session: Some(session),
         });
     }
+    if tokens == ["--machine-link-v1"] {
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Windows,
+            format: None,
+            request: Request::MachineLink,
+            session: None,
+        });
+    }
     if tokens == ["--machine-relay-v1"] {
         return Ok(SelectedRequest {
             availability: super::grammar::Availability::Windows,
