@@ -1,6 +1,15 @@
 //! Formats Panel relocation outcomes without selecting or moving a live Panel.
 use super::Locale;
+use crate::cli::handles;
 use serde_json::Value;
+
+/// Names a resource of a kind people address by handle.
+type Handle = fn(&str) -> String;
+
+/// A resource by the handle a person types next, other values as they are.
+fn shown(value: &str, handle: Option<Handle>) -> String {
+    handle.map_or_else(|| value.to_owned(), |handle| handle(value))
+}
 impl super::CliText {
     pub(crate) fn cli_panel_relocation(self, document: &Value) -> String {
         let document = &document["result"];
@@ -23,12 +32,18 @@ impl super::CliText {
         }
         for phase in ["movement"] {
             let result = &document[phase]["result"];
-            for (key, en, zh) in [
-                ("projectId", "Project", "项目"),
-                ("panelId", "Panel", "面板"),
-                ("targetTabId", "Target Tab", "目标标签页"),
-                ("revision", "Committed revision", "已提交修订"),
-            ] {
+            let identities: [(&str, &str, &str, Option<Handle>); 4] = [
+                ("projectId", "Project", "项目", Some(handles::project)),
+                ("panelId", "Panel", "面板", Some(handles::panel)),
+                (
+                    "targetTabId",
+                    "Target Tab",
+                    "目标标签页",
+                    Some(handles::tab),
+                ),
+                ("revision", "Committed revision", "已提交修订", None),
+            ];
+            for (key, en, zh, handle) in identities {
                 if let Some(value) = result[key].as_str() {
                     let label = match self.locale {
                         Locale::EnUs => en,
@@ -36,7 +51,7 @@ impl super::CliText {
                     };
                     text.push_str(&format!(
                         "{label}: {}\n",
-                        crate::cli_text::escape::escape(value)
+                        crate::cli_text::escape::escape(&shown(value, handle))
                     ));
                 }
             }
@@ -47,15 +62,27 @@ impl super::CliText {
             }
         }
         let transfer = &document["movement"]["result"]["transfer"];
-        for (key, en, zh) in [
-            ("createdWorkspaceId", "Created Workspace", "已创建工作区"),
-            ("createdDirectoryId", "Created directory", "已创建目录"),
+        let transfers: [(&str, &str, &str, Option<Handle>); 3] = [
+            (
+                "createdWorkspaceId",
+                "Created Workspace",
+                "已创建工作区",
+                Some(handles::workspace),
+            ),
+            (
+                "createdDirectoryId",
+                "Created directory",
+                "已创建目录",
+                None,
+            ),
             (
                 "closedSourceWorkspaceId",
                 "Removed empty source Workspace",
                 "已移除空来源工作区",
+                Some(handles::workspace),
             ),
-        ] {
+        ];
+        for (key, en, zh, handle) in transfers {
             if let Some(value) = transfer[key].as_str() {
                 let label = match self.locale {
                     Locale::EnUs => en,
@@ -63,7 +90,7 @@ impl super::CliText {
                 };
                 text.push_str(&format!(
                     "{label}: {}\n",
-                    crate::cli_text::escape::escape(value)
+                    crate::cli_text::escape::escape(&shown(value, handle))
                 ));
             }
         }

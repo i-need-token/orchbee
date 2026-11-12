@@ -44,16 +44,14 @@ impl super::CliText {
             text.push_str(self.locale.launch_request_too_large());
             text.push('\n');
         }
+        let workspace = status["workspaceId"]
+            .as_str()
+            .or_else(|| status["progress"]["workspace"]["workspaceId"].as_str())
+            .map(crate::cli::handles::workspace);
         let fields = [
             ("Operation", "操作", Some(id)),
             ("Phase", "阶段", status["phase"].as_str()),
-            (
-                "Workspace",
-                "Workspace",
-                status["workspaceId"]
-                    .as_str()
-                    .or_else(|| status["progress"]["workspace"]["workspaceId"].as_str()),
-            ),
+            ("Workspace", "Workspace", workspace.as_deref()),
             (
                 "Workspace state",
                 "工作区状态",
@@ -188,7 +186,7 @@ impl super::CliText {
             && status["progress"]["workspace"]["kind"] == "closing"
             && let Some(workspace) = status["progress"]["workspace"]["workspaceId"].as_str()
         {
-            let workspace = escape(workspace);
+            let workspace = escape(&crate::cli::handles::workspace(workspace));
             text.push_str(&match self.locale {
                 Locale::EnUs => format!("Git no longer lists this checkout as a worktree; this removal cannot resume. Inspect the directory and `git worktree list`, then close the held Workspace:\norchbee workspace close {workspace} --confirm\n"),
                 Locale::ZhCn => format!("Git 已不再将此 checkout 登记为工作树，此移除无法恢复。请检查该目录和 `git worktree list`，然后关闭仍保持关闭中的工作区：\norchbee workspace close {workspace} --confirm\n"),
@@ -326,13 +324,12 @@ impl super::CliText {
                             "  {}: {} ({})  {}: {}\n",
                             word("Workspace", "Workspace"),
                             escape(workspace.label.as_str()),
-                            workspace.workspace_id.as_str(),
+                            crate::cli::handles::workspace(workspace.workspace_id.as_str()),
                             word("Project", "项目"),
-                            workspace
-                                .project_id
-                                .as_ref()
-                                .map(orchbee_workbench_protocol::WorkbenchProjectId::as_str)
-                                .unwrap_or(self.cli_ungrouped())
+                            workspace.project_id.as_ref().map_or_else(
+                                || self.cli_ungrouped().to_owned(),
+                                |project| crate::cli::handles::project(project.as_str())
+                            )
                         ));
                     }
                 }

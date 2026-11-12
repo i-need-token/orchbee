@@ -114,11 +114,13 @@ and `src/cli/**`. Prose and implementation must converge in the same change.
 ## Clear terminal output
 
 Windows `terminal clear <terminal>` clears one exact bound primary or child terminal
-in an existing Session. It preserves the cursor's prompt row, which the bundled ConPTY
-also keeps at the top of its own buffer so the next typed command stays at the prompt
-(see the Host's [prompt-preserving clear](../../terminal-host/docs/runtime-model.md#prompt-preserving-clear)),
-removes preceding history and other output, clears selection and returns the viewport
-to the active screen. An alternate screen is refused without changing content.
+in an existing Session. It removes preceding history and other output, clears selection
+and returns the viewport to the active screen. It keeps only the row the cursor is on, so a
+prompt that wraps keeps its last row; the bundled ConPTY keeps that row at the top of its own
+buffer so the next typed command stays at the prompt. A Host on another platform keeps the
+cursor's whole soft-wrapped line, and the command help states both (see the Host's
+[prompt-preserving clear](../../terminal-host/docs/runtime-model.md#prompt-preserving-clear)).
+An alternate screen is refused without changing content.
 Terminal modes, title, working directory and child process remain intact. Clearing never injects terminal input.
 
 The public terminal control action `clear` names an admitted read viewer. The Server
@@ -2085,11 +2087,16 @@ profileId?,name?}` per
   `name` on `launch-profile.create`; the envelope is `version:1`. Text output of this receipt and
   of the Windows Workspace and terminal creation receipts shares one localized shape: a sentence
   naming what happened, then aligned rows for each created or affected Project, Workspace, Tab,
-  Panel and launch profile ID, with label, directory and terminal outcome. Revisions, request IDs,
-  and context, directory, split, slot and presentation IDs appear only in JSON. A receipt whose
-  terminal started or is starting ends with a `terminal list --panel` hint for the new Panel,
-  because the spawn outcome does not carry the terminal ID. `panel current` text starts with the
-  current Panel ID. `workspace get`, `terminal get` and `panel process-info` text likewise opens
+  Panel and launch profile, with label, directory and terminal outcome. A Project, Workspace, Tab
+  or Panel row shows the `@<kind>:0x<hex>` handle a person types next; the JSON keeps the
+  canonical ID. Revisions, request IDs, and context, directory, split, slot and presentation IDs
+  appear only in JSON. A receipt whose terminal started or is starting ends with a
+  `terminal list --panel @panel:0x<hex>` hint for the new Panel, because the spawn outcome does
+  not carry the terminal ID. Other text receipts and hints follow the same rule: report, metadata,
+  relocation, swap, layout, Project-close and worktree receipts name Panels, Tabs, Workspaces and
+  Projects by handle, and `terminal clear` names its terminal by `@terminal:0x<hex>`. The
+  `workspace close-status` hint keeps the canonical Workspace ID, which that command requires.
+  `panel current` text starts with the current Panel ID. `workspace get`, `terminal get` and `panel process-info` text likewise opens
   with one sentence followed by aligned labels: the Workspace view shows its Project and primary
   directory path before any Agent or worktree supplement; the terminal view shows its Panel, Tab
   and launch state; the process view names the foreground process with its PID, UTC start time,
@@ -3014,6 +3021,10 @@ Windows `agent list` joins canonical Server sessions and physical terminal Agent
 Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Session, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. Malformed cursors are rejected as invalid input before live source reads. The CLI must read current sources to determine whether a `u1` cursor is stale, so it can reject a stale `u1` cursor only after those reads; the caller must restart at the first page.
 
 Windows `agent get` emits `orchbee.agent.get` v1 with and without `--client`, using the same projection `source`. `result` is `{kind:"projected",agent,inspection}`. `agent` has the projection row's provider, status, source, canonical/terminal facets, placement and cwd, without `ordinal` or `client`; `inspection` is the existing current canonical or terminal inspection. Detailed process, terminal metadata, management and Client evidence stay in their facet-specific inspection shape.
+
+A terminal whose Close the Server has accepted contributes no physical row. Its Agent leaves the
+list and `@agent:<n>` numbering at acceptance, and an Agent command naming its Panel answers
+not-found ([rule owner](../../orchbee-server/docs/agent-report-model.md#physical-semantic-observations)).
 
 Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position; the resolver accepts live rows only, so use exact `--agent-session` for ended sessions. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain the complete physical binding and revalidate it immediately before the write.
 

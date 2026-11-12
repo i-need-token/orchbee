@@ -8,6 +8,26 @@ pub(crate) fn panel(id: &str) -> String {
     compact("panel", id)
 }
 
+/// The handle a person types for the Tab with canonical ID `id`.
+pub(crate) fn tab(id: &str) -> String {
+    compact("tab", id)
+}
+
+/// The handle a person types for the Workspace with canonical ID `id`.
+pub(crate) fn workspace(id: &str) -> String {
+    compact("workspace", id)
+}
+
+/// The handle a person types for the Project with canonical ID `id`.
+pub(crate) fn project(id: &str) -> String {
+    compact("project", id)
+}
+
+/// The handle a person types for the terminal with canonical ID `id`.
+pub(crate) fn terminal(id: &str) -> String {
+    compact("terminal", id)
+}
+
 fn compact(kind: &str, id: &str) -> String {
     format!("@{kind}:0x{}", id.trim_start_matches('0'))
 }

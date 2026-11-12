@@ -3,8 +3,21 @@
 //! resource. Revisions, request IDs and other internal identities stay in
 //! the JSON document.
 use super::Locale;
+use crate::cli::handles;
 use crate::cli_text::escape::{display_width, escape, quoted, unquoted};
 use serde_json::Value;
+
+/// A receipt names each resource by the handle a person types next; the JSON document keeps the
+/// canonical ID. Fields of other kinds print as they are.
+fn handle(key: &str) -> Option<fn(&str) -> String> {
+    match key {
+        "projectId" => Some(handles::project),
+        "workspaceId" | "beforeWorkspaceId" => Some(handles::workspace),
+        "tabId" | "targetTabId" => Some(handles::tab),
+        "newPanelId" | "panelId" | "targetPanelId" => Some(handles::panel),
+        _ => None,
+    }
+}
 
 /// Public receipt members in display order. Every other result member is an
 /// internal identity or ordering detail that only `--format json` reports.
@@ -52,10 +65,13 @@ impl super::CliText {
                 ("workspaceIds", Value::Array(ids)) => ids
                     .iter()
                     .filter_map(Value::as_str)
-                    .map(unquoted)
+                    .map(|id| unquoted(&handles::workspace(id)))
                     .collect::<Vec<_>>()
                     .join(" "),
-                (_, Value::String(value)) => unquoted(value),
+                (_, Value::String(value)) => match handle(key) {
+                    Some(handle) => unquoted(&handle(value)),
+                    None => unquoted(value),
+                },
                 (_, Value::Number(value)) => value.to_string(),
                 _ => continue,
             };
@@ -73,7 +89,7 @@ impl super::CliText {
             ),
         ] {
             if let Some(id) = transfer[key].as_str() {
-                rows.push((label, unquoted(id)));
+                rows.push((label, unquoted(&handles::workspace(id))));
             }
         }
         let width = rows
@@ -96,11 +112,10 @@ impl super::CliText {
                 .as_str()
                 .or_else(|| result["panelId"].as_str())
         {
+            let panel = escape(&handles::panel(panel));
             text.push_str(&match self.locale {
-                Locale::EnUs => format!("Next: orchbee terminal list --panel {}\n", escape(panel)),
-                Locale::ZhCn => {
-                    format!("下一步：orchbee terminal list --panel {}\n", escape(panel))
-                }
+                Locale::EnUs => format!("Next: orchbee terminal list --panel {panel}\n"),
+                Locale::ZhCn => format!("下一步：orchbee terminal list --panel {panel}\n"),
             });
         }
         // The resource stays committed; point at the launch inputs instead of a retry.

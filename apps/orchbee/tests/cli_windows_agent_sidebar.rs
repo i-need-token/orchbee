@@ -4,6 +4,10 @@
 //! inside a real Git repository. Once a row appears it must stay, whichever commits, output and Git
 //! reads land meanwhile. Completion and input-driven display transitions have separate viewer witnesses.
 //! Before the fix a row vanished about every two seconds.
+//!
+//! The list's other end: once a Panel's close is accepted, its Agent leaves the list and cannot be
+//! addressed, although the Agent, a child of the Panel's shell, holds the console through the
+//! close's grace. Before the fix it stayed listed and addressable until the close finished.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -88,6 +92,52 @@ fn listed_agents_stay_listed_and_follow_their_terminals_while_they_work() {
         screen.contains(BRANCH),
         "Git never reached the sidebar:\n{screen}"
     );
+}
+
+#[test]
+fn an_agent_leaves_the_list_once_its_panels_close_is_accepted() {
+    let fixture = Fixture::new("orchbee-agent-close-", &[]);
+    fs::write(fixture.path("work/codex.ps1"), FAKE_CODEX).unwrap();
+    let panel = start_codex_under_shell(&fixture);
+    let started = Instant::now();
+    loop {
+        let listed = fixture.run(&["agent", "list"]);
+        if listed.code == Some(0)
+            && items(&listed)
+                .iter()
+                .any(|item| item["placement"]["panelId"] == panel.as_str())
+        {
+            break;
+        }
+        assert!(
+            started.elapsed() < LISTED,
+            "the Agent was never listed: {listed}"
+        );
+    }
+
+    let closed = fixture.run(&["panel", "close", &panel, "--confirm"]);
+    assert_eq!(closed.code, Some(0), "{closed}");
+    let listed = fixture.run(&["agent", "list"]);
+    assert_eq!(listed.code, Some(0), "{listed}");
+    assert!(
+        items(&listed).is_empty(),
+        "the Session's only Agent stayed listed after its Panel's close was accepted: {listed}"
+    );
+    let named = fixture.run(&["agent", "get", "--panel", &panel]);
+    let unknown = fixture.run(&["agent", "get", "--panel", &"f".repeat(32)]);
+    assert_ne!(unknown.code, Some(0), "{unknown}");
+    assert_eq!(
+        (named.code, &named.document["failure"]["kind"]),
+        (unknown.code, &unknown.document["failure"]["kind"]),
+        "a closing Panel must answer as an unknown one\nclosing: {named}\nunknown: {unknown}"
+    );
+}
+
+fn items(run: &session::Run) -> Vec<serde_json::Value> {
+    run.document["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{run}"))
+        .clone()
 }
 
 /// Ignore brightness animation while distinguishing green Done from native or blue Working.
@@ -220,4 +270,39 @@ fn start_codex(fixture: &Fixture, label: &str, directory: &str) {
     words.extend(environment.iter().map(String::as_str));
     let created = fixture.run(&words);
     assert_eq!(created.code, Some(0), "{created}");
+}
+
+/// Starts the fake Codex as a child of the Panel's shell, as a person starts an Agent, so ending
+/// the shell leaves the Agent holding the console; returns the Panel.
+fn start_codex_under_shell(fixture: &Fixture) -> String {
+    let script = fixture.path("work/codex.ps1");
+    let system = std::env::var("SystemRoot").unwrap();
+    let powershell = format!("{system}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+    let child = format!("& '{powershell}' -NoProfile -ExecutionPolicy Bypass -File '{script}'");
+    let cwd = fixture.path("work");
+    let environment = fixture.terminal_environment();
+    let mut words = vec![
+        "workspace",
+        "create",
+        "--label",
+        "closing",
+        "--cwd",
+        &cwd,
+        "--no-focus",
+        "--exec",
+        &powershell,
+        "--arg",
+        "-NoProfile",
+        "--arg",
+        "-Command",
+        "--arg",
+        &child,
+    ];
+    words.extend(environment.iter().map(String::as_str));
+    let created = fixture.run(&words);
+    assert_eq!(created.code, Some(0), "{created}");
+    created.document["result"]["workspace"]["result"]["panelId"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{created}"))
+        .to_owned()
 }

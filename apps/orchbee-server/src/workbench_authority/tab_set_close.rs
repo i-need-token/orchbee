@@ -322,6 +322,20 @@ impl WorkbenchAuthority {
             })
     }
 
+    /// Every terminal a pending set froze at admission, its members not yet reached included. A set
+    /// that stops gives back the members it did not close.
+    pub(super) fn tab_set_removing_terminals(
+        &self,
+    ) -> impl Iterator<Item = &orchbee_workbench_protocol::PresentationBinding> {
+        self.tab_sets
+            .records
+            .values()
+            .filter(|record| matches!(record.status, Status::Pending {}))
+            .flat_map(|record| &record.plan.members)
+            .flat_map(|member| &member.presentations)
+            .map(WorkbenchTerminalTab::binding)
+    }
+
     /// Claims the oldest unclaimed pending set for the one owned submitter.
     pub fn claim_tab_set_close(&mut self) -> Option<TabSetClosePlan> {
         let record = self

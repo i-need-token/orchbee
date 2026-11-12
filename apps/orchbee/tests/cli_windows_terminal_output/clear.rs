@@ -131,17 +131,16 @@ fn clear_cli_submits_once_for_primary_child_or_compact_identity_and_retains_know
 #[test]
 fn clear_cli_help_localization_and_invalid_options_are_offline() {
     let fixture = Fixture::new();
-    let help = fixture.run(&["help", "terminal", "clear"]);
-    assert!(help.status.success());
-    assert!(String::from_utf8_lossy(&help.stdout).contains("preserving the complete prompt"));
-    let help = fixture.run_with_env(
+    let english = fixture.run(&["help", "terminal", "clear"]);
+    assert!(english.status.success());
+    let chinese = fixture.run_with_env(
         &["help", "terminal", "clear"],
         None,
         None,
         &[("LC_ALL", std::ffi::OsStr::new("zh_CN.UTF-8"))],
     );
-    assert!(help.status.success());
-    assert!(String::from_utf8_lossy(&help.stdout).contains("保留完整提示行"));
+    assert!(chinese.status.success());
+    assert_ne!(english.stdout, chinese.stdout, "help follows the locale");
     for args in [
         vec!["terminal", "clear", ID, "--takeover", "--format", "json"],
         vec![

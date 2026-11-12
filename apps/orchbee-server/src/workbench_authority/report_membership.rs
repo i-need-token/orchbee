@@ -1,7 +1,7 @@
 //! Committed primary and child memberships define logical report resource lifetime.
 use orchbee_workbench_protocol::{
     PanelNode, PresentationBinding, Snapshot, TerminalId, TerminalPresentationId, WorkbenchPanelId,
-    WorkerId,
+    WorkbenchTerminalContextId, WorkerId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 pub(super) type BindingKey = (WorkerId, TerminalId);
@@ -24,6 +24,24 @@ impl ReportMembership {
             }
         }
         result
+    }
+    /// Every bound terminal, primary or child, under the named Terminal Contexts.
+    pub(super) fn context_terminals<'a>(
+        snapshot: &Snapshot,
+        contexts: impl IntoIterator<Item = &'a WorkbenchTerminalContextId>,
+    ) -> BTreeSet<BindingKey> {
+        let contexts: BTreeSet<_> = contexts.into_iter().collect();
+        let mut result = Self::default();
+        for context in snapshot
+            .terminal_contexts
+            .iter()
+            .filter(|context| contexts.contains(&context.terminal_context_id))
+        {
+            for tab in &context.tabs {
+                result.include(&tab.root);
+            }
+        }
+        result.live
     }
     fn include(&mut self, node: &PanelNode) {
         match node {

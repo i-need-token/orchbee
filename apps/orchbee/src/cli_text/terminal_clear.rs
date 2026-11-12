@@ -56,14 +56,17 @@ impl super::CliText {
             (Locale::EnUs, _) => "Terminal clear unavailable.",
             (Locale::ZhCn, _) => "终端清空不可用。",
         };
-        format!("{terminal}: {message}\n")
+        format!(
+            "{}: {message}\n",
+            crate::cli_text::escape::escape(&crate::cli::handles::terminal(terminal))
+        )
     }
 }
 pub(super) const HELP_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee terminal clear <terminal> [--format json|text]",
-    "Clear history and other output, preserving the complete prompt line. Refuses alternate screens. Requires an existing session and an exact bound primary or child terminal; no controller takeover, resize or PTY input. Unknown effects must not be repeated.",
+    "Clear history and other output, keeping the line the cursor is on. On Windows only the cursor's row stays, so a prompt that wraps keeps its last row; elsewhere the whole line stays, wrapped rows included. Refuses alternate screens. Requires an existing session and an exact bound primary or child terminal; no controller takeover, resize or PTY input. Unknown effects must not be repeated.",
 );
 pub(super) const HELP_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee terminal clear <terminal> [--format json|text]",
-    "清除历史及其他输出，保留完整提示行；备用屏幕会被拒绝。需要已有会话和精确绑定的主终端或子终端；不接管控制权、不调整尺寸、不发送 PTY 输入。请勿重复结果未知的清空。",
+    "清除历史及其他输出，保留光标所在的行。在 Windows 上只保留光标所在的那一屏幕行，因此折行显示的提示符只留下最后一行；在其他平台上保留整行，包括折行的部分。备用屏幕会被拒绝。需要已有会话和精确绑定的主终端或子终端；不接管控制权、不调整尺寸、不发送 PTY 输入。请勿重复结果未知的清空。",
 );

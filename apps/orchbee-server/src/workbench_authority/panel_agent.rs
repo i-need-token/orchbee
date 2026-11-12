@@ -12,7 +12,10 @@ use orchbee_workbench_protocol::{
     WorkbenchResponse, WorkbenchRevision, serialize_workbench_request,
     serialize_workbench_response,
 };
-use std::{collections::BTreeMap, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Instant,
+};
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 32 * 1024 * 1024;
 mod explanation;
@@ -46,6 +49,9 @@ struct Resource {
 #[derive(Default)]
 pub(super) struct PanelAgents {
     resources: BTreeMap<BindingKey, Resource>,
+    /// Terminals an accepted Close is removing: their Agents are neither listed nor observable,
+    /// although the terminals stay members until the Close's publication lands.
+    removing: BTreeSet<BindingKey>,
     revision: u64,
     bytes: usize,
     origin: Option<Instant>,
@@ -98,6 +104,19 @@ impl PanelAgents {
             }
         }
         self.revision = revision;
+        Ok(())
+    }
+    /// What the owner answers changes with the removing set, so a change advances the revision
+    /// every Client fences its reads with.
+    fn exclude(&mut self, removing: BTreeSet<BindingKey>) -> Result<(), Failure> {
+        if removing == self.removing {
+            return Ok(());
+        }
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(Failure::RevisionExhausted)?;
+        self.removing = removing;
         Ok(())
     }
 }
@@ -263,6 +282,21 @@ impl WorkbenchAuthority {
             outcome,
         }
     }
+    /// Once a Close of a Panel, Tab, set, Workspace or group is accepted, its terminals' Agents
+    /// leave every Agent list and can no longer be addressed; a Close that stops gives them back.
+    fn removing_terminals(&self, membership: &ReportMembership) -> BTreeSet<BindingKey> {
+        let mut removing = ReportMembership::context_terminals(
+            self.snapshot(),
+            self.workspace_group_removing_contexts(),
+        );
+        removing.extend(
+            self.close_removing_terminals()
+                .chain(self.tab_set_removing_terminals())
+                .map(key),
+        );
+        removing.retain(|terminal| membership.live.contains(terminal));
+        removing
+    }
     fn panel_agent_outcome(
         &mut self,
         request: &PanelAgentRequest,
@@ -295,6 +329,8 @@ impl WorkbenchAuthority {
             }
         }
         self.panel_agent.maintain(&membership, &physical)?;
+        let removing = self.removing_terminals(&membership);
+        self.panel_agent.exclude(removing)?;
         let workbench_revision = self.snapshot().revision;
         let result = |outcome: Outcome| PanelAgentResult {
             protocol_version: ProtocolVersion,

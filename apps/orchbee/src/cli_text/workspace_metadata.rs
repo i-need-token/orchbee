@@ -77,7 +77,7 @@ impl super::CliText {
         });
         format!(
             "{state}{detail}\nWorkspace: {}\n{}: {}\n",
-            crate::cli_text::escape::escape(workspace_id),
+            crate::cli_text::escape::escape(&crate::cli::handles::workspace(workspace_id)),
             match self.locale {
                 Locale::EnUs => "Request",
                 Locale::ZhCn => "请求",

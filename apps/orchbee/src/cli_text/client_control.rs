@@ -3,6 +3,12 @@ use super::Locale;
 use crate::cli_text::escape::escape;
 use serde_json::Value;
 
+/// A Panel by the handle a person types next, `-` when there is none.
+fn panel(id: &Value) -> String {
+    id.as_str()
+        .map_or_else(|| "-".to_owned(), crate::cli::handles::panel)
+}
+
 pub(super) const HELP_AGENT_FOCUS_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>> | --terminal <id|@terminal:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
@@ -174,8 +180,8 @@ impl super::CliText {
         let mut text = format!(
             "{title}: {outcome}\n{client}: {}\n{source}: {}\n{target}: {}\n{canonical}: {state}\n",
             escape(document["clientId"].as_str().unwrap_or("-")),
-            escape(document["source"]["panelId"].as_str().unwrap_or("-")),
-            escape(document["target"]["panelId"].as_str().unwrap_or("-"))
+            escape(&panel(&document["source"]["panelId"])),
+            escape(&panel(&document["target"]["panelId"]))
         );
         for (label, value) in [
             (request, &document["requestId"]),
@@ -363,7 +369,12 @@ impl super::CliText {
         };
         text.push_str(&format!(
             "{outcome}\n{target}: {}\n",
-            escape(adjustment["tabId"].as_str().unwrap_or(""))
+            escape(
+                &adjustment["tabId"]
+                    .as_str()
+                    .map(crate::cli::handles::tab)
+                    .unwrap_or_default()
+            )
         ));
         if !no_split {
             text.push_str(&format!(
@@ -383,13 +394,15 @@ impl super::CliText {
         self.client_selection_text(text, &client["view"]["selection"], labels);
     }
     fn client_selection_text(self, text: &mut String, selection: &Value, labels: &[&str; 9]) {
-        for (field, label) in [
-            ("terminalContextId", labels[2]),
-            ("tabId", labels[3]),
-            ("panelId", labels[4]),
-        ] {
-            if let Some(value) = selection[field].as_str() {
-                text.push_str(&format!("  {label}: {}\n", escape(value)));
+        // A Terminal Context has no handle of its own; a Tab and a Panel go by theirs.
+        let context = selection["terminalContextId"].as_str().map(str::to_owned);
+        let tab = selection["tabId"].as_str().map(crate::cli::handles::tab);
+        let panel = selection["panelId"]
+            .as_str()
+            .map(crate::cli::handles::panel);
+        for (label, value) in [(labels[2], context), (labels[3], tab), (labels[4], panel)] {
+            if let Some(value) = value {
+                text.push_str(&format!("  {label}: {}\n", escape(&value)));
             }
         }
         if let Some(zoomed) = selection["zoomed"].as_bool() {

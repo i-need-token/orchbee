@@ -114,7 +114,9 @@ impl super::CliText {
                     }
                     if let Some(id) = candidate["panelId"].as_str() {
                         text.push_str("  panel=");
-                        text.push_str(&crate::cli_text::escape::unquoted(id));
+                        text.push_str(&crate::cli_text::escape::unquoted(
+                            &crate::cli::handles::panel(id),
+                        ));
                     }
                     text.push('\n');
                 }

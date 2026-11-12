@@ -56,7 +56,12 @@ impl super::CliText {
                 };
                 text.push_str(&format!(
                     "  {}  {}  {}\n",
-                    escape(member["workspaceId"].as_str().unwrap_or("")),
+                    escape(
+                        &member["workspaceId"]
+                            .as_str()
+                            .map(crate::cli::handles::workspace)
+                            .unwrap_or_default()
+                    ),
                     escape(member["label"].as_str().unwrap_or("")),
                     self.group_close_state(state)
                 ));

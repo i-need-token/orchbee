@@ -182,7 +182,7 @@ impl super::CliText {
         });
         format!(
             "{state}{detail}\nPanel: {}\n{}: {}\n",
-            crate::cli_text::escape::escape(panel_id),
+            crate::cli_text::escape::escape(&crate::cli::handles::panel(panel_id)),
             match self.locale {
                 Locale::EnUs => "Request",
                 Locale::ZhCn => "请求",

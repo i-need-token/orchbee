@@ -416,6 +416,22 @@ impl CloseRecord {
         self.members().eq(members.iter())
     }
 
+    /// Whether this accepted Close is still on its way to removing its members: closing, or
+    /// disposed and waiting only for its own publication. A Close that stopped, whose outcome is
+    /// unknown, or that may resume leaves its members in place.
+    fn removing(&self) -> bool {
+        !self.is_finished()
+            && matches!(
+                self.status(),
+                WorkbenchTabCloseStatus::Closing { .. }
+                    | WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                        reason: WorkbenchTabClosePublicationReason::TargetCleanupPending
+                            | WorkbenchTabClosePublicationReason::Preparing,
+                        resumable: false,
+                    }
+            )
+    }
+
     fn status(&self) -> WorkbenchTabCloseStatus {
         if self.workspace_retained {
             return WorkbenchTabCloseStatus::DisposedAwaitingPublication {
@@ -794,6 +810,23 @@ impl WorkbenchAuthority {
             matches!(entry, RetainedRequest::TabClose(record)
                 if record.fences_tab_structure(context_id, tab_id))
         })
+    }
+
+    /// Every terminal an accepted Close is still removing, before its publication lands.
+    pub(super) fn close_removing_terminals(
+        &self,
+    ) -> impl Iterator<Item = &orchbee_workbench_protocol::PresentationBinding> {
+        self.ledger
+            .values()
+            .filter_map(|entry| match entry {
+                RetainedRequest::TabClose(record) if record.removing() => Some(&**record),
+                RetainedRequest::TabClose(_)
+                | RetainedRequest::Settled(_)
+                | RetainedRequest::PendingTabCreate(_)
+                | RetainedRequest::PendingPanelCreate(_) => None,
+            })
+            .flat_map(CloseRecord::members)
+            .map(WorkbenchTerminalTab::binding)
     }
 
     /// Relocation cannot move an addressed closing Panel, including an unbound one.

@@ -339,94 +339,78 @@ fn viewer_read_failures_explain_the_cause_without_internal_reason_codes() {
 /// labels, and keep revisions and request identities out of text.
 #[test]
 fn mutation_receipts_share_one_localized_shape() {
+    // Leading zeros tell a handle from the canonical ID it compacts.
+    let id = |n: u32| format!("{n:032x}");
     let workspace = serde_json::json!({
         "action": "workspace.create",
         "outcome": "committed",
         "revision": "7",
         "projectId": null,
-        "workspaceId": "a".repeat(32),
-        "directoryId": "b".repeat(32),
-        "terminalContextId": "c".repeat(32),
-        "tabId": "d".repeat(32),
-        "panelId": "e".repeat(32),
-        "presentationId": "f".repeat(32),
+        "workspaceId": id(0xa),
+        "directoryId": id(0xb),
+        "terminalContextId": id(0xc),
+        "tabId": id(0xd),
+        "panelId": id(0xe),
+        "presentationId": id(0xf),
         "label": "proj-a",
         "path": r"C:\work",
         "terminal": {"outcome": "started", "geometry": {"columns": 80, "rows": 24, "cellPixelWidth": 0, "cellPixelHeight": 0}},
     });
-    let panel = "e".repeat(32);
     assert_eq!(
         CliText::new(Locale::EnUs).cli_receipt(&workspace),
-        format!(
-            "Created workspace \"proj-a\".\n\
-             Project    Ungrouped\n\
-             Workspace  {}\n\
-             Tab        {}\n\
-             Panel      {panel}\n\
-             Label      \"proj-a\"\n\
-             Directory  C:\\work\n\
-             Terminal   started (80x24)\n\
-             Next: orchbee terminal list --panel {panel}\n",
-            "a".repeat(32),
-            "d".repeat(32),
-        )
-        .replace("Ungrouped", CliText::new(Locale::EnUs).cli_ungrouped())
+        "Created workspace \"proj-a\".\n\
+         Project    Ungrouped\n\
+         Workspace  @workspace:0xa\n\
+         Tab        @tab:0xd\n\
+         Panel      @panel:0xe\n\
+         Label      \"proj-a\"\n\
+         Directory  C:\\work\n\
+         Terminal   started (80x24)\n\
+         Next: orchbee terminal list --panel @panel:0xe\n"
+            .replace("Ungrouped", CliText::new(Locale::EnUs).cli_ungrouped())
     );
     let zh = CliText::new(Locale::ZhCn).cli_receipt(&workspace);
     assert!(zh.starts_with("已创建工作区 \"proj-a\"。\n"), "{zh}");
-    assert!(zh.contains(&format!("面板    {panel}\n")), "{zh}");
+    assert!(zh.contains("面板    @panel:0xe\n"), "{zh}");
     assert!(zh.contains("终端    已启动 (80x24)\n"), "{zh}");
-    assert!(zh.ends_with(&format!("下一步：orchbee terminal list --panel {panel}\n")));
+    assert!(zh.ends_with("下一步：orchbee terminal list --panel @panel:0xe\n"));
 
     let split = serde_json::json!({
         "action": "panel.split",
         "outcome": "committed",
         "revision": "8",
-        "panelId": "1".repeat(32),
-        "newPanelId": "2".repeat(32),
-        "splitId": "3".repeat(32),
+        "panelId": id(1),
+        "newPanelId": id(2),
+        "splitId": id(3),
         "direction": "right",
         "terminal": {"outcome": "pending"},
     });
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let text = CliText::new(locale).cli_receipt(&split);
-        assert!(text.contains(&"2".repeat(32)), "{text}");
-        assert!(
-            !text.contains(&"3".repeat(32)),
-            "split IDs stay in JSON: {text}"
-        );
-        assert!(
-            text.ends_with(&format!("--panel {}\n", "2".repeat(32))),
-            "{text}"
-        );
+        assert!(!text.contains(&id(3)), "split IDs stay in JSON: {text}");
+        assert!(text.ends_with("--panel @panel:0x2\n"), "{text}");
     }
     assert!(
         CliText::new(Locale::EnUs)
             .cli_receipt(&split)
-            .starts_with("Split the panel.\nNew panel  ")
+            .starts_with("Split the panel.\nNew panel  @panel:0x2\n")
     );
 
     let close = serde_json::json!({
         "action": "tab.close",
         "outcome": "accepted",
         "acceptedRevision": "9",
-        "closeRequestId": "4".repeat(32),
-        "terminalContextId": "5".repeat(32),
-        "tabId": "6".repeat(32),
+        "closeRequestId": id(4),
+        "terminalContextId": id(5),
+        "tabId": id(6),
     });
     assert_eq!(
         CliText::new(Locale::EnUs).cli_receipt(&close),
-        format!(
-            "Closing tab; the session finishes the close in the background.\nTab  {}\n",
-            "6".repeat(32)
-        )
+        "Closing tab; the session finishes the close in the background.\nTab  @tab:0x6\n"
     );
     assert_eq!(
         CliText::new(Locale::ZhCn).cli_receipt(&close),
-        format!(
-            "正在关闭标签页；会话会在后台完成关闭。\n标签页  {}\n",
-            "6".repeat(32)
-        )
+        "正在关闭标签页；会话会在后台完成关闭。\n标签页  @tab:0x6\n"
     );
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for receipt in [&workspace, &split, &close] {
@@ -440,6 +424,10 @@ fn mutation_receipts_share_one_localized_shape() {
             ] {
                 assert!(!text.contains(internal), "{internal} in {text}");
             }
+            assert!(
+                !text.contains("000000000"),
+                "a person reads handles, never canonical IDs: {text}"
+            );
         }
     }
 }

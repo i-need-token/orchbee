@@ -550,8 +550,8 @@ impl super::CliText {
                 "打开终端输出中的链接。",
             ),
             HelpTopic::Command(CommandPath::TerminalClear) => (
-                "Clear output while preserving the current prompt.",
-                "清除输出并保留当前提示行。",
+                "Clear output, keeping the cursor's row on Windows and its whole line elsewhere.",
+                "清除输出；在 Windows 上保留光标所在的屏幕行，在其他平台上保留光标所在的整行。",
             ),
             HelpTopic::Command(CommandPath::TerminalEditScrollback) => (
                 "Open terminal history in an editor.",

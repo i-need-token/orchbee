@@ -308,6 +308,18 @@ impl WorkbenchAuthority {
             })
             && self.workspace_directory_target(workspace_id) == member.directory
     }
+    /// The Terminal Context of every member of a pending group, its members not yet reached
+    /// included. A group that stops gives back the members it did not close.
+    pub(super) fn workspace_group_removing_contexts(
+        &self,
+    ) -> impl Iterator<Item = &WorkbenchTerminalContextId> {
+        self.workspace_groups
+            .records
+            .values()
+            .filter(|record| matches!(record.status, Status::Pending {}))
+            .flat_map(|record| &record.plan.members)
+            .map(|member| &member.context_id)
+    }
     pub(super) fn workspace_group_close_active(&self) -> bool {
         self.workspace_groups
             .records

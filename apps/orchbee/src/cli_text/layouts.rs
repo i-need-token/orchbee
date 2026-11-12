@@ -74,7 +74,10 @@ impl super::CliText {
         }
         for (key, label) in [("newTabId", new_label), ("oldTabId", old_label)] {
             if let Some(id) = result[key].as_str() {
-                text.push_str(&format!("{label}: {id}\n"));
+                text.push_str(&format!(
+                    "{label}: {}\n",
+                    crate::cli_text::escape::escape(&crate::cli::handles::tab(id))
+                ));
             }
         }
         if let Some(effects) = result["effects"].as_array() {

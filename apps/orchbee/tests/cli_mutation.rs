@@ -2825,7 +2825,9 @@ fn text_receipt_is_human_readable() -> TestResult {
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout)?;
-    assert!(text.contains(WORKSPACE), "{text}");
+    // A person reads the handle they type next; the canonical ID stays in JSON.
+    assert!(text.contains("@workspace:0x11\n"), "{text}");
+    assert!(!text.contains(WORKSPACE), "{text}");
     assert!(output.stderr.is_empty(), "clean success has no stderr");
     Ok(())
 }

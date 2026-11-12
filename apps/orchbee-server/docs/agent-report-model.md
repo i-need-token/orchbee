@@ -129,6 +129,16 @@ retained physical proof must agree under Worker registry and Session gates; miss
 read. A replacement cannot inherit an old cursor. Results include the effective report view,
 independent report revision and terminal-local semantic sequence. Names do not prove interactive readiness. Explicit reports may include done/error; screen observations do not infer those outcomes.
 
+Once the Server accepts a Close of a Panel, Tab, Tab set, Workspace or Workspace group, every
+terminal it removes has no Agent: `states` answers it with no snapshot and `observe` with
+not-found, although the terminal stays a member until the Close's publication lands. The CLI
+`agent list`, `@agent:<n>` numbering and the TUI and Desktop Agent lists all read `states`, so the
+Agent leaves each of them at acceptance rather than after the Windows terminate grace. A set or
+group counts every member it froze, including members it has not reached. A Close that stops, whose
+outcome is unknown or that may resume gives its terminals back, as the Clients' own close display
+does. A change of that set advances the report revision every Client uses to check that its reads
+agree. Report resources and process facts stay untouched until membership removal.
+
 The sequence starts at zero with unknown/no Agent and advances by checked addition only when the
 effective Agent label or state changes. Message, watermark and sample-time updates alone
 do not advance it. All report and process writers prepare the resource

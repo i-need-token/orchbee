@@ -25,9 +25,12 @@ impl WorkbenchAuthority {
                 .presentations
                 .get(id.as_str())
                 .ok_or(Failure::NotFound)?;
+            // A terminal an accepted Close is removing has no Agent to list.
             let physical = logical
                 .as_ref()
-                .and_then(|b| facts.get(&super::key(b)).copied());
+                .map(super::key)
+                .filter(|terminal| !self.panel_agent.removing.contains(terminal))
+                .and_then(|terminal| facts.get(&terminal).copied());
             let snapshot = physical
                 .map(|physical| {
                     let resource = self
@@ -91,6 +94,10 @@ impl WorkbenchAuthority {
             .as_ref()
             .ok_or(Failure::Unbound)?;
         let key = super::key(logical);
+        // A terminal an accepted Close is removing answers as one already gone.
+        if self.panel_agent.removing.contains(&key) {
+            return Err(Failure::NotFound);
+        }
         let physical = facts.get(&key).ok_or(Failure::Unavailable)?;
         if format!(
             "{:032x}",
