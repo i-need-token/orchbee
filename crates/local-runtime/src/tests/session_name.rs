@@ -54,6 +54,8 @@ fn names_are_bounded_portable_and_compared_without_letter_case() {
     assert_eq!(default, SessionName::default_session());
 }
 
+// Windows folders ignore letter case; a POSIX runtime folder is found only as it is spelled.
+#[cfg(windows)]
 #[test]
 fn runtime_folders_differing_only_in_letter_case_share_their_endpoints() {
     let fixture = Fixture::new();

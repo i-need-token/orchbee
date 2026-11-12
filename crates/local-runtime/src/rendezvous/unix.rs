@@ -347,7 +347,11 @@ impl ModeCheckedLocalSessionRendezvous {
         match self.create_marker() {
             Ok(_) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let mut file = self.open_marker(MARKER_WRITE_FLAGS)?;
+                // An entry that cannot be admitted as the marker, a link among them, stays as
+                // it is and answers that something already exists there.
+                let Ok(mut file) = self.open_marker(MARKER_WRITE_FLAGS) else {
+                    return Err(error);
+                };
                 if !matches!(
                     crate::activation_record::read(&mut file)?,
                     crate::ActivationState::Stopped { .. } | crate::ActivationState::Crashed { .. }

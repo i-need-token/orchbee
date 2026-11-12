@@ -255,7 +255,10 @@ flush is best effort.
 Process registration is not ported. On macOS and Linux a durable record's Server, Worker and Host
 registry stays `not-started`, no observation ever reports a role absent, and `spawn_server` and
 `spawn_session_child` return `io::ErrorKind::Unsupported`. Recovering an Active Session there rests
-on its free lifetime lock and absent endpoints alone.
+on its free lifetime lock and absent endpoints alone. An endpoint is absent there when nothing
+occupies its socket path, observed without connecting. A socket outlives its listener until its
+owner removes it, unlike a Windows pipe, so a Session whose Server left its sockets behind is
+refused recovery, activation and deletion until they are gone.
 
 ## Windows user path operands
 

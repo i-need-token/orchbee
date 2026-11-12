@@ -454,6 +454,8 @@ fn old_stop_owner_cannot_settle_a_new_generation_or_reuse_its_nonce() {
     stop(&session, &mut current, 6);
 }
 
+// A Windows reader without delete sharing blocks the replacement; a POSIX reader does not.
+#[cfg(windows)]
 #[test]
 fn failed_stop_publication_preserves_active_bytes_and_can_be_retried() {
     let base = Fixture::new();
@@ -535,6 +537,9 @@ fn checkpoint_locks_and_endpoints_cannot_bypass_admission() {
         Some(ActivationState::Active)
     );
     drop(listener);
+    // A POSIX socket outlives its listener until its owner removes it; a Windows pipe does not.
+    #[cfg(unix)]
+    fs::remove_file(&Rendezvous::socket_paths(&runtime)[0]).unwrap();
     assert!(state_path.join("checkpoint.json").exists());
     assert!(catalog.prepare_activation(&name).is_ok());
 }

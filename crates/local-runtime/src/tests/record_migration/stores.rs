@@ -5,9 +5,11 @@ use super::{
     super::{Fixture, write_private},
     inject,
 };
+#[cfg(windows)]
+use crate::PluginRegistry;
 use crate::{
-    DataRoot, OpenedRecord, PRODUCT_VERSION, PluginRegistry, RecordProblem, SessionName,
-    VersionedFile, VersionedRecord,
+    DataRoot, OpenedRecord, PRODUCT_VERSION, RecordProblem, SessionName, VersionedFile,
+    VersionedRecord,
     durable_sessions::{Directory, Lifecycle, Record},
     record_migration::{MigrationStep, RecordOpening, open_record},
     reported_record_notices,
@@ -181,6 +183,8 @@ fn every_store_persists_a_migration_only_in_its_writer() {
             File::open(VersionedFile::device(root.clone(), record))
         });
     }
+    // The plugin registry is not ported to macOS and Linux yet, where it refuses as unsupported.
+    #[cfg(windows)]
     scenario(VersionedRecord::PluginRegistry, |root| {
         Box::new(Plugins::open(root))
     });
@@ -239,10 +243,12 @@ impl Store for File {
 
 /// The plugin registry: finding a recorded plugin's folders reads without the writer lock;
 /// recording a new plugin's folders writes.
+#[cfg(windows)]
 struct Plugins {
     registry: PluginRegistry,
     saved: Cell<u64>,
 }
+#[cfg(windows)]
 impl Plugins {
     fn open(root: &DataRoot) -> Self {
         let plugins = Self {
@@ -253,6 +259,7 @@ impl Plugins {
         plugins
     }
 }
+#[cfg(windows)]
 impl Store for Plugins {
     fn path(&self) -> PathBuf {
         self.registry.root().join("registry.json")
