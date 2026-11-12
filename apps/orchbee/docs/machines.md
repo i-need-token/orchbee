@@ -341,7 +341,8 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
 | State      | When                                                                                                           | Leaves to                                                                                                           |
 | ---------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `held`     | A holder exists, or the last `presence` connection has left and the Session read it triggered has not finished | `expiring` when no `presence` connection is attached and a Session read finds no live Session; `closing` on `drain` |
-| `expiring` | No holder; `expiresAt` is the moment the hub learned that, plus 600,000 ms                                     | `held` on a `presence` attachment or a read that finds a live Session; `closing` at `expiresAt` or on `drain`       |
+| `expiring` | No holder; `expiresAt` is the moment the hub learned that, plus 600,000 ms                                     | `held` on a `presence` attachment or a read that finds a live Session; `closing` on `drain`                         |
+| `expiring` | `expiresAt` is reached with no `presence` connection: the hub reads every Session once more                    | `held` when the read finds a live Session; `closing` when it finds none                                             |
 | `closing`  | Entered once and never left                                                                                    | Exit                                                                                                                |
 
 - **Start.** The hub takes the lock and binds its endpoint at once, then reads the catalog and
@@ -351,8 +352,10 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
 - **Session reads.** A Session is live while its Server holds its lifetime lock. The hub reads every
   Session that `session list` shows in the environment the hub started in: once when the last
   `presence` connection closes or attaches again without `presence`, then every 30 seconds while
-  none is attached, and never while one is. One read covers every Session within 5 seconds; a read
-  that fails or runs out of time finds no live Session.
+  none is attached, once more at `expiresAt` before the hub may close, and never while one is
+  attached. One read covers every Session within 5 seconds; a read that fails or runs out of time
+  finds no live Session. The read at `expiresAt` sees a Session started without an interface since
+  the last periodic read, so the hub never closes under it.
 - **A read never meets a Server.** The hub skips a Session the catalog marks `deleting`: its
   deleter holds both locks, so no Server lives there, and the hub's handles, opened without delete
   sharing, could fail the folder removal midway. For each other Session folder the hub opens its
@@ -453,8 +456,9 @@ serves as empty with revision 0 until a `reload` succeeds.
 - **Admission beside closing.** A candidate's slot and decision are taken together under the hub
   state's lock, so an accepted connection is registered before `closing` can begin and receives its
   `bye`, and an offer decided after it is rejected `stopping`.
-- **Expiry beside attachment.** Both run under the hub state's lock: an attachment with `presence`
-  that comes first returns the hub to `held`; one after the expiry is answered `stopping`.
+- **Expiry beside attachment.** The read at `expiresAt` runs outside the hub state's lock and
+  applies under it, as every read does: an attachment with `presence` before it applies returns the
+  hub to `held` and the read changes nothing; one after `closing` is answered `stopping`.
 
 ### Attach or start
 

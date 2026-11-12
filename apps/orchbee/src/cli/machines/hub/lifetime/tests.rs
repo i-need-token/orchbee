@@ -1,6 +1,7 @@
 //! The lifetime rules a real hub cannot reach on demand: a stale Session read, a read during
-//! `presence`, and the expiry instant. The exercise in `tests/cli_windows_machine_hub.rs` covers the
-//! ordinary path through a real process.
+//! `presence`, and the read at the expiry deadline that a Session started in the last 30 seconds
+//! depends on. The exercise in `tests/cli_windows_machine_hub.rs` covers the ordinary path through
+//! a real process.
 
 use super::{Lifetime, Moment, ReadDue, SESSION_READ_INTERVAL};
 use orchbee_machine_protocol::hub::HubState;
@@ -40,8 +41,27 @@ fn the_last_leave_holds_until_its_read_finds_nothing_and_expiry_counts_from_that
         lifetime.read_due(),
         Some(ReadDue::At(at(start, 5).at + SESSION_READ_INTERVAL))
     );
-    assert!(!lifetime.expire(at(start, 604)));
-    assert!(lifetime.expire(at(start, 605)));
+}
+
+#[test]
+fn the_expiry_deadline_reads_the_sessions_first_and_closes_only_when_none_lives() {
+    let start = Instant::now();
+    let mut lifetime = Lifetime::start(Duration::from_secs(20), false, at(start, 0));
+    // The deadline comes before the next periodic read, so the read is due there.
+    assert_eq!(lifetime.read_due(), Some(ReadDue::At(at(start, 20).at)));
+    // A Session started since the last read holds the hub at the deadline.
+    let ticket = lifetime.begin_read();
+    assert!(lifetime.finish_read(ticket, true, at(start, 20)));
+    assert_eq!(lifetime.state(), HubState::Held);
+    let ticket = lifetime.begin_read();
+    assert!(lifetime.finish_read(ticket, false, at(start, 50)));
+    assert_eq!(expiring_at(&lifetime), Some(1_070_000));
+    assert_eq!(lifetime.read_due(), Some(ReadDue::At(at(start, 70).at)));
+    let ticket = lifetime.begin_read();
+    assert!(!lifetime.finish_read(ticket, false, at(start, 69)));
+    assert_eq!(expiring_at(&lifetime), Some(1_070_000));
+    let ticket = lifetime.begin_read();
+    assert!(lifetime.finish_read(ticket, false, at(start, 70)));
     assert_eq!(lifetime.state(), HubState::Closing);
     assert!(!lifetime.attach());
     assert_eq!(lifetime.read_due(), None);

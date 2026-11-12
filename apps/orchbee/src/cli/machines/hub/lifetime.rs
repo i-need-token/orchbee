@@ -1,6 +1,7 @@
 //! The hub's lifetime as a state machine over its holders, with the time an argument: `held` while a
 //! `presence` connection is attached or the last Session read found a live Session, `expiring`
-//! from the moment the hub learned that nothing holds it, and `closing` once and for ever.
+//! from the moment the hub learned that nothing holds it, and `closing` once and for ever, entered
+//! by `drain` or by a Session read at or after the expiry deadline that finds no live Session.
 //! `docs/machines.md#lifetime` owns the rules; the supervisor alone reads the clocks.
 
 use orchbee_machine_protocol::{MAXIMUM_COUNT, Time, hub::HubState};
@@ -120,7 +121,8 @@ impl Lifetime {
         }
     }
 
-    /// When the next Session read is due, if one is.
+    /// When the next Session read is due, if one is. The expiry deadline is one: the hub closes
+    /// only after a read there finds no live Session.
     pub(super) fn read_due(&self) -> Option<ReadDue> {
         if self.presence > 0 || self.is_closing() {
             return None;
@@ -128,7 +130,9 @@ impl Lifetime {
         match self.next_read {
             NextRead::None => None,
             NextRead::Owed => Some(ReadDue::Now),
-            NextRead::At(at) => Some(ReadDue::At(at)),
+            NextRead::At(at) => Some(ReadDue::At(
+                self.deadline().map_or(at, |deadline| deadline.min(at)),
+            )),
         }
     }
 
@@ -138,7 +142,8 @@ impl Lifetime {
     }
 
     /// Applies a read that ended at `now`, unless a `presence` connection is attached, the hub is
-    /// closing, or a later leave owes a newer read; true when the state changed.
+    /// closing, or a later leave owes a newer read; true when the state changed. A read that finds
+    /// no live Session at or after the expiry deadline enters `closing`.
     pub(super) fn finish_read(&mut self, ticket: ReadTicket, live: bool, now: Moment) -> bool {
         if self.presence > 0 || self.is_closing() || ticket.0 != self.leaves {
             return false;
@@ -153,6 +158,10 @@ impl Lifetime {
                 self.phase = Phase::Held;
                 true
             }
+            (Phase::Expiring { deadline, .. }, false) if now.at >= deadline => {
+                self.phase = Phase::Closing;
+                true
+            }
             _ => false,
         }
     }
@@ -162,16 +171,6 @@ impl Lifetime {
         match self.phase {
             Phase::Expiring { deadline, .. } => Some(deadline),
             Phase::Held | Phase::Closing => None,
-        }
-    }
-
-    /// Enters `closing` when the expiry deadline has passed at `now`; true when it did.
-    pub(super) fn expire(&mut self, now: Moment) -> bool {
-        if self.deadline().is_some_and(|deadline| now.at >= deadline) {
-            self.phase = Phase::Closing;
-            true
-        } else {
-            false
         }
     }
 

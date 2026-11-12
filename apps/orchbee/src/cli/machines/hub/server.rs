@@ -330,7 +330,7 @@ impl Read for Deadlined<'_> {
     }
 }
 
-/// Owns the expiry and the Session reads until the hub enters `closing`.
+/// Owns the Session reads, the one at the expiry deadline included, until the hub enters `closing`.
 fn supervise(shared: &Shared) {
     let mut hub = shared.lock();
     loop {
@@ -338,11 +338,6 @@ fn supervise(shared: &Shared) {
             return;
         }
         let now = Moment::now();
-        if hub.lifetime.expire(now) {
-            hub.announce();
-            shared.wake();
-            return;
-        }
         let due = hub.lifetime.read_due();
         let read_now = match due {
             Some(ReadDue::Now) => true,
@@ -360,14 +355,10 @@ fn supervise(shared: &Shared) {
             }
             continue;
         }
-        let read_at = match due {
+        let wake_at = match due {
             Some(ReadDue::At(at)) => at,
             _ => now.at + IDLE_WAKE,
         };
-        let wake_at = hub
-            .lifetime
-            .deadline()
-            .map_or(read_at, |deadline| deadline.min(read_at));
         hub = shared.wait_until(hub, wake_at);
     }
 }
