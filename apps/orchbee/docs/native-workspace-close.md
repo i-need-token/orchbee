@@ -2,7 +2,7 @@
 
 ## Scope and user outcome
 
-The native TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`). Proven idle Workspaces
+The native TUI closes only the current Workspace with `Ctrl+b Shift+D`. Proven idle Workspaces
 close directly; active or unproven program state opens confirmation, where unmodified `Enter`
 confirms and `Esc` cancels. The complete confirmation names the Workspace and explains
 that its terminals end for every Client while Git branches and checkouts remain. Project grouping,
@@ -87,16 +87,16 @@ installed; one that a newer projection or `RevisionMismatch` kept from admission
 facts stayed unchanged is repeated over the newer projection, up to four times, because commits
 elsewhere in the Workbench keep advancing the revision while other Workspaces work. A request
 pressed while the user's own switch is still landing, including a sidebar click that still waits
-behind an earlier switch or read, waits for the switch. `Ctrl+b D` names the Workspace the newest
+behind an earlier switch or read, waits for the switch. `Ctrl+b Shift+D` names the Workspace the newest
 switch request was headed for when the key was pressed and closes it only once the switch landed
 there; a switch that lands elsewhere or not at all shows the localized Workspace changed notice and
 closes nothing, so the key never falls back to the Workspace being left. While the switch lands, the
 shell keeps the previous frame on screen without pointer targets; a click there, such as on another
 Workspace's row, is dropped with the localized switching notice and makes the destination uncertain.
-`Ctrl+b D` pressed before or after that click is then refused the same way while the switch lands,
+`Ctrl+b Shift+D` pressed before or after that click is then refused the same way while the switch lands,
 and within five seconds of the click once more after it landed; the next press closes the Workspace
 shown. An accepted close of the current Workspace makes the destination uncertain the same way,
-because the user did not choose the neighbour it lands on: `Ctrl+b D` pressed within five seconds of
+because the user did not choose the neighbour it lands on: `Ctrl+b Shift+D` pressed within five seconds of
 the acceptance is refused once with the localized Workspace changed notice, so a repeated press never
 closes that neighbour. A conditional request the
 Client cannot admit shows the localized busy or unavailable notice. No path discards a request
@@ -168,7 +168,7 @@ Staged, with the reason for each:
 | Submission and observation evidence                       | Carrier retains typed admission before the canonical read or UI wait; mailbox and joined-worker handoff preserve it; `WorkspaceCloseState` retains each correlated settlement observation monotonically  |
 | Selection and Viewer cleanup                              | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                                               |
 
-The existing confirmation packet owner decodes keys. Modified keys, `y`/`Y`, paste
+The existing confirmation packet owner decodes keys. Modified keys, `y`/`Shift+Y`, paste
 and trailing bytes never confirm or reach the terminal. Missing or incomplete draw evidence cannot
 submit. Before the first complete presentation, an evaluated geometry block refuses the new prompt
 and the status line says it cannot open there. After presentation, the same block suspends the
@@ -278,7 +278,7 @@ regression witnesses are `accepted_workspace_close_leaves_navigation_and_a_faile
 `closing_the_only_shown_workspace_announces_closed_with_its_landing_not_before`; the Panel close
 witness is `accepted_panel_close_hides_the_leaf_and_moves_focus_to_the_survivor`. The carrier witness
 `accepted_current_close_lands_on_the_neighbour_before_settlement_and_is_never_resubmitted` drives a
-framed exchange: the neighbour is installed before settlement, an immediate second `Ctrl+b D` is
+framed exchange: the neighbour is installed before settlement, an immediate second `Ctrl+b Shift+D` is
 refused, only status reads follow admission, and a later failure returns the row without moving the
 selection. The carrier matrix
 `workspace_close_carrier_single_scope_and_every_failure_boundary_preserve_truth_without_replay`

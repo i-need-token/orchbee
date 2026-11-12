@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 This reference governs the native Client's local live-grid view and retained-history viewport: the per-pane scrollback
-reading mode entered with `Ctrl+B PageUp`, primary-screen wheel-up or the scrollbar, its demand legs, the row-window read/acknowledge
+reading mode entered with `Ctrl+b PageUp`, primary-screen wheel-up or the scrollbar, its demand legs, the row-window read/acknowledge
 handshake, navigation intent, recovery, and how the painted surface is produced and fenced.
 Maintain it with `terminal_viewport.rs`, `workbench_client/mailbox.rs`,
 `workbench_client/connection/native.rs`, `workbench_client/ui.rs`, `terminal_input/dispatcher.rs`,
@@ -106,7 +106,7 @@ parked by the worker's demand path (`settle_pane_viewer_lost`), not by the core.
 
 ## Entry availability
 
-`Ctrl+B PageUp` asks the focus pane to enter history. The request is refused — with an honest
+`Ctrl+b PageUp` asks the focus pane to enter history. The request is refused — with an honest
 localized `HistoryUnavailable` notice and zero `Enter` commands on the wire — unless the pane's
 last live frame satisfies all of: a known frame exists, retained rows or a clipped local live grid exist, the pane is not on
 the alternate screen, and the frame carries at least one readable row. The screen's own rows are
@@ -261,7 +261,7 @@ the Recover stays staged and the byte drops — a dropped byte is never replayed
 forward the byte immediately (recovery is already admitted). Non-Live panes consume the history
 navigation keys (`PageUp`, `PageDown`, `Home`, `End`, `Esc`) and mouse wheel locally; a Live pane
 keeps application input and mouse tracking, except for untracked primary-screen wheel history
-entry. `Ctrl+B PageUp` enters history while help keeps
+entry. `Ctrl+b PageUp` enters history while help keeps
 `PageUp` precedence when open.
 
 `/` in an Entering or Viewing pane is a search, not shell input: it opens
@@ -433,7 +433,7 @@ replacement window paints. Live output in history refreshes the committed anchor
 a scrollbar jump. Capture cancellation does not undo previously accepted navigation; that intent
 still completes through the core's validation and ACK. Selection/copy ownership and application
 mouse reporting remain intact: chrome
-events never reach the program. Keyboard equivalents remain `Ctrl+B PageUp`, PageUp/PageDown,
+events never reach the program. Keyboard equivalents remain `Ctrl+b PageUp`, PageUp/PageDown,
 Home, End and Esc.
 
 The scrollbar uses a right-side track, grab offset and bounded scrolling.

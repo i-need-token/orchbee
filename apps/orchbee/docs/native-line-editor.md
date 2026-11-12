@@ -9,12 +9,12 @@ Command Palette queries, the Machine picker's workspace and Agent queries, the A
 name, the shortcut-help filter, and copy-mode search. It covers the editing vocabulary the
 [keyboard standard](../../../docs/tui/keyboard-input.md#editing-and-drafts) assigns to draft
 fields: insert (typed input and atomic paste share one path), Backspace, Delete, Left, Right,
-Home/Ctrl+A, End/Ctrl+E, and the shared readline keys `LineKey` names: `Ctrl+U` and `Ctrl+K` kill to
-the start or end, `Ctrl+W` and `Alt+D` kill the word before or after the cursor, `Alt+B` and `Alt+F`
-move by word, and `Ctrl+Y` yanks the most recent kill. The only selection is the whole prefilled
+Home/Ctrl+a, End/Ctrl+e, and the shared readline keys `LineKey` names: `Ctrl+u` and `Ctrl+k` kill to
+the start or end, `Ctrl+w` and `Alt+d` kill the word before or after the cursor, `Alt+b` and `Alt+f`
+move by word, and `Ctrl+y` yanks the most recent kill. The only selection is the whole prefilled
 value of a name field, which opens selected: an insertion (typing, paste or yank) replaces it,
-Backspace, Delete or a kill clears it (a kill keeps it for `Ctrl+Y`), and Left, Home or `Alt+B` end
-it with the cursor at the start, Right, End or `Alt+F` at the end. Only Tab, Panel, Tab group,
+Backspace, Delete or a kill clears it (a kill keeps it for `Ctrl+y`), and Left, Home or `Alt+b` end
+it with the cursor at the start, Right, End or `Alt+f` at the end. Only Tab, Panel, Tab group,
 Project and Workspace name drafts select their prefill; queries, paths and other fields never do.
 Partial selection, undo history, and Up/Down remapping are outside this core; consumers leave
 unbound keys ignored rather than forwarding them.
@@ -24,7 +24,7 @@ modifier set; the modal decoder emits the same keys from legacy bytes (`0x15`, `
 `0x19`, and `ESC b`/`f`/`d`). They are fixed editing conventions, not `[keys]` actions, and stay
 out of the Action registry. A field that already gives one of these keys another meaning keeps it:
 
-- The Machine picker's `Ctrl+Y` copies the selected row's ID in both queries, so yank is not
+- The Machine picker's `Ctrl+y` copies the selected row's ID in both queries, so yank is not
   available there.
 - Action-menu and Command Palette queries keep Up/Down, Home/End, Left and Right for menu
   navigation, and the shortcut-help filter keeps Up/Down, Home/End and the page keys for paging;
@@ -68,8 +68,8 @@ hand-written UAX #29 or second width table enters the build. Every mutation re-s
 merges. Insertion intends the end of the inserted span and deletion intends the span start; when an
 edit merges that intent inside a new cluster (a ZWJ joining neighbors, two regional indicators
 becoming one flag), the cursor snaps forward to the cluster's end. Word keys use UAX #29 words
-(`unicode_word_indices`): `Ctrl+W` and `Alt+B` go to the start of the last word before the cursor,
-`Alt+D` and `Alt+F` to the end of the first word after it, skipping whitespace, punctuation and
+(`unicode_word_indices`): `Ctrl+w` and `Alt+b` go to the start of the last word before the cursor,
+`Alt+d` and `Alt+f` to the end of the first word after it, skipping whitespace, punctuation and
 emoji runs that contain no word; each Han ideograph is its own word. The result snaps to a grapheme
 boundary. Punctuation like `foo.bar` stays one word under UAX #29 and makes no readline-compat
 promise beyond the key set.
@@ -116,4 +116,4 @@ witness the drawn window, the placed cursor, and exact raw submission.
 The [Settings renderer witnesses](../crates/workbench-client/src/tui_render/settings/tests.rs) check that the inline field's cursor lands on whole graphemes after control/ANSI removal
 joins combining marks or emoji variation selectors, normal wide glyphs and cursor-at-end.
 The [Settings input trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/settings.rs) sends literal paste
-and Ctrl+W through the decoder and verifies word deletion without applying or pane forwarding.
+and Ctrl+w through the decoder and verifies word deletion without applying or pane forwarding.

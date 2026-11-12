@@ -2,7 +2,7 @@
 
 ## Interaction and scope
 
-`Ctrl+B F4`, the sidebar Settings row and the global action menu open Settings on supported native
+`Ctrl+b F4`, the sidebar Settings row and the global action menu open Settings on supported native
 TUI hosts. Settings is a full page that captures the client area while pane output continues. It
 covers every common setting both Clients present in the
 [settings registry](../../../crates/local-runtime/README.md#user-settings), including launch profiles
@@ -40,7 +40,7 @@ against English and Simplified Chinese category names, labels and descriptions i
 order; values and user-authored profile text are excluded. Search shows its result count and an
 explicit empty result; Enter or Tab focuses the matching row without changing it, and Esc clears the
 query before stepping back. Text fields use the
-[shared bounded line editor](native-line-editor.md), including Ctrl+W word deletion and literal
+[shared bounded line editor](native-line-editor.md), including Ctrl+w word deletion and literal
 paste.
 
 ## Changes

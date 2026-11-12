@@ -31,7 +31,7 @@ Outcomes:
 - `Available(geometry)`: a real drawable geometry was observed. Modes are restored before
   the wait returns; the normal startup path then computes wire geometry and proceeds to
   cohort, Session, connection, and session work exactly as before.
-- `Cancelled`: the user issued the existing prefix-quit binding (Ctrl+B then `q`/`d`). The
+- `Cancelled`: the user issued the existing prefix-quit binding (`Ctrl+b q` or `Ctrl+b d`). The
   process returns success; no cohort, Session, connection, session, or service is created.
 - `TimedOut`: the original startup deadline expired. The localized `TimedOut` startup
   failure is returned; modes are restored first.

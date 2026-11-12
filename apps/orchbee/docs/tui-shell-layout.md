@@ -40,7 +40,7 @@ and draw receipt. The shared module never imports a feature-specific state or to
 
 Form and confirmation `ModalAction` values supply their effective bindings to `ActionSpec`'s
 optional shortcut slot. It measures and paints the subdued key inside the button brackets. Dialog
-footers carry only their right-aligned buttons; editing keys such as Backspace and Ctrl+U are
+footers carry only their right-aligned buttons; editing keys such as Backspace and Ctrl+u are
 conventions and never get a hint row, and only pickers keep a hint row. Settings adopts the same
 rule for Close, Back and its child decisions. The complete `[x]` paint also registers its exact
 typed dismissal target for backdrop gestures.
@@ -133,7 +133,7 @@ Search and Settings keep their complete existing targets and footer geometry. A 
 retains its pending row.
 The no-Workspace main content stays blank, without a Terminal title, onboarding statement or repeated
 creation hint. Fixed actions and effective keyboard routes remain available. Global actions retain
-`Ctrl+B F2` at every presentable tier, with no permanent Actions button. An empty canonical Workspace
+`Ctrl+b F2` at every presentable tier, with no permanent Actions button. An empty canonical Workspace
 keeps its localized directory and Tab creation guidance. The first workbench row remains available
 to authored guidance or terminal content; no PTY geometry is reserved.
 
@@ -145,8 +145,8 @@ hint, followed only by the [Help control](#sidebar-toggle-and-help) at the row's
 size the list runs directly down to it with no divider, hint or blank row between them. The
 prefix status teaches the sidebar-focus binding as `Tab` sidebar; while sidebar navigation
 owns the keyboard, the floating status shows its Back and Help bindings. The default focus switch
-is `Ctrl+B Tab`, with the previous
-`Ctrl+B Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
+is `Ctrl+b Tab`, with the previous
+`Ctrl+b Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
 a Workspace. Blank sidebar cells do not change focus; the explicit binding and row controls own it.
 
 Hosts shorter than 24 rows omit the spacer after the actions. The unified window fits
@@ -363,7 +363,7 @@ below it stays distinct. Each Tab leads with the state glyph
 of the Agent the current machine observation places in it and follows with an unread dot; a
 collapsed group carries its members' most urgent state. While the sidebar is hidden, the attached
 machine alone stays observed for this purpose. Summaries stay in the sidebar and Agent Board.
-Global actions are available through `Ctrl+B F2` and configured menu bindings. Every platform
+Global actions are available through `Ctrl+b F2` and configured menu bindings. Every platform
 projects the same canonical navigation rows; the retired context breadcrumb is not a separate
 platform layout.
 Active Tabs use padding, `surface-current` and bold identity without a marker; checked Tabs use
@@ -446,8 +446,8 @@ retains the same exact `DrawnTabCreate` context proof. See [Tab menus](native-ta
 Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer
 capture or an outside release. The release packet's remaining bytes, including paste, never
 reach a pane even when the proof is refused. Menu entries retain the existing capture and
-cancellation lifecycle. The keyboard routes remain: configured New Tab (default `Ctrl+B c`),
-Workspace creation (`Ctrl+B a`), quick Workspace (`Ctrl+B Shift+N`) and the global/Project
+cancellation lifecycle. The keyboard routes remain: configured New Tab (default `Ctrl+b c`),
+Workspace creation (`Ctrl+b a`), quick Workspace (`Ctrl+b Shift+N`) and the global/Project
 menus. These controls own no new business state, terminal identity or persistence.
 
 Render and hit-region cases cover both locales and default/RGB themes, empty and populated
@@ -514,15 +514,15 @@ actions show those local key labels only while that owner is active, and derive 
 An exclusive input capture may preserve the Picker's remembered row focus for recovery, but it
 suppresses the sidebar focus border, row navigation cue and owner-local labels so the capturing
 surface remains the only visible keyboard owner.
-The existing global `Ctrl+B Shift+N` creation route remains available. Query editing and
+The existing global `Ctrl+b Shift+N` creation route remains available. Query editing and
 cancellation retain the picker's capture rules, and opening either action consumes the
 input packet tail. Workspace browsing and Agent filters remain reachable through the existing
 Machine picker modes; this layout does not assign new browse/filter controls to group headings. The fixed bottom Settings entry opens the existing settings editor directly,
 matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
 label. Its complete configured key path appears when it fits, using the binding registry rather
 than a hard-coded default. Keyboard users open Settings with the configured action (default `Ctrl+b F4`); the existing comma binding
-continues to rename a Tab. Global actions remain on `Ctrl+B F2` and machine selection on
-`Ctrl+B Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
+continues to rename a Tab. Global actions remain on `Ctrl+b F2` and machine selection on
+`Ctrl+b Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
 admission and capture ownership.
 
 Rendering consumes trusted picker rows, the shared window, geometry and binding
@@ -540,7 +540,7 @@ compose every entry point. The TUI leaves out the fixed Search row, whose plain-
 joins the list while a touch-spaced list leaves its lines blank, and the `/` key, which then
 behaves as an unbound sidebar key and leaves F1. Without New workspace either, the toggle keeps the
 first row on its own. The machine picker itself is the remote-machines feature and stays whole:
-`Ctrl+B Shift+M`, its action-menu row and F1 entry open it, with all three modes and Tab switching.
+`Ctrl+b Shift+M`, its action-menu row and F1 entry open it, with all three modes and Tab switching.
 Because the picker has no query field, those rows name it Browse machines, Workspaces and Agents
 (`浏览机器、工作区和智能体`) rather than search. The GUI withholds its Search too; see the
 [Web Workbench](../../web/docs/workbench.md#release-withheld-search).
@@ -690,12 +690,12 @@ actions through global chrome, so no binding, action identity or surface is new:
 
 - The hide toggle `[«]` ends the visible sidebar's first fixed-action row, after
   `[ New workspace ]`, at the list's last column before the right padding cell. It invokes
-  `ToggleBusinessSidebar` (`Ctrl+B b`), which closes a docked sidebar or an overlay alike.
+  `ToggleBusinessSidebar` (`Ctrl+b b`), which closes a docked sidebar or an overlay alike.
 - While an available sidebar is hidden at Full or Compact, the show toggle `[»]` leads the Tab
   strip, one strip cell before the Tabs, and invokes the same action. The toggle therefore stays on
   the first row in both states.
 - Help `[?]` ends the Settings row in the hide toggle's columns and invokes `OpenShortcutHelp`, the
-  same Help as `Ctrl+B ?`.
+  same Help as `Ctrl+b ?`.
 
 `«` and `»` mean only this toggle. Their simplified-glyph fallbacks `[<]` and `[>]` share the
 Previous and Next characters because their tracks never coincide: the toggle holds the sidebar's
@@ -747,12 +747,12 @@ clicks the painted controls: hide, show at the retained width, and Help.
 ## Mobile sidebar list
 
 Below 60 columns the sidebar is a list screen that covers the whole window, top strip and terminal
-included. It is hidden by default, so a Client opens on the current terminal. `Ctrl+B b`
+included. It is hidden by default, so a Client opens on the current terminal. `Ctrl+b b`
 (`ToggleBusinessSidebar`) or the strip's show toggle opens it, and the list takes the keyboard as
 sidebar focus does; a key or paste that reaches the open list while its navigation is idle, after a
 pointer press or a closed dialog, returns to that navigation instead of reaching the covered
-terminal. The `Ctrl+B` prefix and its binding never reach the terminal, so they decide from that
-idle state: `Ctrl+B B` focuses the navigation rather than leaving it. The hide toggle, Esc or
+terminal. The `Ctrl+b` prefix and its binding never reach the terminal, so they decide from that
+idle state: `Ctrl+b Shift+B` focuses the navigation rather than leaving it. The hide toggle, Esc or
 choosing a row closes it; a chosen row opens its terminal even
 when it is already current. Crossing 60 columns keeps an open list open as the narrow overlay, and an
 open overlay open as the list; crossing 90 columns closes either, so wide hosts return to their
@@ -811,7 +811,7 @@ the space between the two targets opens the Tab list too. Pressing that space fi
 the Tabs button fills it, and the count-only button brightens as an icon action. On the one-row bar
 both buttons drop the blank cell inside each bracket (`[»]`, `[Tabs 8]`) and sit at the bar's
 edges. Without a native Workbench Client the row keeps the ordinary strip. The
-multiple-Presentation selector is not on the bar; `Ctrl+B (` and `Ctrl+B )` still switch
+multiple-Presentation selector is not on the bar; `Ctrl+b (` and `Ctrl+b )` still switch
 Presentations.
 
 ## Tab list
@@ -878,7 +878,7 @@ the prefix ends. The chip otherwise appears for other input modes, sidebar navig
 notices, connection or recovery,
 released pointer capture and persistent states. Directory missing, Disconnected and Terminal
 exited show one or two words with their severity marker, followed by the fixing binding when it
-fits, such as `Ctrl+B c` to create a Tab for an ended terminal. Every retired connection is
+fits, such as `Ctrl+b c` to create a Tab for an ended terminal. Every retired connection is
 Disconnected, including one whose last operation has an unknown outcome; the pane keeps that full
 fact. An exit that does not fit in two words uses the localized compact exit copy; the full exit
 result remains with `Locale::native_status` and the pane title. A transient notice leads the exact primary fact and carries no hints; a persistent
@@ -916,10 +916,10 @@ visible beside an overlay sidebar. This authored guidance uses a separate paint 
 canonical shell areas and terminal geometry remain unchanged. While an overlay sidebar is shown,
 the panes beneath it are covered: their cursor, graphics and attention cues stay hidden. Typed
 input would otherwise reach a Panel whose cursor is hidden, so the narrow overlay takes the keyboard
-as the [mobile list](#mobile-sidebar-list) does: opening it with `Ctrl+B b` or the show toggle
+as the [mobile list](#mobile-sidebar-list) does: opening it with `Ctrl+b b` or the show toggle
 focuses its navigation, and a key or paste that reaches it while its navigation is idle returns to
 that navigation instead of reaching the covered Panel. Esc closes it as the hide toggle and
-`Ctrl+B b` do, and the keyboard returns to the Panel it covered, whose focus the sidebar never
+`Ctrl+b b` do, and the keyboard returns to the Panel it covered, whose focus the sidebar never
 changed. Choosing a row with Enter also closes it.
 
 The [Workbench navigator](native-context-selection.md#capturing-navigator)
@@ -959,7 +959,7 @@ and the whole leaf receives the terminal cells. An inactive leaf paints a locali
 and the focus binding — it never paints fabricated live content. Divider cells are collected during
 the walk and drawn once with junction glyphs (`├ ┤ ┬ ┴ ┼`) resolved from neighboring divider cells.
 
-Under a Client-local maximized state (`Ctrl+B z`; the session contract lives in `workbench-client-runtime.md`),
+Under a Client-local maximized state (`Ctrl+b z`; the session contract lives in `workbench-client-runtime.md`),
 the drawn set narrows to the focused leaf: it renders across the whole content area and records
 the only pane hit region, while undrawn leaves still report their canonical leaf rectangles so
 their viewers stay alive. The focused leaf reports the whole content area to the wire so its

@@ -133,7 +133,7 @@ PowerShell completion supports the selector prefix and routed command scope.
 ## Persistent TUI connections
 
 The Windows TUI discovers the saved catalog while open and offers a machine
-picker, opened with Ctrl+B then Shift+M. There is no permanent footer indicator. Selection is by
+picker, opened with `Ctrl+b Shift+M`. There is no permanent footer indicator. Selection is by
 profile identity, not row index or label. Local remains
 available. A disabled, removed, ambiguous, or corrupt entry cannot silently
 become another machine. Enabled profiles connect automatically for read-only discovery; only an explicit
@@ -452,7 +452,7 @@ The Client owns ephemeral status/scope/order/search controls. `f` cycles status 
 `c` cycles all/current machine/current context, `s` cycles placement/priority/provider/
 title/state sequence, and slash edits a query of at most 128 safe scalars. Enter
 or Escape first leaves query editing. The query takes the cursor keys and shared readline keys of
-the [native line editor](native-line-editor.md), except `Ctrl+Y`, which keeps copying the selected
+the [native line editor](native-line-editor.md), except `Ctrl+y`, which keeps copying the selected
 row's ID. Painted controls accept
 mouse activation. Filtering includes safe machine/location/title/provider/token
 text. Stable ordering preserves canonical placement for ties; priority orders
@@ -460,7 +460,7 @@ Blocked, Error, Done, Working, Idle, Unknown. State sequence is a reported versi
 cross-machine wall clock. Missing observations stay distinct from no matches.
 Changing data, context or controls invalidates painted activation identities.
 
-Ctrl+B then `{` or `}` requests previous/next Agent across machines; the configured
+`Ctrl+b {` or `Ctrl+b }` requests previous/next Agent across machines; the configured
 `previous_agent`/`next_agent` actions use the same projector. An eight-second intent
 waits for bounded observations, wraps relative to the exact current member, chooses
 last/first if it is absent, and excludes unavailable rows. Empty lists and a single

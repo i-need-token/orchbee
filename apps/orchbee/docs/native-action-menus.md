@@ -9,11 +9,11 @@ adapter are absent from menus; direct invocation rechecks the same capability an
 localized unsupported outcome. Shared Workbench actions retain their own admission rules. See
 [TUI platform boundaries](tui-platforms.md).
 
-`Ctrl+B F2` and `[keys].menu` open the global action menu. These keyboard routes remain
+`Ctrl+b F2` and `[keys].menu` open the global action menu. These keyboard routes remain
 available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
 pane, Tab, Project, Workspace or Agent row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
-the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
+the host-terminal bypass. Machines retains `Ctrl+b Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
 The Panel menu offers Rename after terminal commands, using the primary Presentation's shared override; the global
 Panel group exposes the same operation as Rename Panel. Empty input restores the original name.
@@ -36,7 +36,7 @@ displayed terminal's scrollback in the configured editor through the
 [scrollback editor popup](windows-client-control.md#scrollback-editor-popup-model), the lane
 `orchbee terminal edit-scrollback` uses, with the same admission and refusal reasons and no new
 default key; there is no second editor path. The global Panel group also holds Back to last focused
-panel, the [Last Panel](native-context-selection.md#last-panel) step (`Ctrl+B ;`), which shares the GUI
+panel, the [Last Panel](native-context-selection.md#last-panel) step (`Ctrl+b ;`), which shares the GUI
 Workbench identity `workbench.panel.focus-last`.
 The global Workspace group ends with Earlier layouts… ("早先的布局…"), which shares the GUI Workbench
 identity `workbench.layout.reopen-earlier` and has no default key (`[keys].earlier_layouts`). It lists
@@ -108,7 +108,7 @@ not focused or has no frame omits the row, because the copy acts only on the foc
 Keyboard copy mode keeps its own entry and keys.
 
 The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
-query directly; Backspace removes the previous grapheme, Ctrl+U clears it from the end, and the
+query directly; Backspace removes the previous grapheme, Ctrl+u clears it from the end, and the
 other shared readline keys of the [native line editor](native-line-editor.md) edit it at its cursor
 while arrows and Home/End keep navigating the menu. The query is limited
 to 128 UTF-8 bytes, and menu capture keeps typed characters out of the terminal program. Matching
@@ -357,7 +357,7 @@ The global menu groups its existing actions under Tab, Panel, Workspace and Sess
 includes new-Tab options, New Tab to right, Duplicate Tab, Rename Tab, moving the current Tab left,
 right, to the start or to the end, Select all Tabs, Keep only current Tab selected, Close Tab… and
 Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
-Close Tab… is the current-Tab close request that `Ctrl+B x` makes, with that key and its confirmation
+Close Tab… is the current-Tab close request that `Ctrl+b x` makes, with that key and its confirmation
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
 includes Back to last focused panel, directional split and move, close, maximize, keyboard resize
 and copy mode. Workspace includes
@@ -375,8 +375,8 @@ not settled it stays enabled, because only the held step can tell. A Move Tab ro
 Server's own Tab configuration rule to the current Workspace, and a Tab moves only among Tabs
 pinned as it is. Moving left from the first of those Tabs wraps to their end, and moving right from
 the last wraps to their start, as the GUI's move backward and forward do, so those rows refuse only a
-Tab with none to pass: only one Tab, no other pinned Tab or no other unpinned Tab. `Ctrl+B <` and
-`Ctrl+B >` ask the same rule: they wrap the same way and stay silent where the row is disabled. Moving to the start or end also shows that an ungrouped Tab
+Tab with none to pass: only one Tab, no other pinned Tab or no other unpinned Tab. `Ctrl+b <` and
+`Ctrl+b >` ask the same rule: they wrap the same way and stay silent where the row is disabled. Moving to the start or end also shows that an ungrouped Tab
 already stands there; a grouped Tab there stays enabled, because the move takes it out of its group. Copy mode shows Terminal disconnected as Clear terminal does,
 unless the focused Panel shows a launch failure, which Copy mode then presents. Other global actions
 follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar
@@ -597,7 +597,7 @@ Global-menu witnesses assert the Tab, Panel, Workspace and Session section bound
 split and move actions, both localized labels, current effective shortcuts, parity with keyboard
 `ClientAction` dispatch, and the localized focused-panel-required reason when no pane is focused.
 Search witnesses cover effective-shortcut and localized-alias matching, nested new-Tab child hits,
-filtered identity and availability, grapheme Backspace, Ctrl+U clearing, query bounds and localized
+filtered identity and availability, grapheme Backspace, Ctrl+u clearing, query bounds and localized
 no-results presentation.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/action_menu/tests.rs`, `crates/workbench-client/src/workbench_client/ui/action_menus/tests.rs`, `crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu.rs`, `crates/workbench-client/src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.

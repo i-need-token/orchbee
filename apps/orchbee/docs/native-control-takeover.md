@@ -21,7 +21,7 @@ report cannot rearm it. Background pointer motion and host-query replies supply 
 
 An activation submits at most one transfer. Repeated focus reports are idempotent. Refusal and
 uncertainty never rearm it; a later focus activation is a new intent that may reconcile Server
-ownership. `Ctrl+B t` remains an explicit alternative. A known grant never regresses to unknown
+ownership. `Ctrl+b t` remains an explicit alternative. A known grant never regresses to unknown
 within its operation. Exact operation, pane incarnation and original deadlines qualify receipts.
 
 ## Input and display

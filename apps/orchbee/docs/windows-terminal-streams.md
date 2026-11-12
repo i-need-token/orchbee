@@ -116,7 +116,7 @@ admission budget. Output remains an interactive screen even with a global format
 | Attached         | Share the control Session and history core; flush the displayed surface before frame/row acknowledgement      |
 | Ending           | Detach the exact Viewer once; restore console modes before diagnostics, including errors and unwinding        |
 
-`Ctrl+B`, then `q`, detaches without stopping the terminal. Pressing `Ctrl+B` twice sends one
+`Ctrl+b q` detaches without stopping the terminal. Pressing `Ctrl+b` twice sends one
 literal prefix. Other followers preserve the held prefix and their own order. A paste is one
 semantic operation and never participates in detach matching. Invalid, oversized or timed-out
 pastes are rejected without submitting fragments; draining retains paste ownership through the
@@ -161,4 +161,4 @@ Stream timeouts use a stream-specific diagnostic; refusals retain the controller
 not imply that previously delivered input was undone. Scripted evidence does not replace final
 acceptance against the packaged Windows runtime.
 
-Direct attach owns a fixed Ctrl+B/q escape independently of main-TUI key profiles. Extended-key, graphics, pixel-input and Windows visual acceptance remain separate verification obligations.
+Direct attach owns a fixed `Ctrl+b q` escape independently of main-TUI key profiles. Extended-key, graphics, pixel-input and Windows visual acceptance remain separate verification obligations.

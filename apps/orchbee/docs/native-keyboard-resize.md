@@ -2,7 +2,7 @@
 
 ## Input and ownership
 
-Native Clients enter resize mode with `Ctrl+B P`. Plain arrows move a nearby divider by five percentage points; Shift+arrow moves it by one point. `Esc` leaves the mode. The mode is Client-local and never changes focus, the maximized state or terminal control. Its status indicator remains visible; `?` opens mode help; plain PageUp/PageDown page it. Unknown keys, prefix chords, releases and atomic paste are consumed while the mode owns input. Exclusive dialogs and popups take priority. Opening another capture or reloading bindings leaves the mode. After exit, ordinary input again belongs to the pane.
+Native Clients enter resize mode with `Ctrl+b Shift+P`. Plain arrows move a nearby divider by five percentage points; Shift+arrow moves it by one point. `Esc` leaves the mode. The mode is Client-local and never changes focus, the maximized state or terminal control. Its status indicator remains visible; `?` opens mode help; plain PageUp/PageDown page it. Unknown keys, prefix chords, releases and atomic paste are consumed while the mode owns input. Exclusive dialogs and popups take priority. Opening another capture or reloading bindings leaves the mode. After exit, ordinary input again belongs to the pane.
 
 `ClientView` owns the mode and a pure event-to-action registry. `InputDispatcher` owns decoded packet routing; `ClientControl` owns the asynchronous adjustment and its single mutation lane. Configuration can bind `resize_mode` and `resize_pane_left`, `resize_pane_right`, `resize_pane_up`, `resize_pane_down` to safe direct or prefix chords. Direct resizing uses five points without entering the mode. Existing profiles and ordinary arrows retain their meaning outside the mode.
 

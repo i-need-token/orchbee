@@ -246,7 +246,7 @@ The tracking level and encoding share one `ModeLease`, armed at startup unless `
 declined it. A pending restoration obligation is registered before every native or VT mutation.
 A partial enable or level switch therefore enters transition-unknown state and cannot attempt a
 runtime fallback; only the complete release sequence (`?1003l`, `?1006l`, `?1002l`) settles it.
-Runtime release through `Ctrl+B m`, re-arm, startup arming, error cleanup, and panic cleanup use
+Runtime release through `Ctrl+b m`, re-arm, startup arming, error cleanup, and panic cleanup use
 that same lease. Gesture routing, hit testing, state clearing on downgrade or release, and pane
 passthrough live in [native mouse input](native-mouse-input.md); this section owns capability
 settlement and the mode lifecycle.

@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-The native Client treats `Ctrl+B Shift+X` (close the selected panel leaf) as a destructive intent
+The native Client treats `Ctrl+b Shift+X` (close the selected panel leaf) as a destructive intent
 that must be confirmed before it can reach the workbench carrier, unless the Server finds no program
 running in its terminals ([idle close](native-tab-close-sets.md#idle-close)). This reference governs
 the panel-close confirmation extension of the [native Tab Session](workbench-client-runtime.md) and
@@ -62,7 +62,7 @@ complete-fit, draw-token and cancellation guards continue to authorize the close
 - `RenderNeverMutates`: the renderer only returns the typed outcome; all Session mutation
   happens in the post-draw settlement inside the UI layer.
 - `ExactDecisionKeys`: only unmodified `Enter` confirms; `Esc` or the painted outside-backdrop dismissal cancels; all other input is captured
-  as non-decision while armed, including `y`, `n`, `N`, and `Y`.
+  as non-decision while armed, including `y`, `n`, `Shift+N`, and `Shift+Y`.
 - `PacketTailCaptured`: the decision packet is consumed whole; a cancelled or confirmed prompt
   never leaks trailing bytes to the shell.
 - `PanelStaysPanel`: the confirmed effect is `PanelIntent::Close`, and the unasked one

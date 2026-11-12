@@ -175,7 +175,7 @@ the filtered machine Agent list; `focus_agent` is unbound by default. Complete m
 letters normalize before collision checks. The prefix itself is reserved in both layers. Direct
 printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode ownership precede
 direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
-where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
+where available, otherwise original bytes, without a hardcoded Ctrl+b fallback.
 
 `copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed.
 
@@ -245,7 +245,7 @@ The machine `keyPrefix`
 field keeps its stable platform-independent report spelling (`Ctrl+A` for this example), while TUI
 shortcut discovery shows the actual unshifted gesture (`Ctrl+a`). The example lets new Tab replace
 the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to the main
-TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape.
+TUI. CLI terminal-stream attach deliberately keeps its independent `Ctrl+b q` escape.
 
 Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
 F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or

@@ -7,9 +7,9 @@ host clipboard capability: unsupported hosts hide the Copy control and hint, and
 request reports a localized unsupported outcome while retaining the selection. See
 [TUI platform boundaries](tui-platforms.md).
 
-`Ctrl+B U` enters keyboard copy mode for the exact focused pane. `[keys] copy_mode`
+`Ctrl+b Shift+U` enters keyboard copy mode for the exact focused pane. `[keys] copy_mode`
 can replace or disable that entry through the existing resolved binding registry. The uppercase
-entry does not replace context switching with `Ctrl+B [` or `Ctrl+B ]`.
+entry does not replace context switching with `Ctrl+b [` or `Ctrl+b ]`.
 
 `WorkbenchClientUi` owns the volatile episode, pane incarnation and integration. Its deterministic
 `terminal_copy_mode` core owns cursor, search draft, selection and pending intent. `ClientView`
@@ -24,12 +24,12 @@ No new dependency or public protocol is introduced.
 
 ## Entry and content surface
 
-| Surface                                                         | Entry and navigation                                                                                                                                                    |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Primary screen, live                                            | A copy-only entry permits a known nonempty frame even with zero scrollback. `Tail(0)` enters history and waits for accepted `RowsApplied` before using coordinates.     |
-| Primary screen, committed history                               | Reuse that exact committed window; do not submit a second history entry.                                                                                                |
-| Alternate screen, live                                          | Use the exact current live frame without history demands. Vertical/page movement and `g`/`G` stay within the screen; unavailable history never becomes fabricated rows. |
-| Missing frame, unusable geometry or history entering/recovering | Refuse with a localized notice; send no pane input and do not infer a position from stale paint.                                                                        |
+| Surface                                                         | Entry and navigation                                                                                                                                                          |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary screen, live                                            | A copy-only entry permits a known nonempty frame even with zero scrollback. `Tail(0)` enters history and waits for accepted `RowsApplied` before using coordinates.           |
+| Primary screen, committed history                               | Reuse that exact committed window; do not submit a second history entry.                                                                                                      |
+| Alternate screen, live                                          | Use the exact current live frame without history demands. Vertical/page movement and `g`/`Shift+G` stay within the screen; unavailable history never becomes fabricated rows. |
+| Missing frame, unusable geometry or history entering/recovering | Refuse with a localized notice; send no pane input and do not infer a position from stale paint.                                                                              |
 
 ### History search
 
@@ -40,7 +40,7 @@ the committed window like any committed-history entry, waits for an Entering win
 cursor, and opens a forward search draft. Esc, `q` and the toolbar's close control then return to
 the history at the window the episode left, without recovery to live; the pane is again an
 ordinary history view. A delivered copy keeps the rule below and returns to live, as do pane,
-context and content invalidation. `Ctrl+B U` entries keep returning to live on every exit.
+context and content invalidation. `Ctrl+b Shift+U` entries keep returning to live on every exit.
 
 The ordinary PageUp/wheel history gate and return-at-tail behavior remain owned by
 [native terminal history viewport](native-terminal-viewport.md). Copy navigation adds an absolute
@@ -108,7 +108,7 @@ The pane task and output polling continue.
 | `q`, Esc          | Cancel and return to ordinary input; Esc also exits from the search draft |
 
 While editing a search, printable characters including `q` edit the query. Enter submits it;
-Ctrl+G returns to copy navigation without leaving the mode, and Ctrl+R reverses the draft's current
+Ctrl+g returns to copy navigation without leaving the mode, and Ctrl+r reverses the draft's current
 search direction without submitting it.
 The draft uses the existing inline editing conventions, whole-grapheme deletion and atomic
 paste, with a 512-Unicode-scalar bound and a visible refusal on overflow. Queries containing
@@ -116,10 +116,10 @@ uppercase characters are case-sensitive; others are case-insensitive. Empty sear
 content read. Search results wrap through the existing `terminal_copy::search` policy.
 
 Search command classification uses the existing canonical key identity: a raw carriage return
-and named Enter both submit, Ctrl+G returns, and Ctrl+R reverses direction; Ctrl+H and Backspace
+and named Enter both submit, Ctrl+g returns, and Ctrl+r reverses direction; Ctrl+h and Backspace
 delete a whole grapheme. Printable insertion retains the original Unicode scalar and case. A
 refused paste or edit keeps its draft and caret and shows a warning beside the exit hint. Repeated
-`n` follows the last submitted `/` or `?` direction; repeated `N` always follows its reverse
+`n` follows the last submitted `/` or `?` direction; repeated `Shift+N` always follows its reverse
 without changing that remembered direction.
 
 During a query, export or clipboard flight, incompatible new actions report Busy and are not

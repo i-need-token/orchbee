@@ -8,7 +8,7 @@ location and selection. This reference governs the context-selection extension t
 [native Tab Session](workbench-client-runtime.md). Maintain it with the Session reducer, transport,
 navigation rendering and their correctness evidence.
 
-`Ctrl+B [` and `Ctrl+B ]` cycle through real Workspaces in canonical display order, including empty Workspaces. Sorting and nullable Project membership never change location identity. Selection uses the Workspace/Context pair and restores this Client's surviving Tab/Panel memory, otherwise the first member or Empty. Entering or leaving Empty creates no terminal. Explicit `c` requires the Workspace's admitted directory and never falls back to home. Sidebar activation shares this Session selection owner; exact Session/location validation, Busy precedence and latest unadmitted target retention follow [machine navigation](machines.md#cross-machine-workspace-navigation). Windows [directory startup](native-directory-startup.md) may create the first Workspace only in an eligible empty Session. Other startup paths read and select existing membership before attachment.
+`Ctrl+b [` and `Ctrl+b ]` cycle through real Workspaces in canonical display order, including empty Workspaces. Sorting and nullable Project membership never change location identity. Selection uses the Workspace/Context pair and restores this Client's surviving Tab/Panel memory, otherwise the first member or Empty. Entering or leaving Empty creates no terminal. Explicit `c` requires the Workspace's admitted directory and never falls back to home. Sidebar activation shares this Session selection owner; exact Session/location validation, Busy precedence and latest unadmitted target retention follow [machine navigation](machines.md#cross-machine-workspace-navigation). Windows [directory startup](native-directory-startup.md) may create the first Workspace only in an eligible empty Session. Other startup paths read and select existing membership before attachment.
 
 `ClientContextLocation::NoWorkspace` represents only a Workbench with zero Workspaces and zero Contexts. It has no Context or Workspace ID, is not a navigation row, and is never persisted as a saved position. Creating a Workspace supplies a real owner; removing the last Workspace returns to this empty landing state. Every existing Workspace, including an ungrouped or empty one, retains its canonical ID and ordinary rename, directory, grouping and Close rules. Snapshot validation requires a one-to-one Workspace/Context relation; all 1,024 context slots are available to real Workspaces.
 
@@ -30,7 +30,7 @@ while preserving these typed location identities.
 
 ## Capturing navigator
 
-`Ctrl+B w`, its configured replacement or the action menu opens a capturing navigator. The
+`Ctrl+b w`, its configured replacement or the action menu opens a capturing navigator. The
 existing entry refresh and known-result recovery remain Session-owned and are requested once.
 Closing does not cancel accepted work. Ordinary shortcut Help remains noncapturing.
 
@@ -131,7 +131,7 @@ through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS
 across the whole Session Workbench, most recent first, each Panel at most once and at most sixteen.
 After each presented draw it records the settled focus, the current Tab's selected Panel once no
 navigation is pending and no switch is landing, so pointer, keyboard, CLI and Agent focus changes
-all count; a plugin overlay Panel never enters. Last Panel (`Ctrl+B ;`, `[keys].last_pane`, the
+all count; a plugin overlay Panel never enters. Last Panel (`Ctrl+b ;`, `[keys].last_pane`, the
 global menu's Panel group) records the current focus, drops entries whose Panel, Tab or Workspace is
 gone or leaving with an accepted close, and steps to the most recent other Panel that remains. A
 Panel of the current Tab takes the ordinary Panel focus move. For a Panel of another Tab or location

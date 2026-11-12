@@ -16,7 +16,7 @@ Workbench owns status selection in `workbench_client/ui/status_text`: Worktree, 
 ## Accepted Close refinement and local integration
 
 [Canonical terminal Tab Close](../../orchbee-server/docs/terminal-tab-close.md) owns the accepted
-Server/Worker lifecycle, wire/status/Resume and native removal contract. Native `Ctrl+B x` targets
+Server/Worker lifecycle, wire/status/Resume and native removal contract. Native `Ctrl+b x` targets
 the selected Tab in the active context and confirms in both locales that execution ends for all attached Clients;
 an independent lifecycle grant is required. Closed requires known disposal, target-owner cleanup
 and canonical removal. The last removal leaves a usable Empty Workbench with Refresh/manual `c`,
@@ -459,7 +459,7 @@ fix the reference-derived bootstrap composition, pure commit and rollout boundar
 
 Move targets the active selected Tab only, from Ready, SelectedWithoutAttachment or
 RetryableAttachUnavailable with a live carrier and exact cache/selection identity.
-`Ctrl+B <` and `Ctrl+B >` move toward previous/next among the Tabs pinned as the active one, by the
+`Ctrl+b <` and `Ctrl+b >` move toward previous/next among the Tabs pinned as the active one, by the
 rule of the global menu's Move Tab rows: with no other such Tab the key submits nothing, and past
 either end of them it wraps to the other end. Wire previous/next never wrap. A wrap that lands on
 the boundary between pinned and unpinned Tabs, the last pinned or first unpinned place, submits
@@ -513,7 +513,7 @@ selection, projection and navigator. No second cursor is allowed.
 | Known commit                                        | Exact context/Tab and `TabMoved.revision = checked(baseline + 1)`                                                                              | Retain commit; allocate one Snapshot ID from same cursor at execution; exhaustion retires without replay or cursor rewind                                                    |
 | Snapshot available                                  | Revision at least committed; exact expected full baseline permutation at committed revision; shared strict higher-revision validation above it | Bounded typed event; preserve target or enter common cleanup; exact atomic installation releases fence                                                                       |
 | Snapshot definitely denied/unavailable after commit | Move is known committed, canonical projection unavailable                                                                                      | Enter MoveProjectionUnavailable with old historical cache, prior stable phase, viewer/controller/generation and Ready proof retained                                         |
-| Explicit recovery                                   | `Ctrl+B w` admits one Refresh using its own existing 50-second transport/deposit split                                                         | Require at least known commit revision and exact permutation there or allowed later history; remap and restore prior phase; repeated definite unavailable preserves recovery |
+| Explicit recovery                                   | `Ctrl+b w` admits one Refresh using its own existing 50-second transport/deposit split                                                         | Require at least known commit revision and exact permutation there or allowed later history; remap and restore prior phase; repeated definite unavailable preserves recovery |
 | Corrupt/ambiguous exchange                          | Wrong correlation/kind/outcome, impossible revision, corrupt projection or possible handoff then ambiguity                                     | Retire mixed carrier without new-ID replay; known commit remains known                                                                                                       |
 | Exit/retirement                                     | Exact existing carrier lifecycle                                                                                                               | Releases waiting executor; retirement is not successful completion                                                                                                           |
 
@@ -537,7 +537,7 @@ Fresh startup still joins the retained Open reference/outcome and selects curren
 active ID. Failed/unavailable/unknown anchor outcome fails before Snapshot; a Started anchor with
 nonattachable moved head fails at that head's AttachBinding. No fallback or scan is allowed.
 Other live Clients learn committed changes through the ready-loop `workbench.publication.read`
-probe, which routes one refresh hint through the same `Ctrl+B w` admission; there is no
+probe, which routes one refresh hint through the same `Ctrl+b w` admission; there is no
 terminal switch. The UI also registers one State-mode `workbench.snapshot.read` subscription before
 its first domain read. The Server sends a record only when the snapshot bytes differ, so commits
 that leave the Workbench snapshot unchanged, such as background terminal output, raise no hint.
@@ -667,7 +667,7 @@ continuity; the separate Move integration and process checks below own those bou
 ## Scope and owners
 
 This record fixes the native Client consumer of the canonical OBWP `tab.create`, `tab.move`, and
-Panel-tree projection contracts, plus the `Ctrl+B c`, `<`, `>`, `n`, `p`, `1` through `9`, `h`, `j`, `k`,
+Panel-tree projection contracts, plus the `Ctrl+b c`, `<`, `>`, `n`, `p`, `1` through `9`, `h`, `j`, `k`,
 `l`, and `w` actions. It preserves the existing one sequential admitted Client carrier, one OBCS viewer, one combined input-and-resize controller at
 most, bounded command/event storage, and TUI restoration boundary.
 
@@ -836,7 +836,7 @@ when its attach target was issued. Polls continue for every admitted pane incarn
 leaves keep rendering their own live frames. Input admits only the focused pane; resize admits
 each visible controlling pane's exact incarnation. Read-only panes never acquire control for resize.
 
-In a connected Workbench Client, `Ctrl+B h`, `j`, `k`, and `l` are Client-local focus actions. When a
+In a connected Workbench Client, `Ctrl+b h`, `j`, `k`, and `l` are Client-local focus actions. When a
 direction has a neighboring leaf, the Client moves the focused-pane selection to that leaf's
 existing record without detaching, re-attaching, or re-tagging any already accepted work — no
 switch cleanup, snapshot, or attach chain runs for a same-Tab move. A focus action never writes a
@@ -850,20 +850,20 @@ are fenced at the exact `PaneRef` and never land on the re-bound attachment. A p
 refresh path; the Client preserves the selected Panel by identity while reindexing the cached tree
 and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
 
-The provisional `Ctrl+B -`, `_`, `\`, `|`, `X`, and `H`/`J`/`K`/`L` bindings submit the three
+The provisional `Ctrl+b -`, `_`, `\`, `|`, `Shift+X`, and `Shift+H`/`Shift+J`/`Shift+K`/`Shift+L` bindings submit the three
 structural panel commands through the same mailbox mutation admission, typed settlement,
 pending-commit retention, and publication-refresh recovery used by Tab operations; the bindings
 are provisional pending the input-design review and may be rebound. `-`, `_`, `\`, and `|` submit
 `panel.split` on the focused leaf in the Below / Above / Left / Right direction — the glyph set
 follows the input-vocabulary draft table — assign the next available numeric creation label, and use
-the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` arms the
+the Client's real controlling cell/pixel geometry rather than a fabricated size. `Shift+X` arms the
 leaf-scoped panel-close confirmation on the focused leaf under
 [native panel close confirmation](native-panel-close-confirmation.md): only a drawn, still-valid
 confirmation admits the ordinary `panel.close` on the frozen leaf — `Enter` confirms after the
 complete draw and `Esc` cancels — and the confirmed close commits through the ordinary
 publication path. Closing the Tab's last leaf removes the whole Tab — its terminals are disposed
 and the Tab ends for every attached Client, the same blast radius the `x` Tab close confirms
-against — and the drawn confirmation names exactly that impact before any `Enter` can take effect. `H`, `J`, `K`, and `L` submit `panel.move` on
+against — and the drawn confirmation names exactly that impact before any `Enter` can take effect. `Shift+H`, `Shift+J`, `Shift+K`, and `Shift+L` submit `panel.move` on
 the focused leaf with the directional neighbor as `target_panel_id` — interim top-level stand-ins
 for the draft's `PANEL`-mode `h`/`j`/`k`/`l` move, since mode structure is out of this slice's
 scope; a single Panel or an edge with no directional neighbor is a local no-op before admission. All three operations admit only from a
@@ -1194,7 +1194,7 @@ production-seam work outside this delta.
 
 ## Create is a draining FIFO barrier
 
-`Ctrl+B c` is admissible only from a settled Ready identity: carrier live; active, desired,
+`Ctrl+b c` is admissible only from a settled Ready identity: carrier live; active, desired,
 attachment, and projection generation all name the same cached Tab; the first full-frame feedback
 was accepted during setup for that attachment generation; no Create/Switch is active; and no
 Refresh is queued, in flight, or awaiting UI semantic settlement. Ready retains this completed-setup
@@ -1347,7 +1347,7 @@ A definite Snapshot denied/unavailable before candidate staging enters `Projecti
 It retains the committed tuple, revision, terminal outcome and reserved generation 1 together with
 the exact old validated cache, viewer/controller, active selection and projection/feedback. Those old
 facts are diagnostic only: the structural fence remains active, so Input, Resize, ordinary Poll,
-selection, Create and Move are unavailable. `Ctrl+B w` may admit the explicit recovery below; exit
+selection, Create and Move are unavailable. `Ctrl+b w` may admit the explicit recovery below; exit
 remains available. A valid recovery stages a candidate before cleanup and installation. A
 valid-but-inconsistent snapshot is authority divergence and retires the carrier, as do malformed,
 miscorrelated, or transport-ambiguous responses; none licenses a guessed Detach.
@@ -1598,9 +1598,9 @@ flight.
 A definite setup failure leaves the selected Tab selected and attachable provenance retryable. No
 other Tab, old binding, Open, Create, Start, or terminal-lifecycle fallback is chosen.
 
-## Ctrl+B w navigator and refresh
+## Ctrl+b w navigator and refresh
 
-`Ctrl+B w` is an exact toggle. If the Workbench navigator is open, it closes and submits nothing.
+`Ctrl+b w` is an exact toggle. If the Workbench navigator is open, it closes and submits nothing.
 If closed with no pending refresh, it opens immediately over the cached projection and attempts exactly one
 `RefreshSnapshot { refresh_generation }`. Opening during a stable Ready,
 RetryableAttachUnavailable, SelectedWithoutAttachment, or ProjectionUnavailable state may admit;
@@ -1693,7 +1693,7 @@ The navigator rows are one per canonical ordered member:
 
 `N` is the one-based decimal position and exactly one space follows `]`. The always-visible compact
 strip uses `[*N <safe-label>]` and `[ N <safe-label>]`. Successful selection or admitted Create
-dismisses the navigator. When `Ctrl+B w` closes it, its title and every row disappear; the compact
+dismisses the navigator. When `Ctrl+b w` closes it, its title and every row disappear; the compact
 strip and Ready status remain unchanged. An in-flight refresh continues silently while closed.
 
 ## Rendering and localized observable states
@@ -1716,7 +1716,7 @@ C0/ESC/CR/LF/DEL/C1, U+2028/U+2029, combining and double-width characters,
 one-column clipping, an active token after many Tabs, and exact canonical data after rendering.
 
 The stable English and Chinese status strings are below. Ready and control-mode
-context appears on demand with `Ctrl+B`; ordinary terminal passthrough has no status bar. Ordinary Move admission refusal preserves
+context appears on demand with `Ctrl+b`; ordinary terminal passthrough has no status bar. Ordinary Move admission refusal preserves
 the existing notice without reacquiring the mailbox; the local-busy row applies to the other
 structural admission paths.
 
@@ -1748,9 +1748,9 @@ A transient Creating/Refreshing draw is never required.
 A definite Create precommit settlement never creates a timer-driven phase. The UI consumes the
 typed result by restoring the exact attachment directly to Ready and storing the localized notice
 in `Ready.notice`; that notice opens the status overlay until the next decoded
-`Ctrl+B` Client action atomically clears or replaces it. Ordinary terminal bytes, Poll/frame
+`Ctrl+b` Client action atomically clears or replaces it. Ordinary terminal bytes, Poll/frame
 traffic, and physical Resize observations do not clear it. A Pending committed target remains
-SelectedWithoutAttachment with the exact Pending status above. `Ctrl+B w` can refresh canonical
+SelectedWithoutAttachment with the exact Pending status above. `Ctrl+b w` can refresh canonical
 membership, but it does not replay Create, attach that Tab, or erase its retained Pending
 provenance.
 
@@ -1858,7 +1858,7 @@ atomic text-limit faults, explicit correction, incomplete input, independent bas
 staleness, cancellation, retirement and reciprocal state admission. Actual mailbox tests cover
 capacity, cursor/serial exhaustion, fixed-cutoff refusals, exact ACK and retained worker-loss evidence.
 
-`Ctrl+B ,` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
+`Ctrl+b ,` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
 Capture the canonical baseline, Session/context/Tab and attachment generation without allocating a
 request or deadline. Empty, structural/recovery flights and Close/Resume confirmation refuse entry.
 The draft and Close confirmation are mutually exclusive. Applied authority or selection changes
@@ -1869,9 +1869,9 @@ successful drawing of its exact opaque token is required before Enter. Missing/f
 hidden editor, viewport invalidation or draft replacement revokes qualification. Later text edits
 do not require a draw per scalar. A returned label remains exact; display sanitization is separate.
 Input faults clear only on an explicit decoded deletion — Backspace, Delete, or a shared kill key
-such as Ctrl+U — including Empty; these still pop or clear. Successful typing/paste/yank, word
+such as Ctrl+u — including Empty; these still pop or clear. Successful typing/paste/yank, word
 movement, ignored sequences, failed edits and Enter cannot clear a fault.
-The localized error names Backspace and Ctrl+U. Cancellation destroys the draft and its fault.
+The localized error names Backspace and Ctrl+u. Cancellation destroys the draft and its fault.
 
 One existing input reader and terminal-mode owner handle the editor. ESC waits 50ms; CSI/SS3 uses a
 32-byte bound; fragmented UTF-8 retains at most three prefix bytes. Bracketed paste appends
@@ -2039,7 +2039,7 @@ second Move queued before the first worker acknowledgment is consumed.
 `state/move_tab.rs` retains pending operation, committed recovery and exact settled-commit records
 over the unchanged stable attachment phase. `MoveProjectionUnavailable` is an explicit display/state
 kind; its recovery record blocks Create, Switch and Move while preserving Ready input, Poll, Resize,
-controller and historical frame state. Raw `Ctrl+B w` admits fresh Snapshot-only recovery, validates
+controller and historical frame state. Raw `Ctrl+b w` admits fresh Snapshot-only recovery, validates
 the original Move expectation and remaps the selected ID without an attachment generation or setup.
 The outer worker join retains both Create and Move known-commit handoffs.
 
@@ -2104,7 +2104,7 @@ the viewer. When it cannot place the `ViewerLost` notice before the Poll's cutof
 If the Client then retires while the focus is still attached and that Poll is still the UI's
 ordinary Poll, a clean join establishes the origin.
 
-An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
+An explicit `Ctrl+b w` after finalized retirement may start one Snapshot-only connection through the
 retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown
 handle govern the connection. A late connection after cancellation is closed. The opaque retired
 mailbox seed preserves identity, attachment, Refresh, command and UI-wait allocation progress;
@@ -2133,7 +2133,7 @@ a fresh Presentation and a fresh terminal binding under the replacement rule abo
 old physical identity, unavailable Snapshot or invalid candidate leaves the old canonical state
 and origin parked, with no Attach. Valid replacement keeps the selected Tab and Panel, mints a
 fresh attachment generation and clears old launch provenance. Absence or replacement is membership
-knowledge, not cleanup evidence. The existing explicit `Ctrl+B w` entry also covers this replacement;
+knowledge, not cleanup evidence. The existing explicit `Ctrl+b w` entry also covers this replacement;
 it does not reconnect automatically. Deterministic UI tests cover the replacement branch; the
 retired-recovery model results below predate it and do not establish that extension. Bootstrap, Open, activation, Create, Start and Close are not part
 of this observation entry.
@@ -2242,7 +2242,7 @@ returns; no new gate or phase is added. An input admitted before staging carries
 old-pane incarnation and settles only there; after the epoch commit drops old records the same
 input misses its incarnation fence and is dropped — it is never re-tagged to the landing pane.
 
-The retired entry is the existing `Ctrl+B w` recovery composition, not a new origin: only a
+The retired entry is the existing `Ctrl+b w` recovery composition, not a new origin: only a
 Ready-phase ordinary Poll that returned `TerminalRuntimeUnavailable` plus a clean old-task join
 mints origin evidence. Its bounded attempt — one connection, one refresh flight, its own sampled
 deadline — runs the same classify; a `Removed` result mints a generation-2 permit and installs
@@ -2332,7 +2332,7 @@ Pre-cleanup refusal restores the previous live member; unavailable attach remain
 Sibling viewers may be reattached by this initial complete-anchor cleanup. Child attachment uses
 binding-only provenance and cannot inherit a primary terminal creation outcome.
 
-`Ctrl+B (` / `Ctrl+B )` select previous/next Presentation, wrap in canonical order, and are no-ops with one member. The shared help registry provides both localized descriptions. Stable
+`Ctrl+b (` / `Ctrl+b )` select previous/next Presentation, wrap in canonical order, and are no-ops with one member. The shared help registry provides both localized descriptions. Stable
 Presentation targeting serves Agent focus. Rendered label/count and attention refer to the
 chosen binding; Panel movement and Close still operate on the complete Panel. The report lane queries
 the selected Presentation and correlates its owning Panel and binding under both revision fences.

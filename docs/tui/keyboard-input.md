@@ -39,7 +39,7 @@ authority for current bindings and input behavior.
   disambiguate. The wait never exceeds one input poll interval and never delays a disambiguated
   event. `ESC` followed by a printable or UTF-8 character is that character with `Alt`; `ESC`
   followed by another C0 control byte is a lone `Esc` and then that control's own key, never an
-  `Alt` chord, so `Esc` followed quickly by a prefix such as `Ctrl+B` delivers both.
+  `Alt` chord, so `Esc` followed quickly by a prefix such as `Ctrl+b` delivers both.
 - Bracketed paste is always enabled. A paste arrives as one atomic text event, is never matched
   against bindings, and is delivered to exactly one owner in its original order.
 - Reject malformed, over-bound, or timed-out pastes as whole input frames. Discard their payload
@@ -189,13 +189,13 @@ does not silently rebind a convention it claims to support.
 | `Backspace`                    | Delete one grapheme before the cursor                           |
 | `Delete`                       | Delete one grapheme after the cursor                            |
 | `← →`                          | Move one grapheme                                               |
-| `Home` `End` `Ctrl+A` `Ctrl+E` | Move to the start or end                                        |
-| `Ctrl+W`                       | Kill the word before the cursor                                 |
-| `Alt+D`                        | Kill the word after the cursor                                  |
-| `Ctrl+U`                       | Kill to the start; with the cursor at the end, clears the draft |
-| `Ctrl+K`                       | Kill to the end                                                 |
-| `Ctrl+Y`                       | Insert the most recent kill at the cursor                       |
-| `Alt+B` `Alt+F`                | Move to the previous word start or the next word end            |
+| `Home` `End` `Ctrl+a` `Ctrl+e` | Move to the start or end                                        |
+| `Ctrl+w`                       | Kill the word before the cursor                                 |
+| `Alt+d`                        | Kill the word after the cursor                                  |
+| `Ctrl+u`                       | Kill to the start; with the cursor at the end, clears the draft |
+| `Ctrl+k`                       | Kill to the end                                                 |
+| `Ctrl+y`                       | Insert the most recent kill at the cursor                       |
+| `Alt+b` `Alt+f`                | Move to the previous word start or the next word end            |
 | Paste                          | Insert atomically at the cursor                                 |
 
 - Word keys use one Unicode word rule per editor, and every resulting cursor stays on a grapheme
