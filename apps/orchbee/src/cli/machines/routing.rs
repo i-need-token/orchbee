@@ -478,6 +478,7 @@ fn admit_packet(bytes: &[u8]) -> Option<Admission> {
 /// One request packet answered as the `machine-link` `route` channel carries it: the reply
 /// packet's JSON without the line end of `--machine-relay-v1`, at most 24 MiB. `cancelled` is
 /// polled while the command runs and ends it through its process tree when it turns true.
+#[cfg(windows)]
 pub(crate) fn answer_packet(bytes: &[u8], mut cancelled: impl FnMut() -> bool) -> Vec<u8> {
     let reply = serve_packet(bytes, || Ok(cancelled()));
     let mut packet = encoded(reply).stdout;
