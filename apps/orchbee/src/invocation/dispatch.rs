@@ -1210,6 +1210,14 @@ pub(super) fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["install"] => {
+            reject_filters(options, UsageContext::Path("install"), envelope)?;
+            Ok(Request::Install {
+                no_path: options.no_path,
+                allow_downgrade: options.allow_downgrade,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["channel", "set", channel @ ("stable" | "preview")] => {
             reject_filters(options, UsageContext::Path("channel set"), envelope)?;
             Ok(Request::Update {
@@ -1859,6 +1867,11 @@ pub(super) fn resolve_words(
         ["api", verb, ..] => Err(unknown_command(UsageContext::Path("api"), verb, envelope)),
         ["update", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("update"),
+            extra,
+            envelope,
+        )),
+        ["install", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("install"),
             extra,
             envelope,
         )),

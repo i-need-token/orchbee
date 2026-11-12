@@ -1,9 +1,11 @@
-//! Offline installed release provenance, bound to an independently admitted native cohort.
+//! Offline installed release provenance, bound by the store pointer to an independently admitted
+//! native cohort.
 use super::{
     manifest::{Release, own_platform},
+    pointer::{Entry, Pointer},
     signature::{MANIFEST_LIMIT, TrustedManifest},
 };
-use crate::release_store::open_release_file;
+use crate::release_store::{open_release_file, read_pointer, version_directory_parts};
 use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
 use sha2::{Digest, Sha256};
 use std::{
@@ -44,13 +46,23 @@ pub(in crate::cli) fn observe(
     {
         return Err(());
     }
-    // The directory name, checked below, binds these bytes to the verified installation.
+    // The store pointer, checked below, binds these bytes to the verified installation.
     let Some(release) = Release::parse(TrustedManifest::installed(&bytes), &own_platform()) else {
         return Err(());
     };
-    if root.file_name().and_then(|s| s.to_str()) != Some(release.identity.as_str())
-        || release.version != version
-    {
+    let Some((store, directory)) = version_directory_parts(root) else {
+        return Err(());
+    };
+    let entry = Entry {
+        product: release.version.clone(),
+        manifest: release.identity.clone(),
+    };
+    let bound = read_pointer(store)
+        .ok()
+        .flatten()
+        .and_then(|bytes| Pointer::parse(&bytes))
+        .is_some_and(|pointer| pointer.names(&entry));
+    if !bound || directory != release.version || release.version != version {
         return Err(());
     }
     for artifact in [

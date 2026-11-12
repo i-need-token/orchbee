@@ -1,0 +1,114 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.install",
+	"title": "Windows native release install result",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.install"
+		},
+		"version": {
+			"const": 1
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"phase",
+				"channel",
+				"releaseVersion",
+				"buildId",
+				"releasePath",
+				"reused",
+				"activated",
+				"activeBefore",
+				"pathStep",
+				"cleanupPending",
+				"error",
+				"interrupted"
+			],
+			"properties": {
+				"phase": {
+					"enum": ["source", "manifest", "copy", "verify", "publish", "activate", "complete"]
+				},
+				"channel": {
+					"enum": ["stable", "preview", null]
+				},
+				"releaseVersion": {
+					"type": ["string", "null"]
+				},
+				"buildId": {
+					"type": ["string", "null"]
+				},
+				"releasePath": {
+					"type": ["string", "null"]
+				},
+				"reused": {
+					"type": "boolean"
+				},
+				"activated": {
+					"type": "boolean"
+				},
+				"activeBefore": {
+					"type": ["string", "null"]
+				},
+				"pathStep": {
+					"enum": ["not-requested", "unavailable"]
+				},
+				"cleanupPending": {
+					"type": ["string", "null"]
+				},
+				"error": {
+					"enum": [
+						null,
+						"development-build",
+						"not-release-directory",
+						"signing-keys-unavailable",
+						"signature-untrusted",
+						"signature-invalid",
+						"manifest-invalid",
+						"download",
+						"checksum",
+						"storage",
+						"install-location",
+						"busy",
+						"cohort-invalid",
+						"version-conflict",
+						"downgrade-refused",
+						"other-architecture",
+						"smoke-failed",
+						"activation",
+						"activation-unknown",
+						"cancelled",
+						"timeout",
+						"physical-unknown",
+						"internal"
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				}
+			},
+			"if": {
+				"properties": {
+					"activated": {
+						"const": true
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"releasePath": {
+						"type": "string",
+						"minLength": 1
+					},
+					"phase": {
+						"const": "complete"
+					}
+				}
+			}
+		}
+	}
+}

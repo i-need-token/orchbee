@@ -957,6 +957,18 @@ pub(crate) enum Request {
         channel: Option<orchbee_local_runtime::UpdateChannel>,
         format: OutputFormat,
     },
+    /// `install`: publishes and activates the signed release directory this Client sits in.
+    Install {
+        no_path: bool,
+        allow_downgrade: bool,
+        format: OutputFormat,
+    },
+    /// The completion helper a published copy runs to make itself the active version; hidden from
+    /// help, completion and the Agent guide.
+    CompleteInstall {
+        no_path: bool,
+        allow_downgrade: bool,
+    },
     ConfigResetKeys {
         format: OutputFormat,
     },
@@ -1032,6 +1044,8 @@ struct Options {
     plugin_width: Option<String>,
     plugin_height: Option<String>,
     plugin_yes: bool,
+    no_path: bool,
+    allow_downgrade: bool,
     plugin_ref: Option<String>,
     notification_body: Option<String>,
     notification_position: Option<String>,

@@ -77,8 +77,8 @@ pub(super) const ALL_TABLES: [&[TrustedKey]; 2] = [RELEASE_KEYS, TEST_KEYS];
 pub(super) struct TrustedManifest<'a>(&'a [u8]);
 
 impl<'a> TrustedManifest<'a> {
-    /// Bytes of an installed release directory, which only a verified installation publishes and
-    /// whose name is the digest of these bytes. The caller checks that binding.
+    /// Bytes of an installed version directory, which only a verified installation publishes and
+    /// whose digest the store pointer records. The caller checks that binding.
     pub(super) fn installed(bytes: &'a [u8]) -> Self {
         Self(bytes)
     }

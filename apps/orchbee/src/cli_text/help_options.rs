@@ -258,6 +258,11 @@ impl super::CliText {
                     "Agent associated with this terminal.",
                     "此终端关联的智能体。",
                 ),
+                "--allow-downgrade" => (
+                    "",
+                    "Install even when a newer version is active.",
+                    "即使当前启用的是更新的版本也安装。",
+                ),
                 "--amount" => (
                     "<step>",
                     "Split ratio step; default: 0.05, absolute value capped at 0.5.",
@@ -540,6 +545,7 @@ impl super::CliText {
                     "Keep the client's current selection.",
                     "保持客户端当前选中项。",
                 ),
+                "--no-path" => ("", "Leave PATH unchanged.", "不修改 PATH。"),
                 "--off" => ("", "Turn panel maximization off.", "关闭面板最大化。"),
                 "--offset-from-bottom" => (
                     "<n>",

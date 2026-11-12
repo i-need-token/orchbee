@@ -286,6 +286,38 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--no-path",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::Install],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.no_path = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
+        spelling: "--allow-downgrade",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::Install],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.allow_downgrade = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--entrypoint",
         values: &[],
         closed_values: false,

@@ -113,6 +113,7 @@ impl super::CliText {
             CommandPath::ChannelShow => &[],
             CommandPath::ChannelSet => &[Argument::Channel],
             CommandPath::Update => &[],
+            CommandPath::Install => &[],
             CommandPath::ProjectList => &[],
             CommandPath::ProjectGet => &[Argument::Project],
             CommandPath::ProjectDissolve => &[Argument::Project],

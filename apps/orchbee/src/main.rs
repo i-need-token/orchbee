@@ -79,8 +79,8 @@ use presentation::present;
 const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
 /// Whether a request reads or writes the data root, so its layout must be admitted first. Help,
-/// the version, the skill text, completion, schemas and the default settings template read no
-/// file in it.
+/// the version, the skill text, completion, schemas, the default settings template and the release
+/// store's install and completion read no file in it.
 fn opens_data_root(request: &invocation::Request) -> bool {
     !matches!(
         request,
@@ -92,6 +92,8 @@ fn opens_data_root(request: &invocation::Request) -> bool {
             | invocation::Request::DefaultConfig
             | invocation::Request::Completion(_)
             | invocation::Request::SchemaExport { .. }
+            | invocation::Request::Install { .. }
+            | invocation::Request::CompleteInstall { .. }
     )
 }
 
@@ -260,6 +262,15 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Update { channel, format }) => {
                 cli::update::run(channel, 600_000, format, locale)
             }
+            Ok(invocation::Request::Install {
+                no_path,
+                allow_downgrade,
+                format,
+            }) => cli::update::install(no_path, allow_downgrade, format, locale),
+            Ok(invocation::Request::CompleteInstall {
+                no_path,
+                allow_downgrade,
+            }) => cli::update::complete_install(no_path, allow_downgrade, locale),
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }

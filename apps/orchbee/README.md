@@ -61,7 +61,7 @@ Windows `channel show [--format text|json]` reads the strict stable/preview pref
 
 Windows `machine list|add|rename|remove|enable|disable` manages saved remote machines, named by ID or exact label, with remote Windows readiness checks before add; `machine connect|disconnect`, `add --no-install` and `remove --stop-session` are parsed and refused as not yet available. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, and live TUI switching.
 
-Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
+Windows `install` publishes the signed release directory the running Client sits in into the store's `versions\<version>` and makes it the active version through `active.json`; this build has no PATH step, so it always behaves as if `--no-path` were given. `update` and `channel set` share the same verification, immutable publication and activation with explicit release sources. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation). A release build withholds `update` and the whole `channel` family; see [release-withheld surfaces](#release-withheld-surfaces).
 
 The [TUI platform boundary](docs/tui-platforms.md) defines the shared Client implementation,
 optional OS adapters, localized unsupported outcomes and native-platform evidence. State, input,

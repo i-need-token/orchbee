@@ -101,7 +101,7 @@ the [feed](#release-feed).
 
 | Command                                                                           | Effect                                                                                                                                                                                                                                                                                                                                                     | Basis                                                                                                                                    |
 | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `orchbee install [--no-path] [--allow-downgrade] [--format text\|json]`           | Installs the signed release directory the running `orchbee` sits in and makes it the active version. Run from a version directory of the store, it verifies and activates that version again. `--no-path` skips the [PATH step](#runtime-store). It asks nothing, so it takes no `--yes`                                                                   | Chosen                                                                                                                                   |
+| `orchbee install [--no-path] [--allow-downgrade] [--format text\|json]`           | Installs the signed release directory the running `orchbee` sits in and makes it the active version. Run from a version directory of the store, it verifies and activates that version again. `--no-path` skips the [PATH step](#runtime-store). It asks nothing, so it takes no `--yes`                                                                   | Chosen. Built on Windows without the PATH step: it behaves as if `--no-path` were given and says so                                      |
 | `orchbee uninstall [--delete-data] [--format text\|json]`                         | The one [uninstall](data-root-layout.md#uninstall): program files, PATH entry or link, installer entries, Agent integrations; data stays unless `--delete-data`. A release build lists what goes, with open terminals and Agents, and runs only when the person types `orchbee` at an interactive console; development and test builds require `--confirm` | `uninstall` Decided; options Chosen under the [destructive rule](../../docs/cli/command-surface.md#destructive-and-interactive-commands) |
 | `orchbee update [--format text\|json]`                                            | Installs the newest version of the selected channel from the feed                                                                                                                                                                                                                                                                                          | Built; withheld in release builds until it is released                                                                                   |
 | `curl -fsSL https://orchbee.com/install.sh \| sh`                                 | macOS and Linux: reads `SHA256SUMS` of the `stable` alias, downloads and checks the platform's `orchbee-*` archive, runs its `orchbee install`, and removes the unpacked copy. After `sh -s --`: `--version <version>`, `--no-path`, and on Linux `--desktop`, which also installs the window application                                                  | Chosen                                                                                                                                   |
@@ -143,9 +143,15 @@ new name, as with [`--machine-tunnel-v1`](../../apps/orchbee/docs/machines.md).
   version differs from the one it pins. Unverified: Inno Setup appears to ship no Simplified Chinese
   translation, so the installer carries a reviewed copy of that file.
 - The installer writes only `desktop\`, the shortcut, and the registration, then runs the bundled
-  `orchbee install`; a higher active version stays active. Unverified: whether the store's
-  private-directory admission accepts a `desktop\` folder the installer created beside it; the
-  install slice settles the creation order.
+  `orchbee install`; a higher active version stays active. Settled by the install slice: the store
+  opens only its own names and never reads `desktop\`. Whichever writer comes first creates the
+  root: a root `orchbee install` creates carries a protected private access rule that `desktop\`
+  then inherits, and an existing root, such as the one the installer creates for `desktop\`, is
+  admitted only when its inherited access rule is already private, and is never repaired. So this
+  order works when `%LOCALAPPDATA%\Programs` carries only the person, SYSTEM, and Administrators, as
+  in a standard profile; another allow entry there makes the install refuse with `storage` in
+  either order. Verified 2026-11-12 with a scratch root whose `desktop\` existed first. Unverified:
+  no installer has run.
 - On macOS and Linux the window application runs the bundled `orchbee install` when it starts and
   the store holds no active version or a lower one.
 - The store holds one architecture; an install that finds another refuses without writing.
@@ -196,8 +202,10 @@ new name, as with [`--machine-tunnel-v1`](../../apps/orchbee/docs/machines.md).
   directories. A version directory is deleted only under `install.lock`, by the active version or a
   newer one, when it is neither `active` nor `previous`, no process runs from it, and no Session,
   Host, or Capsule references it. Uninstall removes the whole root.
-- This replaces today's directories named by manifest SHA-256 and the `Path` entry that names one.
-  The pointer cannot be that entry, because the npm and remote routes add none.
+- This replaces the directories named by manifest SHA-256 and the `Path` entry that named one.
+  The pointer cannot be that entry, because the npm and remote routes add none. Built on Windows:
+  `versions\<version>`, `active.json`, `install.lock`, the completion helper, and the pointer
+  readers; the PATH step is not built, so `install` behaves as if `--no-path` were given.
 
 ## Release feed
 

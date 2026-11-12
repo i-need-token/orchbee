@@ -1,15 +1,45 @@
-//! Windows installation diagnostics, separate from language-neutral receipt reasons.
+//! Windows install and update diagnostics, separate from language-neutral receipt reasons.
 use super::Locale;
 impl super::CliText {
     pub(crate) fn cli_update_message(self, code: &str) -> &'static str {
         let pair = match code {
             "complete" => (
-                "Update installed. Open a new terminal or sign in again to use it. Existing sessions keep their current version.",
-                "更新已安装。请新开终端或重新登录后使用；现有会话继续运行原版本。",
+                "Update installed and active. Existing sessions keep their current version.",
+                "更新已安装并启用；现有会话继续运行原版本。",
             ),
             "channel-saved" => (
                 "Channel preference saved. It remains saved if the update fails.",
                 "频道偏好已保存；更新失败时也会保留该偏好。",
+            ),
+            "install-complete" => ("Installed and active: ", "已安装并启用："),
+            "install-reused" => ("Already installed, now active: ", "已安装，现为当前版本："),
+            "path-unavailable" => (
+                "PATH not changed: this build has no PATH step, so it ran as if --no-path were given.",
+                "未修改 PATH：此构建尚无 PATH 步骤，按 --no-path 处理。",
+            ),
+            "path-not-requested" => (
+                "PATH not changed (--no-path).",
+                "未修改 PATH（--no-path）。",
+            ),
+            "development-build" => (
+                "This is a development build, so it does not install. Nothing was changed. Use a release or test package.",
+                "当前是开发构建，不能安装，未做任何改动。请使用正式版或测试包。",
+            ),
+            "not-release-directory" => (
+                "This Orchbee is not running from a signed release directory (release.json and release.json.sig beside it), so it cannot install itself. Nothing was changed.",
+                "当前 Orchbee 不是从已签名的发布目录（旁边有 release.json 和 release.json.sig）运行的，无法安装自身，未做任何改动。",
+            ),
+            "version-conflict" => (
+                "The installation already holds this version with different contents. Nothing was overwritten.",
+                "安装目录中已有同一版本但内容不同，未覆盖任何内容。",
+            ),
+            "downgrade-refused" => (
+                "A newer version is active, so this older release was not activated. Pass --allow-downgrade to orchbee install to allow it.",
+                "当前启用的是更新的版本，因此未启用这个旧版本。如需安装旧版本，请给 orchbee install 加 --allow-downgrade。",
+            ),
+            "other-architecture" => (
+                "The installation holds Orchbee for another processor architecture. Nothing was changed.",
+                "安装目录中是另一种处理器架构的 Orchbee，未做任何改动。",
             ),
             "non-release-build" => (
                 "This is a development or test build, so it does not update the release installation. Nothing was changed.",
@@ -28,8 +58,8 @@ impl super::CliText {
                 "发布源无效。ORCHBEE_UPDATE_MANIFEST 必须是不带查询参数的 HTTPS URL，或本地清单的绝对路径。",
             ),
             "signing-keys-unavailable" => (
-                "This build trusts no release signing key, so it refuses every update. Nothing was changed. Install a newer Orchbee manually.",
-                "当前构建没有可信的发布签名密钥，会拒绝所有更新，未做任何改动。请手动安装更新版本的 Orchbee。",
+                "This build trusts no release signing key, so it refuses every install and update. Nothing was changed. Install a newer Orchbee manually.",
+                "当前构建没有可信的发布签名密钥，会拒绝所有安装和更新，未做任何改动。请手动安装更新版本的 Orchbee。",
             ),
             "signature-untrusted" => (
                 "The release manifest is not signed by a key this Orchbee trusts. Nothing was installed. If the signing key changed, install a newer Orchbee manually.",
@@ -68,39 +98,39 @@ impl super::CliText {
                 "ORCHBEE_INSTALL_DIR 或 LOCALAPPDATA 安装位置无效。",
             ),
             "busy" => (
-                "Another update owns this installation. Retry after it finishes.",
-                "另一个更新正在使用此安装目录，请稍后重试。",
+                "Another install or update owns this installation. Retry after it finishes.",
+                "另一个安装或更新正在使用此安装目录，请稍后重试。",
             ),
             "cohort-invalid" => (
-                "The downloaded installation is incompatible or damaged.",
-                "下载的安装文件不兼容或已损坏。",
+                "The release files are incompatible or damaged.",
+                "发布文件不兼容或已损坏。",
             ),
             "smoke-failed" => (
                 "The verified release failed its version startup check.",
                 "已校验版本未通过版本启动检查。",
             ),
             "activation" => (
-                "Release published, but user PATH activation failed. Retry orchbee update.",
-                "版本已发布，但用户 PATH 激活失败。请重试 orchbee update。",
+                "Release published, but it could not be made active. The active version is unchanged. Retry the command.",
+                "版本已发布，但未能启用，当前版本未改变。请重试该命令。",
             ),
             "activation-unknown" => (
-                "Release published; user PATH activation was not confirmed. Retry orchbee update to reconcile it.",
-                "版本已发布，但用户 PATH 激活结果未确认。请重试 orchbee update 以核对并完成。",
+                "Release published; whether it became active was not confirmed. Retry the command to reconcile it.",
+                "版本已发布，但是否已启用未确认。请重试该命令以核对并完成。",
             ),
             "cancelled" => (
-                "Update cancelled. Any published release remains at the reported path.",
-                "更新已取消；已发布版本保留在回执中的路径。",
+                "Cancelled. Any published release remains at the reported path.",
+                "已取消；已发布版本保留在回执中的路径。",
             ),
-            "timeout" => ("Update timed out.", "更新超时。"),
+            "timeout" => ("Timed out.", "已超时。"),
             "physical-unknown" => (
-                "Update child-process settlement is unconfirmed.",
-                "更新子进程的结束状态未确认。",
+                "Child-process settlement is unconfirmed.",
+                "子进程的结束状态未确认。",
             ),
             "cleanup-pending" => (
                 "Staging cleanup requires recovery: ",
                 "暂存目录需恢复清理：",
             ),
-            _ => ("Update could not finish.", "更新未能完成。"),
+            _ => ("Could not finish.", "未能完成。"),
         };
         match self.locale {
             Locale::EnUs => pair.0,

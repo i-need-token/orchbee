@@ -14,11 +14,19 @@ pub(super) fn manifest_source() -> Option<String> {
     std::env::var("ORCHBEE_UPDATE_MANIFEST").ok()
 }
 
+/// `ORCHBEE_INSTALL_DIR`, or `%LOCALAPPDATA%\Programs\Orchbee` for release and
+/// `%LOCALAPPDATA%\Programs\<stem>` for a development or test build, so only release names the
+/// release store.
 pub(super) fn install_root() -> io::Result<PathBuf> {
     let path = match std::env::var_os("ORCHBEE_INSTALL_DIR") {
         Some(value) => PathBuf::from(value),
         None => PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or(io::ErrorKind::NotFound)?)
-            .join("Programs/Orchbee"),
+            .join("Programs")
+            .join(if orchbee_local_runtime::is_release() {
+                "Orchbee"
+            } else {
+                orchbee_local_runtime::environment_stem()
+            }),
     };
     if !path.is_absolute()
         || path
@@ -50,13 +58,6 @@ pub(super) fn curl_command() -> io::Result<Command> {
             .ok_or(io::ErrorKind::NotFound)?,
     );
     Ok(command)
-}
-
-pub(super) fn powershell_command() -> io::Result<Command> {
-    let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
-    Ok(Command::new(
-        PathBuf::from(system).join("WindowsPowerShell/v1.0/powershell.exe"),
-    ))
 }
 
 pub(super) fn execute(command: Command, context: &mut Context) -> io::Result<CommandOutput> {

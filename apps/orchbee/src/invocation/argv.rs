@@ -30,7 +30,39 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
+    if let Some(request) = complete_install(&tokens) {
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Windows,
+            format: None,
+            request,
+            session: None,
+        });
+    }
     machine_routing::parse(tokens)
+}
+
+/// The completion helper `--complete-install-v1 [--no-path] [--allow-downgrade]`, each flag at
+/// most once and in any order. This helper grammar is permanent; a change adds a new helper name.
+fn complete_install(tokens: &[String]) -> Option<super::Request> {
+    let (first, flags) = tokens.split_first()?;
+    if first != "--complete-install-v1" {
+        return None;
+    }
+    let (mut no_path, mut allow_downgrade) = (false, false);
+    for flag in flags {
+        let seen = match flag.as_str() {
+            "--no-path" => &mut no_path,
+            "--allow-downgrade" => &mut allow_downgrade,
+            _ => return None,
+        };
+        if std::mem::replace(seen, true) {
+            return None;
+        }
+    }
+    Some(super::Request::CompleteInstall {
+        no_path,
+        allow_downgrade,
+    })
 }
 
 #[cfg(test)]

@@ -1,5 +1,13 @@
-//! Private immutable releases. The caller owns release contents, validation,
-//! activation and retention; this owner serializes publishers and cleans only its own stage.
+//! Private immutable releases under one store root: `versions/<version>/`, the pointer
+//! `active.json` and the writer lock `install.lock`. The caller owns release contents, validation,
+//! the pointer's meaning and retention; this owner serializes writers, publishes whole version
+//! directories, replaces the pointer atomically and cleans only its own stage. It opens no other
+//! name in the root, so a folder another installer keeps there, such as `desktop`, is never read.
+//!
+//! Creation order: whichever writer comes first creates the root. A missing root is created with a
+//! protected private access rule, so a `desktop` folder written afterwards inherits it; an existing
+//! root, such as one an installer created for `desktop`, is admitted only when its access rule is
+//! already private and is never repaired, so a foreign rule refuses before anything is written.
 use super::platform;
 use orchbee_local_runtime::{PrivateCache, private_filesystem as permissions};
 use std::{
@@ -9,30 +17,40 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Exclusive publisher for one managed installation, with pinned private ancestors.
+/// The folder that keeps version names apart from the fixed names beside it.
+const VERSIONS: &str = "versions";
+/// The pointer that alone names the active version.
+const POINTER: &str = "active.json";
+/// The most pointer bytes any reader accepts.
+const POINTER_LIMIT: usize = 16 * 1024;
+
+/// Exclusive writer for one store root, holding `install.lock` with pinned private ancestors.
 pub(crate) struct ReleaseStore {
     root: PathBuf,
-    _lock: PrivateCache,
+    pub(super) lock: PrivateCache,
 }
 impl ReleaseStore {
-    /// Creates missing private directories and refuses unsafe existing installations.
+    /// Creates a missing root and `versions/` as private directories and refuses unsafe existing
+    /// ones; a crashed writer's `active.pending` is removed before the lock is returned.
     pub(crate) fn acquire(root: &Path) -> io::Result<Self> {
-        let lock = PrivateCache::acquire(root, "install")?;
+        let lock = PrivateCache::acquire_with_lock(root, "install", "active")?;
+        PrivateCache::prepare(&root.join(VERSIONS))?;
         Ok(Self {
             root: root.to_owned(),
-            _lock: lock,
+            lock,
         })
     }
-    /// The immutable destination for a validated lowercase SHA-256 manifest identity.
-    pub(crate) fn release_path(&self, identity: &str) -> io::Result<PathBuf> {
-        if identity.len() != 64
-            || !identity
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        Ok(self.root.join(identity))
+    /// The immutable directory of one version under this root.
+    pub(crate) fn version_path(&self, version: &str) -> io::Result<PathBuf> {
+        version_path(&self.root, version)
+    }
+    /// The pointer's bytes under the lock; absent when no pointer was written.
+    pub(crate) fn pointer(&self) -> io::Result<Option<Vec<u8>>> {
+        self.lock.read(POINTER, POINTER_LIMIT)
+    }
+    /// Replaces the pointer by a flushed rename of `active.pending`; no partial pointer is visible.
+    pub(crate) fn replace_pointer(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.lock.replace(POINTER, bytes)
     }
     /// Creates a unique stage. Its lifetime cannot outlive the publisher lock.
     pub(crate) fn stage(&self) -> io::Result<ReleaseStage<'_>> {
@@ -90,9 +108,10 @@ impl ReleaseStage<'_> {
         let file = permissions::open_file(&path, true, true)?;
         Ok((path, file))
     }
-    /// Publishes without replacing an existing directory. Failure leaves this stage owned.
-    pub(crate) fn publish(&mut self, identity: &str) -> io::Result<PathBuf> {
-        let target = self.store.release_path(identity)?;
+    /// Publishes as `versions/<version>` without replacing an existing directory. Failure leaves
+    /// this stage owned.
+    pub(crate) fn publish(&mut self, version: &str) -> io::Result<PathBuf> {
+        let target = self.store.version_path(version)?;
         self.pins.clear();
         platform::publish(&self.path, &target)?;
         self.owned = false;
@@ -127,6 +146,35 @@ impl Drop for ReleaseStage<'_> {
         // covers unwinding only and must not panic or delete an unowned release.
         let _cleanup = self.cleanup();
     }
+}
+
+/// The directory of `version` under a store root. A version name is one portable path part that
+/// starts with a digit, as every SemVer version does.
+pub(crate) fn version_path(root: &Path, version: &str) -> io::Result<PathBuf> {
+    if version.len() > 64
+        || !version.starts_with(|c: char| c.is_ascii_digit())
+        || version.contains('/')
+        || !valid_release_path(version)
+    {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    Ok(root.join(VERSIONS).join(version))
+}
+
+/// The store root and version name of a version directory, `<root>/versions/<version>`.
+pub(crate) fn version_directory_parts(directory: &Path) -> Option<(&Path, &str)> {
+    let version = directory.file_name()?.to_str()?;
+    let versions = directory.parent()?;
+    let root = versions.parent()?;
+    (versions.file_name()? == VERSIONS && version_path(root, version).is_ok())
+        .then_some((root, version))
+}
+
+/// Reads the pointer of an existing store without creating anything or taking the lock; absent
+/// when the root or the pointer is missing. A replacement is a whole-file rename, so a reader sees
+/// the old pointer or the new one.
+pub(crate) fn read_pointer(root: &Path) -> io::Result<Option<Vec<u8>>> {
+    PrivateCache::read_existing(root, POINTER, POINTER_LIMIT)
 }
 
 /// Portable release leaf grammar; rejects aliases, device names, traversal and NTFS streams.

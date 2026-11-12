@@ -239,6 +239,11 @@ fn name(text: &str, limit: usize, underscore: bool) -> Option<()> {
     .then_some(())
 }
 
+/// Whether `text` is a version a manifest admits, so it may name a store version directory.
+pub(super) fn valid_version(text: &str) -> bool {
+    semantic_version(&Value::String(text.to_owned())).is_some()
+}
+
 /// A SemVer 2.0.0 version of at most 64 bytes, without build metadata.
 fn semantic_version(value: &Value) -> Option<String> {
     let text = value.as_str()?;
@@ -283,7 +288,7 @@ fn label(value: &Value) -> Option<String> {
     .then(|| text.to_owned())
 }
 
-fn lowercase_sha256(text: &str) -> bool {
+pub(super) fn lowercase_sha256(text: &str) -> bool {
     text.len() == 64
         && text
             .bytes()

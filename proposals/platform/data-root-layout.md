@@ -183,8 +183,9 @@ ships, and the person removes it.
 ## Outside the data root
 
 - Program files stay in each system's install location, `%LOCALAPPDATA%\Programs\Orchbee` on
-  Windows. Their version directories, named by manifest SHA-256 today, take product-version names
-  when the [shared runtime store](versioning-and-upgrade.md#shared-runtime-store) is built.
+  Windows, where version directories take product-version names under `versions\` and
+  `active.json` names the active one, as the
+  [shared runtime store](versioning-and-upgrade.md#shared-runtime-store) requires.
 - Agent configurations keep Orchbee's entries where each Agent reads them. The
   [integration writer](../../crates/agent-integration-writer/README.md) is the only owner of those
   entries — plugin registrations through an Agent's own CLI, guarded plugin and extension files, and

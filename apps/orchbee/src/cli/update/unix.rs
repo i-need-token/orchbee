@@ -24,10 +24,6 @@ pub(super) fn curl_command() -> io::Result<Command> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(super) fn powershell_command() -> io::Result<Command> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
 pub(super) fn execute(_command: Command, _context: &mut Context) -> io::Result<CommandOutput> {
     Err(io::ErrorKind::Unsupported.into())
 }

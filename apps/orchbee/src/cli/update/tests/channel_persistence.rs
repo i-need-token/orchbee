@@ -2,7 +2,7 @@
 //! survives the edit, an unreadable file is never rewritten, and no installation or Session runtime
 //! appears.
 use super::super::{Error, Report, document, engine, signature::TEST_TABLE};
-use super::install_fixture::{Fixture, context, print_probe, reading_activation, report};
+use super::install_fixture::{Fixture, context, in_process_completion, print_probe};
 use orchbee_local_runtime::{DataRoot, UpdateChannel, read_user_settings};
 use serde_json::Value;
 use std::{ffi::OsString, fs, path::Path};
@@ -45,10 +45,10 @@ impl Roots {
             keys: TEST_TABLE,
             install_root: Ok(self.install.clone()),
             probe: print_probe,
-            activation: reading_activation,
+            activation: in_process_completion,
         };
         let mut context = context();
-        let mut report = report();
+        let mut report = Report::new();
         let error: Option<Error> = engine::run(&inputs, &mut context, &mut report).err();
         let rendered = document(channel, &report, error, false);
         let schema: Value =

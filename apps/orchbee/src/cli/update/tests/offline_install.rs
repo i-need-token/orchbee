@@ -1,12 +1,14 @@
 //! The install engine on a local feed signed with the test key: synthetic cohort peers, a probe
-//! that prints the staged Client's bytes, and an activation that only reads the published release.
-//! This proves verification, staging, publication and reuse, not Server, Worker or Host behavior
-//! or user PATH activation.
+//! that prints the staged Client's bytes, and an in-process completion that moves the pointer.
+//! This proves verification, staging, publication, reuse and activation through the pointer, not
+//! Server, Worker or Host behavior, the completion helper's own signature check, or a PATH step.
 use super::super::{
-    Error, Report, engine,
+    Error, Report, complete, engine,
+    install::Completion,
+    pointer::Entry,
     signature::{TEST_TABLE, TrustedKey},
 };
-use super::install_fixture::{Fixture, context, print_probe, reading_activation, report};
+use super::install_fixture::{Fixture, context, in_process_completion, pointer, print_probe};
 use super::{entry, sign, signed_bytes, stranger};
 use orchbee_local_runtime::{Cohort, CohortArtifact};
 use serde_json::{Value, json};
@@ -63,12 +65,13 @@ fn inventory(directory: &Path, base: &Path, files: &mut Vec<Value>) {
     }
 }
 
-/// Stages a complete cohort feed in `source`; the Client is a text file holding its version line.
-fn stage_cohort(source: &Path) {
+/// Stages a complete cohort feed in `source`; the Client is a text file holding the version line
+/// of `version`.
+fn stage_cohort(source: &Path, version: &str) {
     fs::create_dir(source).unwrap();
     fs::write(
         source.join(CohortArtifact::Client.file_name()),
-        b"orchbee 0.1.0\r\n",
+        format!("orchbee {version}\r\n"),
     )
     .unwrap();
     let mut artifacts = serde_json::Map::new();
@@ -151,12 +154,42 @@ fn run(fixture: &Fixture, keys: &[TrustedKey]) -> Run {
         keys,
         install_root: Ok(fixture.0.join("install")),
         probe: print_probe,
-        activation: reading_activation,
+        activation: in_process_completion,
     };
     let mut context = context();
-    let mut report = report();
+    let mut report = Report::new();
     let result = engine::run(&inputs, &mut context, &mut report);
     Run { result, report }
+}
+
+/// One `install` of the signed release directory `source`.
+fn install(root: &Path, source: &Path, allow_downgrade: bool) -> Run {
+    let inputs = engine::InstallInputs {
+        directory: Ok(source.to_path_buf()),
+        keys: TEST_TABLE,
+        install_root: Ok(root.to_path_buf()),
+        probe: print_probe,
+        activation: in_process_completion,
+        completion: Completion {
+            path: false,
+            allow_downgrade,
+        },
+    };
+    let mut context = context();
+    let mut report = Report::new();
+    let result = engine::install(&inputs, &mut context, &mut report);
+    Run { result, report }
+}
+
+fn sha(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn entry_for(version: &str, manifest: &[u8]) -> Entry {
+    Entry {
+        product: version.into(),
+        manifest: sha(manifest),
+    }
 }
 
 fn code(run: &Run) -> &'static str {
@@ -185,7 +218,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     let fixture = Fixture::new();
     let source = fixture.0.join("source");
     let root = fixture.0.join("install");
-    stage_cohort(&source);
+    stage_cohort(&source, "0.1.0");
     let bytes = manifest(&source, |_| {});
 
     // Refusals before parsing: no trusted key, an unsigned feed, or an unknown signer install
@@ -215,13 +248,11 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     let first = run(&fixture, TEST_TABLE);
     assert_eq!(code(&first), "complete");
     let published = first.report.published.clone().unwrap();
-    assert_eq!(
-        published,
-        root.join(format!("{:x}", Sha256::digest(&bytes)))
-    );
+    assert_eq!(published, root.join("versions").join("0.1.0"));
     assert!(first.report.activated && !first.report.reused);
     assert!(first.report.cleanup_pending.is_none());
     assert_eq!(fs::read(published.join("release.json")).unwrap(), bytes);
+    assert_eq!(pointer(&root).unwrap().active, entry_for("0.1.0", &bytes));
     let second = run(&fixture, TEST_TABLE);
     assert_eq!(code(&second), "complete");
     assert_eq!(second.report.published.as_ref(), Some(&published));
@@ -266,8 +297,10 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     let executable = fs::read(&client).unwrap();
     for (change, expected) in [
         (
-            Box::new(|value: &mut Value| value["files"][0]["sha256"] = json!("0".repeat(64)))
-                as Box<dyn FnOnce(&mut Value)>,
+            Box::new(|value: &mut Value| {
+                value["version"] = json!("0.1.1");
+                value["files"][0]["sha256"] = json!("0".repeat(64));
+            }) as Box<dyn FnOnce(&mut Value)>,
             "checksum",
         ),
         (
@@ -281,14 +314,27 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         assert_eq!(code(&failed), expected);
         assert!(failed.report.published.is_none() && failed.report.cleanup_pending.is_none());
         assert!(!failed.report.activated);
-        assert!(
-            !root
-                .join(format!("{:x}", Sha256::digest(&changed)))
-                .exists()
-        );
+        let version = failed.report.version.clone().unwrap();
+        assert!(!root.join("versions").join(version).exists());
         assert_eq!(fs::read(&client).unwrap(), executable);
         assert_eq!(stages(&root), 0);
+        assert_eq!(pointer(&root).unwrap().active, entry_for("0.1.0", &bytes));
     }
+
+    // An existing version directory is verified before reuse and never overwritten: another
+    // manifest under the same version is a conflict, and a damaged copy fails verification.
+    let other = manifest(&source, |value| value["buildId"] = json!("other"));
+    publish_feed(&source, &other, Some(&sign(&other)));
+    assert_eq!(code(&run(&fixture, TEST_TABLE)), "version-conflict");
+    assert_eq!(fs::read(published.join("release.json")).unwrap(), bytes);
+    publish_feed(&source, &bytes, Some(&sign(&bytes)));
+    let server = published.join(CohortArtifact::Server.file_name());
+    let peer = fs::read(&server).unwrap();
+    fs::write(&server, b"damaged").unwrap();
+    assert_eq!(code(&run(&fixture, TEST_TABLE)), "checksum");
+    assert_eq!(fs::read(&server).unwrap(), b"damaged");
+    assert_eq!(pointer(&root).unwrap().active, entry_for("0.1.0", &bytes));
+    fs::write(&server, peer).unwrap();
     fs::write(published.join("release.json"), b"corrupt metadata").unwrap();
     assert_eq!(
         crate::cli::installation::inspect(&client, Some(&admitted), "0.1.0")
@@ -296,4 +342,88 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
             .delivery(),
         "unknown"
     );
+}
+
+#[test]
+fn install_refuses_a_lower_version_unless_allowed_and_repairs_an_unreadable_pointer() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let releases = [
+        ("0.1.0", fixture.0.join("older")),
+        ("0.2.0", fixture.0.join("newer")),
+    ];
+    let mut manifests = Vec::new();
+    for (version, source) in &releases {
+        stage_cohort(source, version);
+        let bytes = manifest(source, |value| value["version"] = json!(version));
+        publish_feed(source, &bytes, Some(&sign(&bytes)));
+        manifests.push(bytes);
+    }
+    let older = entry_for("0.1.0", &manifests[0]);
+    let newer = entry_for("0.2.0", &manifests[1]);
+
+    let first = install(&root, &releases[1].1, false);
+    assert_eq!(code(&first), "complete");
+    assert!(first.report.activated && first.report.active_before.is_none());
+
+    // A lower version is refused before anything is copied, and the completing Client refuses it
+    // again; the pointer stays where it was.
+    let refused = install(&root, &releases[0].1, false);
+    assert_eq!(code(&refused), "downgrade-refused");
+    assert_eq!(refused.report.active_before.as_deref(), Some("0.2.0"));
+    assert!(refused.report.published.is_none() && !refused.report.activated);
+    assert!(!root.join("versions/0.1.0").exists());
+    let lower = Completion {
+        path: false,
+        allow_downgrade: false,
+    };
+    assert_eq!(
+        complete::activate(&root, &older, lower)
+            .err()
+            .map(Error::code),
+        Some("downgrade-refused")
+    );
+    assert_eq!(pointer(&root).unwrap().active, newer);
+
+    // `--allow-downgrade` lifts the refusal, and the replaced version becomes the rollback target.
+    let allowed = install(&root, &releases[0].1, true);
+    assert_eq!(code(&allowed), "complete");
+    let moved = pointer(&root).unwrap();
+    assert_eq!(
+        (&moved.active, moved.previous.as_ref()),
+        (&older, Some(&newer))
+    );
+
+    // A missing or unreadable pointer names no active version; install repairs it.
+    let client = root
+        .join("versions/0.1.0")
+        .join(CohortArtifact::Client.file_name());
+    let admitted = Cohort::load(
+        &root.join("versions/0.1.0"),
+        Instant::now() + Duration::from_secs(60),
+    )
+    .unwrap();
+    for damage in [Some(b"{\"version\":1".as_slice()), None] {
+        match damage {
+            Some(bytes) => fs::write(root.join("active.json"), bytes).unwrap(),
+            None => fs::remove_file(root.join("active.json")).unwrap(),
+        }
+        assert!(pointer(&root).is_none());
+        assert_eq!(
+            crate::cli::installation::inspect(&client, Some(&admitted), "0.1.0")
+                .expect("Windows installation observation")
+                .delivery(),
+            "unknown"
+        );
+        let repaired = install(&root, &releases[0].1, false);
+        assert_eq!(code(&repaired), "complete");
+        assert!(repaired.report.reused && repaired.report.active_before.is_none());
+        assert_eq!(pointer(&root).unwrap().active, older);
+        assert_eq!(
+            crate::cli::installation::inspect(&client, Some(&admitted), "0.1.0")
+                .expect("Windows installation observation")
+                .delivery(),
+            "native-release"
+        );
+    }
 }

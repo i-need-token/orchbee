@@ -363,6 +363,10 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::Update) => {
                 ("Install the configured release.", "安装所选频道的版本。")
             }
+            HelpTopic::Command(CommandPath::Install) => (
+                "Install this release and make it active.",
+                "安装此版本并设为当前版本。",
+            ),
             HelpTopic::Family(Family::Completion) => (
                 "Generate shell completion scripts.",
                 "生成 Shell 命令补全脚本。",

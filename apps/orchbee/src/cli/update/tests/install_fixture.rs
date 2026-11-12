@@ -1,10 +1,16 @@
 //! Engine fixtures shared by the Windows install and channel tests: a private temporary root, a
-//! console-interrupt context, and probe and activation commands that never touch a user PATH.
-use super::super::{Context, Report};
-use crate::cli::console_interrupt::ArmedSignals;
+//! console-interrupt context, a probe command, and an in-process completion that never touches a
+//! user PATH.
+use super::super::{
+    Context, Error, complete,
+    install::Completion,
+    pointer::{Entry, Pointer},
+};
+use crate::{cli::console_interrupt::ArmedSignals, release_store::read_pointer};
 use orchbee_local_runtime::PrivateCache;
+use sha2::{Digest, Sha256};
 use std::{
-    fs, io,
+    fs,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
@@ -65,22 +71,6 @@ pub(super) fn context() -> Context {
     }
 }
 
-pub(super) fn report() -> Report {
-    Report {
-        phase: "configuration",
-        channel: None,
-        channel_saved: false,
-        config_path: None,
-        published: None,
-        reused: false,
-        activated: false,
-        cleanup_pending: None,
-        version: None,
-        build_id: None,
-        configuration_failure: None,
-    }
-}
-
 /// Prints the staged Client's bytes, which this fixture writes as the Client's version line.
 pub(super) fn print_probe(client: &Path) -> Command {
     let mut command = Command::new("cmd.exe");
@@ -88,7 +78,26 @@ pub(super) fn print_probe(client: &Path) -> Command {
     command
 }
 
-/// Reads the published manifest, so activation fails unless it receives a published release.
-pub(super) fn reading_activation(_root: &Path, release: &Path) -> io::Result<Command> {
-    Ok(print_probe(&release.join("release.json")))
+/// Completes the install of a published version directory in process, as its Client's completion
+/// helper would after verifying its own signature, so it fails unless it receives a published
+/// release.
+pub(super) fn in_process_completion(
+    root: &Path,
+    version: &Path,
+    completion: Completion,
+    _context: &mut Context,
+) -> Result<(), Error> {
+    let bytes = fs::read(version.join("release.json")).map_err(|_| Error::NotReleaseDirectory)?;
+    let entry = Entry {
+        product: version.file_name().unwrap().to_string_lossy().into_owned(),
+        manifest: format!("{:x}", Sha256::digest(&bytes)),
+    };
+    complete::activate(root, &entry, completion)
+}
+
+/// The pointer under `root`, or `None` when it is missing or names no valid record.
+pub(super) fn pointer(root: &Path) -> Option<Pointer> {
+    read_pointer(root)
+        .unwrap()
+        .and_then(|bytes| Pointer::parse(&bytes))
 }

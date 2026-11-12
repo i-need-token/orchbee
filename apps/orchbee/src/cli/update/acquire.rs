@@ -33,6 +33,21 @@ impl Source {
             _ => Ok(source),
         }
     }
+    /// The `release.json` of a local signed release directory, such as the one the running
+    /// Client sits in. A verbatim `\\?\` drive prefix is read as the plain drive path.
+    pub fn release_directory(directory: &Path) -> Result<Self, Error> {
+        let text = directory.to_str().ok_or(Error::NotReleaseDirectory)?;
+        let text = text
+            .strip_prefix(r"\\?\")
+            .filter(|rest| rest.as_bytes().get(1) == Some(&b':'))
+            .unwrap_or(text);
+        LocalPath::parse(&format!(
+            "{}\\release.json",
+            text.trim_end_matches(['/', '\\'])
+        ))
+        .map(Self::Local)
+        .ok_or(Error::NotReleaseDirectory)
+    }
     fn parse(value: &str) -> Result<Self, Error> {
         if manifest::valid_https(value) {
             return Ok(Self::Https(value.into()));
