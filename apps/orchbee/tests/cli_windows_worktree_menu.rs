@@ -2,7 +2,7 @@
 //! under test, a real Git repository with one linked checkout, and a TUI Client running in a
 //! terminal of a second Session, driven by pointer. Opening the linked checkout from Open Worktree
 //! creates the Project that holds the Workspace and the opened one, and a Worktree created from
-//! New Worktree… joins it. The same holds wherever the first terminal stands, by process cwd or by a
+//! the form New Worktree… opens joins it. The same holds wherever the first terminal stands, by process cwd or by a
 //! directory its shell only reports, and for a checkout another Workspace already holds. A checkout
 //! belongs to the Workspace the sidebar shows there, not to the one created there.
 #![cfg(windows)]
@@ -145,7 +145,8 @@ fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add
     known.push(opened);
     fixture.settle_ready(&tui.client);
     open_menu(&fixture, &tui, &mut control, "source");
-    choose(&fixture, &tui, &mut control, "New Worktree…", menu_closed);
+    choose(&fixture, &tui, &mut control, NEW_WORKTREE, form_ready);
+    submit_form(&fixture, &tui, &mut control);
     let created = added(&fixture, &tui, &known);
     assert_eq!(record(&fixture, &created)["projectId"], project);
     assert_eq!(record(&fixture, &source)["projectId"], project);
@@ -814,6 +815,31 @@ fn menu_row(screen: &str, text: &str) -> Option<(usize, usize)> {
 /// Whether the Workspace menu has closed.
 fn menu_closed(screen: &str) -> bool {
     !screen.contains(OPEN_WORKTREE)
+}
+
+/// Whether the New Worktree form shows its Branch and Base fields, which follow source discovery.
+fn form_ready(screen: &str) -> bool {
+    menu_closed(screen)
+        && menu_row(screen, "Branch").is_some()
+        && menu_row(screen, "Base").is_some()
+}
+
+/// Presses Enter on the New Worktree form, with its defaults, until it leaves its fields for the
+/// running operation; one press creates once.
+fn submit_form(fixture: &Fixture, tui: &Tui, control: &mut Control) {
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let screen = fixture.screen(&tui.terminal);
+        if !form_ready(&screen) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the New Worktree form never took Enter:\n{screen}"
+        );
+        control.input(b"\r");
+        thread::sleep(Duration::from_millis(500));
+    }
 }
 
 /// Waits for the one Workspace the Worktree operation adds beside `known`.
