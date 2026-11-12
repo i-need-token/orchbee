@@ -19,7 +19,9 @@ and the PATH step are described in
   arguments.
 - The Client runs in a Job with `KillOnJobClose` and `SilentBreakaway`: ending the launcher ends the
   Client, while the Server, Worker and Terminal Host the Client starts are created outside the Job
-  and keep running.
+  and keep running. The Client is not created suspended: it is assigned right after creation, so
+  the launcher adds about one process start to each `orchbee` invocation (the measurement is in
+  the contract).
 - Ctrl+C and Ctrl+Break reach the Client through the shared console. The launcher consumes them
   with a handler, which the Client does not inherit, waits for the Client, and exits with its
   exit code unchanged, including a status such as `0xC000013A`.

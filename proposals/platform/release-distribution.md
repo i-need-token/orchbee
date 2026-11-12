@@ -196,11 +196,12 @@ new name, as with [`--machine-tunnel-v1`](../../apps/orchbee/docs/machines.md).
 - Windows PATH step: copy the active version's `orchbee-launcher.exe` to `bin\orchbee.exe` when its
   bytes differ, and add `<store root>\bin` to the user `Path` when it is absent. Entries of the user
   `Path` naming another directory inside the store root were written by the earlier layout; the same
-  write removes them, and the result says so. The launcher reads
-  `active.json`, starts `versions\<product>\orchbee.exe` with the unchanged command line, console,
-  standard handles, and environment, ends it when the launcher itself is ended, and returns its
-  exit code; it reads nothing else. Unverified: its start cost per `orchbee` invocation is not
-  measured.
+  write removes them, and the result says so. The launcher reads `active.json`, starts
+  `versions\<product>\orchbee.exe` with the unchanged command line, console, standard handles, and
+  environment, ends it when the launcher itself is ended, and returns its exit code; it reads
+  nothing else. Verified 2026-11-12 on a test build, with other builds loading the machine:
+  `bin\<stem>.exe --version` took a median 34–39 ms against 19–22 ms for the version's own Client
+  (three sets of 40 warm runs each), so the launcher adds about 16–18 ms per `orchbee` invocation.
 - macOS and Linux PATH step: replace `~/.local/bin/orchbee` by rename with a link to the active
   version's `orchbee`. A file there that is not a link into the store is left alone and reported.
   When `~/.local/bin` is not on `PATH`, print the one line to add.
