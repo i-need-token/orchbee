@@ -98,12 +98,8 @@ fn one_link_carries_sessions_a_route_past_a_stalled_stream_and_session_starts() 
     let reply: Value = serde_json::from_slice(&hub.received(route)).unwrap();
     assert_eq!(reply["outcome"], "completed", "{reply}");
     assert_eq!(reply["status"], 0, "{reply}");
-    let listed = String::from_utf8(
-        STANDARD
-            .decode(reply["stdout"].as_str().unwrap())
-            .unwrap(),
-    )
-    .unwrap();
+    let listed =
+        String::from_utf8(STANDARD.decode(reply["stdout"].as_str().unwrap()).unwrap()).unwrap();
     assert!(
         listed.contains("\"alpha\"") && listed.contains("\"beta\""),
         "{listed}"
@@ -251,7 +247,11 @@ fn console_refuses(fixture: &Fixture) {
         };
         assert_eq!(status, "5", "a console on {case} refuses the start");
     }
-    assert_eq!(fs::read(&output).unwrap(), b"", "nothing reaches standard output");
+    assert_eq!(
+        fs::read(&output).unwrap(),
+        b"",
+        "nothing reaches standard output"
+    );
 }
 
 /// The terminal bound to a creation result's Panel.
@@ -563,7 +563,12 @@ fn take_frame(shared: &Shared, frame: &orchbee_machine_protocol::Frame) {
     if let Some((channel, sink, bytes)) = forward
         && (&sink).write_all(&bytes).is_ok()
     {
-        let _taken = shared.0.lock().unwrap().connection.take(channel, bytes.len());
+        let _taken = shared
+            .0
+            .lock()
+            .unwrap()
+            .connection
+            .take(channel, bytes.len());
         shared.1.notify_all();
     }
 }
@@ -772,7 +777,10 @@ impl Attachment {
         let task = thread::spawn(move || {
             let mut lines = BufReader::new(stdout);
             let mut line = Vec::new();
-            while lines.read_until(b'\n', &mut line).is_ok_and(|read| read > 0) {
+            while lines
+                .read_until(b'\n', &mut line)
+                .is_ok_and(|read| read > 0)
+            {
                 if let Ok(record) = serde_json::from_slice::<Value>(&line) {
                     let bytes = match record["kind"].as_str() {
                         Some("opened") => b"\0opened\0".to_vec(),

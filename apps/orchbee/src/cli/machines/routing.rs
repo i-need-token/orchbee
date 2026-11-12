@@ -482,8 +482,8 @@ pub(crate) fn answer_packet(bytes: &[u8], mut cancelled: impl FnMut() -> bool) -
     let reply = serve_packet(bytes, || Ok(cancelled()));
     let mut packet = encoded(reply).stdout;
     if packet.pop() != Some(b'\n') {
-        packet = serde_json::to_vec(&Reply::failure(Outcome::Unknown))
-            .expect("a failure reply encodes");
+        packet =
+            serde_json::to_vec(&Reply::failure(Outcome::Unknown)).expect("a failure reply encodes");
     }
     packet
 }

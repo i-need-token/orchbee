@@ -73,8 +73,10 @@ pub(super) fn deliver(link: &Arc<Shared>, state: &mut State, delivery: Delivery<
         }
         Delivery::Message(Message::Bye { .. }) => state.end(End::Hub),
         // The hub accepts and closes nothing here, and the state machine answers its requests.
-        Delivery::Message(_) | Delivery::Accept { .. } | Delivery::Close { .. } | Delivery::Pong => {
-        }
+        Delivery::Message(_)
+        | Delivery::Accept { .. }
+        | Delivery::Close { .. }
+        | Delivery::Pong => {}
     }
 }
 
@@ -259,8 +261,8 @@ fn connect(name: &SessionName) -> Result<LocalStream, ResetReason> {
         _ => ResetReason::Unavailable,
     };
     let endpoint = local_activation::session_client_endpoint(name).map_err(reason)?;
-    let stream = LocalStream::connect_before(&endpoint, Instant::now() + CONNECT_WINDOW)
-        .map_err(reason)?;
+    let stream =
+        LocalStream::connect_before(&endpoint, Instant::now() + CONNECT_WINDOW).map_err(reason)?;
     stream
         .require_same_user()
         .map_err(|_| ResetReason::Unavailable)?;

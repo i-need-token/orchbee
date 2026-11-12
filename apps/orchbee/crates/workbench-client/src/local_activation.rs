@@ -128,9 +128,9 @@ pub fn session_client_endpoint(name: &orchbee_local_runtime::SessionName) -> io:
     let scope = SessionScope::parse(location.scope()).map_err(io::Error::other)?;
     let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&location.base, scope)
         .map_err(|error| match error {
-            orchbee_local_runtime::RendezvousError::System { source, .. } => source,
-            other => io::Error::other(other),
-        })?;
+        orchbee_local_runtime::RendezvousError::System { source, .. } => source,
+        other => io::Error::other(other),
+    })?;
     Ok(session.client_socket_path().to_owned())
 }
 

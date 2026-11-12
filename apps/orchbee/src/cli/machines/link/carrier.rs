@@ -9,9 +9,7 @@ use orchbee_connection_handshake::{
     ProcessState, ProductVersion, QueryResult, RejectionReason, RequestKind, encode_acceptor_frame,
     read_initiator_message,
 };
-use orchbee_machine_protocol::{
-    Connection, Frame, FrameDecoder, FrameKind, PathText, Token, link,
-};
+use orchbee_machine_protocol::{Connection, Frame, FrameDecoder, FrameKind, PathText, Token, link};
 use std::{
     fs::File,
     io::{self, IsTerminal, Read, Write},
@@ -199,7 +197,9 @@ fn answer(output: &mut File, message: &AcceptorMessage) -> bool {
 
 /// Runs the admitted link until it ends and its farewell and commands settle.
 fn run(input: File, output: File, facts: link::Facts) -> u8 {
-    let link = Arc::new(Shared::new(State::new(Connection::<link::Link>::acceptor(facts))));
+    let link = Arc::new(Shared::new(State::new(Connection::<link::Link>::acceptor(
+        facts,
+    ))));
     let writer = {
         let link = link.clone();
         thread::Builder::new()
