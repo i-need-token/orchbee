@@ -184,4 +184,93 @@ impl super::CliText {
             (Locale::ZhCn, _) => "机器操作未能完成。",
         }
     }
+
+    /// The machine hub state printer's failure line.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_failure(
+        self,
+        failure: crate::cli::machines::hub::StateFailure,
+    ) -> &'static str {
+        use crate::cli::machines::hub::StateFailure as F;
+        match (self.locale, failure) {
+            (Locale::EnUs, F::DataRoot) => {
+                "The Orchbee data folder is unavailable; check USERPROFILE or ORCHBEE_HOME."
+            }
+            (Locale::ZhCn, F::DataRoot) => {
+                "Orchbee 数据文件夹不可用；请检查 USERPROFILE 或 ORCHBEE_HOME。"
+            }
+            (Locale::EnUs, F::Unavailable) => "The machine hub could not be reached or started.",
+            (Locale::ZhCn, F::Unavailable) => "无法连接或启动连接进程。",
+            (Locale::EnUs, F::Closing) => "The machine hub is closing. Try again.",
+            (Locale::ZhCn, F::Closing) => "连接进程正在关闭，请重试。",
+            (Locale::EnUs, F::Lost) => "The connection to the machine hub was lost.",
+            (Locale::ZhCn, F::Lost) => "与连接进程的连接已断开。",
+            (Locale::EnUs, F::Incompatible) => {
+                "The running machine hub belongs to another environment or version."
+            }
+            (Locale::ZhCn, F::Incompatible) => "正在运行的连接进程属于其他环境或版本。",
+            (Locale::EnUs, F::Timeout) => "The machine hub did not answer in time.",
+            (Locale::ZhCn, F::Timeout) => "连接进程未及时响应。",
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_held(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => "held",
+            Locale::ZhCn => "保持中",
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_expiring(self, seconds: u64) -> String {
+        match self.locale {
+            Locale::EnUs => format!("expiring, closes in {seconds} s"),
+            Locale::ZhCn => format!("将在 {seconds} 秒后关闭"),
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_closing(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => "closing",
+            Locale::ZhCn => "正在关闭",
+        }
+    }
+
+    /// The printer's heading lines: the hub's state, its process id, and the catalog revision.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_summary(self, state: &str, pid: u32, revision: u64) -> String {
+        match self.locale {
+            Locale::EnUs => format!(
+                "Machine hub: {state}
+Process ID: {pid}
+Catalog revision: {revision}
+"
+            ),
+            Locale::ZhCn => format!(
+                "连接进程：{state}
+进程 ID：{pid}
+机器目录修订号：{revision}
+"
+            ),
+        }
+    }
+
+    /// A Machine's state as the hub reports it before it can connect; `None` when none arrived.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_machine_state(
+        self,
+        state: Option<&orchbee_machine_protocol::hub::MachineState>,
+    ) -> &'static str {
+        use orchbee_machine_protocol::hub::MachineState as S;
+        match (self.locale, state) {
+            (Locale::EnUs, Some(S::Offline { .. })) => "offline",
+            (Locale::ZhCn, Some(S::Offline { .. })) => "离线",
+            (_, Some(S::Disabled)) => self.cli_machine_message("disabled"),
+            (_, Some(S::Unsupported { .. })) => self.cli_machine_message("unsupported"),
+            (Locale::EnUs, _) => "unknown",
+            (Locale::ZhCn, _) => "未知",
+        }
+    }
 }

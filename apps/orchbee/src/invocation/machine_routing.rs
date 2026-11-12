@@ -42,6 +42,21 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             session: None,
         });
     }
+    // Internal pairings between this program and its own start path, not frozen helpers: a release
+    // may rename them.
+    for (token, request) in [
+        ("--machine-hub-v1", Request::MachineHub),
+        ("--machine-hub-state-v1", Request::MachineHubState),
+    ] {
+        if tokens == [token] {
+            return Ok(SelectedRequest {
+                availability: super::grammar::Availability::Windows,
+                format: None,
+                request,
+                session: None,
+            });
+        }
+    }
     let Some(first) = tokens.first() else {
         return scan(tokens);
     };
