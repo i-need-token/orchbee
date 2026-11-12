@@ -67,6 +67,13 @@ const distribution = resolveDesktopApplicationDistribution({
 	packaged,
 	platform: process.platform,
 });
+/**
+ * Development and test builds take a Session name and a hidden window from the environment for
+ * automation; a packaged release ignores both, so `ORCHBEE_SESSION` stays its public Session choice.
+ */
+const automationEnvironment: NodeJS.ProcessEnv =
+	packaged && distribution.dataScope.kind === 'release' ? {} : process.env;
+const windowHidden = automationEnvironment[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined;
 app.setName(distribution.applicationName);
 const dataRoot = prepareOrRefuseDesktopDataRoot();
 app.setPath('userData', dataRoot.electronDirectory);
@@ -185,7 +192,7 @@ function resolveTrayIconDirectory(): string {
 async function createBackground(
 	sessionArguments: readonly string[],
 ): Promise<DesktopBackgroundRuntime | undefined> {
-	if (process.platform !== 'win32' || process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined) {
+	if (process.platform !== 'win32' || windowHidden) {
 		return undefined;
 	}
 	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
@@ -327,7 +334,8 @@ async function start(): Promise<void> {
 	if (!isPermittedDesktopRendererUrl(rendererUrl)) {
 		throw new Error('The Desktop renderer URL is not permitted.');
 	}
-	const session = process.env[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
+	const session =
+		automationEnvironment[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
 	const sessionArguments = session === undefined ? [] : ['--session', session];
 	background = await createBackground(sessionArguments);
 	const started = new DesktopServerClientApplication({
@@ -341,7 +349,7 @@ async function start(): Promise<void> {
 		recordEvent,
 		rendererUrl,
 		sessionArguments,
-		windowHidden: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined,
+		windowHidden,
 		windowStateOwner: new DesktopWindowStateOwner(
 			new FileDesktopWindowStateStore(dataRoot.windowStateFile, {
 				upgradeBackup: createUpgradeBackup(dataRoot.path, app.getVersion()),

@@ -56,7 +56,8 @@ navigation stays within the renderer's origin.
 
 A release joins the default Session, Test joins `desktop-test`, and Dev joins
 `desktop-dev-<scope-digest>`, so each distribution profile keeps its own terminals;
-`ORCHBEE_DESKTOP_SESSION` names another. Outside a release, both `orchbee` commands run under the
+`ORCHBEE_DESKTOP_SESSION` names another in a development or test build; a packaged release ignores
+it, and `ORCHBEE_SESSION` chooses its Session as it does for the CLI. Outside a release, both `orchbee` commands run under the
 data root's configuration file, as [Desktop data root](docs/data-root.md) describes, so a Session
 they start keeps its [settings](../../crates/local-runtime/README.md#user-settings) apart from the
 installed release's. A Session already running keeps the configuration it started with.
@@ -198,15 +199,15 @@ development server. To run the built entry without the development runtime, run
 | `ORCHBEE_DESKTOP_CLIENT_EXECUTABLE`       | A staged cohort's `orchbee`, from the same cohort as the Session's Server |
 | `ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT` | This checkout, which scopes the development data root                     |
 | `ORCHBEE_DESKTOP_RENDERER_ROOT`           | `apps/web/dist`, or set `ORCHBEE_DESKTOP_RENDERER_URL` for a loopback URL |
-| `ORCHBEE_DESKTOP_SESSION`                 | Optional Session name                                                     |
+| `ORCHBEE_DESKTOP_SESSION`                 | Optional Session name; a packaged release ignores it                      |
 | `ORCHBEE_DESKTOP_WINDOW_HIDDEN`           | Optional; for automation, a window never shown, restored, or recorded     |
 
 Main runs as development exactly when Electron's default app loaded its entry, as `pnpm desktop`
 and `electron dist/main/main.cjs` both do, whatever the executable is named; Electron's
 `app.isPackaged` only compares that name with `electron`, so Main never reads it. A packaged
 application ships no default app, so no environment variable makes it run as development. It
-ignores all but the last two variables: it runs its bundled cohort and serves its bundled renderer
-through the secure `orchbee:` scheme. A window that stays hidden produces no
+ignores all but the last two variables, and a packaged release ignores those as well: it runs its
+bundled cohort and serves its bundled renderer through the secure `orchbee:` scheme. A window that stays hidden produces no
 frames; automation that needs pixels shows it off-screen with `showInactive`.
 
 On Windows, the command mirrors Electron's distribution, by hard links where the volume allows,
