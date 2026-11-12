@@ -92,8 +92,8 @@ describe('nameServerTerminalTitle', () => {
 			programs.map(([raw, , zhCN]) => [raw, zhCN]),
 		);
 		const written = [
-			'C:\\Users\\luna\\project',
-			'C:\\Users\\luna\\notes.txt',
+			'C:\\Users\\demo\\project',
+			'C:\\Users\\demo\\notes.txt',
 			'vim pwsh.exe',
 			'PS C:\\work\\app.exe',
 			'pwsh',

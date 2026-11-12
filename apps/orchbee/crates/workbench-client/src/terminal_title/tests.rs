@@ -40,8 +40,8 @@ fn console_default_titles_name_their_program_and_program_set_titles_stay_as_writ
         assert_eq!(Locale::ZhCn.chrome_name(name), zh_cn, "{raw}");
     }
     for raw in [
-        r"C:\Users\luna\project",
-        r"C:\Users\luna\notes.txt",
+        r"C:\Users\demo\project",
+        r"C:\Users\demo\notes.txt",
         "vim pwsh.exe",
         r"PS C:\work\app.exe",
         "pwsh",

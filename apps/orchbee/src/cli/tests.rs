@@ -178,7 +178,7 @@ fn terminal_output_text_is_copyable_and_json_preserves_original_data() {
     use super::terminal_output::{ContentSpan, SampleRange, TerminalOutputDoc};
     use crate::invocation::{OutputSelection, OutputSource, OutputTarget};
 
-    let content = "C:\\Users\\luna\\中文 \"🐝\"\u{1b}[31m\u{202e}\n";
+    let content = "C:\\Users\\demo\\中文 \"🐝\"\u{1b}[31m\u{202e}\n";
     let projection = Projection::TerminalOutput(Box::new(TerminalOutputDoc {
         terminal: TerminalRow {
             terminal_id: ID.into(),
@@ -228,7 +228,7 @@ fn terminal_output_text_is_copyable_and_json_preserves_original_data() {
                 .unwrap();
         assert_eq!(
             String::from_utf8(text).unwrap(),
-            "C:\\Users\\luna\\中文 \"🐝\"\\u{001b}[31m\\u{202e}\n"
+            "C:\\Users\\demo\\中文 \"🐝\"\\u{001b}[31m\\u{202e}\n"
         );
     }
     assert_eq!(projection.result()["content"]["text"], content);

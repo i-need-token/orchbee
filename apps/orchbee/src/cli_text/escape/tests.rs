@@ -2,7 +2,7 @@ use super::{diagnostic_token, escape, quoted, table_label, table_label_width, un
 
 #[test]
 fn unquoted_text_preserves_copyable_paths_quotes_and_unicode() {
-    let text = "C:\\Users\\luna\\中文 \"🐝\"";
+    let text = "C:\\Users\\demo\\中文 \"🐝\"";
     assert_eq!(unquoted(text), text);
     assert_eq!(unquoted(r"\\server\share\folder"), r"\\server\share\folder");
 }
