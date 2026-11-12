@@ -1,5 +1,7 @@
-//! Retry timing is independent of threads, transport and wall-clock sleeps.
-use std::time::{Duration, Instant};
+//! The discovery phases over the shared machine retry policy; timing is independent of threads,
+//! transport and wall-clock sleeps.
+use crate::machine_retry::Backoff;
+use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Phase {
@@ -12,16 +14,14 @@ pub(super) enum Phase {
 pub(super) struct Policy {
     pub(super) phase: Phase,
     retry_at: Instant,
-    failures: u32,
-    online_since: Option<Instant>,
+    backoff: Backoff,
 }
 impl Policy {
     pub(super) fn new(now: Instant) -> Self {
         Self {
             phase: Phase::Waiting,
             retry_at: now,
-            failures: 0,
-            online_since: None,
+            backoff: Backoff::new(),
         }
     }
     pub(super) fn due(&self, now: Instant) -> bool {
@@ -31,30 +31,21 @@ impl Policy {
         self.phase = Phase::Connecting;
     }
     pub(super) fn healthy(&mut self, now: Instant) {
-        self.online_since.get_or_insert(now);
+        self.backoff.online(now);
         self.phase = Phase::Online;
     }
     /// Carrier recovery retains the existing worker; only terminal failures schedule a new one.
     pub(super) fn recovering(&mut self) {
-        self.online_since = None;
+        self.backoff.interrupted();
         self.phase = Phase::Reconnecting;
     }
     pub(super) fn fail(&mut self, permanent: bool, now: Instant) {
-        if self
-            .online_since
-            .take()
-            .is_some_and(|since| now.saturating_duration_since(since) >= Duration::from_secs(60))
-        {
-            self.failures = 0;
-        }
         self.phase = if permanent {
             Phase::Attention
         } else {
             Phase::Reconnecting
         };
-        let delay = Duration::from_millis((500_u64 << self.failures.min(8)).min(120_000));
-        self.retry_at = now + delay;
-        self.failures = self.failures.saturating_add(1);
+        self.retry_at = now + self.backoff.fail(now);
     }
     pub(super) fn retry(&mut self, now: Instant) {
         if matches!(self.phase, Phase::Attention | Phase::Reconnecting) {

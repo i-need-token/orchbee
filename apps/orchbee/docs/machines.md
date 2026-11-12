@@ -79,14 +79,53 @@ receipt.
 
 ## Commands not available yet
 
-`machine connect <id|label> [--remember]`, `machine disconnect <id|label>`, `machine add
---no-install`, and `machine remove --stop-session` belong to later slices of remote-machine
-support. They appear in help and completion, marked not available yet, and their whole grammar is
-validated, so a malformed invocation is still a usage failure with exit 2. A well-formed one is
-refused before it reads the catalog, contacts any machine, or changes anything: the
-`orchbee.machine` receipt names the operation (`connect`, `disconnect`, `add`, or `remove`),
-reports `error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`, and the
-command exits 4.
+`machine connect --remember`, `machine add --no-install`, and `machine remove --stop-session`
+belong to later slices of remote-machine support. They appear in help and completion, marked not
+available yet, and their whole grammar is validated, so a malformed invocation is still a usage
+failure with exit 2. A well-formed one is refused before it reads the catalog, contacts any
+machine, or changes anything: the `orchbee.machine` receipt names the operation (`connect`, `add`,
+or `remove`), reports `error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`,
+and the command exits 4.
+
+## Connect and disconnect
+
+`machine connect <id|label>` and `machine disconnect <id|label>` resolve the operand in the
+catalog, then ask the [machine hub](#machine-hub) through one attachment that holds nothing and
+watches nothing. Neither writes the catalog, so the receipt reports `changed` and `committed`
+false, with the resolved `profileId` and the catalog it was read from.
+
+- **Connect** starts a hub when none runs, asks it to `reload` so a machine saved after the hub
+  started is known to it, then sends `connect` with `origin` `command` and `answers` false. It
+  returns when the reply arrives: once the Machine is `online`, with `remote: "ready"` and the
+  remote product version, or with the reason it is not. A Machine whose sign-in needs an answer
+  reads `auth-required`, since this release cannot ask. The deadline is 90 seconds: a hub start,
+  then the hub's own [60-second attempt](#carrying-a-machine). The connection stays after the
+  command ends, carried by the hub until it is disconnected or the hub expires.
+- **Disconnect** starts no hub: with none running there is no connection, and it succeeds with
+  `remote: "not-contacted"`. Otherwise it sends `disconnect`; a hub whose catalog does not list the
+  machine carries nothing for it, and a closing hub ends every carrier, so both read as
+  disconnected. The deadline is 15 seconds. The remote Session keeps running.
+- A reply `stopping`, or a connection lost with the request in flight, is asked once more through
+  the hub that takes the closing one's place; a second `stopping` connect reads `hub-unavailable`.
+- An interrupt ends the wait with `cancelled` and exit 130 and leaves the hub's attempt running. A
+  connect that a `disconnect` from elsewhere ended reads `cancelled` with exit 7, the accepted
+  operation's cancelled result.
+- `remote` reads `possibly-started` from the moment `connect` is sent, so a deadline or interrupt
+  reports that the remote Session may have started; a reply settles it: `ready` once online,
+  `possibly-started` after `remote-not-ready`, `timeout`, or `cancelled`, `not-contacted` when
+  the hub never tried the machine (`not-found`, `disabled-machine`, `unsupported-machine`,
+  `ssh-unavailable`, or a failure of the hub itself), and `unchanged` otherwise.
+
+| Hub reply or failure                                           | `error`                |
+| -------------------------------------------------------------- | ---------------------- |
+| `connect-result` failure that names a receipt code             | The same code          |
+| `connect-result` `cancelled`                                   | `cancelled`, exit 7    |
+| `connect-result` `stopping` after the second ask               | `hub-unavailable`      |
+| `connect-result` `invalid-draft`, `internal`, or `unknown`     | `internal`             |
+| The data root cannot be resolved                               | `configuration`        |
+| No hub can be reached or started, it refuses, closes, or drops | `hub-unavailable`      |
+| Another version or environment's hub serves the data root      | `version-incompatible` |
+| The deadline passes                                            | `timeout`              |
 
 ## Machine receipt
 
@@ -96,25 +135,31 @@ command exits 4.
 does not know; the content of an unknown kind is never echoed. `error` is a closed list that grows
 as remote-machine support lands; a reader treats a value it does not know as `unknown`.
 
-| `error`                                             | Exit | Produced by this release                                      |
-| --------------------------------------------------- | ---- | ------------------------------------------------------------- |
-| `configuration`, `invalid-catalog`, `storage`       | 1    | Catalog location, content or storage failure                  |
-| `internal`                                          | 1    | Unexpected local failure                                      |
-| `not-found`, `ambiguous-machine`                    | 3    | `<id\|label>` resolution                                      |
-| `host-untrusted`, `host-key-changed`, `auth-failed` | 3    | Not yet; OpenSSH failures read as `ssh-failed`                |
-| `busy`, `capacity`, `revision-exhausted`            | 4    | Another writer, 64 machines or 128 KiB, revision bound        |
-| `not-yet-available`                                 | 4    | [Commands not available yet](#commands-not-available-yet)     |
-| `ssh-unavailable`                                   | 4    | The system OpenSSH client is missing                          |
-| `remote-not-installed`                              | 4    | The remote launch line finds no Orchbee, or no usable install |
-| `remote-not-ready`                                  | 4    | The remote Session did not report ready                       |
-| `host-unreachable`, `auth-required`                 | 4    | Not yet                                                       |
-| `ssh-failed`, `remote-protocol`                     | 5    | Any other OpenSSH failure; a malformed remote document        |
-| `remote-unsupported`, `remote-other-environment`    | 6    | Remote system or architecture; another environment kind       |
-| `version-incompatible`                              | 6    | Not yet                                                       |
-| `timeout`                                           | 7    | Deadline                                                      |
-| `physical-unknown`                                  | 8    | SSH process cleanup unconfirmed                               |
-| `remote-install-failed`                             | 9    | Not yet                                                       |
-| `cancelled`                                         | 130  | Interrupt                                                     |
+| `error`                                          | Exit | Produced by this release                                                        |
+| ------------------------------------------------ | ---- | ------------------------------------------------------------------------------- |
+| `configuration`, `invalid-catalog`, `storage`    | 1    | Catalog location, content or storage failure                                    |
+| `internal`                                       | 1    | Unexpected local failure                                                        |
+| `not-found`, `ambiguous-machine`                 | 3    | `<id\|label>` resolution                                                        |
+| `disabled-machine`                               | 3    | Connect to a disabled machine                                                   |
+| `auth-failed`, `host-key-changed`                | 3    | Connect: OpenSSH refused the key; the host key changed. Add reads `ssh-failed`  |
+| `host-untrusted`                                 | 3    | Not yet; an unknown host key reads `auth-required`                              |
+| `busy`, `capacity`, `revision-exhausted`         | 4    | Another writer, 64 machines or 128 KiB, revision bound                          |
+| `not-yet-available`                              | 4    | [Commands not available yet](#commands-not-available-yet)                       |
+| `unsupported-machine`                            | 4    | Connect to a machine whose connection kind this build does not know             |
+| `hub-unavailable`                                | 4    | [Connect and disconnect](#connect-and-disconnect) could not use the machine hub |
+| `ssh-unavailable`                                | 4    | The system OpenSSH client is missing                                            |
+| `remote-not-installed`                           | 4    | The remote launch line finds no Orchbee, or no usable install                   |
+| `remote-not-ready`                               | 4    | The remote Session did not report ready                                         |
+| `host-unreachable`                               | 4    | Connect: the host did not resolve, refused, timed out, or had no route          |
+| `auth-required`                                  | 4    | Connect: signing in needs an answer this release cannot ask                     |
+| `ssh-failed`, `remote-protocol`                  | 5    | Any other OpenSSH failure; a malformed remote document or link                  |
+| `remote-unsupported`, `remote-other-environment` | 6    | Remote system or architecture; another environment kind                         |
+| `version-incompatible`                           | 6    | Connect: either side too old for the other, or another build's hub runs         |
+| `timeout`                                        | 7    | Deadline                                                                        |
+| `cancelled`                                      | 7    | Connect: a `disconnect` ended the attempt                                       |
+| `physical-unknown`                               | 8    | SSH process cleanup unconfirmed                                                 |
+| `remote-install-failed`                          | 9    | Not yet                                                                         |
+| `cancelled`                                      | 130  | Interrupt                                                                       |
 
 ## Remote preparation
 
@@ -295,8 +340,10 @@ closure, and the console refusal. It does not start `ssh`.
 
 `orchbee --machine-hub-v1`, with no other argument, is the hub: the one process per data root
 through which interfaces reach saved machines over
-[`machine-hub`](../../../schemas/machine/README.md#hub-records). It serves the catalog and its own
-lifetime today; it starts no `ssh` and contacts no machine yet. Windows serves it; elsewhere both
+[`machine-hub`](../../../schemas/machine/README.md#hub-records). It serves the catalog, its own
+lifetime and each Machine's state, and [carries](#carrying-a-machine) each Machine it connects over
+one child: `ssh` running the remote [link helper](#link-helper). Session streams and routed
+commands do not travel through it yet. Windows serves it; elsewhere both
 hub entries answer unsupported before they touch the data root. The entry is an internal pairing
 between this program and its own start path, not a command: nothing outside one installation runs
 it, and a release may rename it. Every client reaches the hub through one
@@ -390,11 +437,118 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
 - **Events.** Every change of state goes as `hub` to every connection attached with `watch`.
 
 In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`
-with state `stopping`; it answers every request `stopping` and resets every `open` `stopping`. No
-channel stays open in this slice, so the 60-second allowance waits only for catalog reads already
-in flight, which then reply `stopping`. The hub then queues `bye` `stopping` on every connection,
-gives its writers at most 2 seconds, closes the endpoint, releases the lock, and exits 0. `drain`
-enters `closing`; `exit` replies and ends the process at once, without the allowance.
+with state `stopping`; it answers every request `stopping`, resets every `open` `stopping`, starts
+no attempt, and answers every waiting `connect` `stopping`. No channel stays open through the hub
+yet, so the 60-second allowance waits only for catalog reads already in flight, which then reply
+`stopping`. The hub then queues `bye` `stopping` on every connection, gives its writers at most 2
+seconds, ends every carrier child, closes the endpoint, releases the lock, and exits 0. `drain`
+enters `closing`; `exit` replies and ends the process at once, without the allowance; its children
+end with it through their Jobs.
+
+### Carrying a Machine
+
+The hub owns one record per catalog Machine: its reported state, its retry history, at most one
+carrier, and the `connect` requests waiting on it. A carrier is one child process whose standard
+input and output are the Machine's [`machine-link`](../../../schemas/machine/README.md#link-records)
+connection, with the hub as initiator. The record is a state machine that takes the time and each
+carrier event as arguments and returns its effects (start a carrier, end one, open
+`ensure-session`, reply to waiters) for the hub to apply; it reads no clock and starts nothing
+itself.
+
+| Phase        | Carrier | Reports                                                                                                                                                         |
+| ------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `idle`       | None    | Its last result: `offline` (with or without a cause), a state that waits for a person or a change, or `disabled` and `unsupported` from the catalog             |
+| `waiting`    | None    | `reconnecting` with the cause and `nextAttempt`                                                                                                                 |
+| `attempting` | One     | `connecting` for a first attempt, `reconnecting` with the last cause for an attempt after a failure or a lost link; `stage` `starting` once the helper answered |
+| `online`     | One     | `online`, or `unresponsive` while a `ping` has gone unanswered for 15 seconds                                                                                   |
+
+| Event                                            | In                           | Next and effects                                                                                                                                                                                                                             |
+| ------------------------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect`                                        | `idle`, `waiting`            | `attempting` now, the request waiting                                                                                                                                                                                                        |
+| `connect`                                        | `attempting`, `unresponsive` | The request joins and waits                                                                                                                                                                                                                  |
+| `connect`                                        | `online`                     | Replied `online` at once                                                                                                                                                                                                                     |
+| A `presence` connection attaches                 | `idle`                       | `attempting`, silently: no request waits                                                                                                                                                                                                     |
+| The retry time comes                             | `waiting`                    | `attempting`                                                                                                                                                                                                                                 |
+| The helper answers the offer                     | `attempting`                 | Remote version known; `stage` `starting`                                                                                                                                                                                                     |
+| `facts` arrives                                  | `attempting`                 | Platform `windows` on `x86_64` or `aarch64`: open `ensure-session` for the Machine's Session. Any other: `unsupported` with `remote-platform`                                                                                                |
+| `ensure-session` closes `ready`                  | `attempting`                 | `online`; every waiter replied `online` with the remote version                                                                                                                                                                              |
+| `ensure-session` closes otherwise, or is reset   | `attempting`                 | A failure with `remote-not-ready`                                                                                                                                                                                                            |
+| The carrier ends, or the offer is refused        | `attempting`                 | A failure with the [classified](#how-a-carrier-end-reads) cause                                                                                                                                                                              |
+| 60 seconds pass since the carrier started        | `attempting`                 | The carrier is ended: a failure with `host-timeout` before the helper answered, `remote-not-ready` after                                                                                                                                     |
+| The carrier ends                                 | `online`                     | `waiting` with `link-lost`; with a request waiting, `attempting` at once instead                                                                                                                                                             |
+| A `ping` stays unanswered 15 seconds; its `pong` | `online`                     | `unresponsive`; back to `online`                                                                                                                                                                                                             |
+| `disconnect`                                     | Any                          | The carrier is ended, waiters replied `cancelled`, the history forgotten; `idle` reporting `offline` without a cause                                                                                                                         |
+| A reload changes the record                      | Any                          | As `disconnect`, waiters replied `cancelled`; a record now disabled or of an unknown kind reports `disabled` or `unsupported` and replies `disabled-machine` or `unsupported-machine`; a removed record replies `not-found` and is forgotten |
+| The hub enters `closing`                         | Any                          | No timer runs and no attempt starts; waiters replied `stopping`; carriers end at the end of closing                                                                                                                                          |
+
+- **Failure.** An attempt that fails records `lastAttempt` and replies to every waiter with the
+  `connect` outcome the [state table](../../../schemas/machine/README.md#machine-state) gives the
+  result, and `state`. An `offline` cause is transient. A transient failure of a Machine the hub
+  keeps goes to `waiting`; of any other Machine to `idle` reporting `offline` with the cause and
+  no next attempt. Every other result (`needs-login`, `login-failed`, `key-changed`,
+  `not-installed`, `unsupported`, `needs-update`, `local-needs-update`, `incompatible`) is
+  permanent: `idle` until a `connect`, a `presence` attachment or a reload asks again.
+- **Kept.** The hub keeps a Machine, retrying it by itself, while a `presence` connection is
+  attached or once the Machine has been `online` since its last `disconnect`, permanent failure,
+  or change. A command-line `connect` that fails therefore leaves no retry running behind it.
+- **Retry policy.** The workbench Client crate's `machine_retry` owns it, and the TUI's discovery
+  still uses it until it moves onto the hub. After the n-th consecutive failure, from 0, the next
+  attempt waits 500 ms × 2ⁿ, at most 120 seconds. A failure after 60 seconds or more `online`
+  starts the count again. Permanent failures schedule nothing.
+- **Questions.** Questions are refused in this build: every attempt runs with `ssh`'s batch mode,
+  so a login that needs a password, a passphrase, or trust in a new host key ends the attempt in
+  `needs-login` with cause `auth-required`, the one reason that says a person must answer. A key
+  or an agent login connects.
+- **One carrier.** A Machine has at most one carrier and at most one attempt; every `connect` for
+  it joins that attempt. Each carrier has a number unique in the hub's life, and an event of a
+  carrier that is no longer the Machine's is ignored, so a carrier that ends late never moves a
+  Machine that has moved on.
+- **What reaches clients.** Every change of a Machine's reported state, `lastAttempt` or `remote`
+  goes as one `machine` event to every watcher. `remote` carries the helper's product version from
+  its answer and its platform and architecture from `facts`, and stays as last known after the
+  link ends.
+
+#### The carrier child
+
+| Rule           | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe`, never found through `PATH`) with the command line `machine_ssh::command` builds: `-T`, batch mode, strict host-key checking, no forwarding, no multiplexing, `SSH_ASKPASS` removed and `SSH_ASKPASS_REQUIRE=never`, then `-- <target> <launch line>`                                                                                                                                                                                                         |
+| Launch line    | The encoded PowerShell program that resolves the remote store's active version, as the probe does, and runs it with `--machine-link-v1`; it exits 125 when it finds none                                                                                                                                                                                                                                                                                                                                          |
+| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. A local far end runs inside the carrier's Job, so a Session it starts ends with the carrier, where a remote Session over `ssh` runs outside it |
+| Process        | No console window (`CREATE_NO_WINDOW`), the system folder as working directory, standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                    |
+| Job            | Each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started                                                                                                                                                                                                                                                        |
+| Standard error | The last 4 KiB are kept only to classify an end and are never copied into a record, an event, a log or product copy                                                                                                                                                                                                                                                                                                                                                                                               |
+| Reaping        | Each carrier has one owner thread, its only reaper: it starts the child, waits for the root process, then terminates whatever is left in the Job, takes the exit status, and reports the end once the carrier's reader, writer and standard-error threads have ended. Ending a carrier stops its writer, which closes the child's input, and terminates the root process; the owner does the rest                                                                                                                 |
+
+The link client writes its `OBHS` offer the moment the child starts, since the helper counts its
+2-second candidate deadline from its own start, then reads the answer and the frames that follow.
+It never opens a channel before the Machine's `facts` is accepted. Once `online` it sends `ping`
+every 30 seconds, well inside the helper's 90-second idle limit; an attempt's 60-second deadline
+comes before that limit. Session and `route` channels through the hub belong to the next slice.
+
+#### How a carrier end reads
+
+| Seen                                                                                                                                                        | Result                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| The program cannot be started because it does not exist                                                                                                     | `offline` cause `ssh-unavailable`                                       |
+| The program cannot be started otherwise                                                                                                                     | `ssh-failed`                                                            |
+| Before the answer, exit 125                                                                                                                                 | `not-installed`                                                         |
+| Before the answer, exit 255 with `Permission denied` and a password or keyboard-interactive method, or `Host key verification failed` without a changed key | `needs-login` cause `auth-required`                                     |
+| Before the answer, exit 255 with `Permission denied` and only `publickey`                                                                                   | `login-failed` cause `key-rejected`                                     |
+| Before the answer, exit 255 with `REMOTE HOST IDENTIFICATION HAS CHANGED`                                                                                   | `key-changed`                                                           |
+| Before the answer, exit 255 with a resolution, refusal, timeout or route failure                                                                            | `host-unresolved`, `host-refused`, `host-timeout` or `host-unreachable` |
+| Before the answer, exit 255 otherwise                                                                                                                       | `ssh-failed`                                                            |
+| Before the answer, any other end, or a frame that is not an `OBHS` answer                                                                                   | `remote-protocol`                                                       |
+| `initiator-too-old` / `initiator-too-new`                                                                                                                   | `local-needs-update` / `needs-update` cause `remote-too-old`            |
+| `environment-mismatch`, `fingerprint-mismatch`                                                                                                              | `incompatible`                                                          |
+| Any other refusal                                                                                                                                           | `remote-protocol`                                                       |
+| After the answer, a violation by either end, `bye`, or the end of the output                                                                                | `remote-protocol` while attempting; `link-lost` once `online`           |
+
+OpenSSH exits 255 for every failure and only its standard error tells them apart; the phrases
+above are the OpenSSH 9.5 wording [M0](#accepted-limits) recorded. A host key that is not yet
+trusted reads as `auth-required` rather than `untrusted`, whose `hostKey` only a question can
+carry; the slice that asks questions brings `untrusted`. No end is ever a hub failure: a far end
+that speaks another version, sends a wrong frame, or closes becomes the Machine's state.
 
 ### Environment
 
@@ -414,12 +568,14 @@ variable from the view and nothing from the process environment afterwards:
 Names compare without letter case, as Windows does. A variable whose name or value is not valid
 Unicode is left out of the view.
 
-A child of the hub receives the view without any `ORCHBEE_*` variable, plus only the variables the
-hub sets for that child, through one spawn path that clears the inherited environment first. The
-child has no console, null standard streams and the system folder as working directory. No child
-exists in this slice; `ssh` is the first, and an askpass program inherits `ssh`'s whole environment,
-so whatever the hub passes to `ssh` also reaches the askpass. The slice that starts `ssh` brings
-that spawn path together with a process test that reads what a child receives.
+A [carrier child](#the-carrier-child) receives the view without any `ORCHBEE_*` variable and
+without the terminal's own variables `TERM`, `COLORTERM`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`,
+`WT_SESSION` and `WT_PROFILE_ID`, since it runs in no terminal, plus only the variables its command
+line sets, such as `ssh`'s askpass settings, which win over the view. One spawn path clears the
+inherited environment first. The child has no console, piped standard streams and the system
+folder as working directory. An askpass program inherits `ssh`'s whole environment, so whatever the
+hub passes to `ssh` also reaches the askpass. `PATH` stays as the view has it, an
+[accepted limit](#accepted-limits). A process test reads what a child receives.
 
 ### Admission and requests
 
@@ -428,48 +584,57 @@ alone, it refuses remote clients, and every accepted connection proves that the 
 token user equals the hub's before a byte is read, as [`local-ipc`](../../../crates/local-ipc/README.md)
 does for Session endpoints. The `OBHS` frame must arrive within 2 seconds of the accept.
 
-| Request                        | Answer while the hub cannot connect                                                                                                                              |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id                                                                         |
-| `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher |
-| `connect`                      | `not-found` for an id outside the catalog, `disabled-machine`, `unsupported-machine`; otherwise, and for a `draft`, `unsupported`                                |
-| `disconnect`                   | `not-found` for an id outside the catalog, otherwise `unsupported`                                                                                               |
-| `stop-session`                 | `not-found` for an id outside the catalog, otherwise `not-online`                                                                                                |
-| `claim`, `dismiss`             | `ended`: the hub has no login episode                                                                                                                            |
-| `open` of `session` or `route` | `reset` `not-found` for an id outside the catalog, otherwise `not-online`                                                                                        |
+| Request                        | Answer                                                                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id; gaining `presence` starts a silent attempt for every `idle` Machine                                                 |
+| `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher, and a changed record is reconciled as above |
+| `connect`                      | `not-found` for an id outside the catalog; otherwise [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once; a `draft` is `unsupported`                           |
+| `disconnect`                   | `not-found` for an id outside the catalog, otherwise the Machine is disconnected and the answer is `disconnected`                                                                                             |
+| `stop-session`                 | `not-found` for an id outside the catalog, `unsupported` for an `online` Machine until Session streams travel through the hub, otherwise `not-online`                                                         |
+| `claim`, `dismiss`             | `ended`: the hub has no login episode                                                                                                                                                                         |
+| `open` of `session` or `route` | `reset` `not-found` for an id outside the catalog, `unavailable` for an `online` Machine until those channels travel through the hub, otherwise `not-online`                                                  |
 
 A disabled record reads `disabled`, a connection kind this build does not know `unsupported` with
-cause `connection-kind`, and any other Machine `offline` without a cause or a next attempt. No
-silent attempt runs until the hub can connect. A catalog that cannot be read when the hub starts
-serves as empty with revision 0 until a `reload` succeeds.
+cause `connection-kind`, and any other Machine starts `offline` without a cause or a next attempt.
+A catalog that cannot be read when the hub starts serves as empty with revision 0 until a `reload`
+succeeds.
 
 ### Ownership and bounds
 
-| Resource                       | Owner                                                                   | Bound                                                                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `hub.lock`                     | The hub process, from before its endpoint exists until after it closes  | One holder per data root                                                                                                                |
-| Endpoint                       | The listener thread of the lock holder                                  | Bound only by the lock holder; a name it cannot take is retried for 2 seconds, then exit 1                                              |
-| Candidate                      | Its admission thread                                                    | 2 seconds; 64 read at once, and the next gets `capacity` unread                                                                         |
-| Attached connection            | Its reader and writer threads; its protocol state is under its own lock | 256 slots; the next offer gets `capacity`                                                                                               |
-| Control request                | Its admission thread                                                    | 4 slots; the next gets `capacity`                                                                                                       |
-| Queued frames of a connection  | Its connection state machine                                            | Its reader stops reading while 256 wait; state events replace their own subject; a writer writes at most 64 KiB of whole frames at once |
-| Catalog                        | The hub state                                                           | 64 Machines from a record of at most 128 KiB                                                                                            |
-| Expiry deadline, Session reads | The supervisor                                                          | One deadline; one read at a time, of at most 256 folders, within 5 seconds                                                              |
-| Threads                        | The process                                                             | Listener and supervisor, one per candidate, two per attached connection                                                                 |
+| Resource                       | Owner                                                                   | Bound                                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hub.lock`                     | The hub process, from before its endpoint exists until after it closes  | One holder per data root                                                                                                                          |
+| Endpoint                       | The listener thread of the lock holder                                  | Bound only by the lock holder; a name it cannot take is retried for 2 seconds, then exit 1                                                        |
+| Candidate                      | Its admission thread                                                    | 2 seconds; 64 read at once, and the next gets `capacity` unread                                                                                   |
+| Attached connection            | Its reader and writer threads; its protocol state is under its own lock | 256 slots; the next offer gets `capacity`                                                                                                         |
+| Control request                | Its admission thread                                                    | 4 slots; the next gets `capacity`                                                                                                                 |
+| Queued frames of a connection  | Its connection state machine                                            | Its reader stops reading while 256 wait; state events replace their own subject; a writer writes at most 64 KiB of whole frames at once           |
+| Catalog                        | The hub state                                                           | 64 Machines from a record of at most 128 KiB                                                                                                      |
+| Machine records                | The hub state; each is a state machine without a clock of its own       | One per catalog Machine; the waiting `connect` requests of a connection leave when it closes                                                      |
+| Carrier                        | Its owner thread, from the start of its child to the report of its end  | One per Machine; 4 KiB of standard error; the link's own window and queue bounds, as on any `machine-link` connection                             |
+| Expiry deadline, Session reads | The supervisor                                                          | One deadline; one read at a time, of at most 256 folders, within 5 seconds                                                                        |
+| Machine timers                 | The supervisor, which wakes at the earliest Machine deadline            | No thread per timer                                                                                                                               |
+| Threads                        | The process                                                             | Listener and supervisor, one per candidate, two per attached connection, four per carrier: owner, link reader, link writer, standard-error reader |
 
 ### Locks
 
 A terminal stream will carry many frames a second on one connection while others idle, so a frame
 must cost its own connection only.
 
-| Lock             | Guards                                                                                                                                                                         | Its signal wakes                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Hub state        | The lifetime, the catalog, the registry of connections with each one's `presence`, `watch` and thread count, the candidate and control counts, and the catalog reads in flight | The supervisor and the closing                                 |
-| Connection state | One connection's protocol state machine and whether it is still open at the hub                                                                                                | That connection's writer, and its reader paused at the backlog |
+| Lock             | Guards                                                                                                                                                                                                                 | Its signal wakes                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Hub state        | The lifetime, the catalog with every Machine record, the carriers, the registry of connections with each one's `presence`, `watch` and thread count, the candidate and control counts, and the catalog reads in flight | The supervisor and the closing                                 |
+| Connection state | One connection's protocol state machine and whether it is still open at the hub                                                                                                                                        | That connection's writer, and its reader paused at the backlog |
+| Link state       | One carrier's `machine-link` state machine, whether it is still open, and its `ensure-session` channel                                                                                                                 | That carrier's writer                                          |
 
-- **Order.** A thread that holds both takes the hub state's lock first. A thread holding a
-  connection's lock takes no other lock, and no thread holds either lock while it reads or writes a
-  pipe, reads the catalog, or reads the Sessions.
+- **Order.** A thread that holds the hub state's lock and a connection's or a link's lock took the
+  hub state's first. A thread holding a connection's or a link's lock takes no other lock, and no
+  thread holds any of them while it reads or writes a pipe, reads the catalog, reads the Sessions,
+  or starts a process.
+- **Links.** A carrier's reader hands a frame to its link under the link's lock alone, releases
+  it, and only then gives the Machine what the frame means under the hub state's lock. The hub
+  applies a Machine's effects under the hub state's lock, taking a link's lock for a channel or a
+  `ping`; it starts a carrier's process outside every lock.
 - **Frames.** The reader takes only its connection's lock to hand a frame to the state machine.
   A request, `bye`, or `open`, whose answer depends on the hub state, is then answered under the hub
   state's lock and that connection's lock, taken in order. An event for every watcher is queued
@@ -494,6 +659,10 @@ connection, so nothing changed for the link.
 | The hub is killed                             | The system releases the lock and closes the pipe; the next attach finds no endpoint and starts a hub, which locks the same file                                                                                                                    |
 | A hub thread panics                           | The hub reports the panic and aborts the whole process, which then ends as a killed hub does; no thread unwinds alone                                                                                                                              |
 | The data root is unavailable                  | Attach-or-start fails before starting a hub, or the hub exits 1 when it cannot create `internal/machines/` or open the lock; a running hub keeps its catalog, answers `reload` `storage`, finds no Session, and expires unless `presence` holds it |
+| A carrier ends while the hub ends it          | The owner reports one end; the Machine has moved on to another carrier or to `idle`, so the report changes nothing                                                                                                                                 |
+| A carrier is ended before its child exists    | Its handle is marked ending; the owner terminates the child the moment it registers it, or a start still queued is dropped                                                                                                                         |
+| The hub is killed with carriers running       | The system closes the hub's Job handles and every Job ends its processes, so no carrier outlives the hub                                                                                                                                           |
+| The hub closes with carriers running          | After the writers' 2 seconds each carrier gets `bye` `stopping` and is ended; the hub waits up to 10 seconds for their owners, and its exit ends any Job still open                                                                                |
 
 - **A panic ends the hub.** No hub thread may unwind while the others serve: a listener that
   unwound would leave the lock held with no endpoint, so every attach would fail, and a reader that
@@ -545,6 +714,18 @@ connection, so nothing changed for the link.
   hub's `presence` attachments, so every process that could be a client of that version counts as
   a holder, as do a process whose program file cannot be read and a Session read that cannot
   finish, and the hub stays; the person closes that program, or uninstall ends the hub.
+- **A carrier child keeps the hub's `PATH`.** `ssh` reads its own configuration, and an askpass,
+  `ProxyCommand` or `Match exec` program it starts finds programs through `PATH`, so the child
+  keeps the `PATH` of the client that started the hub, which may be a terminal's or an Agent's.
+  Replacing it would break those configurations; a `PATH` that changes after the hub started does
+  not reach later carriers.
+- **An unresponsive link stays until something ends it.** A Machine that stops answering `ping`
+  reads `unresponsive` and keeps its carrier; the helper's 90-second idle limit or the end of the
+  `ssh` process ends the link, which then reconnects.
+- **`untrusted` is not produced.** A host key that is not yet trusted reads `needs-login` with
+  `auth-required` until questions carry `hostKey`.
+- **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
+  wording; another wording reads `ssh-failed`.
 
 ### Client owner
 
@@ -670,7 +851,11 @@ by a real scratch Session through its stop and a new start, reads a catalog of t
 reloads it. It also kills the hub under a holder and finds the holder's `presence` restored on a
 new hub, drains the hub under a holder and finds that the holder starts none, retries a full hub
 until a slot frees, reports `closing` for a hub that stays closing, and has uninstall's background
-step end a hub a Session holds. It starts no `ssh`.
+step end a hub a Session holds. Through the stand-in, which runs the Client under test as the far
+end against a real scratch Session, it connects a Machine with `machine connect`, kills the one
+carrier child and finds the Machine reconnecting and then online again with one child, ends the
+hub and finds the child gone, reads the variables a child receives, and finds a far end that closes
+at once reported as the Machine's state. It starts no `ssh`.
 
 ## Persistent TUI connections
 

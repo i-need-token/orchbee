@@ -91,7 +91,10 @@ reports root exit only and leaves the status to `try_wait`.
 | Unix     | The root leads a new process group. It is observed without reaping, so its PID keeps the group ID reserved; settlement of a running root sends `SIGTERM` to the group and allows two seconds that end early when the root exits; then the group receives `SIGKILL`, the root is reaped and settlement waits until the group is empty. Drop sends `SIGKILL` and reaps on a detached thread. |
 
 A process that starts its own session or group leaves Unix ownership; Windows Jobs forbid
-breakaway by default. Neither platform ends owned processes when the owning process dies abruptly:
+breakaway by default. On Windows, `spawn_contained` also marks the Job to end every member when its
+last handle closes, so the owner's end, however abrupt, ends the command's whole tree; the machine
+hub starts its carriers this way. Otherwise neither platform ends owned processes when the owning
+process dies abruptly:
 `PR_SET_PDEATHSIG` would need `pre_exec`, which `unsafe_code = "forbid"` excludes, and is
 Linux-only and thread-scoped. Output pipes still close then, so a writer receives `SIGPIPE` or an
 error. Unix tests cover root exit, cancellation, ignored `SIGTERM`, dropped owners and missing

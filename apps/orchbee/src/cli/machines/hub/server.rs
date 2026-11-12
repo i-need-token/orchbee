@@ -1,9 +1,11 @@
 //! The hub process: the lock before the endpoint, the listener, the admission of each candidate
-//! under the candidate deadline, the supervisor that owns the expiry and the Session reads, and the
-//! closing that ends with `bye`, the endpoint closed and the lock released.
+//! under the candidate deadline, the supervisor that owns the expiry, the Session reads, each
+//! Machine's timed transitions and the start of each carrier, and the closing that ends with
+//! `bye`, every carrier ended, the endpoint closed and the lock released.
 
 use super::super::shared_carrier::{acceptor_profile, answer, query};
 use super::{
+    carrier::{self, Launch},
     catalog::Machines,
     environment::Environment,
     lifetime::{Lifetime, Moment, ReadDue},
@@ -52,6 +54,8 @@ const FAREWELL: Duration = Duration::from_secs(2);
 const REFUSAL_WRITE: Duration = Duration::from_secs(1);
 /// How long the supervisor sleeps with nothing due.
 const IDLE_WAKE: Duration = Duration::from_secs(60);
+/// How long closing waits for ended carriers to be reaped; each settles within 5 seconds.
+const CARRIERS_END: Duration = Duration::from_secs(10);
 
 /// Runs the hub until it closes and returns its exit status.
 pub(super) fn serve() -> u8 {
@@ -77,6 +81,7 @@ pub(super) fn serve() -> u8 {
     let base = machine_hub::runtime_base(|name| environment.get(name));
     let live = any_live(base.as_deref());
     let lifetime = Lifetime::start(environment.expiry().unwrap_or(EXPIRY), live, Moment::now());
+    let launch = Arc::new(Launch::new(&environment));
     let shared = Arc::new(Shared::new(Hub::new(root, lifetime, machines)));
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
@@ -89,7 +94,7 @@ pub(super) fn serve() -> u8 {
     let Ok(listening) = listening else {
         return CANNOT_SERVE;
     };
-    supervise(&shared, base.as_deref());
+    supervise(&shared, &launch, base.as_deref());
     close(&shared);
     stop.store(true, Ordering::Release);
     // The endpoint closes before the lock is released, so a successor binds a free name.
@@ -330,12 +335,27 @@ impl Read for Deadlined<'_> {
     }
 }
 
-/// Owns the Session reads, the one at the expiry deadline included, until the hub enters `closing`.
-fn supervise(shared: &Shared, base: Option<&Path>) {
+/// Owns the Session reads, the one at the expiry deadline included, each Machine's timed
+/// transitions, and the start of each carrier, until the hub enters `closing`.
+fn supervise(shared: &Arc<Shared>, launch: &Arc<Launch>, base: Option<&Path>) {
     let mut hub = shared.lock();
     loop {
         if hub.lifetime.is_closing() {
             return;
+        }
+        let starting = std::mem::take(&mut hub.starting);
+        if !starting.is_empty() {
+            // Each owner starts its child on its own thread, outside the lock.
+            drop(hub);
+            for (number, route) in starting {
+                carrier::start(shared, launch, number, route);
+            }
+            hub = shared.lock();
+            continue;
+        }
+        hub.machines(|machine, cx| machine.tick(cx));
+        if !hub.starting.is_empty() {
+            continue;
         }
         let now = Moment::now();
         let due = hub.lifetime.read_due();
@@ -354,18 +374,27 @@ fn supervise(shared: &Shared, base: Option<&Path>) {
             }
             continue;
         }
-        let wake_at = match due {
+        let read_at = match due {
             Some(ReadDue::At(at)) => at,
             _ => now.at + IDLE_WAKE,
         };
+        let wake_at = hub
+            .machines
+            .next_wake()
+            .map_or(read_at, |machine| machine.min(read_at));
         hub = shared.wait_until(hub, wake_at);
     }
 }
 
-/// Lets catalog reads in flight finish, then sends `bye` `stopping` on every connection and gives
-/// the writers their bound.
+/// Answers every waiting `connect` `stopping`, lets catalog reads in flight finish, sends `bye`
+/// `stopping` on every connection and link and gives the writers their bound, then ends every
+/// carrier and waits for their reaping.
 fn close(shared: &Shared) {
     let mut hub = shared.lock();
+    hub.machines(|machine, _| machine.closing());
+    for (number, _) in std::mem::take(&mut hub.starting) {
+        hub.carriers.remove(&number);
+    }
     let allowance = Instant::now() + ALLOWANCE;
     while hub.reloads > 0 && Instant::now() < allowance {
         hub = shared.wait_until(hub, allowance);
@@ -378,8 +407,19 @@ fn close(shared: &Shared) {
             peer.line.wake();
         }
     }
+    for handle in hub.carriers.values() {
+        handle.farewell();
+    }
     let farewell = Instant::now() + FAREWELL;
     while hub.peers.values().any(|peer| !peer.writer_done) && Instant::now() < farewell {
         hub = shared.wait_until(hub, farewell);
+    }
+    for handle in hub.carriers.values_mut() {
+        handle.end();
+    }
+    // A carrier still running when the process exits ends with it through its Job.
+    let reaped = Instant::now() + CARRIERS_END;
+    while !hub.carriers.is_empty() && Instant::now() < reaped {
+        hub = shared.wait_until(hub, reaped);
     }
 }

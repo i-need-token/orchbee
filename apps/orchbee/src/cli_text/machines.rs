@@ -51,13 +51,13 @@ impl super::CliText {
             ),
             C::MachineConnect => (
                 "orchbee machine connect <id|label> [--remember] [--format text|json]",
-                "Not available yet: the command is refused before it reads the catalog or contacts any machine.",
-                "暂不可用：命令在读取机器目录或连接任何机器之前即被拒绝。",
+                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not, such as a sign-in that needs an answer. The connection stays after the command ends. '--remember' is not available yet.",
+                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因，例如登录需要回答问题。命令结束后连接仍保持。‘--remember’ 暂不可用。",
             ),
             C::MachineDisconnect => (
                 "orchbee machine disconnect <id|label> [--format text|json]",
-                "Not available yet: the command is refused before it reads the catalog or contacts any machine.",
-                "暂不可用：命令在读取机器目录或连接任何机器之前即被拒绝。",
+                "End the connection to a saved machine and stop retrying it. The remote Session keeps running. Starts no machine hub.",
+                "断开与一台已保存机器的连接并停止重试。远端会话继续运行。不会启动连接进程。",
             ),
             _ => unreachable!("command help ownership"),
         };
@@ -172,6 +172,54 @@ impl super::CliText {
             (Locale::ZhCn, "remote-not-ready") => "无法通过新的 SSH 连接确认远端会话已就绪。",
             (Locale::EnUs, "cancelled") => "Machine operation interrupted.",
             (Locale::ZhCn, "cancelled") => "机器操作已中断。",
+            (Locale::EnUs, "disconnect-cancelled") => {
+                "A disconnect of this machine ended the connection attempt."
+            }
+            (Locale::ZhCn, "disconnect-cancelled") => "对这台机器的断开操作结束了本次连接尝试。",
+            (Locale::EnUs, "disabled-machine") => {
+                "This machine is disabled. Run 'orchbee machine enable' first."
+            }
+            (Locale::ZhCn, "disabled-machine") => {
+                "这台机器已禁用，请先运行 ‘orchbee machine enable’。"
+            }
+            (Locale::EnUs, "hub-unavailable") => {
+                "The background machine hub could not be reached or started. Try again."
+            }
+            (Locale::ZhCn, "hub-unavailable") => "无法连接或启动后台连接进程，请重试。",
+            (Locale::EnUs, "host-unreachable") => {
+                "The machine could not be reached: its name did not resolve, it refused, or it did not answer in time."
+            }
+            (Locale::ZhCn, "host-unreachable") => {
+                "无法连接这台机器：名称无法解析、连接被拒绝或未及时响应。"
+            }
+            (Locale::EnUs, "auth-required") => {
+                "Signing in to this machine needs an answer, such as a password or trusting its host key. This version cannot ask it yet; set up key sign-in and trust the host with OpenSSH first."
+            }
+            (Locale::ZhCn, "auth-required") => {
+                "登录这台机器需要回答问题，例如密码或信任主机密钥。此版本暂不能询问；请先用 OpenSSH 配置密钥登录并信任主机。"
+            }
+            (Locale::EnUs, "auth-failed") => "The machine refused the SSH key.",
+            (Locale::ZhCn, "auth-failed") => "这台机器拒绝了 SSH 密钥。",
+            (Locale::EnUs, "host-untrusted") => "The machine's host key is not trusted yet.",
+            (Locale::ZhCn, "host-untrusted") => "这台机器的主机密钥尚未被信任。",
+            (Locale::EnUs, "host-key-changed") => {
+                "The machine's host key differs from the trusted one. Check the machine before you trust the new key."
+            }
+            (Locale::ZhCn, "host-key-changed") => {
+                "这台机器的主机密钥与已信任的不同。请先核实这台机器，再信任新密钥。"
+            }
+            (Locale::EnUs, "version-incompatible") => {
+                "This Orchbee and the other side cannot work together; update the older one."
+            }
+            (Locale::ZhCn, "version-incompatible") => {
+                "本机 Orchbee 与另一端无法协同工作，请更新较旧的一方。"
+            }
+            (Locale::EnUs, "remote-install-failed") => "Installing Orchbee on the machine failed.",
+            (Locale::ZhCn, "remote-install-failed") => "在这台机器上安装 Orchbee 失败。",
+            (Locale::EnUs, "connected") => "Machine online:",
+            (Locale::ZhCn, "connected") => "机器已上线：",
+            (Locale::EnUs, "disconnected") => "Machine disconnected:",
+            (Locale::ZhCn, "disconnected") => "机器已断开：",
             (Locale::EnUs, "timeout") => "The machine operation deadline expired.",
             (Locale::ZhCn, "timeout") => "机器操作已超时。",
             (Locale::EnUs, "physical-unknown") => {
@@ -290,18 +338,46 @@ Catalog revision: {revision}
         }
     }
 
-    /// A Machine's state as the hub reports it before it can connect; `None` when none arrived.
+    /// A Machine's state as the hub reports it; `None` when none arrived.
     #[cfg(windows)]
     pub(crate) fn cli_machine_hub_machine_state(
         self,
         state: Option<&orchbee_machine_protocol::hub::MachineState>,
     ) -> &'static str {
-        use orchbee_machine_protocol::hub::MachineState as S;
-        match (self.locale, state) {
-            (Locale::EnUs, Some(S::Offline { .. })) => "offline",
-            (Locale::ZhCn, Some(S::Offline { .. })) => "离线",
-            (_, Some(S::Disabled)) => self.cli_machine_message("disabled"),
-            (_, Some(S::Unsupported { .. })) => self.cli_machine_message("unsupported"),
+        use orchbee_machine_protocol::hub::{MachineState as S, MachineStateName as N};
+        let name = match state {
+            Some(S::Disabled) => return self.cli_machine_message("disabled"),
+            Some(S::Unsupported { .. }) => return self.cli_machine_message("unsupported"),
+            Some(state) => state.name(),
+            None => N::Unknown,
+        };
+        match (self.locale, name) {
+            (Locale::EnUs, N::Connecting) => "connecting",
+            (Locale::ZhCn, N::Connecting) => "连接中",
+            (Locale::EnUs, N::Online) => "online",
+            (Locale::ZhCn, N::Online) => "在线",
+            (Locale::EnUs, N::Reconnecting) => "reconnecting",
+            (Locale::ZhCn, N::Reconnecting) => "重连中",
+            (Locale::EnUs, N::Offline) => "offline",
+            (Locale::ZhCn, N::Offline) => "离线",
+            (Locale::EnUs, N::Unresponsive) => "unresponsive",
+            (Locale::ZhCn, N::Unresponsive) => "无响应",
+            (Locale::EnUs, N::NeedsLogin) => "needs login",
+            (Locale::ZhCn, N::NeedsLogin) => "需要登录",
+            (Locale::EnUs, N::LoginFailed) => "login failed",
+            (Locale::ZhCn, N::LoginFailed) => "登录失败",
+            (Locale::EnUs, N::Untrusted) => "untrusted",
+            (Locale::ZhCn, N::Untrusted) => "未信任",
+            (Locale::EnUs, N::KeyChanged) => "key changed",
+            (Locale::ZhCn, N::KeyChanged) => "密钥已变",
+            (Locale::EnUs, N::NotInstalled) => "not installed",
+            (Locale::ZhCn, N::NotInstalled) => "未安装",
+            (Locale::EnUs, N::NeedsUpdate) => "needs update",
+            (Locale::ZhCn, N::NeedsUpdate) => "需更新",
+            (Locale::EnUs, N::LocalNeedsUpdate) => "this computer needs update",
+            (Locale::ZhCn, N::LocalNeedsUpdate) => "本机需更新",
+            (Locale::EnUs, N::Incompatible) => "incompatible",
+            (Locale::ZhCn, N::Incompatible) => "不兼容",
             (Locale::EnUs, _) => "unknown",
             (Locale::ZhCn, _) => "未知",
         }

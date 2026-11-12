@@ -1,18 +1,41 @@
-//! The catalog the hub serves and each Machine's state while the hub cannot connect: `disabled`
-//! for a disabled record, `unsupported` for a connection kind this build does not know, otherwise
-//! `offline` without a cause or a next attempt.
+//! The catalog the hub serves and one carried [`Machine`] per record: a disabled record reads
+//! `disabled`, a connection kind this build does not know `unsupported`, and an SSH record starts
+//! `offline` without a cause or a next attempt. A reread keeps each record whose id stays, so its
+//! carrier and history survive a reload that does not change it.
 
+use super::{
+    lifetime::Moment,
+    machine::{Context, Effect, Kind, Machine, Route},
+};
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
-    Count, MachineId,
-    hub::{Catalog, Event, MachineEvent, MachineState, ReloadOutcome, UnsupportedCause},
+    Count, MachineId, SessionName,
+    hub::{Catalog, Event, MachineState, ReloadOutcome},
 };
 use orchbee_workbench_client::application::machines::{Connection, Error, Store};
+use std::time::Instant;
 
 #[derive(Debug)]
 pub(super) struct Machines {
     revision: Count,
-    entries: Vec<(MachineId, MachineState)>,
+    entries: Vec<Machine>,
+    /// The last carrier number given out in the hub's life.
+    carriers: u64,
+}
+
+/// What the hub knows around a transition, beside the carrier numbers the catalog keeps.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Conditions {
+    pub(super) now: Moment,
+    pub(super) presence: bool,
+    pub(super) closing: bool,
+}
+
+/// What a transition gives the hub: the `machine` events for watchers and the effects to apply.
+#[derive(Debug, Default)]
+pub(super) struct Outcome {
+    pub(super) events: Vec<Event>,
+    pub(super) effects: Vec<Effect>,
 }
 
 impl Machines {
@@ -21,6 +44,7 @@ impl Machines {
         Self {
             revision: Count::new(0).expect("zero is a count"),
             entries: Vec::new(),
+            carriers: 0,
         }
     }
 
@@ -38,23 +62,25 @@ impl Machines {
             .profiles
             .iter()
             .map(|profile| {
-                let state = if !profile.enabled {
-                    MachineState::Disabled
-                } else if matches!(profile.draft.connection, Connection::Unsupported(_)) {
-                    MachineState::Unsupported {
-                        cause: Some(UnsupportedCause::ConnectionKind),
-                    }
-                } else {
-                    MachineState::Offline {
-                        cause: None,
-                        next_attempt: None,
-                    }
+                let kind = match &profile.draft.connection {
+                    _ if !profile.enabled => Kind::Disabled,
+                    Connection::Unsupported(_) => Kind::Unsupported,
+                    Connection::Ssh { target } => Kind::Ssh(Route {
+                        target: target.clone(),
+                        session: SessionName::new(profile.draft.session.as_str())
+                            .map_err(|_| ReloadOutcome::InvalidCatalog)?,
+                    }),
                 };
-                MachineId::new(profile.id.as_str()).map(|id| (id, state))
+                MachineId::new(profile.id.as_str())
+                    .map(|id| Machine::new(id, kind))
+                    .map_err(|_| ReloadOutcome::InvalidCatalog)
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| ReloadOutcome::InvalidCatalog)?;
-        let machines = Self { revision, entries };
+            .collect::<Result<Vec<_>, _>>()?;
+        let machines = Self {
+            revision,
+            entries,
+            carriers: 0,
+        };
         machines
             .catalog()
             .map_err(|()| ReloadOutcome::InvalidCatalog)?;
@@ -69,14 +95,17 @@ impl Machines {
     pub(super) fn state(&self, id: &MachineId) -> Option<&MachineState> {
         self.entries
             .iter()
-            .find(|(entry, _)| entry == id)
-            .map(|(_, state)| state)
+            .find(|machine| machine.id() == id)
+            .map(Machine::state)
     }
 
     fn catalog(&self) -> Result<Catalog, ()> {
         Catalog::new(
             self.revision,
-            self.entries.iter().map(|(id, _)| id.clone()).collect(),
+            self.entries
+                .iter()
+                .map(|machine| machine.id().clone())
+                .collect(),
         )
         .map_err(drop)
     }
@@ -85,44 +114,140 @@ impl Machines {
     pub(super) fn events(&self) -> Vec<Event> {
         let mut events = Vec::with_capacity(self.entries.len() + 1);
         events.extend(self.catalog().ok().map(Event::Catalog));
-        events.extend(
-            self.entries
-                .iter()
-                .map(|(id, state)| machine(id.clone(), state.clone())),
-        );
+        events.extend(self.entries.iter().map(Machine::event));
         events
     }
 
-    /// Replaces the catalog with `next`, returning what watchers receive: `catalog` and every
-    /// Machine whose state is new or changed, or nothing when neither changed.
-    pub(super) fn replace(&mut self, next: Self) -> Vec<Event> {
-        let listed = |machines: &Self| -> Vec<MachineId> {
-            machines.entries.iter().map(|(id, _)| id.clone()).collect()
-        };
-        let changed: Vec<Event> = next
-            .entries
+    /// The Machine whose carrier is `carrier`.
+    pub(super) fn owner(&self, carrier: u64) -> Option<&MachineId> {
+        self.entries
             .iter()
-            .filter(|(id, state)| self.state(id) != Some(state))
-            .map(|(id, state)| machine(id.clone(), state.clone()))
-            .collect();
-        let catalog_changed = self.revision != next.revision || listed(self) != listed(&next);
-        *self = next;
-        if !catalog_changed && changed.is_empty() {
-            return Vec::new();
+            .find(|machine| machine.carrier() == Some(carrier))
+            .map(Machine::id)
+    }
+
+    /// When the earliest timed transition of any Machine is due.
+    pub(super) fn next_wake(&self) -> Option<Instant> {
+        self.entries.iter().filter_map(Machine::next_wake).min()
+    }
+
+    /// Applies `transition` to the Machine `id`, when the catalog lists it.
+    pub(super) fn update(
+        &mut self,
+        id: &MachineId,
+        conditions: Conditions,
+        transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+    ) -> Outcome {
+        let mut outcome = Outcome::default();
+        if let Some(machine) = self.entries.iter_mut().find(|machine| machine.id() == id) {
+            step(
+                machine,
+                &mut self.carriers,
+                conditions,
+                &mut outcome,
+                transition,
+            );
         }
-        let mut events = Vec::with_capacity(changed.len() + 1);
-        events.extend(self.catalog().ok().map(Event::Catalog));
-        events.extend(changed);
-        events
+        outcome
+    }
+
+    /// Applies `transition` to every Machine in catalog order.
+    pub(super) fn each(
+        &mut self,
+        conditions: Conditions,
+        mut transition: impl FnMut(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+    ) -> Outcome {
+        let mut outcome = Outcome::default();
+        for machine in &mut self.entries {
+            step(
+                machine,
+                &mut self.carriers,
+                conditions,
+                &mut outcome,
+                &mut transition,
+            );
+        }
+        outcome
+    }
+
+    /// Replaces the catalog with `next`. A record whose id stays keeps its Machine, reconciled to
+    /// its new content; a removed record's carrier ends and its waiters read `not-found`. Watchers
+    /// receive `catalog` and every Machine that is new or reads differently, or nothing when
+    /// neither changed.
+    pub(super) fn replace(&mut self, next: Self, conditions: Conditions) -> Outcome {
+        let listed = |machines: &Self| -> Vec<MachineId> {
+            machines
+                .entries
+                .iter()
+                .map(|machine| machine.id().clone())
+                .collect()
+        };
+        let catalog_changed = self.revision != next.revision || listed(self) != listed(&next);
+        let mut outcome = Outcome::default();
+        let mut previous = std::mem::take(&mut self.entries);
+        for removed in previous
+            .iter_mut()
+            .filter(|machine| next.state(machine.id()).is_none())
+        {
+            outcome.effects.extend(removed.remove());
+        }
+        for incoming in next.entries {
+            let position = previous
+                .iter()
+                .position(|machine| machine.id() == incoming.id());
+            match position {
+                Some(position) => {
+                    let mut machine = previous.swap_remove(position);
+                    let kind = incoming.into_kind();
+                    step(
+                        &mut machine,
+                        &mut self.carriers,
+                        conditions,
+                        &mut outcome,
+                        |machine, _| machine.reconcile(kind),
+                    );
+                    self.entries.push(machine);
+                }
+                None => {
+                    outcome.events.push(incoming.event());
+                    self.entries.push(incoming);
+                }
+            }
+        }
+        self.revision = next.revision;
+        if catalog_changed && let Ok(catalog) = self.catalog() {
+            outcome.events.insert(0, Event::Catalog(catalog));
+        }
+        outcome
+    }
+
+    /// The connection `peer` closed: its requests wait no longer.
+    pub(super) fn forget(&mut self, peer: u64) {
+        for machine in &mut self.entries {
+            machine.forget(peer);
+        }
     }
 }
 
-fn machine(machine: MachineId, state: MachineState) -> Event {
-    Event::Machine(MachineEvent {
-        machine,
-        state,
-        last_attempt: None,
-        remote: None,
-        draft: false,
-    })
+/// Applies `transition` to `machine` and records its effects and, when it reads differently, its
+/// `machine` event.
+fn step(
+    machine: &mut Machine,
+    carriers: &mut u64,
+    conditions: Conditions,
+    outcome: &mut Outcome,
+    transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+) {
+    let before = machine.event();
+    let mut cx = Context {
+        now: conditions.now,
+        presence: conditions.presence,
+        closing: conditions.closing,
+        carriers,
+    };
+    outcome.effects.extend(transition(machine, &mut cx));
+    let after = machine.event();
+    if after != before {
+        outcome.events.push(after);
+    }
 }

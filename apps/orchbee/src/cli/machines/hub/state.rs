@@ -1,14 +1,20 @@
-//! The hub's state under its lock: the lifetime, the catalog, the registry of attached connections,
-//! and the counts admission and closing wait on. Each connection's protocol state machine lives
-//! under that connection's own lock. Lock order: the hub state's lock before a connection's; a
-//! thread holding a connection's lock takes no other, and neither is held across I/O.
+//! The hub's state under its lock: the lifetime, the catalog with each carried Machine, the
+//! carriers, the registry of attached connections, and the counts admission and closing wait on.
+//! Each connection's and each link's protocol state machine lives under its own lock. Lock order:
+//! the hub state's lock before a connection's or a link's; a thread holding one of those takes no
+//! other, and none is held across I/O.
 
-use super::{catalog::Machines, lifetime::Lifetime};
+use super::{
+    carrier::Handle,
+    catalog::{Conditions, Machines, Outcome},
+    lifetime::{Lifetime, Moment},
+    machine::{Context, Effect, Machine, Route},
+};
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
-    Connection,
-    hub::{self, Event},
+    Connection, MachineId,
+    hub::{self, Event, Reply},
 };
 use std::{collections::BTreeMap, net::Shutdown, sync::Arc};
 
@@ -32,6 +38,10 @@ pub(super) struct Hub {
     pub(super) machines: Machines,
     pub(super) peers: BTreeMap<u64, Peer>,
     next_peer: u64,
+    /// Every carrier from its start until its owner reports its end.
+    pub(super) carriers: BTreeMap<u64, Handle>,
+    /// Carriers whose owners the supervisor starts next, outside the lock.
+    pub(super) starting: Vec<(u64, Route)>,
     pub(super) controls: usize,
     pub(super) candidates: usize,
     /// Catalog reads in flight, which closing waits for.
@@ -68,6 +78,8 @@ impl Hub {
             machines,
             peers: BTreeMap::new(),
             next_peer: 0,
+            carriers: BTreeMap::new(),
+            starting: Vec::new(),
             controls: 0,
             candidates: 0,
             reloads: 0,
@@ -110,6 +122,7 @@ impl Hub {
         if held {
             self.lifetime.detach();
         }
+        self.machines.forget(id);
     }
 
     /// One thread of the connection `id` ended; the last one forgets it.
@@ -153,14 +166,115 @@ impl Hub {
         self.reloads = self.reloads.saturating_sub(1);
         if order > self.reload_applied {
             self.reload_applied = order;
-            for event in self.machines.replace(read) {
-                self.broadcast(&event);
-            }
+            let conditions = self.conditions();
+            let outcome = self.machines.replace(read, conditions);
+            self.publish(outcome);
         }
     }
 
     /// Ends a catalog read that failed.
     pub(super) fn abandon_reload(&mut self) {
         self.reloads = self.reloads.saturating_sub(1);
+    }
+
+    /// What a transition of a Machine knows now.
+    pub(super) fn conditions(&self) -> Conditions {
+        Conditions {
+            now: Moment::now(),
+            presence: self.peers.values().any(|peer| peer.presence),
+            closing: self.lifetime.is_closing(),
+        }
+    }
+
+    /// Applies `transition` to the Machine `id`, sends what changed to watchers and applies the
+    /// effects. The caller wakes the hub state's signal, since a carrier may wait to start.
+    pub(super) fn machine(
+        &mut self,
+        id: &MachineId,
+        transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+    ) {
+        let conditions = self.conditions();
+        let outcome = self.machines.update(id, conditions, transition);
+        self.publish(outcome);
+    }
+
+    /// As [`Self::machine`], for the Machine the carrier `carrier` belongs to.
+    pub(super) fn machine_of(
+        &mut self,
+        carrier: u64,
+        transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+    ) {
+        if let Some(machine) = self
+            .carriers
+            .get(&carrier)
+            .map(|handle| handle.machine.clone())
+        {
+            self.machine(&machine, transition);
+        }
+    }
+
+    /// As [`Self::machine`], for every Machine.
+    pub(super) fn machines(
+        &mut self,
+        transition: impl FnMut(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
+    ) {
+        let conditions = self.conditions();
+        let outcome = self.machines.each(conditions, transition);
+        self.publish(outcome);
+    }
+
+    /// Sends a transition's events to every watcher and applies its effects.
+    pub(super) fn publish(&mut self, outcome: Outcome) {
+        for event in &outcome.events {
+            self.broadcast(event);
+        }
+        for effect in outcome.effects {
+            self.apply(effect);
+        }
+    }
+
+    fn apply(&mut self, effect: Effect) {
+        match effect {
+            Effect::Start { carrier, route } => {
+                if let Some(machine) = self.machines.owner(carrier).cloned() {
+                    self.carriers.insert(carrier, Handle::new(machine));
+                    self.starting.push((carrier, route));
+                }
+            }
+            Effect::End { carrier } => {
+                let queued = self.starting.iter().any(|(queued, _)| *queued == carrier);
+                if queued {
+                    // Its owner never started, so nothing else would forget it.
+                    self.starting.retain(|(queued, _)| *queued != carrier);
+                    self.carriers.remove(&carrier);
+                } else if let Some(handle) = self.carriers.get_mut(&carrier) {
+                    handle.end();
+                }
+            }
+            Effect::EnsureSession { carrier, session } => {
+                if let Some(handle) = self.carriers.get(&carrier) {
+                    handle.ensure_session(session);
+                }
+            }
+            Effect::Ping { carrier } => {
+                if let Some(handle) = self.carriers.get(&carrier) {
+                    handle.ping();
+                }
+            }
+            Effect::Reply { waiters, result } => {
+                for waiter in waiters {
+                    if let Some(peer) = self.peers.get(&waiter.peer) {
+                        let mut wire = peer.line.lock();
+                        if wire.open {
+                            let _replied = wire
+                                .connection
+                                .reply(waiter.request, Reply::Connect(result.clone()));
+                            drop(wire);
+                            peer.line.wake();
+                        }
+                    }
+                }
+            }
+        }
     }
 }

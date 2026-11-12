@@ -1,8 +1,8 @@
 //! The hub's one view of its environment, taken at start. Everything the hub reads comes from the
-//! view. `docs/machines.md#environment` owns the rule, including what a child of the hub will
-//! receive once the slice that starts `ssh` brings the one path children start through.
+//! view, and every carrier child receives the view less Orchbee's and the terminal's variables.
+//! `docs/machines.md#environment` owns the rule.
 
-use std::{ffi::OsString, time::Duration};
+use std::{ffi::OsString, path::PathBuf, time::Duration};
 
 const PREFIX: &str = "ORCHBEE_";
 /// Kept unchanged: they select the data root, the store and the settings file every client shares.
@@ -11,16 +11,38 @@ const SHARED: [&str; 3] = ["ORCHBEE_HOME", "ORCHBEE_INSTALL_DIR", "ORCHBEE_CONFI
 const RUNTIME_BASE: &str = "ORCHBEE_RUNTIME_BASE";
 /// The development and test expiry override, in milliseconds.
 const EXPIRY_OVERRIDE: &str = "ORCHBEE_MACHINE_HUB_EXPIRY_MS";
+/// The development and test program that replaces `ssh` and its launch line.
+const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
+/// Describe the terminal the client ran in, which a carrier child does not run in.
+const TERMINAL: [&str; 6] = [
+    "TERM",
+    "COLORTERM",
+    "TERM_PROGRAM",
+    "TERM_PROGRAM_VERSION",
+    "WT_SESSION",
+    "WT_PROFILE_ID",
+];
 
 pub(super) struct Environment {
     variables: Vec<(String, String)>,
 }
 
+/// What replaces `ssh` in a development or test build.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum StandIn {
+    /// None is named: carriers run the system `ssh`.
+    None,
+    /// An absolute program, run with `--machine-link-v1` alone.
+    Program(PathBuf),
+    /// A value that is not an absolute path: every attempt fails rather than run `ssh`.
+    Unusable,
+}
+
 impl Environment {
     /// The view the hub keeps of this process's environment: every variable outside Orchbee's,
     /// the three that select shared folders, the runtime base when it applies to this build, and
-    /// the expiry override in a development or test build. Names compare without letter case; a
-    /// variable that is not valid Unicode is left out.
+    /// the expiry override and the `ssh` stand-in in a development or test build. Names compare
+    /// without letter case; a variable that is not valid Unicode is left out.
     pub(super) fn take() -> Self {
         let variables = std::env::vars_os()
             .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
@@ -38,7 +60,7 @@ impl Environment {
                 !name.starts_with(PREFIX)
                     || SHARED.contains(&name.as_str())
                     || (name == RUNTIME_BASE && applies)
-                    || (!release && name == EXPIRY_OVERRIDE)
+                    || (!release && (name == EXPIRY_OVERRIDE || name == STAND_IN))
             })
             .collect();
         Self { variables }
@@ -60,6 +82,31 @@ impl Environment {
             .ok()
             .filter(|milliseconds| (1_000..=600_000).contains(milliseconds))
             .map(Duration::from_millis)
+    }
+
+    /// The development or test `ssh` stand-in; a release has none.
+    pub(super) fn stand_in(&self) -> StandIn {
+        if orchbee_local_runtime::is_release() {
+            return StandIn::None;
+        }
+        match self.get(STAND_IN).map(PathBuf::from) {
+            None => StandIn::None,
+            Some(path) if path.is_absolute() => StandIn::Program(path),
+            Some(_) => StandIn::Unusable,
+        }
+    }
+
+    /// What every carrier child receives: the view without any `ORCHBEE_*` variable and without
+    /// the terminal's.
+    pub(super) fn child(&self) -> Vec<(String, String)> {
+        self.variables
+            .iter()
+            .filter(|(name, _)| {
+                let name = name.to_ascii_uppercase();
+                !name.starts_with(PREFIX) && !TERMINAL.contains(&name.as_str())
+            })
+            .cloned()
+            .collect()
     }
 }
 

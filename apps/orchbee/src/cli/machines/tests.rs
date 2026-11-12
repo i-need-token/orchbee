@@ -56,6 +56,17 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         Error::RemoteOtherEnvironment,
         Error::Timeout,
         Error::Catalog(CatalogError::InvalidCatalog),
+        Error::DisabledMachine,
+        Error::UnsupportedMachine,
+        Error::HubUnavailable,
+        Error::HostUnreachable,
+        Error::AuthRequired,
+        Error::AuthFailed,
+        Error::HostUntrusted,
+        Error::HostKeyChanged,
+        Error::VersionIncompatible,
+        Error::RemoteInstallFailed,
+        Error::Disconnected,
     ] {
         let output = emit(
             &command,

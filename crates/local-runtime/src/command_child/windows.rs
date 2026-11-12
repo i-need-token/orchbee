@@ -7,7 +7,7 @@ use std::{
 };
 
 use ::windows::Win32::System::Threading::CREATE_NO_WINDOW;
-use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
+use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject, KillOnJobClose};
 use winsafe::{HPROCESS, co};
 
 mod capture;
@@ -35,6 +35,18 @@ impl CommandChild {
         wrapped
             .wrap(CreationFlags(CREATE_NO_WINDOW))
             .wrap(JobObject);
+        Self::from_wrapped(wrapped)
+    }
+
+    /// As [`Self::spawn`], and the Job also ends every member when its last handle closes. Only
+    /// this owner holds that handle, so the owning process's end, an exit, a kill or an abort that
+    /// runs no destructor included, ends the command and everything it started.
+    pub fn spawn_contained(command: Command) -> Result<Self, CommandSpawnFailure> {
+        let mut wrapped = CommandWrap::from(command);
+        wrapped
+            .wrap(CreationFlags(CREATE_NO_WINDOW))
+            .wrap(JobObject)
+            .wrap(KillOnJobClose);
         Self::from_wrapped(wrapped)
     }
 

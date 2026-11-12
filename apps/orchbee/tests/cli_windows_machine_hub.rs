@@ -6,8 +6,12 @@
 //! by its holder's re-attachment, which restores `presence`; a holder whose hub is asked to stop
 //! starts no hub; an endpoint that stays closing fails an attachment as `closing`; a full hub is
 //! retried and then reported; a catalog of two machines and its reload; a real Session holds the hub
-//! through its stop and a new start; and uninstall's background step ends a hub a Session holds. No
-//! test starts `ssh` or names a reachable machine.
+//! through its stop and a new start; and uninstall's background step ends a hub a Session holds.
+//! Through the `ssh` stand-in, the Client under test run as the far end against a real scratch
+//! Session, `machine connect` brings a Machine online over one carrier child, which reconnects after
+//! it is killed and ends with `machine disconnect` and with the hub; a child receives no `ORCHBEE_*`
+//! or terminal variable; and a far end that closes at once is the Machine's state. Every hub runs a
+//! stand-in, so no test starts `ssh` or names a reachable machine.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -45,7 +49,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use winsafe::{HPROCESS, co, guard::CloseHandleGuard};
+use winsafe::{HPROCESS, HPROCESSLIST, co, guard::CloseHandleGuard};
 
 /// Bounds each wait for the hub.
 const WAIT: Duration = Duration::from_secs(20);
@@ -56,6 +60,17 @@ const SHORTEST_EXPIRY: &str = "1000";
 const FIRST: &str = "11111111111111111111111111111111";
 const SECOND: &str = "22222222222222222222222222222222";
 const ABSENT: &str = "33333333333333333333333333333333";
+/// The development and test program that replaces `ssh`.
+const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
+/// What a carrier child must never receive beside `ORCHBEE_*`.
+const TERMINAL: [&str; 6] = [
+    "TERM",
+    "COLORTERM",
+    "TERM_PROGRAM",
+    "TERM_PROGRAM_VERSION",
+    "WT_SESSION",
+    "WT_PROFILE_ID",
+];
 
 #[test]
 fn eight_attachments_at_once_reach_one_hub() {
@@ -400,19 +415,12 @@ fn the_catalog_of_two_machines_serves_events_requests_and_a_reload() {
                 Some(MachineStateName::Disabled),
             ),
         ),
-        (connect(FIRST, false), Answer::Unsupported),
         (connect(ABSENT, true), Answer::Unsupported),
         (
             Request::Disconnect {
                 machine: machine(ABSENT),
             },
             Answer::Reply(Reply::Disconnect(hub::DisconnectOutcome::NotFound)),
-        ),
-        (
-            Request::Disconnect {
-                machine: machine(FIRST),
-            },
-            Answer::Unsupported,
         ),
         (
             Request::StopSession {
@@ -624,6 +632,294 @@ fn uninstall_ends_the_hub_a_session_holds() {
     }
 }
 
+#[test]
+fn connect_carries_one_child_that_reconnects_and_ends_with_disconnect_and_the_hub() {
+    let carried = Carried::new("mh4-carry-", false);
+    let connected = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(connected.code, Some(0), "{connected}");
+    assert_eq!(
+        connected.document["result"]["remote"], "ready",
+        "{connected}"
+    );
+    assert!(
+        connected.document["result"]["remoteVersion"].is_string(),
+        "{connected}"
+    );
+    let endpoint = carried.endpoint();
+    let hub = Hub::observe(query_pid(&endpoint));
+    assert_eq!(
+        carried.state().machines,
+        [(FIRST.to_owned(), "online".to_owned())]
+    );
+    let first = one_child(&hub, None);
+    assert!(
+        first.image().ends_with(&CohortArtifact::Client.file_name()),
+        "{}",
+        first.image()
+    );
+
+    // A carrier that dies loses the link; the Machine reconnects by itself with one new child.
+    let mut watcher = Client::connect(&endpoint);
+    watcher.attach(false, true);
+    assert_eq!(watcher.machine_state(WAIT, FIRST), MachineState::Online);
+    first.terminate_checked();
+    first.wait_exit(WAIT);
+    let lost = watcher.machine_state(WAIT, FIRST);
+    assert_eq!(lost.name(), MachineStateName::Reconnecting, "{lost:?}");
+    let deadline = Instant::now() + WAIT;
+    loop {
+        let state =
+            watcher.machine_state(deadline.saturating_duration_since(Instant::now()), FIRST);
+        if state == MachineState::Online {
+            break;
+        }
+        assert_eq!(state.name(), MachineStateName::Reconnecting, "{state:?}");
+    }
+    let second = one_child(&hub, Some(first.pid));
+    assert_eq!(
+        carried.state().machines,
+        [(FIRST.to_owned(), "online".to_owned())]
+    );
+    drop(watcher);
+
+    // Disconnect ends the carrier and leaves the Machine offline, retrying nothing.
+    let disconnected = carried.run(&["machine", "disconnect", FIRST]);
+    assert_eq!(disconnected.code, Some(0), "{disconnected}");
+    second.wait_exit(WAIT);
+    assert_eq!(
+        carried.state().machines,
+        [(FIRST.to_owned(), "offline".to_owned())]
+    );
+
+    // The hub's exit ends the carrier it holds.
+    let connected = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(connected.code, Some(0), "{connected}");
+    let third = one_child(&hub, None);
+    exit_hub(&endpoint);
+    hub.wait_exit(WAIT);
+    assert!(third.exited(WAIT).is_some(), "the carrier outlived the hub");
+
+    // With no hub there is no connection to end, and disconnect starts none.
+    let disconnected = carried.run(&["machine", "disconnect", FIRST]);
+    assert_eq!(disconnected.code, Some(0), "{disconnected}");
+    assert_eq!(disconnected.document["result"]["remote"], "not-contacted");
+    assert!(!orchbee_local_ipc::endpoint_exists(&endpoint).unwrap());
+}
+
+#[test]
+fn a_carrier_child_receives_no_orchbee_or_terminal_variable() {
+    let carried = Carried::new("mh4-environment-", true);
+    // The client that starts the hub carries every excluded kind: the runtime base and the two hub
+    // variables the hub's view keeps, an `ORCHBEE_*` variable it drops, and the terminal's own.
+    let mut command = carried.command(&["machine", "connect", FIRST, "--format=json"]);
+    for name in TERMINAL {
+        command.env(name, "mh4");
+    }
+    command
+        .env("ORCHBEE_TEST_CARRIER_MARK", "mh4")
+        .env("MH4_CARRIER_MARK", "mh4");
+    let output = command.output().unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let recorded = fs::read_to_string(carried.fixture.path("standin/environment.txt")).unwrap();
+    let names: Vec<&str> = recorded
+        .lines()
+        .filter_map(|line| line.split_once('=').map(|(name, _)| name))
+        .collect();
+    assert!(names.iter().any(|name| name.eq_ignore_ascii_case("PATH")));
+    assert!(names.contains(&"MH4_CARRIER_MARK"), "other variables pass");
+    let excluded: Vec<&&str> = names
+        .iter()
+        .filter(|name| {
+            let name = name.to_ascii_uppercase();
+            name.starts_with("ORCHBEE_") || TERMINAL.contains(&name.as_str())
+        })
+        .collect();
+    assert!(excluded.is_empty(), "the child received {excluded:?}");
+}
+
+#[test]
+fn a_far_end_that_closes_at_once_is_a_machine_state_not_a_hub_failure() {
+    // The scratch stand-in exits at once with an error, as a far end that closes would.
+    let scratch = Scratch::new("mh4-closes-", None);
+    scratch.write_catalog(1, true);
+    let output = scratch
+        .client("machine")
+        .args(["connect", FIRST, "--format=json"])
+        .output()
+        .unwrap();
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_ne!(output.status.code(), Some(0));
+    assert_eq!(document["result"]["error"], "remote-protocol", "{document}");
+    let state = scratch.print();
+    let hub = Hub::observe(state.pid);
+    let mut watcher = Client::connect(&scratch.endpoint());
+    watcher.attach(false, true);
+    let reported = watcher.machine_state(WAIT, FIRST);
+    assert!(
+        matches!(reported, MachineState::Offline { cause: Some(_), .. }),
+        "{reported:?}"
+    );
+    drop(watcher);
+    scratch.exit_hub();
+    hub.wait_exit(WAIT);
+}
+
+/// A real local runtime whose saved machine `FIRST`, named `user@host.invalid` with the remote
+/// Session `far`, the hub carries through the stand-in: the Client under test as the far end, so no
+/// `ssh` starts and nothing is contacted. The stand-in receives no `ORCHBEE_*` variable, so the far
+/// Session runs in the data root's default runtime base, apart from the fixture's own Sessions.
+struct Carried {
+    fixture: session::Fixture,
+    root: DataRoot,
+    stand_in: PathBuf,
+}
+
+impl Carried {
+    /// With `record`, the stand-in is a script that records its environment and then runs the
+    /// Client.
+    fn new(prefix: &'static str, record: bool) -> Self {
+        assert!(
+            !orchbee_local_runtime::is_release(),
+            "a release build reads no stand-in and would run ssh"
+        );
+        let fixture = session::Fixture::new(prefix, &["standin"]);
+        let root = DataRoot::resolve(fixture.state_environment()).unwrap();
+        let client = Path::new(&fixture.path("cohort")).join(CohortArtifact::Client.file_name());
+        let stand_in = if record {
+            let script = PathBuf::from(fixture.path("standin/record.cmd"));
+            fs::write(
+                &script,
+                format!(
+                    "@echo off\r\nset > \"{}\"\r\n\"{}\" %*\r\n",
+                    fixture.path("standin/environment.txt"),
+                    client.display()
+                ),
+            )
+            .unwrap();
+            script
+        } else {
+            client
+        };
+        let document = json!({"version": 1, "revision": 1, "profiles": [{
+            "id": FIRST, "label": "First",
+            "connection": {"kind": "ssh", "target": "user@host.invalid"},
+            "session": "far", "enabled": true, "remoteInstall": "manual"}]});
+        PrivateCache::acquire(&root.state(), "machines")
+            .unwrap()
+            .replace("machines.json", &serde_json::to_vec(&document).unwrap())
+            .unwrap();
+        Self {
+            fixture,
+            root,
+            stand_in,
+        }
+    }
+
+    /// The CLI under test with the stand-in set, so a hub it starts runs no `ssh`.
+    fn command(&self, words: &[&str]) -> Command {
+        let mut command = self.fixture.command(words);
+        command
+            .env(STAND_IN, &self.stand_in)
+            .env("ORCHBEE_MACHINE_HUB_EXPIRY_MS", "120000");
+        command
+    }
+
+    fn run(&self, words: &[&str]) -> session::Run {
+        let started = Instant::now();
+        let output = self.command(words).arg("--format=json").output().unwrap();
+        session::Run {
+            words: words.join(" "),
+            code: output.status.code(),
+            elapsed: started.elapsed(),
+            document: serde_json::from_slice(&output.stdout).unwrap_or_default(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        }
+    }
+
+    fn state(&self) -> State {
+        State::parse(&self.command(&["--machine-hub-state-v1"]).output().unwrap())
+    }
+
+    fn endpoint(&self) -> PathBuf {
+        machine_hub_endpoint(&self.root).unwrap()
+    }
+}
+
+impl Drop for Carried {
+    fn drop(&mut self) {
+        // The hub runs from the fixture's cohort and the far Session lives in its root, so both end
+        // before the fixture stops its own Sessions and removes the root.
+        let endpoint = self.endpoint();
+        if orchbee_local_ipc::endpoint_exists(&endpoint).unwrap_or(false)
+            && let Ok(AcceptorMessage::QueryResult(result)) = request(&endpoint, RequestKind::Query)
+            && let Some(process) = result.processes().first()
+            && let Ok(hub) =
+                HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, process.pid.get())
+        {
+            let _ = request(&endpoint, RequestKind::Exit);
+            let _ = hub.WaitForSingleObject(Some(u32::try_from(WAIT.as_millis()).unwrap()));
+        }
+        let _ = self
+            .fixture
+            .command(&["server", "stop", "--confirm", "--session", "far"])
+            .env_remove("ORCHBEE_RUNTIME_BASE")
+            .output();
+    }
+}
+
+/// The live processes `hub` started: those whose parent id is the hub's and which started after
+/// it, so a process whose earlier parent had the same id never counts.
+fn children(hub: &Hub) -> Vec<Hub> {
+    let mut list = HPROCESSLIST::CreateToolhelp32Snapshot(co::TH32CS::SNAPPROCESS, None).unwrap();
+    let ids: Vec<u32> = list
+        .iter_processes()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.th32ParentProcessID == hub.pid)
+        .map(|entry| entry.th32ProcessID)
+        .collect();
+    ids.into_iter()
+        .filter_map(|pid| {
+            let process = HPROCESS::OpenProcess(
+                co::PROCESS::QUERY_LIMITED_INFORMATION
+                    | co::PROCESS::SYNCHRONIZE
+                    | co::PROCESS::TERMINATE,
+                false,
+                pid,
+            )
+            .ok()?;
+            let created = creation(&process);
+            let child = Hub {
+                pid,
+                process,
+                created,
+            };
+            (created >= hub.created && child.exited(Duration::ZERO).is_none()).then_some(child)
+        })
+        .collect()
+}
+
+/// The one live child of `hub`, other than `old`, once it has exactly one.
+fn one_child(hub: &Hub, old: Option<u32>) -> Hub {
+    let deadline = Instant::now() + WAIT;
+    loop {
+        let mut live = children(hub);
+        if live.len() == 1 && Some(live[0].pid) != old {
+            return live.remove(0);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the hub has {} live children",
+            live.len()
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
 /// A scratch data root with its own staged client, whose hub the test ends before the root goes.
 struct Scratch {
     root: PathBuf,
@@ -687,6 +983,8 @@ impl Scratch {
         }
         command
             .arg(entry)
+            // Every hub of these roots runs a stand-in that exits at once, so no test can run `ssh`.
+            .env(STAND_IN, session::system_program("where.exe"))
             .env("ORCHBEE_HOME", self.home())
             .env("USERPROFILE", self.root.join("profile"))
             .env("HOME", self.root.join("profile"))

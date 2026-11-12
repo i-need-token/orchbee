@@ -1,6 +1,6 @@
 //! Constructs typed machine commands from admitted options and validates machine selectors, names,
-//! remote targets, Session names, and scope. It performs no catalog persistence, SSH connection, or
-//! machine discovery.
+//! remote targets, Session names, and scope. It performs no catalog persistence, SSH connection,
+//! hub request, or machine discovery.
 
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
@@ -23,6 +23,10 @@ pub(crate) enum MachineCommand {
         machine: String,
         enabled: bool,
     },
+    /// Connect the machine the selector names through the machine hub.
+    Connect(String),
+    /// End the hub's connection to the machine the selector names.
+    Disconnect(String),
     /// A verb or option whose slice has not landed. The whole invocation was parsed and is
     /// refused before any effect.
     NotYetAvailable(&'static str),
@@ -36,6 +40,8 @@ impl MachineCommand {
             Self::Remove(_) => "remove",
             Self::Enable { enabled: true, .. } => "enable",
             Self::Enable { enabled: false, .. } => "disable",
+            Self::Connect(_) => "connect",
+            Self::Disconnect(_) => "disconnect",
             Self::NotYetAvailable(operation) => operation,
         }
     }
@@ -147,11 +153,9 @@ pub(super) fn parse(
                 machine,
                 enabled: verb == "enable",
             },
-            _ => MachineCommand::NotYetAvailable(if verb == "connect" {
-                "connect"
-            } else {
-                "disconnect"
-            }),
+            "connect" if seen("--remember") => MachineCommand::NotYetAvailable("connect"),
+            "connect" => MachineCommand::Connect(machine),
+            _ => MachineCommand::Disconnect(machine),
         }
     };
     Ok(Request::Machine { command, format })

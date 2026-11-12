@@ -29,6 +29,7 @@ mod machine_hub;
 mod machine_observation;
 mod machine_picker;
 mod machine_refusal;
+mod machine_retry;
 mod machine_spaces;
 mod machine_ssh;
 mod machine_tunnel;
@@ -277,6 +278,10 @@ pub mod application {
         pub use crate::machine_refusal::Refusal;
     }
 
+    pub mod machine_retry {
+        pub use crate::machine_retry::Backoff;
+    }
+
     pub mod machine_spaces {
         pub use crate::machine_spaces::{Collector, read_git_of, read_metadata, read_with_git};
     }
@@ -284,7 +289,7 @@ pub mod application {
     pub mod machine_ssh {
         pub use crate::machine_ssh::{
             AdmissionError, Client, PROGRAM_NOT_FOUND, client, command, executable, execute,
-            literal, program,
+            link_program, literal, program,
         };
     }
 

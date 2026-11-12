@@ -1,5 +1,6 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
 use crate::cli_text::CliText;
+mod connect;
 pub(crate) mod hub;
 pub(crate) mod link;
 pub(crate) mod routing;
@@ -23,6 +24,13 @@ use std::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(windows),
+    expect(
+        dead_code,
+        reason = "the machine hub's connect failures arise only where the hub runs, on Windows"
+    )
+)]
 enum Error {
     Catalog(CatalogError),
     SshUnavailable,
@@ -34,7 +42,25 @@ enum Error {
     RemoteNotInstalled,
     RemoteOtherEnvironment,
     RemoteNotReady,
+    /// The record is disabled.
+    DisabledMachine,
+    /// The record's connection kind is one this build does not know.
+    UnsupportedMachine,
+    /// The machine hub of this data root could not be reached or started.
+    HubUnavailable,
+    HostUnreachable,
+    /// Signing in needs an answer this release cannot ask.
+    AuthRequired,
+    AuthFailed,
+    HostUntrusted,
+    HostKeyChanged,
+    /// One side is too old for the other, or another build's hub serves this data root.
+    VersionIncompatible,
+    RemoteInstallFailed,
+    /// An interrupt ended the command.
     Cancelled,
+    /// A `disconnect` ended the connection attempt this command waited for.
+    Disconnected,
     Timeout,
     PhysicalUnknown,
     /// A verb or option this release parses but does not perform yet.
@@ -61,28 +87,55 @@ impl Error {
             Self::RemoteNotInstalled => "remote-not-installed",
             Self::RemoteOtherEnvironment => "remote-other-environment",
             Self::RemoteNotReady => "remote-not-ready",
-            Self::Cancelled => "cancelled",
+            Self::DisabledMachine => "disabled-machine",
+            Self::UnsupportedMachine => "unsupported-machine",
+            Self::HubUnavailable => "hub-unavailable",
+            Self::HostUnreachable => "host-unreachable",
+            Self::AuthRequired => "auth-required",
+            Self::AuthFailed => "auth-failed",
+            Self::HostUntrusted => "host-untrusted",
+            Self::HostKeyChanged => "host-key-changed",
+            Self::VersionIncompatible => "version-incompatible",
+            Self::RemoteInstallFailed => "remote-install-failed",
+            Self::Cancelled | Self::Disconnected => "cancelled",
             Self::Timeout => "timeout",
             Self::PhysicalUnknown => "physical-unknown",
             Self::NotYetAvailable => "not-yet-available",
             Self::Internal => "internal",
         }
     }
+    /// The standard-error message: a `cancelled` a `disconnect` caused reads differently from an
+    /// interrupt.
+    fn message(self) -> &'static str {
+        match self {
+            Self::Disconnected => "disconnect-cancelled",
+            _ => self.code(),
+        }
+    }
     fn status(self) -> u8 {
         match self {
-            Self::Catalog(CatalogError::NotFound | CatalogError::Ambiguous) => 3,
+            Self::Catalog(CatalogError::NotFound | CatalogError::Ambiguous)
+            | Self::DisabledMachine
+            | Self::AuthFailed
+            | Self::HostUntrusted
+            | Self::HostKeyChanged => 3,
             Self::Catalog(
                 CatalogError::Busy | CatalogError::Capacity | CatalogError::RevisionExhausted,
             )
             | Self::SshUnavailable
             | Self::RemoteNotInstalled
             | Self::RemoteNotReady
+            | Self::UnsupportedMachine
+            | Self::HubUnavailable
+            | Self::HostUnreachable
+            | Self::AuthRequired
             | Self::NotYetAvailable => 4,
             Self::SshFailed | Self::RemoteProtocol => 5,
-            Self::RemoteUnsupported | Self::RemoteOtherEnvironment => 6,
+            Self::RemoteUnsupported | Self::RemoteOtherEnvironment | Self::VersionIncompatible => 6,
             Self::Cancelled => 130,
-            Self::Timeout => 7,
+            Self::Timeout | Self::Disconnected => 7,
             Self::PhysicalUnknown => 8,
+            Self::RemoteInstallFailed => 9,
             _ => 1,
         }
     }
@@ -151,10 +204,12 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
     let mut context = Context {
         signals,
         deadline: Instant::now()
-            + Duration::from_secs(if matches!(command, MachineCommand::Add(_)) {
-                60
-            } else {
-                5
+            + Duration::from_secs(match command {
+                MachineCommand::Add(_) => 60,
+                // A hub start, then the hub's own 60-second attempt.
+                MachineCommand::Connect(_) => 90,
+                MachineCommand::Disconnect(_) => 15,
+                _ => 5,
             }),
     };
     let mut report = Report {
@@ -235,6 +290,12 @@ fn execute(
                 enabled: *enabled,
             });
         }
+        MachineCommand::Connect(machine) => {
+            return connect::connect(&store, machine, context, report);
+        }
+        MachineCommand::Disconnect(machine) => {
+            return connect::disconnect(&store, machine, context, report);
+        }
     };
     context.check()?;
     let (catalog, changed) = store.commit(&edit).map_err(Error::Catalog)?;
@@ -283,7 +344,25 @@ fn emit(
         OutputFormat::Text if error.is_some() => output::encode_text(""),
         OutputFormat::Text => {
             let mut text = String::new();
-            if let Some(catalog) = &report.catalog {
+            if let MachineCommand::Connect(_) | MachineCommand::Disconnect(_) = command {
+                let message = if matches!(command, MachineCommand::Connect(_)) {
+                    "connected"
+                } else {
+                    "disconnected"
+                };
+                text.push_str(CliText::new(locale).cli_machine_message(message));
+                if let Some(id) = &report.id {
+                    text.push(' ');
+                    text.push_str(id.as_str());
+                }
+                text.push('\n');
+                if let Some(version) = &report.remote_version {
+                    text.push_str(CliText::new(locale).cli_machine_message("remote-version"));
+                    text.push(' ');
+                    text.push_str(&crate::cli_text::escape::escape(version));
+                    text.push('\n');
+                }
+            } else if let Some(catalog) = &report.catalog {
                 if matches!(command, MachineCommand::List) {
                     if catalog.profiles.is_empty() {
                         text.push_str(CliText::new(locale).cli_machine_message("empty"));
@@ -333,7 +412,7 @@ fn emit(
         Ok(stdout) => {
             let mut stderr = String::new();
             if let Some(error) = error {
-                stderr.push_str(CliText::new(locale).cli_machine_message(error.code()));
+                stderr.push_str(CliText::new(locale).cli_machine_message(error.message()));
                 stderr.push('\n');
                 if report.committed {
                     stderr.push_str(CliText::new(locale).cli_machine_message("already-committed"));

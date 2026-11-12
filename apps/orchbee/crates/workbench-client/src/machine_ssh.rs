@@ -98,6 +98,25 @@ pub fn literal(value: &str) -> String {
 /// active version a remote store's pointer names. An unreadable pointer names none, and nothing is
 /// inferred from `Path`.
 pub fn program(executable: Option<&str>, session: &str, action: &str) -> String {
+    let args = if action == "start" {
+        "'server' 'start'".to_owned()
+    } else {
+        format!("'status' {}", literal(action))
+    };
+    launch(
+        executable,
+        &format!("'--session' {} {args} '--format' 'json'", literal(session)),
+    )
+}
+/// The remote command the machine hub's carrier runs: the remote link helper of the active version
+/// a remote store's pointer names, resolved as [`program`] resolves it, with exit 125 when there is
+/// none.
+pub fn link_program() -> String {
+    launch(None, "'--machine-link-v1'")
+}
+/// The encoded PowerShell command that resolves the program and runs it with `arguments`, already
+/// quoted.
+fn launch(executable: Option<&str>, arguments: &str) -> String {
     let resolve = executable.map_or_else(
         || {
             let (roots, names) = probe_names();
@@ -123,18 +142,12 @@ pub fn program(executable: Option<&str>, session: &str, action: &str) -> String 
         },
         |path| format!("$program={}", literal(path)),
     );
-    let args = if action == "start" {
-        "'server' 'start'".to_owned()
-    } else {
-        format!("'status' {}", literal(action))
-    };
     let script = format!(
         "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';\
         [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
         $OutputEncoding=[Console]::OutputEncoding;\
         try{{{resolve};if(-not $program){{exit {PROGRAM_NOT_FOUND}}};\
-        & $program '--session' {} {args} '--format' 'json';exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}",
-        literal(session)
+        & $program {arguments};exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}"
     );
     let encoded = base64::engine::general_purpose::STANDARD.encode(
         script

@@ -1,11 +1,13 @@
 //! One attached connection: its reader, which hands each frame to the connection's state machine
 //! under the connection's own lock and answers a request under the hub state's lock and then the
 //! connection's, and its writer, which writes whole frames, up to a batch at a time, until `bye` or
-//! the connection's end. A frame wakes only its own connection's threads.
+//! the connection's end. A frame wakes only its own connection's threads. A `connect` that has to
+//! wait is answered later by its Machine's transition.
 
 use super::super::shared_carrier::frames;
 use super::{
     catalog::Machines,
+    machine::Waiter,
     state::{Hub, Line, Shared},
 };
 use orchbee_local_ipc::LocalStream;
@@ -148,25 +150,22 @@ fn deliver(
             request: body,
             ..
         }) => {
-            let attach = matches!(body, Request::Attach(_));
             let mut hub = shared.lock();
             answer(&mut hub, line, id, request, body);
             drop(hub);
-            if attach {
-                // The lifetime may have changed.
-                shared.wake();
-            }
+            // The lifetime may have changed, or a carrier may wait to start.
+            shared.wake();
             true
         }
         Delivery::Message(Message::Bye { .. }) => false,
         Delivery::Open { channel, open, .. } => {
             let hub = shared.lock();
-            let reason = if hub.lifetime.is_closing() {
-                ResetReason::Stopping
-            } else if hub.machines.state(open.machine()).is_some() {
-                ResetReason::NotOnline
-            } else {
-                ResetReason::NotFound
+            let reason = match hub.machines.state(open.machine()) {
+                _ if hub.lifetime.is_closing() => ResetReason::Stopping,
+                None => ResetReason::NotFound,
+                // Session and route channels through the hub belong to a later slice.
+                Some(MachineState::Online) => ResetReason::Unavailable,
+                Some(_) => ResetReason::NotOnline,
             };
             let _reset = line.lock().connection.reset(channel, reason);
             true
@@ -210,6 +209,9 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             if changed {
                 hub.announce();
             }
+            if gained {
+                hub.machines(|machine, cx| machine.attach(cx));
+            }
             if watching {
                 let events = hub.machines.events();
                 let mut wire = line.lock();
@@ -219,15 +221,25 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             }
             return;
         }
-        Request::Connect(connect) => connect_reply(&hub.machines, &connect, closing),
+        Request::Connect(connect) => match connect_reply(&hub.machines, &connect, closing) {
+            Some(reply) => Some(reply),
+            None if connect.draft.is_some() => None,
+            None => {
+                let waiter = Waiter { peer: id, request };
+                hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
+                return;
+            }
+        },
         Request::Disconnect { .. } if closing => {
             Some(Reply::Disconnect(DisconnectOutcome::Stopping))
         }
-        Request::Disconnect { machine } => hub
-            .machines
-            .state(&machine)
-            .is_none()
-            .then_some(Reply::Disconnect(DisconnectOutcome::NotFound)),
+        Request::Disconnect { machine } if hub.machines.state(&machine).is_none() => {
+            Some(Reply::Disconnect(DisconnectOutcome::NotFound))
+        }
+        Request::Disconnect { machine } => {
+            hub.machine(&machine, |machine, _| machine.disconnect());
+            Some(Reply::Disconnect(DisconnectOutcome::Disconnected))
+        }
         Request::Claim { .. } => Some(Reply::Claim(if closing {
             ClaimOutcome::Stopping
         } else {
@@ -238,25 +250,26 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
         } else {
             DismissOutcome::Ended
         })),
-        Request::StopSession { machine } => Some(Reply::StopSession(if closing {
-            StopSessionOutcome::Stopping
-        } else if hub.machines.state(&machine).is_some() {
-            StopSessionOutcome::NotOnline
-        } else {
-            StopSessionOutcome::NotFound
-        })),
+        Request::StopSession { machine } => match hub.machines.state(&machine) {
+            _ if closing => Some(Reply::StopSession(StopSessionOutcome::Stopping)),
+            None => Some(Reply::StopSession(StopSessionOutcome::NotFound)),
+            // Stopping a remote Session belongs to a later slice.
+            Some(MachineState::Online) => None,
+            Some(_) => Some(Reply::StopSession(StopSessionOutcome::NotOnline)),
+        },
         // `deliver` hands `reload` to its own path.
         Request::Reload => Some(Reply::Reload(ReloadOutcome::Stopping)),
     };
     let mut wire = line.lock();
     let _answered = match reply {
         Some(reply) => wire.connection.reply(request, reply),
-        // A request the hub cannot serve until it can connect.
+        // A request this build does not serve: a draft, or stopping a remote Session.
         None => wire.connection.unsupported(request),
     };
 }
 
-/// The `connect-result` the hub can give without connecting, or none for `unsupported`.
+/// The `connect-result` the hub gives without asking the Machine, or none when a draft reads
+/// `unsupported` or the Machine itself answers.
 fn connect_reply(machines: &Machines, connect: &Connect, closing: bool) -> Option<Reply> {
     let result = |failure, state: Option<&MachineState>| {
         Some(Reply::Connect(ConnectResult {
