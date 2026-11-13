@@ -221,7 +221,12 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_session() -> TestResult {
     let output = run_cli(&fixture, &["status"]);
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout)?;
-    assert!(text.contains("revision"), "{text}");
+    // The text counts come from the live snapshot: the TUI's second Tab is there.
+    assert!(
+        text.lines()
+            .any(|line| line.split_whitespace().eq(["tabs", "2"])),
+        "{text}"
+    );
     let (output, document) = run_json(&fixture, &["status", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(document["schema"], "orchbee.status");

@@ -97,13 +97,19 @@ fn native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell
     let identities = create_three_shells(&fixture, &mut client);
     let checkpoint = client.checkpoint();
     client.send(b"\x02,\x15renamed shell");
-    client.wait_terminal_output_after(
+    // The editor may draw before it echoes the typed label, so wait for one frame with both.
+    client.wait_completed_frame_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        "Rename Tab",
+        "Rename Tab editor holding the typed label",
+        |frame| {
+            let text = frame.text();
+            ["Rename Tab", "renamed shell", "Enter"]
+                .iter()
+                .all(|needle| text.contains(needle))
+                .then_some(())
+        },
     );
-    assert!(client.contains("renamed shell"));
-    assert!(client.contains("Enter"));
     let checkpoint = client.checkpoint();
     client.send(b"\r");
     client.wait_ordered_ready_after(
@@ -925,20 +931,26 @@ fn managed_process_loss_never_starts_a_replacement() -> TestResult {
         };
         let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let mut reopened = Client::spawn(&fixture, "en_US.UTF-8");
-        let error = thread::scope(|scope| {
-            if let Some(guard) = activation {
+        if let Some(guard) = activation {
+            let error = thread::scope(|scope| {
                 scope.spawn(move || {
                     thread::sleep(Duration::from_secs(6));
                     drop(guard);
                 });
-            }
-            reopened.exit_message_before(startup_deadline)
-        });
-        if failed_role == "orchbee-server" {
+                reopened.exit_message_before(startup_deadline)
+            });
             assert!(error.contains("requires explicit recovery"));
             assert!(fixture.processes("orchbee-server").is_empty());
         } else {
-            assert!(error.contains("terminal is unavailable"));
+            // A known-unavailable terminal is drawable at startup: the reopened Client shows the
+            // Tab's unavailable terminal instead of exiting, and nothing replaces the lost process.
+            reopened.wait_any_text_after(
+                0,
+                startup_deadline,
+                "the retained Tab with its terminal unavailable",
+                &["terminal unavailable"],
+            );
+            reopened.close_before(Instant::now() + EXIT_TIMEOUT);
             assert_process_retained(&fixture, "orchbee-server", &previous_server);
         }
         assert!(fixture.processes("orchbee-worker").is_empty());
@@ -1007,7 +1019,8 @@ fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_session() 
     first.close_before(Instant::now() + EXIT_TIMEOUT);
     let server = one_process(&fixture, "orchbee-server");
     let host = one_process(&fixture, "orchbee-terminal-host");
-    let other = Fixture::with_workspace();
+    // The other cohort never starts: its staged Host is altered at rest, then refused.
+    let other = Fixture::new();
     fs::OpenOptions::new()
         .append(true)
         .open(other.cohort.join(crate::support::staged_artifact_name(

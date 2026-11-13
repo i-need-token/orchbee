@@ -124,7 +124,8 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
     validate(&validators, "orchbee.mutation.result", &output);
     assert_eq!(accepted["result"]["action"], "workspace.accept-directory");
     assert_eq!(accepted["result"]["outcome"], "committed");
-    assert_eq!(accepted["result"]["projectId"], project_id.as_str());
+    // The receipt names the Workspace; its Project stays with the Workspace record.
+    assert!(accepted["result"].get("projectId").is_none(), "{accepted}");
     assert_eq!(accepted["result"]["workspaceId"], workspace_id.as_str());
     assert_eq!(
         accepted["result"]["path"],
@@ -518,7 +519,10 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(committed["result"]["workspaceId"], dup_ids[0].as_str());
-    assert_eq!(committed["result"]["projectId"], project_id.as_str());
+    assert!(
+        committed["result"].get("projectId").is_none(),
+        "{committed}"
+    );
     validate(&validators, "orchbee.mutation.result", &output);
 
     // 5. The CLI-side boundary: a relative path is a usage failure (exit 2)

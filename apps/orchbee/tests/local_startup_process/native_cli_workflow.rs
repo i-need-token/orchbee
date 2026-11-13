@@ -147,7 +147,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     //    path admitted to the workspace; the TUI directory modal is never
     //    touched. Frozen contract (CLI-WORKSPACE-DIRECTORY-ACCEPTED):
     //    action/outcome plus revision/directoryId/workerId and the resolved
-    //    projectId/workspaceId on the mutation receipt.
+    //    workspaceId on the mutation receipt.
     let (output, accepted) = run_json(
         &fixture,
         &[
@@ -168,7 +168,8 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     );
     assert_eq!(accepted["result"]["action"], "workspace.accept-directory");
     assert_eq!(accepted["result"]["outcome"], "committed");
-    assert_eq!(accepted["result"]["projectId"], project_id.as_str());
+    // The receipt names the Workspace; its Project stays with the Workspace record.
+    assert!(accepted["result"].get("projectId").is_none(), "{accepted}");
     assert_eq!(accepted["result"]["workspaceId"], workspace_id.as_str());
     for field in ["revision", "directoryId", "workerId"] {
         assert!(

@@ -135,7 +135,8 @@ fn wait_output_matches_existing_retained_text_over_the_public_cli() -> TestResul
     assert_eq!(result["match"]["excerpt"], "EXEISTING");
     assert_eq!(result["match"]["excerptTruncated"], false);
     assert_eq!(result["observed"]["timeoutMs"], 30_000);
-    assert_eq!(result["observed"]["requestedRows"], 1000);
+    // The default recent window.
+    assert_eq!(result["observed"]["requestedRows"], 80);
     assert!(
         result["observed"]["completedObservations"]
             .as_u64()
@@ -234,7 +235,12 @@ fn wait_output_matches_a_marker_scrolled_into_history() -> TestResult {
         "the head marker must be off the visible grid"
     );
 
-    let (output, document) = wait_output(&fixture, &terminal_id, &["--match", "SC7001"]);
+    // The default recent window is 80 rows, so the head needs an explicit wider one.
+    let (output, document) = wait_output(
+        &fixture,
+        &terminal_id,
+        &["--match", "SC7001", "--lines", "1000"],
+    );
     assert_eq!(
         output.status.code(),
         Some(0),

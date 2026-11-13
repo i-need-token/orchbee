@@ -338,7 +338,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
 #[test]
 fn duplicate_project_labels_stay_id_addressable() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::with_workspace();
+    let fixture = Fixture::new();
     let _server = spawn_real_server(&fixture);
 
     let mut project_ids = Vec::new();
@@ -439,7 +439,7 @@ fn duplicate_project_labels_stay_id_addressable() -> TestResult {
 #[test]
 fn project_rename_commits_against_the_live_server() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::with_workspace();
+    let fixture = Fixture::new();
     let _server = spawn_real_server(&fixture);
     let validators = validators(&fixture);
 
