@@ -17,8 +17,9 @@
 // - command: a new process whose `Path` is the machine value plus the user value, as a new terminal
 //   gets it, finds the command in `<store root>\bin`; `--version` answers the version; `server start`
 //   exits 0; `workspace create` opens a terminal running the default shell, a command sent to it
-//   prints a marker that `wait-output` and `read` find, and `workspace close` closes it; `status`
-//   exits 0; a release build refuses each withheld command with exit 4.
+//   prints a marker that `wait-output` and `read` find, and after `workspace close` the Server counts
+//   no terminal, as the uninstall that follows requires; `status` exits 0; a release build refuses
+//   each withheld command with exit 4.
 // - uninstall: the registered uninstaller with the silent switches exits 0, and its copy that keeps
 //   running after the exit code has finished.
 // - npm: `npm install -g --offline` of the tarballs into the prefix; the first start installs the
@@ -327,7 +328,32 @@ function terminalRoundTrip(identity, env) {
 		0,
 		'workspace close',
 	);
-	log(`The terminal printed ${marker}, read back through the CLI, and closed.`);
+	const ended = terminalsEnded(identity, env);
+	log(
+		`The terminal printed ${marker}, read back through the CLI, and ended ${ended} ms after close.`,
+	);
+}
+
+/**
+ * Waits until the Server counts no terminal, as an uninstall requires: closing a Workspace ends its
+ * terminal, though not at once. Returns how long that took.
+ */
+function terminalsEnded(identity, env) {
+	const start = Date.now();
+	for (;;) {
+		const status = runJson(identity, ['status', 'server'], env, true);
+		const server = (status.document?.result?.server?.processes ?? []).find(
+			(each) => each.role === 'server',
+		);
+		if (status.status === 0 && server?.terminals === 0) return Date.now() - start;
+		if (Date.now() - start >= terminalDeadline) {
+			process.stdout.write(`${status.stdout}${status.stderr}`);
+			throw new StepFailure(
+				`The Server still counts ${server?.terminals ?? 'unknown'} terminals ${terminalDeadline} ms after workspace close`,
+			);
+		}
+		sleep(terminalPoll);
+	}
 }
 
 /** The newest `logs\<YYYY-MM-DD>.jsonl` of the data root, or a note that there is none. */
