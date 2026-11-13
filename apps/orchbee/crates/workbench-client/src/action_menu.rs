@@ -242,8 +242,21 @@ pub(crate) fn menu_binding_action(
     };
     Some(action)
 }
+/// One presentation revision of the open menu. Every revision mints a distinct token; an
+/// availability refresh keeps the lineage of the revision it refreshes, because it leaves the
+/// rows, their copy, the selection and the viewport as they were.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MenuToken(u64);
+pub struct MenuToken {
+    revision: u64,
+    lineage: u64,
+}
+
+impl MenuToken {
+    /// Whether this token is `earlier` or a later revision that only refreshed availability since.
+    pub(crate) const fn refreshes(self, earlier: Self) -> bool {
+        self.lineage == earlier.lineage && self.revision >= earlier.revision
+    }
+}
 
 /// The local chrome actions owned by an open menu surface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -569,6 +582,8 @@ struct Menu {
     follow_selection: bool,
     token: MenuToken,
     drawn: Option<MenuDrawProof>,
+    /// The draw an availability refresh revoked, still on screen until the next presented frame.
+    refreshed_draw: Option<MenuDrawProof>,
     surface_presented: bool,
     anchor: Option<MenuAnchor>,
     candidate_hidden: bool,
@@ -648,7 +663,10 @@ pub(crate) struct ActionMenu {
 impl ActionMenu {
     fn allocate(&mut self) -> Option<MenuToken> {
         self.next = self.next.checked_add(1)?;
-        Some(MenuToken(self.next))
+        Some(MenuToken {
+            revision: self.next,
+            lineage: self.next,
+        })
     }
 
     pub(crate) fn select_action(&mut self, action: MenuAction) {
@@ -868,6 +886,7 @@ impl ActionMenu {
             follow_selection: true,
             token,
             drawn: None,
+            refreshed_draw: None,
             surface_presented: false,
             anchor,
             candidate_hidden: false,
@@ -1168,6 +1187,7 @@ impl ActionMenu {
         menu.first = draw.first;
         menu.visible_rows = draw.visible_rows;
         menu.drawn = Some(proof);
+        menu.refreshed_draw = None;
         menu.surface_presented = true;
         self.presentation.presented();
         true
@@ -1177,6 +1197,7 @@ impl ActionMenu {
     fn revoke_exact_draw(&mut self) {
         if let Some(menu) = &mut self.menu {
             menu.drawn = None;
+            menu.refreshed_draw = None;
             menu.visible_rows = 0;
         }
     }
@@ -1201,6 +1222,7 @@ impl ActionMenu {
                 menu.token = token;
             }
             menu.drawn = None;
+            menu.refreshed_draw = None;
             menu.visible_rows = 0;
             menu.surface_presented = false;
         }
@@ -1357,7 +1379,9 @@ impl ActionMenu {
         }
     }
 
-    /// Reasons come from the operation owner; changing them revokes the painted proof.
+    /// Reasons come from the operation owner; changing them revokes the painted proof under a
+    /// token of the same lineage. The revoked draw stays recorded only as the frame still on
+    /// screen, on which a pointer press may have been made.
     pub(crate) fn refresh_availability(
         &mut self,
         mut query: impl FnMut(MenuAction) -> Option<MenuUnavailable>,
@@ -1385,8 +1409,13 @@ impl ActionMenu {
             return false;
         };
         menu.unavailable = unavailable;
-        menu.token = token;
-        menu.drawn = None;
+        menu.token = MenuToken {
+            lineage: menu.token.lineage,
+            ..token
+        };
+        if let Some(draw) = menu.drawn.take() {
+            menu.refreshed_draw = Some(draw);
+        }
         menu.visible_rows = 0;
         true
     }
@@ -1414,16 +1443,31 @@ impl ActionMenu {
     }
 
     fn drawn_enabled_row(&self, token: MenuToken, row: usize) -> bool {
-        let Some(menu) = &self.menu else {
-            return false;
-        };
-        let Some(draw) = menu.drawn else {
+        self.menu
+            .as_ref()
+            .is_some_and(|menu| menu.token == token && self.enabled_row_in(menu.drawn, token, row))
+    }
+
+    /// A press and its release are one click when the pressed row is still the same action in
+    /// the same place and enabled now: it was pressed under the current token, or under an
+    /// earlier one whose draw is still on screen and since which only availability changed.
+    fn clicked_enabled_row(&self, token: MenuToken, row: usize) -> bool {
+        self.menu.as_ref().is_some_and(|menu| {
+            if menu.token == token {
+                self.enabled_row_in(menu.drawn, token, row)
+            } else {
+                menu.token.refreshes(token) && self.enabled_row_in(menu.refreshed_draw, token, row)
+            }
+        })
+    }
+
+    fn enabled_row_in(&self, draw: Option<MenuDrawProof>, token: MenuToken, row: usize) -> bool {
+        let (Some(menu), Some(draw)) = (&self.menu, draw) else {
             return false;
         };
         self.confirmed.is_none()
             && self.presentation.interactive()
             && draw.token == token
-            && menu.token == token
             && row < menu.result_actions.len()
             && row >= draw.first
             && row < draw.first.saturating_add(draw.visible_rows)
@@ -1455,9 +1499,13 @@ impl ActionMenu {
     }
 
     pub(crate) fn click(&mut self, token: MenuToken, row: usize) -> bool {
-        if !self.drawn_enabled_row(token, row) {
+        if !self.clicked_enabled_row(token, row) {
             return false;
         }
+        self.activate_row(row)
+    }
+
+    fn activate_row(&mut self, row: usize) -> bool {
         let Some(menu) = &mut self.menu else {
             return false;
         };
@@ -1476,7 +1524,7 @@ impl ActionMenu {
                 .get(row)
                 .is_some_and(|index| menu.actions[*index].submenu())
         });
-        submenu && self.click(token, row)
+        submenu && self.drawn_enabled_row(token, row) && self.activate_row(row)
     }
 
     pub(crate) fn confirmed(&self) -> Option<MenuAction> {

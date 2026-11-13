@@ -197,7 +197,10 @@ cascaded submenu row opens it, as above. Leaving retains the candidate; subseque
 separators and group headings do not move the candidate. Hover preserves the viewport and action token; Enter
 requires a successful draw of the current candidate. Without received idle reports there is no hover feedback. A left click on a
 drawn row executes it only after a matching release on the same typed source, token, row and painted
-rectangle. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a
+rectangle. An availability refresh between the press and the release does not end the click: press
+and release still count as one click when the row under the pointer is the same action, in the same
+place, and enabled both at press and at release. A refresh that moved, removed, disabled or replaced
+that row cancels it, as does a release on another row. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a
 pending click. The global menu's header X closes it; its Back action returns to its parent. Right
 opens a selected submenu; Left or Esc returns to its parent and restores the stable selected action,
 anchor and freshly queried availability. Returning requires a fresh successful paint; old child
@@ -334,7 +337,7 @@ Success enables them, appends the discovered paths to both Project creation entr
 Workspace directory is a linked non-bare checkout, appends a destructive Remove Worktree… after
 Close Workspace…. Git-only rows follow the current discovery result; unrelated actions preserve their identities. Completion changes availability
 under a fresh menu token and requires repaint; it never changes the candidate or the selected
-action's identity.
+action's identity, and a click held on a row it leaves enabled in place completes on release.
 
 Close Workspace… and Dissolve Project ask for authoritative conditional admission through the existing Close or setup owner.
 Only definite `confirmation-required` for that conditional kind and captured revision opens a new
@@ -509,7 +512,10 @@ opening a menu; a menu may still open the navigator through its ordinary action.
 | Cancel / execution timeout / unavailable         | Revoke the unhanded intent; accepted navigation is not rolled back, and no action executes                                                                              |
 | Source / configuration / covering capture change | Revoke the unhanded episode; a foreign navigation retains its own semantics and cannot complete the menu intent. Resize follows the retained presentation states above. |
 
-Presentation tokens bind the episode, exact semantic target, keyboard selection and viewport revision. The
+Presentation tokens bind the episode, exact semantic target, keyboard selection and viewport revision. An
+availability refresh mints a token of the same lineage, because it leaves the rows, their copy, the
+selection and the viewport unchanged; every other revision starts a new lineage. Lineage serves only
+a held click; hover, rest, wheel and keyboard input still require the exact current token. The
 whole-surface lease separately proves that this owner occupied the latest frame; the successful
 receipt additionally records the exact painted window. `Recovery` accepts only local Esc, including
 Esc returning from a retained child. `Continuation` admits repeated navigation while a normal
@@ -529,14 +535,19 @@ delegating to the menu owner. The exact painted row-window proof remains availab
 motion reports in one packet, while keyboard confirmation requires its selected row to match the
 current candidate. Hover preserves viewport, token, availability, native navigation and execution
 deadline; stationary-pointer reconciliation never moves the candidate. Matching release emits the
-typed activation intent and revalidates its source and token. Keyboard selection and availability
+typed activation intent; the coordinator revalidates its source and the menu owner its token, which
+is the current one or, when only availability changed since the press, the token of the draw still
+on screen, and in both cases the row must be enabled now. Keyboard selection and availability
 changes mint a new token and require a new draw. The pointer owns one rest timer for submenu
 opening and parent return; when it fires, the coordinator revalidates the painted source and token
 and the menu owner opens only a cascaded submenu row, through the same confirmation as a click. The
 global menu's replacing new-Tab submenu still opens only on a click or key.
 Pane reconciliation cancels underlying gestures while preserving the top ActionMenu owner's
 painted hover and press across idle and draw boundaries. A matching release still requires the
-same target, token, exposure and geometry; a covering owner or invalidated hit map revokes it.
+same target, token, exposure and geometry; a covering owner or invalidated hit map revokes it. A
+frame that paints the pressed row again under a refreshed token of the same lineage, with the same
+rectangle, enablement and exposure, carries the press over to that token; any other difference
+cancels it.
 
 Global pointer capability remains Session-owned. After the lifecycle completely establishes
 global `ButtonOnly` (`1003l`, then `1002h` and `1006h`), the endpoint performs one ordered
@@ -591,7 +602,10 @@ known-commit retention and execution deadlines independent of browsing time. Can
 witnesses cover successive pre-paint motions, keyboard continuation, disabled and unpainted rows,
 source and token refusal, viewport retention, pointer leave, and no implicit action. Rest witnesses
 cover the open delay and restarted return grace, parent-row return targets beside the opening row,
-and that a rest opens only a cascaded submenu row and never the global new-Tab submenu.
+and that a rest opens only a cascaded submenu row and never the global new-Tab submenu. A
+click witness in `crates/workbench-client/src/terminal_input/dispatcher/tests/action_menu/mouse_controls.rs`
+covers an availability refresh between press and release, painted or not: an unchanged row
+activates once, and a disabled, moved or replaced row does not.
 
 Global-menu witnesses assert the Tab, Panel, Workspace and Session section boundaries, directional
 split and move actions, both localized labels, current effective shortcuts, parity with keyboard

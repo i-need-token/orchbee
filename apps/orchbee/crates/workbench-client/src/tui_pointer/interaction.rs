@@ -69,6 +69,24 @@ impl Arm {
         true
     }
 
+    /// Takes the pressed interaction as `map` paints it again under a revision its owner declares
+    /// a held press survives, such as an action menu's availability refresh, when it kept its place,
+    /// its enablement and its exposure.
+    fn follow_refresh(&mut self, map: &FrameHitMap) -> bool {
+        let current = if self.backdrop {
+            map.backdrop_interaction_at(self.column, self.row)
+        } else {
+            map.interaction_at(self.column, self.row)
+        };
+        let Some(current) = current
+            .filter(|current| *current != self.fingerprint && current.continues(&self.fingerprint))
+        else {
+            return false;
+        };
+        self.fingerprint = current;
+        true
+    }
+
     fn cancel(&mut self) -> bool {
         let changed = !self.cancelled;
         self.cancelled = true;
@@ -440,7 +458,7 @@ impl State {
         if self
             .arm
             .as_mut()
-            .is_some_and(|arm| arm.active() && arm.follow_reveal(map))
+            .is_some_and(|arm| arm.active() && (arm.follow_reveal(map) || arm.follow_refresh(map)))
         {
             self.changed();
         }

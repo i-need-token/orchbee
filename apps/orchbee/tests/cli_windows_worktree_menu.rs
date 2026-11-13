@@ -145,8 +145,9 @@ fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add
     known.push(opened);
     fixture.settle_ready(&tui.client);
     open_menu(&fixture, &tui, &mut control, "source");
-    // Known Git facts enable New Worktree… while Open Worktree ▸ still checks. The answer that
-    // enables Open Worktree ▸ redraws the menu under a fresh token, which voids a click spanning it.
+    // Known Git facts enable New Worktree… while Open Worktree ▸ still checks. Waiting for the
+    // answer keeps the click on the settled menu: an answer that recomposes the rows voids a click
+    // spanning it, while one that only enables Open Worktree ▸ does not.
     enabled_row(&fixture, &tui, OPEN_WORKTREE);
     choose(&fixture, &tui, &mut control, NEW_WORKTREE, form_ready);
     submit_form(&fixture, &tui, &mut control);

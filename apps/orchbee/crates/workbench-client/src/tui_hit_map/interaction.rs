@@ -120,6 +120,23 @@ impl InteractionTarget {
         false
     }
 
+    /// Whether this target is `earlier` painted again after a revision a held press survives. Only
+    /// an action-menu row declares one: an availability refresh keeps its menu-token lineage, so
+    /// the row is still the same action. Geometry and enablement are compared by the caller.
+    pub(crate) fn continues(&self, earlier: &Self) -> bool {
+        match (self, earlier) {
+            (
+                Self::ActionMenuRow { source, token, row },
+                Self::ActionMenuRow {
+                    source: earlier_source,
+                    token: earlier_token,
+                    row: earlier_row,
+                },
+            ) => source == earlier_source && row == earlier_row && token.refreshes(*earlier_token),
+            _ => self == earlier,
+        }
+    }
+
     pub(crate) fn hit_target(&self) -> HitTarget {
         match self {
             Self::Help(target) => HitTarget::Help {
@@ -264,6 +281,16 @@ impl PaintedInteraction {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ExposureSignature(pub(crate) Vec<ExposurePatch>);
 
+impl ExposureSignature {
+    /// The same frontmost winners over the same tiles, each the same or continuing its earlier one.
+    fn continues(&self, earlier: &Self) -> bool {
+        self.0.len() == earlier.0.len()
+            && self.0.iter().zip(&earlier.0).all(|(current, earlier)| {
+                current.rect == earlier.rect && current.winner.continues(&earlier.winner)
+            })
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ExposurePatch {
     pub(crate) rect: Rect,
@@ -296,6 +323,31 @@ impl ExposureWinner {
             interaction,
         }))
     }
+
+    fn continues(&self, earlier: &Self) -> bool {
+        let (Self::Region(current), Self::Region(earlier)) = (self, earlier) else {
+            return self == earlier;
+        };
+        let target = match (&current.target, &earlier.target) {
+            (
+                HitTarget::ActionMenuRow { token, row },
+                HitTarget::ActionMenuRow {
+                    token: earlier_token,
+                    row: earlier_row,
+                },
+            ) => row == earlier_row && token.refreshes(*earlier_token),
+            (current, earlier) => current == earlier,
+        };
+        let interaction = match (&current.interaction, &earlier.interaction) {
+            (Some(current), Some(earlier)) => {
+                current.paint_rect == earlier.paint_rect
+                    && current.spec == earlier.spec
+                    && current.target.continues(&earlier.target)
+            }
+            (current, earlier) => current == earlier,
+        };
+        current.layer == earlier.layer && target && interaction
+    }
 }
 
 /// Stable semantic identity plus every interaction property whose change
@@ -322,6 +374,17 @@ impl Fingerprint {
             && self.hit_rect == other.hit_rect
             && self.paint_rect == other.paint_rect
             && self.spec == other.spec
+    }
+
+    /// Whether this is `earlier` painted again in the same place, with the same enablement and
+    /// exposure, under a revision its owner declares a held press survives.
+    pub(crate) fn continues(&self, earlier: &Self) -> bool {
+        self.target.continues(&earlier.target)
+            && self.layer == earlier.layer
+            && self.hit_rect == earlier.hit_rect
+            && self.paint_rect == earlier.paint_rect
+            && self.spec == earlier.spec
+            && self.exposure.continues(&earlier.exposure)
     }
 }
 

@@ -54,6 +54,108 @@ fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row()
     }
 }
 
+/// A press and its release on a row are one click when an availability refresh between them
+/// leaves that row the same enabled action in the same place, whether the refreshed menu was
+/// painted before the release or not. A refresh that disables or moves the row, or a change that
+/// replaces the rows' presentation, cancels the click.
+#[test]
+fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum Change {
+        OtherRowDisabled,
+        RowDisabled,
+        RowMoved,
+        RowsReplaced,
+    }
+    let busy = crate::action_menu::MenuUnavailable::OperationBusy;
+    for change in [
+        Change::OtherRowDisabled,
+        Change::RowDisabled,
+        Change::RowMoved,
+        Change::RowsReplaced,
+    ] {
+        for repaint in [false, true] {
+            if change == Change::RowMoved && !repaint {
+                continue;
+            }
+            let mut port = Port::new(MenuAction::Help);
+            port.actions = vec![MenuAction::Help, MenuAction::Detach];
+            let mut dispatcher = InputDispatcher::default();
+            let mut view = ClientView::new(50);
+            dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+            let area = Rect::new(0, 0, 48, 10);
+            let painted = paint_in(
+                &mut dispatcher,
+                &mut port,
+                view.bindings(),
+                Locale::EnUs,
+                area,
+            );
+            let (x, y) = painted.row(&MenuAction::Help);
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                format!("\x1b[<0;{x};{y}M").as_bytes(),
+            );
+            match change {
+                Change::OtherRowDisabled | Change::RowMoved => {
+                    assert!(port.menu.refresh_availability(|action| {
+                        (action == MenuAction::Detach).then_some(busy)
+                    }));
+                }
+                Change::RowDisabled => {
+                    assert!(port.menu.refresh_availability(|action| {
+                        (action == MenuAction::Help).then_some(busy)
+                    }));
+                }
+                Change::RowsReplaced => {
+                    port.menu.set_labels(|action| {
+                        (action == MenuAction::Help).then(|| "Help target".into())
+                    });
+                }
+            }
+            if repaint {
+                let area = if change == Change::RowMoved {
+                    Rect::new(2, 0, 48, 10)
+                } else {
+                    area
+                };
+                paint_in(
+                    &mut dispatcher,
+                    &mut port,
+                    view.bindings(),
+                    Locale::EnUs,
+                    area,
+                );
+            }
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                format!("\x1b[<0;{x};{y}mtail").as_bytes(),
+            );
+            let clicked = change == Change::OtherRowDisabled;
+            assert_eq!(
+                port.menu.active(),
+                !clicked,
+                "{change:?}, repainted {repaint}"
+            );
+            let expected: &[Call] = if clicked {
+                &[Call::Action(ClientAction::OpenShortcutHelp)]
+            } else {
+                &[]
+            };
+            assert_eq!(
+                *port.calls.borrow(),
+                expected,
+                "{change:?}, repainted {repaint}: one activation at most, and the packet stays fenced"
+            );
+        }
+    }
+}
+
 #[test]
 fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
     let mut port = Port::new(MenuAction::Detach);
@@ -280,6 +382,17 @@ fn paint(
     bindings: &crate::client_view::Bindings,
     locale: Locale,
 ) -> PaintedActionMenu {
+    paint_in(dispatcher, port, bindings, locale, Rect::new(0, 0, 50, 10))
+}
+
+/// Paints the menu within `area` of a 50 by 10 frame.
+fn paint_in(
+    dispatcher: &mut InputDispatcher,
+    port: &mut Port,
+    bindings: &crate::client_view::Bindings,
+    locale: Locale,
+    area: Rect,
+) -> PaintedActionMenu {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(50, 10)).unwrap();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     let mut draw = ModalPresentation::NotPresented;
@@ -287,7 +400,7 @@ fn paint(
         .draw(|frame| {
             draw = crate::tui_render::render_action_menu_for_test(
                 frame,
-                frame.area(),
+                area,
                 port.menu.view().unwrap(),
                 bindings,
                 locale,

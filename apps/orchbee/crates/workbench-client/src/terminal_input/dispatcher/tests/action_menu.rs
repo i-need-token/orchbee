@@ -765,11 +765,8 @@ impl Port {
         token: crate::action_menu::MenuToken,
         row: usize,
     ) {
-        if self
-            .menu
-            .view()
-            .is_some_and(|view| view.source == source && view.token == token)
-        {
+        // As the Client does: the menu owner decides which token a click may still carry.
+        if self.menu.view().is_some_and(|view| view.source == source) {
             self.menu.click(token, row);
         }
     }

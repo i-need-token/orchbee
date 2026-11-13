@@ -1301,7 +1301,14 @@ impl WorkbenchClientUi {
         row: usize,
     ) {
         self.drive_action_menu();
-        if self.action_menu_source_matches(source, token) && self.menus.menu.click(token, row) {
+        // The menu owner decides which token a click may still carry: the current one, or one an
+        // availability refresh replaced while the press was held.
+        if self
+            .view()
+            .action_menu()
+            .is_some_and(|menu| menu.source == source)
+            && self.menus.menu.click(token, row)
+        {
             self.confirm_action_menu();
         }
     }
