@@ -572,14 +572,17 @@ impl Fixture {
     }
 }
 
-/// Reads each process of a terminal, by its own console: its CPU time and thread states twice,
-/// three seconds apart, and between them how many records wait unread in its console's input
-/// buffer. Attaching to a console from a helper process needs no help from the processes read, so
-/// it tells a shell that has not taken its typed keys from a terminal that never got them.
+/// Reads each process of a terminal, its console host and the Terminal Host that owns it: their
+/// CPU time and thread states twice, three seconds apart, with the machine's load, and between
+/// them, by attaching to the terminal's console, how many records wait unread in its input buffer,
+/// the rows above its cursor as the console itself holds them, and how long each call took.
+/// Attaching from a helper process needs no help from the processes read, so it tells a shell that
+/// has not taken its typed keys from a terminal that never got them, and a console that holds output
+/// its terminal has not shown.
 const STALL_PROBE: &str = r#"
 $ErrorActionPreference = 'Continue'
 Add-Type -TypeDefinition @'
-using System; using System.Runtime.InteropServices;
+using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text;
 public static class ObStallProbe {
   [DllImport("kernel32.dll", SetLastError=true)] static extern bool FreeConsole();
   [DllImport("kernel32.dll", SetLastError=true)] static extern bool AttachConsole(uint pid);
@@ -588,18 +591,42 @@ public static class ObStallProbe {
   [DllImport("kernel32.dll", SetLastError=true)] static extern bool GetNumberOfConsoleInputEvents(IntPtr handle, out uint count);
   [StructLayout(LayoutKind.Explicit, Size=20)] public struct Record { [FieldOffset(0)] public ushort Type; [FieldOffset(4)] public int KeyDown; [FieldOffset(14)] public ushort Unit; }
   [DllImport("kernel32.dll", SetLastError=true, EntryPoint="PeekConsoleInputW")] static extern bool Peek(IntPtr handle, [Out] Record[] records, uint length, out uint read);
-  public static string Input(uint pid) {
+  [StructLayout(LayoutKind.Sequential)] public struct Info { public short SizeX, SizeY, CursorX, CursorY; public ushort Attributes; public short Left, Top, Right, Bottom, MaxX, MaxY; }
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool GetConsoleScreenBufferInfo(IntPtr handle, out Info info);
+  [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] static extern bool ReadConsoleOutputCharacterW(IntPtr handle, StringBuilder text, uint length, uint coord, out uint read);
+  static IntPtr Open(string name) { return CreateFileW(name, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero); }
+  public static string Read(uint pid, bool screen) {
+    StringBuilder report = new StringBuilder();
+    Stopwatch clock = Stopwatch.StartNew();
     FreeConsole();
     if (!AttachConsole(pid)) return "attach failed " + Marshal.GetLastWin32Error();
-    IntPtr input = CreateFileW("CONIN$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-    if (input == new IntPtr(-1)) { int error = Marshal.GetLastWin32Error(); FreeConsole(); return "CONIN$ failed " + error; }
+    report.Append("attached in " + clock.ElapsedMilliseconds + " ms; ");
+    IntPtr input = Open("CONIN$");
+    if (input == new IntPtr(-1)) { int error = Marshal.GetLastWin32Error(); FreeConsole(); return report + "CONIN$ failed " + error; }
+    clock.Restart();
     uint pending; GetNumberOfConsoleInputEvents(input, out pending);
     Record[] records = new Record[Math.Max(1u, Math.Min(pending, 4096u))]; uint read = 0; int typed = 0, other = 0;
     if (pending > 0 && Peek(input, records, (uint)records.Length, out read)) {
       for (int i = 0; i < read; i++) { if (records[i].Type == 1 && records[i].KeyDown != 0 && records[i].Unit != 0) typed++; else other++; }
     }
-    CloseHandle(input); FreeConsole();
-    return "unread records " + pending + " (typed key presses " + typed + ", other " + other + ")";
+    report.Append("unread records " + pending + " (typed key presses " + typed + ", other " + other + ") read in " + clock.ElapsedMilliseconds + " ms");
+    CloseHandle(input);
+    if (screen) {
+      IntPtr output = Open("CONOUT$"); Info info;
+      clock.Restart();
+      if (output != new IntPtr(-1) && GetConsoleScreenBufferInfo(output, out info)) {
+        report.Append("; buffer " + info.SizeX + "x" + info.SizeY + " cursor " + info.CursorX + "," + info.CursorY + " window top " + info.Top);
+        for (int row = Math.Max(0, info.CursorY - 3); row <= info.CursorY; row++) {
+          StringBuilder text = new StringBuilder(info.SizeX + 1); uint got;
+          ReadConsoleOutputCharacterW(output, text, (uint)info.SizeX, (uint)(row << 16), out got);
+          report.Append("\n    console row " + row + ": " + text.ToString(0, (int)Math.Min(got, (uint)text.Length)).TrimEnd());
+        }
+        report.Append("\n    screen read in " + clock.ElapsedMilliseconds + " ms");
+      } else { report.Append("; CONOUT$ failed " + Marshal.GetLastWin32Error()); }
+      if (output != new IntPtr(-1)) CloseHandle(output);
+    }
+    FreeConsole();
+    return report.ToString();
   }
 }
 '@
@@ -609,10 +636,30 @@ function Sample($label, $id) {
   $states = $process.Threads | Group-Object { if ($_.ThreadState -eq 'Wait') { "Wait/$($_.WaitReason)" } else { "$($_.ThreadState)" } } | ForEach-Object { "$($_.Name)x$($_.Count)" }
   "$label $id $($process.ProcessName) cpu $([int]$process.TotalProcessorTime.TotalMilliseconds) ms threads $($states -join ' ')"
 }
-$targets = $args | ForEach-Object { $label, $id = $_ -split '=', 2; [pscustomobject]@{ Label = $label; Id = [uint32]$id } }
+function Load() {
+  $total = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction SilentlyContinue
+  "machine cpu $($total.PercentProcessorTime)% processes $((Get-Process).Count)"
+}
+$all = Get-CimInstance Win32_Process
+$targets = foreach ($word in $args) { $label, $id = $word -split '=', 2; [pscustomobject]@{ Label = $label; Id = [uint32]$id } }
+# The Terminal Host started each terminal's first process and owns its console host.
+$targets += foreach ($group in $targets | Group-Object Label) {
+  $own = @($group.Group.Id)
+  $hosts = $all | Where-Object { $own -contains $_.ProcessId -and $own -notcontains $_.ParentProcessId } | ForEach-Object ParentProcessId | Select-Object -Unique
+  foreach ($id in $hosts) {
+    [pscustomobject]@{ Label = "$($group.Name)-host"; Id = [uint32]$id }
+    $all | Where-Object { $_.ParentProcessId -eq $id -and ($_.Name -eq 'conhost.exe' -or $_.Name -eq 'OpenConsole.exe') } | ForEach-Object { [pscustomobject]@{ Label = "$($group.Name)-console"; Id = [uint32]$_.ProcessId } }
+  }
+}
+Load
 foreach ($target in $targets) { Sample $target.Label $target.Id }
-foreach ($target in $targets) { "$($target.Label) $($target.Id) console: $([ObStallProbe]::Input($target.Id))" }
+$seen = @{}
+foreach ($target in $targets | Where-Object { $_.Label -notlike '*-console' -and $_.Label -notlike '*-host' }) {
+  $screen = -not $seen.ContainsKey($target.Label); $seen[$target.Label] = $true
+  "$($target.Label) $($target.Id) console: $([ObStallProbe]::Read($target.Id, $screen))"
+}
 Start-Sleep -Seconds 3
+Load
 foreach ($target in $targets) { Sample $target.Label $target.Id }
 "#;
 

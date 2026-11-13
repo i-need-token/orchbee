@@ -33,8 +33,9 @@ const POLL: Duration = Duration::from_millis(50);
 const AFTERMATH: Duration = Duration::from_secs(40);
 /// How many distinct bottom rows a failed wait reports, the first ones it read.
 const BOTTOM_ROWS_KEPT: usize = 16;
-/// How long a wait that failed `LANDING` keeps reading the selected pane's terminal.
-const STALL_WATCH: Duration = Duration::from_secs(30);
+/// How long a wait that failed `LANDING` reads the selected pane's terminal, before and after
+/// the probe.
+const STALL_WATCH: Duration = Duration::from_secs(15);
 /// Outlasts a shell's return to its prompt after what it printed last.
 const PROMPT_RETURN: Duration = Duration::from_secs(2);
 const CLOSE_TAB: &[u8] = b"\x02x";
@@ -120,15 +121,12 @@ impl Driver {
         let terminal = panel
             .as_deref()
             .map_or_else(|| "no selected pane".to_owned(), read_pane);
-        let mut evidence = self.fixture.stall_evidence(&[
-            ("shell", panel.iter().map(String::as_str).collect()),
-            ("tui", vec!["--session", "host", &self.tui.panel]),
-        ]);
-        // Whether the rest of the line arrives later: the pane's cursor line, each time it changes.
-        if let Some(panel) = panel.as_deref() {
+        // Whether the rest of the line arrives later: the pane's cursor line each time it changes,
+        // first untouched, then after the probe has attached to the pane's console.
+        let watch = |panel: &str, duration: Duration, evidence: &mut String| {
             let started = Instant::now();
             let mut last = String::new();
-            while started.elapsed() < STALL_WATCH {
+            while started.elapsed() < duration {
                 let text = read_pane(panel);
                 let line = text
                     .lines()
@@ -137,13 +135,38 @@ impl Driver {
                     .unwrap_or_default()
                     .to_owned();
                 if line != last {
-                    evidence.push_str(&format!("{:?} later: {line}\n", started.elapsed()));
+                    evidence.push_str(&format!(
+                        "{:?} later: {line}
+",
+                        started.elapsed()
+                    ));
                     last = line;
                 }
                 thread::sleep(Duration::from_secs(1));
             }
+        };
+        let mut evidence = String::new();
+        if let Some(panel) = panel.as_deref() {
+            evidence.push_str(
+                "Before the probe:
+",
+            );
+            watch(panel, STALL_WATCH, &mut evidence);
+        }
+        evidence.push_str(&self.fixture.stall_evidence(&[
+            ("shell", panel.iter().map(String::as_str).collect()),
+            ("tui", vec!["--session", "host", &self.tui.panel]),
+        ]));
+        if let Some(panel) = panel.as_deref() {
+            evidence.push_str(
+                "After the probe:
+",
+            );
+            watch(panel, STALL_WATCH, &mut evidence);
             evidence.push_str(&format!(
-                "TUI after {STALL_WATCH:?}:\n{}\n{}",
+                "TUI then:
+{}
+{}",
                 self.screen(),
                 self.fixture.stall_evidence(&[
                     ("shell", vec![panel]),
