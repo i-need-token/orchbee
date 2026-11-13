@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(windows)]
 use crate::cli_outcome::AgentClientVersionMatch;
 
 fn summary(id: usize, presentation: &str) -> AgentSessionSummary {
@@ -11,6 +12,8 @@ fn summary(id: usize, presentation: &str) -> AgentSessionSummary {
     })).unwrap()
 }
 
+/// The Agent projection of `projection`; only Windows admits it.
+#[cfg(windows)]
 pub(in crate::cli) fn document(
     projection: &Projection,
     snapshot: &Snapshot,

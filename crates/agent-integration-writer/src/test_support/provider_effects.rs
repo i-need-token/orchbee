@@ -1290,8 +1290,8 @@ fn drive_cohort(case: &Case, dirs: &Dirs) -> Outcome {
         }
         let bytes = entry["bytes"].as_str().unwrap_or("");
         let content = match bytes {
-            "schemaVersion=1 manifest" => {
-                serde_json::json!({ "schemaVersion": 1, "artifacts": {} }).to_string()
+            "schemaVersion=0 manifest" => {
+                serde_json::json!({ "schemaVersion": 0, "artifacts": {} }).to_string()
             }
             "schemaVersion=9 manifest" => {
                 serde_json::json!({ "schemaVersion": 9, "artifacts": {} }).to_string()

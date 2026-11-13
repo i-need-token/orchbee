@@ -1,7 +1,6 @@
 //! Public grammar and receipt compatibility are checked independently of UI implementation.
 use super::*;
 use crate::invocation::{self, Request};
-use serde_json::{Value, json};
 
 #[test]
 fn editor_grammar_is_windows_targeted_bounded_and_rejects_effect_authority_flags() {
@@ -65,6 +64,8 @@ fn editor_grammar_is_windows_targeted_bounded_and_rejects_effect_authority_flags
     }
 }
 
+// The editor command arms console interrupts, which only the Windows adapter supports.
+#[cfg(windows)]
 #[test]
 fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -75,6 +76,7 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
         WorkbenchClientViewRequest, WorkbenchClientViewResult, WorkbenchRequest, WorkbenchResponse,
         read_workbench_request, write_workbench_response,
     };
+    use serde_json::{Value, json};
     use std::{
         io::{self, Read},
         num::NonZeroU64,

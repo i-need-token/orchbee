@@ -1296,13 +1296,13 @@
 			"covers": ["timeout", "budget-deadline", "refusal"],
 			"dims": {
 				"state": "update-required (planned)",
-				"budget": "deadline consumed by inspection reads"
+				"budget": "deadline consumed by inspection reads: the first slot spends 3600 ms, the second starts with its teardown funded and spends the rest"
 			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/claude",
 				"capsule": "ready",
-				"deadlineMs": 3000,
+				"deadlineMs": 5400,
 				"commands": [
 					{
 						"argv": ["plugin", "list", "--json"],
@@ -1397,13 +1397,13 @@
 			"covers": ["timeout", "budget-deadline", "capsule-frontier"],
 			"dims": {
 				"capsule": "unpublished → published this invocation",
-				"budget": "deadline consumed by inspection reads after the publish"
+				"budget": "deadline consumed by inspection reads after the publish, slots as in deadline-before-mutation"
 			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/claude",
 				"capsule": "unpublished",
-				"deadlineMs": 3000,
+				"deadlineMs": 5400,
 				"commands": [
 					{
 						"argv": ["plugin", "list", "--json"],

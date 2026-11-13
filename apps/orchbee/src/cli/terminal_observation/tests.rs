@@ -6,7 +6,8 @@ use orchbee_terminal_protocol::{
     decode_terminal_text_frame,
 };
 
-fn observed() -> Read {
+/// One observed terminal whose root process `cmd.exe` reports `C:\root`.
+pub(in crate::cli) fn observed() -> Read {
     let frame = decode_terminal_text_frame(include_bytes!(
         "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
@@ -58,6 +59,8 @@ fn observed() -> Read {
     }
 }
 
+// Frame directories decode only as Windows paths (`windows_reported_directory`).
+#[cfg(windows)]
 #[test]
 fn metadata_directory_precedes_root_without_hiding_separate_process_directory() {
     let mut read = observed();
@@ -87,6 +90,7 @@ fn metadata_directory_precedes_root_without_hiding_separate_process_directory() 
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn osc_directory_decodes_once_without_admitting_uri_syntax_as_a_windows_path() {
     for (raw, expected) in [
@@ -122,7 +126,10 @@ fn runtime_text_escapes_untrusted_metadata_in_both_locales() {
     let title = "C:\\title \"quoted\" 🐝\x1b]0;evil\x07\r\n\u{202e}next";
     let current_directory = "C:\\dir \"quoted\" 项目";
     read.frame.title = Some(title.into());
-    read.frame.current_directory = Some(current_directory.into());
+    // The root process directory reaches `cwd` verbatim on every platform.
+    read.frame.current_directory = None;
+    read.processes.as_mut().unwrap().1.info.processes[0].current_directory =
+        Some(current_directory.into());
     let mut fields = Observation::Observed(Box::new(read)).fields();
     let agent_title = "C:\\agent \"title\" 🐝\x1b\u{202e}";
     let display_agent = "C:\\Workers\\bee \"display\"";

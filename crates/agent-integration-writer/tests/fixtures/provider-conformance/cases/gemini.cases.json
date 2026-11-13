@@ -110,7 +110,7 @@
 			"class": "shared",
 			"covers": ["update-required", "non-current-contract"],
 			"dims": {
-				"target": "dir, marker contractVersion=4"
+				"target": "dir owned by this environment, marker contractVersion=4 + fingerprint match"
 			},
 			"given": {
 				"managementMode": "managed-local",
@@ -118,14 +118,10 @@
 				"capsule": "ready",
 				"fs": [
 					{
-						"path": ".gemini/extensions/orchbee-agent-observation/.orchbee-agent-observation.json",
-						"kind": "file",
-						"contentJson": {
-							"contractVersion": 4,
-							"files": [],
-							"integrationId": "gemini",
-							"kind": "guarded-extension"
-						}
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"markerContractVersion": 4
 					}
 				],
 				"commands": []
@@ -142,7 +138,7 @@
 				"ORC-179: verified non-current ownership requires reinstall",
 				"guarded-adapter:357"
 			],
-			"notes": "The integration id, marker shape and actual file fingerprints establish ownership before a non-current contract requires reinstall."
+			"notes": "The integration id, marker shape, actual file fingerprints and this environment's owner record in scripts/ establish ownership before a non-current contract requires reinstall."
 		},
 		{
 			"id": "gemini.inspect.marker-wrong-integration",

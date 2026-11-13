@@ -408,27 +408,23 @@ fn socket_checks_report_derived_budget_entries() {
     assert_eq!(report.status, "not-applicable");
 
     // An over-budget derived address fails on its own: only the budget
-    // verdict changes, `presence` stays honestly unchecked.
-    let long_dir = PathBuf::from("/".to_owned() + &"a".repeat(UNIX_SOCKET_PATH_CAPACITY));
-    let report = socket_checks(&Err(RendezvousError::InvalidSessionScope), &long_dir);
-    assert_eq!(report.status, "fail");
-    for name in ["clientPending", "host"] {
-        let entry = &report.details[name];
-        assert_eq!(entry["presence"], json!("unchecked"), "{name}: {entry}");
-        assert_eq!(entry["status"], json!("fail"), "{name}: {entry}");
-        assert_eq!(
-            entry["reason"],
-            json!("address-too-long"),
-            "{name}: {entry}"
-        );
-        assert_eq!(
-            entry["addressCapacityBytes"],
-            json!(UNIX_SOCKET_PATH_CAPACITY),
-            "{name}: {entry}"
-        );
-        let bytes = entry["addressBytes"].as_u64().unwrap() as usize;
-        assert!(bytes > UNIX_SOCKET_PATH_CAPACITY, "{name}: {entry}");
-    }
+    // verdict changes, `presence` stays honestly unchecked. Addresses derive
+    // from a fixed-length endpoint id, so no runtime directory produces one;
+    // the entry is checked against the address itself.
+    let too_long = PathBuf::from("/".to_owned() + &"a".repeat(UNIX_SOCKET_PATH_CAPACITY));
+    let (entry, fail) = socket_budget_entry(&too_long);
+    let entry = Value::Object(entry);
+    assert!(fail, "{entry}");
+    assert_eq!(entry["presence"], json!("unchecked"), "{entry}");
+    assert_eq!(entry["status"], json!("fail"), "{entry}");
+    assert_eq!(entry["reason"], json!("address-too-long"), "{entry}");
+    assert_eq!(
+        entry["addressCapacityBytes"],
+        json!(UNIX_SOCKET_PATH_CAPACITY),
+        "{entry}"
+    );
+    let bytes = entry["addressBytes"].as_u64().unwrap() as usize;
+    assert!(bytes > UNIX_SOCKET_PATH_CAPACITY, "{entry}");
 }
 
 #[test]

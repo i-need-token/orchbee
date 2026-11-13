@@ -139,4 +139,4 @@ pub(super) fn render(
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

@@ -1,27 +1,17 @@
 use super::*;
-use crate::cli::terminal_observation::{Metadata, Read};
+use crate::cli::terminal_observation::Read;
 use crate::cli_text::CliText;
-use orchbee_terminal_protocol::decode_terminal_text_frame;
 use serde_json::json;
 use std::sync::Arc;
 
 fn observed(title: &str, current_directory: &str) -> Read {
-    let frame = decode_terminal_text_frame(include_bytes!(
-        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
-    ))
-    .unwrap();
-    Read {
-        frame: Metadata {
-            route: frame.route,
-            columns: frame.geometry.columns,
-            rows: frame.geometry.rows,
-            alternate_screen: false,
-            scrollback_rows: frame.scrollback_rows,
-            title: Some(Arc::from(title)),
-            current_directory: Some(Arc::from(current_directory)),
-        },
-        processes: None,
-    }
+    let mut read = crate::cli::terminal_observation::tests::observed();
+    read.frame.title = Some(Arc::from(title));
+    // The root process directory reaches `cwd` verbatim on every platform.
+    read.frame.current_directory = None;
+    read.processes.as_mut().unwrap().1.info.processes[0].current_directory =
+        Some(current_directory.to_owned());
+    read
 }
 
 #[test]

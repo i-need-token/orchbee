@@ -1,4 +1,9 @@
 use super::*;
+
+/// The local filesystem root: Terminal Host directories and the automatic label use host path
+/// rules.
+const ROOT: &str = if cfg!(windows) { "C:/" } else { "/" };
+
 #[test]
 fn an_absent_root_cwd_can_fall_back_but_a_missing_root_or_bad_path_cannot() {
     use orchbee_terminal_protocol::{
@@ -30,15 +35,13 @@ fn an_absent_root_cwd_can_fall_back_but_a_missing_root_or_bad_path_cannot() {
         root_directory(&sample).unwrap_err().kind,
         FailureKind::ProtocolInvalid
     );
-    sample.processes[0].current_directory = Some("C:/live".to_owned());
-    assert_eq!(
-        root_directory(&sample).unwrap().unwrap().as_str(),
-        "C:/live"
-    );
+    let live = format!("{ROOT}live");
+    sample.processes[0].current_directory = Some(live.clone());
+    assert_eq!(root_directory(&sample).unwrap().unwrap().as_str(), live);
 }
 #[test]
 fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
-    let path = WorkbenchDirectoryPath::parse(&format!("C:/{}", "猫".repeat(600))).unwrap();
+    let path = WorkbenchDirectoryPath::parse(&format!("{ROOT}{}", "猫".repeat(600))).unwrap();
     assert_eq!(
         automatic_label(
             &path,
@@ -52,7 +55,7 @@ fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
     );
     assert_eq!(
         automatic_label(
-            &WorkbenchDirectoryPath::parse("C:/").unwrap(),
+            &WorkbenchDirectoryPath::parse(ROOT).unwrap(),
             &orchbee_workbench_client::test_support::machine_agents::fixture(),
             Locale::EnUs
         )
@@ -61,7 +64,7 @@ fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
     );
     assert_eq!(
         automatic_label(
-            &WorkbenchDirectoryPath::parse("C:/").unwrap(),
+            &WorkbenchDirectoryPath::parse(ROOT).unwrap(),
             &orchbee_workbench_client::test_support::machine_agents::fixture(),
             Locale::ZhCn
         )

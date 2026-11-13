@@ -1,5 +1,7 @@
 use super::*;
+#[cfg(windows)]
 use crate::cli_text::CliText;
+#[cfg(windows)]
 use crate::invocation::Target;
 use orchbee_workbench_protocol::{ClientViewSequence, WorkbenchResponse};
 
@@ -72,6 +74,9 @@ fn document(command: &QueryCommand, state: &Snapshot) -> Document {
     }
 }
 
+// Client selection and the Agent projection are admitted only on Windows (`execution`); other
+// platforms publish both members as unsupported.
+#[cfg(windows)]
 #[test]
 fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas() {
     let state = snapshot();
@@ -309,6 +314,7 @@ fn client_query_failure_is_schema_valid_and_localized() {
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn six_query_shapes_join_agents_with_optional_client_provenance() {
     let mut value = json!(snapshot());

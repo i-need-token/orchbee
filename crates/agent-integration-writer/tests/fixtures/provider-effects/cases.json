@@ -1302,14 +1302,14 @@
 		{
 			"id": "cohort.manifest-version-older-refuse",
 			"area": "cohort-gate",
-			"summary": "Cohort manifest schemaVersion=1 (or any <2): explicit typed rejection at admission — no load, no migration, no dual-read; zero overwrite. Version-gate family -> 6.",
+			"summary": "Cohort manifest schemaVersion=0 (any version below the current 1): explicit typed rejection at admission — no load, no migration, no dual-read; zero overwrite. Version-gate family -> 6.",
 			"execution": "static",
 			"setup": {
 				"fs": [
 					{
 						"path": "$PARENT/manifest",
 						"kind": "file",
-						"bytes": "schemaVersion=1 manifest"
+						"bytes": "schemaVersion=0 manifest"
 					}
 				]
 			},
@@ -1327,7 +1327,7 @@
 				"preserved": [
 					{
 						"path": "$PARENT/manifest",
-						"bytes": "schemaVersion=1 manifest"
+						"bytes": "schemaVersion=0 manifest"
 					}
 				],
 				"forbidden": ["v1 fallback parse", "silent upgrade", "rewrite of the old manifest"],
