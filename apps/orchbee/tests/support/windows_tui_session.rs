@@ -652,6 +652,7 @@ $targets += foreach ($group in $targets | Group-Object Label) {
   }
 }
 Load
+$before = @{}; Get-Process | ForEach-Object { try { $before[$_.Id] = $_.TotalProcessorTime.TotalMilliseconds } catch {} }
 foreach ($target in $targets) { Sample $target.Label $target.Id }
 $seen = @{}
 foreach ($target in $targets | Where-Object { $_.Label -notlike '*-console' -and $_.Label -notlike '*-host' }) {
@@ -660,6 +661,10 @@ foreach ($target in $targets | Where-Object { $_.Label -notlike '*-console' -and
 }
 Start-Sleep -Seconds 3
 Load
+# Where the machine's CPU went meanwhile, among processes alive at both reads, by image.
+$spent = @{}
+Get-Process | ForEach-Object { try { if ($before.ContainsKey($_.Id)) { $spent[$_.ProcessName] += $_.TotalProcessorTime.TotalMilliseconds - $before[$_.Id] } } catch {} }
+"cpu ms by image: " + (($spent.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 8 | ForEach-Object { "$($_.Name) $([int]$_.Value)" }) -join ', ')
 foreach ($target in $targets) { Sample $target.Label $target.Id }
 "#;
 
