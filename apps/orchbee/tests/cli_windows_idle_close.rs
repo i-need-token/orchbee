@@ -91,12 +91,7 @@ impl Driver {
             if done(&screen) {
                 return screen;
             }
-            let bottom = screen.lines().last().unwrap_or_default().trim_end();
-            if bottom_rows.last().map(String::as_str) != Some(bottom)
-                && bottom_rows.len() < BOTTOM_ROWS_KEPT
-            {
-                bottom_rows.push(bottom.to_owned());
-            }
+            keep_bottom_row(&mut bottom_rows, &screen);
             if Instant::now() >= deadline {
                 self.report_unseen(what, &screen, &bottom_rows);
             }
@@ -140,8 +135,8 @@ impl Driver {
     }
 
     /// Clicks the `[x]` of the Tab named `label`, resting on it first as a person does: a
-    /// background Tab reveals its button only under the pointer.
-    fn click_close_button(&mut self, label: &str) {
+    /// background Tab reveals its button only under the pointer. Returns the clicked cell.
+    fn click_close_button(&mut self, label: &str) -> (usize, usize) {
         let screen = self.screen();
         let strip = screen.lines().next().unwrap().to_owned();
         let start = strip
@@ -158,6 +153,7 @@ impl Driver {
         // The middle of the three cells, in one-based columns.
         let column = strip[..button].chars().count() + 2;
         self.click(column, 1);
+        (column, 1)
     }
 
     /// Types a line into the focused terminal and waits for what it prints.
@@ -168,9 +164,17 @@ impl Driver {
     }
 
     /// The close must end in `gone` without its confirmation ever being presented. A presented
-    /// confirmation stays until it is answered, so polling cannot miss one.
-    fn assert_closes_without_asking(&self, what: &str, dialog: &str, gone: impl Fn(&str) -> bool) {
+    /// confirmation stays until it is answered, so polling cannot miss one. `clicked` names the
+    /// cell a pointer route clicked.
+    fn assert_closes_without_asking(
+        &mut self,
+        what: &str,
+        dialog: &str,
+        gone: impl Fn(&str) -> bool,
+        clicked: Option<(usize, usize)>,
+    ) {
         let deadline = Instant::now() + LANDING;
+        let mut bottom_rows = Vec::new();
         loop {
             let screen = self.screen();
             assert!(
@@ -184,40 +188,61 @@ impl Driver {
             if gone(&screen) {
                 return;
             }
+            keep_bottom_row(&mut bottom_rows, &screen);
             if Instant::now() >= deadline {
-                self.report_unclosed(what, dialog, &gone, &screen);
+                self.report_unclosed(what, dialog, &gone, &screen, &bottom_rows, clicked);
             }
             thread::sleep(POLL);
         }
     }
 
-    /// Fails a close that missed `LANDING`, with what tells a lost request from a slow one: the
-    /// Client's view, the Server's Workbench, and how the close went on once it had failed.
+    /// Fails a close that missed `LANDING`, with what tells a lost request from a slow one: each
+    /// bottom row read meanwhile, where a notice shows, the Client's view, the Server's Workbench,
+    /// and how the close went on once it had failed. A pointer route that stayed open is clicked
+    /// once more, which tells a click the Client dropped from a close it cannot make.
     fn report_unclosed(
-        &self,
+        &mut self,
         what: &str,
         dialog: &str,
         gone: &impl Fn(&str) -> bool,
         screen: &str,
+        bottom_rows: &[String],
+        clicked: Option<(usize, usize)>,
     ) -> ! {
         let view = self.fixture.client(&self.tui.client);
         let snapshot = self.fixture.run(&["api", "snapshot"]).document;
-        let failed = Instant::now();
-        let afterwards = loop {
-            let later = self.screen();
-            if gone(&later) {
-                break format!("it closed {:?} later", failed.elapsed());
+        // Whether the close is still open after `bound`, and how it went on.
+        let ending = |driver: &Self, bound: Duration| {
+            let started = Instant::now();
+            loop {
+                let later = driver.screen();
+                if gone(&later) {
+                    break (false, format!("it closed {:?} later", started.elapsed()));
+                }
+                if later.contains(dialog) {
+                    let presented = started.elapsed();
+                    break (
+                        false,
+                        format!("it presented its confirmation {presented:?} later"),
+                    );
+                }
+                if started.elapsed() >= bound {
+                    break (true, format!("it was still open {bound:?} later:\n{later}"));
+                }
+                thread::sleep(POLL);
             }
-            if later.contains(dialog) {
-                break format!("it presented its confirmation {:?} later", failed.elapsed());
+        };
+        let (open, afterwards) = ending(self, AFTERMATH);
+        let again = match clicked {
+            Some((column, row)) if open => {
+                self.click(column, row);
+                format!("\nclicked again, {}", ending(self, LANDING).1)
             }
-            if failed.elapsed() >= AFTERMATH {
-                break format!("it was still open {AFTERMATH:?} later:\n{later}");
-            }
-            thread::sleep(POLL);
+            _ => String::new(),
         };
         panic!(
-            "{what} never closed:\n{screen}\nthen {afterwards}\nClient: {view}\nServer: {snapshot}"
+            "{what} never closed:\n{screen}\nBottom rows read meanwhile: {bottom_rows:#?}\n\
+             then {afterwards}{again}\nClient: {view}\nServer: {snapshot}"
         );
     }
 
@@ -413,6 +438,14 @@ impl Driver {
     }
 }
 
+/// Keeps the TUI's bottom row, where a notice shows, when it differs from the last one kept.
+fn keep_bottom_row(rows: &mut Vec<String>, screen: &str) {
+    let bottom = screen.lines().last().unwrap_or_default().trim_end();
+    if rows.last().map(String::as_str) != Some(bottom) && rows.len() < BOTTOM_ROWS_KEPT {
+        rows.push(bottom.to_owned());
+    }
+}
+
 fn strip_lacks(label: &'static str) -> impl Fn(&str) -> bool {
     move |screen| !screen.lines().next().unwrap().contains(label)
 }
@@ -473,11 +506,12 @@ fn a_shell_at_its_prompt_closes_from_every_tab_route_without_asking() {
     thread::sleep(Duration::from_secs(5));
 
     // The reported route: the [x] of the selected Tab at an idle prompt.
-    driver.click_close_button("PowerShell");
+    let clicked = driver.click_close_button("PowerShell");
     driver.assert_closes_without_asking(
         "the selected idle Tab's [x]",
         TAB_DIALOG,
         strip_lacks("PowerShell"),
+        Some(clicked),
     );
 
     // The [x] of a background Tab, whose terminal this Client holds no viewer of.
@@ -485,11 +519,12 @@ fn a_shell_at_its_prompt_closes_from_every_tab_route_without_asking() {
         screen.contains("PS ") && screen.lines().next().unwrap().contains("second [x]")
     });
     assert!(active.lines().next().unwrap().contains("third"), "{active}");
-    driver.click_close_button("third");
+    let clicked = driver.click_close_button("third");
     driver.assert_closes_without_asking(
         "a background idle Tab's [x]",
         TAB_DIALOG,
         strip_lacks("third"),
+        Some(clicked),
     );
 
     // A shell back at its prompt is as idle as a new one, after a program it interrupted, a program
@@ -506,7 +541,12 @@ fn a_shell_at_its_prompt_closes_from_every_tab_route_without_asking() {
 
     // The keyboard route closes the last Tab.
     driver.control.input(CLOSE_TAB);
-    driver.assert_closes_without_asking("the idle Tab's key", TAB_DIALOG, strip_lacks("second"));
+    driver.assert_closes_without_asking(
+        "the idle Tab's key",
+        TAB_DIALOG,
+        strip_lacks("second"),
+        None,
+    );
     driver.finish();
 }
 
