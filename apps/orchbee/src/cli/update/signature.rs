@@ -49,7 +49,12 @@ const fn nibble(digit: u8) -> u8 {
 /// Keys that sign released manifests. Adding a key is one `TrustedKey::from_hex("<64 hex>"),`
 /// line; a release adds the next key before signing with it and removes a key only after it
 /// retires.
-const RELEASE_KEYS: &[TrustedKey] = &[];
+const RELEASE_KEYS: &[TrustedKey] = &[
+    // The key the release workflow signs with.
+    TrustedKey::from_hex("16bcd2b392d5427892787568853a7ff2d2e40393761c25f187823f2818ec1497"),
+    // The spare kept offline, which signs once the first key retires.
+    TrustedKey::from_hex("16bf2794f79721de5621c2f0d3c23afc96bc91d5183bfaef71b26bae93c14839"),
+];
 
 /// The test key, whose private half `fixtures/test-only-signing-key.pem` is public in the
 /// repository. Only development and test builds trust it.
