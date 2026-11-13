@@ -45,7 +45,7 @@ fn a_generated_workspace_name_follows_the_first_terminal_until_a_rename_fixes_it
     assert_eq!(renamed.code, Some(0), "{renamed}");
     assert_eq!(record(&fixture, &workspace)["automaticLabel"], Value::Null);
 
-    // A second generated name proves the sampler has seen both later `cd`s.
+    // A second generated name still follows its first terminal.
     let witness = create_unnamed(&fixture, "alpha");
     let witness_id = witness["workspaceId"].as_str().unwrap().to_owned();
     let witness_terminal = terminal_of(&fixture, &witness);
@@ -56,16 +56,16 @@ fn a_generated_workspace_name_follows_the_first_terminal_until_a_rename_fixes_it
         "the witness never followed its first terminal: {}",
         record(&fixture, &witness_id)
     );
-    thread::sleep(Duration::from_secs(1));
-    let fixed = record(&fixture, &workspace);
-    assert_eq!(fixed["label"], "beta");
-    // A fixed name still records where its first terminal is.
+    // A fixed name still records where its first terminal is. Only that record proves the sampler
+    // has seen this terminal's `cd`, which another shell's earlier `cd` does not.
     assert!(
-        fixed["terminalDirectory"]
+        until(FOLLOW, || record(&fixture, &workspace)["terminalDirectory"]
             .as_str()
-            .is_some_and(|directory| directory.ends_with("gamma")),
-        "the renamed Workspace never recorded its terminal directory: {fixed}"
+            .is_some_and(|directory| directory.ends_with("gamma"))),
+        "the renamed Workspace never recorded its terminal directory: {}",
+        record(&fixture, &workspace)
     );
+    assert_eq!(record(&fixture, &workspace)["label"], "beta");
 }
 
 #[test]
