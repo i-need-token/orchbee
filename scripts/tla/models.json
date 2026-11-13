@@ -459,7 +459,6 @@
 				"crates/local-runtime/src/checkpoint_rotation.rs",
 				"crates/local-runtime/src/checkpoint_rotation/**",
 				"crates/local-runtime/src/durable_sessions.rs",
-				"crates/local-runtime/src/durable_sessions/**",
 				"crates/local-runtime/src/session_catalog.rs",
 				"crates/local-runtime/src/session_catalog/**",
 				"crates/local-runtime/src/tests.rs",
