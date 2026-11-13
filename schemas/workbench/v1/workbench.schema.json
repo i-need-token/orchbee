@@ -209,7 +209,13 @@
 					"$ref": "#/$defs/agentStartProvider"
 				},
 				"reason": {
-					"enum": ["not-found", "exited", "unsupported-shell", "prompt-unconfirmed", "terminal-too-old"]
+					"enum": [
+						"not-found",
+						"exited",
+						"unsupported-shell",
+						"prompt-unconfirmed",
+						"terminal-too-old"
+					]
 				}
 			}
 		},

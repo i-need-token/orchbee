@@ -135,6 +135,19 @@ jobs:
           $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & (Join-Path $zigDirectory 'zig.exe') version
 
+      # Zig's own download of this transitive Terminal Host dependency (Ghostty's translate_c -> arocc)
+      # fails on GitHub's Windows runners with HttpConnectionClosing. curl fetches it, and `zig fetch`
+      # admits it only under the content hash translate_c pins. The release workflow carries the same
+      # step: drop both once Zig fetches it, or update both when the Ghostty pin moves translate_c.
+      - name: Prefetch the arocc Zig package
+        shell: pwsh
+        working-directory: apps/terminal-host
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
+          curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
+          $hash = zig fetch $archive
+          if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -203,6 +216,20 @@ jobs:
           $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
           $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & (Join-Path $zigDirectory 'zig.exe') version
+
+      # Zig's own download of this transitive Terminal Host dependency (Ghostty's translate_c -> arocc)
+      # fails on GitHub's Windows runners with HttpConnectionClosing. curl fetches it, and `zig fetch`
+      # admits it only under the content hash translate_c pins. The release workflow carries the same
+      # step: drop both once Zig fetches it, or update both when the Ghostty pin moves translate_c.
+      - name: Prefetch the arocc Zig package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: apps/terminal-host
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
+          curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
+          $hash = zig fetch $archive
+          if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
