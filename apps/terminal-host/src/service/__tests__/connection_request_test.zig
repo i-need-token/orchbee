@@ -119,7 +119,7 @@ test "handshake binds client and negotiates input bytes" {
     try std.testing.expectEqual(expected.kind, response.kind);
     try std.testing.expectEqual(@intFromEnum(expected.encoding), response.payload_encoding);
     try std.testing.expect(
-        std.mem.indexOf(u8, response.payload, "\"hostVersion\":\"0.1.0\"") != null,
+        std.mem.indexOf(u8, response.payload, "\"hostVersion\":\"" ++ subject.host_version ++ "\"") != null,
     );
     const active = try activeConnection(&connection);
     try std.testing.expect(serviceCore(&service).connectionClientId(active.connection_id).?.eql(testClientId()));
