@@ -9,9 +9,13 @@
 // setup file. It writes, without signing anything again:
 //
 //   <stem>-<version>-<platform>/   the signed release directory, every file checked against release.json
+//   <stem>-<version>-<platform>.zip  that directory as one top-level folder, for the command line alone
 //   <setup name>.exe               the installer
 //   <npm tarballs>                 the folders of scripts/package-npm.mjs, packed by `npm pack`
 //   SHA256SUMS                     `<64 hex>  <name>` and LF for every other top-level file, in name order
+//
+// In a GitHub Actions run the npm packages name the run's repository (GITHUB_SERVER_URL and
+// GITHUB_REPOSITORY), which npm provenance requires.
 //
 // `check` confirms SHA256SUMS names exactly the other top-level files and that each matches, and that
 // every release directory still matches its manifest. Nothing is published or sent anywhere.
@@ -82,6 +86,37 @@ function npmPack(folder, destination) {
 	);
 	if (result.error !== undefined) throw result.error;
 	if (result.status !== 0) throw new Error(`npm pack ${folder} exited ${result.status}`);
+}
+
+/**
+ * Writes `<directory>.zip` beside a Windows release directory, holding it as its one top-level
+ * folder, with the system's bsdtar.
+ */
+function archiveRelease(directory) {
+	const archive = `${directory}.zip`;
+	const tar = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+	const result = spawnSync(
+		tar,
+		[
+			'--format',
+			'zip',
+			'-c',
+			'-f',
+			archive,
+			'-C',
+			path.dirname(directory),
+			path.basename(directory),
+		],
+		{ stdio: ['ignore', 'inherit', 'inherit'], windowsHide: true },
+	);
+	if (result.error !== undefined) throw result.error;
+	if (result.status !== 0) throw new Error(`tar ${archive} exited ${result.status}`);
+}
+
+/** The repository of the GitHub Actions run, or undefined outside one. */
+function runRepository() {
+	const { GITHUB_SERVER_URL: server, GITHUB_REPOSITORY: name } = process.env;
+	return server && name ? `${server}/${name}` : undefined;
 }
 
 /** Writes SHA256SUMS over every other top-level regular file of `directory`. */
@@ -171,6 +206,7 @@ function collect({ profile, output }) {
 		`${release.stem}-${version}-${release.manifest.platform}`,
 	);
 	copyRelease(bundled, release, releaseDirectory);
+	if (release.platform.os === 'win32') archiveRelease(releaseDirectory);
 	copyFileSync(setup, path.join(output, path.basename(setup)));
 	// package-npm writes into a new directory; its folders are packed and then dropped.
 	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-release-npm-'));
@@ -179,6 +215,7 @@ function collect({ profile, output }) {
 			version,
 			output: path.join(scratch, 'packages'),
 			releases: [releaseDirectory],
+			repositoryUrl: runRepository(),
 		});
 		for (const folder of folders) npmPack(folder, output);
 	} finally {

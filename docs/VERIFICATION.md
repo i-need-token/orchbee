@@ -247,22 +247,52 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 
 ## Release workflow
 
-- `.github/workflows/release.yml` runs only when started by hand and is never a required check. It
-  has read-only repository permissions, uses no secret or environment, and leaves only workflow
-  artifacts kept for three days.
-- It builds with the test identity and signs the manifest with the repository's test key. Release
-  keys, tags, GitHub Releases, npm publication, and protected environments are release actions
-  under the [CI contract](#ci-contract) and are not part of it.
-- One row per release platform token carries `build` and `publish` flags; the `plan` job selects the
-  `build` rows. Only `windows-x86_64` builds, and no row publishes.
-- `build` installs the pinned toolchains, with Zig and Inno Setup 6.7.1 downloaded and checked by
-  digest, runs `pnpm desktop:installer:test --build-id <commit>.<run number>`, and then
-  `node scripts/release-artifacts.mjs collect`, which gathers the signed release directory, the
-  setup file, the npm tarballs, and `SHA256SUMS`.
-- `smoke` and `smoke-npm` take that artifact to fresh runners, check it with
-  `node scripts/release-artifacts.mjs check`, and run `node scripts/release-smoke-windows.mjs` one
-  step at a time: the installer route, then the npm route, each ending with the leftover scan. Run
-  those steps only on a disposable Windows machine; they install and remove for real.
+`.github/workflows/release.yml` is never a required check. Its top-level permission is
+`contents: read`; the owner's steps are in [Releasing](RELEASING.md). It has two ways in:
+
+| Start                              | Path    | Identity and key                                | Publishes                          |
+| ---------------------------------- | ------- | ----------------------------------------------- | ---------------------------------- |
+| By hand, `version` empty           | Dry run | Test identity, the repository's test key        | Nothing; artifacts kept three days |
+| By hand, `version` set (rehearsal) | Release | Release identity, `ORCHBEE_RELEASE_SIGNING_KEY` | Nothing; artifacts kept one day    |
+| Pushed tag `v<version>`            | Release | Release identity, `ORCHBEE_RELEASE_SIGNING_KEY` | A draft GitHub Release, then npm   |
+
+- One row per release platform token carries `build` and `publish` flags. The dry run's `plan` job
+  selects the `build` rows; the release path takes the rows with both, and
+  `node scripts/release-publish.mjs plan` refuses none or more than one, because one main npm
+  package must list every platform package and combining rows is not built. Only
+  `windows-x86_64` has both.
+- Dry run: `build` installs the pinned toolchains, with Zig and Inno Setup 6.7.1 downloaded and
+  checked by digest, runs `pnpm desktop:installer:test --build-id <commit>.<run number>`, and then
+  `node scripts/release-artifacts.mjs collect`, which gathers the signed release directory, its
+  `.zip`, the setup file, the npm tarballs, and `SHA256SUMS`. `smoke` and `smoke-npm` take that
+  artifact to fresh runners, check it with `node scripts/release-artifacts.mjs check`, and run
+  `node scripts/release-smoke-windows.mjs` one step at a time: the installer route, then the npm
+  route, each ending with the leftover scan. Run those steps only on a disposable Windows machine;
+  they install and remove for real.
+- Release path, in order; each job stops the run with a sentence naming what is wrong:
+
+  | Job                                  | Does                                                                                                                                                                                                                                                                                                                          | Needs                                                                                    |
+  | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | `release-plan`                       | Takes the version from the tag or the input and runs `node scripts/release-version.mjs check v<version>`                                                                                                                                                                                                                      | Every version source at that version                                                     |
+  | `release-preconditions`              | `release-publish.mjs preconditions`: the signing key is an Ed25519 PKCS #8 PEM key whose public half is in `RELEASE_KEYS`; on a tag run `NPM_TOKEN` is set                                                                                                                                                                    | Environment `release`                                                                    |
+  | `release-build`                      | Stages the cohort with the release stem and writes `release.json` (`stable`, the version, `<commit>.<run number>`); uploads the cohort and, separately, `release.json`                                                                                                                                                        | No secret                                                                                |
+  | `release-sign`                       | Signs only `release.json` with `scripts/sign-release-manifest.mjs`, which uses Node built-ins only, in a job that runs no other repository code                                                                                                                                                                               | Environment `release`                                                                    |
+  | `release-package`                    | `node apps/desktop/scripts/package.mjs --profile release --installer --cohort <signed cohort>`, then `release-artifacts.mjs collect --profile release`                                                                                                                                                                        | No secret                                                                                |
+  | `release-smoke`, `release-smoke-npm` | The dry run's smoke steps on fresh runners with those exact files and the release names; a release build must refuse each withheld command with exit `4`                                                                                                                                                                      | No secret                                                                                |
+  | `release-publish`                    | Tag runs only: `release-publish.mjs github` creates or completes the draft release, a pre-release exactly when the version has a pre-release part; then `release-publish.mjs npm` publishes platform packages first, the main package last, with `--provenance` and the dist-tag `next` for a pre-release, `latest` otherwise | Environment `release`; `contents: write` and `id-token: write`, granted to this job only |
+
+- Secrets reach only the step that needs them, by environment variable: never an argument, a log
+  line, or an artifact. A job that holds a secret installs no dependencies and runs only repository
+  scripts that use Node built-ins, plus `gh` and `npm` in `release-publish`.
+- A re-run never duplicates or replaces a publication. A draft release for the tag is completed with
+  the assets it lacks; a published release, an asset with another SHA-256, an asset this run did not
+  make, or two releases for the tag stop the job without a change. An npm version the registry
+  already holds with this run's tarball is skipped; with another tarball the job fails.
+- The installer and its programs carry no Authenticode signature; the release manifest's Ed25519
+  signature is the only one.
+- The release path's artifacts carry release names and a release signature. A rehearsal's are
+  rebuilt by the tag run, so an installed rehearsal build blocks the published one of the same
+  version with `version-conflict`; never install them.
 
 ## External-source audits
 

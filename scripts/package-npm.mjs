@@ -2,9 +2,13 @@
 // package, whose launcher installs and starts the carried program, and one platform sub-package per
 // release directory holding that directory unchanged under `release/`. The main package lists exactly
 // the sub-packages written in the same run as exact-version optional dependencies. Nothing is packed,
-// published, or sent anywhere; publishing the folders is the owner's step.
+// published, or sent anywhere; the release workflow packs and publishes the folders.
 //
-//   node scripts/package-npm.mjs --version <version> --output <absolute-new-directory> <release-directory>...
+//   node scripts/package-npm.mjs --version <version> --output <absolute-new-directory>
+//     [--repository-url https://<host>/<owner>/<name>] <release-directory>...
+//
+// `--repository-url` writes the `repository` field npm provenance compares with the building
+// repository; release-artifacts.mjs passes the repository of the workflow run.
 //
 // A release directory is the output of `package-native-windows.mjs` plus `sign-release-manifest.mjs`.
 // The release stem names the packages `orchbee` and `@orchbee/cli-<platform>-<arch>`; a test-stem
@@ -145,7 +149,13 @@ export function copyRelease(directory, release, destination) {
  * Writes the main package and one sub-package per release directory under `output`, a new directory,
  * and returns the written folders.
  */
-export function packageNpm({ version, output, releases, host = process.platform }) {
+export function packageNpm({
+	version,
+	output,
+	releases,
+	host = process.platform,
+	repositoryUrl = undefined,
+}) {
 	if (typeof version !== 'string' || version.length === 0)
 		throw new Error('A product version is required');
 	if (!path.isAbsolute(output)) throw new Error('The output directory must be absolute');
@@ -171,6 +181,13 @@ export function packageNpm({ version, output, releases, host = process.platform 
 	}
 	const tag = version.includes('-') ? 'next' : 'latest';
 	const publishConfig = { access: 'public', tag };
+	// npm provenance requires `repository` to name the repository that built the package.
+	if (repositoryUrl !== undefined && !/^https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+$/u.test(repositoryUrl))
+		throw new Error(`The repository URL must be https://<host>/<owner>/<name>: ${repositoryUrl}`);
+	const repositoryField =
+		repositoryUrl === undefined
+			? {}
+			: { repository: { type: 'git', url: `git+${repositoryUrl}.git` } };
 	const license = path.join(repository, 'LICENSE');
 	const written = [];
 	const optionalDependencies = {};
@@ -186,6 +203,7 @@ export function packageNpm({ version, output, releases, host = process.platform 
 			version,
 			description: `Orchbee for ${label}; install ${stem} instead`,
 			license: 'MIT',
+			...repositoryField,
 			os: [os],
 			cpu: [cpu],
 			files: ['release'],
@@ -206,6 +224,7 @@ export function packageNpm({ version, output, releases, host = process.platform 
 		version,
 		description,
 		license: 'MIT',
+		...repositoryField,
 		bin: { [stem]: 'bin/orchbee.mjs' },
 		files: ['bin', 'lib'],
 		engines: { node: nodeFloor },
@@ -218,15 +237,20 @@ export function packageNpm({ version, output, releases, host = process.platform 
 }
 
 const usage =
-	'Usage: node scripts/package-npm.mjs --version <version> --output <absolute-new-directory> <release-directory>...';
+	'Usage: node scripts/package-npm.mjs --version <version> --output <absolute-new-directory> [--repository-url <https URL>] <release-directory>...';
 
 export function parseArguments(argv) {
 	const options = { releases: [] };
+	const keys = {
+		'--version': 'version',
+		'--output': 'output',
+		'--repository-url': 'repositoryUrl',
+	};
 	for (let index = 0; index < argv.length; index++) {
 		const argument = argv[index];
-		if (argument === '--version' || argument === '--output') {
+		if (Object.hasOwn(keys, argument)) {
 			const value = argv[++index];
-			const key = argument.slice(2);
+			const key = keys[argument];
 			if (value === undefined || options[key] !== undefined) throw new Error(usage);
 			options[key] = value;
 		} else if (argument.startsWith('--')) throw new Error(usage);

@@ -35,6 +35,7 @@
 - **Repository Hygiene**: `docs/REPOSITORY-HYGIENE.md` — tracked-file admission, temporary artifacts, generated files, and pre-handoff review
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
+- **Releasing**: `docs/RELEASING.md` — the owner's release setup, per-release steps, and failure recovery
 - **Development**: `docs/DEVELOPMENT.md` — scoped authorization, risk classification, continuous delivery, and convergence
 - **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — model-first behavior design and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns

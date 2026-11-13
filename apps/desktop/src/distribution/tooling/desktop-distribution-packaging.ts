@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 
 import { z } from 'zod';
 
@@ -24,8 +25,8 @@ function parseDesktopDistributionProfileId(value: unknown): DesktopDistributionP
 }
 
 const PACKAGING_USAGE =
-	'Usage: package.mjs --profile dev|test|release [--installer] [--build-id <id>] ' +
-	'[--key-file <absolute PEM> | --key-env <VARIABLE>]...';
+	'Usage: package.mjs --profile dev|test|release [--installer] ' +
+	'[--build-id <id>] [--key-file <absolute PEM> | --key-env <VARIABLE>]... | [--cohort <absolute directory>]';
 
 interface DesktopPackagingArguments {
 	readonly profileId: DesktopDistributionProfileId;
@@ -35,6 +36,11 @@ interface DesktopPackagingArguments {
 	readonly buildId: string | undefined;
 	/** `--key-file` and `--key-env` pairs, in order, passed on to the manifest signing script. */
 	readonly signingKeys: readonly string[];
+	/**
+	 * A signed release directory staged and signed earlier, packaged as it is instead of staging,
+	 * describing and signing a new cohort; the release workflow signs in a job of its own.
+	 */
+	readonly cohort: string | undefined;
 }
 
 export function parseDesktopPackagingArguments(
@@ -43,6 +49,7 @@ export function parseDesktopPackagingArguments(
 	let profileId: DesktopDistributionProfileId | undefined;
 	let installer = false;
 	let buildId: string | undefined;
+	let cohort: string | undefined;
 	const signingKeys: string[] = [];
 	for (let index = 0; index < arguments_.length; index += 1) {
 		const option = arguments_[index];
@@ -59,12 +66,18 @@ export function parseDesktopPackagingArguments(
 			buildId = value;
 		} else if (option === '--key-file' || option === '--key-env') {
 			signingKeys.push(option, value);
+		} else if (option === '--cohort' && cohort === undefined && path.isAbsolute(value)) {
+			cohort = value;
 		} else {
 			throw new Error(PACKAGING_USAGE);
 		}
 	}
 	if (profileId === undefined) throw new Error(PACKAGING_USAGE);
-	return { buildId, installer, profileId, signingKeys };
+	// A signed cohort already carries its build id and signatures.
+	if (cohort !== undefined && (buildId !== undefined || signingKeys.length > 0)) {
+		throw new Error(PACKAGING_USAGE);
+	}
+	return { buildId, cohort, installer, profileId, signingKeys };
 }
 
 /**

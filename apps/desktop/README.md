@@ -276,8 +276,12 @@ channel, the workspace version (which must equal this package's version) and a b
 `scripts/sign-release-manifest.mjs` signs it. `--build-id <id>` sets the build id, which the release
 workflow passes as `<commit>.<run number>`; otherwise it is `<commit>.local`. `--key-file <absolute
 PEM>` or `--key-env <VARIABLE>`, repeatable, choose the signing keys; otherwise a test build signs
-with the repository's test key and a release with the key in `ORCHBEE_RELEASE_SIGNING_KEY`. A
-development cohort is never signed, so the bundled Client of a dev package cannot install it.
+with the repository's test key and a release with the key in `ORCHBEE_RELEASE_SIGNING_KEY`.
+`--cohort <absolute directory>` instead packages a signed release directory staged and signed
+earlier, unchanged, after checking its stem and that its version is the workspace version; it takes
+neither a build id nor keys. The release workflow uses it so that only a job of its own holds the
+release key. A development cohort is never signed, so the bundled Client of a dev package cannot
+install it.
 
 All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
 They do not perform Electron code signing, notarization, publication, or update distribution; the

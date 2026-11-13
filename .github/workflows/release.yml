@@ -1,10 +1,23 @@
 name: Release
 
-# Started by hand only. Builds every platform row marked `build` with the TEST identity, signs its
-# manifest with the repository's test key, and proves the result on fresh runners. Nothing is signed
-# with a release key, tagged, or published. Contract: docs/VERIFICATION.md#release-workflow.
+# Two ways in. Started by hand without a version: the dry run builds every platform row marked
+# `build` with the TEST identity, signs its manifest with the repository's test key, proves the
+# result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming a
+# version (a rehearsal): the release path builds the rows marked `build` and `publish` with the
+# release identity, signs in the protected environment `release`, proves the files on fresh runners,
+# and, for a tag only, publishes a draft GitHub pre-release and the npm packages.
+# Contract: docs/VERIFICATION.md#release-workflow; the owner's steps: docs/RELEASING.md.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Empty for the test-identity dry run; a version such as 0.1.0-beta.1 rehearses the release path without publishing
+        required: false
+        default: ''
+        type: string
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -15,10 +28,11 @@ concurrency:
 
 env:
   # One row per release platform token. `build` builds, packages and smoke-tests the row on its
-  # runner; `publish` releases it once publication exists. Only Windows x64 has build steps today.
+  # runner in the dry run; the release path takes the rows with `build` and `publish`. Only Windows
+  # x64 has build steps today.
   RELEASE_PLATFORMS: >-
     [
-    {"platform": "windows-x86_64", "runner": "windows-latest", "build": true, "publish": false},
+    {"platform": "windows-x86_64", "runner": "windows-latest", "build": true, "publish": true},
     {"platform": "windows-aarch64", "runner": "windows-11-arm", "build": false, "publish": false},
     {"platform": "macos-aarch64", "runner": "macos-15", "build": false, "publish": false},
     {"platform": "macos-x86_64", "runner": "macos-15-intel", "build": false, "publish": false},
@@ -29,6 +43,8 @@ env:
 jobs:
   plan:
     name: Select platform rows
+    # The dry run only; every other job of the dry run follows this one.
+    if: github.event_name == 'workflow_dispatch' && inputs.version == ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -207,3 +223,397 @@ jobs:
 
       - name: Scan for leftovers
         run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
+
+  # The release path. Each job fails early and definitely; only `release-preconditions`,
+  # `release-sign` and `release-publish` use the environment `release`, and each maps a secret into
+  # the one step that needs it.
+  release-plan:
+    name: Release version
+    if: github.event_name == 'push' || inputs.version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      publish: ${{ steps.plan.outputs.publish }}
+      dist-tag: ${{ steps.plan.outputs.dist-tag }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Plan the release
+        id: plan
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: node scripts/release-publish.mjs plan --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" --version "$VERSION_INPUT"
+
+      - name: Check every version source against the version
+        env:
+          RELEASE_TAG: ${{ steps.plan.outputs.tag }}
+        run: node scripts/release-version.mjs check "$RELEASE_TAG"
+
+  release-preconditions:
+    name: Release preconditions
+    needs: release-plan
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # A tag run also needs the npm credential; a rehearsal never sees it.
+      - name: Check the signing key, its trusted public half and the npm credential
+        env:
+          PUBLISH: ${{ needs.release-plan.outputs.publish }}
+          ORCHBEE_RELEASE_SIGNING_KEY: ${{ secrets.ORCHBEE_RELEASE_SIGNING_KEY }}
+          NPM_TOKEN: ${{ needs.release-plan.outputs.publish == 'true' && secrets.NPM_TOKEN || '' }}
+        run: |
+          npm_check=()
+          if [ "$PUBLISH" = true ]; then npm_check=(--npm-token-env NPM_TOKEN); fi
+          node scripts/release-publish.mjs preconditions --signing-key-env ORCHBEE_RELEASE_SIGNING_KEY "${npm_check[@]}"
+
+  release-build:
+    name: Release build ${{ matrix.platform }}
+    needs: [release-plan, release-preconditions]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install --profile minimal
+          rustc --version
+          cargo --version
+
+      # The same pinned download as the dry run's build job.
+      - name: Set up Zig
+        run: |
+          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
+          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
+          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
+          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
+          curl.exe --fail --location --silent --show-error $zigUrl --output $archive
+          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
+          Expand-Archive -Path $archive -DestinationPath $destination
+          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
+          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $zigDirectory 'zig.exe') version
+
+      # See the dry run's step of the same name.
+      - name: Prefetch the arocc Zig package
+        working-directory: apps/terminal-host
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
+          curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
+          $hash = zig fetch $archive
+          if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
+
+      - name: Stage the release cohort
+        run: node scripts/stage-local-runtime.mjs --output "$env:RUNNER_TEMP\cohort" --artifact-stem orchbee
+
+      - name: Describe the release cohort
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
+          BUILD_ID: ${{ github.sha }}.${{ github.run_number }}
+        run: node scripts/package-native-windows.mjs "$env:RUNNER_TEMP\cohort" stable "$env:RELEASE_VERSION" "$env:BUILD_ID"
+
+      - name: Upload the unsigned cohort
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-cohort-${{ matrix.platform }}
+          path: ${{ runner.temp }}\cohort
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+      # The signing job receives only the manifest it signs.
+      - name: Upload the manifest to sign
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ matrix.platform }}
+          path: ${{ runner.temp }}\cohort\release.json
+          if-no-files-found: error
+          retention-days: 1
+
+  release-sign:
+    name: Release sign ${{ matrix.platform }}
+    needs: [release-plan, release-build]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: release-manifest-${{ matrix.platform }}
+          path: ${{ runner.temp }}/manifest
+
+      # Node built-ins only; the key never leaves this step's environment.
+      - name: Sign the manifest with the release key
+        env:
+          ORCHBEE_RELEASE_SIGNING_KEY: ${{ secrets.ORCHBEE_RELEASE_SIGNING_KEY }}
+        run: node scripts/sign-release-manifest.mjs "$RUNNER_TEMP/manifest/release.json" --key-env ORCHBEE_RELEASE_SIGNING_KEY
+
+      - name: Upload the signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-signature-${{ matrix.platform }}
+          path: ${{ runner.temp }}/manifest/release.json.sig
+          if-no-files-found: error
+          retention-days: 1
+
+  release-package:
+    name: Release package ${{ matrix.platform }}
+    needs: [release-plan, release-sign]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The same pinned download as the dry run's build job.
+      - name: Set up Inno Setup
+        run: |
+          $setupUrl = 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe'
+          $setupSha256 = '4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0'
+          $setup = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.1.exe'
+          $destination = Join-Path $env:RUNNER_TEMP 'innosetup'
+          curl.exe --fail --location --silent --show-error $setupUrl --output $setup
+          $actual = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
+          if ($actual -ne $setupSha256) { throw "Unexpected Inno Setup installer digest: $actual" }
+          $unpack = Start-Process -FilePath $setup -Wait -PassThru -ArgumentList @('/PORTABLE=1', '/CURRENTUSER', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', "/DIR=`"$destination`"")
+          if ($unpack.ExitCode -ne 0) { throw "Inno Setup unpacking exited $($unpack.ExitCode)" }
+          if (-not (Test-Path -LiteralPath (Join-Path $destination 'ISCC.exe'))) { throw 'Inno Setup unpacked no ISCC.exe' }
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download the unsigned cohort
+        uses: actions/download-artifact@v4
+        with:
+          name: release-cohort-${{ matrix.platform }}
+          path: ${{ runner.temp }}\cohort
+
+      - name: Download the signature beside it
+        uses: actions/download-artifact@v4
+        with:
+          name: release-signature-${{ matrix.platform }}
+          path: ${{ runner.temp }}\cohort
+
+      - name: Build the package inputs
+        run: pnpm --filter @orchbee/desktop build:package-inputs
+
+      - name: Build the release installer from the signed cohort
+        env:
+          ORCHBEE_INNO_SETUP_COMPILER: ${{ runner.temp }}\innosetup\ISCC.exe
+        run: node apps/desktop/scripts/package.mjs --profile release --installer --cohort "$env:RUNNER_TEMP\cohort"
+
+      - name: Collect the release artifacts
+        run: node scripts/release-artifacts.mjs collect --profile release --output "$env:RUNNER_TEMP\release-artifacts"
+
+      # A tag run keeps them until the owner approves publication; a rehearsal only for its smoke.
+      - name: Upload the release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}\release-artifacts
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+
+  release-smoke:
+    name: Release smoke ${{ matrix.platform }} installer
+    needs: [release-plan, release-package]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}\release-artifacts
+
+      - name: Check the release artifacts
+        run: node scripts/release-artifacts.mjs check "$env:RUNNER_TEMP\release-artifacts"
+
+      - name: Install silently
+        run: node scripts/release-smoke-windows.mjs install "$env:RUNNER_TEMP\release-artifacts" --logs "$env:RUNNER_TEMP\smoke-logs"
+
+      - name: Run the command from a new terminal
+        run: node scripts/release-smoke-windows.mjs command "$env:RUNNER_TEMP\release-artifacts"
+
+      - name: Uninstall silently
+        run: node scripts/release-smoke-windows.mjs uninstall "$env:RUNNER_TEMP\release-artifacts" --logs "$env:RUNNER_TEMP\smoke-logs"
+
+      - name: Scan for leftovers
+        run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
+
+  release-smoke-npm:
+    name: Release smoke ${{ matrix.platform }} npm
+    needs: [release-plan, release-package]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}\release-artifacts
+
+      - name: Check the release artifacts
+        run: node scripts/release-artifacts.mjs check "$env:RUNNER_TEMP\release-artifacts"
+
+      - name: Install, start and uninstall through npm
+        run: node scripts/release-smoke-windows.mjs npm "$env:RUNNER_TEMP\release-artifacts" --prefix "$env:RUNNER_TEMP\npm-prefix"
+
+      - name: Scan for leftovers
+        run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
+
+  # Tag runs only, after the owner approves. GitHub first, as a draft; npm last, because a published
+  # npm version can never be replaced. Run again, the job finishes a partial publication.
+  release-publish:
+    name: Publish ${{ needs.release-plan.outputs.tag }}
+    needs: [release-plan, release-smoke, release-smoke-npm]
+    if: needs.release-plan.outputs.publish == 'true'
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      # The plan admits exactly one publishing row.
+      RELEASE_PLATFORM: ${{ fromJSON(needs.release-plan.outputs.matrix).include[0].platform }}
+      RELEASE_TAG: ${{ needs.release-plan.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Name the artifacts directory
+        run: echo "ARTIFACTS=$RUNNER_TEMP/release/release-assets-$RELEASE_PLATFORM" >> "$GITHUB_ENV"
+
+      # registry-url makes npm read its credential from NODE_AUTH_TOKEN, set only in the npm step.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: ${{ runner.temp }}/release
+
+      - name: Check the release artifacts
+        run: node scripts/release-artifacts.mjs check "$ARTIFACTS"
+
+      - name: Create or complete the draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-publish.mjs github "$ARTIFACTS" --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
+
+      # Trusted publishing later replaces the token: drop NODE_AUTH_TOKEN here and the npm check of
+      # release-preconditions; see docs/RELEASING.md.
+      - name: Publish the npm packages, platform packages first
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/release-publish.mjs npm "$ARTIFACTS" --version "$RELEASE_VERSION" --repository-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"

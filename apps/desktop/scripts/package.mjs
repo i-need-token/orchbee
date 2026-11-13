@@ -74,6 +74,11 @@ const signsReleaseDirectory = process.platform === 'win32' && profileId !== 'dev
 if (packaging.installer && !signsReleaseDirectory) {
 	throw new Error('The installer is built on Windows, for the test and release profiles only.');
 }
+if (packaging.cohort !== undefined && !signsReleaseDirectory) {
+	throw new Error(
+		'A signed cohort is packaged on Windows, for the test and release profiles only.',
+	);
+}
 // On Windows the shell is `<stem>-desktop.exe`, so its image name differs from the Client's `<stem>.exe`
 // and from every other environment's (ORC-382).
 const packagedExecutableName =
@@ -125,20 +130,35 @@ const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-pack
 const stagingRoot = path.join(packageWorkspace, 'application');
 const cohortRoot = path.join(packageWorkspace, cohortDirectoryName);
 try {
-	// The window's Session runs this cohort, so the application carries all of it: the Client, Server,
-	// Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime.
-	runNode('stage-local-runtime.mjs', [
-		'--output',
-		cohortRoot,
-		'--artifact-stem',
-		cohortEnvironmentStem,
-	]);
+	if (packaging.cohort === undefined) {
+		// The window's Session runs this cohort, so the application carries all of it: the Client,
+		// Server, Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime.
+		runNode('stage-local-runtime.mjs', [
+			'--output',
+			cohortRoot,
+			'--artifact-stem',
+			cohortEnvironmentStem,
+		]);
+	} else {
+		// A cohort staged and signed earlier travels unchanged; the installer's `orchbee install`
+		// verifies its signature and every file.
+		await cp(packaging.cohort, cohortRoot, { recursive: true });
+		await Promise.all(
+			['release.json', 'release.json.sig'].map((name) => access(path.join(cohortRoot, name))),
+		);
+		const manifest = JSON.parse(await readFile(path.join(cohortRoot, 'release.json'), 'utf8'));
+		if (manifest?.version !== productVersion) {
+			throw new Error(
+				`The signed cohort is version ${String(manifest?.version)}, not the workspace version ${productVersion}.`,
+			);
+		}
+	}
 	await access(path.join(cohortRoot, 'cohort.json'));
 	// Staging names the Client after the stem it compiled, so this proves the cohort's stem.
 	if (process.platform === 'win32') {
 		await access(path.join(cohortRoot, `${cohortEnvironmentStem}.exe`));
 	}
-	if (signsReleaseDirectory) {
+	if (signsReleaseDirectory && packaging.cohort === undefined) {
 		// Every version is published on `stable` until `channel set preview` is released.
 		runNode('package-native-windows.mjs', [
 			cohortRoot,

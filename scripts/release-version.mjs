@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // SemVer 2.0.0 without build metadata.
-const SEMVER =
+export const SEMVER =
 	/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*))*)?$/u;
 
 const CARGO_MANIFEST = 'Cargo.toml';

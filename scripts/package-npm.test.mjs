@@ -105,6 +105,33 @@ test('a release version is tagged latest and the release stem names the release 
 	assert.equal(carrier.publishConfig.tag, 'latest');
 });
 
+test('every package names the building repository, which npm provenance requires', (t) => {
+	const root = scratch(t);
+	const directory = release(root, 'win', 'windows-x86_64', '0.1.0', windowsFiles('orchbee'));
+	const url = 'https://github.com/owner/orchbee';
+	const folders = packageNpm({
+		version: '0.1.0',
+		output: path.join(root, 'out'),
+		releases: [directory],
+		repositoryUrl: url,
+	});
+	for (const folder of folders)
+		assert.deepEqual(readJson(path.join(folder, 'package.json')).repository, {
+			type: 'git',
+			url: `git+${url}.git`,
+		});
+	assert.throws(
+		() =>
+			packageNpm({
+				version: '0.1.0',
+				output: path.join(root, 'other'),
+				releases: [directory],
+				repositoryUrl: 'github.com/owner/orchbee',
+			}),
+		/repository URL/u,
+	);
+});
+
 test('packaging refuses releases it cannot carry whole and unchanged', (t) => {
 	const root = scratch(t);
 	const good = release(root, 'win', 'windows-x86_64', '0.1.0', windowsFiles());
