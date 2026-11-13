@@ -215,11 +215,13 @@ impl QuickWorkspaceFields {
     pub(crate) fn name_editor(&mut self) -> &mut LineEditor {
         &mut self.name
     }
-    #[cfg(test)]
+    // Only the Windows path-rule tests type a directory; quick creation's directory entry is
+    // Windows-only (apps/orchbee/docs/tui-platforms.md, "Local directory entry").
+    #[cfg(all(test, windows))]
     pub(crate) fn directory_editor(&mut self) -> &mut LineEditor {
         &mut self.directory
     }
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     pub(crate) fn set_environment(&mut self, environment: Vec<(String, std::ffi::OsString)>) {
         self.environment = environment;
     }

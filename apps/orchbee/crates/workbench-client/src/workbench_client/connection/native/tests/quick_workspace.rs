@@ -189,27 +189,29 @@ fn quick_workspace_falls_back_to_the_focused_workspace_directory_then_the_launch
         workspace_id,
         terminal_context_id: context_id,
     };
-    let launch = orchbee_local_runtime::normalize_user_path(
-        ".",
-        |name| std::env::var_os(name),
-        std::env::current_dir,
-    )
-    .unwrap();
-    for (baseline, snapshot, reason, expected) in [
-        (
-            project_native_context_tabs(&workspace, &location).unwrap(),
-            workspace.clone(),
-            CurrentDirectoryFailure::NotFound,
-            "C:/项目 space".to_owned(),
-        ),
-        // Neither a sample nor a directory of its own leaves the launch directory.
+    let recorded = (
+        project_native_context_tabs(&workspace, &location).unwrap(),
+        workspace.clone(),
+        CurrentDirectoryFailure::NotFound,
+        "C:/项目 space".to_owned(),
+    );
+    // Neither a sample nor a directory of its own leaves the launch directory. Quick creation
+    // needs the directory-input adapter, which only Windows has (apps/orchbee/docs/
+    // tui-platforms.md, "Local directory entry"), so only Windows falls back to it.
+    let launch = cfg!(windows).then(|| {
         (
             project_preferred_workspace(&initial_workspace).unwrap(),
             initial_workspace.clone(),
             CurrentDirectoryFailure::Unavailable,
-            launch.clone(),
-        ),
-    ] {
+            orchbee_local_runtime::normalize_user_path(
+                ".",
+                |name| std::env::var_os(name),
+                std::env::current_dir,
+            )
+            .unwrap(),
+        )
+    });
+    for (baseline, snapshot, reason, expected) in std::iter::once(recorded).chain(launch) {
         assert_eq!(
             prepare(
                 baseline,

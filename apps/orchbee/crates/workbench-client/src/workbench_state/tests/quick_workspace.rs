@@ -71,6 +71,10 @@ fn refused_quick_preparation_cannot_auto_open_when_its_read_finishes() {
     assert_eq!(state.take_quick_preparation(&preparation), Some(false));
 }
 
+// Quick creation takes its directory through the directory-input adapter, which only Windows has
+// (apps/orchbee/docs/tui-platforms.md, "Local directory entry"), so these Windows path rules run
+// there alone.
+#[cfg(windows)]
 #[test]
 fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw_text() {
     let mut fields = QuickWorkspaceFields::new(
@@ -120,6 +124,8 @@ fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw
     assert!(fields.plan().is_none());
 }
 
+// Windows-only like the path rules above: the drive root names the localized root fallback.
+#[cfg(windows)]
 #[test]
 fn quick_workspace_name_and_directory_have_independent_atomic_limits() {
     let mut fields = QuickWorkspaceFields::new(
