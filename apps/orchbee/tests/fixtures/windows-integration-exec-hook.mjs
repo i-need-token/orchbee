@@ -149,7 +149,9 @@ async function run(hook, input, scriptRoot = root, environment = process.env.ORC
 		child.stdout.on('data', (value) => output.push(value));
 		child.stderr.on('data', (value) => output.push(value));
 		child.stdin.on('error', () => {});
-		const timeout = setTimeout(() => child.kill(), 5000);
+		// A hook that PowerShell runs is declared with 10 seconds, and a slow machine can spend more
+		// than half of that starting PowerShell and then Node.
+		const timeout = setTimeout(() => child.kill(), encodedProvider ? 10000 : 5000);
 		child.once('error', reject);
 		child.once('close', (code, signal) => {
 			clearTimeout(timeout);
