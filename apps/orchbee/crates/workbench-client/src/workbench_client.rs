@@ -617,7 +617,7 @@ impl WorkbenchClient {
                     native,
                     view.overlay().is_some()
                         || view.prefix_active()
-                        || view.machines.open
+                        || view.machines.captures()
                         || view.resize_mode()
                         || view.copy_mode_active(),
                 );

@@ -96,6 +96,9 @@ struct Queued {
     profile: Option<Profile>,
     destination: Destination,
     deadline: Instant,
+    /// What was left of the deadline when a login question began; the clock stops while the
+    /// person answers, as the hub's does.
+    paused: Option<Duration>,
 }
 enum Destination {
     Startup(Option<ClientStartupTarget>),
@@ -125,6 +128,8 @@ pub(super) struct Manager {
     /// Clients no longer presented, kept until their threads end: dropping one only requests stop
     /// and detaches what still runs, out of process exit's sight.
     retired: Vec<Box<dyn TerminalSurface>>,
+    /// The window size of the last tick; a change wipes what a login field holds.
+    dimensions: Option<WindowDimensions>,
 }
 impl Manager {
     /// Process exit: asks every cached, candidate and retired Client, the connection attempt, and
@@ -221,6 +226,7 @@ impl Manager {
             space_git: None,
             wakeup,
             retired: Vec::new(),
+            dimensions: None,
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -237,7 +243,14 @@ impl Manager {
         if let Some(candidate) = self.candidate.take() {
             self.retire(Box::new(candidate.session));
         }
-        self.queued = None;
+        // A selection that ends before its login dismisses the login.
+        if let Some(Queued {
+            profile: Some(profile),
+            ..
+        }) = self.queued.take()
+        {
+            self.discovery.abandon_login(&profile.id);
+        }
         self.selection_scope = None;
     }
     fn selection_current(&self, view: &ClientView) -> bool {
@@ -265,8 +278,7 @@ impl Manager {
             if view.machines.direct_selection_pending() {
                 view.machine_refused(refusal);
             }
-            view.machines.cancel_selection();
-            view.machines.error = Some(refusal.key());
+            view.machines.selection_failed(refusal.key());
         }
         self.selection_scope = None;
     }
@@ -325,6 +337,24 @@ impl Manager {
             .observe_native_navigation(choice(self.current.as_ref()), navigation);
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
+        // The login question the hub put to this TUI, and the person's act on the last one.
+        change.redraw |= view.machines.exchange_login(&mut self.discovery);
+        if self
+            .dimensions
+            .replace(dimensions)
+            .is_some_and(|before| before != dimensions)
+        {
+            self.discovery.clear_login_field();
+        }
+        // The current remote Machine needs a login again: its pane offers Enter to log in.
+        let lost_link = self
+            .current
+            .as_ref()
+            .is_some_and(|profile| self.discovery.login_needed(profile));
+        if view.machines.lost_link != lost_link {
+            view.machines.lost_link = lost_link;
+            change.redraw = true;
+        }
         // The status line says why no hub is reached, without hiding another message or a
         // selection in progress.
         let hub_message = self.discovery.hub_message();
@@ -430,7 +460,8 @@ impl Manager {
             view.clear_workspace_navigation_notice();
             if request.context.is_none()
                 && request.machine == choice(self.current.as_ref())
-                && (request.machine == Choice::Local || surface.active().reusable_machine())
+                && (request.machine == Choice::Local
+                    || (surface.active().reusable_machine() && !view.machines.lost_link))
             {
                 view.machines.open = false;
                 self.finish_selection(view);
@@ -464,6 +495,7 @@ impl Manager {
                         profile,
                         destination: Destination::Startup(request.context),
                         deadline: now + Duration::from_secs(60),
+                        paused: None,
                     });
                     view.machines.error = None;
                 } else {
@@ -484,6 +516,7 @@ impl Manager {
                             profile: attempt.profile.clone(),
                             destination: Destination::VerifiedAgent(target),
                             deadline,
+                            paused: None,
                         });
                     }
                     Ok(PreparedSelection::Connection(mut client)) => {
@@ -517,8 +550,22 @@ impl Manager {
             change.redraw = true;
         }
         if self.attempt.is_none()
-            && let Some(queued) = self.queued.take()
+            && let Some(mut queued) = self.queued.take()
         {
+            let asking = queued
+                .profile
+                .as_ref()
+                .is_some_and(|p| self.discovery.login_active(&p.id));
+            match (asking, queued.paused) {
+                (true, None) => {
+                    queued.paused = Some(queued.deadline.saturating_duration_since(now));
+                }
+                (false, Some(left)) => {
+                    queued.deadline = now + left;
+                    queued.paused = None;
+                }
+                _ => {}
+            }
             if queued.profile.as_ref().is_some_and(|p| !self.valid(p)) {
                 self.fail_selection(view, "removed");
             } else if let Some(refusal) = queued
@@ -527,19 +574,22 @@ impl Manager {
                 .and_then(|p| self.discovery.refusal(p))
             {
                 self.refuse_selection(view, refusal);
-            } else if now >= queued.deadline
+            } else if (queued.paused.is_none() && now >= queued.deadline)
                 || queued
                     .profile
                     .as_ref()
                     .is_some_and(|p| self.discovery.failed(p))
             {
-                // A selection that reached no hub says why instead of naming SSH.
-                let failure = queued
-                    .profile
-                    .as_ref()
-                    .and_then(|_| self.discovery.hub_message())
-                    .unwrap_or("failed");
-                self.fail_selection(view, failure);
+                // A selection that reached no hub says why instead of naming SSH; one that ended
+                // in its login says how the login ended.
+                let failure = match &queued.profile {
+                    Some(profile) => self
+                        .discovery
+                        .hub_message()
+                        .or_else(|| self.discovery.login_failure(profile)),
+                    None => None,
+                };
+                self.fail_selection(view, failure.unwrap_or("failed"));
             } else if self
                 .selection_scope
                 .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
@@ -884,7 +934,14 @@ impl Manager {
             return false;
         }
         let next = self.cached.remove(index);
-        if next.profile.is_some() && !next.surface.reusable_machine() {
+        // A Machine the hub says needs a login has no live link behind its cached surface.
+        if next.profile.is_some()
+            && (!next.surface.reusable_machine()
+                || next
+                    .profile
+                    .as_ref()
+                    .is_some_and(|p| self.discovery.login_needed(p)))
+        {
             self.retire(next.surface);
             return false;
         }
@@ -931,7 +988,9 @@ impl Manager {
         self.selection_scope = None;
 
         next.view.resize(dimensions.columns);
-        let old_view = std::mem::replace(view, next.view);
+        let mut old_view = std::mem::replace(view, next.view);
+        // Only the presented view holds the login overlay.
+        old_view.machines.forget_login();
         view.settle_pointer_released(old_view.pointer_released());
         view.machines = picker;
         let old = Cached {
@@ -959,8 +1018,7 @@ fn report_selection_failure(view: &mut ClientView, error: &'static str) {
     if view.machines.direct_selection_pending() {
         view.workspace_navigation_unavailable();
     }
-    view.machines.cancel_selection();
-    view.machines.error = Some(error);
+    view.machines.selection_failed(error);
 }
 
 fn same_machine_endpoint(left: Option<&Profile>, right: Option<&Profile>) -> bool {

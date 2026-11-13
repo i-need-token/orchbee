@@ -831,7 +831,7 @@ impl ClientView {
             || self.prefix_active
             || self.resize_mode
             || self.copy_mode_active
-            || self.machines.open
+            || self.machines.captures()
         {
             return false;
         }

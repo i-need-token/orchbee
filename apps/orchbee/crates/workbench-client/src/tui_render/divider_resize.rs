@@ -23,7 +23,7 @@ pub fn render_divider_preview(
     if view.overlay().is_some()
         || view.prefix_active()
         || view.resize_mode()
-        || view.machines.open
+        || view.machines.captures()
         || frame.area() != drag.target.viewport
         || !hits.exposes_divider(&drag.projected_target())
     {

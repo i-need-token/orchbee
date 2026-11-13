@@ -4,13 +4,17 @@
 //! the offered key. Anything else, a keyboard-interactive prompt with its `(user@host) ` prefix
 //! included, is `other`. A password or new host that names another host than the Machine's is
 //! `other` too, so it is never shown as the Machine's own. Also the key a changed-host-key refusal
-//! names. Pure and platform-neutral.
+//! names, and the lines of a prompt every interface shows, escaped and bounded. Pure and
+//! platform-neutral; the hub, the askpass helper, `machine connect` and the TUI read it alike.
 
 use crate::machines::default_label;
 use orchbee_machine_protocol::{HostKey, KeyFingerprint, Prompt, Token, hub::QuestionKind};
 
 /// The most prompt bytes a question carries.
 const PROMPT_BYTES: usize = 4096;
+/// The most lines of `ssh`'s prompt a question shows, and the most characters of each.
+pub const PROMPT_LINES: usize = 16;
+pub const PROMPT_LINE_CHARACTERS: usize = 200;
 /// The first-time host sentence's first words, the host it names, and its last words.
 const AUTHENTICITY: &str = "The authenticity of host '";
 const NOT_ESTABLISHED: &str = "' can't be established";
@@ -25,7 +29,7 @@ const PASSWORD_END: &str = "'s password:";
 
 /// The prompt as a question carries it: cut at 4,096 bytes on a character boundary; `None` for an
 /// empty prompt. Text that was not Unicode already reads U+FFFD.
-pub(crate) fn prompt_text(text: &str) -> Option<Prompt> {
+pub fn prompt_text(text: &str) -> Option<Prompt> {
     let mut end = text.len().min(PROMPT_BYTES);
     while !text.is_char_boundary(end) {
         end -= 1;
@@ -33,8 +37,28 @@ pub(crate) fn prompt_text(text: &str) -> Option<Prompt> {
     Prompt::new(text.get(..end)?).ok()
 }
 
+/// The lines of `prompt` an interface shows: each escaped so no terminal can act on it, cut at
+/// [`PROMPT_LINE_CHARACTERS`] with `…`, and at most [`PROMPT_LINES`], then one `…` line when more
+/// followed.
+pub fn shown_lines(prompt: &str) -> Vec<String> {
+    let mut shown = Vec::new();
+    let mut lines = prompt.trim_end().lines();
+    for line in lines.by_ref().take(PROMPT_LINES) {
+        let mut characters = line.chars();
+        let mut cut: String = characters.by_ref().take(PROMPT_LINE_CHARACTERS).collect();
+        if characters.next().is_some() {
+            cut.push('…');
+        }
+        shown.push(crate::terminal_text::unquoted(&cut));
+    }
+    if lines.next().is_some() {
+        shown.push("…".to_owned());
+    }
+    shown
+}
+
 /// The kind `prompt` asks.
-pub(crate) fn classify(prompt: &str) -> QuestionKind {
+pub fn classify(prompt: &str) -> QuestionKind {
     if let Some((_, host_key)) = new_host(prompt) {
         QuestionKind::HostKey { host_key }
     } else if passphrase(prompt) {
@@ -50,7 +74,7 @@ pub(crate) fn classify(prompt: &str) -> QuestionKind {
 /// `prompt` reads as that kind and, for a password or a new host, names the target's host; `other`
 /// otherwise, such as for a jump host's question, which must never read as the Machine's own nor
 /// mark it untrusted.
-pub(crate) fn attributed(kind: QuestionKind, prompt: &str, target: &str) -> QuestionKind {
+pub fn attributed(kind: QuestionKind, prompt: &str, target: &str) -> QuestionKind {
     if classify(prompt) != kind {
         return QuestionKind::Other;
     }
@@ -130,7 +154,7 @@ fn bare(named: &str) -> &str {
 
 /// The key a refusal of a changed host key names: OpenSSH prints "The fingerprint for the
 /// <algorithm> key sent by the remote host is" and the fingerprint on the next line.
-pub(crate) fn changed_key(stderr: &[u8]) -> Option<HostKey> {
+pub fn changed_key(stderr: &[u8]) -> Option<HostKey> {
     let text = String::from_utf8_lossy(stderr);
     let mut lines = text.lines();
     while let Some(line) = lines.next() {

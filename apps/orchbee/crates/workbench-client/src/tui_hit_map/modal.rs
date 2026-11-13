@@ -28,6 +28,10 @@ pub(crate) enum ControlTarget {
         crate::workbench_state::workspace_close::WorkspaceCloseToken,
         bool,
     ),
+    Login(
+        crate::machine_login::Token,
+        crate::machine_picker::LoginControl,
+    ),
 }
 
 impl ControlTarget {
@@ -41,6 +45,7 @@ impl ControlTarget {
             HitTarget::Setup { token, control } => Self::Setup(*token, *control),
             HitTarget::Worktree { token, control } => Self::Worktree(*token, *control),
             HitTarget::WorkspaceClose { token, confirm } => Self::Close(*token, *confirm),
+            HitTarget::MachineLogin { token, control } => Self::Login(*token, *control),
             _ => return None,
         })
     }
@@ -62,6 +67,10 @@ pub(crate) fn accepts_copy(target: &ControlTarget) -> bool {
 
 pub(crate) fn accepts_resize(target: &ControlTarget) -> bool {
     matches!(target, ControlTarget::Resize(_))
+}
+
+pub(crate) fn accepts_login(target: &ControlTarget) -> bool {
+    matches!(target, ControlTarget::Login(..))
 }
 
 pub(crate) fn accepts_confirmation(target: &ControlTarget) -> bool {

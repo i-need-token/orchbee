@@ -182,7 +182,7 @@ impl InputDispatcher {
     ) -> Option<CaptureOwner> {
         let client = ClientCaptureClaims::default();
         let client = client
-            .with_machine(_view.machines.open)
+            .with_machine(_view.machines.captures())
             .with_resize(_view.resize_mode());
         let native = port
             .native_capture_claims()
@@ -857,10 +857,15 @@ impl InputDispatcher {
     ) -> Result<DispatchOutcome, Error> {
         use crate::workbench_client::CaptureContext;
 
-        let ProjectedCaptureItem { owner, item, now } = projected;
+        let ProjectedCaptureItem {
+            owner,
+            mut item,
+            now,
+        } = projected;
 
         if owner == CaptureOwner::Machine {
             let mut regions_changed = false;
+            let login = view.machines.login().is_some();
             match item.kind {
                 DecodedKind::Key(key) => {
                     // Keyboard input settles at most one exposed wheel chunk
@@ -870,8 +875,31 @@ impl InputDispatcher {
                     regions_changed = true;
                 }
                 DecodedKind::Paste { text, .. } => {
-                    view.machines.paste_workspace_query(&text);
+                    // A login field takes the run into its buffer and wipes the run.
+                    if let Some(text) = view.machines.login_paste(text) {
+                        view.machines.paste_workspace_query(&text);
+                    }
                     regions_changed = true;
+                }
+                DecodedKind::Mouse(event) if login && self.pointer.capture_enabled() => {
+                    self.pointer.external_capture_event(event);
+                    let decision = self.pointer.machine_login_event(view, event);
+                    self.capture_modal_release(event);
+                    if event.action == super::MouseAction::Press
+                        && matches!(
+                            event.button,
+                            super::MouseButton::Left
+                                | super::MouseButton::Right
+                                | super::MouseButton::Middle
+                        )
+                    {
+                        self.modal_release = Some(event.button);
+                    }
+                    if decision {
+                        self.machine_packet = true;
+                        self.keys.capture_pending();
+                        regions_changed = true;
+                    }
                 }
                 DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
                     self.pointer.external_capture_event(event);
@@ -910,7 +938,11 @@ impl InputDispatcher {
             {
                 view.machines.error = Some("copy-id-unavailable");
             }
-            if !view.machines.open || view.machines.request.is_some() {
+            // The bytes a login answer arrived in leave no copy behind this item.
+            if login {
+                orchbee_machine_protocol::wipe(&mut item.raw);
+            }
+            if !view.machines.captures() || view.machines.request.is_some() {
                 self.machine_packet = true;
                 self.keys.capture_pending();
                 regions_changed = true;
@@ -1407,6 +1439,8 @@ impl InputDispatcher {
             self.pointer.set_host_focus(focused);
             if !focused {
                 view.cancel_prefix();
+                // A login field is wiped when the window loses focus; the person types it again.
+                view.machines.clear_login_field();
                 self.dismiss_fenced_introducer();
                 self.pointer.cancel_list_scroll();
                 self.pointer.cancel_modal_press();
@@ -2255,6 +2289,21 @@ impl InputDispatcher {
             // their keys keep the ordinary byte path untouched. The history
             // search key opens copy mode there, which then owns input as
             // its command entry does: the rest of this packet is captured.
+            // A remote pane whose link was lost takes Enter as the way to log in again.
+            DecodedKind::Key(event)
+                if view.machines.lost_link
+                    && event.kind != KeyKind::Release
+                    && event.normalized() == (KeyCode::Char('m'), Modifiers::NONE.with_ctrl()) =>
+            {
+                self.flush_pending(view, port);
+                if view.machines.relogin() {
+                    self.machine_packet = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                } else {
+                    self.pending.extend_from_slice(&item.raw);
+                }
+            }
             DecodedKind::Key(event)
                 if event.kind != KeyKind::Release
                     && port.pane_input(PaneInput::HistoryKey(&event))

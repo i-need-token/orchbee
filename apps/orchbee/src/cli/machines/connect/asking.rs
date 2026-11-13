@@ -127,7 +127,7 @@ pub(super) fn converse(
                         // Nothing reached the endpoint, which still waits: the same question
                         // again.
                         Err(DeliveryFailure::Inadmissible) => {
-                            say(console.text.cli_machine_answer_undelivered(true));
+                            say(&console.text.cli_machine_answer_undelivered(true));
                             match Asking::start(console, question) {
                                 Some(open) => asking = Some(open),
                                 None => dismiss(client, login),
@@ -136,7 +136,7 @@ pub(super) fn converse(
                         // The endpoint is gone or refused it: the login stops, and the reply
                         // says how the attempt ended.
                         Err(DeliveryFailure::Unreachable | DeliveryFailure::Refused) => {
-                            say(console.text.cli_machine_answer_undelivered(false));
+                            say(&console.text.cli_machine_answer_undelivered(false));
                             dismiss(client, login);
                         }
                     },
@@ -225,15 +225,7 @@ impl Asking {
         question.kind = attributed(question.kind, question.prompt.as_str(), &console.target);
         let echo = matches!(question.kind, QuestionKind::HostKey { .. });
         let mode = Mode::set(console.mode, echo)?;
-        let shown = match &question.kind {
-            QuestionKind::Password => MachineQuestion::Password,
-            QuestionKind::KeyPassphrase => MachineQuestion::KeyPassphrase,
-            QuestionKind::HostKey { host_key } => MachineQuestion::HostKey {
-                algorithm: host_key.algorithm.as_str(),
-                fingerprint: host_key.fingerprint.as_str(),
-            },
-            QuestionKind::Other => MachineQuestion::Other,
-        };
+        let shown = MachineQuestion::of(&question.kind);
         let line = console.text.cli_machine_question(
             &console.target,
             &shown,

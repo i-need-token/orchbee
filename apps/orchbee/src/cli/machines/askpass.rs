@@ -7,7 +7,7 @@
 mod helper;
 #[cfg(windows)]
 mod pairing;
-pub(crate) mod question;
+pub(crate) use orchbee_workbench_client::application::machine_question as question;
 
 #[cfg(windows)]
 pub(crate) use pairing::{

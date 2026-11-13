@@ -27,8 +27,10 @@ mod machine_carrier;
 mod machine_discovery;
 #[cfg(windows)]
 mod machine_hub;
+mod machine_login;
 mod machine_observation;
 mod machine_picker;
+mod machine_question;
 mod machine_refusal;
 mod machine_retry;
 mod machine_spaces;
@@ -242,7 +244,7 @@ pub mod application {
     }
 
     pub mod localization {
-        pub use crate::localization::{Locale, locale_source, select_locale};
+        pub use crate::localization::{Locale, MachineQuestion, locale_source, select_locale};
     }
 
     pub mod machine_agents {
@@ -269,6 +271,13 @@ pub mod application {
 
     pub mod machine_observation {
         pub use crate::machine_observation::{Source, snapshot};
+    }
+
+    pub mod machine_question {
+        pub use crate::machine_question::{
+            PROMPT_LINE_CHARACTERS, PROMPT_LINES, attributed, changed_key, classify, prompt_text,
+            shown_lines,
+        };
     }
 
     pub mod machine_picker {

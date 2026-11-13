@@ -12,6 +12,7 @@ use std::{num::NonZeroU64, sync::Arc};
 pub(crate) const COPY_ID_KEY: crate::terminal_events::keys::Binding =
     crate::terminal_events::keys::Binding::new(KeyCode::Char('y'), Modifiers::CTRL);
 mod agents;
+mod login;
 mod navigation;
 mod pointer;
 mod sidebar;
@@ -19,6 +20,7 @@ mod spaces;
 mod workspace_query;
 pub use agents::Control;
 use agents::Navigation;
+pub(crate) use login::{LoginControl, LoginOverlay};
 pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
     DrawnSidebarFixedTarget, DrawnSidebarTarget, SIDEBAR_BINDINGS, SidebarActivation,
@@ -312,6 +314,10 @@ pub struct Picker {
     /// The painted list capacity while a wheel step owns the viewport; `None`
     /// while the window follows the selection.
     wheel_capacity: Option<usize>,
+    /// The login question shown over everything else while one waits for the person.
+    login: Option<LoginOverlay>,
+    /// The current remote Machine's link was lost: its pane offers Enter to log in again.
+    pub lost_link: bool,
 }
 impl Default for Picker {
     fn default() -> Self {
@@ -372,6 +378,8 @@ impl Default for Picker {
             selected: 0,
             top: 0,
             wheel_capacity: None,
+            login: None,
+            lost_link: false,
         }
     }
 }
@@ -715,6 +723,29 @@ impl Picker {
         self.request = None;
         self.pending_navigation = None;
     }
+    /// A selection ended without its Machine: an open picker stays on screen in a new episode and
+    /// says why, since a picker without its selection draws nothing yet holds the keys.
+    pub fn selection_failed(&mut self, error: &'static str) {
+        let shown = self.open && self.picker_source().is_some();
+        self.cancel_selection();
+        if shown && !self.begin_selection(SelectionOrigin::Picker) {
+            self.open = false;
+        }
+        self.error = Some(error);
+    }
+    /// Starts a selection of the current remote Machine again, as Enter on its pane does once
+    /// its link was lost.
+    pub(crate) fn relogin(&mut self) -> bool {
+        if !self.lost_link
+            || !matches!(self.current, Choice::Remote(_))
+            || !self.begin_selection(SelectionOrigin::Sidebar)
+        {
+            return false;
+        }
+        self.request = Some(Selection::from(self.current.clone()));
+        self.error = None;
+        true
+    }
     pub fn direct_selection_pending(&self) -> bool {
         self.selection_scope
             .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
@@ -741,7 +772,7 @@ impl Picker {
         }
     }
     pub(crate) fn key(&mut self, key: KeyEvent) {
-        if key.kind == KeyKind::Release {
+        if self.login_key(key) || key.kind == KeyKind::Release {
             return;
         }
         self.pending_navigation = None;

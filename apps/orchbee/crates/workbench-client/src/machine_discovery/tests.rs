@@ -69,9 +69,10 @@ fn blocked_worker(_: Profile, generation: u64) -> io::Result<Worker> {
 fn online(d: &mut Discovery, profiles: &[Profile]) {
     d.hub.reach = Reach::Attached;
     for p in profiles {
-        d.hub
-            .states
-            .insert(p.id.as_str().to_owned(), MachineStateName::Online);
+        d.hub.states.insert(
+            p.id.as_str().to_owned(),
+            orchbee_machine_protocol::hub::MachineState::Online,
+        );
     }
 }
 #[test]

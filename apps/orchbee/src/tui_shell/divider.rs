@@ -82,7 +82,7 @@ pub(super) fn render(
         if let Some(graphics) = graphics {
             graphics.begin_frame(
                 *candidate != ResizeProjection::Canonical
-                    || view.machines.open
+                    || view.machines.captures()
                     || (!view.notifications.empty()
                         && crate::notifications::available(view, surface.view())),
             );

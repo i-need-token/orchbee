@@ -199,6 +199,14 @@ impl Picker {
         theme: &Theme,
         hits: &mut HitMapBuilder,
     ) {
+        // A login question covers everything, the picker included: one overlay at a time.
+        if let Some(login) = self.login() {
+            if ViewportTier::from_area(frame.area()) != ViewportTier::TooSmall {
+                let label = self.login_label().unwrap_or(&login.presented.machine);
+                let _ = super::machine_login::render(frame, login, label, locale, theme, hits);
+            }
+            return;
+        }
         let Some(source) = self.picker_source() else {
             return;
         };
@@ -670,6 +678,9 @@ impl Picker {
                     // The row shows one word; why, and what to do, read here.
                     Some(Observation::Hub(status)) => {
                         lines.extend(locale.machine_hub_detail(status));
+                    }
+                    Some(Observation::Login(state)) => {
+                        lines.extend(locale.machine_login_detail(state));
                     }
                     _ => {}
                 }

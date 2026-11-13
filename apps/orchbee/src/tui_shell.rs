@@ -876,7 +876,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 redraw = true;
             }
             let previous_measurement = dispatcher.graphics_facts().measurement;
-            if let Some(input) = input {
+            if let Some(mut input) = input {
+                let login = view.machines.login_shown();
                 let measurement = dispatcher.graphics_facts().measurement;
                 let resize = dispatcher.resize_projection();
                 let resize_allowed = dispatcher.resize_presentation_allowed();
@@ -899,6 +900,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     },
                     &mut |request| mode(request).map_err(LoopFailure::Input),
                 );
+                // The bytes a login answer arrived in leave no copy in this loop's buffer.
+                if login || view.machines.login_shown() {
+                    orchbee_machine_protocol::wipe(&mut input);
+                }
                 if let Some(started) = started {
                     started.dispatch_completed(batch, outcome.is_ok());
                 }
@@ -1319,6 +1324,12 @@ fn render_machine_surface(
     // The preview's persistent status owns this tail until the gesture ends.
     if preview_painted || capture_owner == Some(crate::tui_composition::CaptureOwner::Copy) {
     } else {
+        // A remote pane whose link was lost says so, under any overlay.
+        let panel = crate::tui_layout::project_shell_areas(frame.area(), view.sidebar_surface());
+        if panel.tier != crate::tui_layout::ViewportTier::TooSmall {
+            view.machines
+                .render_lost_link(frame, panel.panel, chrome.locale, chrome.theme);
+        }
         view.machines
             .render(frame, chrome.locale, chrome.theme, hits);
     }
@@ -1703,7 +1714,7 @@ const fn to_area(dimensions: WindowDimensions) -> Rect {
 fn client_capture_claims(_view: &ClientView) -> crate::tui_composition::ClientCaptureClaims {
     let claims = crate::tui_composition::ClientCaptureClaims::default();
     claims
-        .with_machine(_view.machines.open)
+        .with_machine(_view.machines.captures())
         .with_resize(_view.resize_mode())
 }
 

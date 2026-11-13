@@ -7,8 +7,8 @@ use super::{
     SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
 };
 use crate::tui_hit_map::modal::{
-    ControlTarget, Fingerprint, Projection, accepts_confirmation, accepts_copy, accepts_modal,
-    accepts_resize,
+    ControlTarget, Fingerprint, Projection, accepts_confirmation, accepts_copy, accepts_login,
+    accepts_modal, accepts_resize,
 };
 
 /// Live pointer position and hover for specialized modal controls. Press
@@ -403,6 +403,35 @@ impl PointerState {
                     control,
                 }));
             }
+        }
+        self.stale_map();
+        true
+    }
+    /// A press and its release on a control of the login overlay; the picker checks the
+    /// question's token before it acts. True when the event belonged to a control.
+    pub(crate) fn machine_login_event(
+        &mut self,
+        view: &mut crate::client_view::ClientView,
+        event: MouseEvent,
+    ) -> bool {
+        self.observe_modal_motion(event, accepts_login);
+        let admit_new = self.can_admit_modal_press();
+        let ControlEvent::Released(target) = control_event(
+            self.map.as_ref(),
+            self.capture,
+            admit_new,
+            &mut self.modal_press,
+            event,
+            accepts_login,
+        ) else {
+            return false;
+        };
+        match target {
+            Some(ControlTarget::Login(token, control)) => {
+                view.machines.login_control(token, control);
+            }
+            Some(_) => {}
+            None => self.modal_projection.clear_transport(),
         }
         self.stale_map();
         true

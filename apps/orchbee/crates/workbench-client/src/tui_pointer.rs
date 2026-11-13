@@ -1838,7 +1838,7 @@ impl PointerState {
                 .overlay()
                 .is_some_and(|overlay| overlay != crate::client_view::Overlay::BusinessSidebar)
                 || view.resize_mode()
-                || view.machines.open)
+                || view.machines.captures())
         {
             self.gesture = Gesture::Idle;
             changed = true;
@@ -1852,7 +1852,7 @@ impl PointerState {
         if self.divider_preview().is_some_and(|drag| {
             view.overlay().is_some()
                 || view.resize_mode()
-                || view.machines.open
+                || view.machines.captures()
                 || self
                     .map
                     .as_ref()
@@ -1945,7 +1945,7 @@ impl PointerState {
         if event.action == MouseAction::Press
             && event.mods == crate::client_view::Modifiers::NONE
             && !view.resize_mode()
-            && !view.machines.open
+            && !view.machines.captures()
             && self.can_open_action_menu()
         {
             let target = match map.hit(event.column, event.row) {
@@ -2139,6 +2139,7 @@ impl PointerState {
                 | HitTarget::NotificationCard(_)
                 | HitTarget::Setup { .. }
                 | HitTarget::WorkspaceClose { .. }
+                | HitTarget::MachineLogin { .. }
                 | HitTarget::TabClose { .. }
                 | HitTarget::PanelClose { .. }
                 | HitTarget::Rename { .. }

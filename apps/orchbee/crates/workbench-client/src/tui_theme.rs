@@ -181,6 +181,8 @@ pub struct GlyphSet {
     pub(crate) middle_dot: &'static str,
     /// Status glyph used in the sidebar session section.
     pub(crate) status_bullet: &'static str,
+    /// One character of a secret field, shown in place of each typed character.
+    pub(crate) secret_mask: &'static str,
     pub(crate) git_ahead: &'static str,
     pub(crate) git_behind: &'static str,
     /// Active marker in navigator and context lists.
@@ -218,6 +220,7 @@ impl GlyphSet {
         ellipsis: "…",
         middle_dot: "·",
         status_bullet: "•",
+        secret_mask: "•",
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
@@ -241,6 +244,7 @@ impl GlyphSet {
         ellipsis: "..",
         middle_dot: "-",
         status_bullet: "*",
+        secret_mask: "*",
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",

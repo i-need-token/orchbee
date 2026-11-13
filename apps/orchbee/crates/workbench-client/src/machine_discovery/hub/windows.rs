@@ -5,14 +5,18 @@ use crate::{
     background_thread::BackgroundThread,
     machine_discovery::overview::Blocked,
     machine_hub::{
-        AttachFailure, Attachment, HubClient, HubWatch, Incompatible, Notice, Opening, data_root,
-        present,
+        AttachFailure, Attachment, DeliveryFailure, HubClient, HubWatch, Incompatible, Notice,
+        Opening, data_root, deliver as deliver_answer, present,
     },
+    machine_login::{self, Answer, Delivery, Token},
     machine_retry::Backoff,
 };
 use orchbee_machine_protocol::{
-    MachineId,
-    hub::{Connect, ConnectOutcome, ConnectResult, Event, HubState, Origin, Reply, Request},
+    Id, MachineId,
+    hub::{
+        AnswerEndpoint, Claimant, Connect, ConnectFailure, ConnectOutcome, ConnectResult, Event,
+        HubState, LoginEvent, LoginPhase, Origin, Reply, Request,
+    },
 };
 use std::{
     io,
@@ -21,10 +25,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// What the TUI is to the hub. It answers no login question until it shows login notices.
+/// What the TUI is to the hub: it answers the login questions of its own selections.
 const ATTACHMENT: Attachment = Attachment {
     presence: true,
-    asks: false,
+    asks: true,
     watch: true,
 };
 /// How long one attachment, which may start a hub, may take; the stop request ends it at once.
@@ -39,9 +43,13 @@ const POLL: Duration = Duration::from_millis(100);
 const LOOK: Duration = Duration::from_secs(1);
 /// How long a `reload` may take.
 const RELOAD: Duration = Duration::from_secs(10);
-/// How long a selection's `connect` may take, its wait for a hub included; the selection itself
-/// waits at most as long.
+/// How long a selection's wait for a hub may take before its `connect` is sent.
 const CONNECT: Duration = Duration::from_secs(60);
+/// How long the `connect` itself may wait for its reply: the hub bounds the attempt, and the time
+/// a person takes to answer stops its clock.
+const REQUEST: Duration = Duration::from_secs(60 * 60);
+/// How long a `dismiss` may take.
+const DISMISS: Duration = Duration::from_secs(3);
 
 /// The holder's attachments, as selections waiting for a hub read them.
 #[derive(Default)]
@@ -347,11 +355,33 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                     state
                         .view
                         .states
-                        .insert(event.machine.to_string(), event.state.name());
+                        .insert(event.machine.to_string(), event.state);
                 });
             }
+            // Only the episodes this TUI claimed are its own; offers and other clients' claims
+            // wait for login notices of their own.
+            Some(Notice::Event(Event::Login(LoginEvent {
+                login,
+                machine,
+                phase,
+                ..
+            }))) => match phase {
+                LoginPhase::Claimed {
+                    claim: Claimant::You,
+                } => shared.login(machine_login::Notice::Claimed {
+                    login,
+                    machine: machine.to_string(),
+                }),
+                LoginPhase::Ended { end } => {
+                    shared.login(machine_login::Notice::Ended { login, end });
+                }
+                LoginPhase::Offered | LoginPhase::Claimed { .. } => {}
+            },
+            Some(Notice::Event(Event::Question(question))) => {
+                shared.login(machine_login::Notice::Question(question));
+            }
             Some(Notice::Event(_)) => {}
-            // A new hub reports every Machine again.
+            // A new hub reports every Machine again; the episodes of the last one ended with it.
             Some(Notice::Reattached(_)) => {
                 live = true;
                 closing = false;
@@ -361,9 +391,13 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                     state.view.catalog = None;
                     state.reloading = None;
                     state.attempts.asked = false;
+                    state.logins.push(machine_login::Notice::Lost);
                 });
             }
-            Some(Notice::Ended(failure)) => return Left::Ended(failure, closing),
+            Some(Notice::Ended(failure)) => {
+                shared.login(machine_login::Notice::Lost);
+                return Left::Ended(failure, closing);
+            }
         }
         if live && !closing && !client.connected() {
             live = false;
@@ -392,42 +426,96 @@ pub(super) fn connect(shared: &Arc<Shared>, machine: String, number: u64) {
         .name("orchbee-machine-connect".into())
         .spawn(move || {
             let shared = shared_for_thread;
-            let online = request_connect(&shared, &machine, number);
+            let outcome = request_connect(&shared, &machine, number);
             shared.update(|state| {
                 if state.view.asks.get(&machine) == Some(&Ask::Pending(number)) {
-                    if online {
-                        state.view.asks.remove(&machine);
-                    } else {
-                        state.view.asks.insert(machine, Ask::Failed);
+                    match outcome {
+                        Ok(()) => {
+                            state.view.asks.remove(&machine);
+                        }
+                        Err(failure) => {
+                            state.view.asks.insert(machine, Ask::Failed(failure));
+                        }
                     }
                 }
             });
         });
     if started.is_err() {
         shared.update(|state| {
-            state.view.asks.insert(key, Ask::Failed);
+            state.view.asks.insert(key, Ask::Failed(None));
         });
     }
 }
 
-/// Waits for a live hub, asking the holder for one, and sends `connect` on it. An attachment that
-/// begins after the ask and fails answers the selection; so does the deadline.
-fn request_connect(shared: &Shared, machine: &str, number: u64) -> bool {
+/// Asks the hub to dismiss episode `login`; the hub's `ended` event settles it, so nobody waits
+/// for the reply.
+pub(super) fn dismiss(shared: &Arc<Shared>, login: Id) {
+    let Some(client) = shared.lock().link.clone() else {
+        return;
+    };
+    // A thread that cannot start leaves the episode to the hub's question bound.
+    let _started = thread::Builder::new()
+        .name("orchbee-machine-dismiss".into())
+        .spawn(move || {
+            let _reply = client.request(Request::Dismiss { login }, Instant::now() + DISMISS);
+        });
+}
+
+/// Writes `answer` to the question's endpoint, which takes up to 5 seconds, and reports how it
+/// went. The answer is wiped when this thread drops it, or at once when no thread starts.
+pub(super) fn deliver(
+    shared: &Arc<Shared>,
+    token: Token,
+    endpoint: AnswerEndpoint,
+    answer: Answer,
+) {
+    let shared_for_thread = shared.clone();
+    let started = thread::Builder::new()
+        .name("orchbee-machine-answer".into())
+        .spawn(move || {
+            let delivered = deliver_answer(&endpoint, answer.as_bytes());
+            drop(answer);
+            let outcome = match delivered {
+                Ok(()) => Delivery::Taken,
+                Err(DeliveryFailure::Inadmissible) => Delivery::Inadmissible,
+                Err(DeliveryFailure::Unreachable | DeliveryFailure::Refused) => {
+                    Delivery::Undelivered
+                }
+            };
+            shared_for_thread.login(machine_login::Notice::Delivered { token, outcome });
+        });
+    if started.is_err() {
+        shared.login(machine_login::Notice::Delivered {
+            token,
+            outcome: Delivery::Undelivered,
+        });
+    }
+}
+
+/// Waits for a live hub, asking the holder for one, and sends `connect` on it as the person's own
+/// act, so the hub asks this TUI the login's questions. An attachment that begins after the ask
+/// and fails answers the selection; so does the deadline. A reply without `online` names its
+/// failure.
+fn request_connect(
+    shared: &Shared,
+    machine: &str,
+    number: u64,
+) -> Result<(), Option<ConnectFailure>> {
     let Ok(id) = MachineId::new(machine) else {
-        return false;
+        return Err(None);
     };
     let deadline = Instant::now() + CONNECT;
     // The attachments begun when the selection asked for a hub.
     let mut asked_at: Option<u64> = None;
     loop {
         if shared.stopping() || Instant::now() >= deadline {
-            return false;
+            return Err(None);
         }
         let (client, failed) = {
             let mut state = shared.lock();
             if state.view.asks.get(machine) != Some(&Ask::Pending(number)) {
                 // A later ask replaced this one.
-                return false;
+                return Err(None);
             }
             let client = state
                 .link
@@ -447,7 +535,7 @@ fn request_connect(shared: &Shared, machine: &str, number: u64) -> bool {
             (client, failed)
         };
         if failed {
-            return false;
+            return Err(None);
         }
         let Some(client) = client else {
             thread::sleep(POLL);
@@ -459,22 +547,23 @@ fn request_connect(shared: &Shared, machine: &str, number: u64) -> bool {
         }
         let request = Request::Connect(Connect {
             machine: id.clone(),
-            origin: Origin::Command { answers: false },
+            origin: Origin::User,
             draft: None,
         });
-        let online = matches!(
-            client.request(request, deadline),
+        let failure = match client.request(request, Instant::now() + REQUEST) {
             Ok(Reply::Connect(ConnectResult {
                 outcome: ConnectOutcome::Online { .. },
                 ..
-            }))
-        );
-        if online {
-            return true;
-        }
+            })) => return Ok(()),
+            Ok(Reply::Connect(ConnectResult {
+                outcome: ConnectOutcome::NotOnline(failure),
+                ..
+            })) => Some(failure),
+            _ => None,
+        };
         // The hub went away or began closing meanwhile: wait for the next one.
         if shared.lock().view.reach == Reach::Attached {
-            return false;
+            return Err(failure);
         }
         asked_at = None;
     }

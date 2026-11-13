@@ -1,7 +1,9 @@
-//! The TUI's hold on the machine hub: one background attachment with presence and watch, the
-//! Machine states the hub reports, published into one shared view, and the `reload` and `connect`
-//! requests discovery asks for. A frame copies the view and never waits for the hub. Windows only,
-//! as the hub is; `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns the rules.
+//! The TUI's hold on the machine hub: one background attachment with presence, asks and watch,
+//! the Machine states the hub reports, published into one shared view, the login notices of the
+//! episodes this TUI claimed, queued in order, and the `reload`, `connect` and `dismiss` requests
+//! and answer deliveries discovery asks for. A frame copies the view and never waits for the hub.
+//! Windows only, as the hub is; `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns the
+//! rules.
 #[cfg(not(windows))]
 mod unix;
 #[cfg(windows)]
@@ -13,10 +15,17 @@ use windows as platform;
 
 use super::overview::Blocked;
 use crate::{
-    background_thread::BackgroundThread, machine_carrier::Gate, machine_carrier::Hub,
-    machines::ProfileId, ui_wakeup::UiWakeup,
+    background_thread::BackgroundThread,
+    machine_carrier::Gate,
+    machine_carrier::Hub,
+    machine_login::{Answer, Notice, Token},
+    machines::ProfileId,
+    ui_wakeup::UiWakeup,
 };
-use orchbee_machine_protocol::hub::MachineStateName;
+use orchbee_machine_protocol::{
+    Id,
+    hub::{AnswerEndpoint, ConnectFailure, MachineState, MachineStateName},
+};
 use std::{
     collections::HashMap,
     io,
@@ -55,8 +64,9 @@ pub(super) enum Reach {
 pub(super) enum Ask {
     /// Waiting for a hub and then for the reply of the request with this number.
     Pending(u64),
-    /// The reply said the Machine is not online, no hub could be reached for it, or no reply came.
-    Failed,
+    /// The reply said the Machine is not online, with the failure it named, or no hub could be
+    /// reached for it, or no reply came.
+    Failed(Option<ConnectFailure>),
 }
 
 /// What the holder last learned, as discovery copies it.
@@ -66,7 +76,7 @@ pub(super) struct View {
     /// Counts the owners the holder opened, so a carrier of an ended owner never reads online.
     pub(super) epoch: u64,
     /// The hub's state of each catalog Machine it reported, by id; empty unless attached.
-    pub(super) states: HashMap<String, MachineStateName>,
+    pub(super) states: HashMap<String, MachineState>,
     /// The revision of the hub's last `catalog` event.
     pub(super) catalog: Option<u64>,
     pub(super) asks: HashMap<String, Ask>,
@@ -74,7 +84,12 @@ pub(super) struct View {
 
 impl View {
     pub(super) fn state(&self, machine: &ProfileId) -> Option<MachineStateName> {
-        self.states.get(machine.as_str()).copied()
+        self.states.get(machine.as_str()).map(MachineState::name)
+    }
+
+    /// The hub's state of `machine` with the facts it carries.
+    pub(super) fn facts(&self, machine: &ProfileId) -> Option<&MachineState> {
+        self.states.get(machine.as_str())
     }
 }
 
@@ -88,6 +103,9 @@ struct State {
     /// The revision a `reload` was asked for on the current attachment.
     reloading: Option<u64>,
     next_ask: u64,
+    /// The login notices of the episodes this TUI claimed, in the order they came, until
+    /// discovery takes them.
+    logins: Vec<Notice>,
     /// The holder's attachments, as selections waiting for a hub read them.
     #[cfg(windows)]
     attempts: platform::Attempts,
@@ -114,6 +132,7 @@ impl Shared {
                 wanted: None,
                 reloading: None,
                 next_ask: 0,
+                logins: Vec::new(),
                 #[cfg(windows)]
                 attempts: platform::Attempts::default(),
             }),
@@ -142,7 +161,8 @@ impl Shared {
         }
     }
 
-    /// Publishes `reach` when it changed; leaving `Attached` forgets every Machine state.
+    /// Publishes `reach` when it changed; leaving `Attached` forgets every Machine state, and
+    /// every login episode ends with the link.
     #[cfg(windows)]
     fn reach(&self, reach: Reach) {
         if self.lock().view.reach == reach {
@@ -152,9 +172,18 @@ impl Shared {
             if reach != Reach::Attached {
                 state.view.states.clear();
                 state.view.catalog = None;
+                if state.view.reach == Reach::Attached {
+                    state.logins.push(Notice::Lost);
+                }
             }
             state.view.reach = reach;
         });
+    }
+
+    /// Queues a login notice for discovery and wakes the UI loop.
+    #[cfg(windows)]
+    fn login(&self, notice: Notice) {
+        self.update(|state| state.logins.push(notice));
     }
 
     #[cfg(windows)]
@@ -180,7 +209,8 @@ impl Shared {
         let state = self.lock();
         state.view.reach == Reach::Attached
             && state.view.epoch == epoch
-            && state.view.states.get(machine) == Some(&MachineStateName::Online)
+            && state.view.states.get(machine).map(MachineState::name)
+                == Some(MachineStateName::Online)
     }
 
     /// The `reload` the current attachment still owes the catalog the TUI read: once per
@@ -266,7 +296,7 @@ impl Holder {
     /// Asks the hub to bring `machine` online, waiting for a hub first, and returns the ask
     /// discovery waits on. A selection is a person's act: it may start a hub.
     pub(super) fn connect(&self, machine: &ProfileId) -> Ask {
-        let mut ask = Ask::Failed;
+        let mut ask = Ask::Failed(None);
         self.shared.update(|state| {
             let number = state.next_ask;
             state.next_ask = number.wrapping_add(1);
@@ -277,6 +307,22 @@ impl Holder {
             platform::connect(&self.shared, machine.as_str().to_owned(), number);
         }
         ask
+    }
+
+    /// The login notices that came since the last call, in order.
+    pub(super) fn take_logins(&self) -> Vec<Notice> {
+        std::mem::take(&mut self.shared.lock().logins)
+    }
+
+    /// Asks the hub to dismiss episode `login` without waiting; its `ended` event follows.
+    pub(super) fn dismiss(&self, login: Id) {
+        platform::dismiss(&self.shared, login);
+    }
+
+    /// Delivers `answer` to `endpoint` off the interface thread and reports the outcome as a
+    /// login notice; the answer is wiped once the endpoint took it or the bound passed.
+    pub(super) fn deliver(&self, token: Token, endpoint: AnswerEndpoint, answer: Answer) {
+        platform::deliver(&self.shared, token, endpoint, answer);
     }
 
     /// Forgets the last ask for `machine`, as a selection of an online Machine does.

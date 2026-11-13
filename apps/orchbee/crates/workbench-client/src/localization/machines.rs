@@ -304,6 +304,19 @@ impl Locale {
                 "Connection failed. Check SSH readiness, then choose to retry."
             }
             (Self::ZhCn, "failed") => "连接失败。请检查 SSH 就绪状态，然后重新选择以重试。",
+            (Self::EnUs, "login-failed-message") => {
+                "Login failed. Choose the machine to try again."
+            }
+            (Self::ZhCn, "login-failed-message") => "登录失败。重新选择这台机器可再试一次。",
+            (Self::EnUs, "login-key-changed-message") => {
+                "The host key changed. The machine's details say how to resolve it."
+            }
+            (Self::ZhCn, "login-key-changed-message") => "主机密钥已变。处理方法见机器详情。",
+            (Self::EnUs, "login-unanswered-message") => {
+                "The login was not completed. Choose the machine to log in."
+            }
+            (Self::ZhCn, "login-unanswered-message") => "登录未完成。重新选择这台机器即可登录。",
+            (_, "login-undelivered") => self.machine_answer_undelivered(false),
             (Self::EnUs, "removed") => {
                 "Machine removed or disabled. Choose Local or another machine."
             }

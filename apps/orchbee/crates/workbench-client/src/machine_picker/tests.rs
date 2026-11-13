@@ -333,6 +333,23 @@ fn rendered_rows_select_exact_ids_and_reordering_invalidates_old_hits() {
     assert_eq!(picker.request.take(), Some(Choice::Remote(b.id).into()));
 }
 #[test]
+fn a_failed_selection_keeps_an_open_picker_on_screen_with_its_reason() {
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(&[profile(1, "devbox", true)]);
+    picker.show();
+    picker.choose(1);
+    assert!(picker.request.take().is_some());
+    picker.selection_failed("login-key-changed-message");
+    // An open picker that holds the keys is always the one painted, with why it failed.
+    assert!(picker.open && picker.captures());
+    let painted = paint(&picker, Locale::EnUs, 80, 24);
+    assert!(painted.has_target(PickerAction::Row(1)));
+    assert_eq!(picker.error, Some("login-key-changed-message"));
+}
+#[test]
 fn disabled_selection_and_small_resize_never_fall_through_to_a_terminal() {
     let mut picker = Picker {
         available: true,

@@ -150,6 +150,11 @@ pub enum HitTarget {
         token: crate::workbench_state::workspace_close::WorkspaceCloseToken,
         confirm: bool,
     },
+    /// A control of the login overlay painted for one question.
+    MachineLogin {
+        token: crate::machine_login::Token,
+        control: crate::machine_picker::LoginControl,
+    },
     /// A control actually painted by the Workspace setup owner.
     Setup {
         token: crate::workbench_state::workspace_setup::SetupToken,

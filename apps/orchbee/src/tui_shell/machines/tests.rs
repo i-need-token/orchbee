@@ -390,6 +390,7 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
         profile: Some(profile()),
         destination: Destination::Startup(None),
         deadline: now,
+        paused: None,
     });
     assert!(
         !manager
@@ -404,6 +405,7 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
         profile: Some(profile()),
         destination: Destination::Startup(None),
         deadline: now + Duration::from_secs(60),
+        paused: None,
     });
     manager.profiles[0].draft.connection =
         crate::machines::Connection::ssh("replacement.invalid").unwrap();
@@ -421,6 +423,7 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
         profile: Some(profile()),
         destination: Destination::Startup(None),
         deadline: now + Duration::from_secs(60),
+        paused: None,
     });
     view.machines.open = false;
     assert!(

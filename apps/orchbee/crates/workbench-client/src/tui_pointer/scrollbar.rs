@@ -239,7 +239,7 @@ impl PointerState {
             .overlay()
             .is_some_and(|overlay| overlay != crate::client_view::Overlay::BusinessSidebar)
             || view.resize_mode()
-            || view.machines.open
+            || view.machines.captures()
         {
             return PointerOutcome::Handled;
         }

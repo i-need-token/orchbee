@@ -91,6 +91,7 @@ mod divider_resize;
 mod environment_marker;
 mod held_restore;
 mod help;
+mod machine_login;
 mod machine_picker;
 mod modal;
 pub(crate) use modal::{OverlayFrame, overlay_surface, titled_overlay};
@@ -218,7 +219,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     let area = frame.area();
     let client_claims = ClientCaptureClaims::default();
     let client_claims = client_claims
-        .with_machine(view.machines.open)
+        .with_machine(view.machines.captures())
         .with_resize(view.resize_mode());
     let native_claims = match workbench_client.as_ref() {
         Some(native) => native.capture_claims(),
@@ -1447,7 +1448,7 @@ fn render_native_workbench(
     let pane_focused = pane_focused
         && !client_view.navigator_active()
         && !client_view.machines.sidebar_navigation_active()
-        && !client_view.machines.open;
+        && !client_view.machines.captures();
     let input_enabled = pane_focused
         && client_view.overlay().is_none()
         && !client_view.prefix_active()

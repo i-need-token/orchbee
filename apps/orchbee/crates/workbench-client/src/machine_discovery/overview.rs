@@ -2,7 +2,10 @@
 //! canonical navigation. Discovery produces them; Client state holds them.
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use crate::terminal_text::sanitize_terminal_text;
-use orchbee_machine_protocol::hub::MachineStateName;
+use orchbee_machine_protocol::{
+    HostKey,
+    hub::{LoginFailedCause, MachineState, MachineStateName, NeedsLoginCause},
+};
 use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -91,8 +94,46 @@ pub enum Observation {
     Hub(HubStatus),
     /// The hub's state, without a current overview.
     State(MachineStateName),
+    /// A login state, with the facts its detail names.
+    Login(LoginState),
     /// The hub reads the Machine `online` and its observer holds a current overview.
     Online(Overview),
+}
+/// A Machine state that waits for a person's login, with what its detail says.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LoginState {
+    NeedsLogin(Option<NeedsLoginCause>),
+    LoginFailed(Option<LoginFailedCause>),
+    /// The new host's offered key.
+    Untrusted(HostKey),
+    /// The offered key, when known, and the host `ssh-keygen -R` forgets.
+    KeyChanged {
+        host_key: Option<HostKey>,
+        host: String,
+    },
+}
+impl LoginState {
+    /// The login state `state` is, for the Machine whose `ssh` target names `host`.
+    pub(crate) fn of(state: &MachineState, host: &str) -> Option<Self> {
+        Some(match state {
+            MachineState::NeedsLogin { cause } => Self::NeedsLogin(*cause),
+            MachineState::LoginFailed { cause } => Self::LoginFailed(*cause),
+            MachineState::Untrusted { host_key } => Self::Untrusted(host_key.clone()),
+            MachineState::KeyChanged { host_key } => Self::KeyChanged {
+                host_key: host_key.clone(),
+                host: host.to_owned(),
+            },
+            _ => return None,
+        })
+    }
+    pub(crate) const fn name(&self) -> MachineStateName {
+        match self {
+            Self::NeedsLogin(_) => MachineStateName::NeedsLogin,
+            Self::LoginFailed(_) => MachineStateName::LoginFailed,
+            Self::Untrusted(_) => MachineStateName::Untrusted,
+            Self::KeyChanged { .. } => MachineStateName::KeyChanged,
+        }
+    }
 }
 /// Why no Machine state of the hub's holds now.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -134,6 +175,7 @@ impl Observation {
     /// The picker message of the row's word.
     pub(crate) fn key(&self) -> &'static str {
         match self {
+            Self::Login(state) => Self::State(state.name()).key(),
             Self::Hub(HubStatus::Unknown) => "unknown",
             Self::Hub(HubStatus::Stopped) => "hub-stopped",
             Self::Hub(HubStatus::Unavailable | HubStatus::Blocked(_)) => "hub-unavailable",
@@ -161,6 +203,7 @@ impl Observation {
     }
     pub(crate) fn tone(&self) -> Tone {
         match self {
+            Self::Login(state) => Self::State(state.name()).tone(),
             Self::Hub(HubStatus::Unknown | HubStatus::Stopped) => Tone::Neutral,
             Self::Hub(HubStatus::Unavailable) => Tone::Warning,
             Self::Hub(HubStatus::Blocked(_)) => Tone::Error,

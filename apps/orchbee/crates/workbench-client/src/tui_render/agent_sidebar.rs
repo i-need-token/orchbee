@@ -455,7 +455,7 @@ pub fn render_width_preview(
     if !matches!(view.overlay(), None | Some(Overlay::BusinessSidebar))
         || view.prefix_active()
         || view.resize_mode()
-        || view.machines.open
+        || view.machines.captures()
         || view.pointer_released()
         || DrawnSidebarWidth::new(frame.area(), view.sidebar_surface()) != Some(drag.target)
         || !hits.exposes_sidebar_width(&drag.projected_target())

@@ -3,17 +3,18 @@
 mod hub;
 pub(crate) mod overview;
 mod policy;
-pub use overview::{Blocked, Context, HubStatus, Observation, Overview, display_label};
+pub use overview::{Blocked, Context, HubStatus, LoginState, Observation, Overview, display_label};
 #[cfg(test)]
 mod tests;
 mod worker;
 use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
+use crate::machine_login::{Act, Effect, Ending, Logins, Presented, Token};
 use crate::machine_refusal::Refusal;
-use crate::machines::{Profile, ProfileId};
+use crate::machines::{Connection as MachineConnection, Profile, ProfileId};
 use crate::ui_wakeup::UiWakeup;
 use hub::{Ask, Holder, Reach, View};
-use orchbee_machine_protocol::hub::MachineStateName;
+use orchbee_machine_protocol::hub::{ConnectFailure, MachineStateName};
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
 use policy::{Phase, Policy};
@@ -132,6 +133,8 @@ pub struct Discovery {
     /// The holder's view as the last tick copied it.
     hub: View,
     seen: u64,
+    /// The login episode this TUI claimed for the person's selection.
+    logins: Logins,
 }
 impl Discovery {
     /// A discovery that holds the hub once the catalog holds a Machine it can observe, and wakes
@@ -146,6 +149,7 @@ impl Discovery {
             holder: None,
             hub: View::default(),
             seen: 0,
+            logins: Logins::default(),
         }
     }
     /// Reconciles the enabled profiles of the catalog of `revision`; `None` for an unreadable
@@ -196,6 +200,20 @@ impl Discovery {
         if let Some((seen, view)) = self.holder.as_ref().and_then(|h| h.read(self.seen)) {
             self.seen = seen;
             self.adopt(view, now);
+        }
+        let notices = self.holder.as_ref().map(Holder::take_logins);
+        for notice in notices.into_iter().flatten() {
+            let entries = &self.entries;
+            let effects = self.logins.notice(notice, |machine| {
+                entries
+                    .iter()
+                    .find(|e| e.profile.id.as_str() == machine)
+                    .and_then(|e| match &e.profile.draft.connection {
+                        MachineConnection::Ssh { target } => Some(target.clone()),
+                        MachineConnection::Unsupported(_) => None,
+                    })
+            });
+            self.carry(effects);
         }
         self.retired.retain(|w| !w.finished());
         for entry in &mut self.entries {
@@ -292,7 +310,15 @@ impl Discovery {
             return Observation::Hub(HubStatus::Unknown);
         };
         if state != MachineStateName::Online {
-            return Observation::State(state);
+            let host = match &entry.profile.draft.connection {
+                MachineConnection::Ssh { target } => crate::machines::default_label(target),
+                MachineConnection::Unsupported(_) => String::new(),
+            };
+            return self
+                .hub
+                .facts(&entry.profile.id)
+                .and_then(|facts| LoginState::of(facts, &host))
+                .map_or(Observation::State(state), Observation::Login);
         }
         if let Some(refusal) = entry.refusal {
             return Observation::State(refused(refusal));
@@ -325,7 +351,7 @@ impl Discovery {
     /// found no hub or ended without `online`, or the observer of an `online` Machine failed.
     pub fn failed(&self, profile: &Profile) -> bool {
         (self.holder.is_none() && self.hub.reach != Reach::Attached)
-            || self.hub.asks.get(profile.id.as_str()) == Some(&Ask::Failed)
+            || matches!(self.hub.asks.get(profile.id.as_str()), Some(Ask::Failed(_)))
             || self.entries.iter().any(|e| {
                 same_endpoint(&e.profile, profile)
                     && self.hub.state(&e.profile.id) == Some(MachineStateName::Online)
@@ -353,9 +379,74 @@ impl Discovery {
             HubStatus::Blocked(_) => Some("hub-message-blocked"),
         }
     }
+    /// Carries out what the login episode asks: deliveries and dismissals go to the holder's
+    /// threads; without a holder an answer is wiped as it drops.
+    fn carry(&mut self, effects: Vec<Effect>) {
+        for effect in effects {
+            match (effect, &self.holder) {
+                (
+                    Effect::Deliver {
+                        token,
+                        endpoint,
+                        answer,
+                    },
+                    Some(holder),
+                ) => holder.deliver(token, endpoint, answer),
+                (Effect::Dismiss(login), Some(holder)) => holder.dismiss(login),
+                (Effect::Deliver { .. } | Effect::Dismiss(_), None) => {}
+            }
+        }
+    }
+    pub(crate) fn login_act(&mut self, token: Token, act: Act) {
+        let effects = self.logins.act(token, act);
+        self.carry(effects);
+    }
+    pub(crate) fn login_presented(&self) -> Option<Presented> {
+        self.logins.presented()
+    }
+    /// Whether a login of `machine` waits for the person: its selection's clock stops meanwhile.
+    pub fn login_active(&self, machine: &ProfileId) -> bool {
+        self.logins.active(machine.as_str())
+    }
+    /// A selection of `machine` ended before its login did: the login is dismissed.
+    pub fn abandon_login(&mut self, machine: &ProfileId) {
+        let effects = self.logins.abandon(machine.as_str());
+        self.carry(effects);
+    }
+    /// Whether the hub says `profile` waits for a login the person can give: a remote pane of it
+    /// has no live link, and choosing it logs in.
+    pub fn login_needed(&self, profile: &Profile) -> bool {
+        matches!(
+            self.hub.state(&profile.id),
+            Some(MachineStateName::NeedsLogin | MachineStateName::LoginFailed)
+        )
+    }
+    /// Wipes what the open question's field holds, as a resize does.
+    pub fn clear_login_field(&self) {
+        self.logins.clear_field();
+    }
+    /// The picker message of a selection of `profile` that ended without `online` because of its
+    /// login; `None` leaves the generic one.
+    pub fn login_failure(&mut self, profile: &Profile) -> Option<&'static str> {
+        if self.logins.take_ending(profile.id.as_str()) == Some(Ending::Undelivered) {
+            return Some("login-undelivered");
+        }
+        match self.hub.asks.get(profile.id.as_str()) {
+            Some(Ask::Failed(Some(ConnectFailure::AuthFailed))) => Some("login-failed-message"),
+            Some(Ask::Failed(Some(ConnectFailure::HostKeyChanged))) => {
+                Some("login-key-changed-message")
+            }
+            Some(Ask::Failed(Some(
+                ConnectFailure::AuthRequired | ConnectFailure::HostUntrusted,
+            ))) => Some("login-unanswered-message"),
+            _ => None,
+        }
+    }
     /// A selection asks again: the observer's hold and refusal clear, and a Machine the hub does
     /// not read `online` is asked to `connect`, which starts a hub when none is reached.
     pub fn retry(&mut self, id: &ProfileId, now: Instant) {
+        // A new selection reads only how its own login ends.
+        let _ = self.logins.take_ending(id.as_str());
         if let Some(entry) = self.entries.iter_mut().find(|e| &e.profile.id == id) {
             entry.refusal = None;
             entry.policy.retry(now);

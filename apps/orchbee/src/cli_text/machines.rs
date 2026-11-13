@@ -4,29 +4,19 @@
 //! it asks and who asks it.
 use super::Locale;
 
-/// What a login question `machine connect` puts on the console asks.
+/// What a login question `machine connect` puts on the console asks; every interface words it
+/// from the same sentences.
 #[cfg(windows)]
-pub(crate) enum MachineQuestion<'a> {
-    Password,
-    KeyPassphrase,
-    /// Whether to trust a new host, with its offered key.
-    HostKey {
-        algorithm: &'a str,
-        fingerprint: &'a str,
-    },
-    /// Anything else: a server's question, a jump host's, or one of `ssh`'s this build does not
-    /// read.
-    Other,
-}
+pub(crate) use crate::localization::MachineQuestion;
+#[cfg(windows)]
+use orchbee_workbench_client::application::machine_question::shown_lines;
+#[cfg(all(test, windows))]
+use orchbee_workbench_client::application::machine_question::{
+    PROMPT_LINE_CHARACTERS, PROMPT_LINES,
+};
 
 #[cfg(all(test, windows))]
 mod tests;
-
-/// The most lines of `ssh`'s prompt a question shows, and the most characters of each.
-#[cfg(windows)]
-const PROMPT_LINES: usize = 16;
-#[cfg(windows)]
-const PROMPT_LINE_CHARACTERS: usize = 200;
 
 impl super::CliText {
     /// What `machine connect` writes on standard error before it reads an answer for the machine
@@ -41,78 +31,25 @@ impl super::CliText {
         prompt: &str,
         repeated: bool,
     ) -> String {
-        let said = match self.locale {
-            Locale::EnUs => "ssh: ",
-            Locale::ZhCn => "ssh：",
-        };
+        let said = self.locale.machine_question_said();
         let mut shown = String::new();
-        let mut lines = prompt.trim_end().lines();
-        for line in lines.by_ref().take(PROMPT_LINES) {
-            let mut characters = line.chars();
-            let mut cut: String = characters.by_ref().take(PROMPT_LINE_CHARACTERS).collect();
-            if characters.next().is_some() {
-                cut.push('…');
-            }
+        for line in shown_lines(prompt) {
             shown.push_str(said);
-            shown.push_str(&super::escape::unquoted(&cut));
+            shown.push_str(&line);
             shown.push('\n');
         }
-        if lines.next().is_some() {
-            shown.push_str(said);
-            shown.push_str("…\n");
-        }
-        let target = super::escape::escape(target);
-        let refused = match (self.locale, repeated) {
-            (_, false) => "",
-            (Locale::EnUs, true) => "Not accepted. ",
-            (Locale::ZhCn, true) => "未被接受。",
-        };
-        let asked = match (self.locale, question) {
-            (Locale::EnUs, MachineQuestion::Password) => format!("Password for {target}: "),
-            (Locale::ZhCn, MachineQuestion::Password) => format!("{target} 的密码："),
-            (Locale::EnUs, MachineQuestion::KeyPassphrase) => {
-                format!("Key passphrase for {target}: ")
-            }
-            (Locale::ZhCn, MachineQuestion::KeyPassphrase) => format!("{target} 的密钥口令："),
-            (
-                Locale::EnUs,
-                MachineQuestion::HostKey {
-                    algorithm,
-                    fingerprint,
-                },
-            ) => {
-                format!("New host {target}, {algorithm} key {fingerprint}. Type yes to trust it: ")
-            }
-            (
-                Locale::ZhCn,
-                MachineQuestion::HostKey {
-                    algorithm,
-                    fingerprint,
-                },
-            ) => format!("新主机 {target}，{algorithm} 密钥 {fingerprint}。输入 yes 以信任："),
-            (Locale::EnUs, MachineQuestion::Other) => {
-                format!("Answer for ssh above, connecting to {target}: ")
-            }
-            (Locale::ZhCn, MachineQuestion::Other) => {
-                format!("回答上面 ssh 的提问（正在连接 {target}）：")
-            }
-        };
-        format!("{shown}{refused}{asked}")
+        let asked = self
+            .locale
+            .machine_question_asked(target, question, repeated);
+        format!("{shown}{asked}")
     }
 
     /// The line `machine connect` writes when an answer was not delivered: `again` when the answer
     /// held a character `ssh` cannot take and the question is asked again; otherwise its endpoint
     /// was gone or refused it and the login stops.
     #[cfg(windows)]
-    pub(crate) fn cli_machine_answer_undelivered(self, again: bool) -> &'static str {
-        match (self.locale, again) {
-            (Locale::EnUs, true) => {
-                "That answer holds a character ssh cannot take. Type it again.\n"
-            }
-            (Locale::ZhCn, true) => "该回答含有 ssh 无法接收的字符，请重新输入。\n",
-            (Locale::EnUs, false) => "The answer did not reach ssh, so signing in stops.\n",
-            (Locale::ZhCn, false) => "回答未能送达 ssh，登录已停止。\n",
-        }
+    pub(crate) fn cli_machine_answer_undelivered(self, again: bool) -> String {
+        format!("{}\n", self.locale.machine_answer_undelivered(again))
     }
 
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {

@@ -365,6 +365,7 @@ fn verified_agent(
         profile: None,
         destination: Destination::VerifiedAgent(Box::new(target.clone())),
         deadline: now + Duration::from_secs(60),
+        paused: None,
     });
 }
 
