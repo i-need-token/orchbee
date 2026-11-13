@@ -91,6 +91,15 @@ impl Machines {
         self.revision
     }
 
+    /// The carrier and the Session of the Machine `id` while it reads `online`.
+    pub(super) fn online_link(&self, id: &MachineId) -> Option<(u64, SessionName)> {
+        self.entries
+            .iter()
+            .find(|machine| machine.id() == id)
+            .and_then(Machine::online_link)
+            .map(|(carrier, session)| (carrier, session.clone()))
+    }
+
     /// The state of the Machine `id`, when the catalog lists it.
     pub(super) fn state(&self, id: &MachineId) -> Option<&MachineState> {
         self.entries

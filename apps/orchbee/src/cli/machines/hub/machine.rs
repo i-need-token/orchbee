@@ -182,6 +182,16 @@ impl Machine {
         }
     }
 
+    /// The carrier and the Session a channel reaches, only while the Machine reads `online`.
+    pub(super) fn online_link(&self) -> Option<(u64, &SessionName)> {
+        match (&self.kind, &self.phase) {
+            (Kind::Ssh(route), Phase::Online(link)) if self.state == MachineState::Online => {
+                Some((link.carrier, &route.session))
+            }
+            _ => None,
+        }
+    }
+
     /// When the Machine's next timed transition is due.
     pub(super) fn next_wake(&self) -> Option<Instant> {
         match &self.phase {

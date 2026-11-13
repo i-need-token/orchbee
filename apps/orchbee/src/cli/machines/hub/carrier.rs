@@ -1,9 +1,9 @@
 //! One carrier: the child that carries a Machine's `machine-link` connection on its standard input
 //! and output, started inside a Job only the hub holds. Its owner thread starts it, waits for its
 //! root process, settles the Job and reaps it, and reports the end after its reader, writer and
-//! standard-error threads have ended. The reader hands each link event to the Machine under the
-//! hub state's lock and pauses while 256 frames other than `data` wait to be written; the writer
-//! writes the offer at once and then the link's frames.
+//! standard-error threads have ended. The reader hands each link event to the Machine, and each
+//! channel frame to the relay, under the hub state's lock and pauses while 256 frames other than
+//! `data` wait to be written; the writer writes the offer at once and then the link's frames.
 //! `docs/machines.md#the-carrier-child` owns the rules.
 
 use super::super::shared_carrier::frames;
@@ -53,9 +53,9 @@ const ENDED_BY_HUB: u32 = 1;
 pub(super) type LinkLine = super::super::shared_carrier::Shared<LinkWire>;
 
 pub(super) struct LinkWire {
-    connection: Connection<Link>,
+    pub(super) connection: Connection<Link>,
     /// False once the carrier is ending; its writer stops and closes the child's input.
-    open: bool,
+    pub(super) open: bool,
     /// The `ensure-session` channel once opened.
     ensure: Option<u32>,
     /// `ping` payloads given out, so each differs.
@@ -96,6 +96,11 @@ impl Handle {
             // A root that already exited refuses; its owner is settling the Job either way.
             let _terminated = root.TerminateProcess(ENDED_BY_HUB);
         }
+    }
+
+    /// The link's state and its writer's signal.
+    pub(super) const fn line(&self) -> &Arc<LinkLine> {
+        &self.line
     }
 
     /// Opens `ensure-session` for `session`.
@@ -324,6 +329,7 @@ fn start_threads(
 /// Reports the end of the carrier `carrier` and forgets its handle.
 fn finish(shared: &Shared, carrier: u64, end: &End) {
     let mut hub = shared.lock();
+    hub.carrier_ended(carrier);
     if let Some(handle) = hub.carriers.remove(&carrier) {
         let machine = handle.machine;
         hub.machine(&machine, |machine, cx| machine.ended(carrier, end, cx));
@@ -494,6 +500,34 @@ fn receive(shared: &Shared, carrier: u64, line: &LinkLine, frame: &Frame) -> boo
             true
         }
         Delivery::Message(Message::Bye { .. }) => false,
+        Delivery::Accept { channel, .. } => {
+            hub.link_accepted(carrier, channel);
+            true
+        }
+        Delivery::Data { channel, bytes } => {
+            hub.link_data(carrier, channel, bytes);
+            true
+        }
+        Delivery::Writable { channel } => {
+            hub.link_writable(carrier, channel);
+            true
+        }
+        Delivery::End { channel } => {
+            hub.link_end(carrier, channel);
+            true
+        }
+        Delivery::Close {
+            channel, outcome, ..
+        } => {
+            hub.link_closed(carrier, channel, outcome);
+            true
+        }
+        Delivery::Reset {
+            channel, reason, ..
+        } => {
+            hub.link_reset(carrier, channel, reason);
+            true
+        }
         _ => true,
     };
     drop(hub);

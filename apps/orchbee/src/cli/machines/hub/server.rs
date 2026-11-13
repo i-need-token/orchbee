@@ -9,7 +9,7 @@ use super::{
     catalog::Machines,
     environment::Environment,
     lifetime::{Lifetime, Moment, ReadDue},
-    peer,
+    peer, relay,
     state::{CANDIDATES, CONTROLS, Hub, Line, PEERS, Shared},
 };
 use orchbee_connection_handshake::{
@@ -46,8 +46,8 @@ const BIND_RETRY: Duration = Duration::from_secs(2);
 const RETRY_PAUSE: Duration = Duration::from_millis(20);
 /// The listener's pause between accept attempts.
 const ACCEPT_PAUSE: Duration = Duration::from_millis(10);
-/// How long closing waits for catalog reads in flight.
-const ALLOWANCE: Duration = Duration::from_secs(60);
+/// How often closing looks again at the routes and reads it waits for.
+const CLOSING_LOOK: Duration = Duration::from_millis(100);
 /// How long closing lets the writers finish with `bye`.
 const FAREWELL: Duration = Duration::from_secs(2);
 /// A bound on writing one refusal to a candidate.
@@ -390,14 +390,20 @@ fn supervise(shared: &Arc<Shared>, launch: &Arc<Launch>, base: Option<&Path>) {
 /// `stopping` on every connection and link and gives the writers their bound, then ends every
 /// carrier and waits for their reaping.
 fn close(shared: &Shared) {
+    let began = Instant::now();
     let mut hub = shared.lock();
     hub.machines(|machine, _| machine.closing());
     for (number, _) in std::mem::take(&mut hub.starting) {
         hub.carriers.remove(&number);
     }
-    let allowance = Instant::now() + ALLOWANCE;
-    while hub.reloads > 0 && Instant::now() < allowance {
-        hub = shared.wait_until(hub, allowance);
+    // Session channels end now; routes and catalog reads may finish within the allowance.
+    loop {
+        let now = Instant::now();
+        hub.close_relays(began, now);
+        if relay::closing_done(hub.relays.routes(), hub.reloads, began, now) {
+            break;
+        }
+        hub = shared.wait_until(hub, (began + relay::ALLOWANCE).min(now + CLOSING_LOOK));
     }
     for peer in hub.peers.values() {
         let mut wire = peer.line.lock();

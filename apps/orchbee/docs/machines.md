@@ -250,15 +250,23 @@ for workspace, tab, panel, Client queries/control, terminal queries/send, Agent 
 notifications, runtime configuration, manifests, and supported plugin operations.
 Local management, installation, TUI, and terminal interactive streams are refused.
 
-The owner is the native CLI relay, not the local IPC transport. It first probes
-the remote Windows Client under the [SSH admission rule](#remote-preparation), then sends one
-bounded request packet to that exact executable through `--machine-relay-v1`. The packet and its
+The owner is the [machine hub](#machine-hub), not the local IPC transport. The command reaches it
+through the [client owner](#client-owner), attached with neither `presence`, `asks` nor `watch`,
+and starts a hub when none runs. It asks the hub to `reload` and then to `connect` the Machine with
+`origin` `command` and no `answers`, under the rules and errors of `machine connect`: a login that
+needs a person ends `auth-required` at once, and a hub closing under the request is asked once
+more through the hub that replaces it. Once the Machine is `online` the command opens one hub
+`route` channel, writes one bounded request packet, sends `end`, and reads the reply packet until
+`close`; the hub [relays](#channels) it to a link `route` channel, so three commands to one Machine
+share its one carrier. The packet and its
 reply are closed objects whose `version` is their `machine-route` generation in the
 [connection registry](../../../schemas/connection/v1/connections.json); each may carry an
 `extensions` object whose member names follow the capability-name grammar and whose content the
-receiver ignores. Neither carries a cohort. A private relay entry point refuses a generation it
-does not read, then revalidates the Session, argument grammar and command allowlist under its own
-grammar before spawning its own executable with literal arguments in an owned Windows Job.
+receiver ignores. Neither carries a cohort. The remote [link helper](#link-helper) refuses a
+generation it does not read, then revalidates the Session, argument grammar and command allowlist
+under its own grammar before spawning its own executable with literal arguments in an owned
+Windows Job. The private relay entry point `--machine-relay-v1` keeps the same far-side rules for
+an older caller; this build's CLI no longer starts it.
 The packet's `locale` names the sender's language; a value the receiver does not ship, including
 one a later sender adds, falls back to `en_US.UTF-8` instead of refusing the command, and the
 routed command runs under the resolved locale.
@@ -270,15 +278,17 @@ Caller terminal/worker context is cleared; explicit targets or remote Client
 selection determine the destination. Output bytes, diagnostics and exit status
 are returned in a bounded reply, never reconstructed from SSH diagnostics.
 
-Preflight and local input each have a 60-second bound. Execution honors the
-command's own deadline, including explicit forever waits; cancellation settles
-the local SSH Job. Losing transport after dispatch cannot prove remote process
-settlement or business rollback: the failure reports an unknown remote outcome
-and never retries. Before dispatch it reports not-submitted. The remote helper
-owns and settles its command Job; a disconnected peer can still leave an already
-accepted business action, and no distributed cancellation guarantee is claimed.
-Wire request/reply limits and output truncation fail closed. No real SSH or
-cross-machine acceptance is inferred from fixture-only relay tests.
+Local input has a 60-second bound, and reaching `online` 90 seconds: a hub start, then the hub's
+own 60-second attempt. Execution honors the command's own deadline, including explicit forever
+waits. An interrupt resets the `route` channel `cancelled`, which ends the remote command and the
+channel and leaves the connection and the Machine as they were; the command exits 130. Dispatch is
+the hub's `end` on the channel. Losing the link, the hub, or the attachment after it cannot prove
+remote process settlement or business rollback: the failure reports an unknown remote outcome
+(`ssh-failed` or `hub-unavailable`, exit 5 or 4) and never retries. Before dispatch it reports
+not-submitted. The remote helper owns and settles its command Job; a disconnected peer can still
+leave an already accepted business action, and no distributed cancellation guarantee is claimed.
+Wire request/reply limits and output truncation fail closed. No real SSH or cross-machine
+acceptance is inferred from tests through the stand-in.
 
 Private requests are at most 2 MiB and replies at most 24 MiB; raw stdout and
 stderr are each at most 8 MiB. Arguments are bounded to 64 KiB and 1024 entries.
@@ -360,8 +370,8 @@ closure, and the console refusal. It does not start `ssh`.
 through which interfaces reach saved machines over
 [`machine-hub`](../../../schemas/machine/README.md#hub-records). It serves the catalog, its own
 lifetime and each Machine's state, and [carries](#carrying-a-machine) each Machine it connects over
-one child: `ssh` running the remote [link helper](#link-helper). Session streams and routed
-commands do not travel through it yet. Windows serves it; elsewhere both
+one child: `ssh` running the remote [link helper](#link-helper), and [relays](#channels) every
+client's Session streams and routed commands over that child. Windows serves it; elsewhere both
 hub entries answer unsupported before they touch the data root. The entry is an internal pairing
 between this program and its own start path, not a command: nothing outside one installation runs
 it, and a release may rename it. Every client reaches the hub through one
@@ -410,12 +420,12 @@ do, and whether the canonical path stays stable on macOS is unverified.
 A holder is a connection attached with `presence` or a live local Session of the data root. The
 hub's state follows the contract's [hub lifetime](../../../schemas/machine/README.md#hub-lifetime).
 
-| State      | When                                                                                                           | Leaves to                                                                                                           |
-| ---------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `held`     | A holder exists, or the last `presence` connection has left and the Session read it triggered has not finished | `expiring` when no `presence` connection is attached and a Session read finds no live Session; `closing` on `drain` |
-| `expiring` | No holder; `expiresAt` is the moment the hub learned that, plus 600,000 ms                                     | `held` on a `presence` attachment or a read that finds a live Session; `closing` on `drain`                         |
-| `expiring` | `expiresAt` is reached with no `presence` connection: the hub reads every Session once more                    | `held` when the read finds a live Session; `closing` when it finds none                                             |
-| `closing`  | Entered once and never left                                                                                    | Exit                                                                                                                |
+| State      | When                                                                                                                                                | Leaves to                                                                                                           |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `held`     | A holder exists, or the last `presence` connection has left and the Session read it triggered has not finished                                      | `expiring` when no `presence` connection is attached and a Session read finds no live Session; `closing` on `drain` |
+| `expiring` | No holder; `expiresAt` is 600,000 ms after the later of the moment the hub learned that and the last `connect` that ended with its Machine `online` | `held` on a `presence` attachment or a read that finds a live Session; `closing` on `drain`                         |
+| `expiring` | `expiresAt` is reached with no `presence` connection: the hub reads every Session once more                                                         | `held` when the read finds a live Session; `closing` when it finds none                                             |
+| `closing`  | Entered once and never left                                                                                                                         | Exit                                                                                                                |
 
 - **Start.** The hub takes the lock and binds its endpoint at once, then reads the catalog and
   every Session before it accepts a connection, so its first client sees `held` or `expiring`; a
@@ -452,16 +462,25 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   replaces the 600,000 ms expiry; a release build never reads it. The hub reads it from its
   view of the environment ([environment](#environment)); nothing in Orchbee sets it. It
   is listed with every other variable in [environment variables](environment-variables.md).
+- **A connect restarts the countdown.** Every `connect` reply `online`, joined or answered at once
+  for a Machine already `online`, moves `expiresAt` to 600,000 ms after that reply while the hub is
+  `expiring`, and the new state goes to every watcher; in `held` and `closing` it changes nothing.
+  A routed command, a channel, or any other request restarts nothing, so a command alone can keep
+  a login no longer than the connect it made.
 - **Events.** Every change of state goes as `hub` to every connection attached with `watch`.
 
 In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`
 with state `stopping`; it answers every request `stopping`, resets every `open` `stopping`, starts
-no attempt, and answers every waiting `connect` `stopping`. No channel stays open through the hub
-yet, so the 60-second allowance waits only for catalog reads already in flight, which then reply
-`stopping`. The hub then queues `bye` `stopping` on every connection, gives its writers at most 2
-seconds, ends every carrier child, closes the endpoint, releases the lock, and exits 0. `drain`
-enters `closing`; `exit` replies and ends the process at once, without the allowance; its children
-end with it through their Jobs.
+no attempt, and answers every waiting `connect` `stopping`. Every open `session` channel closes
+`lost` toward its client at once and its link channel is reset `stopping`. Open `route` channels,
+a `stop-session` among them, may finish until 60 seconds after `closing` began; catalog reads
+already in flight finish within the same allowance and reply `stopping`. At the allowance a route
+still open ends as a lost link would end it ([channels](#channels)). The hub then queues `bye`
+`stopping` on every connection, gives its writers at most 2 seconds, ends every carrier child,
+closes the endpoint, releases the lock, and exits 0. Which channel ends when is a rule over the
+time `closing` began and the time now, which the supervisor passes in. `drain` enters `closing`;
+`exit` replies and ends the process at once, without the allowance; its children end with it
+through their Jobs.
 
 ### Carrying a Machine
 
@@ -546,7 +565,7 @@ The link client writes its `OBHS` offer the moment the child starts, since the h
 2-second candidate deadline from its own start, then reads the answer and the frames that follow.
 It never opens a channel before the Machine's `facts` is accepted. Once `online` it sends `ping`
 every 30 seconds, well inside the helper's 90-second idle limit; an attempt's 60-second deadline
-comes before that limit. Session and `route` channels through the hub belong to the next slice.
+comes before that limit.
 
 #### How a carrier end reads
 
@@ -571,6 +590,56 @@ above are the OpenSSH 9.5 wording [M0](#accepted-limits) recorded. A host key th
 trusted reads as `auth-required` rather than `untrusted`, whose `hostKey` only a question can
 carry; the slice that asks questions brings `untrusted`. No end is ever a hub failure: a far end
 that speaks another version, sends a wrong frame, or closes becomes the Machine's state.
+
+### Channels
+
+The hub relays the contract's [hub channel kinds](../../../schemas/machine/README.md#hub-channel-kinds).
+Each channel a client opens is one pair: the client's channel on its connection and one link
+channel on the Machine's current carrier, a link `session` for the record's Session or a link
+`route`. The relay table in the hub state holds each pair: its two ends, its kind, whether the link
+accepted, whether the hub has queued the opener's `end` toward the link, and the bytes each
+direction holds. A `stop-session` request is a pair whose client end is the request instead of a
+channel.
+
+| Step                 | The hub                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `open`               | Resets `stopping` in `closing`, `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online` (`unresponsive` included), and `unavailable` when the link already holds 256 channels the hub opened. Otherwise it opens the link channel at once, so the opener's early data flows before `accept` |
+| Link `accept`        | Sends `accept`                                                                                                                                                                                                                                                                                                                 |
+| `data`, either way   | Commits the bytes to the other side's state machine as far as that side's credit allows, takes from the sending side exactly what was committed, and keeps the rest until the other side's credit returns                                                                                                                      |
+| `end`, either way    | Relayed once the bytes ahead of it are committed; the opener's `end` toward a `route` link is the dispatch                                                                                                                                                                                                                     |
+| Link `close`         | Relayed with its outcome once the bytes ahead of it are committed; an outcome this build does not know relays as `lost`                                                                                                                                                                                                        |
+| Link `reset`         | Passed on with its reason at once. `session-not-running` and `invalid-session`, which the hub's `session` kind does not list, and a reason this build does not know, pass on as `unavailable`: no effect, and the Machine cannot serve the channel now                                                                         |
+| The client's `reset` | Resets the link channel `cancelled`, so the helper ends a routed command it runs; a `too-large` the hub's state machine sent does the same                                                                                                                                                                                     |
+| The client leaves    | Resets each of its link channels `cancelled`; the Machine, its carrier and every other client's channels go on                                                                                                                                                                                                                 |
+| The carrier ends     | Every pair on it ends: a `session` that was accepted closes `lost` after the bytes ahead of it, one that was not resets `link-lost`; a `route` whose opener's `end` the hub had not queued resets `link-lost`, any other closes `lost`                                                                                         |
+| `closing`            | As [Lifetime](#lifetime) states; at the allowance an open route ends as at the carrier's end                                                                                                                                                                                                                                   |
+
+- **Bounds.** A relay grants credit on one side only as the other side commits the bytes, so a pair
+  holds at most one window, 262,144 bytes, per direction in the table, and the receiving side's
+  state machine holds at most what that side's credit admits. A client that stops reading, or a far
+  end that stops reading, holds back its own pair only: the other pairs of that client, that link
+  and every other Machine keep their turns, and no queue grows with the stall.
+- **A queued `end` counts as dispatched.** The hub cannot tell whether a queued `end` reached the
+  helper before the link ended, so a `route` whose `end` was queued ends `lost`, which its opener
+  reads as unknown. Claiming no effect then could be false; claiming an unknown one never is.
+- **Carrier ends reach every pair.** A lost link, `disconnect`, a reload that changes or removes the
+  record, and a failed attempt all end the carrier, and each ends its pairs the same way.
+
+`stop-session` opens a link `route` whose packet runs `server stop --confirm --format=json` in the
+record's Session, under the helper's admission like any routed command. The reply maps to the
+request's outcome:
+
+| The link `route`                                                                                    | `stop-session` outcome |
+| --------------------------------------------------------------------------------------------------- | ---------------------- |
+| Reply `completed`, result `stopped` or `exited`                                                     | `stopped`              |
+| Reply `completed`, result `unavailable` with reason `runtime` or `transport`                        | `not-running`          |
+| Reply `completed` with result `unknown`, reply `unknown`, a reply over 1 MiB, or the carrier ending | `unknown`              |
+| The Machine not `online` at the request, or its link ending before the packet and `end` were queued | `not-online`           |
+| Any other reply; a `reset` of the route, which states that the Session was not stopped; no room     | `failed`               |
+
+A Session with no runtime folder, or with no Server answering its pipe, is what `server stop`
+reports as `unavailable` `runtime` or `transport`; the hub reads both as `not-running`. "No room" is a
+link that already holds 256 channels the hub opened.
 
 ### Environment
 
@@ -606,15 +675,15 @@ alone, it refuses remote clients, and every accepted connection proves that the 
 token user equals the hub's before a byte is read, as [`local-ipc`](../../../crates/local-ipc/README.md)
 does for Session endpoints. The `OBHS` frame must arrive within 2 seconds of the accept.
 
-| Request                        | Answer                                                                                                                                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id; gaining `presence` starts a silent attempt for every `idle` Machine                                                 |
+| Request                        | Answer                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id; gaining `presence` starts a silent attempt for every `idle` Machine                                                                                                                                      |
 | `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher, and a changed record is reconciled as above; while `presence` holds, a new, changed or enabled SSH Machine is attempted silently |
-| `connect`                      | `not-found` for an id outside the catalog; otherwise [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once; a `draft` is `unsupported`                           |
-| `disconnect`                   | `not-found` for an id outside the catalog, otherwise the Machine is disconnected and the answer is `disconnected`                                                                                             |
-| `stop-session`                 | `not-found` for an id outside the catalog, `unsupported` for an `online` Machine until Session streams travel through the hub, otherwise `not-online`                                                         |
-| `claim`, `dismiss`             | `ended`: the hub has no login episode                                                                                                                                                                         |
-| `open` of `session` or `route` | `reset` `not-found` for an id outside the catalog, `unavailable` for an `online` Machine until those channels travel through the hub, otherwise `not-online`                                                  |
+| `connect`                      | `not-found` for an id outside the catalog; otherwise [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once; a `draft` is `unsupported`                                                                                                                |
+| `disconnect`                   | `not-found` for an id outside the catalog, otherwise the Machine is disconnected and the answer is `disconnected`                                                                                                                                                                                  |
+| `stop-session`                 | `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online`, otherwise a link `route` that [stops the Session](#channels)                                                                                                                                           |
+| `claim`, `dismiss`             | `ended`: the hub has no login episode                                                                                                                                                                                                                                                              |
+| `open` of `session` or `route` | [Relayed](#channels) for an `online` Machine; otherwise `reset` `not-found` for an id outside the catalog or `not-online`                                                                                                                                                                          |
 
 A disabled record reads `disabled`, a connection kind this build does not know `unsupported` with
 cause `connection-kind`, and any other Machine starts `offline` without a cause or a next attempt.
@@ -623,31 +692,32 @@ succeeds.
 
 ### Ownership and bounds
 
-| Resource                       | Owner                                                                   | Bound                                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hub.lock`                     | The hub process, from before its endpoint exists until after it closes  | One holder per data root                                                                                                                          |
-| Endpoint                       | The listener thread of the lock holder                                  | Bound only by the lock holder; a name it cannot take is retried for 2 seconds, then exit 1                                                        |
-| Candidate                      | Its admission thread                                                    | 2 seconds; 64 read at once, and the next gets `capacity` unread                                                                                   |
-| Attached connection            | Its reader and writer threads; its protocol state is under its own lock | 256 slots; the next offer gets `capacity`                                                                                                         |
-| Control request                | Its admission thread                                                    | 4 slots; the next gets `capacity`                                                                                                                 |
-| Queued frames of a connection  | Its connection state machine                                            | Its reader stops reading while 256 wait; state events replace their own subject; a writer writes at most 64 KiB of whole frames at once           |
-| Catalog                        | The hub state                                                           | 64 Machines from a record of at most 128 KiB                                                                                                      |
-| Machine records                | The hub state; each is a state machine without a clock of its own       | One per catalog Machine; the waiting `connect` requests of a connection leave when it closes                                                      |
+| Resource                       | Owner                                                                   | Bound                                                                                                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hub.lock`                     | The hub process, from before its endpoint exists until after it closes  | One holder per data root                                                                                                                                              |
+| Endpoint                       | The listener thread of the lock holder                                  | Bound only by the lock holder; a name it cannot take is retried for 2 seconds, then exit 1                                                                            |
+| Candidate                      | Its admission thread                                                    | 2 seconds; 64 read at once, and the next gets `capacity` unread                                                                                                       |
+| Attached connection            | Its reader and writer threads; its protocol state is under its own lock | 256 slots; the next offer gets `capacity`                                                                                                                             |
+| Control request                | Its admission thread                                                    | 4 slots; the next gets `capacity`                                                                                                                                     |
+| Queued frames of a connection  | Its connection state machine                                            | Its reader stops reading while 256 wait; state events replace their own subject; a writer writes at most 64 KiB of whole frames at once                               |
+| Catalog                        | The hub state                                                           | 64 Machines from a record of at most 128 KiB                                                                                                                          |
+| Machine records                | The hub state; each is a state machine without a clock of its own       | One per catalog Machine; the waiting `connect` requests of a connection leave when it closes                                                                          |
 | Carrier                        | Its owner thread, from the start of its child to the report of its end  | One per Machine; 4 KiB of standard error; the link's own window and queue bounds; its link reader stops reading while 256 frames other than `data` wait to be written |
-| Expiry deadline, Session reads | The supervisor                                                          | One deadline; one read at a time, of at most 256 folders, within 5 seconds                                                                        |
-| Machine timers                 | The supervisor, which wakes at the earliest Machine deadline            | No thread per timer                                                                                                                               |
-| Threads                        | The process                                                             | Listener and supervisor, one per candidate, two per attached connection, four per carrier: owner, link reader, link writer, standard-error reader |
+| Relay pairs                    | The relay table in the hub state, from `open` to the end of both sides  | 256 per connection and 256 per link, as each side's own channel bound; one window per direction each                                                                  |
+| Expiry deadline, Session reads | The supervisor                                                          | One deadline; one read at a time, of at most 256 folders, within 5 seconds                                                                                            |
+| Machine timers                 | The supervisor, which wakes at the earliest Machine deadline            | No thread per timer                                                                                                                                                   |
+| Threads                        | The process                                                             | Listener and supervisor, one per candidate, two per attached connection, four per carrier: owner, link reader, link writer, standard-error reader                     |
 
 ### Locks
 
-A terminal stream will carry many frames a second on one connection while others idle, so a frame
-must cost its own connection only.
+A terminal stream carries many frames a second on one connection while others idle, so a frame
+wakes only the threads of the two sides it touches.
 
-| Lock             | Guards                                                                                                                                                                                                                 | Its signal wakes                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Hub state        | The lifetime, the catalog with every Machine record, the carriers, the registry of connections with each one's `presence`, `watch` and thread count, the candidate and control counts, and the catalog reads in flight | The supervisor and the closing                                 |
-| Connection state | One connection's protocol state machine and whether it is still open at the hub                                                                                                                                        | That connection's writer, and its reader paused at the backlog |
-| Link state       | One carrier's `machine-link` state machine, whether it is still open, and its `ensure-session` channel                                                                                                                 | That carrier's writer, and its reader paused at the backlog    |
+| Lock             | Guards                                                                                                                                                                                                                                  | Its signal wakes                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Hub state        | The lifetime, the catalog with every Machine record, the carriers, the registry of connections with each one's `presence`, `watch` and thread count, the relay table, the candidate and control counts, and the catalog reads in flight | The supervisor and the closing                                 |
+| Connection state | One connection's protocol state machine and whether it is still open at the hub                                                                                                                                                         | That connection's writer, and its reader paused at the backlog |
+| Link state       | One carrier's `machine-link` state machine, whether it is still open, and its `ensure-session` channel                                                                                                                                  | That carrier's writer, and its reader paused at the backlog    |
 
 - **Order.** A thread that holds the hub state's lock and a connection's or a link's lock took the
   hub state's first. A thread holding a connection's or a link's lock takes no other lock, and no
@@ -661,6 +731,11 @@ must cost its own connection only.
   A request, `bye`, or `open`, whose answer depends on the hub state, is then answered under the hub
   state's lock and that connection's lock, taken in order. An event for every watcher is queued
   under the hub state's lock, taking each watcher's lock in turn and waking only that writer.
+- **Relayed frames.** A channel frame is handed to its own side's state machine first, under that
+  side's lock alone; the relay then finds its pair under the hub state's lock and takes the other
+  side's lock to commit, releases it, and takes the first side's lock again to take the committed
+  bytes. Each step holds the hub state's lock only for a copy of at most one frame's bytes into a
+  state machine, and wakes only the two writers involved.
 - **Wake-ups.** A frame wakes its own writer, never every thread of the hub. The hub state's signal
   fires when the lifetime, the catalog reads in flight, or the registry change.
 
@@ -744,6 +819,10 @@ connection, so nothing changed for the link.
 - **An unresponsive link stays until something ends it.** A Machine that stops answering `ping`
   reads `unresponsive` and keeps its carrier; the helper's 90-second idle limit or the end of the
   `ssh` process ends the link, which then reconnects.
+- **A release far end refuses `stop-session`.** A release Windows build refuses `--confirm` at
+  destructive admission and asks only a person at a console, so the routed `server stop` that
+  `stop-session` sends reads `failed` there; development and test builds stop the Session. A way
+  for the hub to stop a remote Session past that admission is not decided.
 - **`untrusted` is not produced.** A host key that is not yet trusted reads `needs-login` with
   `auth-required` until questions carry `hostKey`.
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
@@ -757,8 +836,8 @@ connection, so nothing changed for the link.
 
 ### Client owner
 
-One owner reaches the hub for every client: the diagnostic entries and uninstall today, the TUI
-and the Desktop's Client in later slices. It is the workbench Client crate's `machine_hub` module,
+One owner reaches the hub for every client: the diagnostic entries, `machine connect`, routed
+commands and uninstall today, the TUI and the Desktop's Client in later slices. It is the workbench Client crate's `machine_hub` module,
 on Windows only. Two rules place it there. An internal crate never depends on the application
 target ([Rust](../../../docs/RUST.md#placement-and-workspace-ownership)), so the TUI's crate cannot
 reach code under the application's `cli`. Reusable code goes to its nearest semantic owner
@@ -767,14 +846,18 @@ Client crate is the lowest crate that both the CLI and the TUI reach, and it alr
 saved-machine catalog the hub serves. The hub process stays in the application, as a Server stays
 apart from its clients. No second client loop exists: the state printer is a caller of the owner.
 
-| Operation                    | Effect                                                                                                                                                                                 |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `open(attachment, deadline)` | Attaches or starts with the caller's `presence`, `asks` and `watch`; returns the owner, the hub's state, and the hubs it started                                                       |
-| `request(request, deadline)` | Sends one request and waits for its reply; one that cannot be sent, such as one too large for a frame, fails at once; an `attach` also becomes what a re-attachment restores           |
-| `next(deadline)`             | The next notice: a hub event, a re-attachment, or the owner's end                                                                                                                      |
-| `close`                      | Sends `bye` `done`, cancels a re-attachment in progress, which then starts no hub, gives `bye` and the threads at most 2 seconds, and ends the owner; dropping the owner does this too |
-| `running(root, deadline)`    | The running hub's process id through `query`; starts nothing                                                                                                                           |
-| `end(root, deadline)`        | [Ends](#ending-a-hub) the running hub through `drain` and `exit`                                                                                                                       |
+| Operation                         | Effect                                                                                                                                                                                 |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `open(attachment, deadline)`      | Attaches or starts with the caller's `presence`, `asks` and `watch`; returns the owner, the hub's state, and the hubs it started                                                       |
+| `request(request, deadline)`      | Sends one request and waits for its reply; one that cannot be sent, such as one too large for a frame, fails at once; an `attach` also becomes what a re-attachment restores           |
+| `next(deadline)`                  | The next notice: a hub event, a re-attachment, or the owner's end                                                                                                                      |
+| `open_channel(channel, deadline)` | Opens a hub channel on the attached connection, waiting for one while re-attaching; returns its handle                                                                                 |
+| `write(handle, bytes, deadline)`  | Commits as many leading bytes as the channel's credit admits and returns their count; waits for credit until the deadline when none is left                                            |
+| `end(handle)`, `cancel(handle)`   | Sends `end`, or `reset` `cancelled` and forgets the channel                                                                                                                            |
+| `receive(handle, deadline)`       | The channel's next delivery, in order: `accepted`, data, `ended`, `closed` with its outcome, `reset` with its reason, or `lost`; credit returns only as the caller takes data          |
+| `close`                           | Sends `bye` `done`, cancels a re-attachment in progress, which then starts no hub, gives `bye` and the threads at most 2 seconds, and ends the owner; dropping the owner does this too |
+| `running(root, deadline)`         | The running hub's process id through `query`; starts nothing                                                                                                                           |
+| `end(root, deadline)`             | [Ends](#ending-a-hub) the running hub through `drain` and `exit`                                                                                                                       |
 
 #### Attach or start
 
@@ -795,7 +878,8 @@ within its deadline connects and offers `machine-hub`.
 The hub belongs to no Session's Server and outlives its starter.
 
 **Closing within the caller's deadline.** A hub in `closing` normally exits within milliseconds. It
-lasts up to the 60-second allowance only while a catalog read it had started is still running.
+lasts up to the 60-second allowance only while a catalog read it had started or a `route` channel
+is still running.
 An attachment waits within its caller's deadline, 10 seconds for the diagnostic entries, and not
 the whole allowance. The call attaches to the successor the moment the old hub is gone, so a longer
 wait would only delay a failure. Only the caller knows how long a person or a task can wait. The
@@ -820,7 +904,9 @@ when none runs, and restores the caller's last `presence`, `asks` and `watch`.
   state. Everything the caller read before must be read again: the hub state, the catalog and each
   Machine. A watcher receives `catalog` and every `machine` again from the new hub. A request in
   flight at the loss fails `lost`, since the old hub may or may not have acted on it. A request made
-  while re-attaching waits for the new connection within its own deadline.
+  while re-attaching waits for the new connection within its own deadline. Every channel of the
+  lost connection delivers `lost` as its last delivery, which its opener reads as an unknown effect
+  unless its kind says otherwise; a new channel waits for the new connection.
 - **Ending.** When re-attachment fails, the owner's last notice is `ended` with the failure, and
   every later request fails with it. A protocol violation by either side, or `bye` `violation`,
   ends the owner at once as `lost` without re-attaching: the next connection would fail the same
@@ -884,7 +970,14 @@ end against a real scratch Session, it connects a Machine with `machine connect`
 carrier child and finds the Machine reconnecting and then online again with one child, removes a
 connected Machine with `machine remove` and finds its child gone and the hub listing no Machine,
 ends the hub and finds the child gone, reads the variables a child receives, and finds a far end
-that closes at once reported as the Machine's state. It starts no `ssh`.
+that closes at once reported as the Machine's state. Through the same stand-in it runs routed
+commands with `--machine` and compares each answer with the same command on the far side, finds
+three routed commands on one child, opens a Session stream through the hub and reads the far
+Session's handshake answer, ends the child under a routed command in flight and finds a definite
+unknown-outcome failure within a bound, leaves a client mid-stream and finds the hub and the
+Machine still serving, and stops the far Session with `stop-session`, which a second request then
+reads as `not-running`. It starts no `ssh`. The time rules of closing with channels open and of the
+countdown a `connect` restarts are unit tests over the injected clock.
 
 ## Persistent TUI connections
 

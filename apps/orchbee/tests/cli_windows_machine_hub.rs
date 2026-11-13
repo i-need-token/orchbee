@@ -10,8 +10,12 @@
 //! Through the `ssh` stand-in, the Client under test run as the far end against a real scratch
 //! Session, `machine connect` brings a Machine online over one carrier child, which reconnects after
 //! it is killed and ends with `machine disconnect` and with the hub; a child receives no `ORCHBEE_*`
-//! or terminal variable; and a far end that closes at once is the Machine's state. Every hub runs a
-//! stand-in, so no test starts `ssh` or names a reachable machine.
+//! or terminal variable; and a far end that closes at once is the Machine's state. Routed commands
+//! start the hub, connect the Machine and share its one carrier, answer as the far Session does, and
+//! end with a definite failure when the carrier ends under them; a Session stream through the hub
+//! carries bytes both ways, its client leaving keeps the hub and the Machine, and `stop-session`
+//! stops the far Session through the link. Every hub runs a stand-in, so no test starts `ssh` or
+//! names a reachable machine.
 #![cfg(windows)]
 
 #[allow(dead_code)]
@@ -34,7 +38,7 @@ use orchbee_machine_protocol::{
         ReloadOutcome, Reply, Request, StopSessionOutcome,
     },
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{
     ffi::OsString,
     fs,
@@ -793,6 +797,215 @@ fn a_far_end_that_closes_at_once_is_a_machine_state_not_a_hub_failure() {
     hub.wait_exit(WAIT);
 }
 
+#[test]
+fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_with_it() {
+    let carried = Carried::new("mr1-route-", false);
+    let endpoint = carried.endpoint();
+    assert!(!orchbee_local_ipc::endpoint_exists(&endpoint).unwrap());
+
+    // The first routed command starts the hub and connects the Machine before it runs.
+    let work = carried.fixture.path("work");
+    let mut words = vec![
+        "--machine",
+        FIRST,
+        "workspace",
+        "create",
+        "--label",
+        "routed",
+        "--cwd",
+        &work,
+        "--no-focus",
+    ];
+    let environment = carried.fixture.terminal_environment();
+    words.extend(environment.iter().map(String::as_str));
+    let created = carried.run(&words);
+    assert_eq!(created.code, Some(0), "{created}");
+    let panel = created.document["result"]["workspace"]["result"]["panelId"].clone();
+    let hub = Hub::observe(query_pid(&endpoint));
+    let child = one_child(&hub, None);
+
+    // A routed command reads the far Session as the same command run there does.
+    let routed = carried.run(&["--machine", FIRST, "terminal", "list"]);
+    let far = carried.far(&["terminal", "list"]);
+    assert_eq!(routed.code, Some(0), "{routed}");
+    assert_eq!(routed.code, far.code, "{far}");
+    let terminals = |run: &session::Run| -> Vec<Value> {
+        let mut identities: Vec<Value> = run.document["result"]["terminals"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{run}"))
+            .iter()
+            .map(|terminal| terminal["terminalId"].clone())
+            .collect();
+        identities.sort_by_key(ToString::to_string);
+        identities
+    };
+    assert_eq!(terminals(&routed), terminals(&far));
+    let terminal = routed.document["result"]["terminals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|terminal| terminal["boundTo"]["panelId"] == panel)
+        .and_then(|terminal| terminal["terminalId"].as_str())
+        .unwrap_or_else(|| panic!("{routed}"))
+        .to_owned();
+    // A refusal keeps its status, document and text exactly.
+    let missing = ["terminal", "read", "@terminal:0x7ffffffe"];
+    let routed = carried.output(&[&["--machine", FIRST][..], &missing[..]].concat());
+    let far = carried.far_output(&missing);
+    assert_ne!(routed.status.code(), Some(0));
+    assert_eq!(routed.status.code(), far.status.code());
+    assert_eq!(routed.stdout, far.stdout);
+    assert_eq!(routed.stderr, far.stderr);
+    assert_eq!(
+        one_child(&hub, None).pid,
+        child.pid,
+        "a command started a child"
+    );
+
+    // Ending the carrier while the far command runs ends the routed command with a definite
+    // failure; the far command may have run, so its outcome is unknown.
+    let before: Vec<u32> = children(&child).iter().map(|process| process.pid).collect();
+    let mut waiting = carried
+        .command(&[
+            "--machine",
+            FIRST,
+            "terminal",
+            "wait-output",
+            &terminal,
+            "--match",
+            "MR1-NEVER-PRINTED",
+            "--after",
+            "now",
+            "--timeout",
+            "20000",
+            "--format=json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + WAIT;
+    while children(&child)
+        .iter()
+        .all(|process| before.contains(&process.pid))
+    {
+        assert!(Instant::now() < deadline, "the far command never started");
+        thread::sleep(Duration::from_millis(20));
+    }
+    child.terminate_checked();
+    let ended = Instant::now();
+    let finished = loop {
+        if let Some(status) = waiting.try_wait().unwrap() {
+            break status;
+        }
+        if ended.elapsed() > WAIT {
+            let _ = waiting.kill();
+            panic!("the routed command outlived its carrier");
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+    let mut stdout = Vec::new();
+    waiting
+        .stdout
+        .take()
+        .unwrap()
+        .read_to_end(&mut stdout)
+        .unwrap();
+    let document: Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(finished.code(), Some(5), "{document}");
+    assert_eq!(document["failure"]["details"]["remoteOutcome"], "unknown");
+    eprintln!(
+        "carrier ended: the routed command failed after {:?}",
+        ended.elapsed()
+    );
+
+    // The Machine reconnects by itself, and the next routed command runs over the new carrier.
+    let again = carried.run(&["--machine", FIRST, "terminal", "list"]);
+    assert_eq!(again.code, Some(0), "{again}");
+    one_child(&hub, Some(child.pid));
+}
+
+#[test]
+fn a_session_stream_through_the_hub_carries_both_ways_and_its_client_leaving_keeps_the_machine() {
+    let carried = Carried::new("mr1-stream-", false);
+    let connected = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(connected.code, Some(0), "{connected}");
+    let endpoint = carried.endpoint();
+    let hub = Hub::observe(query_pid(&endpoint));
+    let child = one_child(&hub, None);
+
+    // The far Session's Client endpoint answers an offer sent through the hub and the link.
+    let mut client = Client::connect(&endpoint);
+    client.attach(false, false);
+    let channel = client.open(Channel::Session {
+        machine: machine(FIRST),
+    });
+    let offer = Offer::local(
+        ConnectionKind::ClientServer,
+        ProductVersion::new(env!("CARGO_PKG_VERSION")).unwrap(),
+        Build::default(),
+        orchbee_local_runtime::environment_name(),
+    );
+    let bytes = encode_initiator_frame(&InitiatorMessage::Offer(offer)).unwrap();
+    assert_eq!(
+        client.connection.write(channel, &bytes).unwrap(),
+        bytes.len()
+    );
+    client.flush();
+    let mut received = Vec::new();
+    let answer = client.until(WAIT, "the Session's answer", |client| {
+        while let Some(data) = client.take(|delivery| match delivery {
+            Delivery::Data { channel: on, bytes } if *on == channel => Some(bytes.clone()),
+            _ => None,
+        }) {
+            client.connection.take(channel, data.len()).unwrap();
+            received.extend_from_slice(&data);
+        }
+        if let Some(reset) = client.take(|delivery| match delivery {
+            Delivery::Reset {
+                channel: on,
+                reason,
+                ..
+            } if *on == channel => Some(*reason),
+            _ => None,
+        }) {
+            panic!("the hub reset the stream: {reset:?}");
+        }
+        read_acceptor_message(&mut received.as_slice()).ok()
+    });
+    assert!(
+        matches!(
+            answer,
+            AcceptorMessage::Answer(_) | AcceptorMessage::Rejection(_)
+        ),
+        "{answer:?}"
+    );
+
+    // The client goes away with the stream open: the hub and the Machine stay usable.
+    drop(client);
+    let routed = carried.run(&["--machine", FIRST, "status", "server"]);
+    assert_eq!(routed.code, Some(0), "{routed}");
+    assert_eq!(
+        carried.state().machines,
+        [(FIRST.to_owned(), "online".to_owned())]
+    );
+    assert_eq!(one_child(&hub, None).pid, child.pid);
+    assert_eq!(query_pid(&endpoint), hub.pid);
+
+    // `stop-session` stops the far Session through a link `route`; the next finds none running.
+    let mut asker = Client::connect(&endpoint);
+    asker.attach(false, false);
+    for expected in [StopSessionOutcome::Stopped, StopSessionOutcome::NotRunning] {
+        let id = asker.send(Request::StopSession {
+            machine: machine(FIRST),
+        });
+        match asker.answer(WAIT, id) {
+            Answer::Reply(Reply::StopSession(outcome)) => assert_eq!(outcome, expected),
+            other => panic!("stop-session answered {other:?}"),
+        }
+    }
+}
+
 /// A real local runtime whose saved machine `FIRST`, named `user@host.invalid` with the remote
 /// Session `far`, the hub carries through the stand-in: the Client under test as the far end, so no
 /// `ssh` starts and nothing is contacted. The stand-in receives no `ORCHBEE_*` variable, so the far
@@ -863,6 +1076,36 @@ impl Carried {
             document: serde_json::from_slice(&output.stdout).unwrap_or_default(),
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         }
+    }
+
+    fn output(&self, words: &[&str]) -> Output {
+        self.command(words).arg("--format=json").output().unwrap()
+    }
+
+    /// The CLI under test run in the far Session itself, which lives in the default runtime base.
+    fn far_command(&self, words: &[&str]) -> Command {
+        let mut command = self
+            .fixture
+            .command(&[&["--session", "far"][..], words].concat());
+        command
+            .env_remove("ORCHBEE_RUNTIME_BASE")
+            .arg("--format=json");
+        command
+    }
+
+    fn far(&self, words: &[&str]) -> session::Run {
+        let output = self.far_command(words).output().unwrap();
+        session::Run {
+            words: words.join(" "),
+            code: output.status.code(),
+            elapsed: Duration::ZERO,
+            document: serde_json::from_slice(&output.stdout).unwrap_or_default(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        }
+    }
+
+    fn far_output(&self, words: &[&str]) -> Output {
+        self.far_command(words).output().unwrap()
     }
 
     fn state(&self) -> State {

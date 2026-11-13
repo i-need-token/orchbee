@@ -1,9 +1,11 @@
 //! The owner of one attachment to the hub. A reader thread hands frames to the connection's state
 //! machine and re-attaches after the hub goes away, starting a hub only when that hub was not asked
 //! to stop and the owner is not closing; a writer thread writes what the state machine queues;
-//! callers send requests and take notices. One lock guards the owner's state, with one signal for
-//! callers and one for the writer; no thread holds it while it reads or writes the carrier or
-//! attaches.
+//! callers send requests, take notices, and open, write, end and read channels. One lock guards the
+//! owner's state, with one signal for callers and one for the writer; no thread holds it while it
+//! reads or writes the carrier or attaches. A channel's deliveries wait in the owner, bounded by
+//! the channel's credit, which returns only as the caller takes its data; a channel belongs to the
+//! connection it was opened on and reads `lost` when that connection is lost.
 
 use super::{
     AttachFailure, Attached, Attachment,
@@ -13,8 +15,8 @@ use super::{
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
-    ByeReason, Connection, Delivery, FrameDecoder, Id, Message, SendError,
-    hub::{self, AttachOutcome, Event, HubState, Reply, Request},
+    ByeReason, Connection, Delivery, FrameDecoder, Id, Message, ResetReason, SendError,
+    hub::{self, AttachOutcome, Event, HubState, Outcome, Reply, Request},
 };
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -67,6 +69,43 @@ pub enum RequestFailure {
     Ended(AttachFailure),
 }
 
+/// A channel the owner opened, on the connection it was opened on.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ChannelHandle {
+    connection: u64,
+    channel: u32,
+}
+
+/// What a channel delivers, in order. `Closed`, `Reset` and `Lost` are the last.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ChannelDelivery {
+    /// The hub accepted the channel.
+    Accepted,
+    /// Bytes from the far end; taking them returns their credit.
+    Data(Vec<u8>),
+    /// The far end sends no more bytes.
+    Ended,
+    /// The channel's result.
+    Closed(Outcome),
+    /// The hub reset the channel: no effect.
+    Reset(ResetReason),
+    /// The connection was lost with the channel open.
+    Lost,
+}
+
+/// Why a channel operation failed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ChannelFailure {
+    /// No connection would send it.
+    Unsendable,
+    /// The channel is over, or its connection is gone; its deliveries tell how.
+    Closed,
+    /// No connection, or no room for another channel, within the deadline.
+    Timeout,
+    /// The owner ended.
+    Ended(AttachFailure),
+}
+
 /// One attachment to the hub of this process's data root, kept across the hub going away.
 pub struct HubClient {
     inner: Arc<Inner>,
@@ -101,9 +140,22 @@ struct State {
     closing: bool,
     reader_done: bool,
     writer_done: bool,
+    /// Each open channel's deliveries not yet taken, by its connection's number and its id.
+    channels: BTreeMap<(u64, u32), Slot>,
+    /// The number of the last connection installed.
+    connections: u64,
+}
+
+#[derive(Default)]
+struct Slot {
+    deliveries: VecDeque<ChannelDelivery>,
+    /// The last delivery is queued.
+    over: bool,
 }
 
 struct Current {
+    /// Its number among the owner's connections.
+    number: u64,
     connection: Connection<hub::Hub>,
     /// The writer's handle; shutting it down cancels the reader's read too.
     stream: Arc<LocalStream>,
@@ -167,6 +219,8 @@ impl HubClient {
                 closing: false,
                 reader_done: false,
                 writer_done: false,
+                channels: BTreeMap::new(),
+                connections: 0,
             }),
             changed: Condvar::new(),
             transmit: Condvar::new(),
@@ -284,6 +338,156 @@ impl HubClient {
             let (next, waited_out) = self.inner.wait(state, deadline);
             state = next;
             if waited_out && state.notices.is_empty() {
+                return None;
+            }
+        }
+    }
+
+    /// Opens `channel` on the attached connection, waiting for one while re-attaching and for room
+    /// while 256 channels are open.
+    ///
+    /// # Errors
+    ///
+    /// [`ChannelFailure`] when no connection takes it within `deadline`, or none could.
+    pub fn open_channel(
+        &self,
+        channel: &hub::Channel,
+        deadline: Instant,
+    ) -> Result<ChannelHandle, ChannelFailure> {
+        let mut state = self.inner.lock();
+        loop {
+            if let Some(failure) = &state.ended {
+                return Err(ChannelFailure::Ended(failure.clone()));
+            }
+            if let Some(current) = state.current.as_mut() {
+                match current.connection.open(channel.clone()) {
+                    Ok(id) => {
+                        let handle = ChannelHandle {
+                            connection: current.number,
+                            channel: id,
+                        };
+                        state
+                            .channels
+                            .insert((handle.connection, id), Slot::default());
+                        drop(state);
+                        self.inner.transmit.notify_all();
+                        return Ok(handle);
+                    }
+                    // 256 channels are open, or the connection is ending.
+                    Err(SendError::Capacity | SendError::Closed) => {}
+                    Err(_) => return Err(ChannelFailure::Unsendable),
+                }
+            }
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out {
+                return Err(ChannelFailure::Timeout);
+            }
+        }
+    }
+
+    /// Commits as many leading bytes of `bytes` as the channel's credit admits and returns their
+    /// count, waiting for credit until `deadline` while none is left; 0 when none came in time.
+    ///
+    /// # Errors
+    ///
+    /// [`ChannelFailure::Closed`] once the channel is over or its connection is gone.
+    pub fn write(
+        &self,
+        handle: ChannelHandle,
+        bytes: &[u8],
+        deadline: Instant,
+    ) -> Result<usize, ChannelFailure> {
+        let mut state = self.inner.lock();
+        loop {
+            let current = state
+                .current
+                .as_mut()
+                .filter(|current| current.number == handle.connection)
+                .ok_or(ChannelFailure::Closed)?;
+            match current.connection.write(handle.channel, bytes) {
+                Ok(0) if !bytes.is_empty() => {}
+                Ok(committed) => {
+                    drop(state);
+                    self.inner.transmit.notify_all();
+                    return Ok(committed);
+                }
+                Err(_) => return Err(ChannelFailure::Closed),
+            }
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out {
+                return Ok(0);
+            }
+        }
+    }
+
+    /// Sends `end` on the channel, after the bytes it committed.
+    ///
+    /// # Errors
+    ///
+    /// [`ChannelFailure::Closed`] once the channel is over or its connection is gone.
+    pub fn end(&self, handle: ChannelHandle) -> Result<(), ChannelFailure> {
+        let mut state = self.inner.lock();
+        let current = state
+            .current
+            .as_mut()
+            .filter(|current| current.number == handle.connection)
+            .ok_or(ChannelFailure::Closed)?;
+        current
+            .connection
+            .end(handle.channel)
+            .map_err(|_| ChannelFailure::Closed)?;
+        drop(state);
+        self.inner.transmit.notify_all();
+        Ok(())
+    }
+
+    /// Resets the channel `cancelled` while it is open, and forgets it.
+    pub fn cancel(&self, handle: ChannelHandle) {
+        let mut state = self.inner.lock();
+        state.channels.remove(&(handle.connection, handle.channel));
+        if let Some(current) = state
+            .current
+            .as_mut()
+            .filter(|current| current.number == handle.connection)
+        {
+            let _reset = current
+                .connection
+                .reset(handle.channel, ResetReason::Cancelled);
+        }
+        drop(state);
+        self.inner.transmit.notify_all();
+    }
+
+    /// The channel's next delivery, waiting until `deadline`; `None` when none arrived. Taking data
+    /// returns its credit. After its last delivery the channel is forgotten and reads `lost`.
+    pub fn receive(&self, handle: ChannelHandle, deadline: Instant) -> Option<ChannelDelivery> {
+        let key = (handle.connection, handle.channel);
+        let mut state = self.inner.lock();
+        loop {
+            let Some(slot) = state.channels.get_mut(&key) else {
+                return Some(ChannelDelivery::Lost);
+            };
+            if let Some(delivery) = slot.deliveries.pop_front() {
+                if slot.over && slot.deliveries.is_empty() {
+                    state.channels.remove(&key);
+                }
+                if let ChannelDelivery::Data(bytes) = &delivery
+                    && let Some(current) = state
+                        .current
+                        .as_mut()
+                        .filter(|current| current.number == handle.connection)
+                {
+                    let _taken = current.connection.take(handle.channel, bytes.len());
+                    drop(state);
+                    self.inner.transmit.notify_all();
+                }
+                return Some(delivery);
+            }
+            let (next, waited_out) = self.inner.wait(state, deadline);
+            state = next;
+            if waited_out {
                 return None;
             }
         }
@@ -464,6 +668,7 @@ impl Inner {
                     current.pending.values().map(|(ticket, _)| *ticket),
                     &RequestFailure::Lost,
                 );
+                state.lose_channels(Some(current.number));
             }
             if state.closing || loss == Loss::Closed {
                 return None;
@@ -631,7 +836,55 @@ impl State {
                 ByeReason::Violation => Loss::Violation,
                 _ => Loss::Gone,
             }),
+            Delivery::Accept { channel, .. } => {
+                self.queue(channel, ChannelDelivery::Accepted, false);
+                None
+            }
+            Delivery::Data { channel, bytes } => {
+                self.queue(channel, ChannelDelivery::Data(bytes), false);
+                None
+            }
+            Delivery::End { channel } => {
+                self.queue(channel, ChannelDelivery::Ended, false);
+                None
+            }
+            Delivery::Close {
+                channel, outcome, ..
+            } => {
+                self.queue(channel, ChannelDelivery::Closed(outcome), true);
+                None
+            }
+            Delivery::Reset {
+                channel, reason, ..
+            } => {
+                self.queue(channel, ChannelDelivery::Reset(reason), true);
+                None
+            }
+            // A writer waiting for credit wakes with every batch the reader takes.
             _ => None,
+        }
+    }
+
+    /// Queues `delivery` for the attached connection's channel `channel` while the owner keeps it.
+    fn queue(&mut self, channel: u32, delivery: ChannelDelivery, last: bool) {
+        let Some(number) = self.current.as_ref().map(|current| current.number) else {
+            return;
+        };
+        if let Some(slot) = self.channels.get_mut(&(number, channel))
+            && !slot.over
+        {
+            slot.deliveries.push_back(delivery);
+            slot.over = last;
+        }
+    }
+
+    /// Ends each open channel of the connection `number`, or of every connection, with `lost`.
+    fn lose_channels(&mut self, number: Option<u64>) {
+        for ((connection, _), slot) in &mut self.channels {
+            if number.is_none_or(|number| number == *connection) && !slot.over {
+                slot.deliveries.push_back(ChannelDelivery::Lost);
+                slot.over = true;
+            }
         }
     }
 
@@ -653,6 +906,7 @@ impl State {
             .map(|(ticket, _)| *ticket)
             .collect();
         self.fail(waiting.into_iter(), &RequestFailure::Ended(failure.clone()));
+        self.lose_channels(None);
         self.notices.push_back(Notice::Ended(failure.clone()));
         self.ended = Some(failure);
     }
@@ -663,7 +917,9 @@ impl State {
 fn install(state: &mut State, link: Link) -> Option<Reading> {
     let writer = link.stream.try_clone().ok()?;
     state.stopping = false;
+    state.connections += 1;
     state.current = Some(Current {
+        number: state.connections,
         connection: link.connection,
         stream: Arc::new(writer),
         pending: BTreeMap::new(),

@@ -1,7 +1,8 @@
 //! The hub's lifetime as a state machine over its holders, with the time an argument: `held` while a
 //! `presence` connection is attached or the last Session read found a live Session, `expiring`
 //! from the moment the hub learned that nothing holds it, and `closing` once and for ever, entered
-//! by `drain` or by a Session read at or after the expiry deadline that finds no live Session.
+//! by `drain` or by a Session read at or after the expiry deadline that finds no live Session. A
+//! `connect` answered `online` while `expiring` starts the countdown again.
 //! `docs/machines.md#lifetime` owns the rules; the supervisor alone reads the clocks.
 
 use orchbee_machine_protocol::{MAXIMUM_COUNT, Time, hub::HubState};
@@ -172,6 +173,18 @@ impl Lifetime {
             Phase::Expiring { deadline, .. } => Some(deadline),
             Phase::Held | Phase::Closing => None,
         }
+    }
+
+    /// A `connect` was answered `online` at `now`: while `expiring`, the countdown starts again from
+    /// `now`; true when the state changed. `held` and `closing` are left as they are.
+    pub(super) fn connected(&mut self, now: Moment) -> bool {
+        if !matches!(self.phase, Phase::Expiring { .. }) {
+            return false;
+        }
+        let restarted = expiring(self.expiry, now);
+        let changed = restarted != self.phase;
+        self.phase = restarted;
+        changed
     }
 
     /// Enters `closing` on `drain`; true when it was not closing already.

@@ -1,5 +1,6 @@
 //! The hub's state under its lock: the lifetime, the catalog with each carried Machine, the
-//! carriers, the registry of attached connections, and the counts admission and closing wait on.
+//! carriers, the registry of attached connections, the relay table, and the counts admission and
+//! closing wait on.
 //! Each connection's and each link's protocol state machine lives under its own lock. Lock order:
 //! the hub state's lock before a connection's or a link's; a thread holding one of those takes no
 //! other, and none is held across I/O.
@@ -9,12 +10,13 @@ use super::{
     catalog::{Conditions, Machines, Outcome},
     lifetime::{Lifetime, Moment},
     machine::{Context, Effect, Machine, Route},
+    relay::Relays,
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
     Connection, MachineId,
-    hub::{self, Event, Reply},
+    hub::{self, ConnectOutcome, Event, Reply},
 };
 use std::{collections::BTreeMap, net::Shutdown, sync::Arc};
 
@@ -42,6 +44,8 @@ pub(super) struct Hub {
     pub(super) carriers: BTreeMap<u64, Handle>,
     /// Carriers whose owners the supervisor starts next, outside the lock.
     pub(super) starting: Vec<(u64, Route)>,
+    /// Every channel relayed to a link, and every `stop-session` waiting for its link.
+    pub(super) relays: Relays,
     pub(super) controls: usize,
     pub(super) candidates: usize,
     /// Catalog reads in flight, which closing waits for.
@@ -80,6 +84,7 @@ impl Hub {
             next_peer: 0,
             carriers: BTreeMap::new(),
             starting: Vec::new(),
+            relays: Relays::default(),
             controls: 0,
             candidates: 0,
             reloads: 0,
@@ -123,6 +128,7 @@ impl Hub {
             self.lifetime.detach();
         }
         self.machines.forget(id);
+        self.peer_left(id);
     }
 
     /// One thread of the connection `id` ended; the last one forgets it.
@@ -242,6 +248,7 @@ impl Hub {
                 }
             }
             Effect::End { carrier } => {
+                self.carrier_ended(carrier);
                 let queued = self.starting.iter().any(|(queued, _)| *queued == carrier);
                 if queued {
                     // Its owner never started, so nothing else would forget it.
@@ -262,6 +269,13 @@ impl Hub {
                 }
             }
             Effect::Reply { waiters, result } => {
+                // A `connect` that ends `online` starts the expiry countdown again.
+                if matches!(result.outcome, ConnectOutcome::Online { .. })
+                    && !waiters.is_empty()
+                    && self.lifetime.connected(Moment::now())
+                {
+                    self.announce();
+                }
                 for waiter in waiters {
                     if let Some(peer) = self.peers.get(&waiter.peer) {
                         let mut wire = peer.line.lock();

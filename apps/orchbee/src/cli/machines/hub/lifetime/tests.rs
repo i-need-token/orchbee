@@ -97,3 +97,37 @@ fn a_live_session_found_while_expiring_holds_again_and_drain_closes_once() {
     assert!(!lifetime.drain());
     assert_eq!(lifetime.state(), HubState::Closing);
 }
+
+#[test]
+fn an_online_connect_restarts_the_countdown_only_while_expiring() {
+    let start = Instant::now();
+    let mut lifetime = Lifetime::start(EXPIRY, false, at(start, 0));
+    assert_eq!(expiring_at(&lifetime), Some(1_600_000));
+    // The countdown counts from the latest connect that ended online.
+    assert!(lifetime.connected(at(start, 100)));
+    assert_eq!(expiring_at(&lifetime), Some(1_700_000));
+    assert_eq!(lifetime.deadline(), Some(at(start, 700).at));
+    // A read before the restarted deadline does not close; one at it does.
+    let ticket = lifetime.begin_read();
+    assert!(!lifetime.finish_read(ticket, false, at(start, 600)));
+    assert_eq!(expiring_at(&lifetime), Some(1_700_000));
+    let ticket = lifetime.begin_read();
+    assert!(lifetime.finish_read(ticket, false, at(start, 700)));
+    assert_eq!(lifetime.state(), HubState::Closing);
+    // Closing never returns.
+    assert!(!lifetime.connected(at(start, 701)));
+    assert_eq!(lifetime.state(), HubState::Closing);
+}
+
+#[test]
+fn a_connect_while_held_changes_nothing_and_the_later_leave_counts() {
+    let start = Instant::now();
+    let mut lifetime = Lifetime::start(EXPIRY, false, at(start, 0));
+    assert!(lifetime.attach());
+    assert!(!lifetime.connected(at(start, 10)));
+    assert_eq!(lifetime.state(), HubState::Held);
+    lifetime.detach();
+    let ticket = lifetime.begin_read();
+    assert!(lifetime.finish_read(ticket, false, at(start, 20)));
+    assert_eq!(expiring_at(&lifetime), Some(1_620_000));
+}

@@ -260,9 +260,9 @@ pub mod application {
     #[cfg(windows)]
     pub mod machine_hub {
         pub use crate::machine_hub::{
-            AttachFailure, Attached, Attachment, EndFailure, HUB_ENTRY, HubClient, Incompatible,
-            Notice, RequestFailure, SessionRead, data_root, end, read_sessions, running,
-            runtime_base,
+            AttachFailure, Attached, Attachment, ChannelDelivery, ChannelFailure, ChannelHandle,
+            EndFailure, HUB_ENTRY, HubClient, Incompatible, Notice, RequestFailure, SessionRead,
+            data_root, end, read_sessions, running, runtime_base,
         };
     }
 

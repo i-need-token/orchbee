@@ -2,7 +2,8 @@
 //! Machine, and the command asks it through one attachment that holds and watches nothing, after
 //! the hub has taken the current catalog. An interrupt ends the wait, not the hub's attempt. A hub
 //! closing under the request is asked once more, through the hub that takes its place. Every
-//! committed catalog edit also asks a running hub to take the catalog, starting none.
+//! committed catalog edit also asks a running hub to take the catalog, starting none. A routed
+//! command brings its Machine `online` through the same steps.
 
 #[cfg(not(windows))]
 use super::{Context, Error, Report};
@@ -10,7 +11,7 @@ use super::{Context, Error, Report};
 use crate::machines::Store;
 
 #[cfg(windows)]
-pub(super) use windows::{connect, disconnect, reload_running};
+pub(super) use windows::{ask_connect, close, connect, disconnect, open, reload_running};
 
 /// No hub runs where it is not built, so an edit has nothing to tell.
 #[cfg(not(windows))]
@@ -79,7 +80,10 @@ mod windows {
         result
     }
 
-    fn ask_connect(
+    /// Brings the Machine `machine` `online` through `client` under the `machine connect` rules:
+    /// the hub takes the current catalog first, and a hub closing under the request is asked once
+    /// more through the one that takes its place.
+    pub(in super::super) fn ask_connect(
         client: &Arc<HubClient>,
         machine: &MachineId,
         context: &mut Context,
@@ -265,7 +269,7 @@ mod windows {
     }
 
     /// Attaches to the hub of this data root, starting one when none runs.
-    fn open(context: &mut Context) -> Result<Arc<HubClient>, Error> {
+    pub(in super::super) fn open(context: &mut Context) -> Result<Arc<HubClient>, Error> {
         let attachment = Attachment {
             presence: false,
             asks: false,
@@ -280,7 +284,7 @@ mod windows {
 
     /// Says goodbye to the hub unless an abandoned wait still holds the attachment; the process
     /// ending then closes it.
-    fn close(client: Arc<HubClient>) {
+    pub(in super::super) fn close(client: Arc<HubClient>) {
         if let Ok(client) = Arc::try_unwrap(client) {
             client.close();
         }

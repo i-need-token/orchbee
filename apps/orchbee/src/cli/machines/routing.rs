@@ -1,5 +1,6 @@
-//! One-shot remote native CLI relay. SSH failure never authorizes a retry.
-use super::{Context, Error, ssh};
+//! One routed native CLI command: the near side sends its packet through the machine hub, which
+//! carries the Machine; the far side answers it. A lost connection never authorizes a retry.
+use super::{Context, Error};
 use crate::cli_text::CliText;
 use crate::{
     cli::{
@@ -19,6 +20,24 @@ use std::{
     process::Command,
     time::{Duration, Instant},
 };
+#[cfg(windows)]
+#[path = "routing/hub.rs"]
+mod hub;
+/// No machine hub runs where it is not built.
+#[cfg(not(windows))]
+mod hub {
+    use super::{Context, Outcome};
+
+    pub(super) fn route(
+        _machine: &str,
+        _packet: &[u8],
+        _limit: usize,
+        _context: &mut Context,
+        _outcome: &mut Outcome,
+    ) -> Result<Vec<u8>, (&'static str, u8)> {
+        Err(("ssh-unavailable", 4))
+    }
+}
 #[cfg(windows)]
 #[path = "routing/windows.rs"]
 mod platform;
@@ -205,6 +224,10 @@ fn failed(
             | "remote-unsupported"
             | "remote-not-installed"
             | "remote-other-environment"
+            | "auth-required"
+            | "host-untrusted"
+            | "host-key-changed"
+            | "version-incompatible"
     ) {
         result
             .stderr
@@ -251,10 +274,10 @@ fn execute(
         .and_then(|s| s.read())
         .map_err(|e| mapped(Error::Catalog(e)))?;
     let profile = select(&catalog, &route.selector).map_err(|e| (e, selection_status(e)))?;
-    let target = profile
-        .draft
-        .ssh_target()
-        .ok_or(("unsupported-machine", 4))?;
+    // Only an SSH machine is carried; the hub would refuse another kind after the input was read.
+    if profile.draft.ssh_target().is_none() {
+        return Err(("unsupported-machine", 4));
+    }
     let mut arguments = route.arguments.clone();
     let input = if let Some(input) = &route.input {
         let (path, paste) = match input {
@@ -288,17 +311,6 @@ fn execute(
     } else {
         None
     };
-    context.deadline = Instant::now() + Duration::from_secs(60);
-    context.check().map_err(mapped)?;
-    let ssh_path = platform::ssh_path().map_err(|_| ("ssh-unavailable", 4))?;
-    let probe = ssh::exchange(
-        &ssh_path,
-        target,
-        &ssh::program(None, profile.draft.session.as_str(), "client"),
-        context,
-    )
-    .map_err(mapped)?;
-    let client = ssh::client(&probe).map_err(mapped)?;
     let packet = Packet {
         version: generation(),
         session: profile.draft.session.as_str().into(),
@@ -311,35 +323,8 @@ fn execute(
     if bytes.len() > REQUEST_LIMIT {
         return Err(("input-source", 3));
     }
-    context.check().map_err(mapped)?;
-    *outcome = Outcome::Unknown;
-    let command = ssh::command(&ssh_path, target, &relay_program(&client.executable));
-    let result = platform::exchange(command, Some(&bytes), REPLY_LIMIT, None, || {
-        context.interrupted()
-    })
-    .map_err(|_| {
-        *outcome = Outcome::NotSubmitted;
-        ("ssh-unavailable", 4)
-    })?;
-    if matches!(
-        result.failure,
-        Some(CommandFailure::SpawnUnavailable | CommandFailure::SpawnFailed)
-    ) {
-        *outcome = Outcome::NotSubmitted;
-    }
-    if let Some(failure) = result.failure {
-        return Err(match failure {
-            CommandFailure::Cancelled => ("cancelled", 130),
-            CommandFailure::Timeout => ("timeout", 7),
-            CommandFailure::PhysicalUnknown => ("physical-unknown", 8),
-            _ => ("ssh-failed", 5),
-        });
-    }
-    if result.exit_code != Some(0) || result.stdout_truncated {
-        return Err(("remote-protocol", 5));
-    }
-    let reply: Reply =
-        serde_json::from_slice(&result.stdout).map_err(|_| ("remote-protocol", 5))?;
+    let reply = hub::route(profile.id.as_str(), &bytes, REPLY_LIMIT, context, outcome)?;
+    let reply: Reply = serde_json::from_slice(&reply).map_err(|_| ("remote-protocol", 5))?;
     match reply.output() {
         Ok(output) => {
             *outcome = Outcome::Completed;
@@ -351,20 +336,66 @@ fn execute(
         }
     }
 }
-fn relay_program(executable: &str) -> String {
-    // Only the admitted executable is a shell literal. All command arguments and
-    // payload are pipe data; PowerShell never constructs their command line.
-    let script = format!(
-        "$ErrorActionPreference='Stop';try{{& {} '--machine-relay-v1';exit $LASTEXITCODE}}catch{{exit 125}}",
-        ssh::literal(executable)
-    );
-    let encoded = STANDARD.encode(
-        script
-            .encode_utf16()
-            .flat_map(u16::to_le_bytes)
-            .collect::<Vec<_>>(),
-    );
-    format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
+/// The routed arguments `stop-session` sends: the far Session's own `server stop`, confirmed, read
+/// as its JSON receipt.
+#[cfg(windows)]
+const STOP_ARGUMENTS: [&str; 4] = ["server", "stop", "--confirm", "--format=json"];
+/// The packet that stops the far Session `session`.
+#[cfg(windows)]
+pub(super) fn stop_packet(session: &str) -> Vec<u8> {
+    let packet = Packet {
+        version: generation(),
+        session: session.into(),
+        arguments: STOP_ARGUMENTS
+            .iter()
+            .map(|&argument| argument.into())
+            .collect(),
+        input: None,
+        locale: locale_name(Locale::EnUs).into(),
+        extensions: Extensions::new(),
+    };
+    serde_json::to_vec(&packet).expect("a stop packet encodes")
+}
+/// What the far `server stop` answered, as `stop-session` reads it.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum StopReading {
+    Stopped,
+    NotRunning,
+    Unknown,
+    Failed,
+}
+/// Reads the reply packet of a `stop-session` route. `docs/machines.md#channels` owns the mapping.
+#[cfg(windows)]
+pub(super) fn stop_reading(bytes: &[u8]) -> StopReading {
+    let Ok(reply) = serde_json::from_slice::<Reply>(bytes) else {
+        return StopReading::Failed;
+    };
+    if !supported(reply.version) {
+        return StopReading::Failed;
+    }
+    match reply.outcome {
+        Outcome::Unknown => return StopReading::Unknown,
+        Outcome::NotSubmitted => return StopReading::Failed,
+        Outcome::Completed => {}
+    }
+    let Some(receipt) = STANDARD
+        .decode(&reply.stdout)
+        .ok()
+        .and_then(|stdout| serde_json::from_slice::<serde_json::Value>(&stdout).ok())
+    else {
+        return StopReading::Failed;
+    };
+    if receipt["schema"] != "orchbee.server.stop" || receipt["version"] != 1 {
+        return StopReading::Failed;
+    }
+    let result = &receipt["result"];
+    match (result["outcome"].as_str(), result["reason"].as_str()) {
+        (Some("stopped" | "exited"), _) => StopReading::Stopped,
+        (Some("unavailable"), Some("runtime" | "transport")) => StopReading::NotRunning,
+        (Some("unknown"), _) => StopReading::Unknown,
+        _ => StopReading::Failed,
+    }
 }
 pub(crate) fn serve(locale: Locale) -> Output {
     if crate::tui_capabilities::Capability::SavedMachines

@@ -10,7 +10,9 @@ mod owner;
 mod sessions;
 
 pub use control::{EndFailure, end, running};
-pub use owner::{HubClient, Notice, RequestFailure};
+pub use owner::{
+    ChannelDelivery, ChannelFailure, ChannelHandle, HubClient, Notice, RequestFailure,
+};
 pub use sessions::{SessionRead, read_sessions, runtime_base};
 
 use orchbee_local_runtime::DataRoot;

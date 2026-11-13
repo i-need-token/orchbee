@@ -5,7 +5,7 @@ use orchbee_local_runtime::CommandFailure;
 use serde_json::Value;
 use std::path::Path;
 
-pub(super) use crate::machine_ssh::{Client, command, literal, program};
+pub(super) use crate::machine_ssh::{Client, command, program};
 /// Prepares the remote Session and returns the remote product version, which is shown and never
 /// compared.
 pub(super) fn prepare(

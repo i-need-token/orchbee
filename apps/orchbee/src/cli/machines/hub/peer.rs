@@ -12,7 +12,7 @@ use super::{
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_machine_protocol::{
-    Delivery, FrameDecoder, Id, Message, ResetReason,
+    Delivery, FrameDecoder, Id, Message,
     hub::{
         AttachOutcome, ClaimOutcome, Connect, ConnectFailure, ConnectOutcome, ConnectResult,
         DisconnectOutcome, DismissOutcome, MachineState, ReloadOutcome, Reply, Request,
@@ -159,19 +159,31 @@ fn deliver(
         }
         Delivery::Message(Message::Bye { .. }) => false,
         Delivery::Open { channel, open, .. } => {
-            let hub = shared.lock();
-            let reason = match hub.machines.state(open.machine()) {
-                _ if hub.lifetime.is_closing() => ResetReason::Stopping,
-                None => ResetReason::NotFound,
-                // Session and route channels through the hub belong to a later slice.
-                Some(MachineState::Online) => ResetReason::Unavailable,
-                Some(_) => ResetReason::NotOnline,
-            };
-            let _reset = line.lock().connection.reset(channel, reason);
+            shared.lock().open_channel(id, channel, &open);
             true
         }
-        // The state machine answered an unknown request itself; nothing else reaches a hub with
-        // no channel open.
+        Delivery::Data { channel, bytes } => {
+            shared.lock().client_data(id, channel, &bytes);
+            true
+        }
+        Delivery::Writable { channel } => {
+            shared.lock().client_writable(id, channel);
+            true
+        }
+        Delivery::End { channel } => {
+            shared.lock().client_end(id, channel);
+            true
+        }
+        // The state machine already reset a `too-large` request toward the client.
+        Delivery::Reset { channel, .. } | Delivery::TooLarge { channel } => {
+            let mut hub = shared.lock();
+            hub.client_reset(id, channel);
+            drop(hub);
+            // A closing hub waits for its routes to end.
+            shared.wake();
+            true
+        }
+        // The state machine answered an unknown request itself; a client sends no other frame.
         _ => true,
     }
 }
@@ -253,9 +265,11 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
         Request::StopSession { machine } => match hub.machines.state(&machine) {
             _ if closing => Some(Reply::StopSession(StopSessionOutcome::Stopping)),
             None => Some(Reply::StopSession(StopSessionOutcome::NotFound)),
-            // Stopping a remote Session belongs to a later slice.
-            Some(MachineState::Online) => None,
-            Some(_) => Some(Reply::StopSession(StopSessionOutcome::NotOnline)),
+            Some(_) => match hub.stop_session(id, request, &machine) {
+                Some(outcome) => Some(Reply::StopSession(outcome)),
+                // The link `route`'s reply answers it.
+                None => return,
+            },
         },
         // `deliver` hands `reload` to its own path.
         Request::Reload => Some(Reply::Reload(ReloadOutcome::Stopping)),
@@ -263,7 +277,7 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
     let mut wire = line.lock();
     let _answered = match reply {
         Some(reply) => wire.connection.reply(request, reply),
-        // A request this build does not serve: a draft, or stopping a remote Session.
+        // A request this build does not serve: a draft.
         None => wire.connection.unsupported(request),
     };
 }
