@@ -227,6 +227,13 @@ one checkout agree, and a change to any listed input refuses the other side's ol
 package `build` script passes this checkout's `ob-test-` environment, the `apps/orchbee` version,
 and `ORCHBEE_SOURCE_COMMIT` when set; the staging scripts pass their cohort's stem.
 
+A Host runs on machines other than the one that built it, so a build for the building machine's
+architecture targets that architecture's baseline CPU, as the Rust executables do, rather than
+every feature of the building CPU; a Host built with features another machine lacks dies there
+with an illegal instruction before it serves. Zig's build runner reads `-Dcpu=native` as no CPU
+choice, so the baseline applies to it as well; a named model such as `-Dcpu=x86_64_v3` or an
+explicit `-Dtarget` with its own CPU still applies.
+
 ## SSH Environment release component
 
 The accepted schema-version-2 SSH Environment release reuses this executable unchanged as its

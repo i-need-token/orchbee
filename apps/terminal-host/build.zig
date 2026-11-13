@@ -134,6 +134,15 @@ pub fn build(builder: *std.Build) void {
     }
 
     var target = builder.standardTargetOptions(.{});
+    // A Host runs on machines other than the one that built it, so a build for this machine's
+    // architecture targets the architecture's baseline instead of every feature of the building
+    // CPU, which another machine may lack and fault on as an illegal instruction. The build runner
+    // reads `-Dcpu=native` as no CPU at all; a named model such as `-Dcpu=znver4` still applies.
+    if (target.query.cpu_arch == null and target.query.cpu_model == .determined_by_arch_os) {
+        var query = target.query;
+        query.cpu_model = .baseline;
+        target = builder.resolveTargetQuery(query);
+    }
     // Zig's bundled MSVC headers fail to compile the Wuffs and Ghostty C/C++
     // sources on some Windows SDK configurations, and Zig links with its own
     // lld anyway, so fall back to the GNU ABI unless one was requested
