@@ -41,12 +41,10 @@ pub fn current_user_sid() -> io::Result<String> {
 }
 
 fn process_user(process: &HPROCESS) -> io::Result<String> {
-    let token = process
-        .OpenProcessToken(co::TOKEN::QUERY)
-        .map_err(io::Error::other)?;
+    let token = process.OpenProcessToken(co::TOKEN::QUERY).map_err(system)?;
     let info = token
         .GetTokenInformation(co::TOKEN_INFORMATION_CLASS::User)
-        .map_err(io::Error::other)?;
+        .map_err(system)?;
     let TokenInfo::User(user) = info else {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -57,7 +55,12 @@ fn process_user(process: &HPROCESS) -> io::Result<String> {
         .User
         .Sid()
         .ok_or_else(|| io::Error::other("token SID missing"))?;
-    winsafe::ConvertSidToStringSid(sid).map_err(io::Error::other)
+    winsafe::ConvertSidToStringSid(sid).map_err(system)
+}
+
+/// A failed system call as the I/O error of its code, so a refusal keeps its kind and code.
+fn system(error: co::ERROR) -> io::Error {
+    io::Error::from_raw_os_error(error.raw() as i32)
 }
 
 fn verify_peer(pipe: &Pipe) -> io::Result<()> {
@@ -66,7 +69,7 @@ fn verify_peer(pipe: &Pipe) -> io::Result<()> {
         false,
         pipe.peer_process_id()?,
     )
-    .map_err(io::Error::other)?;
+    .map_err(system)?;
     if process_user(&process)? != current_user_sid()? {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,

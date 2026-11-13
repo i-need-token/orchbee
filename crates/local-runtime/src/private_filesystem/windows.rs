@@ -270,7 +270,7 @@ pub(crate) fn replace(staged: &Path, target: &Path) -> io::Result<()> {
             )
         },
     )
-    .map_err(io::Error::other)
+    .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))
 }
 
 /// A sharing violation: another handle holds the object without sharing the access asked for.

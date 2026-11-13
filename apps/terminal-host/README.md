@@ -199,6 +199,14 @@ The broker derives the runtime directory and endpoint identifier from its own ru
 The binary exposes no client connection or runtime-preparation command. The broker owns those
 operations, while Terminal Host remains a separately retained server process.
 
+A failed Host's exit code names the failure, and the Worker records it when it observes the exit.
+A Host that cannot begin serving exits `10` when the Windows control-signal preparation failed,
+`11` when the runtime directory was refused as not private, `12` when another Host holds the
+endpoint and `13` when the endpoint could not be created. A Host whose serving failed after
+releasing its endpoint exits `14` when a client failed the same-user check that ends a Windows
+Host, and `15` when a Windows local IPC call failed. Invalid arguments and every other failure
+keep exit code `1`.
+
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 
 `--editor-document-directory` names the folder where a Windows Host writes scrollback editor

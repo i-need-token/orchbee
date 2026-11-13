@@ -6,6 +6,33 @@ pub enum SessionChild {
     Host,
 }
 
+/// The step of a registered child's start that failed. A failed [`spawn_session_child`] carries it
+/// inside its I/O error, whose kind and operating-system code stay the failed operation's own.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionChildStep {
+    /// Reading the Session record, taking its writer lock, or publishing the reservation.
+    Registration,
+    /// Creating the suspended process.
+    Creation,
+    /// Publishing the created process's identity and releasing its initial thread.
+    Release,
+}
+
+impl SessionChildStep {
+    /// The step a failed start names, when `error` came from one. Only Windows registers children.
+    pub fn of(error: &std::io::Error) -> Option<Self> {
+        #[cfg(windows)]
+        {
+            windows::step_of(error)
+        }
+        #[cfg(not(windows))]
+        {
+            let _unregistered = error;
+            None
+        }
+    }
+}
+
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]

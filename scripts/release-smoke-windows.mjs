@@ -31,8 +31,9 @@
 // When an install, command, uninstall or npm step fails, it also prints whether this process runs
 // elevated and the owner and access list of the store root and its parent; the program's own
 // diagnostic is the standard error printed above them, or the setup log's tail. When no terminal
-// opens, it first prints the build's running processes, `terminal list`, and the tail of the data
-// root's daily diagnostic log, whose records hold only event names, tokens, counts and flags.
+// opens, it names the terminal outcome `workspace create` reported, then prints the build's running
+// processes, `terminal list`, the tail of the data root's daily diagnostic log, whose records hold
+// only event names, tokens, counts and flags, and the cause of the last failed Terminal Host start.
 //
 // A test build's uninstall that runs with `ORCHBEE_TEST_REGISTRY_KEY` (`Software\ob-test-scratch\<name>`
 // below HKCU) uses that scratch key's `Environment` and `Uninstall` subkeys instead of the user's, and
@@ -292,8 +293,16 @@ function terminalRoundTrip(identity, env) {
 		created.status !== 0 ||
 		typeof workspace?.workspaceId !== 'string' ||
 		typeof workspace?.panelId !== 'string'
-	)
-		throw new StepFailure(`No terminal could be opened: workspace create exited ${created.status}`);
+	) {
+		const fact = workspace?.terminal;
+		const outcome =
+			fact === undefined
+				? 'no terminal outcome'
+				: `terminal ${fact.outcome}${fact.reason ? ` (${fact.reason})` : ''}`;
+		throw new StepFailure(
+			`No terminal could be opened: workspace create exited ${created.status}, ${outcome}`,
+		);
+	}
 	const terminal = boundTerminal(identity, env, workspace.panelId);
 	log(`Terminal ${terminal} is open in Workspace ${workspace.workspaceId}`);
 	// Any text on the screen means the shell has started and printed its prompt.
@@ -356,17 +365,49 @@ function terminalsEnded(identity, env) {
 	}
 }
 
-/** The newest `logs\<YYYY-MM-DD>.jsonl` of the data root, or a note that there is none. */
-function diagnosticLogTail(identity) {
+/** The data root's newest `logs\<YYYY-MM-DD>.jsonl`, or undefined when there is none. */
+function newestDiagnosticLog(identity) {
 	const folder = path.join(identity.dataRoot, 'logs');
 	const days = existsSync(folder)
 		? readdirSync(folder)
 				.filter((name) => /^\d{4}-\d{2}-\d{2}\.jsonl$/u.test(name))
 				.toSorted()
 		: [];
-	return days.length === 0
-		? `(no diagnostic log in ${folder})`
-		: logTail(path.join(folder, days.at(-1)), 40);
+	return days.length === 0 ? undefined : path.join(folder, days.at(-1));
+}
+
+/** The tail of the newest diagnostic log, or a note that there is none. */
+function diagnosticLogTail(identity) {
+	const file = newestDiagnosticLog(identity);
+	return file === undefined
+		? `(no diagnostic log in ${path.join(identity.dataRoot, 'logs')})`
+		: logTail(file, 40);
+}
+
+/**
+ * The cause the Worker recorded for its last failed Terminal Host start (`host-start-failed`: the
+ * stage, error kind, operating-system error code, Host exit code and elapsed milliseconds), or
+ * undefined when the newest log holds none.
+ */
+function hostStartCause(identity) {
+	const file = newestDiagnosticLog(identity);
+	if (file === undefined) return undefined;
+	const record = readFileSync(file, 'utf8')
+		.split(/\r?\n/u)
+		.filter((line) => line.includes('"event":"host-start-failed"'))
+		.at(-1);
+	if (record === undefined) return undefined;
+	let fields;
+	try {
+		fields = JSON.parse(record).fields ?? {};
+	} catch {
+		return record;
+	}
+	const parts = [`stage ${fields.stage ?? 'unrecorded'}`, `error ${fields.error ?? 'unrecorded'}`];
+	if (fields.osError !== undefined) parts.push(`OS error ${fields.osError}`);
+	if (fields.hostExit !== undefined) parts.push(`Host exit code ${fields.hostExit}`);
+	if (fields.elapsedMs !== undefined) parts.push(`after ${fields.elapsedMs} ms`);
+	return parts.join(', ');
 }
 
 /**
@@ -383,6 +424,8 @@ function terminalFacts(identity, env) {
 	log(`Running ${identity.stem} processes:\n${own.length === 0 ? '  none' : own.join('\n')}`);
 	runCommand(identity, ['terminal', 'list'], env);
 	log(`Diagnostic log:\n${diagnosticLogTail(identity)}`);
+	const cause = hostStartCause(identity);
+	if (cause !== undefined) log(`Terminal Host start failed: ${cause}`);
 }
 
 /** Whether this process runs elevated, read from the integrity level of its token. */

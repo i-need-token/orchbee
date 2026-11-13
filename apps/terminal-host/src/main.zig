@@ -17,7 +17,15 @@ pub fn main(init: std.process.Init) !void {
 
     switch (try launcher_arguments.parse(allocator, arguments[1..])) {
         .version => try writeVersion(init.io),
-        .serve => |options| try serve(allocator, init.io, init.environ_map, options),
+        .serve => |options| serve(allocator, init.io, init.environ_map, options) catch |err| {
+            // `serve` has returned, so the endpoint and its lifetime lock are already released.
+            const any_error: anyerror = err;
+            switch (any_error) {
+                error.PeerIdentityMismatch => failed(.peer_identity, err),
+                error.WindowsIpcFailure => failed(.local_ipc, err),
+                else => return err,
+            }
+        },
     }
 }
 
@@ -28,14 +36,32 @@ fn writeVersion(io: std.Io) !void {
     try stdout.interface.flush();
 }
 
+/// The exit code of a failed Host, which the Worker that started it records: a Host that could not
+/// begin serving names the step, and one whose serving failed names the failure's class. Every
+/// other failure keeps the default error exit code 1.
+const FailureExit = enum(u8) {
+    control_signal = 10,
+    runtime_directory = 11,
+    already_running = 12,
+    endpoint = 13,
+    peer_identity = 14,
+    local_ipc = 15,
+};
+
+fn failed(exit: FailureExit, err: anyerror) noreturn {
+    std.log.err("terminal Host failed: {s}", .{@errorName(err)});
+    std.process.exit(@intFromEnum(exit));
+}
+
 fn serve(
     allocator: std.mem.Allocator,
     io: std.Io,
     environment: *const std.process.Environ.Map,
     options: launcher_arguments.ServeOptions,
 ) !void {
-    if (builtin.os.tag == .windows) try platform.process.prepareWindowsTerminalChildren();
-    var server = try if (builtin.os.tag == .windows)
+    if (builtin.os.tag == .windows) platform.process.prepareWindowsTerminalChildren() catch |err|
+        failed(.control_signal, err);
+    var server = (if (builtin.os.tag == .windows)
         local_ipc.LocalServer.initWithIo(
             io,
             allocator,
@@ -49,7 +75,14 @@ fn serve(
             options.runtime_directory,
             options.endpoint_directory orelse options.runtime_directory,
             options.endpoint_id,
-        );
+        )) catch |err| {
+        const any_error: anyerror = err;
+        failed(switch (any_error) {
+            error.InsecureRuntimeDirectory => .runtime_directory,
+            error.AlreadyRunning => .already_running,
+            else => .endpoint,
+        }, err);
+    };
     defer server.deinit();
     var service = host_service.HostService.initWithOptions(allocator, .{
         .terminal_defaults = options.terminal_defaults,

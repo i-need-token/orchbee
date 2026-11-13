@@ -75,6 +75,15 @@ pub(crate) struct HostBrokerConnection {
     drain: Rc<RefCell<AgentDrain>>,
 }
 
+/// A failed bounded Host dial, split where the Host answered: `Connect` never reached it, while
+/// `Handshake` reached it and failed the `worker-host` offer or the protocol `Hello`.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[derive(Debug)]
+pub(crate) enum DialFailure {
+    Connect(Box<dyn Error>),
+    Handshake(Box<dyn Error>),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NegotiatedHostLimits {
     pub(crate) frame_bytes: u32,
@@ -88,28 +97,32 @@ impl HostBrokerConnection {
         endpoint: &Path,
         deadline: std::time::Instant,
         drain: Rc<RefCell<AgentDrain>>,
-    ) -> Result<Self, Box<dyn Error>> {
-        let offer = offer::local()?;
+    ) -> Result<Self, DialFailure> {
+        let offer = offer::local().map_err(DialFailure::Handshake)?;
         let (mut transport, prompt_gated_input) = loop {
-            let mut transport = admission::Admission::connect(endpoint, deadline)?;
+            let mut transport = admission::Admission::connect(endpoint, deadline)
+                .map_err(|error| DialFailure::Connect(error.into()))?;
             transport.set_deadline(deadline.min(Instant::now() + CANDIDATE_DEADLINE));
             if let offer::Outcome::Answered { prompt_gated_input } =
-                offer::exchange(&mut transport, &offer)?
+                offer::exchange(&mut transport, &offer).map_err(DialFailure::Handshake)?
             {
                 transport.set_deadline(deadline);
                 break (transport, prompt_gated_input);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= deadline {
-                return Err(offer::still_busy());
+                return Err(DialFailure::Handshake(offer::still_busy()));
             }
             thread::sleep(offer::RETRY_INTERVAL);
         };
-        let expected = requested_hello()?;
-        let correlation_id = CorrelationId::from_bytes(HELLO_CORRELATION_BYTES)?;
-        write_hello(&mut transport, &expected, correlation_id)?;
-        let (host_epoch, negotiated_limits) =
-            validate_hello_accepted(&mut transport, &expected, correlation_id)?;
-        transport.remaining()?;
+        let (host_epoch, negotiated_limits) = (|| {
+            let expected = requested_hello()?;
+            let correlation_id = CorrelationId::from_bytes(HELLO_CORRELATION_BYTES)?;
+            write_hello(&mut transport, &expected, correlation_id)?;
+            let accepted = validate_hello_accepted(&mut transport, &expected, correlation_id)?;
+            transport.remaining()?;
+            Ok(accepted)
+        })()
+        .map_err(DialFailure::Handshake)?;
         Ok(Self {
             endpoint: endpoint.to_owned(),
             host_epoch,

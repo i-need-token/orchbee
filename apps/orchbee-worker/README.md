@@ -8,9 +8,19 @@ Worker owns its admitted Host connection and authorized job lifetimes.
 ## Windows diagnostic log
 
 The managed Worker records `started` and `exited`, and its Terminal Host start as `host-started` or
-`host-start-failed` with a closed I/O error kind, in the
-[daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log). These are the
-only Host diagnostics the log holds; terminal content and input never reach it. A pass that removes
+`host-start-failed`, in the
+[daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log). A failed start
+names its cause: `error`, the closed I/O error kind; `stage`, one of `directory` (the Host or editor
+document folder), `endpoint` (the address, or an endpoint that already existed), `registration`
+(the Session record), `spawn` (process creation), `release` (publishing the Host's identity and
+resuming it), `exited` (the Host ended before its endpoint appeared), `connect` (the dial never
+reached the Host), `handshake` (the `worker-host` offer or protocol `Hello`) or `deadline` (no
+endpoint within the shared five seconds); `osError`, the operating-system error code the failure
+carries, when it has one; `hostExit`, the Host's exit code when it had exited, which a failed dial
+waits up to 250 milliseconds to observe (the Host's failure codes are in its
+[executable interface](../terminal-host/README.md#executable-interface)); and `elapsedMs`, the
+milliseconds since the start began. These are the only Host diagnostics the log holds; terminal
+content, input and paths never reach it. A pass that removes
 or fails to remove [editor documents](#windows-scrollback-editor-documents) is recorded as
 `editor-documents-removed` with both counts; a folder it cannot inspect, as
 `editor-document-removal-failed` with the error kind. A pass with nothing to remove leaves no record.

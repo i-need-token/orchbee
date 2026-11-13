@@ -409,7 +409,9 @@ private staging, flush and atomic replacement. This is ordinary process/failure 
 power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
 clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
 `spawn_session_child` requires the exact registered direct parent for Worker or Host. Each
-child is created suspended and released only after its identity is flushed. Explicit confirmed
+child is created suspended and released only after its identity is flushed. A failed start's I/O
+error keeps the failed operation's kind and operating-system code and names its step,
+`SessionChildStep::of`: registration, creation or release. Explicit confirmed
 named-session deletion can replace an unreadable record with its deletion fence only after the
 existing owner, endpoint and storage guards pass; ordinary publication cannot overwrite it.
 Live Host adoption remains separate.

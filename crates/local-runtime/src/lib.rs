@@ -106,7 +106,7 @@ mod process_observation;
 mod process_registration;
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
-pub use registered_child::{SessionChild, spawn_session_child};
+pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
 mod durable_sessions;
 pub use durable_sessions::RetainedSessionRecord;
 mod checkpoint_restore_notice;

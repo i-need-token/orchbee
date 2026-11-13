@@ -22,7 +22,7 @@ impl RetainedChild {
         }
         if let Err(error) = self.0.hProcess.TerminateProcess(1) {
             // The child can exit between the initial wait and termination.
-            return self.try_wait()?.ok_or_else(|| io::Error::other(error));
+            return self.try_wait()?.ok_or_else(|| system(error));
         }
         loop {
             if let Some(status) = self.try_wait()? {
@@ -35,7 +35,7 @@ impl RetainedChild {
             self.0
                 .hProcess
                 .WaitForSingleObject(Some(remaining.as_millis().clamp(1, 100) as u32))
-                .map_err(io::Error::other)?;
+                .map_err(system)?;
         }
     }
 
@@ -49,7 +49,7 @@ impl RetainedChild {
         crate::process_observation::identity(&self.0.hProcess)
     }
     pub(crate) fn resume(&mut self) -> io::Result<()> {
-        match self.0.hThread.ResumeThread().map_err(io::Error::other)? {
+        match self.0.hThread.ResumeThread().map_err(system)? {
             1 => Ok(()),
             _ => Err(io::Error::other(
                 "unexpected registered child suspend count",
@@ -71,7 +71,7 @@ impl RetainedChild {
         }
         // A process keeps its working directory in use, so a child that outlives the activating
         // Client must not inherit a directory the person may later remove, such as a Worktree.
-        let directory = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
+        let directory = winsafe::GetSystemDirectory().map_err(system)?;
         // bInheritHandles=false is essential: even when stdio is redirected to
         // NUL, a generic inheriting spawn can retain a caller's capture pipe.
         winsafe::CreateProcess(
@@ -86,7 +86,7 @@ impl RetainedChild {
             &mut winsafe::STARTUPINFO::default(),
         )
         .map(Self)
-        .map_err(io::Error::other)
+        .map_err(system)
     }
     /// The operating-system process identifier of the held process.
     pub fn id(&self) -> Option<u32> {
@@ -97,7 +97,7 @@ impl RetainedChild {
             .0
             .hProcess
             .WaitForSingleObject(Some(0))
-            .map_err(io::Error::other)?
+            .map_err(system)?
         {
             co::WAIT::TIMEOUT => Ok(None),
             co::WAIT::OBJECT_0 => self
@@ -105,10 +105,15 @@ impl RetainedChild {
                 .hProcess
                 .GetExitCodeProcess()
                 .map(|status| Some(ExitStatus::from_raw(status)))
-                .map_err(io::Error::other),
+                .map_err(system),
             _ => Err(io::Error::other("unexpected retained process wait result")),
         }
     }
+}
+/// A failed system call as the I/O error of its code, so callers and diagnostics read its kind and
+/// operating-system error code instead of an uncoded wrapper.
+fn system(error: co::ERROR) -> io::Error {
+    io::Error::from_raw_os_error(error.raw() as i32)
 }
 fn text(value: &OsStr) -> io::Result<&str> {
     value
