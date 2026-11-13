@@ -247,8 +247,11 @@ kind this build does not know, with exit 4. The selector
 is a prefix, accepts `--machine=value`, cannot combine with `--session`, and never
 changes the catalog. Help is local. Remote execution admits CLI commands
 for workspace, tab, panel, Client queries/control, terminal queries/send, Agent operations, worktrees,
-notifications, runtime configuration, manifests, and supported plugin operations.
-Local management, installation, TUI, and terminal interactive streams are refused.
+notifications, runtime configuration, manifests, `server stop-status`, and supported plugin
+operations. Local management, installation, TUI, and terminal interactive streams are refused.
+`server stop` is never routed as a command line: with the prefix it is the
+[remote Session stop](#remote-session-stop), and a far end of this build refuses an older near
+side's routed `server stop` as not submitted (`remote-rejected-or-interrupted`, exit 5).
 
 The owner is the [machine hub](#machine-hub), not the local IPC transport. The command reaches it
 through the [client owner](#client-owner), attached with neither `presence`, `asks` nor `watch`,
@@ -323,6 +326,54 @@ ran ever follows a dispatched command.
 Private requests are at most 2 MiB and replies at most 24 MiB; raw stdout and
 stderr are each at most 8 MiB. Arguments are bounded to 64 KiB and 1024 entries.
 PowerShell completion supports the selector prefix and routed command scope.
+
+## Remote Session stop
+
+`orchbee --machine <id-or-exact-label> server stop` stops the selected Machine's remote Session and
+every terminal in it through the hub's [`stop-session`](#stopping-a-session); nothing travels as a
+routed command line. The grammar is the local `server stop`'s: development and test builds require
+`--confirm`, and `--request-id`, `--retry`, `--detach` and `--timeout`, which have no counterpart in
+`stop-session`, are usage failures (exit 2). The command then reads the catalog and selects the
+Machine by the [routing rules](#command-routing-contract); a selection or catalog failure is a
+not-submitted `orchbee.cli.failure.machine-route` document, and no hub is asked.
+
+The near side next applies the [release confirmation](../README.md#windows-release-destructive-confirmation)
+exactly as a local `server stop` does, before the hub is asked anything: the release build refuses
+`--confirm` and every invocation without two consoles, and otherwise prompts on standard error with
+the Machine's label, the remote Session's name and that every terminal in it stops, and runs only
+when the person types that Session's name. A refusal is the local one, naming
+`orchbee --machine <selector> server stop` to run by hand, or the Machine's ID when the selector is
+not a plain word. The request log records it as `machine server stop` with the remote Session.
+
+The command then reaches the hub through the [client owner](#client-owner), starting one when none
+runs, asks it to `reload`, and sends `stop-session`. When the hub answers `not-online` or `stopping`,
+nothing was asked of the Session, so the command has the Machine brought `online` under the rules
+and errors of a routed command, whose failures are that command's not-submitted documents, and sends
+`stop-session` once more. Starting the hub and reaching `online` are each bounded by 90 seconds, and
+each `stop-session` answer by 120 seconds, past the run's 65-second watch and its last 30-second
+exchange. An interrupt before `stop-session` is sent ends the command with the not-submitted
+`cancelled` failure (exit 130). Once it may have been sent, an interrupt ends the wait and not the
+stop, an unanswered or lost request reads the same, and the outcome is `unknown`.
+
+The result is `orchbee.machine.server-stop` version 1:
+`{schema, version, result: {machine: {id, label, session}, outcome}}`, where `machine` names the
+saved Machine as the [machine receipt](#machine-receipt) does and `outcome` is the hub's word. The
+exit code follows from the outcome alone:
+
+| Outcome       | Exit | Class                                                                                      |
+| ------------- | ---- | ------------------------------------------------------------------------------------------ |
+| `stopped`     | 0    | Success                                                                                    |
+| `not-running` | 4    | Unavailable, as a local `server stop` that finds no Session                                |
+| `not-online`  | 4    | `service-unavailable`                                                                      |
+| `stopping`    | 4    | `service-unavailable`                                                                      |
+| `not-found`   | 3    | `not-found`                                                                                |
+| `failed`      | 9    | Failed: the Session may have accepted the stop and ended part of it, so nothing is claimed |
+| `unknown`     | 8    | `outcome-unknown`                                                                          |
+
+`--format text` prints one line naming the Machine and the outcome, and says when an interrupt
+ended the wait; raw `ssh` text never reaches it. The command never retries a sent `stop-session`.
+An older build's far end is never sent anything by this command. An older near side's routed
+`server stop` reaches a far end of this build as a routed command line, which it refuses.
 
 ## Link helper
 
@@ -702,7 +753,8 @@ same-user rule, as for any client's `session` channel. The far end gains no entr
 variable, runs no command, and reads no confirmation. Confirmation belongs to the asker: whoever
 asks the hub on a person's behalf first applies the
 [destructive-command rule](../../../docs/cli/command-surface.md) of its own build, as a local
-`server stop` does; the hub carries out a request already confirmed.
+`server stop` does and the [remote Session stop](#remote-session-stop) does; the hub carries out a
+request already confirmed.
 
 A run is the work of one `stop-session` for one Machine, and its thread performs it:
 
@@ -951,7 +1003,7 @@ connection, so nothing changed for the link.
 ### Client owner
 
 One owner reaches the hub for every client: the diagnostic entries, `machine connect`, routed
-commands and uninstall today, the TUI and the Desktop's Client in later slices. It is the workbench Client crate's `machine_hub` module,
+commands, the remote Session stop and uninstall today, the TUI and the Desktop's Client in later slices. It is the workbench Client crate's `machine_hub` module,
 on Windows only. Two rules place it there. An internal crate never depends on the application
 target ([Rust](../../../docs/RUST.md#placement-and-workspace-ownership)), so the TUI's crate cannot
 reach code under the application's `cli`. Reusable code goes to its nearest semantic owner

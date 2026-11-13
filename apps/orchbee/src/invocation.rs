@@ -820,6 +820,8 @@ pub(crate) enum Request {
         format: OutputFormat,
     },
     MachineRoute(machine_routing::Route),
+    /// `--machine <selector> server stop`: confirmed here, then asked of the machine hub.
+    MachineStop(machine_routing::RemoteStop),
     MachineHub,
     MachineHubState,
     MachineHubHold,

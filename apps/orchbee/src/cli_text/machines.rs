@@ -13,6 +13,42 @@ impl super::CliText {
         }
     }
 
+    /// The one line of `--machine <selector> server stop` for the hub's `outcome` on the Machine
+    /// `label`; `interrupted` says that an interrupt ended the wait, not the stop.
+    pub(crate) fn cli_machine_stop_result(
+        self,
+        label: &str,
+        outcome: &str,
+        interrupted: bool,
+    ) -> String {
+        let label = super::escape::quoted(label);
+        let state = match (self.locale, outcome) {
+            (Locale::EnUs, "stopped") => "stopped",
+            (Locale::ZhCn, "stopped") => "已停止",
+            (Locale::EnUs, "not-running") => "no Session was running",
+            (Locale::ZhCn, "not-running") => "会话未在运行",
+            (Locale::EnUs, "not-online") => "the machine is not online",
+            (Locale::ZhCn, "not-online") => "机器未上线",
+            (Locale::EnUs, "not-found") => "no such saved machine",
+            (Locale::ZhCn, "not-found") => "没有这台已保存的机器",
+            (Locale::EnUs, "failed") => "failed",
+            (Locale::ZhCn, "failed") => "失败",
+            (Locale::EnUs, "stopping") => "the background machine hub is closing; try again",
+            (Locale::ZhCn, "stopping") => "后台连接进程正在关闭，请重试",
+            (Locale::EnUs, _) => "outcome unknown",
+            (Locale::ZhCn, _) => "结果未知",
+        };
+        let waiting = match (self.locale, interrupted) {
+            (_, false) => "",
+            (Locale::EnUs, true) => " (wait cancelled; the stop may go on)",
+            (Locale::ZhCn, true) => "（已取消等待，停止可能仍在进行）",
+        };
+        match self.locale {
+            Locale::EnUs => format!("Session stop on machine {label}: {state}{waiting}\n"),
+            Locale::ZhCn => format!("机器 {label} 的会话停止：{state}{waiting}\n"),
+        }
+    }
+
     pub(crate) fn cli_machine_help(
         self,
         path: crate::invocation::CommandPath,

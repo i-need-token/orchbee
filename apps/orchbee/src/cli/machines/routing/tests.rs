@@ -131,6 +131,83 @@ fn every_routed_failure_exits_by_its_kind_and_an_unknown_outcome_never_claims_no
     }
 }
 #[test]
+fn every_remote_stop_outcome_exits_by_the_outcome_alone_and_its_document_validates() {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../schemas/orchbee.machine.server-stop.json"
+    ))
+    .unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let machine = stop::Machine {
+        id: "11111111111111111111111111111111",
+        label: "Lab \u{1b}[31m box",
+        session: "far",
+    };
+    for &outcome in StopSessionOutcome::ALL {
+        let expected = match outcome {
+            StopSessionOutcome::Stopped => 0,
+            // A Session that was not running exits as a local `server stop` that finds none.
+            StopSessionOutcome::NotRunning
+            | StopSessionOutcome::NotOnline
+            | StopSessionOutcome::Stopping => FailureKind::ServiceUnavailable.exit_code(),
+            StopSessionOutcome::NotFound => FailureKind::NotFound.exit_code(),
+            StopSessionOutcome::Unknown => FailureKind::OutcomeUnknown.exit_code(),
+            StopSessionOutcome::Failed => 9,
+        };
+        assert_eq!(stop_status(outcome), expected, "{outcome:?}");
+        // Neither an outcome that may follow a stop the Session accepted nor one the Session never
+        // saw claims the other.
+        if matches!(
+            outcome,
+            StopSessionOutcome::Failed | StopSessionOutcome::Unknown
+        ) {
+            assert!(!matches!(stop_status(outcome), 0 | 3..=6), "{outcome:?}");
+        }
+        let stopped = stop::Stopped {
+            outcome,
+            interrupted: false,
+        };
+        let documents = [Locale::EnUs, Locale::ZhCn]
+            .map(|locale| stop::emit(&machine, stopped, OutputFormat::Json, locale));
+        assert_eq!(documents[0].stdout, documents[1].stdout, "{outcome:?}");
+        let document: serde_json::Value = serde_json::from_slice(&documents[0].stdout).unwrap();
+        validator.validate(&document).unwrap();
+        assert_eq!(document["schema"], stop::SCHEMA);
+        assert_eq!(document["result"]["outcome"], outcome.as_str());
+        assert_eq!(document["result"]["machine"]["label"], machine.label);
+        assert_eq!(documents[0].status, expected);
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let text = stop::emit(&machine, stopped, OutputFormat::Text, locale);
+            let line = String::from_utf8(text.stdout).unwrap();
+            assert_eq!(text.status, expected);
+            assert_eq!(line.lines().count(), 1, "{line}");
+            assert!(!line.contains('\u{1b}'), "{line}");
+        }
+    }
+    // An interrupt after the request may have been sent says so and claims no outcome.
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let [settled, interrupted] = [false, true].map(|interrupted| {
+            stop::emit(
+                &machine,
+                stop::Stopped {
+                    outcome: StopSessionOutcome::Unknown,
+                    interrupted,
+                },
+                OutputFormat::Text,
+                locale,
+            )
+        });
+        assert_eq!(interrupted.status, FailureKind::OutcomeUnknown.exit_code());
+        assert_ne!(settled.stdout, interrupted.stdout);
+        assert_eq!(
+            String::from_utf8(interrupted.stdout)
+                .unwrap()
+                .lines()
+                .count(),
+            1
+        );
+    }
+}
+#[test]
 fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
     let packet = Packet {
         version: 1,

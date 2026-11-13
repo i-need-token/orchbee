@@ -1007,6 +1007,35 @@ fn a_session_stream_through_the_hub_carries_both_ways_and_its_client_leaving_kee
     }
 }
 
+#[test]
+fn a_remote_stop_asks_the_hub_only_once_confirmed_and_reports_the_far_session_outcome() {
+    let carried = Carried::new("rc1-stop-", false);
+    let endpoint = carried.endpoint();
+
+    // A test build refuses a stop without `--confirm` before any hub is started or asked.
+    let refused = carried.run(&["--machine", FIRST, "server", "stop"]);
+    assert_eq!(refused.code, Some(2), "{refused}");
+    assert!(!orchbee_local_ipc::endpoint_exists(&endpoint).unwrap());
+
+    // The stop starts the hub and brings the Machine online, which starts the far Session, then
+    // stops that Session; the next finds none running.
+    for (outcome, code) in [("stopped", 0), ("not-running", 4)] {
+        let run = carried.run(&["--machine", FIRST, "server", "stop", "--confirm"]);
+        assert_eq!(run.code, Some(code), "{run}");
+        assert_eq!(
+            run.document["schema"], "orchbee.machine.server-stop",
+            "{run}"
+        );
+        assert_eq!(run.document["result"]["outcome"], outcome, "{run}");
+        assert_eq!(run.document["result"]["machine"]["id"], FIRST, "{run}");
+        assert_eq!(run.document["result"]["machine"]["session"], "far", "{run}");
+    }
+    assert_eq!(
+        carried.state().machines,
+        [(FIRST.to_owned(), "online".to_owned())]
+    );
+}
+
 /// A real local runtime whose saved machine `FIRST`, named `user@host.invalid` with the remote
 /// Session `far`, the hub carries through the stand-in: the Client under test as the far end, so no
 /// `ssh` starts and nothing is contacted. The stand-in receives no `ORCHBEE_*` variable, so the far

@@ -94,6 +94,10 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.machine.json"),
     ),
     (
+        "orchbee.machine.server-stop",
+        include_str!("../../cli/schemas/orchbee.machine.server-stop.json"),
+    ),
+    (
         "orchbee.update",
         include_str!("../../cli/schemas/orchbee.update.json"),
     ),

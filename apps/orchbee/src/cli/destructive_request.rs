@@ -1,5 +1,5 @@
-//! Destructive admission for `server stop`, `session stop`, `session delete` (ORC-382) and
-//! `uninstall`.
+//! Destructive admission for `server stop`, `session stop`, `session delete` (ORC-382),
+//! `--machine <selector> server stop` and `uninstall`.
 //!
 //! A release Windows build runs them only when standard input and standard output are both
 //! interactive consoles and the person types the exact Session name, or `orchbee` for `uninstall`,
@@ -25,7 +25,6 @@ pub(super) enum DestructiveCommand {
     ServerStop,
     SessionStop,
     SessionDelete,
-    Uninstall,
 }
 
 impl DestructiveCommand {
@@ -34,7 +33,6 @@ impl DestructiveCommand {
             Self::ServerStop => "server stop",
             Self::SessionStop => "session stop",
             Self::SessionDelete => "session delete",
-            Self::Uninstall => "uninstall",
         }
     }
 
@@ -43,9 +41,77 @@ impl DestructiveCommand {
         match (self, target) {
             (Self::ServerStop, Some(name)) => format!("orchbee --session {name} server stop"),
             (Self::ServerStop, None) => "orchbee --session <name> server stop".to_owned(),
-            (Self::Uninstall, _) => "orchbee uninstall".to_owned(),
             (_, name) => format!("orchbee {} {}", self.words(), name.unwrap_or("<name>")),
         }
+    }
+}
+
+/// How one invocation names itself in the request log, its prompt and its refusals.
+enum Wording<'a> {
+    /// A local Session command: the prompt and the command to run by hand name the Session.
+    Session(DestructiveCommand),
+    /// `uninstall`: `listing`, what goes and what stays, precedes the prompt.
+    Uninstall { listing: &'a str },
+    /// A remote stop: the prompt names the Machine `label`, and `hand` is the command to run by
+    /// hand.
+    Remote { label: &'a str, hand: &'a str },
+}
+
+impl Wording<'_> {
+    const fn words(&self) -> &'static str {
+        match self {
+            Self::Session(command) => command.words(),
+            Self::Uninstall { .. } => "uninstall",
+            Self::Remote { .. } => "machine server stop",
+        }
+    }
+
+    fn prompt(&self, text: CliText, target: &str) -> String {
+        match self {
+            Self::Session(command) => {
+                text.cli_destructive_prompt(target, *command == DestructiveCommand::SessionDelete)
+            }
+            Self::Uninstall { listing } => format!("{listing}{}", text.cli_uninstall_prompt()),
+            Self::Remote { label, .. } => text.cli_machine_stop_prompt(label, target),
+        }
+    }
+
+    fn refusal(&self, text: CliText, refusal: Refusal, target: Option<&str>) -> String {
+        let name = target.unwrap_or_default();
+        match self {
+            Self::Session(command) => {
+                text.cli_destructive_refusal(refusal.reason(), &command.by_hand(target), name)
+            }
+            Self::Uninstall { .. } => text.cli_uninstall_refusal(refusal.reason()),
+            Self::Remote { hand, .. } => text.cli_destructive_refusal(refusal.reason(), hand, name),
+        }
+    }
+}
+
+/// What admission reads from its environment and does to it: the platform's facts and effects in
+/// a build, and a script in tests, which judge the release rule a development build cannot run.
+trait Host {
+    fn release(&self) -> bool;
+    fn console(&self) -> Console;
+    fn prompt(&mut self, text: &str) -> Typed;
+    fn record(&mut self, command: &str, target: Option<&str>, console: Console, outcome: &str);
+}
+
+/// The platform this build runs on.
+struct Platform;
+
+impl Host for Platform {
+    fn release(&self) -> bool {
+        platform::release()
+    }
+    fn console(&self) -> Console {
+        platform::console()
+    }
+    fn prompt(&mut self, text: &str) -> Typed {
+        platform::prompt(text)
+    }
+    fn record(&mut self, command: &str, target: Option<&str>, console: Console, outcome: &str) {
+        platform::record(command, target, console, outcome);
     }
 }
 
@@ -146,7 +212,18 @@ pub(super) fn admit(
     format: OutputFormat,
     locale: Locale,
 ) -> Result<(), Box<Output>> {
-    admit_after(command, confirm, target, "", format, locale)
+    let resolved = match target {
+        Some(name) => Some(name.to_owned()),
+        None => platform::target_session_name(),
+    };
+    admit_with(
+        &mut Platform,
+        &Wording::Session(command),
+        confirm,
+        resolved.as_deref(),
+        format,
+        locale,
+    )
 }
 
 /// The name a person types to admit `uninstall`.
@@ -160,45 +237,84 @@ pub(super) fn admit_uninstall(
     format: OutputFormat,
     locale: Locale,
 ) -> Result<(), Box<Output>> {
-    admit_after(
-        DestructiveCommand::Uninstall,
+    admit_with(
+        &mut Platform,
+        &Wording::Uninstall { listing },
         confirm,
         Some(UNINSTALL_NAME),
-        listing,
         format,
         locale,
     )
 }
 
-fn admit_after(
-    command: DestructiveCommand,
+/// The saved Machine a remote stop names: `selector` as the person typed it, and the catalog's
+/// `id`, `label` and remote `session`.
+pub(super) struct RemoteTarget<'a> {
+    pub(super) selector: &'a str,
+    pub(super) id: &'a str,
+    pub(super) label: &'a str,
+    pub(super) session: &'a str,
+}
+
+/// Admits `--machine <selector> server stop` under the rule a local `server stop` follows in this
+/// build. The person types the remote Session's name; the prompt names the Machine and says that
+/// the Session and every terminal in it stop.
+pub(super) fn admit_remote_stop(
     confirm: bool,
-    target: Option<&str>,
-    listing: &str,
+    target: &RemoteTarget<'_>,
     format: OutputFormat,
     locale: Locale,
 ) -> Result<(), Box<Output>> {
-    let release = platform::release();
-    let console = platform::console();
-    let resolved = match target {
-        Some(name) => Some(name.to_owned()),
-        None => platform::target_session_name(),
+    remote_stop_with(&mut Platform, confirm, target, format, locale)
+}
+
+fn remote_stop_with(
+    host: &mut impl Host,
+    confirm: bool,
+    target: &RemoteTarget<'_>,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<(), Box<Output>> {
+    // A selector a shell would split or expand is replaced by the Machine's ID.
+    let selector = if target
+        .selector
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        target.selector
+    } else {
+        target.id
     };
-    let target = resolved.as_deref();
+    let hand = format!("orchbee --machine {selector} server stop");
+    admit_with(
+        host,
+        &Wording::Remote {
+            label: target.label,
+            hand: &hand,
+        },
+        confirm,
+        Some(target.session),
+        format,
+        locale,
+    )
+}
+
+fn admit_with(
+    host: &mut impl Host,
+    wording: &Wording<'_>,
+    confirm: bool,
+    target: Option<&str>,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<(), Box<Output>> {
+    let release = host.release();
+    let console = host.console();
     let verdict = match decide(release, console, confirm, target, None) {
         Decision::Run => Verdict::Run,
         Decision::Refuse(refusal) => Verdict::Refuse(refusal),
         Decision::Prompt => {
-            let text = CliText::new(locale);
-            let prompt = if command == DestructiveCommand::Uninstall {
-                format!("{listing}{}", text.cli_uninstall_prompt())
-            } else {
-                text.cli_destructive_prompt(
-                    target.unwrap_or_default(),
-                    command == DestructiveCommand::SessionDelete,
-                )
-            };
-            match platform::prompt(&prompt) {
+            let prompt = wording.prompt(CliText::new(locale), target.unwrap_or_default());
+            match host.prompt(&prompt) {
                 Ok(line) => match decide(release, console, confirm, target, Some(&line)) {
                     Decision::Run => Verdict::Run,
                     Decision::Refuse(refusal) => Verdict::Refuse(refusal),
@@ -209,7 +325,7 @@ fn admit_after(
             }
         }
     };
-    platform::record(command.words(), target, console, verdict.outcome());
+    host.record(wording.words(), target, console, verdict.outcome());
     match verdict {
         Verdict::Run => Ok(()),
         Verdict::Cancelled(finalization) => {
@@ -228,15 +344,7 @@ fn admit_after(
                 Some(format),
                 locale,
             );
-            output.stderr = if command == DestructiveCommand::Uninstall {
-                CliText::new(locale).cli_uninstall_refusal(refusal.reason())
-            } else {
-                CliText::new(locale).cli_destructive_refusal(
-                    refusal.reason(),
-                    &command.by_hand(target),
-                    target.unwrap_or_default(),
-                )
-            };
+            output.stderr = wording.refusal(CliText::new(locale), refusal, target);
             Err(Box::new(output))
         }
     }

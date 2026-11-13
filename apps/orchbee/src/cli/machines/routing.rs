@@ -14,6 +14,7 @@ use crate::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use orchbee_connection_handshake::{Delivery, Extensions, Generation};
 use orchbee_local_runtime::{CommandFailure, SessionName};
+use orchbee_machine_protocol::hub::StopSessionOutcome;
 use serde::{Deserialize, Serialize};
 use std::{
     io,
@@ -44,6 +45,7 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "routing/unix.rs"]
 mod platform;
+pub(crate) mod stop;
 
 const REQUEST_LIMIT: usize = 2 * 1024 * 1024;
 const REPLY_LIMIT: usize = 24 * 1024 * 1024;
@@ -221,6 +223,21 @@ fn kind(error: Error) -> FailureKind {
         Error::PhysicalUnknown => FailureKind::OutcomeUnknown,
         Error::Cancelled => FailureKind::Cancelled,
         Error::Internal => FailureKind::InternalFailure,
+    }
+}
+/// The exit code of `--machine <selector> server stop` for the hub's `stop-session` outcome, from
+/// the outcome alone. A Session that was not running exits as a local `server stop` that finds
+/// none; the hub's `failed` may follow a stop the Session accepted and partly carried out, so it
+/// exits as a failed result rather than as a refusal that applied nothing.
+fn stop_status(outcome: StopSessionOutcome) -> u8 {
+    match outcome {
+        StopSessionOutcome::Stopped => 0,
+        StopSessionOutcome::NotRunning
+        | StopSessionOutcome::NotOnline
+        | StopSessionOutcome::Stopping => FailureKind::ServiceUnavailable.exit_code(),
+        StopSessionOutcome::NotFound => FailureKind::NotFound.exit_code(),
+        StopSessionOutcome::Unknown => FailureKind::OutcomeUnknown.exit_code(),
+        StopSessionOutcome::Failed => 9,
     }
 }
 /// The kind a routed failure reports. An interrupt and an elapsed deadline keep theirs; any other

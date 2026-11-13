@@ -141,6 +141,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::MachineRoute(route)) => {
                 cli::machines::routing::run(route, locale)
             }
+            Ok(invocation::Request::MachineStop(stop)) => {
+                cli::machines::routing::stop::run(&stop, locale)
+            }
             Ok(invocation::Request::MachineHub) => cli::machines::hub::serve(locale),
             Ok(invocation::Request::MachineHubState) => cli::machines::hub::print_state(locale),
             Ok(invocation::Request::MachineHubHold) => cli::machines::hub::hold(locale),

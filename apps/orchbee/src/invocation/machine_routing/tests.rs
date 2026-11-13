@@ -74,3 +74,96 @@ fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
         Request::Help(_)
     ));
 }
+
+#[test]
+fn a_remote_stop_is_confirmed_here_and_refuses_the_local_stop_options() {
+    for (args, format) in [
+        (
+            vec!["--machine", "work", "server", "stop", "--confirm"],
+            OutputFormat::Text,
+        ),
+        (
+            vec![
+                "--machine=work",
+                "server",
+                "stop",
+                "--confirm",
+                "--format=json",
+            ],
+            OutputFormat::Json,
+        ),
+    ] {
+        assert_eq!(
+            parse_request(args.into_iter().map(Into::into)).unwrap(),
+            Request::MachineStop(RemoteStop {
+                selector: "work".into(),
+                confirm: true,
+                format,
+            })
+        );
+    }
+    // A test build requires `--confirm` before anything is read or asked, as a local stop does.
+    assert!(
+        parse_request(
+            ["--machine=work", "server", "stop"]
+                .into_iter()
+                .map(Into::into)
+        )
+        .is_err()
+    );
+    for (option, extra) in [
+        (
+            "--request-id",
+            ["--request-id", "0123456789abcdef0123456789abcdef"].as_slice(),
+        ),
+        (
+            "--retry",
+            [
+                "--retry",
+                "--request-id",
+                "0123456789abcdef0123456789abcdef",
+            ]
+            .as_slice(),
+        ),
+        ("--detach", ["--detach"].as_slice()),
+        ("--timeout", ["--timeout", "65000"].as_slice()),
+        ("--timeout", ["--timeout=1000"].as_slice()),
+    ] {
+        let failure = parse_request(
+            ["--machine=work", "server", "stop", "--confirm"]
+                .into_iter()
+                .chain(extra.iter().copied())
+                .map(Into::into),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                failure.usage,
+                Some(UsageReason::UnexpectedOption { option: refused, .. }) if refused == option
+            ),
+            "{extra:?}: {:?}",
+            failure.usage
+        );
+    }
+    // Neither side runs a stop as a routed command line; reading a stop's status still routes.
+    let Ok(Request::ServerStop { command, format }) = crate::invocation::parse_request(
+        ["server", "stop", "--confirm"].into_iter().map(Into::into),
+    ) else {
+        panic!("a local stop parses");
+    };
+    assert!(admit(&Request::ServerStop { command, format }).is_none());
+    assert!(matches!(
+        parse_request(
+            [
+                "--machine=work",
+                "server",
+                "stop-status",
+                "0123456789abcdef0123456789abcdef"
+            ]
+            .into_iter()
+            .map(Into::into)
+        )
+        .unwrap(),
+        Request::MachineRoute(_)
+    ));
+}

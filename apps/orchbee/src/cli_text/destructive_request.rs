@@ -1,6 +1,7 @@
-//! Formats the release confirmation prompt and refusals for `server stop`, `session stop` and
-//! `session delete` (ORC-382). The admission owner supplies the Session name and the command a
-//! person runs by hand; nothing here decides admission.
+//! Formats the release confirmation prompt and refusals for `server stop`, `session stop`,
+//! `session delete` (ORC-382) and `--machine <selector> server stop`. The admission owner supplies
+//! the Session name, the Machine and the command a person runs by hand; nothing here decides
+//! admission.
 use super::Locale;
 
 impl super::CliText {
@@ -12,6 +13,21 @@ impl super::CliText {
             (Locale::EnUs, true) => format!("Type the Session name {name} to delete it: "),
             (Locale::ZhCn, false) => format!("输入会话名称 {name} 以停止该会话："),
             (Locale::ZhCn, true) => format!("输入会话名称 {name} 以删除该会话："),
+        }
+    }
+
+    /// The console prompt of `--machine <selector> server stop`: what stops on the Machine `label`,
+    /// then the remote Session `name` to type.
+    pub(crate) fn cli_machine_stop_prompt(self, label: &str, name: &str) -> String {
+        let label = super::escape::quoted(label);
+        let name = super::escape::escape(name);
+        match self.locale {
+            Locale::EnUs => format!(
+                "This stops Session {name} on machine {label} and every terminal in it. Type the Session name {name} to stop it: "
+            ),
+            Locale::ZhCn => format!(
+                "这会停止机器 {label} 上的远端会话 {name} 及其中的所有终端。输入会话名称 {name} 以停止该会话："
+            ),
         }
     }
 

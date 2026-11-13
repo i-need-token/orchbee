@@ -1,0 +1,54 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.machine.server-stop",
+	"title": "Saved machine remote Session stop result",
+	"type": "object",
+	"required": ["schema", "version", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.machine.server-stop"
+		},
+		"version": {
+			"const": 1
+		},
+		"result": {
+			"type": "object",
+			"required": ["machine", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"machine": {
+					"type": "object",
+					"required": ["id", "label", "session"],
+					"additionalProperties": false,
+					"properties": {
+						"id": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						"label": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128
+						},
+						"session": {
+							"type": "string",
+							"pattern": "^(?!\\.)(?!.*\\.$)[A-Za-z0-9._-]{1,64}$"
+						}
+					}
+				},
+				"outcome": {
+					"enum": [
+						"stopped",
+						"not-running",
+						"not-online",
+						"not-found",
+						"failed",
+						"unknown",
+						"stopping"
+					]
+				}
+			}
+		}
+	}
+}

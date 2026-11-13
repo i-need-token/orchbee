@@ -123,7 +123,7 @@ Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，�
 
 破坏性命令要求其声明的 `--confirm`。关闭 Workspace 不删除 Git 检出或分支。回执要求恢复时，使用 close-status/close-resume 或 worktree status/resume，并保留请求 ID 与 generation。不要通过创建第二个操作隐式重试。
 
-仅当用户在当前对话中要求停止时，才停止 Server 或 Session；不要自行添加 `--confirm`。`server stop --confirm` 或 `session stop <name> --confirm` 在最终检查点写入后结束 Session。启动会恢复符合条件的布局和启动事实，不恢复实时屏幕历史或活跃 Agent 状态。CLI 等待失败／取消后，停止操作可能仍在进行；应查询保留的请求身份。
+仅当用户在当前对话中要求停止时，才停止 Server 或 Session；不要自行添加 `--confirm`。`server stop --confirm` 或 `session stop <name> --confirm` 在最终检查点写入后结束 Session。启动会恢复符合条件的布局和启动事实，不恢复实时屏幕历史或活跃 Agent 状态。CLI 等待失败／取消后，停止操作可能仍在进行；应查询保留的请求身份。`orchbee --machine <name-or-id> server stop --confirm` 通过后台连接进程停止该已保存机器的远端 Session 及其中的所有终端；它不接受请求标识、重试、后台执行或超时选项，因此 `unknown` 结果没有可查询的身份。
 
 在 Windows 上，正式版的 `server stop`、`session stop` 和 `session delete` 必须由人执行：只有在交互式控制台中由人输入 Session 名称后才会运行，并拒绝 `--confirm` 以及任何智能体、脚本或管道调用。不要在正式版中尝试执行它们，应把需要亲自运行的命令告诉用户。开发版和测试版保留 `--confirm`。每次请求无论接受或拒绝都会记录。
 

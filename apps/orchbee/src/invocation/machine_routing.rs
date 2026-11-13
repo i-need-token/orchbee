@@ -1,8 +1,8 @@
 //! Saved-machine prefix and the shared remote command admission boundary.
 use super::{
     FailureEnvelope, MutationCommand, OutputFormat, ParseFailure, QueryCommand, Request,
-    RuntimeStatusScope, SelectedRequest, TerminalSendInput, UsageContext, UsageReason,
-    format_envelope, plugins, scan, selection_envelope, usage_with,
+    RuntimeStatusScope, SelectedRequest, ServerStopCommand, TerminalSendInput, UsageContext,
+    UsageReason, format_envelope, plugins, scan, selection_envelope, usage_with,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,6 +12,19 @@ pub(crate) struct Route {
     pub(crate) format: OutputFormat,
     pub(crate) input: Option<TerminalSendInput>,
 }
+
+/// `--machine <selector> server stop`: never routed as a command line. The near side confirms it
+/// as a local `server stop` is confirmed, then asks the machine hub to stop the remote Session.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RemoteStop {
+    pub(crate) selector: String,
+    /// Whether `--confirm` was given; a release Windows build refuses it at admission.
+    pub(crate) confirm: bool,
+    pub(crate) format: OutputFormat,
+}
+
+/// How a refused option of the remote stop names its command.
+const REMOTE_STOP: UsageContext = UsageContext::Literal("orchbee --machine <selector> server stop");
 
 pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
     // This helper grammar is permanent; a change adds a new helper name instead.
@@ -101,6 +114,51 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     ) {
         return Ok(selected);
     }
+    if let Request::ServerStop {
+        command:
+            ServerStopCommand::Stop {
+                id,
+                confirm,
+                retry,
+                detach,
+                ..
+            },
+        format,
+    } = &selected.request
+    {
+        // A local stop's request identity, retry, detachment and wait have no counterpart in the
+        // hub's `stop-session`, so they are refused rather than ignored.
+        let unexpected = if *retry {
+            Some("--retry")
+        } else if id.is_some() {
+            Some("--request-id")
+        } else if *detach {
+            Some("--detach")
+        } else if given(&arguments, "--timeout") {
+            Some("--timeout")
+        } else {
+            None
+        };
+        if let Some(option) = unexpected {
+            return Err(usage_with(
+                UsageReason::UnexpectedOption {
+                    context: REMOTE_STOP,
+                    option,
+                },
+                envelope,
+            ));
+        }
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::Windows,
+            format: Some(*format),
+            session: None,
+            request: Request::MachineStop(RemoteStop {
+                selector,
+                confirm: *confirm,
+                format: *format,
+            }),
+        });
+    }
     let (format, input) = admit(&selected.request).ok_or_else(|| {
         usage_with(
             UsageReason::UnexpectedOption {
@@ -121,6 +179,21 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             input,
         }),
     })
+}
+
+/// Whether the parsed arguments spelled `option`, alone or with `=`, before any `--` terminator.
+/// The grammar already admitted them, so a value can spell an option name only where that value
+/// was itself refused.
+fn given(arguments: &[String], option: &str) -> bool {
+    arguments
+        .iter()
+        .take_while(|argument| *argument != "--")
+        .any(|argument| {
+            argument == option
+                || argument
+                    .strip_prefix(option)
+                    .is_some_and(|rest| rest.starts_with('='))
+        })
 }
 
 /// This is used on both sides. Local administrative commands and streams never
@@ -156,7 +229,11 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
         | Request::WorkspaceGroupClose { format, .. }
         | Request::WorktreeQuery { format, .. }
         | Request::Worktree { format, .. }
-        | Request::ServerStop { format, .. }
+        // A stop goes through the machine hub instead; see [`RemoteStop`].
+        | Request::ServerStop {
+            command: ServerStopCommand::Status { .. },
+            format,
+        }
         | Request::WindowTitle { format, .. }
         | Request::Notification { format, .. }
         | Request::RuntimeConfiguration { format, .. }
