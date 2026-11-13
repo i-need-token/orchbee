@@ -4,7 +4,7 @@ The Server owns fallback screen interpretation separately from explicit Agent re
 
 ## Inputs and rule ownership
 
-The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Mastracode has no bundled screen manifest and uses this known-provider fallback. CodeBuddy Code, Command Code and DevEco Code bundle only their startup blockers, so their idle and working screens also stay unknown.
+The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Mastracode has no bundled screen manifest and uses this known-provider fallback. CodeBuddy Code and DevEco Code bundle only their startup blockers, so their idle and working screens also stay unknown.
 
 Bundled TOML files are retained under `resources/agent-detection`; files derived from Herdr keep its Apache-2.0 license and source attribution, and `NOTICE` names the files Orchbee authored. Server maintainers own review and pinned updates. Parsing rejects unknown fields, invalid states/regions, empty rule identifiers, unsupported engine versions, invalid skip-state combinations and excessive complexity before compiling any executable rule set. Each manifest allows at most 128 rules, 512 gates, depth 8 and 1,024 matchers; each gate allows 32 direct matchers of at most 512 Unicode characters. Regex compilation has explicit memory limits. The already locked `regex` and `toml` packages supply syntax that the standard library cannot implement; no new versions or runtime framework are required.
 
@@ -23,6 +23,22 @@ interrupt hint or the spinner. The start screen centres the box above a tip and 
 stars and a shooting star of braille dots in the rows around it, so the rule finds the box anywhere
 on the screen instead of within a fixed count of nonempty rows. Its `MC |`-prefixed title only
 names the session.
+
+Cline 3.x and Command Code 1.88 keep their composer on screen during a turn, so busy chrome
+decides. Cline's braille spinner leads the turn's newest block (`⠦ Thinking...`, then the first
+line of the answer) while streamed text grows below it, so its working rule reads the whole live
+screen; its composer with the mode footer is idle. An answer taller than the live screen scrolls the
+spinner away before it finishes, and nothing else on screen marks the rest of the stream, so such a
+turn reads idle for its last seconds. Herdr's catch-all that called any other Cline screen working
+is dropped: the shell line that launches Cline and its start screen published Working, and the
+first composer then showed a finished turn. Cline prints nothing after an interrupt that differs
+from a finished turn. Command Code's status row,
+`<spinner> <Word>…  esc to interrupt • <elapsed> • ↓ <tokens>`, directly above the composer's top
+rule is working; the composer between its rules, with the `? for shortcuts` footer or with typed
+text that hides the footer, is idle. An interrupt leaves `❯ Interrupted · What should Command Code
+do instead?` above `✻ Worked for <elapsed>`; screen rules publish no outcome, so it stays idle.
+Neither title carries state. `agent_screen/tests.rs` covers these rules with redacted Windows
+captures.
 
 The status line under a Kimi Code 2.5 answer reads `⠋ Working…` with an ellipsis character, which
 the spinner rule accepts beside three dots.

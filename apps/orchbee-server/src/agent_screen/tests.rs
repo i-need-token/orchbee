@@ -626,6 +626,87 @@ fn new_provider_rules_follow_redacted_windows_captures() {
             .any(|e| e.rule.id == "ready_status_idle" && !e.matched)
     );
 }
+/// Redacted Windows screens from Cline 3.x and Command Code 1.88.5. Both keep their composer on
+/// screen during a turn, so busy chrome decides: Cline's spinner status at the head of the newest
+/// block, wherever streamed text below pushes it, and Command Code's status row right above its
+/// composer. A finished or interrupted turn is idle, and a start screen without the composer, such
+/// as the shell line that launches the Agent, proves nothing.
+#[test]
+fn cline_and_command_code_states_follow_redacted_windows_captures() {
+    use Provider as P;
+    const CLINE_FOOT: &str = "─────────\n❯ Count slowly from 1 to 40.\n─────────\n Model (6,663) $0.00        ○ Plan ● Act (Tab)\n C:\\src\\app\n ⏵⏵ Auto-approve all enabled (Shift+Tab)";
+    const CLINE_ECHO: &str = " ❯ Count slowly from 1 to 40.\n\n";
+    let cline_home = "               @@@@@@\n\n        What can I do for you?\n\n Use / for slash commands, @ for file mentions, Ctrl+P for menu\n\n─────────\n❯ What can I do for you?\n─────────\n\n Model (0) $0.00        ○ Plan ● Act (Tab)\n C:\\src\\app\n ⏵⏵ Auto-approve all enabled (Shift+Tab)";
+    let cline_waiting =
+        format!("{CLINE_ECHO} ⠹ Thinking... (esc to cancel)          █\n\n{CLINE_FOOT}");
+    // Streamed thinking pushes the spinner more than twenty nonempty rows above the bottom.
+    let cline_thinking = format!(
+        "{CLINE_ECHO} ⠦ Thinking...\n{}{CLINE_FOOT}",
+        "   The user wants me to count slowly.          █\n".repeat(16)
+    );
+    let cline_answering = format!(
+        "{CLINE_ECHO} ▶ Thinking: ...I can answer it directly.\n ⠸ Here's the count:\n   1. One step closer.\n   2. Two hands to build\n{CLINE_FOOT}"
+    );
+    let cline_done = format!(
+        "   39. Thirty-nine — one step away.\n   40. Forty — I did it!\n          █\n{CLINE_FOOT}"
+    );
+    let cline_stopped = format!(
+        "{CLINE_ECHO} ▶ Thinking: ...the user is asking for the same thing.  █\n\n * Here's the count from 1 to 40, with a short sentence  █\n{CLINE_FOOT}"
+    );
+    let cline_launch = "PS C:\\src\\app> & (Get-Command 'cline' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1)";
+    const CC_BOX: &str =
+        "─────────\n❯ Ask your question...\n─────────\n  ? for shortcuts · taste off (byok)";
+    const CC_ECHO: &str = "❯ Count slowly from 1 to 40, one number per line, with a short sentence after\n  each number.\n\n";
+    let cc_home = format!(
+        "   ███████ ███████\n\n# Command Code v1.88.5\n# models: provider/model · provider (byok)\n# ~\\src\\app\n\n{CC_BOX}"
+    );
+    let cc_status = |above: &str, status: &str| format!("{CC_ECHO}{above} {status}\n{CC_BOX}");
+    let cc_started = cc_status("", "☆ Tuning…  esc to interrupt • 0s • ↓ 0");
+    let cc_assembling = cc_status("", "✧ Assembling…  esc to interrupt • 3s • ↓ 0");
+    let cc_answering = cc_status(
+        "  17: Seventeen shades of green fill the forest edge.\n  18: Eighteen wheels\n\n",
+        "○ Honing…  esc to interrupt • 8s • ↓ 262",
+    );
+    let cc_done =
+        format!("  40: Forty dreams, all equally wonderful.\n\n✻ Worked for 12s\n\n{CC_BOX}");
+    let cc_stopped = format!(
+        "{CC_ECHO}  22 — Twenty-two\n\n❯ Interrupted · What should Command Code do instead?\n\n✻ Worked for 3s\n\n{CC_BOX}"
+    );
+    // Typed text hides the footer.
+    let cc_typed = "✻ Worked for 12s\n\n─────────\n❯ Count slowly from 1 to 40, one number per line, with a short sentence after each\n  number.\n─────────";
+    let engine = ScreenDetector::bundled().unwrap();
+    for (provider, screen, expected) in [
+        (P::Cline, cline_home, Idle),
+        (P::Cline, &cline_waiting, Working),
+        (P::Cline, &cline_thinking, Working),
+        (P::Cline, &cline_answering, Working),
+        (P::Cline, &cline_done, Idle),
+        (P::Cline, &cline_stopped, Idle),
+        (P::Cline, cline_launch, Unknown),
+        (P::Cline, "the log says ❯ What can I do for you?", Unknown),
+        (P::CommandCode, &cc_home, Idle),
+        (P::CommandCode, &cc_started, Working),
+        (P::CommandCode, &cc_assembling, Working),
+        (P::CommandCode, &cc_answering, Working),
+        (P::CommandCode, &cc_done, Idle),
+        (P::CommandCode, &cc_stopped, Idle),
+        (P::CommandCode, cc_typed, Idle),
+        (P::CommandCode, "PS C:\\src\\app> command-code", Unknown),
+        (
+            P::CommandCode,
+            &format!("the docs say ✧ Assembling…  esc to interrupt • 3s\n{CC_BOX}"),
+            Unknown,
+        ),
+        (P::CommandCode, "─────────\n❯ Ask your question...", Unknown), // Composer clipped.
+    ] {
+        let detected = engine.detect(Some(provider), input(screen)).unwrap();
+        assert_eq!(detected.state, expected, "{provider:?}\n{screen}");
+        assert_eq!(
+            engine.explain(provider, input(screen)).unwrap().state,
+            expected
+        );
+    }
+}
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }

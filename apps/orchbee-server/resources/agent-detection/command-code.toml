@@ -1,12 +1,19 @@
 id = "command-code"
-version = "2026.11.11.1"
+version = "2026.11.12.1"
 min_engine_version = 1
-updated_at = "2026-11-11T00:00:00Z"
+updated_at = "2026-11-12T00:00:00Z"
 aliases = ["commandcode"]
 
 # Command Code without a login opens a sign-in screen that waits for browser authorization or a
-# pasted API key, with "ctrl+c to cancel" as its last row. Idle and working screens have not
-# been captured, so this file holds only that blocker.
+# pasted API key, with "ctrl+c to cancel" as its last row.
+#
+# Signed in (1.88), it draws its composer at the bottom: a rule, the "❯" input row, a rule, and a
+# "? for shortcuts" footer that typed text hides. A running turn adds a status row right above the
+# composer, "<spinner> <Word>…  esc to interrupt • <elapsed> • ↓ <tokens>", whose spinner glyph
+# changes every frame. A finished turn leaves "✻ Worked for <elapsed>" in its place; an interrupted
+# one also prints "❯ Interrupted · What should Command Code do instead?" above it, which screen
+# rules cannot publish as an outcome, so it reads idle. The OSC title only names the session and
+# the model.
 
 [[rules]]
 id = "sign_in_blocked"
@@ -17,3 +24,24 @@ visible_blocker = true
 contains = ["sign in to command code", "paste your api key"]
 regex = ['(?m)^ctrl\+c to cancel\s*\z']
 not = [{ contains = ["authentication cancelled"] }]
+
+[[rules]]
+id = "status_row_working"
+state = "working"
+priority = 200
+region = "bottom_non_empty_lines(24)"
+visible_working = true
+regex = [
+	'(?m)^[ \t]*(?:\S[ \t]+)?\S+…[ \t]+esc to interrupt[ \t]+•[ \t]+\d+[smh][^\n]*\r?\n─{3,}\r?\n❯',
+]
+
+[[rules]]
+id = "composer_idle"
+state = "idle"
+priority = 100
+region = "bottom_non_empty_lines(16)"
+visible_idle = true
+regex = [
+	'(?m)^─{3,}\r?\n❯(?:[ \t][^\n]*)?\r?\n(?:[ \t]+[^\n]*\r?\n)*─{3,}(?:\r?\n[ \t]+\? for shortcuts[^\n]*)?\s*\z',
+]
+not = [{ line_regex = ['esc to interrupt\s+•'] }]

@@ -1,7 +1,13 @@
 id = "cline"
-version = "2026.09.11.1"
+version = "2026.11.12.1"
 min_engine_version = 1
-updated_at = "2026-09-11T00:00:00Z"
+updated_at = "2026-11-12T00:00:00Z"
+
+# Cline 3.x keeps its composer, mode footer and auto-approve line on screen during a turn. The
+# braille spinner status ("⠦ Thinking...") sits under the echoed prompt, and streamed text grows
+# below it, so the working rule reads the whole live screen rather than its last rows. A screen
+# without its spinner, blocker or composer stays unknown: before its composer appears, Cline's
+# start screen proves no state.
 
 [[rules]]
 id = "tool_permission"
@@ -56,7 +62,7 @@ contains = ["(Tab)", "Shift+Tab"]
 id = "active_turn"
 state = "working"
 priority = 200
-region = "bottom_non_empty_lines(20)"
+region = "whole_recent"
 visible_working = true
 any = [
 	{ line_regex = [
@@ -75,11 +81,3 @@ region = "bottom_non_empty_lines(12)"
 visible_idle = true
 line_regex = ['^\s*❯(?:\s.*)?$']
 contains = ["─", "(Tab)", "Shift+Tab"]
-
-[[rules]]
-id = "default_cline_working"
-state = "working"
-priority = -10
-region = "whole_recent"
-visible_working = true
-regex = ['(?s).+']

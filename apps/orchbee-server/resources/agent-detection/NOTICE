@@ -9,6 +9,8 @@ gemini.toml adds a folder-trust blocker and a composer idle rule, with updated v
 kilo.toml adds a prompt-footer idle rule, with updated version metadata.
 hermes.toml adds a busy-footer working rule and a composer idle rule, with updated version metadata.
 kimi.toml accepts an ellipsis character after the spinner status word, with updated version metadata.
+cline.toml reads the spinner status anywhere on the live screen and drops the catch-all working rule, with updated
+version metadata.
 opencode.toml and pi.toml add live-footer idle and status-loader working rules, with updated version metadata.
 mimo.toml adapts opencode.toml's OpenCode 1.x rules to MiMo Code, which is built on OpenCode 1.x: its spinner and brand
 replace OpenCode's in the working rules, and it adds a workspace-trust blocker, an interrupt-footer working rule and a
