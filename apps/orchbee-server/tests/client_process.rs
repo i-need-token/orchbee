@@ -469,10 +469,30 @@ impl Drop for RunningServer {
     }
 }
 
-/// The folder process fixtures are created in. A Unix socket address holds 103 path bytes on
-/// macOS, and its per-user temporary folder leaves too few of them for the Terminal Host endpoint
-/// a real Worker dials, so macOS fixtures use `/private/tmp`, where the product keeps its own
-/// sockets.
+/// A private folder for a real Terminal Host's endpoint, kept short under `/tmp`: a Unix socket
+/// address holds 103 path bytes on macOS, and the per-user temporary folder there leaves too few
+/// of them for the endpoint a real Worker dials.
+struct HostDirectory(PathBuf);
+
+impl HostDirectory {
+    fn new() -> io::Result<Self> {
+        use std::os::unix::fs::DirBuilderExt;
+        let number = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
+        let path = PathBuf::from("/tmp").join(format!("ob-server-{}-{number}", std::process::id()));
+        fs::DirBuilder::new().mode(0o700).create(&path)?;
+        Ok(Self(path))
+    }
+}
+
+impl Drop for HostDirectory {
+    fn drop(&mut self) {
+        let _removed = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// The folder process fixtures are created in. A real Workspace directory must be the path its
+/// launched shell reports, and the macOS per-user temporary folder lies behind the `/var` link, so
+/// macOS fixtures use `/private/tmp`, which no link reaches through.
 fn fixture_parent() -> PathBuf {
     if cfg!(target_os = "macos") {
         PathBuf::from("/private/tmp")

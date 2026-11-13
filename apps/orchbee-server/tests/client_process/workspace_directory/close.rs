@@ -1301,6 +1301,9 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             return Err(format!("Workspace unrelated TabCreate did not start: {outcome:?}").into());
         }
     };
+    // The Close ends the source Tab's two shells, and the marker counts only a shell that ran, so
+    // all three started shells report their launch before the Close.
+    wait_for_marker(&fixture.marker, 3)?;
     let pending_close = read_snapshot(&mut second, 0x205)?;
     let closed = exchange_command(
         &mut second,

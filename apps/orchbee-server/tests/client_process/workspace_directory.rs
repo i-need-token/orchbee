@@ -1,4 +1,7 @@
-use super::{PROCESS_TIMEOUT, RunningServer, TestDirectory, TestResult, connect_bounded_client};
+use super::{
+    HostDirectory, PROCESS_TIMEOUT, RunningServer, TestDirectory, TestResult,
+    connect_bounded_client,
+};
 use orchbee_client_server_protocol::{
     ClientMessage, RequestId, ServerMessage, SessionId as ObcsSessionId,
     TerminalId as ClientTerminalId, TerminalViewerAction, TerminalViewerOutcome,
@@ -220,6 +223,7 @@ impl Drop for ChildGuard {
 struct RealWorkerFixture {
     _host: ChildGuard,
     _worker: ChildGuard,
+    _runtime: HostDirectory,
     _fixture: TestDirectory,
     directory: PathBuf,
     marker: PathBuf,
@@ -228,8 +232,8 @@ struct RealWorkerFixture {
 impl RealWorkerFixture {
     fn start(server: &RunningServer) -> TestResult<Self> {
         let fixture = TestDirectory::new("workspace-directory")?;
-        let runtime = fixture.path().join("host-runtime");
-        fs::create_dir(&runtime)?;
+        let host_directory = HostDirectory::new()?;
+        let runtime = host_directory.0.clone();
         fs::set_permissions(&runtime, fs::Permissions::from_mode(0o700))?;
         let directory = fixture.path().join("workspace");
         let marker = fixture.path().join("launch-cwds");
@@ -280,6 +284,7 @@ impl RealWorkerFixture {
         Ok(Self {
             _host: host,
             _worker: worker,
+            _runtime: host_directory,
             _fixture: fixture,
             directory,
             marker,

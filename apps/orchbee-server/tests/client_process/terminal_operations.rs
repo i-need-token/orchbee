@@ -1,6 +1,6 @@
 use super::{
-    FIRST_WORKER, PROCESS_TIMEOUT, RunningServer, TestResult, connect_bounded_client,
-    connect_worker, read_obcn,
+    FIRST_WORKER, HostDirectory, PROCESS_TIMEOUT, RunningServer, TestResult,
+    connect_bounded_client, connect_worker, read_obcn,
 };
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
@@ -418,23 +418,6 @@ fn read_terminal_record(stream: &mut UnixStream) -> io::Result<Vec<u8>> {
     record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&header);
     stream.read_exact(&mut record[TRANSPORT_ENVELOPE_HEADER_BYTES..])?;
     Ok(record)
-}
-
-struct HostDirectory(std::path::PathBuf);
-impl HostDirectory {
-    fn new() -> io::Result<Self> {
-        use std::os::unix::fs::DirBuilderExt;
-        let number = super::NEXT_FIXTURE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let path = std::path::PathBuf::from("/tmp")
-            .join(format!("ob-server-{}-{number}", std::process::id()));
-        std::fs::DirBuilder::new().mode(0o700).create(&path)?;
-        Ok(Self(path))
-    }
-}
-impl Drop for HostDirectory {
-    fn drop(&mut self) {
-        let _removed = std::fs::remove_dir_all(&self.0);
-    }
 }
 
 #[path = "terminal_operations/viewers.rs"]
