@@ -76,7 +76,7 @@ impl Receipt {
     pub(super) fn launch_failure(&self) -> Option<super::FailureKind> {
         match self.terminal.as_ref().map(|terminal| terminal.outcome) {
             Some("pending" | "started") => None,
-            Some("outcome-unknown") => Some(super::FailureKind::OutcomeUnknown),
+            Some("unknown") => Some(super::FailureKind::OutcomeUnknown),
             Some("failed") => Some(super::FailureKind::Rejected),
             _ => Some(super::FailureKind::ServiceUnavailable),
         }
