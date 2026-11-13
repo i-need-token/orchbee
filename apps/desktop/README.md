@@ -338,12 +338,16 @@ otherwise says they are too old.
 Removal from Settings › Apps runs the uninstaller, which asks once and then, in this order:
 
 1. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, or the bundled Client when no
-   launcher is left. It ends no terminal: while one is open it changes nothing, and the uninstaller
+   launcher is left, and waits for it from `unins000.exe` in the store root; the Client does not
+   count that waiting uninstaller as Orchbee running. It ends no terminal: while one is open, or
+   while any other program runs from the installation, it changes nothing, and the uninstaller
    shows its reason and stops. Otherwise it removes the store's versions, `bin`, `desktop\`, the
    `Path` entry, the Agent integrations, the Start menu entry and the registration, keeps the data
-   root, and leaves `unins000.exe` and `unins000.dat`;
-2. removes whatever it installed that is still there, then its own two files and the empty store
-   root.
+   root, and leaves `unins000.exe` and `unins000.dat`; its own program files go a moment after it
+   exits;
+2. removes whatever it installed that is still there and its own two files. The empty store root
+   goes with whichever of the uninstaller and the Client's removal of its last files finishes
+   last.
 
 A second removal finds no Client and nothing of Orchbee's, and removes only what remains of its
 own. The data root (`~/.orchbee` for release) stays until `orchbee uninstall --delete-data`.
@@ -354,7 +358,7 @@ without a window, and `<store root>\unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /
 with the exit code and output of each Client command. Setup exits 0 on success, 7 while Orchbee runs
 from the installation, 10 when the window application was installed but `orchbee install` failed,
 and otherwise with Inno Setup's own codes, such as 2 when cancelled before installing. The
-uninstaller exits non-zero when the removal stopped.
+uninstaller exits 0 when the removal finished and non-zero when it stopped.
 
 ### Verification
 

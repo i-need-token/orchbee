@@ -273,30 +273,54 @@ pub(super) fn store_processes(root: &Path, except: &[u32]) -> Vec<StoreProcess> 
         .collect()
 }
 
-/// This process's parent, when it still runs and started before this process.
-pub(super) fn parent() -> Option<StoreProcess> {
-    let own = std::process::id();
-    let mut snapshot =
-        w::HPROCESSLIST::CreateToolhelp32Snapshot(co::TH32CS::SNAPPROCESS, None).ok()?;
-    let pid = snapshot
+/// This process's chain of parents, nearest first. Each link still runs and started no later than
+/// the process it started; the walk ends at the first parent that is gone, cannot be queried, or
+/// started later, which is a reused process identifier, so no unrelated process joins the chain.
+pub(super) fn ancestors() -> Vec<StoreProcess> {
+    let Ok(mut snapshot) = w::HPROCESSLIST::CreateToolhelp32Snapshot(co::TH32CS::SNAPPROCESS, None)
+    else {
+        return Vec::new();
+    };
+    let parents: std::collections::HashMap<u32, u32> = snapshot
         .iter_processes()
         .filter_map(Result::ok)
-        .find(|entry| entry.th32ProcessID == own)
-        .map(|entry| entry.th32ParentProcessID)?;
-    let process =
-        w::HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-    let (started, ..) = process.GetProcessTimes().ok()?;
-    let (own_started, ..) = w::HPROCESS::GetCurrentProcess().GetProcessTimes().ok()?;
-    if u64::from(started) > u64::from(own_started) {
-        return None;
+        .map(|entry| (entry.th32ProcessID, entry.th32ParentProcessID))
+        .collect();
+    let Ok((mut started, ..)) = w::HPROCESS::GetCurrentProcess().GetProcessTimes() else {
+        return Vec::new();
+    };
+    let mut chain: Vec<StoreProcess> = Vec::new();
+    let mut current = std::process::id();
+    // Bounded, so a cycle of reused identifiers ends.
+    for _ in 0..64 {
+        let Some(&pid) = parents.get(&current) else {
+            break;
+        };
+        if pid == 0 || pid == current || chain.iter().any(|link| link.pid == pid) {
+            break;
+        }
+        let Ok(process) =
+            w::HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid)
+        else {
+            break;
+        };
+        let Ok((parent_started, ..)) = process.GetProcessTimes() else {
+            break;
+        };
+        if u64::from(parent_started) > u64::from(started) {
+            break;
+        }
+        let Ok(image) = process.QueryFullProcessImageName(co::PROCESS_NAME::WIN32) else {
+            break;
+        };
+        chain.push(StoreProcess {
+            pid,
+            image: PathBuf::from(image),
+        });
+        started = parent_started;
+        current = pid;
     }
-    let image = process
-        .QueryFullProcessImageName(co::PROCESS_NAME::WIN32)
-        .ok()?;
-    Some(StoreProcess {
-        pid,
-        image: PathBuf::from(image),
-    })
+    chain
 }
 
 fn image(pid: u32) -> Option<PathBuf> {

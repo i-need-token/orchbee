@@ -68,8 +68,8 @@ pub(super) fn store_processes(_root: &Path, _except: &[u32]) -> Vec<StoreProcess
     Vec::new()
 }
 
-pub(super) fn parent() -> Option<StoreProcess> {
-    None
+pub(super) fn ancestors() -> Vec<StoreProcess> {
+    Vec::new()
 }
 
 pub(super) fn inside(path: &Path, root: &Path) -> bool {

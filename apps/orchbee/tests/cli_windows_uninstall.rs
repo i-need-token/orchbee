@@ -4,7 +4,9 @@
 //! and the person's settings and Sessions stay unless all data was deleted. With all data deleted,
 //! an item Orchbee did not write stays in each root, which then stays too, and a second run still
 //! finds nothing to refuse. The Agent's own file returns byte for byte. The platform uninstaller's
-//! removal empties a user `Path` that held only the store's entry and keeps its registry type.
+//! removal empties a user `Path` that held only the store's entry and keeps its registry type. The
+//! uninstaller that runs the removal from the store root and waits for it does not stop it, while
+//! another program in the same place still does.
 //!
 //! It needs `ORCHBEE_TEST_UNINSTALL_CLIENT` naming the Client of a staged, packaged and test-signed
 //! release directory (see the application's Windows CLI configuration). Every process gets its own
@@ -14,6 +16,7 @@
 
 use serde_json::Value;
 use std::fs;
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -55,6 +58,24 @@ fn installer_uninstall_empties_a_path_that_held_only_the_store_entry() {
         if let Err(panic) = result {
             std::panic::resume_unwind(panic);
         }
+    }
+}
+
+/// The installer's uninstaller lives in the store root and waits there while the removal it started
+/// runs. That is not Orchbee running from the program folder; another program in the same folder,
+/// which did not start the removal, stops it before anything changes.
+#[test]
+#[ignore = "requires ORCHBEE_TEST_UNINSTALL_CLIENT naming a test-signed release directory's Client; run explicitly"]
+fn installer_uninstall_passes_the_uninstaller_waiting_for_it_and_stops_for_another_program() {
+    let client = PathBuf::from(
+        std::env::var_os("ORCHBEE_TEST_UNINSTALL_CLIENT")
+            .expect("set ORCHBEE_TEST_UNINSTALL_CLIENT to a staged test package's Client"),
+    );
+    let profile = Profile::new(&client);
+    let result = std::panic::catch_unwind(|| profile.remove_from_a_waiting_uninstaller());
+    profile.release();
+    if let Err(panic) = result {
+        std::panic::resume_unwind(panic);
     }
 }
 
@@ -386,6 +407,75 @@ impl Profile {
             "{kind}"
         );
         while entries(&self.store()).is_some() {
+            assert!(
+                started.elapsed() < Duration::from_secs(30),
+                "the program folder holds {:?}",
+                entries(&self.store())
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    fn remove_from_a_waiting_uninstaller(&self) {
+        let launcher = self.install();
+        let entry = self.store().join("bin").display().to_string();
+        self.set_path("REG_EXPAND_SZ", &format!("{};{entry}", OTHER_ENTRIES[0]));
+        // Copies of the command processor stand in for the uninstaller, which starts the helper and
+        // waits for it, and for another program, both in the store root beside Orchbee's entries.
+        let shell = system_folder().join("cmd.exe");
+        let uninstaller = self.store().join("unins000.exe");
+        let other = self.store().join("unins001.exe");
+        fs::copy(&shell, &uninstaller).unwrap();
+        fs::copy(&shell, &other).unwrap();
+        let helper = format!(
+            r#"/d /s /c ""{}" --installer-uninstall-v1""#,
+            launcher.display()
+        );
+        // The other program waits on its open, empty input and ends once that closes.
+        let mut running = self
+            .command(&other)
+            .args(["/d", "/q", "/k"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let blocked = self
+            .command(&uninstaller)
+            .raw_arg(&helper)
+            .output()
+            .unwrap();
+        drop(running.stdin.take());
+        running.wait().unwrap();
+        assert_eq!(blocked.status.code(), Some(3), "{}", describe(&blocked));
+        assert!(
+            String::from_utf8_lossy(&blocked.stderr).contains("unins001.exe"),
+            "{}",
+            describe(&blocked)
+        );
+        assert!(launcher.is_file() && self.store().join("active.json").is_file());
+        assert_eq!(
+            self.path_value(),
+            Some((
+                "REG_EXPAND_SZ".to_owned(),
+                format!("{};{entry}", OTHER_ENTRIES[0])
+            ))
+        );
+        let started = Instant::now();
+        let removed = self
+            .command(&uninstaller)
+            .raw_arg(&helper)
+            .output()
+            .unwrap();
+        assert_eq!(removed.status.code(), Some(0), "{}", describe(&removed));
+        assert_eq!(
+            self.path_value(),
+            Some(("REG_EXPAND_SZ".to_owned(), OTHER_ENTRIES[0].to_owned()))
+        );
+        // Orchbee's files go once the helper and the launcher have exited; the uninstaller's own
+        // files stay for it to remove.
+        let expected = Some(names(&["unins000.exe", "unins001.exe"]));
+        while entries(&self.store()) != expected {
             assert!(
                 started.elapsed() < Duration::from_secs(30),
                 "the program folder holds {:?}",

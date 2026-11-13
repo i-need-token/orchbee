@@ -14,7 +14,8 @@
 //! Every step is safe to repeat. A failure reports what was done and what remains and changes
 //! nothing further, so a second run continues. The removal plan is computed and fenced before
 //! anything changes. The helper form asks nothing and ends no terminal: with one open in any
-//! Session it changes nothing.
+//! Session it changes nothing. The platform uninstaller that started it and waits for it stays in
+//! the store root with its own files, which the uninstaller removes after the helper exits.
 //!
 //! The Agent integration writer runs here, in this process, rather than as a Worker job: every
 //! Session, and so every Worker, has stopped by step c.
@@ -113,6 +114,9 @@ struct Inventory {
     plan: plan::Plan,
     /// This process's parent when its program file is inside the store root: the launcher.
     launcher: Option<platform::StoreProcess>,
+    /// The helper form's platform uninstaller, which started this run and waits for it: see
+    /// [`waiting_uninstaller`].
+    uninstaller: Vec<u32>,
 }
 
 fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
@@ -124,7 +128,7 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
         return failure_output(failure, Some(format), locale);
     }
     let mut report = Report::new(delete_data, matches!(caller, Caller::Installer));
-    let inventory = match inventory(&mut report, delete_data) {
+    let inventory = match inventory(&mut report, delete_data, caller) {
         Some(inventory) => inventory,
         None => return answer(&report, format, None, locale),
     };
@@ -176,7 +180,7 @@ fn execute(delete_data: bool, caller: Caller, locale: Locale) -> Output {
 
 /// Resolves the roots and the entries outside them, fences the plan and reads the Sessions and the
 /// Agent integrations, recording each in `report`. `None` when the run stops here.
-fn inventory(report: &mut Report, delete_data: bool) -> Option<Inventory> {
+fn inventory(report: &mut Report, delete_data: bool, caller: Caller) -> Option<Inventory> {
     let deadline = Instant::now() + INVENTORY_BUDGET;
     let store = platform::store_root();
     let data = DataRoot::resolve(|name| std::env::var_os(name));
@@ -269,16 +273,36 @@ fn inventory(report: &mut Report, delete_data: bool) -> Option<Inventory> {
         report.stop(Stop::Inventory, "", "");
         return None;
     }
-    let parent = platform::parent();
-    report.npm_carrier = platform::npm_carrier(parent.as_ref());
-    let launcher = parent.filter(|parent| platform::inside(&parent.image, &store));
+    let mut ancestors = platform::ancestors().into_iter().peekable();
+    report.npm_carrier = platform::npm_carrier(ancestors.peek());
+    let launcher = ancestors.next_if(|parent| platform::inside(&parent.image, &store));
+    let uninstaller = match caller {
+        Caller::Installer => ancestors
+            .filter(|ancestor| waiting_uninstaller(&ancestor.image, &plan.store))
+            .map(|ancestor| ancestor.pid)
+            .collect(),
+        Caller::Person { .. } => Vec::new(),
+    };
     Some(Inventory {
         roots,
         data,
         locations,
         plan,
         launcher,
+        uninstaller,
     })
+}
+
+/// Whether a process on the helper's chain of parents, past the launcher, is the platform
+/// uninstaller that started the helper and waits for it: its program lies in the store root but in
+/// none of the entries the removal removes, as the installer's own uninstaller does. It holds no
+/// file the removal touches, so it never counts as Orchbee running from the store; Orchbee's own
+/// programs on that chain, such as the Desktop application, still do.
+fn waiting_uninstaller(image: &Path, store: &plan::RootPlan) -> bool {
+    platform::inside(image, &store.root)
+        && !store.targets.iter().chain(&store.mark).any(|target| {
+            platform::same(image, &target.path) || platform::inside(image, &target.path)
+        })
 }
 
 /// What `root` holds for the plan: its names and whether `marked` finds its mark, read only when
@@ -419,7 +443,8 @@ fn integrations(report: &mut Report, deadline: Instant) -> Result<(), ()> {
 }
 
 /// What a person must do before anything changes: the helper ends no terminal; no Session may be
-/// one this build cannot stop; and no other program may run from the store root.
+/// one this build cannot stop; and no other program may run from the store root, the helper's
+/// waiting uninstaller aside.
 fn blocked(
     report: &Report,
     inventory: &Inventory,
@@ -462,6 +487,7 @@ fn blocked(
         .flat_map(|session| session.pids.iter().copied())
         .collect();
     except.extend(inventory.launcher.as_ref().map(|launcher| launcher.pid));
+    except.extend(&inventory.uninstaller);
     platform::store_processes(&inventory.roots.store, &except)
         .into_iter()
         .find(|process| process.image.file_name() != client.as_deref())
@@ -494,8 +520,9 @@ fn check(report: &mut Report, signals: &mut ArmedSignals) -> Result<(), ()> {
 }
 
 /// Step b: ends every background process of the environment, kind by kind, then waits until nothing
-/// but this process and its launcher runs from the store root. A program that still does, of a kind
-/// this build cannot end, stops the run here, before anything else changes, and is named.
+/// but this process, its launcher and the helper's waiting uninstaller runs from the store root. A
+/// program that still does, of a kind this build cannot end, stops the run here, before anything
+/// else changes, and is named.
 fn end_background(
     report: &mut Report,
     inventory: &Inventory,
@@ -572,14 +599,16 @@ fn wait_for_store(
     }
 }
 
-/// A process other than this one and its launcher whose program file is inside the store root.
+/// A process other than this one, its launcher and the uninstaller waiting for it whose program
+/// file is inside the store root.
 fn still_running(inventory: &Inventory) -> Option<platform::StoreProcess> {
-    let launcher: Vec<u32> = inventory
+    let except: Vec<u32> = inventory
         .launcher
         .iter()
         .map(|launcher| launcher.pid)
+        .chain(inventory.uninstaller.iter().copied())
         .collect();
-    platform::store_processes(&inventory.roots.store, &launcher)
+    platform::store_processes(&inventory.roots.store, &except)
         .into_iter()
         .next()
 }
