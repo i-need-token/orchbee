@@ -17,7 +17,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::mpsc,
+    sync::{Mutex, MutexGuard, PoisonError, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -32,11 +32,19 @@ const SETTLED_READS: usize = 4;
 /// Bounds one controlling attachment, well past any test that holds one.
 const CONTROL_TIMEOUT_MILLISECONDS: &str = "120000";
 
+/// The turn a fixture holds for its whole life, so a test process runs one fixture at a time.
+/// Each one keeps two Sessions, their Hosts and shells and a TUI Client busy while its test
+/// reads the screen through a CLI process every few dozen milliseconds; four at once saturate a
+/// four-vCPU runner, and the shells then echo typed input seconds late.
+static TURN: Mutex<()> = Mutex::new(());
+
 /// One real local runtime with the default Session under observation and a `host` Session whose
 /// terminals run TUI Clients.
 pub struct Fixture {
     root: PathBuf,
     prefix: &'static str,
+    /// Declared last so it is released only after `Drop` has stopped both Sessions.
+    _turn: MutexGuard<'static, ()>,
 }
 
 /// The TUI Client and the terminal of the `host` Session it runs in.
@@ -58,6 +66,8 @@ impl Fixture {
     /// Creates a private temporary root named after `prefix` with the shared directories and
     /// `directories`, stages the cohort under test and starts both Sessions.
     pub fn new(prefix: &'static str, directories: &[&str]) -> Self {
+        // A test that failed while holding the turn has already released its Sessions.
+        let turn = TURN.lock().unwrap_or_else(PoisonError::into_inner);
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let root = windows_temporary_root::long_temporary_directory()
@@ -70,7 +80,11 @@ impl Fixture {
         {
             fs::create_dir_all(root.join(path)).unwrap();
         }
-        let fixture = Self { root, prefix };
+        let fixture = Self {
+            root,
+            prefix,
+            _turn: turn,
+        };
         fixture.stage();
         for session in ["default", "host"] {
             let started = fixture.run(&["server", "start", "--session", session]);

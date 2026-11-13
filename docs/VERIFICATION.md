@@ -229,7 +229,10 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 - The `rust-windows` job runs `pnpm verify:rust-native` on `windows-latest`, so every Rust
   member gets Clippy and its Cargo test suites under the Windows platform configuration that the
   Linux `verify` job never compiles. Formatting, documentation, TypeScript and TLA checks are
-  platform-independent and stay in `verify`.
+  platform-independent and stay in `verify`. The Windows TUI process tests that share
+  `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test binary: four of
+  their real Session pairs at once saturate the four-vCPU runner, and shells then echo typed input
+  seconds late.
 - Platform exclusions are explicit. macOS has no Rust job because the native Client is only an
   unsigned per-user Apple Silicon development cohort. `terminal-host-native` runs the native
   Terminal Host tests and formatting check on `windows-latest` only: GitHub rejects the
