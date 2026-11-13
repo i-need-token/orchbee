@@ -248,8 +248,6 @@ impl Driver {
 
     /// Waits until the Server follows the Workspace's first terminal to `directory`.
     fn await_followed(&self, workspace: &str, directory: &str) {
-        let spelled = |path: &str| path.replace('/', "\\").to_ascii_lowercase();
-        let expected = spelled(&self.fixture.path(directory));
         let deadline = Instant::now() + LANDING;
         loop {
             let read = self.fixture.run(&["api", "snapshot"]);
@@ -261,13 +259,14 @@ impl Driver {
                 .iter()
                 .find(|listed| listed["label"] == workspace)
                 .and_then(|listed| listed["terminalDirectory"].as_str())
-                .is_some_and(|path| spelled(path) == expected);
+                .is_some_and(|path| self.fixture.is_directory(path, directory));
             if followed {
                 return;
             }
             assert!(
                 Instant::now() < deadline,
-                "the first terminal never reached {expected}: {snapshot}"
+                "the first terminal never reached {}: {snapshot}",
+                self.fixture.path(directory)
             );
             thread::sleep(POLL);
         }

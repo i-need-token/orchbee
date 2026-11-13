@@ -981,10 +981,9 @@ fn enter(fixture: &Fixture, terminal: &str, command: &str) {
 fn stands_in(fixture: &Fixture, workspace: &str, directory: &str) {
     let expected = fixture.path(directory);
     let followed = |value: &Value| {
-        value.as_str().is_some_and(|path| {
-            let spelled = |path: &str| path.replace('/', "\\").to_ascii_lowercase();
-            spelled(path) == spelled(&expected)
-        })
+        value
+            .as_str()
+            .is_some_and(|path| fixture.is_directory(path, directory))
     };
     let deadline = Instant::now() + DISCOVERY;
     while !followed(&record(fixture, workspace)["terminalDirectory"]) {

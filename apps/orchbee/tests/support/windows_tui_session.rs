@@ -235,6 +235,15 @@ impl Fixture {
         self.root.join(relative).to_str().unwrap().to_owned()
     }
 
+    /// Whether `reported`, a directory the runtime observed, is this fixture's `relative`
+    /// directory. Windows spells one directory several ways: a shell reports its own in the long
+    /// form even when it got there through the 8.3 form that a `TEMP` such as a CI runner's
+    /// carries, so the two compare by identity, not by spelling.
+    pub fn is_directory(&self, reported: &str, relative: &str) -> bool {
+        let expected = fs::canonicalize(self.root.join(relative));
+        expected.is_ok() && fs::canonicalize(reported).ok() == expected.ok()
+    }
+
     /// The isolated environment and a system-only `PATH` for terminals this fixture starts.
     pub fn terminal_environment(&self) -> Vec<String> {
         let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
