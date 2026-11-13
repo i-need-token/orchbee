@@ -247,16 +247,16 @@ jobs:
   # TEMPORARY (input-stall investigation): repeats the stalling Windows process target on several
   # runners and prints each failed attempt's report. Remove before merging.
   input-stall:
-    name: Input stall repeat (${{ matrix.runner }}, ${{ matrix.console }})
+    name: Input stall repeat (${{ matrix.runner }}, ${{ matrix.console }}, ${{ matrix.threads }} threads)
     if: github.ref_name == 'ci/input-stall'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { runner: 1, console: system }
-          - { runner: 2, console: system }
-          - { runner: 3, console: openconsole }
-          - { runner: 4, console: openconsole }
+          - { runner: 1, console: openconsole, threads: 4 }
+          - { runner: 2, console: openconsole, threads: 2 }
+          - { runner: 3, console: openconsole, threads: 1 }
+          - { runner: 4, console: system, threads: 1 }
     runs-on: windows-latest
     timeout-minutes: 80
     steps:
@@ -320,14 +320,20 @@ jobs:
           $env:RUST_TEST_THREADS = '1'
           & $exe.FullName the_panel_route_and_hidden_presentations_decide_from_the_real_facts --exact *> (Join-Path $logs 'warm.log')
           Remove-Item Env:RUST_TEST_THREADS
+          $env:RUST_TEST_THREADS = '${{ matrix.threads }}'
           $failed = @()
           for ($i = 1; $i -le 10; $i++) {
             $log = Join-Path $logs "attempt-$i.log"
+            $cpu = Join-Path $logs "cpu-$i.csv"
+            $sampler = Start-Process typeperf -ArgumentList '"\Processor(_Total)\% Processor Time"', '-si', '2', '-y', '-o', $cpu -WindowStyle Hidden -PassThru
             $started = Get-Date
             & $exe.FullName *> $log
             $code = $LASTEXITCODE
+            Stop-Process -Id $sampler.Id -ErrorAction SilentlyContinue
+            $values = @(Import-Csv $cpu -ErrorAction SilentlyContinue | ForEach-Object { [double]($_.PSObject.Properties | Select-Object -Last 1).Value } | Where-Object { $_ -ge 0 })
+            $load = if ($values.Count) { "cpu mean $([int]($values | Measure-Object -Average).Average)% max $([int]($values | Measure-Object -Maximum).Maximum)% over $($values.Count) samples" } else { 'cpu unsampled' }
             $summary = Select-String -Path $log -Pattern '^test result:' | Select-Object -Last 1
-            "attempt $i exit $code after $([int]((Get-Date) - $started).TotalSeconds) s: $($summary.Line)"
+            "attempt $i exit $code after $([int]((Get-Date) - $started).TotalSeconds) s, $($load): $($summary.Line)"
             if ($code -ne 0) { $failed += $log }
           }
           foreach ($log in $failed) {
