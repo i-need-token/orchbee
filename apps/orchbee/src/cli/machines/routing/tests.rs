@@ -38,12 +38,97 @@ fn selection_uses_id_before_exact_label_and_rejects_ambiguity_and_disabled() {
         profiles: vec![a, b],
         ..Default::default()
     };
-    assert_eq!(select(&catalog, "same").unwrap_err(), "ambiguous-machine");
+    assert_eq!(
+        select(&catalog, "same").unwrap_err().code(),
+        "ambiguous-machine"
+    );
     catalog.profiles[1].draft.label = id.into();
     assert_eq!(select(&catalog, id).unwrap().id.as_str(), id);
-    assert_eq!(select(&catalog, "Same").unwrap_err(), "not-found");
+    assert_eq!(select(&catalog, "Same").unwrap_err().code(), "not-found");
     catalog.profiles[0].enabled = false;
-    assert_eq!(select(&catalog, id).unwrap_err(), "disabled-machine");
+    assert_eq!(select(&catalog, id).unwrap_err().code(), "disabled-machine");
+}
+
+#[test]
+fn every_routed_failure_exits_by_its_kind_and_an_unknown_outcome_never_claims_nothing_ran() {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../schemas/orchbee.cli.failure.machine-route.json"
+    ))
+    .unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let catalog = [
+        CatalogError::Configuration,
+        CatalogError::InvalidCatalog,
+        CatalogError::Storage,
+        CatalogError::Busy,
+        CatalogError::NotFound,
+        CatalogError::Ambiguous,
+        CatalogError::Capacity,
+        CatalogError::RevisionExhausted,
+    ];
+    // `not-yet-available` belongs to verbs a routed command never runs.
+    let errors: Vec<Error> = catalog
+        .map(Error::Catalog)
+        .into_iter()
+        .chain([
+            Error::SshUnavailable,
+            Error::SshFailed,
+            Error::RemoteProtocol,
+            Error::RemoteUnsupported,
+            Error::RemoteNotInstalled,
+            Error::RemoteOtherEnvironment,
+            Error::RemoteNotReady,
+            Error::DisabledMachine,
+            Error::UnsupportedMachine,
+            Error::HubUnavailable,
+            Error::HostUnreachable,
+            Error::AuthRequired,
+            Error::AuthFailed,
+            Error::HostUntrusted,
+            Error::HostKeyChanged,
+            Error::VersionIncompatible,
+            Error::RemoteInstallFailed,
+            Error::Cancelled,
+            Error::AttemptEnded,
+            Error::Timeout,
+            Error::PhysicalUnknown,
+            Error::Internal,
+        ])
+        .collect();
+    // Only the deadline reads `timeout`, and only an interrupt reads `cancelled`.
+    for &error in &errors {
+        assert_eq!(
+            kind(error) == FailureKind::Timeout,
+            error == Error::Timeout,
+            "{error:?}"
+        );
+        assert_eq!(
+            kind(error) == FailureKind::Cancelled,
+            error == Error::Cancelled,
+            "{error:?}"
+        );
+    }
+    let refusals = errors
+        .into_iter()
+        .map(mapped)
+        .chain([INPUT_SOURCE, REMOTE_REJECTED]);
+    for refusal in refusals {
+        for outcome in [Outcome::NotSubmitted, Outcome::Unknown] {
+            let output = failed(refusal, outcome, OutputFormat::Json, Locale::EnUs);
+            let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            validator.validate(&document).unwrap();
+            let reported = reported_kind(refusal.1, outcome);
+            assert_eq!(document["failure"]["kind"], reported.as_str(), "{document}");
+            assert_eq!(output.status, reported.exit_code(), "{document}");
+            if outcome == Outcome::Unknown {
+                assert!(
+                    !matches!(output.status, 3..=6),
+                    "an unknown outcome exits {}: {document}",
+                    output.status
+                );
+            }
+        }
+    }
 }
 #[test]
 fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
@@ -93,23 +178,6 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
     assert_eq!(output.status, 255);
     assert_eq!(output.stdout, [0, 255]);
     assert_eq!(output.stderr, "中文 failure\n");
-    for outcome in [Outcome::NotSubmitted, Outcome::Unknown] {
-        let output = failed(
-            "remote-protocol",
-            5,
-            outcome,
-            OutputFormat::Json,
-            Locale::EnUs,
-        );
-        let schema: serde_json::Value = serde_json::from_str(include_str!(
-            "../../schemas/orchbee.cli.failure.machine-route.json"
-        ))
-        .unwrap();
-        jsonschema::validator_for(&schema)
-            .unwrap()
-            .validate(&serde_json::from_slice(&output.stdout).unwrap())
-            .unwrap();
-    }
 }
 
 #[test]

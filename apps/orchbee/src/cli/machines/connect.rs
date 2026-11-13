@@ -3,7 +3,8 @@
 //! the hub has taken the current catalog. An interrupt ends the wait, not the hub's attempt. A hub
 //! closing under the request is asked once more, through the hub that takes its place. Every
 //! committed catalog edit also asks a running hub to take the catalog, starting none. A routed
-//! command brings its Machine `online` through the same steps.
+//! command has the hub take the catalog the same way and brings its Machine `online` through the
+//! same steps only when the hub answers that it is not.
 
 #[cfg(not(windows))]
 use super::{Context, Error, Report};
@@ -11,7 +12,9 @@ use super::{Context, Error, Report};
 use crate::machines::Store;
 
 #[cfg(windows)]
-pub(super) use windows::{ask_connect, close, connect, disconnect, open, reload_running};
+pub(super) use windows::{
+    ask_connect, ask_reload, close, connect, disconnect, open, reload_running,
+};
 
 /// No hub runs where it is not built, so an edit has nothing to tell.
 #[cfg(not(windows))]
@@ -131,6 +134,21 @@ mod windows {
                     }
                     return Err(request_error(failure));
                 }
+            }
+        }
+        Err(Error::HubUnavailable)
+    }
+
+    /// Has the hub take the current catalog, asking once more through the hub that replaces a
+    /// closing one. It connects nothing, so the hub's countdown stays where it was.
+    pub(in super::super) fn ask_reload(
+        client: &Arc<HubClient>,
+        context: &mut Context,
+    ) -> Result<(), Error> {
+        for _ in 0..ROUNDS {
+            match reload(client, context)? {
+                Reloaded::Current => return Ok(()),
+                Reloaded::Stopping | Reloaded::Lost => {}
             }
         }
         Err(Error::HubUnavailable)

@@ -1,11 +1,12 @@
 //! The time and no-effect rules a real hub reaches only by chance: which pairs a closing hub ends
-//! at once, which it lets finish until the allowance, and how a pair reads when its link is lost.
+//! at once, which it lets finish until the allowance, and how a pair reads when its link is lost or
+//! the far end resets it.
 //! The relaying itself runs through real processes in `tests/cli_windows_machine_hub.rs`.
 
-use super::{ALLOWANCE, Ending, carrier_end, closing, closing_done};
+use super::{ALLOWANCE, Ending, carrier_end, closing, closing_done, link_reset_end, unreplied};
 use orchbee_machine_protocol::{
     ResetReason,
-    hub::{ChannelKind, Outcome},
+    hub::{ChannelKind, Outcome, StopSessionOutcome},
 };
 use std::time::{Duration, Instant};
 
@@ -30,6 +31,38 @@ fn a_lost_link_claims_no_effect_only_where_none_can_have_started() {
             Ending::Close(Outcome::Lost)
         );
     }
+}
+
+#[test]
+fn a_far_reset_reaches_the_client_only_while_no_effect_can_have_started() {
+    for reason in [
+        ResetReason::Stopping,
+        ResetReason::Unavailable,
+        ResetReason::SessionNotRunning,
+    ] {
+        // Before the dispatch of its `end` a route has caused nothing, so the reason stands.
+        for accepted in [false, true] {
+            assert_eq!(
+                link_reset_end(ChannelKind::Route, accepted, false, reason),
+                Ending::Reset(reason)
+            );
+            // After it the far end's reset cannot state that the command did not run.
+            assert_eq!(
+                link_reset_end(ChannelKind::Route, accepted, true, reason),
+                Ending::Close(Outcome::Lost)
+            );
+        }
+        assert_eq!(
+            link_reset_end(ChannelKind::Session, false, false, reason),
+            Ending::Reset(reason)
+        );
+        assert_eq!(
+            link_reset_end(ChannelKind::Session, true, false, reason),
+            Ending::Close(Outcome::Lost)
+        );
+    }
+    // A `stop-session` route is dispatched from the start: a reset of it never reads as failed.
+    assert_eq!(unreplied(true), StopSessionOutcome::Unknown);
 }
 
 #[test]

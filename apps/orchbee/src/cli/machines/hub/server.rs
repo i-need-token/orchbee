@@ -358,7 +358,8 @@ fn supervise(shared: &Arc<Shared>, launch: &Arc<Launch>, base: Option<&Path>) {
             continue;
         }
         let now = Moment::now();
-        let due = hub.lifetime.read_due();
+        // A route ending wakes the supervisor, so an expired hub closes once the last one ends.
+        let due = hub.lifetime.read_due(hub.relays.routes());
         let read_now = match due {
             Some(ReadDue::Now) => true,
             Some(ReadDue::At(at)) => at <= now.at,
@@ -369,7 +370,11 @@ fn supervise(shared: &Arc<Shared>, launch: &Arc<Launch>, base: Option<&Path>) {
             drop(hub);
             let live = any_live(base);
             hub = shared.lock();
-            if hub.lifetime.finish_read(ticket, live, Moment::now()) {
+            let routes = hub.relays.routes();
+            if hub
+                .lifetime
+                .finish_read(ticket, live, routes, Moment::now())
+            {
                 hub.announce();
             }
             continue;

@@ -2,7 +2,8 @@
 //! `stop-session` request paired with its link `route`, and the bytes each direction holds until
 //! the other side's credit admits them. A relay takes from one side only what the other side
 //! committed, so a pair holds at most one window per direction. The rules for ending pairs when a
-//! carrier ends and while the hub closes are pure functions of the pair and the time.
+//! carrier ends, when the far end resets a link channel, and while the hub closes are pure
+//! functions of the pair and the time.
 //! `docs/machines.md#channels` owns the rules.
 
 use super::{
@@ -129,6 +130,21 @@ pub(super) const fn carrier_end(kind: ChannelKind, accepted: bool, dispatched: b
         ChannelKind::Session if accepted => Ending::Close(Outcome::Lost),
         ChannelKind::Route if dispatched => Ending::Close(Outcome::Lost),
         ChannelKind::Session | ChannelKind::Route => Ending::Reset(ResetReason::LinkLost),
+    }
+}
+
+/// How a pair ends when the far end resets its link channel with `reason`: passed on only where no
+/// effect can have started. Past that point the far end's reset cannot state that nothing ran, so
+/// the pair ends `lost`, as at its carrier's end.
+pub(super) const fn link_reset_end(
+    kind: ChannelKind,
+    accepted: bool,
+    dispatched: bool,
+    reason: ResetReason,
+) -> Ending {
+    match carrier_end(kind, accepted, dispatched) {
+        Ending::Reset(_) => Ending::Reset(reason),
+        ending => ending,
     }
 }
 
@@ -294,10 +310,11 @@ impl Hub {
         }
     }
 
-    pub(super) fn client_writable(&mut self, peer: u64, channel: u32) {
-        if let Some(key) = self.relays.of_client(peer, channel) {
-            self.flush_client(key);
-        }
+    /// The client's credit returned; true when the pair then finished and left the table.
+    pub(super) fn client_writable(&mut self, peer: u64, channel: u32) -> bool {
+        self.relays
+            .of_client(peer, channel)
+            .is_some_and(|key| self.flush_client(key))
     }
 
     pub(super) fn client_end(&mut self, peer: u64, channel: u32) {
@@ -418,20 +435,18 @@ impl Hub {
         }
     }
 
+    /// The far end reset the link channel: its reason reaches the client only while no effect can
+    /// have started, and a `stop-session`, whose route is dispatched from the start, reads
+    /// `unknown`.
     pub(super) fn link_reset(&mut self, carrier: u64, link: u32, reason: ResetReason) {
         let Some(key) = self.relays.of_link(carrier, link) else {
             return;
         };
-        let Some(pair) = self.relays.remove(key) else {
+        let Some(pair) = self.relays.pairs.get(&key) else {
             return;
         };
-        match pair.opener {
-            Opener::Client { peer, channel } => self.reset_client(peer, channel, reason),
-            // A responder's reset asserts no effect: the Session was not stopped.
-            Opener::StopSession { peer, request } => {
-                self.reply_stop(peer, request, StopSessionOutcome::Failed);
-            }
-        }
+        let ending = link_reset_end(pair.kind, pair.accepted, pair.dispatched, reason);
+        self.end_pair(key, ending, None);
     }
 
     /// The carrier `carrier` ended, or is being ended: every pair on it whose link channel was still
@@ -546,17 +561,17 @@ impl Hub {
     }
 
     /// Commits what the pair holds toward the client, takes as much from the link, and sends what
-    /// waits behind the bytes; a pair over on both sides leaves the table.
-    fn flush_client(&mut self, key: u64) {
+    /// waits behind the bytes; a pair over on both sides leaves the table, and then this is true.
+    fn flush_client(&mut self, key: u64) -> bool {
         let Some(Opener::Client { peer, channel }) =
             self.relays.pairs.get(&key).map(|pair| pair.opener)
         else {
-            return;
+            return false;
         };
         if !self.peers.contains_key(&peer) {
             self.cancel_link(key, ResetReason::Cancelled);
             self.relays.remove(key);
-            return;
+            return true;
         }
         let Self {
             relays,
@@ -565,7 +580,7 @@ impl Hub {
             ..
         } = self;
         let (Some(pair), Some(client)) = (relays.pairs.get_mut(&key), peers.get(&peer)) else {
-            return;
+            return false;
         };
         let (committed, finished) = {
             let mut wire = client.line.lock();
@@ -608,6 +623,7 @@ impl Hub {
         if finished {
             relays.remove(key);
         }
+        finished
     }
 
     /// Resets the pair's link channel with `reason` unless the link is over already.

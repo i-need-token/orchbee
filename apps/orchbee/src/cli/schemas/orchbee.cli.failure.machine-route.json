@@ -19,12 +19,19 @@
 			"properties": {
 				"kind": {
 					"enum": [
-						"invalid-usage",
-						"timeout",
-						"cancelled",
+						"check-failed",
+						"internal-failure",
+						"not-found",
+						"ambiguous",
+						"rejected",
+						"denied",
 						"service-unavailable",
+						"transport-loss",
+						"protocol-invalid",
 						"incompatible",
-						"outcome-unknown"
+						"timeout",
+						"outcome-unknown",
+						"cancelled"
 					]
 				},
 				"details": {

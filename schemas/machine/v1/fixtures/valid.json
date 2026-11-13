@@ -1193,6 +1193,13 @@
 			"direction": "acceptor",
 			"kind": "reset",
 			"payload": "{\"reason\":\"session-not-running\"}"
+		},
+		{
+			"name": "hub-reset-invalid-session",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "reset",
+			"payload": "{\"reason\":\"invalid-session\"}"
 		}
 	]
 }

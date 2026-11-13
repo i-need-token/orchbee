@@ -313,6 +313,15 @@ impl super::CliText {
         }
     }
 
+    /// An `expiring` hub past its `expiresAt`, which closes once no routed command runs.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_hub_overdue(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => "expired, closes once no remote command runs",
+            Locale::ZhCn => "已到期，远端命令全部结束后关闭",
+        }
+    }
+
     #[cfg(windows)]
     pub(crate) fn cli_machine_hub_closing(self) -> &'static str {
         match self.locale {

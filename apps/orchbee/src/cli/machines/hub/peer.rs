@@ -167,7 +167,11 @@ fn deliver(
             true
         }
         Delivery::Writable { channel } => {
-            shared.lock().client_writable(id, channel);
+            let finished = shared.lock().client_writable(id, channel);
+            // The last route ending lets an expired hub close.
+            if finished {
+                shared.wake();
+            }
             true
         }
         Delivery::End { channel } => {

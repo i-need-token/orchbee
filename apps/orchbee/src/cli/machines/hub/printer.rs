@@ -147,11 +147,11 @@ fn render(text: CliText, report: &Report, pid: u32) -> String {
     let state = match report.hub {
         HubState::Held => text.cli_machine_hub_held().to_owned(),
         HubState::Expiring { expires_at } => {
-            let seconds = expires_at
-                .get()
-                .saturating_sub(Moment::now().wall)
-                .div_ceil(1_000);
-            text.cli_machine_hub_expiring(seconds)
+            match expires_at.get().saturating_sub(Moment::now().wall) {
+                // Past `expiresAt` an open route keeps the hub until it ends.
+                0 => text.cli_machine_hub_overdue().to_owned(),
+                remaining => text.cli_machine_hub_expiring(remaining.div_ceil(1_000)),
+            }
         }
         HubState::Closing => text.cli_machine_hub_closing().to_owned(),
     };

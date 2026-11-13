@@ -374,11 +374,11 @@ false.
 
 The event `hub` carries `state` and, exactly in `expiring`, `expiresAt`, a time.
 
-| State      | Meaning                                                                                                                                                                                  | Leaves to                               |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `held`     | A holder exists: a connection with `presence`, or a live local Session of the hub's data root                                                                                            | `expiring`, `closing`                   |
-| `expiring` | No holder exists; every login ends at `expiresAt`, 600,000 ms after the latest of: the last holder leaving, the hub's start, and the last `connect` that ended with its Machine `online` | `held` when a holder appears, `closing` |
-| `closing`  | The expiry was reached or a control request asked for it                                                                                                                                 | Process exit                            |
+| State      | Meaning                                                                                                                                                                                                                                      | Leaves to                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `held`     | A holder exists: a connection with `presence`, or a live local Session of the hub's data root                                                                                                                                                | `expiring`, `closing`                   |
+| `expiring` | No holder exists; every login ends at `expiresAt`, 600,000 ms after the latest of: the last holder leaving, the hub's start, and the last `connect` that ended with its Machine `online`, or once no work is in flight when that comes later | `held` when a holder appears, `closing` |
+| `closing`  | The expiry was reached with no work in flight, or a control request asked for it                                                                                                                                                             | Process exit                            |
 
 - Holders of the second kind are observed by the hub, not announced through this protocol.
 - In `closing` the hub rejects offers with `stopping`, answers every request with outcome
@@ -388,6 +388,12 @@ The event `hub` carries `state` and, exactly in `expiring`, `expiresAt`, a time.
 - `closing` never returns to another state.
 - A `connect` reply `online` restarts the countdown while `expiring` and the hub sends the new
   `expiresAt`. No channel and no other request restarts it.
+- Expiry never ends work in flight. Work in flight is an open `route` channel or a `stop-session`
+  request waiting for its outcome. While any is in flight, reaching `expiresAt` does not begin
+  `closing`: the hub stays `expiring` with the past `expiresAt`, which no channel opening or ending
+  moves, and sends no event for it. Once `expiresAt` has passed, the hub begins `closing` as soon as
+  no work is in flight and no holder has appeared. `closing` for any other reason still lets open
+  `route` channels finish for at most 60 seconds.
 
 ### Machine state
 
@@ -542,15 +548,16 @@ The event `question` goes to the claimant only.
 
 ### Hub channel kinds
 
-| Kind      | `open` members | Relayed to                                         | `close` outcomes          | `reset` reasons of its own                          |
-| --------- | -------------- | -------------------------------------------------- | ------------------------- | --------------------------------------------------- |
-| `session` | `machine`      | A link `session` channel for the Machine's Session | `ended`, `failed`, `lost` | `not-found`, `not-online`, `link-lost`              |
-| `route`   | `machine`      | A link `route` channel                             | `replied`, `lost`         | `not-found`, `not-online`, `link-lost`, `too-large` |
+| Kind      | `open` members | Relayed to                                         | `close` outcomes          | `reset` reasons of its own                                                       |
+| --------- | -------------- | -------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
+| `session` | `machine`      | A link `session` channel for the Machine's Session | `ended`, `failed`, `lost` | `not-found`, `not-online`, `link-lost`, `session-not-running`, `invalid-session` |
+| `route`   | `machine`      | A link `route` channel                             | `replied`, `lost`         | `not-found`, `not-online`, `link-lost`, `too-large`                              |
 
 - The hub opens a channel only for a Machine that is `online`; it never starts a login for an
   `open`. A client that may need one sends `connect` first.
 - The hub sends `accept` after the link channel was accepted, relays data, `end`, and the link's
-  `close` unchanged, and passes on a link `reset` with its reason.
+  `close` unchanged, and passes on a link `reset` with its reason. `session-not-running` and
+  `invalid-session` are the link `session` channel's own reasons, passed on as they came.
 - `link-lost` as a `reset` reason keeps the no-effect rule: the hub sends it for a `session`
   channel only before `accept`, and for a `route` channel only when it had not yet written the
   opener's `end` to the link. When the link is lost later, the hub sends `close` with `lost`,
@@ -605,24 +612,24 @@ one-time code, or any other answer to a login question.
 
 ## Bounds
 
-| Bound                                           | Value                                   | Beyond it                           |
-| ----------------------------------------------- | --------------------------------------- | ----------------------------------- |
-| JSON payload of one frame                       | 65,536 bytes                            | Violation                           |
-| `data` payload of one frame                     | 32,768 bytes                            | Violation                           |
-| Open channels per opener and connection         | 256                                     | `reset` with `capacity`             |
-| Outstanding credit per channel and direction    | 4,194,304 bytes                         | Violation                           |
-| Unanswered requests per sender                  | 64                                      | Violation                           |
-| Unanswered `ping` per sender                    | 1                                       | Violation                           |
-| Route request packet; reply packet              | 2,097,152; 25,165,824 bytes             | `reset` with `too-large`; violation |
-| Path of one install record                      | 1,024 bytes                             | `close` with `verification-failed`  |
-| Install: files, one file, all content           | 4,096; 536,870,912; 2,147,483,648 bytes | `reset` with `too-large` at `open`  |
-| Machines in `catalog`                           | 64                                      | Violation                           |
-| `prompt`                                        | 4,096 bytes                             | The hub truncates before sending    |
-| Hub connection slots; control slots             | 256; 4                                  | `OBHS` rejection `capacity`         |
-| Hub: wait of a `command` request for a login    | 120,000 ms                              | `auth-required`                     |
-| Hub: expiry; closing allowance                  | 600,000 ms; 60,000 ms                   | Logins end; channels end `lost`     |
-| Link: hub send interval; helper receive silence | 30 s; 90 s                              | The helper exits                    |
-| Helper: wait for a Session to report ready      | 30 s                                    | `close` with `unknown`              |
+| Bound                                           | Value                                   | Beyond it                                                 |
+| ----------------------------------------------- | --------------------------------------- | --------------------------------------------------------- |
+| JSON payload of one frame                       | 65,536 bytes                            | Violation                                                 |
+| `data` payload of one frame                     | 32,768 bytes                            | Violation                                                 |
+| Open channels per opener and connection         | 256                                     | `reset` with `capacity`                                   |
+| Outstanding credit per channel and direction    | 4,194,304 bytes                         | Violation                                                 |
+| Unanswered requests per sender                  | 64                                      | Violation                                                 |
+| Unanswered `ping` per sender                    | 1                                       | Violation                                                 |
+| Route request packet; reply packet              | 2,097,152; 25,165,824 bytes             | `reset` with `too-large`; violation                       |
+| Path of one install record                      | 1,024 bytes                             | `close` with `verification-failed`                        |
+| Install: files, one file, all content           | 4,096; 536,870,912; 2,147,483,648 bytes | `reset` with `too-large` at `open`                        |
+| Machines in `catalog`                           | 64                                      | Violation                                                 |
+| `prompt`                                        | 4,096 bytes                             | The hub truncates before sending                          |
+| Hub connection slots; control slots             | 256; 4                                  | `OBHS` rejection `capacity`                               |
+| Hub: wait of a `command` request for a login    | 120,000 ms                              | `auth-required`                                           |
+| Hub: expiry; closing allowance                  | 600,000 ms; 60,000 ms                   | Logins end once no work is in flight; channels end `lost` |
+| Link: hub send interval; helper receive silence | 30 s; 90 s                              | The helper exits                                          |
+| Helper: wait for a Session to report ready      | 30 s                                    | `close` with `unknown`                                    |
 
 ## Baseline and capabilities
 

@@ -1,8 +1,10 @@
-//! The hub's lifetime as a state machine over its holders, with the time an argument: `held` while a
-//! `presence` connection is attached or the last Session read found a live Session, `expiring`
-//! from the moment the hub learned that nothing holds it, and `closing` once and for ever, entered
-//! by `drain` or by a Session read at or after the expiry deadline that finds no live Session. A
-//! `connect` answered `online` while `expiring` starts the countdown again.
+//! The hub's lifetime as a state machine over its holders, with the time and the count of open
+//! routes as arguments: `held` while a `presence` connection is attached or the last Session read
+//! found a live Session, `expiring` from the moment the hub learned that nothing holds it, and
+//! `closing` once and for ever, entered by `drain` or by a Session read at or after the expiry
+//! deadline that finds no live Session and no open route. Expiry never ends work in flight: past
+//! the deadline the hub stays `expiring`, its `expiresAt` unchanged, until the last route ends. A
+//! `connect` answered `online` while `expiring` starts the countdown again; a route never does.
 //! `docs/machines.md#lifetime` owns the rules; the supervisor alone reads the clocks.
 
 use orchbee_machine_protocol::{MAXIMUM_COUNT, Time, hub::HubState};
@@ -122,18 +124,20 @@ impl Lifetime {
         }
     }
 
-    /// When the next Session read is due, if one is. The expiry deadline is one: the hub closes
-    /// only after a read there finds no live Session.
-    pub(super) fn read_due(&self) -> Option<ReadDue> {
+    /// When the next Session read is due, if one is, while `routes` routes are open. The expiry
+    /// deadline is one only while no route is open: the hub closes only after a read there finds
+    /// no live Session, and a route ending past the deadline makes that read due at once.
+    pub(super) fn read_due(&self, routes: usize) -> Option<ReadDue> {
         if self.presence > 0 || self.is_closing() {
             return None;
         }
         match self.next_read {
             NextRead::None => None,
             NextRead::Owed => Some(ReadDue::Now),
-            NextRead::At(at) => Some(ReadDue::At(
-                self.deadline().map_or(at, |deadline| deadline.min(at)),
-            )),
+            NextRead::At(at) => Some(ReadDue::At(match self.deadline() {
+                Some(deadline) if routes == 0 => deadline.min(at),
+                _ => at,
+            })),
         }
     }
 
@@ -142,10 +146,17 @@ impl Lifetime {
         ReadTicket(self.leaves)
     }
 
-    /// Applies a read that ended at `now`, unless a `presence` connection is attached, the hub is
-    /// closing, or a later leave owes a newer read; true when the state changed. A read that finds
-    /// no live Session at or after the expiry deadline enters `closing`.
-    pub(super) fn finish_read(&mut self, ticket: ReadTicket, live: bool, now: Moment) -> bool {
+    /// Applies a read that ended at `now` with `routes` routes open, unless a `presence`
+    /// connection is attached, the hub is closing, or a later leave owes a newer read; true when
+    /// the state changed. A read that finds no live Session and no open route at or after the
+    /// expiry deadline enters `closing`; with a route open the hub stays `expiring` as it was.
+    pub(super) fn finish_read(
+        &mut self,
+        ticket: ReadTicket,
+        live: bool,
+        routes: usize,
+        now: Moment,
+    ) -> bool {
         if self.presence > 0 || self.is_closing() || ticket.0 != self.leaves {
             return false;
         }
@@ -159,7 +170,7 @@ impl Lifetime {
                 self.phase = Phase::Held;
                 true
             }
-            (Phase::Expiring { deadline, .. }, false) if now.at >= deadline => {
+            (Phase::Expiring { deadline, .. }, false) if now.at >= deadline && routes == 0 => {
                 self.phase = Phase::Closing;
                 true
             }

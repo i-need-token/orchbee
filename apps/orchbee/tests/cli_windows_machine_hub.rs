@@ -863,7 +863,7 @@ fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_w
     );
 
     // Ending the carrier while the far command runs ends the routed command with a definite
-    // failure; the far command may have run, so its outcome is unknown.
+    // failure; the far command may have run, so its outcome is unknown, which exits 8.
     let before: Vec<u32> = children(&child).iter().map(|process| process.pid).collect();
     let mut waiting = carried
         .command(&[
@@ -912,7 +912,7 @@ fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_w
         .read_to_end(&mut stdout)
         .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(finished.code(), Some(5), "{document}");
+    assert_eq!(finished.code(), Some(8), "{document}");
     assert_eq!(document["failure"]["details"]["remoteOutcome"], "unknown");
     eprintln!(
         "carrier ended: the routed command failed after {:?}",

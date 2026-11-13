@@ -252,13 +252,16 @@ Local management, installation, TUI, and terminal interactive streams are refuse
 
 The owner is the [machine hub](#machine-hub), not the local IPC transport. The command reaches it
 through the [client owner](#client-owner), attached with neither `presence`, `asks` nor `watch`,
-and starts a hub when none runs. It asks the hub to `reload` and then to `connect` the Machine with
-`origin` `command` and no `answers`, under the rules and errors of `machine connect`: a login that
-needs a person ends `auth-required` at once, and a hub closing under the request is asked once
-more through the hub that replaces it. Once the Machine is `online` the command opens one hub
-`route` channel, writes one bounded request packet, sends `end`, and reads the reply packet until
-`close`; the hub [relays](#channels) it to a link `route` channel, so three commands to one Machine
-share its one carrier. The packet and its
+and starts a hub when none runs. It asks the hub to `reload`, a hub closing under the request once
+more through the hub that replaces it, and then opens one hub `route` channel at once: a Machine
+already `online` serves the command without a `connect`, so the hub's [countdown](#lifetime) stays
+where it was. Only when the hub resets the route `not-online`, or `stopping` because it closed
+meanwhile, does the command ask it to `connect` the Machine with `origin` `command` and no
+`answers`, under the rules and errors of `machine connect`, where a login that needs a person ends
+`auth-required` at once, and then open the route once more; that `connect` restarts the countdown
+as every `connect` does. On the route the command writes one bounded request packet, sends `end`,
+and reads the reply packet until `close`; the hub [relays](#channels) it to a link `route` channel,
+so three commands to one Machine share its one carrier. The packet and its
 reply are closed objects whose `version` is their `machine-route` generation in the
 [connection registry](../../../schemas/connection/v1/connections.json); each may carry an
 `extensions` object whose member names follow the capability-name grammar and whose content the
@@ -280,15 +283,42 @@ are returned in a bounded reply, never reconstructed from SSH diagnostics.
 
 Local input has a 60-second bound, and reaching `online` 90 seconds: a hub start, then the hub's
 own 60-second attempt. Execution honors the command's own deadline, including explicit forever
-waits. An interrupt resets the `route` channel `cancelled`, which ends the remote command and the
-channel and leaves the connection and the Machine as they were; the command exits 130. Dispatch is
-the hub's `end` on the channel. Losing the link, the hub, or the attachment after it cannot prove
-remote process settlement or business rollback: the failure reports an unknown remote outcome
-(`ssh-failed` or `hub-unavailable`, exit 5 or 4) and never retries. Before dispatch it reports
-not-submitted. The remote helper owns and settles its command Job; a disconnected peer can still
-leave an already accepted business action, and no distributed cancellation guarantee is claimed.
-Wire request/reply limits and output truncation fail closed. No real SSH or cross-machine
-acceptance is inferred from tests through the stand-in.
+waits: the route has no deadline of its own, and the hub's expiry never ends a route in flight
+([lifetime](#lifetime)). Only an interrupt, a lost link, or a hub stopped or replaced on purpose,
+which gives open routes 60 seconds, ends it first. An interrupt resets the `route` channel
+`cancelled`, which ends the remote command and the channel and leaves the connection and the
+Machine as they were; the command exits 130. Dispatch is the hub's `end` on the channel. Losing the
+link, the hub, or the attachment after it, or a far end that resets the route after it, cannot
+prove remote process settlement or business rollback: the failure reports an unknown remote
+outcome and never retries. Before dispatch it reports not-submitted. The remote helper owns and
+settles its command Job; a disconnected peer can still leave an already accepted business action,
+and no distributed cancellation guarantee is claimed. Wire request/reply limits and output
+truncation fail closed. No real SSH or cross-machine acceptance is inferred from tests through the
+stand-in.
+
+A failure document `orchbee.cli.failure.machine-route` names its `reason`, the `remoteOutcome`
+(`not-submitted` or `unknown`) and a failure kind, and the exit code follows from the kind alone.
+A not-submitted failure takes the kind of its reason:
+
+| Kind                  | Exit | Reasons                                                                                                                                                                                                                                                                                           |
+| --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `check-failed`        | 1    | `configuration`, `invalid-catalog`, `storage`                                                                                                                                                                                                                                                     |
+| `internal-failure`    | 1    | `internal`                                                                                                                                                                                                                                                                                        |
+| `not-found`           | 3    | `not-found`                                                                                                                                                                                                                                                                                       |
+| `ambiguous`           | 3    | `ambiguous-machine`                                                                                                                                                                                                                                                                               |
+| `rejected`            | 3    | `disabled-machine`, `input-source`                                                                                                                                                                                                                                                                |
+| `denied`              | 3    | `auth-failed`, `host-key-changed`, `host-untrusted`                                                                                                                                                                                                                                               |
+| `service-unavailable` | 4    | `busy`, `capacity`, `revision-exhausted`, `ssh-unavailable`, `remote-not-installed`, `remote-not-ready`, `unsupported-machine`, `hub-unavailable`, `host-unreachable`, `auth-required`, `remote-install-failed`, and `cancelled` when the hub ended the connection attempt the command waited for |
+| `transport-loss`      | 5    | `ssh-failed`                                                                                                                                                                                                                                                                                      |
+| `protocol-invalid`    | 5    | `remote-protocol`, `remote-rejected-or-interrupted`                                                                                                                                                                                                                                               |
+| `incompatible`        | 6    | `remote-unsupported`, `remote-other-environment`, `version-incompatible`                                                                                                                                                                                                                          |
+| `timeout`             | 7    | `timeout`: a local deadline elapsed                                                                                                                                                                                                                                                               |
+| `outcome-unknown`     | 8    | `physical-unknown`                                                                                                                                                                                                                                                                                |
+| `cancelled`           | 130  | `cancelled` from an interrupt                                                                                                                                                                                                                                                                     |
+
+An unknown remote outcome keeps `cancelled` for an interrupt and `timeout` for a deadline and is
+otherwise `outcome-unknown` with exit 8 whatever its reason, so no exit that states that nothing
+ran ever follows a dispatched command.
 
 Private requests are at most 2 MiB and replies at most 24 MiB; raw stdout and
 stderr are each at most 8 MiB. Arguments are bounded to 64 KiB and 1024 entries.
@@ -420,12 +450,13 @@ do, and whether the canonical path stays stable on macOS is unverified.
 A holder is a connection attached with `presence` or a live local Session of the data root. The
 hub's state follows the contract's [hub lifetime](../../../schemas/machine/README.md#hub-lifetime).
 
-| State      | When                                                                                                                                                | Leaves to                                                                                                           |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `held`     | A holder exists, or the last `presence` connection has left and the Session read it triggered has not finished                                      | `expiring` when no `presence` connection is attached and a Session read finds no live Session; `closing` on `drain` |
-| `expiring` | No holder; `expiresAt` is 600,000 ms after the later of the moment the hub learned that and the last `connect` that ended with its Machine `online` | `held` on a `presence` attachment or a read that finds a live Session; `closing` on `drain`                         |
-| `expiring` | `expiresAt` is reached with no `presence` connection: the hub reads every Session once more                                                         | `held` when the read finds a live Session; `closing` when it finds none                                             |
-| `closing`  | Entered once and never left                                                                                                                         | Exit                                                                                                                |
+| State      | When                                                                                                                                                             | Leaves to                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `held`     | A holder exists, or the last `presence` connection has left and the Session read it triggered has not finished                                                   | `expiring` when no `presence` connection is attached and a Session read finds no live Session; `closing` on `drain`              |
+| `expiring` | No holder; `expiresAt` is 600,000 ms after the later of the moment the hub learned that and the last `connect` that ended with its Machine `online`              | `held` on a `presence` attachment or a read that finds a live Session; `closing` on `drain`                                      |
+| `expiring` | `expiresAt` is reached, or has passed and the last open route just ended, with no `presence` connection and no route open: the hub reads every Session once more | `held` when the read finds a live Session; `closing` when it finds none and still no route is open                               |
+| `expiring` | `expiresAt` has passed with a route open: the state keeps the past `expiresAt` and the periodic reads go on                                                      | `held` on a `presence` attachment or a read that finds a live Session; the row above once no route is open; `closing` on `drain` |
+| `closing`  | Entered once and never left                                                                                                                                      | Exit                                                                                                                             |
 
 - **Start.** The hub takes the lock and binds its endpoint at once, then reads the catalog and
   every Session before it accepts a connection, so its first client sees `held` or `expiring`; a
@@ -435,7 +466,8 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   Session folder in the runtime base of the environment it started in, where every Session started
   in that environment keeps its runtime. It reads once when the last `presence` connection closes
   or attaches again without `presence`, then every 30 seconds while none is attached, once more at
-  `expiresAt` before the hub may close, and never while one is attached. One read covers every Session within 5 seconds; a read that fails or runs out of time
+  `expiresAt`, or when the last route ends after it, before the hub may close, and never while one
+  is attached. One read covers every Session within 5 seconds; a read that fails or runs out of time
   finds no live Session. The read at `expiresAt` sees a Session started without an interface since
   the last periodic read, so the hub never closes under it.
 - **What a read opens.** A read opens no Session record and nothing in the data root's
@@ -465,8 +497,17 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
 - **A connect restarts the countdown.** Every `connect` reply `online`, joined or answered at once
   for a Machine already `online`, moves `expiresAt` to 600,000 ms after that reply while the hub is
   `expiring`, and the new state goes to every watcher; in `held` and `closing` it changes nothing.
-  A routed command, a channel, or any other request restarts nothing, so a command alone can keep
-  a login no longer than the connect it made.
+  A channel, opening or ending, and any other request restart nothing. A routed command opens its
+  route first and sends `connect` only for a Machine that is not `online`, so commands to a Machine
+  already `online` never extend its login.
+- **Expiry never ends work in flight.** A route is a hub `route` channel or a `stop-session`
+  request while it is in the relay table. While one is open the expiry does not begin closing:
+  past `expiresAt` the hub stays `expiring`, the state and every watcher keep the past `expiresAt`,
+  and no event is sent for the overdue interval; the state printer reads such a hub as expired and
+  closing once no remote command runs. The last route ending wakes the supervisor, whose
+  read is then due at once; it closes the hub when it finds no live Session and still no route
+  open. Closing for any other reason, `drain`, replacement or uninstall, still gives open routes
+  the 60-second allowance below.
 - **Events.** Every change of state goes as `hub` to every connection attached with `watch`.
 
 In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`
@@ -608,7 +649,7 @@ channel.
 | `data`, either way   | Commits the bytes to the other side's state machine as far as that side's credit allows, takes from the sending side exactly what was committed, and keeps the rest until the other side's credit returns                                                                                                                      |
 | `end`, either way    | Relayed once the bytes ahead of it are committed; the opener's `end` toward a `route` link is the dispatch                                                                                                                                                                                                                     |
 | Link `close`         | Relayed with its outcome once the bytes ahead of it are committed; an outcome this build does not know relays as `lost`                                                                                                                                                                                                        |
-| Link `reset`         | Passed on with its reason at once. `session-not-running` and `invalid-session`, which the hub's `session` kind does not list, and a reason this build does not know, pass on as `unavailable`: no effect, and the Machine cannot serve the channel now                                                                         |
+| Link `reset`         | Passed on with its reason at once while no effect can have started: before `accept` for a `session`, before the opener's `end` was queued for a `route`; a reason the kind does not list, or one this build does not know, passes on as `unavailable`. Past that point the pair ends as at the carrier's end, `close` `lost`   |
 | The client's `reset` | Resets the link channel `cancelled`, so the helper ends a routed command it runs; a `too-large` the hub's state machine sent does the same                                                                                                                                                                                     |
 | The client leaves    | Resets each of its link channels `cancelled`; the Machine, its carrier and every other client's channels go on                                                                                                                                                                                                                 |
 | The carrier ends     | Every pair on it ends: a `session` that was accepted closes `lost` after the bytes ahead of it, one that was not resets `link-lost`; a `route` whose opener's `end` the hub had not queued resets `link-lost`, any other closes `lost`                                                                                         |
@@ -622,6 +663,12 @@ channel.
 - **A queued `end` counts as dispatched.** The hub cannot tell whether a queued `end` reached the
   helper before the link ended, so a `route` whose `end` was queued ends `lost`, which its opener
   reads as unknown. Claiming no effect then could be false; claiming an unknown one never is.
+- **A far reset after dispatch is no statement of no effect.** The helper resets every open
+  channel `stopping` when its link ends, on the hub's `bye`, its input closing, or its own
+  90-second idle limit, a route whose command has begun included, which the contract's no-effect
+  rule does not allow. The hub is the one place that knows whether the opener's `end` was queued,
+  so it reads such a reset as it reads a lost link, and its client never retries a command that may
+  have run.
 - **Carrier ends reach every pair.** A lost link, `disconnect`, a reload that changes or removes the
   record, and a failed attempt all end the carrier, and each ends its pairs the same way.
 
@@ -629,13 +676,13 @@ channel.
 record's Session, under the helper's admission like any routed command. The reply maps to the
 request's outcome:
 
-| The link `route`                                                                                    | `stop-session` outcome |
-| --------------------------------------------------------------------------------------------------- | ---------------------- |
-| Reply `completed`, result `stopped` or `exited`                                                     | `stopped`              |
-| Reply `completed`, result `unavailable` with reason `runtime` or `transport`                        | `not-running`          |
-| Reply `completed` with result `unknown`, reply `unknown`, a reply over 1 MiB, or the carrier ending | `unknown`              |
-| The Machine not `online` at the request, or its link ending before the packet and `end` were queued | `not-online`           |
-| Any other reply; a `reset` of the route, which states that the Session was not stopped; no room     | `failed`               |
+| The link `route`                                                                                                                                                                | `stop-session` outcome |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Reply `completed`, result `stopped` or `exited`                                                                                                                                 | `stopped`              |
+| Reply `completed`, result `unavailable` with reason `runtime` or `transport`                                                                                                    | `not-running`          |
+| Reply `completed` with result `unknown`, reply `unknown`, a reply over 1 MiB, the carrier ending, or a `reset` of the route, which comes after the packet and `end` were queued | `unknown`              |
+| The Machine not `online` at the request, or its link ending before the packet and `end` were queued                                                                             | `not-online`           |
+| Any other reply; no room                                                                                                                                                        | `failed`               |
 
 A Session with no runtime folder, or with no Server answering its pipe, is what `server stop`
 reports as `unavailable` `runtime` or `transport`; the hub reads both as `not-running`. "No room" is a
@@ -751,6 +798,7 @@ connection, so nothing changed for the link.
 | The last `presence` connection leaves         | `held` while one Session read runs; `expiring` when it finds no live Session                                                                                                                                                                       |
 | A Session ends                                | The next read, at most 30 seconds later, finds it; `expiring` when nothing else holds                                                                                                                                                              |
 | The expiry fires while a request is in flight | Requests are answered under the hub state's lock, before or after the change; a `reload` reads its file outside the lock and, applied in `closing`, replies `stopping`, and the closing waits for it before `bye`                                  |
+| The expiry passes with a route open           | The hub stays `expiring` with the past `expiresAt`; a route opened while the read at `expiresAt` runs keeps it so; the read due when the last route ends closes it unless it finds a live Session                                                  |
 | A second hub starts                           | It cannot take the lock, writes and binds nothing, and exits 0; the client that started it attaches to the running hub                                                                                                                             |
 | A client connects during `closing`            | Its offer is rejected `stopping`; attach-or-start waits and starts a new hub once the old one is gone, or fails `closing` at its deadline; an owner [re-attaching](#re-attachment) after its hub was asked to stop starts none                     |
 | The hub is killed                             | The system releases the lock and closes the pipe; the next attach finds no endpoint and starts a hub, which locks the same file                                                                                                                    |
@@ -819,10 +867,17 @@ connection, so nothing changed for the link.
 - **An unresponsive link stays until something ends it.** A Machine that stops answering `ping`
   reads `unresponsive` and keeps its carrier; the helper's 90-second idle limit or the end of the
   `ssh` process ends the link, which then reconnects.
-- **A release far end refuses `stop-session`.** A release Windows build refuses `--confirm` at
-  destructive admission and asks only a person at a console, so the routed `server stop` that
-  `stop-session` sends reads `failed` there; development and test builds stop the Session. A way
-  for the hub to stop a remote Session past that admission is not decided.
+- **`stop-session` cannot succeed against a release far end.** Its packet runs
+  `server stop --confirm` in the far Session, and a release Windows build refuses `--confirm` at
+  destructive admission, admitting a stop only from a person who types the Session's name at a
+  console, which a routed command never has. Every `stop-session` to a release far end therefore
+  reads `failed`; only development and test builds stop the Session. The next slice must decide a
+  stop form that the admitted link helper may use and that a release build accepts without a
+  console.
+- **The helper resets begun routes.** Its link ending resets every open channel `stopping`, a
+  route whose command started included, against the contract's no-effect rule; the hub reads that
+  reset as a lost link (see [channels](#channels)). The helper should leave such a route to end with
+  its link instead; until it does, only the hub's reading keeps the outcome honest.
 - **`untrusted` is not produced.** A host key that is not yet trusted reads `needs-login` with
   `auth-required` until questions carry `hostKey`.
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
@@ -976,8 +1031,10 @@ three routed commands on one child, opens a Session stream through the hub and r
 Session's handshake answer, ends the child under a routed command in flight and finds a definite
 unknown-outcome failure within a bound, leaves a client mid-stream and finds the hub and the
 Machine still serving, and stops the far Session with `stop-session`, which a second request then
-reads as `not-running`. It starts no `ssh`. The time rules of closing with channels open and of the
-countdown a `connect` restarts are unit tests over the injected clock.
+reads as `not-running`. It starts no `ssh`. The time rules of closing with channels open, of the
+countdown a `connect` restarts and no route moves, and of an expiry held off by open routes are
+unit tests over the injected clock, as are the reading of a far reset by whether an effect may
+have started and the kind and exit code of every routed failure.
 
 ## Persistent TUI connections
 

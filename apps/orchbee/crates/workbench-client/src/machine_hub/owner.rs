@@ -87,7 +87,9 @@ pub enum ChannelDelivery {
     Ended,
     /// The channel's result.
     Closed(Outcome),
-    /// The hub reset the channel: no effect.
+    /// The hub reset the channel with its reason: no effect. A `session` channel also reads
+    /// `session-not-running` when no Server of that Session answers on the Machine, and
+    /// `invalid-session` when the Machine's platform refuses the Session's name.
     Reset(ResetReason),
     /// The connection was lost with the channel open.
     Lost,

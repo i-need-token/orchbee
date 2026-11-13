@@ -854,7 +854,7 @@ pub enum Event {
     Question(Question),
 }
 
-const SESSION_REASONS: [ResetReason; 8] = [
+const SESSION_REASONS: [ResetReason; 10] = [
     SHARED_RESET_REASONS[0],
     SHARED_RESET_REASONS[1],
     SHARED_RESET_REASONS[2],
@@ -863,6 +863,8 @@ const SESSION_REASONS: [ResetReason; 8] = [
     ResetReason::NotFound,
     ResetReason::NotOnline,
     ResetReason::LinkLost,
+    ResetReason::SessionNotRunning,
+    ResetReason::InvalidSession,
 ];
 const ROUTE_REASONS: [ResetReason; 9] = [
     SHARED_RESET_REASONS[0],

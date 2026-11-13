@@ -26,7 +26,7 @@ mod hub;
 /// No machine hub runs where it is not built.
 #[cfg(not(windows))]
 mod hub {
-    use super::{Context, Outcome};
+    use super::{Context, Error, Outcome, Refusal, mapped};
 
     pub(super) fn route(
         _machine: &str,
@@ -34,8 +34,8 @@ mod hub {
         _limit: usize,
         _context: &mut Context,
         _outcome: &mut Outcome,
-    ) -> Result<Vec<u8>, (&'static str, u8)> {
-        Err(("ssh-unavailable", 4))
+    ) -> Result<Vec<u8>, Refusal> {
+        Err(mapped(Error::SshUnavailable))
     }
 }
 #[cfg(windows)]
@@ -160,45 +160,81 @@ impl Reply {
     }
 }
 /// The machine `--machine` names, by the catalog's one `<id|label>` rule, when it may be routed to.
-fn select<'a>(catalog: &'a Catalog, selector: &str) -> Result<&'a Profile, &'static str> {
+fn select<'a>(catalog: &'a Catalog, selector: &str) -> Result<&'a Profile, Error> {
     let profile = catalog.resolve(selector).map_err(|error| match error {
-        CatalogError::Ambiguous => "ambiguous-machine",
-        _ => "not-found",
+        CatalogError::Ambiguous => Error::Catalog(CatalogError::Ambiguous),
+        _ => Error::Catalog(CatalogError::NotFound),
     })?;
     if !profile.enabled {
-        return Err("disabled-machine");
+        return Err(Error::DisabledMachine);
     }
     if !profile.draft.connection.supported() {
-        return Err("unsupported-machine");
+        return Err(Error::UnsupportedMachine);
     }
     Ok(profile)
 }
-/// A machine this build cannot reach is unavailable here; every other selection refusal is 3.
-fn selection_status(reason: &str) -> u8 {
-    if reason == "unsupported-machine" {
-        4
-    } else {
-        3
+/// Why a routed command failed: its closed reason and the failure kind it has while nothing was
+/// submitted. [`reported_kind`] then applies the remote outcome, and the exit code follows from
+/// the reported kind alone.
+type Refusal = (&'static str, FailureKind);
+/// The local input could not be acquired, or the packet carrying it is over the request bound.
+const INPUT_SOURCE: Refusal = ("input-source", FailureKind::Rejected);
+/// The far side's reply names no completed command.
+const REMOTE_REJECTED: Refusal = (
+    "remote-rejected-or-interrupted",
+    FailureKind::ProtocolInvalid,
+);
+fn mapped(error: Error) -> Refusal {
+    (error.code(), kind(error))
+}
+/// The failure kind of a machine error that ends a routed command before anything was submitted.
+/// A hub `cancelled`, the end of the attempt the command waited for, and an install the hub did not
+/// finish leave the Machine unable to serve the command now.
+fn kind(error: Error) -> FailureKind {
+    match error {
+        Error::Catalog(
+            CatalogError::Configuration | CatalogError::InvalidCatalog | CatalogError::Storage,
+        ) => FailureKind::CheckFailed,
+        Error::Catalog(CatalogError::NotFound) => FailureKind::NotFound,
+        Error::Catalog(CatalogError::Ambiguous) => FailureKind::Ambiguous,
+        Error::DisabledMachine => FailureKind::Rejected,
+        Error::AuthFailed | Error::HostUntrusted | Error::HostKeyChanged => FailureKind::Denied,
+        Error::Catalog(
+            CatalogError::Busy | CatalogError::Capacity | CatalogError::RevisionExhausted,
+        )
+        | Error::SshUnavailable
+        | Error::RemoteNotInstalled
+        | Error::RemoteNotReady
+        | Error::UnsupportedMachine
+        | Error::HubUnavailable
+        | Error::HostUnreachable
+        | Error::AuthRequired
+        | Error::AttemptEnded
+        | Error::RemoteInstallFailed
+        | Error::NotYetAvailable => FailureKind::ServiceUnavailable,
+        Error::SshFailed => FailureKind::TransportLoss,
+        Error::RemoteProtocol => FailureKind::ProtocolInvalid,
+        Error::RemoteUnsupported | Error::RemoteOtherEnvironment | Error::VersionIncompatible => {
+            FailureKind::Incompatible
+        }
+        Error::Timeout => FailureKind::Timeout,
+        Error::PhysicalUnknown => FailureKind::OutcomeUnknown,
+        Error::Cancelled => FailureKind::Cancelled,
+        Error::Internal => FailureKind::InternalFailure,
     }
 }
-fn failed(
-    code: &str,
-    status: u8,
-    outcome: Outcome,
-    format: OutputFormat,
-    locale: Locale,
-) -> Output {
-    let kind = if outcome == Outcome::Unknown {
-        FailureKind::OutcomeUnknown
-    } else {
-        match status {
-            3 => FailureKind::InvalidUsage,
-            6 => FailureKind::Incompatible,
-            7 => FailureKind::Timeout,
-            130 => FailureKind::Cancelled,
-            _ => FailureKind::ServiceUnavailable,
-        }
-    };
+/// The kind a routed failure reports. An interrupt and an elapsed deadline keep theirs; any other
+/// failure once the packet may have reached the far side is an unknown outcome, never a kind whose
+/// exit code states that nothing ran.
+fn reported_kind(kind: FailureKind, outcome: Outcome) -> FailureKind {
+    match (kind, outcome) {
+        (FailureKind::Cancelled | FailureKind::Timeout, _)
+        | (_, Outcome::NotSubmitted | Outcome::Completed) => kind,
+        (_, Outcome::Unknown) => FailureKind::OutcomeUnknown,
+    }
+}
+fn failed((code, kind): Refusal, outcome: Outcome, format: OutputFormat, locale: Locale) -> Output {
+    let kind = reported_kind(kind, outcome);
     let mut result = cli::failure_output(
         Failure::new(kind)
             .failure_schema("orchbee.cli.failure.machine-route")
@@ -210,7 +246,6 @@ fn failed(
         Some(format),
         locale,
     );
-    result.status = status;
     result.stderr = format!(
         "{} [{}; remoteOutcome={}]\n",
         CliText::new(locale).cli_machine_route_failure(outcome == Outcome::Unknown),
@@ -245,7 +280,14 @@ pub(crate) fn run(route: Route, locale: Locale) -> Output {
     }
     let signals = match ArmedSignals::arm_interrupts() {
         Ok(v) => v,
-        Err(_) => return failed("internal", 1, Outcome::NotSubmitted, route.format, locale),
+        Err(_) => {
+            return failed(
+                mapped(Error::Internal),
+                Outcome::NotSubmitted,
+                route.format,
+                locale,
+            );
+        }
     };
     let mut context = Context {
         signals,
@@ -255,35 +297,32 @@ pub(crate) fn run(route: Route, locale: Locale) -> Output {
     let result = execute(&route, locale, &mut context, &mut outcome);
     let mut output = match result {
         Ok(output) => output,
-        Err((code, status)) => failed(code, status, outcome, route.format, locale),
+        Err(refusal) => failed(refusal, outcome, route.format, locale),
     };
     // Preserve a completed remote receipt even if cancellation arrives afterwards.
     output.finalization = Some(context.signals.into_finalization());
     output
-}
-fn mapped(error: Error) -> (&'static str, u8) {
-    (error.code(), error.status())
 }
 fn execute(
     route: &Route,
     locale: Locale,
     context: &mut Context,
     outcome: &mut Outcome,
-) -> Result<Output, (&'static str, u8)> {
+) -> Result<Output, Refusal> {
     let catalog = Store::configured()
         .and_then(|s| s.read())
         .map_err(|e| mapped(Error::Catalog(e)))?;
-    let profile = select(&catalog, &route.selector).map_err(|e| (e, selection_status(e)))?;
+    let profile = select(&catalog, &route.selector).map_err(mapped)?;
     // Only an SSH machine is carried; the hub would refuse another kind after the input was read.
     if profile.draft.ssh_target().is_none() {
-        return Err(("unsupported-machine", 4));
+        return Err(mapped(Error::UnsupportedMachine));
     }
     let mut arguments = route.arguments.clone();
     let input = if let Some(input) = &route.input {
         let (path, paste) = match input {
             TerminalSendInput::File { path, paste, .. } => (Some(path.as_str()), *paste),
             TerminalSendInput::Stdin { paste, .. } => (None, *paste),
-            _ => return Err(("internal", 1)),
+            _ => return Err(mapped(Error::Internal)),
         };
         let limit = if paste {
             invocation::MAXIMUM_SEND_PASTE_BYTES
@@ -292,15 +331,15 @@ fn execute(
         };
         let bytes = source::acquire_document(path, limit, context.deadline, &mut context.signals)
             .map_err(|error| match error {
-            source::SourceFailure::Cancelled { .. } => ("cancelled", 130),
-            source::SourceFailure::Timeout { .. } => ("timeout", 7),
-            _ => ("input-source", 3),
+            source::SourceFailure::Cancelled { .. } => mapped(Error::Cancelled),
+            source::SourceFailure::Timeout { .. } => mapped(Error::Timeout),
+            source::SourceFailure::Standard(_) => INPUT_SOURCE,
         })?;
         if path.is_some() {
             let index = arguments
                 .iter()
                 .position(|a| a == "--file" || a.starts_with("--file="))
-                .ok_or(("internal", 1))?;
+                .ok_or_else(|| mapped(Error::Internal))?;
             let separate = arguments[index] == "--file";
             arguments[index] = "--stdin".into();
             if separate {
@@ -319,12 +358,12 @@ fn execute(
         locale: locale_name(locale).into(),
         extensions: Extensions::new(),
     };
-    let bytes = serde_json::to_vec(&packet).map_err(|_| ("internal", 1))?;
+    let bytes = serde_json::to_vec(&packet).map_err(|_| mapped(Error::Internal))?;
     if bytes.len() > REQUEST_LIMIT {
-        return Err(("input-source", 3));
+        return Err(INPUT_SOURCE);
     }
     let reply = hub::route(profile.id.as_str(), &bytes, REPLY_LIMIT, context, outcome)?;
-    let reply: Reply = serde_json::from_slice(&reply).map_err(|_| ("remote-protocol", 5))?;
+    let reply: Reply = serde_json::from_slice(&reply).map_err(|_| mapped(Error::RemoteProtocol))?;
     match reply.output() {
         Ok(output) => {
             *outcome = Outcome::Completed;
@@ -332,7 +371,7 @@ fn execute(
         }
         Err(known) => {
             *outcome = known;
-            Err(("remote-rejected-or-interrupted", 5))
+            Err(REMOTE_REJECTED)
         }
     }
 }
