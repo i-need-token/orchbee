@@ -16,7 +16,9 @@
 //   launcher in the store root.
 // - command: a new process whose `Path` is the machine value plus the user value, as a new terminal
 //   gets it, finds the command in `<store root>\bin`; `--version` answers the version; `server start`
-//   and `status` exit 0; a release build refuses each withheld command with exit 4.
+//   exits 0; `workspace create` opens a terminal running the default shell, a command sent to it
+//   prints a marker that `wait-output` and `read` find, and `workspace close` closes it; `status`
+//   exits 0; a release build refuses each withheld command with exit 4.
 // - uninstall: the registered uninstaller with the silent switches exits 0, and its copy that keeps
 //   running after the exit code has finished.
 // - npm: `npm install -g --offline` of the tarballs into the prefix; the first start installs the
@@ -47,6 +49,9 @@ const usage =
 	'       node scripts/release-smoke-windows.mjs npm <artifacts> --prefix <absolute new directory>';
 // Each command a person runs gets this long; an install or a removal gets longer.
 const commandDeadline = 120_000;
+// A new terminal's first shell on a fresh machine gets this long to appear, and then to answer.
+const terminalDeadline = 60_000;
+const terminalPoll = 500;
 const setupDeadline = 600_000;
 // The uninstaller's copy and the Client's deferred file removal finish about a minute after exit.
 const settleDeadline = 180_000;
@@ -236,9 +241,91 @@ function newTerminalEnvironment(identity) {
 }
 
 /** Runs `<stem> <argv>` through cmd.exe, which looks the command up in `env`'s `Path` as a person's shell does. */
-function runCommand(identity, argv, env, deadline) {
-	log(`> ${identity.stem} ${argv.join(' ')}`);
-	return run(system32('cmd.exe'), ['/d', '/c', identity.stem, ...argv], { env, deadline });
+function runCommand(identity, argv, env, deadline, quiet = false) {
+	if (!quiet) log(`> ${identity.stem} ${argv.join(' ')}`);
+	return run(system32('cmd.exe'), ['/d', '/c', identity.stem, ...argv], { env, deadline, quiet });
+}
+
+/** Runs `<stem> <argv> --format json`; `document` is the parsed output, or null when it is not JSON. */
+function runJson(identity, argv, env, quiet = false) {
+	const result = runCommand(identity, [...argv, '--format', 'json'], env, commandDeadline, quiet);
+	try {
+		return { ...result, document: JSON.parse(result.stdout) };
+	} catch {
+		return { ...result, document: null };
+	}
+}
+
+/** The id of the terminal bound to `panelId`, polled until the Server reports one or the deadline. */
+function boundTerminal(identity, env, panelId) {
+	const until = Date.now() + terminalDeadline;
+	for (;;) {
+		const listed = runJson(identity, ['terminal', 'list'], env, true);
+		const row = (listed.document?.result?.terminals ?? []).find(
+			(each) => each.boundTo?.panelId === panelId,
+		);
+		if (listed.status === 0 && typeof row?.terminalId === 'string') return row.terminalId;
+		if (Date.now() >= until) {
+			process.stdout.write(`${listed.stdout}${listed.stderr}`);
+			throw new StepFailure(
+				`No terminal could be opened: panel ${panelId} has no terminal after ${terminalDeadline} ms`,
+			);
+		}
+		sleep(terminalPoll);
+	}
+}
+
+/**
+ * Opens a terminal through the CLI, runs one command in its default shell, reads the output back
+ * and closes it. The command computes part of its marker, `Write-Output smoke-$(6*7)-<nonce>`, so
+ * the echoed command line never holds the marker and only the shell's output can match it.
+ */
+function terminalRoundTrip(identity, env) {
+	const nonce = `${process.pid.toString(36)}${Date.now().toString(36)}`;
+	const marker = `smoke-42-${nonce}`;
+	const created = runJson(identity, ['workspace', 'create'], env);
+	const workspace = created.document?.result?.workspace?.result;
+	if (
+		created.status !== 0 ||
+		typeof workspace?.workspaceId !== 'string' ||
+		typeof workspace?.panelId !== 'string'
+	)
+		throw new StepFailure(`No terminal could be opened: workspace create exited ${created.status}`);
+	const terminal = boundTerminal(identity, env, workspace.panelId);
+	log(`Terminal ${terminal} is open in Workspace ${workspace.workspaceId}`);
+	// Any text on the screen means the shell has started and printed its prompt.
+	const started = runCommand(
+		identity,
+		['terminal', 'wait-output', terminal, '--regex', '\\S', '--timeout', String(terminalDeadline)],
+		env,
+	);
+	expectStatus(started, 0, 'terminal wait-output for the shell');
+	const text = `Write-Output smoke-$(6*7)-${nonce}`;
+	expectStatus(
+		runCommand(identity, ['terminal', 'send', terminal, '--text', text, '--enter'], env),
+		0,
+		'terminal send',
+	);
+	const answered = runCommand(
+		identity,
+		['terminal', 'wait-output', terminal, '--match', marker, '--timeout', String(terminalDeadline)],
+		env,
+	);
+	const read = runJson(
+		identity,
+		['terminal', 'read', terminal, '--source', 'recent', '--lines', '50'],
+		env,
+	);
+	expectStatus(answered, 0, `terminal wait-output for ${marker}`);
+	expectStatus(read, 0, 'terminal read');
+	if (!String(read.document?.result?.content?.text ?? '').includes(marker))
+		throw new StepFailure(`terminal read does not show ${marker}`);
+	expectStatus(
+		runCommand(identity, ['workspace', 'close', workspace.workspaceId, '--confirm'], env),
+		0,
+		'workspace close',
+	);
+	log(`The terminal printed ${marker}, read back through the CLI, and closed.`);
 }
 
 /** Whether this process runs elevated, read from the integrity level of its token. */
@@ -340,6 +427,7 @@ function command(identity) {
 	log(`A new terminal finds ${found}`);
 	expectVersion(identity, runCommand(identity, ['--version'], env), '--version');
 	expectStatus(runCommand(identity, ['server', 'start'], env), 0, 'server start');
+	terminalRoundTrip(identity, env);
 	expectStatus(runCommand(identity, ['status'], env), 0, 'status');
 	if (!identity.release) {
 		log('Withheld commands: a test build offers them, so only a release build is checked.');

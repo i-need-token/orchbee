@@ -90,6 +90,54 @@ const create_suspended: windows.DWORD = 0x0000_0004;
 const create_no_window: windows.DWORD = 0x0800_0000;
 const detached_process: windows.DWORD = 0x0000_0008;
 
+extern "kernel32" fn GetCurrentProcess() callconv(.winapi) windows.HANDLE;
+extern "advapi32" fn OpenProcessToken(process: windows.HANDLE, access: windows.DWORD, token: *windows.HANDLE) callconv(.winapi) windows.BOOL;
+extern "advapi32" fn LookupPrivilegeValueW(system: ?[*:0]const u16, name: [*:0]const u16, luid: *Luid) callconv(.winapi) windows.BOOL;
+extern "advapi32" fn AdjustTokenPrivileges(
+    token: windows.HANDLE,
+    disable_all: windows.BOOL,
+    state: ?*const TokenPrivilege,
+    previous_length: windows.DWORD,
+    previous: ?*TokenPrivilege,
+    returned_length: ?*windows.DWORD,
+) callconv(.winapi) windows.BOOL;
+
+const Luid = extern struct { low: u32, high: i32 };
+/// TOKEN_PRIVILEGES holding one privilege.
+const TokenPrivilege = extern struct { count: u32, luid: Luid, attributes: u32 };
+const token_adjust_privileges: windows.DWORD = 0x0020;
+const token_query: windows.DWORD = 0x0008;
+
+/// This process without SeDebugPrivilege until `restore`. An elevated parent passes the privilege
+/// to its children, enabled when it is PowerShell, and with it enabled OpenProcess grants access
+/// whatever a process's DACL says; a member is denied, and so opaque, only without it.
+const WithoutDebugPrivilege = struct {
+    token: windows.HANDLE,
+    previous: TokenPrivilege,
+
+    fn begin() !WithoutDebugPrivilege {
+        var token: windows.HANDLE = undefined;
+        if (!OpenProcessToken(GetCurrentProcess(), token_adjust_privileges | token_query, &token).toBool())
+            return error.TokenUnavailable;
+        errdefer _ = windows.CloseHandle(token);
+        var luid: Luid = undefined;
+        if (!LookupPrivilegeValueW(null, std.unicode.utf8ToUtf16LeStringLiteral("SeDebugPrivilege"), &luid).toBool())
+            return error.PrivilegeUnavailable;
+        const disabled: TokenPrivilege = .{ .count = 1, .luid = luid, .attributes = 0 };
+        // A token without the privilege reports no previous state, which restores nothing.
+        var previous = std.mem.zeroes(TokenPrivilege);
+        var length: windows.DWORD = 0;
+        if (!AdjustTokenPrivileges(token, .FALSE, &disabled, @sizeOf(TokenPrivilege), &previous, &length).toBool())
+            return error.PrivilegeUnavailable;
+        return .{ .token = token, .previous = previous };
+    }
+
+    fn restore(self: *const WithoutDebugPrivilege) void {
+        if (self.previous.count != 0) _ = AdjustTokenPrivileges(self.token, .FALSE, &self.previous, 0, null, null);
+        _ = windows.CloseHandle(self.token);
+    }
+};
+
 /// A controlled Job member started by the test with its own security descriptor.
 const Member = struct {
     process: windows.HANDLE,
@@ -210,6 +258,8 @@ test "Windows process samples expose owned shell and child facts, deny outsiders
 
 test "Windows process samples keep opaque, read-denied, other-console, GUI, console-less, and churning members over 64" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const privilege = try WithoutDebugPrivilege.begin();
+    defer privilege.restore();
     const directory = try subject.environmentVariableOwned(allocator, "SystemRoot");
     defer allocator.free(directory);
     // The shell churns short-lived console children for the whole test.
@@ -331,6 +381,8 @@ test "Windows close ends console holders and releases GUI and console-less membe
 
 test "Windows close falls back to the whole Job when a console holder cannot be ended alone" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const privilege = try WithoutDebugPrivilege.begin();
+    defer privilege.restore();
     const directory = try subject.environmentVariableOwned(allocator, "SystemRoot");
     defer allocator.free(directory);
     var process = try spawnShell(directory, "ping -t 127.0.0.1 >nul");

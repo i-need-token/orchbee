@@ -140,6 +140,46 @@ static BOOL ob_trusted_acl_sid(PSID candidate, PSID user, PSID system, PSID admi
            EqualSid(candidate, administrators);
 }
 
+/* The private rule of the Rust runtime's admission (crates/local-runtime/README.md, "Private
+ * storage"): the token user, SYSTEM or Administrators owns the object, since an elevated session
+ * of the same account creates it owned by Administrators; every allow entry names one of the
+ * three; deny entries only take access away; another owner, a foreign allow entry, a missing DACL
+ * and an entry of any other kind are refused, never repaired. */
+static BOOL ob_private_security(PSID owner, PACL dacl, PSID user) {
+    if (owner == NULL || dacl == NULL) return FALSE;
+    BYTE system_buffer[SECURITY_MAX_SID_SIZE];
+    BYTE administrators_buffer[SECURITY_MAX_SID_SIZE];
+    DWORD system_length = sizeof(system_buffer);
+    DWORD administrators_length = sizeof(administrators_buffer);
+    if (!CreateWellKnownSid(WinLocalSystemSid, NULL, system_buffer, &system_length) ||
+        !CreateWellKnownSid(
+            WinBuiltinAdministratorsSid,
+            NULL,
+            administrators_buffer,
+            &administrators_length
+        )) {
+        return FALSE;
+    }
+    if (!ob_trusted_acl_sid(owner, user, system_buffer, administrators_buffer)) return FALSE;
+
+    for (DWORD index = 0; index < dacl->AceCount; ++index) {
+        ACE_HEADER *header = NULL;
+        if (!GetAce(dacl, index, (void **)&header)) return FALSE;
+        if (header->AceType == ACCESS_DENIED_ACE_TYPE) continue;
+        if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) return FALSE;
+        ACCESS_ALLOWED_ACE *ace = (ACCESS_ALLOWED_ACE *)header;
+        if (!ob_trusted_acl_sid(
+                (PSID)&ace->SidStart,
+                user,
+                system_buffer,
+                administrators_buffer
+            )) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 static BOOL ob_private_runtime_directory(const wchar_t *path, PSID user) {
     HANDLE directory = CreateFileW(
         path,
@@ -179,52 +219,11 @@ static BOOL ob_private_runtime_directory(const wchar_t *path, PSID user) {
         &descriptor
     );
     CloseHandle(directory);
-    if (security_result != ERROR_SUCCESS || descriptor == NULL || owner == NULL ||
-        dacl == NULL || !EqualSid(owner, user)) {
+    if (security_result != ERROR_SUCCESS || descriptor == NULL) {
         if (descriptor != NULL) LocalFree(descriptor);
         return FALSE;
     }
-
-    BYTE system_buffer[SECURITY_MAX_SID_SIZE];
-    BYTE administrators_buffer[SECURITY_MAX_SID_SIZE];
-    DWORD system_length = sizeof(system_buffer);
-    DWORD administrators_length = sizeof(administrators_buffer);
-    if (!CreateWellKnownSid(WinLocalSystemSid, NULL, system_buffer, &system_length) ||
-        !CreateWellKnownSid(
-            WinBuiltinAdministratorsSid,
-            NULL,
-            administrators_buffer,
-            &administrators_length
-        )) {
-        LocalFree(descriptor);
-        return FALSE;
-    }
-
-    BOOL private_directory = TRUE;
-    for (DWORD index = 0; index < dacl->AceCount; ++index) {
-        ACE_HEADER *header = NULL;
-        if (!GetAce(dacl, index, (void **)&header)) {
-            private_directory = FALSE;
-            break;
-        }
-        if (header->AceFlags & INHERIT_ONLY_ACE) continue;
-        if (header->AceType == ACCESS_ALLOWED_ACE_TYPE) {
-            ACCESS_ALLOWED_ACE *ace = (ACCESS_ALLOWED_ACE *)header;
-            PSID sid = (PSID)&ace->SidStart;
-            if (!ob_trusted_acl_sid(sid, user, system_buffer, administrators_buffer)) {
-                private_directory = FALSE;
-                break;
-            }
-            continue;
-        }
-        if (header->AceType == ACCESS_DENIED_ACE_TYPE) continue;
-        if (header->AceType == ACCESS_ALLOWED_OBJECT_ACE_TYPE ||
-            header->AceType == ACCESS_ALLOWED_CALLBACK_ACE_TYPE ||
-            header->AceType == ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE) {
-            private_directory = FALSE;
-            break;
-        }
-    }
+    BOOL private_directory = ob_private_security(owner, dacl, user);
     LocalFree(descriptor);
     return private_directory;
 }
@@ -948,4 +947,37 @@ int ob_windows_local_test_make_directory_private(const wchar_t *path) {
                        : ERROR_INVALID_SECURITY_DESCR;
     LocalFree(descriptor);
     return result == ERROR_SUCCESS ? OB_WINDOWS_IPC_OK : OB_WINDOWS_IPC_SYSTEM_ERROR;
+}
+
+int ob_windows_local_test_private_descriptor(
+    const wchar_t *descriptor_sddl,
+    const wchar_t *user_sid
+) {
+    PSECURITY_DESCRIPTOR descriptor = NULL;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            descriptor_sddl,
+            SDDL_REVISION_1,
+            &descriptor,
+            NULL
+        )) {
+        return -1;
+    }
+    PSID user = NULL;
+    if (!ConvertStringSidToSidW(user_sid, &user)) {
+        LocalFree(descriptor);
+        return -1;
+    }
+    PSID owner = NULL;
+    BOOL owner_defaulted = FALSE;
+    PACL dacl = NULL;
+    BOOL dacl_present = FALSE;
+    BOOL dacl_defaulted = FALSE;
+    int result = -1;
+    if (GetSecurityDescriptorOwner(descriptor, &owner, &owner_defaulted) &&
+        GetSecurityDescriptorDacl(descriptor, &dacl_present, &dacl, &dacl_defaulted)) {
+        result = ob_private_security(owner, dacl_present ? dacl : NULL, user) ? 1 : 0;
+    }
+    LocalFree(user);
+    LocalFree(descriptor);
+    return result;
 }

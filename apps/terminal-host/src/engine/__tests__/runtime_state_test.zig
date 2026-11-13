@@ -1996,9 +1996,15 @@ test "terminal-driven PTY resize failure fences before Ghostty mutation" {
     try expectCanonicalSnapshotEqual(before, after);
 }
 test "attachment resize waits for a terminal-driven reader transaction" {
-    var resize_probe: TerminalResizeSerializationProbe = .{};
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: harness.GatedPtyProbe(TerminalResizeSerializationProbe) = .{ .probe = .{} };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
 
     var reader_call: ReaderBatchCall = .{ .runtime = runtime };
     const reader_thread = try std.Thread.spawn(.{}, ReaderBatchCall.run, .{&reader_call});
@@ -2031,6 +2037,7 @@ test "attachment resize waits for a terminal-driven reader transaction" {
     try std.testing.expectEqual(@as(u16, 100), final.columns);
     try std.testing.expectEqual(@as(u16, 30), final.rows);
 
+    probe.reader.release();
     try runtime.forceTerminate();
 }
 
@@ -2073,7 +2080,7 @@ const ResizeCursorReplyProbe = struct {
         return bytes.len;
     }
 
-    fn hooks(self: *@This()) RuntimeTestingHooks {
+    pub fn hooks(self: *@This()) RuntimeTestingHooks {
         return .{
             .context = self,
             .reader_resize_waiting = readerResizeWaiting,
@@ -2133,9 +2140,15 @@ const CursorQueryCall = struct {
 
 test "cursor query read during attachment resize replies from committed geometry" {
     const wait_timeout_ns = 10 * std.time.ns_per_s;
-    var probe: ResizeCursorReplyProbe = .{};
-    const runtime = try createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
-    defer runtime.destroy();
+    var gated: harness.GatedPtyProbe(ResizeCursorReplyProbe) = .{ .probe = .{} };
+    const probe = &gated.probe;
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, gated.hooks());
+    gated.runtime = runtime;
+    defer {
+        gated.reader.release();
+        runtime.destroy();
+    }
+    gated.reader.wait();
 
     for (0..40) |index| {
         var line_buffer: [32]u8 = undefined;

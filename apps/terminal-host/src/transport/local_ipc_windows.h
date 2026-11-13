@@ -94,5 +94,11 @@ int ob_windows_local_test_client_write(
 void ob_windows_local_test_client_close(void *client);
 
 int ob_windows_local_test_make_directory_private(const wchar_t *path);
+/* 1 when the private rule admits the descriptor's owner and DACL for `user_sid`, 0 when it
+ * refuses them, -1 when either string does not parse. */
+int ob_windows_local_test_private_descriptor(
+    const wchar_t *descriptor_sddl,
+    const wchar_t *user_sid
+);
 
 #endif

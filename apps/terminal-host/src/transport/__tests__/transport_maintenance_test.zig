@@ -118,3 +118,47 @@ test "POSIX endpoint rejects a directory visible to another account" {
         ),
     );
 }
+
+const rule_account = "S-1-5-21-1-2-3-1001";
+const rule_private_dacl = "D:P(A;OICI;FA;;;" ++ rule_account ++ ")(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)";
+
+fn expectPrivateRule(comptime descriptor: []const u8, comptime admitted: bool) !void {
+    const answer = windows_c.ob_windows_local_test_private_descriptor(
+        std.unicode.utf8ToUtf16LeStringLiteral(descriptor),
+        std.unicode.utf8ToUtf16LeStringLiteral(rule_account),
+    );
+    if (answer != @intFromBool(admitted)) {
+        std.debug.print("{s}: expected admitted={any}, got {d}\n", .{ descriptor, admitted, answer });
+        return error.TestUnexpectedResult;
+    }
+}
+
+// A real elevated token cannot be made in a test, so owner and DACL inputs stand in for the owners
+// an ordinary session, an elevated session and an installer give a runtime directory, and for the
+// accounts that must never own or reach it. The rule is the Rust runtime's private admission.
+test "Windows endpoint admits a runtime directory only when the account, SYSTEM or Administrators own and reach it" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const trusted = .{ rule_account, "SY", "BA" };
+    const others = .{ "S-1-5-21-1-2-3-1002", "BU", "AU", "WD" };
+    inline for (trusted) |owner| {
+        try expectPrivateRule("O:" ++ owner ++ rule_private_dacl, true);
+        // Deny entries only take access away, and an empty DACL grants no one anything.
+        try expectPrivateRule("O:" ++ owner ++ "D:P(D;;FA;;;WD)(A;;FA;;;" ++ rule_account ++ ")", true);
+        try expectPrivateRule("O:" ++ owner ++ "D:P", true);
+        inline for (others) |other| {
+            try expectPrivateRule("O:" ++ owner ++ rule_private_dacl ++ "(A;;FA;;;" ++ other ++ ")", false);
+            // An entry that only children inherit still lets that account into what the Host creates.
+            try expectPrivateRule("O:" ++ owner ++ rule_private_dacl ++ "(A;OICIIO;FA;;;" ++ other ++ ")", false);
+        }
+        // A missing DACL grants everyone everything; an entry of another kind cannot be judged.
+        try expectPrivateRule("O:" ++ owner ++ "D:NO_ACCESS_CONTROL", false);
+        try expectPrivateRule("O:" ++ owner, false);
+        try expectPrivateRule(
+            "O:" ++ owner ++ rule_private_dacl ++ "(OA;;FA;00000000-0000-0000-0000-000000000001;;" ++ rule_account ++ ")",
+            false,
+        );
+    }
+    inline for (others) |owner| {
+        try expectPrivateRule("O:" ++ owner ++ rule_private_dacl, false);
+    }
+}
