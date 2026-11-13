@@ -21,8 +21,10 @@ const DRAIN_WAIT: Duration = Duration::from_secs(10);
 const EXIT_WAIT: Duration = Duration::from_secs(5);
 /// Hubs one `end` ends, counting any a client started while it ran.
 const ROUNDS: usize = 3;
-/// How often a [`HubWatch`] without the hub's process looks at its endpoint's name.
+/// How often a [`HubWatch`] without the hub's process looks at its endpoint.
 const LOOK: Duration = Duration::from_secs(1);
+/// How long that look's `query` may take, so a watch still answers its caller about once a look.
+const LOOK_QUERY: Duration = Duration::from_millis(500);
 
 /// Why `running` or `end` could not finish.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -121,12 +123,14 @@ pub fn end(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFailure
 }
 
 /// The hub serving a data root when the watch began, watched until it goes: through its process
-/// when a `query` names it, which costs nothing while it runs, otherwise through its endpoint's
-/// name. It starts nothing and creates nothing.
+/// when a `query` names it, which costs nothing while it runs, otherwise through its endpoint. It
+/// starts nothing and creates nothing.
 pub struct HubWatch {
     endpoint: Option<PathBuf>,
     process: Option<CloseHandleGuard<w::HPROCESS>>,
-    /// When a watch without the process looks at the endpoint's name next.
+    /// The process id the hub named when the watch began, if it named one.
+    named: Option<u32>,
+    /// When a watch without the process looks at the endpoint next.
     look: Cell<Instant>,
 }
 
@@ -138,28 +142,29 @@ impl HubWatch {
             return Self {
                 endpoint: None,
                 process: None,
+                named: None,
                 look,
             };
         };
-        let process = hub_process(&endpoint, deadline)
-            .ok()
-            .flatten()
-            .and_then(|process_id| {
-                let process =
-                    w::HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, process_id).ok()?;
-                // The same id once the handle is open proves the handle is the hub's.
-                (hub_process(&endpoint, deadline).ok().flatten() == Some(process_id))
-                    .then_some(process)
-            });
+        let named = hub_process(&endpoint, deadline).ok().flatten();
+        let process = named.and_then(|process_id| {
+            let process =
+                w::HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, process_id).ok()?;
+            // The same id once the handle is open proves the handle is the hub's.
+            (hub_process(&endpoint, deadline).ok().flatten() == Some(process_id)).then_some(process)
+        });
         Self {
             endpoint: Some(endpoint),
             process,
+            named,
             look,
         }
     }
 
     /// Waits until `until` for the hub to go; true once it is gone. Without its process it looks at
-    /// the endpoint's name every [`LOOK`], and may read a later hub's endpoint as this one's.
+    /// the endpoint every [`LOOK`]: a missing name, or a `query` that names another process than
+    /// the watched hub named, is a later hub's. A later hub that refuses `query` as the watched one
+    /// did reads as this one.
     pub fn gone(&self, until: Instant) -> bool {
         match (&self.process, &self.endpoint) {
             (Some(process), _) => exited(process, until),
@@ -167,6 +172,12 @@ impl HubWatch {
                 if Instant::now() >= self.look.get() {
                     self.look.set(Instant::now() + LOOK);
                     if !orchbee_local_ipc::endpoint_exists(endpoint).unwrap_or(true) {
+                        return true;
+                    }
+                    let now = hub_process(endpoint, Instant::now() + LOOK_QUERY)
+                        .ok()
+                        .flatten();
+                    if now.is_some() && now != self.named {
                         return true;
                     }
                 }
