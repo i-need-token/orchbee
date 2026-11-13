@@ -9,7 +9,7 @@ use crate::{
         Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs, join_key_labels,
     },
     localization::Locale,
-    machine_discovery::{Observation, display_label},
+    machine_discovery::{Observation, display_label, overview::Tone},
     terminal_text::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
     },
@@ -491,22 +491,20 @@ impl Picker {
                     orchbee_workbench_protocol::MetadataState::Error
                         | orchbee_workbench_protocol::MetadataState::Blocked
                 )
-            }) || matches!(
-                row.observation.as_ref(),
-                Some(Observation::Attention | Observation::Stale)
-            ) {
+            }) {
                 Role::StatusWarning
             } else if row.agent().is_some_and(|agent| {
                 agent.display_state() == orchbee_workbench_protocol::MetadataState::Working
-            }) || matches!(
-                row.observation.as_ref(),
-                Some(Observation::Waiting | Observation::Connecting | Observation::Reconnecting)
-            ) {
+            }) {
                 Role::StatusWorking
-            } else if matches!(row.observation.as_ref(), Some(Observation::Online(_))) {
-                Role::StatusSuccess
             } else {
-                Role::TextSecondary
+                match row.observation.as_ref().map(Observation::tone) {
+                    Some(Tone::Success) => Role::StatusSuccess,
+                    Some(Tone::Progress) => Role::StatusWorking,
+                    Some(Tone::Warning) => Role::StatusWarning,
+                    Some(Tone::Error) => Role::StatusError,
+                    Some(Tone::Neutral) | None => Role::TextSecondary,
+                }
             };
             frame.render_widget(
                 Paragraph::new(suffix).style(theme.style(status_role)),

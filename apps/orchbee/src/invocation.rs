@@ -826,8 +826,6 @@ pub(crate) enum Request {
     MachineHubState,
     MachineHubHold,
     MachineLink,
-    MachineRelay,
-    MachineTunnel,
     Machine {
         command: MachineCommand,
         format: OutputFormat,

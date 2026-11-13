@@ -1,5 +1,5 @@
 //! One observer promotes its bootstrap carrier before publishing an origin, then consumes push.
-use super::{Connection, Overview, Ready};
+use super::{Connection, Overview, Ready, hub::Link};
 use crate::background_thread::BackgroundThread;
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::machine_refusal::Refusal;
@@ -41,10 +41,14 @@ pub(super) struct Worker {
     task: BackgroundThread,
 }
 impl Worker {
-    pub(super) fn start(profile: Profile, generation: u64) -> io::Result<Self> {
+    /// Observes `profile`'s Session over a carrier of `link`'s owner.
+    pub(super) fn start(link: Link, profile: Profile, generation: u64) -> io::Result<Self> {
         Self::spawn(generation, move |cancel| {
-            crate::machine_tunnel::connect(
-                &profile,
+            let hub = link.hub().ok_or(io::ErrorKind::NotConnected)?;
+            crate::machine_carrier::connect(
+                &hub,
+                &profile.id,
+                link.gate(&profile.id),
                 Instant::now() + Duration::from_secs(60),
                 cancel,
             )
@@ -81,7 +85,7 @@ impl Worker {
                 });
             }
             // The UI acknowledges failure by cancelling after dropping its cached origin.
-            // Keep the last transport guard here so SSH teardown cannot block a UI tick.
+            // Keep the last carrier guard here so its teardown cannot block a UI tick.
             if retained_origin.is_some() {
                 while !worker_cancel.is_cancelled() {
                     let mut sources = [PollFd::new(

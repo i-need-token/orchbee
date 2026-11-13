@@ -25,7 +25,8 @@ the application does not name keep crate or narrower visibility.
   links, graphics, themes, layout, pointer interaction, and rendering.
 - Agent workflows: provider integration inspection and effects, runtime observation, and Agent
   start.
-- Machines: saved-machine discovery, pickers, SSH carriers and tunnels, and observation.
+- Machines: saved-machine discovery through the machine hub, pickers, hub Session carriers, and
+  observation.
 - Client-local configuration, localization of runtime copy, notifications, onboarding, and
   termination signals.
 
@@ -71,8 +72,8 @@ A thread detached at the deadline can abandon this work when the process ends:
 - A Windows clipboard delivery.
 - The result of close-status recovery.
 
-The saved-machine relay belongs to the retained-carrier guard of the sibling transport and stops
-with that guard.
+The saved-machine Session carrier belongs to the retained-carrier guard of the sibling transport
+and stops with that guard.
 
 ## Test support
 

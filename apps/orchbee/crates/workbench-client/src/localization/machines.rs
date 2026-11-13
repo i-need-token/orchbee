@@ -143,22 +143,44 @@ impl Locale {
             (Self::ZhCn, "sidebar-navigation") => "边栏",
             (Self::EnUs, "local") => "Local",
             (Self::ZhCn, "local") => "本地",
-            (Self::EnUs, "disabled") => "Disabled",
-            (Self::ZhCn, "disabled") => "已禁用",
-            (Self::EnUs, "unsupported") => "Unsupported",
-            (Self::ZhCn, "unsupported") => "此版本不支持",
             (Self::EnUs, "current") => "Current",
             (Self::ZhCn, "current") => "当前",
-            (Self::EnUs, "waiting") => "Waiting",
-            (Self::ZhCn, "waiting") => "等待连接",
+            // A remote row's one word: the hub's state of the Machine, the same in every interface.
+            (Self::EnUs, "disabled") => "Disabled",
+            (Self::ZhCn, "disabled") => "已停用",
+            (Self::EnUs, "unsupported") => "Unsupported",
+            (Self::ZhCn, "unsupported") => "不支持",
             (Self::EnUs, "opening") => "Connecting",
             (Self::ZhCn, "opening") => "连接中",
             (Self::EnUs, "online") => "Online",
             (Self::ZhCn, "online") => "在线",
             (Self::EnUs, "reconnecting") => "Reconnecting",
-            (Self::ZhCn, "reconnecting") => "正在重连",
-            (Self::EnUs, "attention") => "Needs attention",
-            (Self::ZhCn, "attention") => "需要处理",
+            (Self::ZhCn, "reconnecting") => "重连中",
+            (Self::EnUs, "offline") => "Offline",
+            (Self::ZhCn, "offline") => "离线",
+            (Self::EnUs, "needs-login") => "Needs login",
+            (Self::ZhCn, "needs-login") => "需要登录",
+            (Self::EnUs, "unresponsive") => "Unresponsive",
+            (Self::ZhCn, "unresponsive") => "无响应",
+            (Self::EnUs, "untrusted") => "Untrusted",
+            (Self::ZhCn, "untrusted") => "未信任",
+            (Self::EnUs, "not-installed") => "Not installed",
+            (Self::ZhCn, "not-installed") => "未安装",
+            (Self::EnUs, "needs-update") => "Needs update",
+            (Self::ZhCn, "needs-update") => "需更新",
+            (Self::EnUs, "local-needs-update") => "Local outdated",
+            (Self::ZhCn, "local-needs-update") => "本机需更新",
+            (Self::EnUs, "login-failed") => "Login failed",
+            (Self::ZhCn, "login-failed") => "登录失败",
+            (Self::EnUs, "key-changed") => "Key changed",
+            (Self::ZhCn, "key-changed") => "密钥已变",
+            (Self::EnUs, "incompatible") => "Incompatible",
+            (Self::ZhCn, "incompatible") => "不兼容",
+            (Self::EnUs, "unknown") => "Unknown",
+            (Self::ZhCn, "unknown") => "未知",
+            (Self::EnUs, "hub-unavailable") => "Unavailable",
+            (Self::ZhCn, "hub-unavailable") => "不可用",
+            // A Workspace row whose last checkpoint outlived its source.
             (Self::EnUs, "stale") => "Stale",
             (Self::ZhCn, "stale") => "状态已过期",
             (Self::EnUs, "capture-hint") => "Esc Close · ↑/↓ Choose · Enter Open · Tab Mode",
@@ -265,6 +287,8 @@ impl Locale {
             (Self::ZhCn, "connecting") => "正在切换… Esc 取消选机，后台发现继续。",
             (Self::EnUs, "catalog") => "Machine catalog unavailable. Local remains available.",
             (Self::ZhCn, "catalog") => "机器目录不可用，仍可选择本地。",
+            (Self::EnUs, "hub") => "Machine connections are unavailable. Local remains available.",
+            (Self::ZhCn, "hub") => "机器连接不可用，仍可使用本地。",
             (Self::EnUs, "failed") => {
                 "Connection failed. Check SSH readiness, then choose to retry."
             }
@@ -279,12 +303,6 @@ impl Locale {
             }
             (Self::ZhCn, "refused-environment") => {
                 "远端 Orchbee 属于另一个环境。\n请两端都用正式版，或都用同一检出路径的构建。"
-            }
-            (Self::EnUs, "refused-unsupported") => {
-                "The remote needs Windows x64 or ARM64 and a usable Orchbee.\nInstall or repair Orchbee there, then choose to retry."
-            }
-            (Self::ZhCn, "refused-unsupported") => {
-                "远端须为 Windows x64 或 ARM64，且 Orchbee 可用。\n请在远端安装或修复 Orchbee，然后重新选择以重试。"
             }
             (Self::EnUs, "refused-client-old") => {
                 "This Orchbee is too old for the remote Session.\nUpdate Orchbee on this computer, then choose to retry."

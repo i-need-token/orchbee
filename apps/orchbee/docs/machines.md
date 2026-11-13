@@ -176,10 +176,12 @@ as remote-machine support lands; a reader treats a value it does not know as `un
 
 ## Remote preparation
 
-The app-private `machine_ssh` owner exposes executable discovery and bounded process execution
-through the same typed ports for CLI preparation and TUI admission. Each workflow retains its
-own readiness and submission facts. Windows ports keep the system OpenSSH and process owner;
-Unix ports return `SavedMachines` unsupported before executable lookup or process creation.
+The app-private `machine_ssh` owner exposes executable discovery, the `ssh` command line and
+bounded process execution to the two places that start `ssh`: the hub's
+[carrier child](#the-carrier-child) and `machine add`'s preparation below, the one start outside
+the hub until adding moves onto it. Each retains its own readiness and submission facts. Windows
+ports keep the system OpenSSH and process owner; Unix ports return `SavedMachines` unsupported
+before executable lookup or process creation.
 
 Add uses the OS OpenSSH executable and a 60-second total deadline. Batch mode,
 strict host-key checking, no forwarding, bounded output, and an owned process
@@ -207,8 +209,8 @@ The remote launch line exits 125 when it resolves no Orchbee program or cannot s
 status reads as `remote-not-installed` rather than an OpenSSH failure.
 
 No protocol version, product version, or cohort is compared across machines: the remote Session
-admits each later tunnel connection through the handshake, and the routed command runs the remote
-Client under its own grammar. The probe resolves the remote program through the remote store's
+admits each later Client connection, carried by a hub Session stream, through the handshake, and
+the routed command runs the remote Client under its own grammar. The probe resolves the remote program through the remote store's
 `active.json`, never through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
 `%LOCALAPPDATA%\Programs`) it reads the active version and runs `versions\<version>\<name>.exe`. A
 missing or unreadable pointer names no installation. A release build reads the `Orchbee` store
@@ -233,10 +235,9 @@ session is stopped by rename, enable, disable, or remove.
 
 Deterministic validation and mutation traces cover invalid inputs, repeated
 operations, capacity, and revision bounds. Private-store tests exercise the
-real Windows lock and atomic writer. Remote-program tests run real PowerShell
-against owned fixtures, including failed preparation and malformed replies.
-These tests do not establish a real two-machine SSH/TUI witness. Fixtures and
-their process Jobs are owned by the test and released after the last consumer.
+real Windows lock and atomic writer. These tests do not establish a real
+two-machine SSH/TUI witness. Fixtures and their process Jobs are owned by the
+test and released after the last consumer.
 
 ## Command routing contract
 
@@ -271,12 +272,11 @@ reply are closed objects whose `version` is their `machine-route` generation in 
 receiver ignores. Neither carries a cohort. The remote [link helper](#link-helper) refuses a
 generation it does not read, then revalidates the Session, argument grammar and command allowlist
 under its own grammar before spawning its own executable with literal arguments in an owned
-Windows Job. The private relay entry point `--machine-relay-v1` keeps the same far-side rules for
-an older caller; this build's CLI no longer starts it.
+Windows Job.
 The packet's `locale` names the sender's language; a value the receiver does not ship, including
 one a later sender adds, falls back to `en_US.UTF-8` instead of refusing the command, and the
 routed command runs under the resolved locale.
-When the remote grammar cannot parse the routed arguments, the reply carries the remote's ordinary usage failure in the packet's locale and with the usage exit status, rendered by the relay entry point without spawning a command. A parsed request outside the routed scope, a packet that names a Session, and invalid input are refused as not submitted. The existing remote CLI remains the
+When the remote grammar cannot parse the routed arguments, the reply carries the remote's ordinary usage failure in the packet's locale and with the usage exit status, rendered by the link helper without spawning a command. A parsed request outside the routed scope, a packet that names a Session, and invalid input are refused as not submitted. The existing remote CLI remains the
 business-operation owner. No local peer credential admission is bypassed.
 Terminal file and stdin sources are acquired on the caller once and sent as raw
 bytes; directories and executable paths are interpreted by the remote command.
@@ -381,9 +381,10 @@ An older build's far end is never sent anything by this command. An older near s
 [`machine-link`](../../../schemas/machine/README.md) connection: the hub starts it over `ssh` and
 speaks to it on its standard input and output. One pair of pipes carries several Sessions' byte
 streams, routed commands, and Session starts at once. Windows serves it; elsewhere it answers
-unsupported before reading a byte, as `--machine-tunnel-v1` and `--machine-relay-v1` do. Those two
-helpers stay until their last caller moves to the link. The contract owns every byte; this section
-owns how the helper meets it.
+unsupported before reading a byte. It is the only remote entry Orchbee starts over `ssh`: the
+earlier `--machine-tunnel-v1` and `--machine-relay-v1` helpers are gone, and a build that still
+starts one finds an unknown argument. The contract owns every byte; this section owns how the
+helper meets it.
 
 A console on standard input or output refuses the start: the helper writes nothing and exits 5.
 Otherwise it answers the `OBHS` frame within the 2-second candidate deadline counted from its
@@ -397,7 +398,7 @@ the handshake's own answer: a rejection, or `unsupported` for an unknown request
 | Channel          | Accept                                | Responder data and result                                                                                                                                                             |
 | ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `session`        | Once the named Session's pipe is open | Bytes from that pipe, then `close` `ended` when it closes or `failed` on a read error. A Session that is not running resets `session-not-running`; an unopenable pipe `unavailable`   |
-| `route`          | At once                               | After the opener's `end`, the reply packet of the [routed command](#command-routing-contract), under the same admission and allowlist as `--machine-relay-v1`, then `replied`         |
+| `route`          | At once                               | After the opener's `end`, the reply packet of the [routed command](#command-routing-contract), under its admission and allowlist, then `replied`                                      |
 | `ensure-session` | At once                               | `ready` with `started` once the Session admits a Client, as `server start` would; `unknown` when a start ran out of its 30 seconds or its Server may have started; `failed` otherwise |
 
 A name the Windows Session grammar refuses resets `invalid-session` before `accept`. The pipe is
@@ -641,9 +642,9 @@ itself.
 - **Kept.** The hub keeps a Machine, retrying it by itself, while a `presence` connection is
   attached or once the Machine has been `online` since its last `disconnect`, permanent failure,
   or change. A command-line `connect` that fails therefore leaves no retry running behind it.
-- **Retry policy.** The workbench Client crate's `machine_retry` owns it, and the TUI's discovery
-  still uses it until it moves onto the hub. After the n-th consecutive failure, from 0, the next
-  attempt waits 500 ms × 2ⁿ, at most 120 seconds. A failure after 60 seconds or more `online`
+- **Retry policy.** The workbench Client crate's `machine_retry` owns it; the TUI uses the same
+  schedule for its own attachment and its Session observers. After the n-th consecutive failure,
+  from 0, the next attempt waits 500 ms × 2ⁿ, at most 120 seconds. A failure after 60 seconds or more `online`
   starts the count again. Permanent failures schedule nothing.
 - **Questions.** Questions are refused in this build: every attempt runs with `ssh`'s batch mode,
   so a login that needs a password, a keyboard-interactive answer, or trust in a new host key ends
@@ -1003,7 +1004,8 @@ connection, so nothing changed for the link.
 ### Client owner
 
 One owner reaches the hub for every client: the diagnostic entries, `machine connect`, routed
-commands, the remote Session stop and uninstall today, the TUI and the Desktop's Client in later slices. It is the workbench Client crate's `machine_hub` module,
+commands, the remote Session stop, uninstall and the [TUI](#persistent-tui-connections) today,
+the Desktop's Client in a later slice. It is the workbench Client crate's `machine_hub` module,
 on Windows only. Two rules place it there. An internal crate never depends on the application
 target ([Rust](../../../docs/RUST.md#placement-and-workspace-ownership)), so the TUI's crate cannot
 reach code under the application's `cli`. Reusable code goes to its nearest semantic owner
@@ -1154,8 +1156,9 @@ The Windows TUI discovers the saved catalog while open and offers a machine
 picker, opened with `Ctrl+b Shift+M`. There is no permanent footer indicator. Selection is by
 profile identity, not row index or label. Local remains
 available. A disabled, removed, ambiguous, or corrupt entry cannot silently
-become another machine. Enabled profiles connect automatically for read-only discovery; only an explicit
-selection opens a terminal surface. Saved enabled state is never online evidence.
+become another machine. Enabled machines the hub reads `online` are observed for read-only
+discovery; only an explicit selection opens a terminal surface. Saved enabled state is never online
+evidence.
 The current surface stays usable until the candidate reaches a drawable state;
 cancellation or failure keeps the current surface. Successful switching preserves
 per-machine views and invalidates pointer/input state before accepting new input.
@@ -1169,54 +1172,73 @@ surfaces withdraw their Client-control, notification and outer-title subscriptio
 returning reopens them and transfers the host focus observation. A hidden surface
 must not advertise a Ready control destination or acknowledge visible drawing.
 
-The shared connection workflow admits the saved-machine capability before inspecting the
-profile or cancellation source. Unix refuses at that boundary without environment or process
-access. Windows retains enabled-profile checking, one bounded Client probe under the
-[SSH admission rule](#remote-preparation), and the cancellation check before passing the admitted
-remote executable to the native carrier port for executable lookup and relay creation. The shared workflow immediately adopts the real stop flag and relay task into
-the Client's retained carrier guard, then performs native admission, the final cancellation check
-and guard attachment under the original deadline. It never repeats the probe; admission or
-cancellation failure stops and joins the retained relay.
+### The TUI as a hub client
 
-The persistent transport owner creates a private, same-user local pipe endpoint
-and a bounded SSH byte relay for each physical native Client connection. Logical lanes
-share that admitted carrier. SSH authenticates the remote account; the exact admitted remote
-executable runs the private helper `--machine-tunnel-v1 <session>`, whose grammar never changes
-(a change adds a new helper name), and opens only the selected existing Session's same-user pipe
-in that installation's environment. The tunnel carries an ordinary Client connection: the local
-Client sends this build's own `OBHS` offer, and the remote Session admits or refuses it exactly as
-it would a local Client, so machines with different product versions connect whenever their
-generations overlap. The helper judges no peer, and neither end fabricates an accepted generation.
-Remote terminal input, layout, metadata and control keep their existing semantic owners.
+The TUI reaches saved machines only through the [machine hub](#machine-hub), as one more client of
+the [client owner](#client-owner). It starts no `ssh`, runs no remote program and probes nothing:
+the hub's carrier is the one connection to each Machine, which the picker, discovery, remote
+terminals, Workspace switches, Agents mode and every `orchbee --machine` command share.
 
-A refusal that needs the user to change one side is a typed `Refusal` that discovery keeps with
-the failed endpoint, so selection names it instead of the generic failure, and automatic retry
-never repeats it:
+| Rule             | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Presence         | The first catalog read that holds an enabled Machine of a known connection kind starts one background holder. It attaches with `presence` and `watch`, starting a hub when none runs, and keeps that attachment, across the owner's re-attachments, until the TUI exits. The hub's countdown begins only when its last holder leaves, so a TUI opened again within the expiry finds each Machine as the hub kept it: `online` at once, on the same carrier child. A TUI whose catalog never holds such a Machine starts no hub |
+| No questions     | The holder attaches with `asks` false until this TUI shows login notices, so no command waits on it for a login. A Machine that would need a password, a passphrase or trust in a new host shows its state, and nothing asks                                                                                                                                                                                                                                                                                                   |
+| Off the frame    | Attaching, the hub's events, every request and every channel run on background threads that publish into one shared view and wake the UI loop. A frame reads that view and never waits for the hub                                                                                                                                                                                                                                                                                                                             |
+| Hub out of reach | When no hub can be started or reached, or the owner ends, every remote row reads Unavailable, the picker's status line says that machine connections are unavailable and Local remains available, and selecting a Machine fails at once. The holder attaches again under the [retry policy](#carrying-a-machine), and the rows clear once it does. Local work, its Panels and its Session are untouched                                                                                                                        |
+| Catalog          | The TUI rereads `machines.json` every second. When the revision it read differs from the hub's last `catalog` revision, the holder asks the hub to `reload`, once per revision, so a Machine saved, changed or removed while the TUI runs reaches the hub                                                                                                                                                                                                                                                                      |
+| Re-attachment    | After `reattached` the view forgets every Machine state until the new hub reports it again; the rows show no word meanwhile                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-| Cause                                                                        | Picker message                                                     | Sidebar notice                        |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------- |
-| Probe: remote of another environment kind; handshake: `environment-mismatch` | Another environment; use release on both or the same checkout path | Remote is another environment         |
-| Probe: unsupported platform or unavailable installation                      | Needs Windows x64 or ARM64 and a usable Orchbee                    | Remote has no usable Orchbee          |
-| Handshake: `initiator-too-old`                                               | This Orchbee is too old; update it on this computer                | Update Orchbee on this computer       |
-| Handshake: `initiator-too-new`, or a Session before the handshake            | The remote Session is too old; update it and stop it               | Remote Session is too old             |
-| Handshake: `fingerprint-mismatch`                                            | Another development build; stop the remote Session                 | Remote runs another development build |
+### Session carrier
 
-Capacity, stopping, and timeout refusals stay transient and retry with backoff.
+A remote terminal, a Workspace switch to another machine and Agents mode run their ordinary Client
+connection on a private, same-user local pipe endpoint that the TUI creates for each observed
+Machine. Each physical connection the endpoint accepts opens one hub `session` channel to the
+Machine and copies bytes both ways on two threads of its own:
 
-A concrete transport guard retained by Client origins owns the relay stop flag and join handle;
-the Windows adapter creates the listener, relay task and SSH Jobs. Derived lanes and reconnects
-retain the same guard without depending on saved-machine profiles. The actor's retained origin
-does not hold the connection actor itself, avoiding a reference/join cycle. Closing a logical
-lane releases its scope; connection shutdown signals actor stop and joins the task once.
-Each Workbench Client surface holds one claim on its carrier, and only the last released claim
-performs that shutdown.
-The observer promotes its initial admission before cloning any retained or published origin;
-secondary query/control lanes are logical scopes on that carrier. Buffers are bounded and
-backpressure pauses reads. The connection actor owns replacement admission after EOF and never
-replays submitted frames. Final retirement cancels and joins relay work and settles children.
-The remote stdio adapter likewise owns and settles its binary reader/writer Jobs. Disconnecting
-a Client does not stop the remote Session or terminal processes. No port forwarding, host-key
-acceptance, credentials storage, remote installation or POSIX implementation is added.
+- **Up.** The pipe's bytes are committed to the channel as its credit admits; the pipe's end sends
+  `end`.
+- **Down.** The channel's data is written to the pipe as it is taken, which returns its credit, so
+  a Client that stops reading pauses only its own channel. The channel's `close`, any `reset`, or
+  `lost` closes the pipe.
+- **Admission.** The Client sends this build's own `OBHS` offer through the stream, and the remote
+  Session admits or refuses it exactly as it would a local Client, so machines with different
+  product versions connect whenever their generations overlap. The carrier judges no byte, and
+  neither end fabricates an accepted generation.
+- **Bounds.** Logical lanes share one admitted connection; the Client actor's reconnects after a
+  loss open new channels. An endpoint carries at most 16 connections and closes a 17th at once.
+  While the hub does not read the Machine `online`, the endpoint closes each new connection without
+  opening a channel, so a Client that keeps reconnecting to a lost Machine costs no hub request.
+- **Ending.** A guard retained by every Client origin derived from the endpoint owns its stop flag
+  and accept thread; the last release stops them. The accept thread ends within 10 ms, and each
+  connection's threads see the flag within 100 ms, reset their channel `cancelled`, and close their
+  pipe. Ending a Client connection never stops the remote Session or its terminal processes.
+
+Losing the link or the hub closes every channel, which closes every carried pipe: the remote surface
+ends as a lost Session connection ends, with a definite state, and the Client's reconnects find the
+endpoint closed until the Machine is `online` again. Local Panels use their own connection and are
+untouched. Each connection's threads, credit and pipe are its own, and the UI loop never reads a
+channel, so one slow remote never stalls input or drawing for local work or another Machine.
+
+The Client connection actor owns replacement admission after EOF and never replays submitted
+frames. Each Workbench Client surface holds one claim on its carrier, and only the last released
+claim performs the shutdown. The observer promotes its initial admission before cloning any
+retained or published origin; secondary query/control lanes are logical scopes on that carrier.
+Buffers are bounded and backpressure pauses reads. No port forwarding, host-key acceptance,
+credentials storage, remote installation or POSIX implementation is added.
+
+A refusal that needs the user to change one side is a typed `Refusal` that discovery keeps with the
+Machine, so selection names it instead of the generic failure, the row shows the side's state word,
+and automatic restarts never repeat it:
+
+| Handshake answer                                       | Row            | Picker message                                                     | Sidebar notice                        |
+| ------------------------------------------------------ | -------------- | ------------------------------------------------------------------ | ------------------------------------- |
+| `environment-mismatch`                                 | Incompatible   | Another environment; use release on both or the same checkout path | Remote is another environment         |
+| `initiator-too-old`                                    | Local outdated | This Orchbee is too old; update it on this computer                | Update Orchbee on this computer       |
+| `initiator-too-new`, or a Session before the handshake | Needs update   | The remote Session is too old; update it and stop it               | Remote Session is too old             |
+| `fingerprint-mismatch`                                 | Needs update   | Another development build; stop the remote Session                 | Remote runs another development build |
+
+Capacity, stopping, and timeout refusals stay transient: the observer starts again under the retry
+policy.
 
 The picker owns keyboard and mouse input while open. Escape cancels; Enter and
 click choose an exact painted identity. Resizing or catalog replacement invalidates
@@ -1240,52 +1262,87 @@ TooSmall paints only the root size notice and picker status. It retains the pick
 input capture, publishes no hidden pointer targets, and preserves the existing Escape route.
 A restored presentable frame resumes the same picker state.
 
-Evidence must include binary full-duplex/backpressure/EOF/cancellation, same-user
-pipe admission through a real helper process, picker identity and stale-result
-traces, and rendered keyboard/mouse paths. Local fixtures do not establish real
-SSH network survival, remote installation, or complete two-machine acceptance.
+The hub's process target opens a Session stream through the hub and reads the far Session's
+handshake answer. Picker identity, stale-result traces and rendered keyboard/mouse paths are unit
+traces. Local fixtures, the stand-in far end among them, do not establish real SSH network
+survival, remote installation, or complete two-machine acceptance.
 
 ## Automatic machine discovery
 
 The running Windows TUI reconciles enabled profiles by ID, connection and Session; a connection
-kind this build does not know is never observed, and the picker lists that machine as unsupported
-by this version without offering it as a choice. Each
-endpoint generation owns one observer, cancellation flag and latest-event slot.
-New connections are limited to four at once; existing online observers do not
-consume that startup budget. A rotating cursor gives later profiles a turn even when earlier endpoints keep failing. Disabled/removed/replaced entries cancel their old
-observers, and retired threads are joined before their slots are reused. Corrupt
-catalog input suspends all discovery without changing the current terminal surface.
-Renaming preserves connection identity. No observer creates a terminal, claims
-control, changes focus, starts a Session or installs software.
+kind this build does not know is never observed, and the picker lists that machine as Unsupported
+without offering it as a choice. Each endpoint generation owns at most one observer, cancellation
+flag and latest-event slot. Disabled, removed and replaced entries cancel their observers, and
+retired threads are joined before their slots are reused. Corrupt catalog input suspends all
+discovery without changing the current terminal surface. Renaming preserves connection identity.
+No observer creates a terminal, claims control, changes focus, starts a Session or installs
+software.
 
-An observer uses one Workbench state subscription on the admitted persistent tunnel. It accepts
-the initial correlated snapshot and subsequent pushed values; it does not reread every two seconds.
+### State words
+
+A remote row shows one word, the hub's state of the Machine; every Orchbee interface uses the same
+words. Details and actions per state come with the machine status screens.
+
+| Hub state                              | Word (en-US / zh-CN)        | Tone        |
+| -------------------------------------- | --------------------------- | ----------- |
+| `online`                               | Online / 在线               | Success     |
+| `connecting`                           | Connecting / 连接中         | In progress |
+| `reconnecting`                         | Reconnecting / 重连中       | In progress |
+| `offline`                              | Offline / 离线              | Neutral     |
+| `needs-login`                          | Needs login / 需要登录      | Neutral     |
+| `unresponsive`                         | Unresponsive / 无响应       | Warning     |
+| `untrusted`                            | Untrusted / 未信任          | Warning     |
+| `not-installed`                        | Not installed / 未安装      | Warning     |
+| `needs-update`                         | Needs update / 需更新       | Warning     |
+| `local-needs-update`                   | Local outdated / 本机需更新 | Warning     |
+| `login-failed`                         | Login failed / 登录失败     | Error       |
+| `key-changed`                          | Key changed / 密钥已变      | Error       |
+| `unsupported`                          | Unsupported / 不支持        | Error       |
+| `incompatible`                         | Incompatible / 不兼容       | Error       |
+| `unknown`, or a state this build lacks | Unknown / 未知              | Neutral     |
+| No hub can be started or reached       | Unavailable / 不可用        | Warning     |
+
+A disabled record reads Disabled / 已停用 from the catalog, and a connection kind this build does
+not know reads Unsupported, without asking the hub. A Machine the hub has not reported yet shows no
+word. Installing arrives with remote installation. The former Waiting, Needs attention and Stale
+words are retired.
+
+### Observers
+
+For each Machine the hub reads `online`, one observer connects through the
+[Session carrier](#session-carrier) and keeps one Workbench state subscription. It accepts the
+initial correlated snapshot and subsequent pushed values; it does not reread every two seconds.
 The bounded summary retains Session/revision, project/workspace/Tab counts, at most eight preview
 labels of 80 scalars each, and the context identities and labels used by workspace navigation.
-A successful snapshot means Online only while the shared connection's application-progress deadline
-remains current. A saved profile, running SSH process or SSH keepalive alone is insufficient.
+A summary supplies the Machine's Workspaces only while the shared connection's application-progress
+deadline remains current.
 The [carrier contract](../../orchbee-server/README.md#multiplexed-client-delivery) owns the single
 five-second-idle/two-second-total read probe and its resource and correlation bounds. Transport
 privately generates a validated nonzero 32-digit lowercase hexadecimal TerminalId using fallible
 OS entropy solely for this read-only TerminalLaunchRead; it allocates no machine profile or Session
 identity. Probe failure withdraws freshness without proving that the Server has died. An expired
-progress deadline is Stale and cannot supply a reusable connection. Gap/Disconnected withdraw the
+progress deadline cannot supply a reusable connection. Gap/Disconnected withdraw the
 summary and retain the same observer while the actor rebuilds its subscription; only a fresh
-snapshot restores Online.
+snapshot restores it.
 
 Workspace navigation and its count use canonical ordered Workspaces, including empty Workspaces.
 Local sidebar checkpoints and remote summaries preserve those same Workspace identities.
 
-Transitions are Waiting -> Connecting -> Online, or Connecting/Online ->
-Reconnecting/Attention. Bootstrap transport failure retries after 500 milliseconds,
-doubling up to 120 seconds; 60 seconds continuously online resets that history.
-Authentication, host-trust, unsupported/malformed protocol, absent installation
-denied snapshots and typed terminal carrier rejections enter Attention without automatic retries. Explicit selection
-can request another attempt. Catalog generations fence all results, including a
-removed/re-added ID; a one-slot mailbox coalesces observations without an unbounded
-history. An admitted observer retains its transport through failure delivery; the UI
-clears its cached origin and both collectors retire their cached sources/subscriptions before acknowledging retirement. The observer clears its
-mailbox and releases its last transport guard on its own thread. Profile limits bound observers; shutdown cancels every worker before joins.
+- **Start and end.** An observer starts when the hub reads the Machine `online` and ends when the
+  hub reads anything else, or when the record is disabled, removed or replaced. The hub owns every
+  connection attempt and its retries; an observer never brings a Machine `online`.
+- **Failure.** An observer that fails while the hub still reads `online` starts again under the
+  [retry policy](#carrying-a-machine). A typed refusal, a denied snapshot, a malformed answer and a
+  terminal carrier rejection hold the Machine without automatic restarts until a selection asks
+  again or the hub reads it `online` anew.
+- **Fences.** Catalog generations fence all results, including a removed/re-added ID; a one-slot
+  mailbox coalesces observations without an unbounded history. An admitted observer retains its
+  carrier through failure delivery; the UI clears its cached origin and both collectors retire
+  their cached sources/subscriptions before acknowledging retirement. The observer clears its
+  mailbox and releases its last carrier guard on its own thread. The catalog's 64 records bound the
+  observers; shutdown cancels every observer and the holder before joins.
+
+### Selection
 
 The centered machine picker is a capturing overlay. Its mode controls are
 single-choice rows with a checked track; Agent commands use the shared action
@@ -1305,20 +1362,23 @@ theme and pointer-only refreshes do not change semantic authority. List wheel mo
 only the viewport and never changes the selection; the next key returns the viewport
 to the selection, and `Enter` accepts only a selection inside the painted viewport,
 so an `Enter` after scrolling it away only reveals it. Explicit
-selection waits at most 60 seconds for a fresh observer, reuses its admitted origin
-on a logical lane of the same carrier, and commits only a drawable candidate. Selection
-failure, expiry or Escape preserves the current surface. Escape cancels the
-selection, while discovery of enabled profiles continues. Retry applies only to
-observations, never submitted terminal input or Client mutations. The workspace
-mode below provides combined navigation, and Agents mode adds physical Agent
-navigation. Source-owned merged Agent views are described below. Remote
-bootstrap/authentication and real-network longevity acceptance remain separate
-obligations.
+selection of a Machine the hub does not read `online` asks the hub to `connect` it, with origin
+`command` and `answers` false while this TUI cannot answer questions; the request joins the hub's
+attempt or starts one at once. Selection waits at most 60 seconds for the Machine `online` and a
+fresh observer, reuses the observer's admitted origin on a logical lane of the same carrier, and
+commits only a drawable candidate. A `connect` that ends without `online` fails the selection at
+once with the generic failure, and a hub out of reach with the hub message; the row keeps its word.
+Selection
+failure, expiry or Escape preserves the current surface. Escape cancels the selection, while
+discovery continues. Retry applies only to observations, never submitted terminal input or Client
+mutations. The workspace mode below provides combined navigation, and Agents mode adds physical
+Agent navigation. Source-owned merged Agent views are described below. Real-network authentication
+and longevity acceptance remain separate obligations.
 
-Evidence must exercise retry timing/stability, permanent refusals, concurrency,
-profile replacement and corrupt catalogs, coalescing and cancellation, actual
-read-only snapshot frames, stale-source refusal and rendered localized overview.
-Local IPC fixtures do not establish remote SSH authentication or network recovery.
+Evidence covers generation fences, refusal holds, coalescing and cancellation, actual read-only
+snapshot frames, stale-source refusal, the mapping from hub state to row word and tone, and the
+rendered localized overview. Local IPC fixtures do not establish remote SSH authentication or
+network recovery.
 
 ## Cross-machine workspace navigation
 

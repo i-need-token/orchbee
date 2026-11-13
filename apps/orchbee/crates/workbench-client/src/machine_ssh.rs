@@ -1,10 +1,9 @@
 //! Shared Windows SSH command policy and installed-Client admission, without catalog or UI ownership.
 //! Admission compares no product version, protocol, or cohort across machines: the remote Session
-//! judges this Client through the handshake the tunnel carries.
-use crate::machine_refusal::Refusal;
+//! judges this Client through the handshake a hub Session stream carries.
 use base64::Engine as _;
 use serde_json::Value;
-use std::{io, path::Path, process::Command, time::Instant};
+use std::{path::Path, process::Command};
 
 /// The exit status of the remote launch line when it finds no Orchbee to run or cannot start it.
 pub const PROGRAM_NOT_FOUND: i32 = 125;
@@ -19,16 +18,6 @@ pub enum AdmissionError {
     NotInstalled,
     /// The remote Client belongs to another environment kind than this build.
     OtherEnvironment,
-}
-impl AdmissionError {
-    /// The refusal the user sees; a malformed document has none and reads as a failed attempt.
-    pub fn refusal(self) -> Option<Refusal> {
-        match self {
-            Self::Protocol => None,
-            Self::Unsupported | Self::NotInstalled => Some(Refusal::Unsupported),
-            Self::OtherEnvironment => Some(Refusal::OtherEnvironment),
-        }
-    }
 }
 /// An admitted remote installed Client.
 pub struct Client {
@@ -87,7 +76,7 @@ fn client_of_kind(value: &Value, release: bool) -> Result<Client, AdmissionError
     })
 }
 /// Release admits only release; any development or test stem admits any other, because the
-/// handshake through the tunnel compares the exact environment.
+/// handshake through a hub Session stream compares the exact environment.
 fn same_environment_kind(stem: &str, release: bool) -> bool {
     (stem == orchbee_connection_handshake::RELEASE_ENVIRONMENT) == release
 }
@@ -157,8 +146,8 @@ fn launch(executable: Option<&str>, arguments: &str) -> String {
     );
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
 }
-/// The remote store folders under `%LOCALAPPDATA%\Programs` and the Client names a probe tries in
-/// order. A development or test build first looks for its own store and name and then for
+/// The remote store folders under `%LOCALAPPDATA%\Programs` and the Client names the launch line
+/// tries in order. A development or test build first looks for its own store and name and then for
 /// release, so a release remote reads as another environment instead of a missing installation.
 fn probe_names() -> (Vec<String>, Vec<String>) {
     let release = format!("{}.exe", orchbee_connection_handshake::RELEASE_ENVIRONMENT);
@@ -203,81 +192,6 @@ pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {
     command
 }
 
-/// Probe only; no Session activation, catalog write, or automatic retry.
-pub(crate) fn probe(
-    draft: &crate::machines::Draft,
-    deadline: Instant,
-    interrupted: impl FnMut() -> io::Result<bool>,
-) -> io::Result<Client> {
-    let target = draft.ssh_target().ok_or(io::ErrorKind::Unsupported)?;
-    let ssh = executable()?;
-    let result = execute(
-        command(
-            &ssh,
-            target,
-            &program(None, draft.session.as_str(), "client"),
-        ),
-        Some(deadline),
-        interrupted,
-    )?;
-    match result.failure {
-        Some(Failure::Cancelled) => return Err(io::ErrorKind::Interrupted.into()),
-        Some(Failure::Timeout) => return Err(io::ErrorKind::TimedOut.into()),
-        Some(Failure::PhysicalUnknown) => {
-            return Err(io::ErrorKind::PermissionDenied.into());
-        }
-        Some(Failure::SpawnUnavailable) => return Err(io::ErrorKind::NotFound.into()),
-        Some(Failure::ExitFailure) => {
-            return Err(probe_exit_kind(result.exit_code, &result.stderr).into());
-        }
-        Some(_) => return Err(io::Error::other("SSH Client probe failed")),
-        None => {}
-    }
-    if result.exit_code != Some(0) {
-        return Err(probe_exit_kind(result.exit_code, &result.stderr).into());
-    }
-    if result.stdout_truncated {
-        return Err(io::ErrorKind::InvalidData.into());
-    }
-    let value = serde_json::from_slice(&result.stdout).map_err(|_| io::ErrorKind::InvalidData)?;
-    client(&value).map_err(|error| {
-        error.refusal().map_or_else(
-            || {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "remote Client status is malformed",
-                )
-            },
-            io::Error::from,
-        )
-    })
-}
-// Inspect bounded diagnostics only to classify retry policy; never surface remote stderr.
-fn probe_exit_kind(code: Option<i32>, stderr: &[u8]) -> io::ErrorKind {
-    if code == Some(PROGRAM_NOT_FOUND) {
-        return io::ErrorKind::NotFound;
-    }
-    let diagnostic = String::from_utf8_lossy(stderr).to_ascii_lowercase();
-    if [
-        "permission denied",
-        "authentication failed",
-        "host key verification failed",
-        "remote host identification has changed",
-        "no matching host key",
-        "bad configuration",
-        "bad owner or permissions",
-        "too many authentication failures",
-        "no supported authentication",
-    ]
-    .iter()
-    .any(|text| diagnostic.contains(text))
-    {
-        io::ErrorKind::PermissionDenied
-    } else {
-        io::ErrorKind::ConnectionRefused
-    }
-}
-
 #[cfg(windows)]
 #[path = "machine_ssh/windows.rs"]
 mod platform;
@@ -286,7 +200,7 @@ mod platform;
 mod platform;
 pub use platform::{executable, execute};
 
-use orchbee_local_runtime::{CommandFailure as Failure, CommandOutput as Output};
+use orchbee_local_runtime::CommandOutput as Output;
 
 #[cfg(test)]
 mod tests;

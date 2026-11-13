@@ -1,7 +1,8 @@
-//! Settled discovery values: one saved machine's connection observation and the bounded
-//! overview of its canonical navigation. Discovery produces them; Client state holds them.
+//! Settled discovery values: one saved machine's row observation and the bounded overview of its
+//! canonical navigation. Discovery produces them; Client state holds them.
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use crate::terminal_text::sanitize_terminal_text;
+use orchbee_machine_protocol::hub::MachineStateName;
 use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -82,24 +83,74 @@ pub fn display_label(value: &str) -> String {
     }
     label
 }
+/// A saved machine's row: the hub's state of the Machine, its overview while one is observed, or
+/// the hub out of reach. A Machine the hub has not reported has none.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Observation {
-    Waiting,
-    Connecting,
+    /// No hub can be started or reached.
+    Unavailable,
+    /// The hub's state, without a current overview.
+    State(MachineStateName),
+    /// The hub reads the Machine `online` and its observer holds a current overview.
     Online(Overview),
-    Reconnecting,
-    Attention,
-    Stale,
+}
+/// What a row's word means at a glance; render chooses the color.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Tone {
+    Success,
+    Progress,
+    Neutral,
+    Warning,
+    Error,
 }
 impl Observation {
+    /// The picker message of the row's word.
     pub(crate) fn key(&self) -> &'static str {
         match self {
-            Self::Waiting => "waiting",
-            Self::Connecting => "opening",
+            Self::Unavailable => "hub-unavailable",
             Self::Online(_) => "online",
-            Self::Reconnecting => "reconnecting",
-            Self::Attention => "attention",
-            Self::Stale => "stale",
+            Self::State(name) => match name {
+                MachineStateName::Online => "online",
+                // "connecting" is the picker's message while a selection waits.
+                MachineStateName::Connecting => "opening",
+                MachineStateName::Reconnecting => "reconnecting",
+                MachineStateName::Offline => "offline",
+                MachineStateName::Disabled => "disabled",
+                MachineStateName::NeedsLogin => "needs-login",
+                MachineStateName::Unresponsive => "unresponsive",
+                MachineStateName::Untrusted => "untrusted",
+                MachineStateName::NotInstalled => "not-installed",
+                MachineStateName::NeedsUpdate => "needs-update",
+                MachineStateName::LocalNeedsUpdate => "local-needs-update",
+                MachineStateName::LoginFailed => "login-failed",
+                MachineStateName::KeyChanged => "key-changed",
+                MachineStateName::Unsupported => "unsupported",
+                MachineStateName::Incompatible => "incompatible",
+                MachineStateName::Unknown => "unknown",
+            },
+        }
+    }
+    pub(crate) fn tone(&self) -> Tone {
+        match self {
+            Self::Unavailable => Tone::Warning,
+            Self::Online(_) => Tone::Success,
+            Self::State(name) => match name {
+                MachineStateName::Online => Tone::Success,
+                MachineStateName::Connecting | MachineStateName::Reconnecting => Tone::Progress,
+                MachineStateName::Offline
+                | MachineStateName::Disabled
+                | MachineStateName::NeedsLogin
+                | MachineStateName::Unknown => Tone::Neutral,
+                MachineStateName::Unresponsive
+                | MachineStateName::Untrusted
+                | MachineStateName::NotInstalled
+                | MachineStateName::NeedsUpdate
+                | MachineStateName::LocalNeedsUpdate => Tone::Warning,
+                MachineStateName::LoginFailed
+                | MachineStateName::KeyChanged
+                | MachineStateName::Unsupported
+                | MachineStateName::Incompatible => Tone::Error,
+            },
         }
     }
 }

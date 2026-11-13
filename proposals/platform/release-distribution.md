@@ -113,7 +113,7 @@ the [feed](#release-feed).
 
 Two helper modes are a contract between builds, not commands: help, completion, and the Agent guide
 leave them out, the owning guide documents them, and their grammar never changes. A change adds a
-new name, as with [`--machine-tunnel-v1`](../../apps/orchbee/docs/machines.md).
+new name, as with [`--machine-link-v1`](../../apps/orchbee/docs/machines.md#link-helper).
 
 | Helper                                                          | Run by                                                             | Effect                                                                                                                                                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

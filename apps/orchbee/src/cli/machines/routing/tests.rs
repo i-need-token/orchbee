@@ -226,7 +226,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
     assert_eq!(admitted(&bytes).1, [0, 255, 13, 10]);
     for args in [
         vec!["--machine=x", "workspace", "list"],
-        vec!["--machine-relay-v1"],
+        vec!["--machine-link-v1"],
         vec!["--session=x", "workspace", "list"],
         vec!["machine", "list"],
         vec!["terminal", "send", "@terminal:0x22", "--file=local-secret"],

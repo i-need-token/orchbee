@@ -341,7 +341,6 @@ fn every_client_notice() -> Vec<Notice> {
     all.extend(
         [
             Refusal::OtherEnvironment,
-            Refusal::Unsupported,
             Refusal::ClientTooOld,
             Refusal::SessionTooOld,
             Refusal::DevelopmentBuildMismatch,
@@ -379,7 +378,6 @@ fn every_client_notice() -> Vec<Notice> {
         match notice {
             Notice::MachineRefused(
                 Refusal::OtherEnvironment
-                | Refusal::Unsupported
                 | Refusal::ClientTooOld
                 | Refusal::SessionTooOld
                 | Refusal::DevelopmentBuildMismatch,

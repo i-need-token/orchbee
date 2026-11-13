@@ -9,8 +9,6 @@ pub enum Refusal {
     /// The remote Orchbee belongs to another environment kind, or its Session to another
     /// environment.
     OtherEnvironment,
-    /// The remote is not Windows on x64 or ARM64, or its installation is unavailable.
-    Unsupported,
     /// The remote Session supports only generations newer than this Client's.
     ClientTooOld,
     /// The remote Session supports only older generations, or predates the handshake.
@@ -29,7 +27,6 @@ impl Refusal {
     pub fn key(self) -> &'static str {
         match self {
             Self::OtherEnvironment => "refused-environment",
-            Self::Unsupported => "refused-unsupported",
             Self::ClientTooOld => "refused-client-old",
             Self::SessionTooOld => "refused-session-old",
             Self::DevelopmentBuildMismatch => "refused-build",
@@ -49,7 +46,6 @@ impl fmt::Display for Refusal {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::OtherEnvironment => "remote Orchbee belongs to another environment",
-            Self::Unsupported => "remote platform or installation is unsupported",
             Self::ClientTooOld => "remote Session refused this Client as too old",
             Self::SessionTooOld => "remote Session is too old for this Client",
             Self::DevelopmentBuildMismatch => "remote development build differs",

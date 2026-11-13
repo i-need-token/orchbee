@@ -34,8 +34,6 @@ use orchbee_workbench_client::application::machine_picker;
 use orchbee_workbench_client::application::machine_refusal;
 use orchbee_workbench_client::application::machine_spaces;
 use orchbee_workbench_client::application::machine_ssh;
-#[cfg(windows)]
-use orchbee_workbench_client::application::machine_tunnel;
 use orchbee_workbench_client::application::machines;
 use orchbee_workbench_client::application::notifications;
 use orchbee_workbench_client::application::onboarding;
@@ -148,23 +146,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::MachineHubState) => cli::machines::hub::print_state(locale),
             Ok(invocation::Request::MachineHubHold) => cli::machines::hub::hold(locale),
             Ok(invocation::Request::MachineLink) => cli::machines::link::serve(locale),
-            Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
-            #[cfg(windows)]
-            Ok(invocation::Request::MachineTunnel) => cli::Output {
-                status: if machine_tunnel::serve().is_ok() {
-                    0
-                } else {
-                    5
-                },
-                stdout: Vec::new(),
-                stderr: String::new(),
-                finalization: None,
-            },
             Ok(invocation::Request::Machine { command, format }) => {
                 cli::machines::run(&command, format, locale)
             }
-            #[cfg(not(windows))]
-            Ok(invocation::Request::MachineTunnel) => cli::unsupported_platform(None, locale),
             Ok(invocation::Request::Version) => {
                 cli::process_result(present(Ok(Invocation::Version), locale), locale)
             }

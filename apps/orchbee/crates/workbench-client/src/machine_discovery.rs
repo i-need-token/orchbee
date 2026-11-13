@@ -1,4 +1,6 @@
-//! Read-only observers of enabled saved machines. The UI alone owns selection.
+//! The TUI's hold on the machine hub, the hub's state of each saved machine, and one read-only
+//! observer per Machine the hub reads `online`. The UI alone owns selection.
+mod hub;
 pub(crate) mod overview;
 mod policy;
 pub use overview::{Context, Observation, Overview, display_label};
@@ -9,13 +11,14 @@ use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
 use crate::machine_refusal::Refusal;
 use crate::machines::{Profile, ProfileId};
+use crate::ui_wakeup::UiWakeup;
+use hub::{Ask, Holder, Reach, View};
+use orchbee_machine_protocol::hub::MachineStateName;
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
 use policy::{Phase, Policy};
 use std::{io, time::Instant};
 use worker::{Event, Update, Worker};
-
-const CONNECT_LIMIT: usize = 4;
 
 #[derive(Clone)]
 pub struct Connection {
@@ -46,7 +49,7 @@ impl Connection {
     ) -> io::Result<LocalClient> {
         self.origin
             .lane_before_cancellable(deadline, self.clock.clone(), cancel.wake())
-            .map_err(crate::machine_tunnel::admission_error)
+            .map_err(crate::machine_carrier::admission_error)
     }
 }
 struct Ready {
@@ -64,21 +67,6 @@ struct Entry {
     retiring: bool,
 }
 impl Entry {
-    fn observation(&self, now: Instant) -> Observation {
-        match self.policy.phase {
-            Phase::Waiting => Observation::Waiting,
-            Phase::Connecting => Observation::Connecting,
-            Phase::Reconnecting => Observation::Reconnecting,
-            Phase::Attention => Observation::Attention,
-            Phase::Online => self
-                .ready
-                .as_ref()
-                .filter(|r| r.connection.is_current(now))
-                .map_or(Observation::Stale, |r| {
-                    Observation::Online(r.overview.clone())
-                }),
-        }
-    }
     fn accept(&mut self, update: Update) {
         if update.generation != self.generation {
             return;
@@ -109,19 +97,60 @@ impl Entry {
             }
         }
     }
+    /// Ends the observer and starts the policy over, as the hub leaving `online` does.
+    fn withdraw(&mut self, retired: &mut Vec<Worker>, now: Instant) {
+        self.ready = None;
+        self.retiring = false;
+        self.policy = Policy::new(now);
+        if let Some(worker) = self.worker.take() {
+            worker.cancel();
+            retired.push(worker);
+        }
+    }
+}
+/// The state word a refusal shows: the side that must change.
+const fn refused(refusal: Refusal) -> MachineStateName {
+    match refusal {
+        Refusal::OtherEnvironment => MachineStateName::Incompatible,
+        Refusal::ClientTooOld => MachineStateName::LocalNeedsUpdate,
+        Refusal::SessionTooOld | Refusal::DevelopmentBuildMismatch => MachineStateName::NeedsUpdate,
+    }
 }
 pub fn same_endpoint(a: &Profile, b: &Profile) -> bool {
     a.id == b.id && a.draft.connection == b.draft.connection && a.draft.session == b.draft.session
 }
+/// A discovery made with `Default` never holds a hub: tests drive its view directly.
 #[derive(Default)]
 pub struct Discovery {
     entries: Vec<Entry>,
     retired: Vec<Worker>,
     generation: u64,
-    next: usize,
+    /// Present when this discovery may hold the hub.
+    wakeup: Option<UiWakeup>,
+    holds: bool,
+    holder: Option<Holder>,
+    /// The holder's view as the last tick copied it.
+    hub: View,
+    seen: u64,
 }
 impl Discovery {
-    pub fn reconcile(&mut self, profiles: &[Profile], now: Instant) {
+    /// A discovery that holds the hub once the catalog holds a Machine it can observe, and wakes
+    /// `wakeup` when the hub reports a change.
+    pub fn new(wakeup: UiWakeup) -> Self {
+        Self {
+            entries: Vec::new(),
+            retired: Vec::new(),
+            generation: 0,
+            wakeup: Some(wakeup),
+            holds: true,
+            holder: None,
+            hub: View::default(),
+            seen: 0,
+        }
+    }
+    /// Reconciles the enabled profiles of the catalog of `revision`; `None` for an unreadable
+    /// catalog, which suspends every observer.
+    pub fn reconcile(&mut self, profiles: &[Profile], revision: Option<u64>, now: Instant) {
         let mut old = std::mem::take(&mut self.entries);
         // A connection kind this build does not know is never contacted.
         for profile in profiles
@@ -152,8 +181,22 @@ impl Discovery {
                 self.retired.push(worker);
             }
         }
+        // The first observable Machine starts the one holder, kept until the TUI exits.
+        if self.holds && self.holder.is_none() && !self.entries.is_empty() {
+            match Holder::start(self.wakeup.clone()) {
+                Ok(holder) => self.holder = Some(holder),
+                Err(_) => self.hub.reach = Reach::Unavailable,
+            }
+        }
+        if let Some(holder) = &self.holder {
+            holder.want(revision);
+        }
     }
     pub fn tick(&mut self, now: Instant) {
+        if let Some((seen, view)) = self.holder.as_ref().and_then(|h| h.read(self.seen)) {
+            self.seen = seen;
+            self.adopt(view, now);
+        }
         self.retired.retain(|w| !w.finished());
         for entry in &mut self.entries {
             if let Some(update) = entry.worker.as_ref().and_then(Worker::take) {
@@ -176,10 +219,31 @@ impl Discovery {
                 entry.retiring = false;
             }
         }
-        self.start_due(now, Worker::start);
+        let link = self.holder.as_ref().map(|h| h.link(self.hub.epoch));
+        self.start_due(now, |profile, generation| match &link {
+            Some(link) => Worker::start(link.clone(), profile, generation),
+            None => Err(io::ErrorKind::NotConnected.into()),
+        });
+    }
+    /// Takes the holder's latest view: an observer ends when the hub stops reading its Machine
+    /// `online`, and a Machine the hub reads `online` anew starts without its last refusal.
+    fn adopt(&mut self, view: View, now: Instant) {
+        let renewed = view.epoch != self.hub.epoch;
+        for entry in &mut self.entries {
+            let was = self.hub.state(&entry.profile.id) == Some(MachineStateName::Online);
+            let is = view.state(&entry.profile.id) == Some(MachineStateName::Online);
+            if was && (!is || renewed) {
+                entry.withdraw(&mut self.retired, now);
+            }
+            if is && (!was || renewed) {
+                entry.refusal = None;
+                entry.policy = Policy::new(now);
+            }
+        }
+        self.hub = view;
     }
     /// The manager acknowledges after both collectors have retired cached source/watch owners.
-    /// Until then a failed worker keeps its last carrier/tunnel guard on the background thread.
+    /// Until then a failed worker keeps its last carrier guard on the background thread.
     pub fn finish_retirement(&mut self) {
         for entry in &self.entries {
             if entry.retiring
@@ -189,43 +253,52 @@ impl Discovery {
             }
         }
     }
+    /// Starts an observer for each Machine the hub reads `online` whose policy is due.
     fn start_due(
         &mut self,
         now: Instant,
         mut start: impl FnMut(Profile, u64) -> io::Result<Worker>,
     ) {
-        let mut used = self.retired.len()
-            + self
-                .entries
-                .iter()
-                .filter(|e| e.worker.is_some() && e.policy.phase != Phase::Online)
-                .count();
-        let count = self.entries.len();
-        let cursor = self.next;
-        for offset in 0..count {
-            if used >= CONNECT_LIMIT {
-                break;
-            }
-            let index = (cursor + offset) % count;
-            let entry = &mut self.entries[index];
-            if entry.worker.is_none() && entry.policy.due(now) {
-                self.next = (index + 1) % count;
+        for entry in &mut self.entries {
+            if entry.worker.is_none()
+                && self.hub.state(&entry.profile.id) == Some(MachineStateName::Online)
+                && entry.policy.due(now)
+            {
                 entry.policy.begin();
                 entry.refusal = None;
                 match start(entry.profile.clone(), entry.generation) {
-                    Ok(worker) => {
-                        entry.worker = Some(worker);
-                        used += 1;
-                    }
+                    Ok(worker) => entry.worker = Some(worker),
                     Err(_) => entry.policy.fail(false, now),
                 }
             }
         }
     }
+    fn observation(&self, entry: &Entry, now: Instant) -> Option<Observation> {
+        if self.hub.reach == Reach::Unavailable {
+            return Some(Observation::Unavailable);
+        }
+        let state = self.hub.state(&entry.profile.id)?;
+        if state != MachineStateName::Online {
+            return Some(Observation::State(state));
+        }
+        if let Some(refusal) = entry.refusal {
+            return Some(Observation::State(refused(refusal)));
+        }
+        Some(
+            entry
+                .ready
+                .as_ref()
+                .filter(|r| r.connection.is_current(now))
+                .map_or(Observation::State(state), |r| {
+                    Observation::Online(r.overview.clone())
+                }),
+        )
+    }
+    /// One observation per Machine the hub reported, or every Machine while no hub is reached.
     pub fn observations(&self, now: Instant) -> Vec<(ProfileId, Observation)> {
         self.entries
             .iter()
-            .map(|e| (e.profile.id.clone(), e.observation(now)))
+            .filter_map(|e| Some((e.profile.id.clone(), self.observation(e, now)?)))
             .collect()
     }
     pub fn connection(&self, profile: &Profile, now: Instant) -> Option<Connection> {
@@ -233,50 +306,79 @@ impl Discovery {
             .iter()
             .find(|e| {
                 same_endpoint(&e.profile, profile)
-                    && matches!(e.observation(now), Observation::Online(_))
+                    && matches!(self.observation(e, now), Some(Observation::Online(_)))
             })
             .and_then(|e| e.ready.as_ref().map(|r| r.connection.clone()))
     }
+    /// Whether a selection of `profile` fails now: no hub is reached, the hub's `connect` ended
+    /// without `online`, or the observer of an `online` Machine failed.
     pub fn failed(&self, profile: &Profile) -> bool {
-        self.failed_entry(profile).is_some()
+        self.hub_unavailable()
+            || self.hub.asks.get(profile.id.as_str()) == Some(&Ask::Failed)
+            || self.entries.iter().any(|e| {
+                same_endpoint(&e.profile, profile)
+                    && self.hub.state(&e.profile.id) == Some(MachineStateName::Online)
+                    && matches!(e.policy.phase, Phase::Attention | Phase::Reconnecting)
+            })
     }
     /// Why the remote refused this Client in the endpoint's latest failed attempt, when it said
     /// so; selection names this instead of a generic failure.
     pub fn refusal(&self, profile: &Profile) -> Option<Refusal> {
-        self.failed_entry(profile).and_then(|entry| entry.refusal)
+        self.entries
+            .iter()
+            .find(|e| same_endpoint(&e.profile, profile))
+            .and_then(|entry| entry.refusal)
     }
-    fn failed_entry(&self, profile: &Profile) -> Option<&Entry> {
-        self.entries.iter().find(|e| {
-            same_endpoint(&e.profile, profile)
-                && matches!(e.policy.phase, Phase::Attention | Phase::Reconnecting)
-        })
+    /// Whether no hub can be started or reached now.
+    pub fn hub_unavailable(&self) -> bool {
+        self.hub.reach == Reach::Unavailable
     }
+    /// A selection asks again: the observer's hold and refusal clear, and a Machine the hub does
+    /// not read `online` is asked to `connect`.
     pub fn retry(&mut self, id: &ProfileId, now: Instant) {
         if let Some(entry) = self.entries.iter_mut().find(|e| &e.profile.id == id) {
+            entry.refusal = None;
             entry.policy.retry(now);
+        }
+        let Some(holder) = &self.holder else {
+            return;
+        };
+        if self.hub.state(id) == Some(MachineStateName::Online) {
+            holder.forget(id);
+            self.hub.asks.remove(id.as_str());
+        } else {
+            let ask = holder.connect(id);
+            self.hub.asks.insert(id.as_str().to_owned(), ask);
         }
     }
 }
 impl Discovery {
-    /// Process exit: observes every observer thread against the shared deadline after all of
-    /// them were cancelled.
+    /// Process exit: observes the holder and every observer thread against the shared deadline
+    /// after all of them were cancelled.
     ///
     /// # Errors
     /// TimedOut when an observer is still running at the deadline; it is detached on drop.
     pub fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
         self.request_stop();
+        let holder = self
+            .holder
+            .as_mut()
+            .map_or(Ok(()), |holder| holder.stop_before(deadline));
         self.entries
             .iter_mut()
             .filter_map(|entry| entry.worker.as_mut())
             .chain(&mut self.retired)
             .map(|worker| worker.stop_before(deadline))
-            .fold(Ok(()), io::Result::and)
+            .fold(holder, io::Result::and)
     }
 
-    /// Wakes all I/O owners and cancels every observer without waiting.
+    /// Wakes all I/O owners and cancels every observer and the holder without waiting.
     pub fn request_stop(&mut self) {
         for entry in &mut self.entries {
             entry.ready = None;
+        }
+        if let Some(holder) = &self.holder {
+            holder.request_stop();
         }
         for worker in self
             .entries

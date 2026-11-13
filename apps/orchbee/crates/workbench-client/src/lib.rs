@@ -23,6 +23,7 @@ mod local_activation;
 mod local_client;
 mod localization;
 mod machine_agents;
+mod machine_carrier;
 mod machine_discovery;
 #[cfg(windows)]
 mod machine_hub;
@@ -32,7 +33,6 @@ mod machine_refusal;
 mod machine_retry;
 mod machine_spaces;
 mod machine_ssh;
-mod machine_tunnel;
 mod machines;
 mod native_settings;
 mod notifications;
@@ -291,11 +291,6 @@ pub mod application {
             AdmissionError, Client, PROGRAM_NOT_FOUND, client, command, executable, execute,
             link_program, literal, program,
         };
-    }
-
-    pub mod machine_tunnel {
-        #[cfg(windows)]
-        pub use crate::machine_tunnel::serve;
     }
 
     pub mod machines {

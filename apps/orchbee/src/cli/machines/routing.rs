@@ -13,14 +13,15 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use orchbee_connection_handshake::{Delivery, Extensions, Generation};
-use orchbee_local_runtime::{CommandFailure, SessionName};
+#[cfg(windows)]
+use orchbee_local_runtime::CommandFailure;
+#[cfg(any(windows, test))]
+use orchbee_local_runtime::SessionName;
 use orchbee_machine_protocol::hub::StopSessionOutcome;
 use serde::{Deserialize, Serialize};
-use std::{
-    io,
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
+#[cfg(windows)]
+use std::{io, process::Command};
 #[cfg(windows)]
 #[path = "routing/hub.rs"]
 mod hub;
@@ -39,16 +40,15 @@ mod hub {
         Err(mapped(Error::SshUnavailable))
     }
 }
+/// The far side answers a routed command only where the link helper runs.
 #[cfg(windows)]
 #[path = "routing/windows.rs"]
-mod platform;
-#[cfg(not(windows))]
-#[path = "routing/unix.rs"]
 mod platform;
 pub(crate) mod stop;
 
 const REQUEST_LIMIT: usize = 2 * 1024 * 1024;
 const REPLY_LIMIT: usize = 24 * 1024 * 1024;
+#[cfg(any(windows, test))]
 const ARGUMENT_LIMIT: usize = 64 * 1024;
 /// The routed command packet. `version` is its `machine-route` generation; `extensions` is the
 /// only open member, whose content a receiver ignores.
@@ -106,6 +106,7 @@ struct Reply {
     extensions: Extensions,
 }
 impl Reply {
+    #[cfg(windows)]
     fn failure(outcome: Outcome) -> Self {
         Self {
             version: generation(),
@@ -117,6 +118,7 @@ impl Reply {
         }
     }
     /// The remote CLI's exit status and output, reported exactly as the remote produced them.
+    #[cfg(windows)]
     fn completed(status: u8, stdout: &[u8], stderr: &[u8]) -> Self {
         Self {
             version: generation(),
@@ -392,27 +394,7 @@ fn execute(
         }
     }
 }
-pub(crate) fn serve(locale: Locale) -> Output {
-    if crate::tui_capabilities::Capability::SavedMachines
-        .require()
-        .is_err()
-    {
-        return cli::unsupported_platform(None, locale);
-    }
-    let mut signals = match ArmedSignals::arm_interrupts() {
-        Ok(v) => v,
-        Err(_) => return encoded(Reply::failure(Outcome::NotSubmitted)),
-    };
-    let deadline = Instant::now() + Duration::from_secs(60);
-    let reply = match source::acquire_document(None, REQUEST_LIMIT, deadline, &mut signals) {
-        Ok(bytes) => serve_packet(&bytes, || signals.take().map(|v| v.is_some())),
-        Err(_) => Reply::failure(Outcome::NotSubmitted),
-    };
-    let _ = locale; // Packet locale belongs to the spawned business CLI.
-    let mut result = encoded(reply);
-    result.finalization = Some(signals.into_finalization());
-    result
-}
+#[cfg(windows)]
 fn encoded(reply: Reply) -> Output {
     // Raw streams are bounded before base64; the resulting envelope fits 24 MiB.
     match serde_json::to_vec(&reply) {
@@ -434,6 +416,7 @@ fn encoded(reply: Reply) -> Output {
     }
 }
 /// An admitted packet: a routable request to run, or arguments this build's grammar refuses.
+#[cfg(any(windows, test))]
 enum Admission {
     Run(Packet, Vec<u8>),
     /// The ordinary usage failure for the routed arguments, rendered without running anything.
@@ -441,6 +424,7 @@ enum Admission {
 }
 /// The locale of an admitted packet. A language this build does not ship, including one a later
 /// sender adds, reads as en-US rather than refusing the command.
+#[cfg(any(windows, test))]
 fn packet_locale(locale: &str) -> Locale {
     if locale == "zh_CN.UTF-8" {
         Locale::ZhCn
@@ -458,6 +442,7 @@ const fn locale_name(locale: Locale) -> &'static str {
 /// Admits one packet of a generation this build reads; `extensions` content is ignored. The
 /// routed arguments are parsed under this build's own grammar: a parse failure is answered as the
 /// usual usage failure, while a parsed request that is not routable is refused.
+#[cfg(any(windows, test))]
 fn admit_packet(bytes: &[u8]) -> Option<Admission> {
     if bytes.len() > REQUEST_LIMIT {
         return None;
@@ -502,7 +487,7 @@ fn admit_packet(bytes: &[u8]) -> Option<Admission> {
     Some(Admission::Run(packet, input))
 }
 /// One request packet answered as the `machine-link` `route` channel carries it: the reply
-/// packet's JSON without the line end of `--machine-relay-v1`, at most 24 MiB. `cancelled` is
+/// packet's JSON, at most 24 MiB. `cancelled` is
 /// polled while the command runs and ends it through its process tree when it turns true.
 #[cfg(windows)]
 pub(crate) fn answer_packet(bytes: &[u8], mut cancelled: impl FnMut() -> bool) -> Vec<u8> {
@@ -514,6 +499,7 @@ pub(crate) fn answer_packet(bytes: &[u8], mut cancelled: impl FnMut() -> bool) -
     }
     packet
 }
+#[cfg(windows)]
 fn serve_packet(bytes: &[u8], mut interrupted: impl FnMut() -> io::Result<bool>) -> Reply {
     let (packet, input) = match admit_packet(bytes) {
         Some(Admission::Run(packet, input)) => (packet, input),

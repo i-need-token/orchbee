@@ -382,14 +382,17 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
             .contains("在线")
     );
     let status_only = text.target(PickerAction::Row(1));
-    picker.observe(&[(p.id, Observation::Stale)]);
+    picker.observe(&[(
+        p.id,
+        Observation::State(orchbee_machine_protocol::hub::MachineStateName::Reconnecting),
+    )]);
     assert!(
         picker.activate_drawn_picker(&status_only),
         "status-only refreshes retain the same semantic row authority"
     );
     assert!(picker.request.take().is_some());
     let text = paint(&picker, Locale::EnUs, 80, 24);
-    assert!(text.contains("Stale"));
+    assert!(text.contains("Reconnecting"));
     assert!(text.contains("0 machines"));
     assert!(!text.contains("Workspace B"));
 }
@@ -464,7 +467,9 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
     assert_eq!(picker.selection(), Some(expected));
     let painted = paint(&picker, Locale::EnUs, 90, 26);
     let old = painted.target(PickerAction::Row(picker.selected));
-    picker.observe(&[(a.id, Observation::Stale), (b.id, Observation::Stale)]);
+    let reconnecting =
+        Observation::State(orchbee_machine_protocol::hub::MachineStateName::Reconnecting);
+    picker.observe(&[(a.id, reconnecting.clone()), (b.id, reconnecting)]);
     assert!(!picker.activate_drawn_picker(&old));
     assert!(picker.request.is_none());
     assert_eq!(picker.visible_rows().len(), 1);

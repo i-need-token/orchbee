@@ -33,7 +33,6 @@ mod cli_windows_fixture_lifecycle;
 mod cli_windows_input;
 mod cli_windows_layout_members;
 mod cli_windows_machine_routing;
-mod cli_windows_machine_tunnel;
 mod cli_windows_machines;
 mod cli_windows_notifications;
 mod cli_windows_pane_graphics;

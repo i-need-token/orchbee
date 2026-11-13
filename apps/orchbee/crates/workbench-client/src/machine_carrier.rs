@@ -1,20 +1,22 @@
-//! Saved-machine carrier capability; local Client transport is independent.
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-use windows as platform;
-#[cfg(windows)]
-pub use windows::serve;
+//! The local endpoint a remote Client connection runs on: every connection it accepts is carried
+//! over one hub `session` channel to the Machine's Session, which admits this build's own offer
+//! through the handshake. The carrier judges no byte. Windows only, as the hub is;
+//! `apps/orchbee/docs/machines.md#session-carrier` owns the rules.
 #[cfg(not(windows))]
 mod unix;
+#[cfg(windows)]
+mod windows;
 #[cfg(not(windows))]
 use unix as platform;
+#[cfg(windows)]
+use windows as platform;
+
+pub(crate) use platform::Hub;
 
 use crate::{
     local_client::{LocalClient, RetainedCarrier, cancellation::Cancellation},
     machine_refusal::Refusal,
-    machine_ssh,
-    machines::Profile,
+    machines::ProfileId,
     tui_capabilities::Capability,
 };
 use std::{
@@ -25,6 +27,9 @@ use std::{
     time::Instant,
 };
 
+/// Whether the hub reads the Machine `online` now; the endpoint closes new connections otherwise.
+pub(crate) type Gate = Arc<dyn Fn() -> bool + Send + Sync>;
+
 /// Native creation transfers these resources directly into the retained Client guard.
 struct StartedCarrier {
     endpoint: PathBuf,
@@ -32,28 +37,24 @@ struct StartedCarrier {
     task: JoinHandle<io::Result<()>>,
 }
 
-/// Admit one saved-machine connection without changing its deadline or replaying its probe.
+/// Admits one Client connection to `machine`'s Session over `hub`, within `deadline`. The endpoint
+/// lives as long as the returned Client or any origin derived from it.
 pub(crate) fn connect(
-    profile: &Profile,
+    hub: &Hub,
+    machine: &ProfileId,
+    online: Gate,
     deadline: Instant,
     cancelled: Cancellation<'_>,
 ) -> io::Result<LocalClient> {
-    // An unavailable host refuses before inspecting the profile or cancellation source.
+    // An unavailable host refuses before inspecting the Machine or cancellation source.
     Capability::SavedMachines.require()?;
-    if !profile.enabled {
-        return Err(io::ErrorKind::PermissionDenied.into());
-    }
-    let admitted = machine_ssh::probe(&profile.draft, deadline, || cancelled.is_cancelled())?;
-    if cancelled.is_cancelled()? {
-        return Err(io::ErrorKind::Interrupted.into());
-    }
     let StartedCarrier {
         endpoint,
         stop,
         task,
-    } = platform::prepare(profile, &admitted)?;
+    } = platform::start(hub, machine, online)?;
     let guard = Arc::new(RetainedCarrier::new(stop, task));
-    // The tunnel carries an ordinary Client connection: the remote Session admits this build's
+    // The stream carries an ordinary Client connection: the remote Session admits this build's
     // own offer through the handshake. The invocation-owned wake is observed throughout.
     let offer = crate::local_client::client_offer(None);
     let client =

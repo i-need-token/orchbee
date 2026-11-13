@@ -211,7 +211,7 @@ impl Manager {
             candidate: None,
             queued: None,
             selection_scope: None,
-            discovery: Discovery::default(),
+            discovery: Discovery::new(wakeup.clone()),
             // Host process titles have no publication source; canonical Agent facts also push.
             agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
             spaces: crate::machine_spaces::Collector::new(wakeup.clone(), false),
@@ -322,6 +322,15 @@ impl Manager {
             .observe_native_navigation(choice(self.current.as_ref()), navigation);
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
+        // The status line says so while no hub is reached, without hiding another message.
+        let hub_unavailable = self.discovery.hub_unavailable();
+        if hub_unavailable && view.machines.error.is_none() {
+            view.machines.error = Some("hub");
+            change.redraw = true;
+        } else if !hub_unavailable && view.machines.error == Some("hub") {
+            view.machines.error = None;
+            change.redraw = true;
+        }
         let mut agent_sources = Vec::new();
         let every_machine = view.machines.wants_agents() || view.machines.wants_spaces();
         // The Windows Tab strip summarizes the attached machine's Agents without the Sidebar.
@@ -516,7 +525,12 @@ impl Manager {
                     .as_ref()
                     .is_some_and(|p| self.discovery.failed(p))
             {
-                self.fail_selection(view, "failed");
+                let failure = if queued.profile.is_some() && self.discovery.hub_unavailable() {
+                    "hub"
+                } else {
+                    "failed"
+                };
+                self.fail_selection(view, failure);
             } else if self
                 .selection_scope
                 .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
@@ -763,7 +777,8 @@ impl Manager {
                 }
                 self.profiles = catalog.profiles;
                 self.catalog_ok = true;
-                self.discovery.reconcile(&self.profiles, Instant::now());
+                self.discovery
+                    .reconcile(&self.profiles, Some(catalog.revision), Instant::now());
                 view.machines.replace(&self.profiles);
                 if view.machines.error == Some("catalog") {
                     view.machines.error = None;
@@ -812,7 +827,7 @@ impl Manager {
                 {
                     report_selection_failure(view, "catalog");
                 }
-                self.discovery.reconcile(&[], Instant::now());
+                self.discovery.reconcile(&[], None, Instant::now());
                 view.machines.replace(&[]);
                 view.machines.error = Some("catalog");
             }

@@ -43,7 +43,7 @@ installation's cohort digest — serves diagnostics and integrity; only
 | Agent hook → Server                              | Rich observation envelope, correlation hint, and private APC           | Closed `version: 1`; older Capsules stay installed      | [Agent hook deliveries](#agent-hook-deliveries)             |
 | Server ↔ local Worker                            | OBLW, OBCN                                                             | Exact cohort identity                                   | [Exact](#what-stays-exact)                                  |
 | Desktop Main ↔ bundled Client                    | OBWP relayed over stdio                                                | One package                                             | [Exact](#what-stays-exact)                                  |
-| Saved machine, local Client → remote Orchbee     | SSH probe, `--machine-tunnel-v1` helper, and routed command packet     | Equal product version, protocols, and cohort            | [Saved machines](#saved-machines)                           |
+| Saved machine, local Client → remote Orchbee     | `machine-link` helper, a hub Session stream, and routed command packet | Equal product version, protocols, and cohort            | [Saved machines](#saved-machines)                           |
 | Server ↔ remote Worker                           | OBCN                                                                   | Not implemented                                         | Negotiated, when ORC-297 and ORC-338 build it               |
 | Release feed → `orchbee update`                  | Release manifest                                                       | Closed, unsigned `schemaVersion: 1`; never published    | [Release manifest](#release-manifest)                       |
 | Client → runtime store                           | Store layout, active version, and Server start                         | Each Client starts its own installation's Server        | [Shared runtime store](#shared-runtime-store)               |
@@ -285,14 +285,14 @@ every combination inside the window has [cross-version tests](#cross-version-tes
 
 ## Saved machines
 
-- The machine tunnel carries an ordinary Client ↔ Server connection, so the remote Session admits
+- A hub Session stream carries an ordinary Client ↔ Server connection, so the remote Session admits
   the local Client through the handshake.
-- The SSH probe requires only a supported remote platform and architecture with an available
-  Orchbee installation, and shows the remote product version; it compares no product version,
-  protocol version, or cohort across machines.
-- The remote helper becomes `--machine-tunnel-v1 <session>` before the first public release,
-  dropping its cohort argument. From then on that grammar never changes; a change adds a new helper
-  name.
+- The hub's `machine-link` offer to the remote helper is admitted through the same handshake; one
+  side too old reads as the Machine's `needs-update` or `local-needs-update` state. No product
+  version, protocol version, or cohort is otherwise compared across machines.
+- The remote helper is `--machine-link-v1`, with no other argument. Its grammar never changes; a
+  change adds a new helper name. The earlier `--machine-tunnel-v1` and `--machine-relay-v1`
+  helpers were removed before any release.
 - The routed command packet and its reply drop `cohort`; their `version` is their generation,
   declared as `machine-route`, and each gains an optional `extensions` object. The remote CLI parses
   the routed arguments under its own grammar and reports usage errors as usual.

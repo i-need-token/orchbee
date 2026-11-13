@@ -2,6 +2,7 @@ use super::*;
 use crate::client_context::ClientContextLocation;
 use crate::local_client::cancellation::OwnedCancellation;
 use crate::local_client::test_support::multiplex_peer::{admit, read_open, respond};
+use crate::localization::Locale;
 use crate::{local_client::test_support::server::FakeServer, machines::Draft};
 use orchbee_workbench_protocol::{
     MultiplexMessage, Navigation, ProtocolVersion, StreamFrameKind, StreamMode, TerminalContext,
@@ -10,6 +11,7 @@ use orchbee_workbench_protocol::{
     write_multiplex_message,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchProjectId};
+use overview::Tone;
 use std::{num::NonZeroU64, thread, time::Duration};
 
 fn profile(n: u8) -> Profile {
@@ -63,27 +65,29 @@ fn blocked_worker(_: Profile, generation: u64) -> io::Result<Worker> {
         Err(io::ErrorKind::Interrupted.into())
     })
 }
+/// The hub reads every one of `profiles` online.
+fn online(d: &mut Discovery, profiles: &[Profile]) {
+    d.hub.reach = Reach::Attached;
+    for p in profiles {
+        d.hub
+            .states
+            .insert(p.id.as_str().to_owned(), MachineStateName::Online);
+    }
+}
 #[test]
-fn startup_budget_and_profile_generations_survive_rename_replacement_and_readd() {
+fn profile_generations_survive_rename_replacement_and_readd() {
     let now = Instant::now();
     let mut d = Discovery::default();
     let mut profiles: Vec<_> = (1..=10).map(profile).collect();
-    d.reconcile(&profiles, now);
+    d.reconcile(&profiles, Some(1), now);
+    online(&mut d, &profiles);
     d.start_due(now, blocked_worker);
-    assert_eq!(d.entries.iter().filter(|e| e.worker.is_some()).count(), 4);
-    assert_eq!(
-        d.observations(now)
-            .iter()
-            .filter(|(_, o)| matches!(o, Observation::Waiting))
-            .count(),
-        6
-    );
     let generation = d.entries[0].generation;
     profiles[0].draft.label = "renamed".into();
-    d.reconcile(&profiles, now);
+    d.reconcile(&profiles, Some(1), now);
     assert_eq!(d.entries[0].generation, generation);
     profiles[0].draft.connection = crate::machines::Connection::ssh("replacement.invalid").unwrap();
-    d.reconcile(&profiles, now);
+    d.reconcile(&profiles, Some(1), now);
     assert_ne!(d.entries[0].generation, generation);
     d.entries[0].accept(Update {
         generation,
@@ -93,22 +97,19 @@ fn startup_budget_and_profile_generations_survive_rename_replacement_and_readd()
             at: now,
         },
     });
-    assert_eq!(d.entries[0].observation(now), Observation::Waiting);
-    d.start_due(now, |_, _| {
-        panic!("retiring connection must consume the startup budget")
-    });
+    assert_eq!(d.entries[0].policy.phase, Phase::Waiting);
     let replacement = d.entries[0].generation;
     profiles[0].enabled = false;
-    d.reconcile(&profiles, now);
+    d.reconcile(&profiles, Some(1), now);
     assert!(
         !d.observations(now)
             .iter()
             .any(|(id, _)| id == &profiles[0].id)
     );
     profiles[0].enabled = true;
-    d.reconcile(&profiles, now);
+    d.reconcile(&profiles, Some(1), now);
     assert_ne!(d.entries[0].generation, replacement);
-    d.reconcile(&[], now); // Invalid catalog follows this same suspension path.
+    d.reconcile(&[], None, now); // Invalid catalog follows this same suspension path.
     assert!(d.observations(now).is_empty());
     let deadline = Instant::now() + Duration::from_secs(2);
     while !d.retired.iter().all(Worker::finished) {
@@ -121,30 +122,31 @@ fn startup_budget_and_profile_generations_survive_rename_replacement_and_readd()
     drop(d); // All workers observe cancellation before the first join.
 }
 #[test]
-fn online_observers_release_startup_budget() {
-    let now = Instant::now();
-    let mut d = Discovery::default();
-    d.reconcile(&(1..=8).map(profile).collect::<Vec<_>>(), now);
-    d.start_due(now, blocked_worker);
-    for e in &mut d.entries[..4] {
-        e.policy.healthy(now);
+fn every_hub_state_reads_as_one_distinct_localized_word_with_its_tone() {
+    let rows: Vec<_> = MachineStateName::ALL
+        .iter()
+        .map(|&state| Observation::State(state))
+        .chain([Observation::Unavailable])
+        .collect();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut words = std::collections::HashSet::new();
+        for row in &rows {
+            let word = locale.machine_picker_text(row.key());
+            assert!(!word.is_empty(), "{locale:?} {row:?}");
+            assert!(words.insert(word), "{locale:?} {row:?} repeats {word}");
+        }
     }
-    d.start_due(now, blocked_worker);
-    assert_eq!(d.entries.iter().filter(|e| e.worker.is_some()).count(), 8);
-}
-#[test]
-fn repeated_failures_cannot_starve_later_profiles_when_the_ui_ticks_slowly() {
-    let now = Instant::now();
-    let mut d = Discovery::default();
-    d.reconcile(&(1..=8).map(profile).collect::<Vec<_>>(), now);
-    d.start_due(now, blocked_worker);
-    for e in &mut d.entries[..4] {
-        drop(e.worker.take());
-        e.policy.fail(false, now);
+    // Needing a login is not an error; a refused login is.
+    for (state, tone) in [
+        (MachineStateName::Online, Tone::Success),
+        (MachineStateName::Reconnecting, Tone::Progress),
+        (MachineStateName::NeedsLogin, Tone::Neutral),
+        (MachineStateName::Unresponsive, Tone::Warning),
+        (MachineStateName::LoginFailed, Tone::Error),
+    ] {
+        assert_eq!(Observation::State(state).tone(), tone, "{state:?}");
     }
-    d.start_due(now + Duration::from_secs(1), blocked_worker);
-    assert!(d.entries[..4].iter().all(|e| e.worker.is_none()));
-    assert!(d.entries[4..].iter().all(|e| e.worker.is_some()));
+    assert_eq!(Observation::Unavailable.tone(), Tone::Warning);
 }
 fn next_update(worker: &Worker) -> Update {
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -224,9 +226,10 @@ fn terminal_subscription_refusals_require_attention_without_automatic_retry() ->
         let worker = observer(server.endpoint().to_path_buf(), 1)?;
         let update = next_update(&worker);
         let mut d = Discovery::default();
-        d.reconcile(&[profile(1)], Instant::now());
+        d.reconcile(&[profile(1)], Some(1), Instant::now());
+        online(&mut d, &[profile(1)]);
         d.entries[0].accept(update);
-        assert_eq!(d.observations(Instant::now())[0].1, Observation::Attention);
+        assert_eq!(d.entries[0].policy.phase, Phase::Attention);
         d.start_due(Instant::now() + Duration::from_secs(3600), |_, _| {
             panic!("permanent refusal retried")
         });
@@ -241,9 +244,13 @@ fn a_remote_refusal_survives_the_observer_and_clears_on_retry() -> io::Result<()
     let update = next_update(&worker);
     let remote = profile(1);
     let mut d = Discovery::default();
-    d.reconcile(std::slice::from_ref(&remote), Instant::now());
+    d.reconcile(std::slice::from_ref(&remote), Some(1), Instant::now());
+    online(&mut d, std::slice::from_ref(&remote));
     d.entries[0].accept(update);
-    assert_eq!(d.observations(Instant::now())[0].1, Observation::Attention);
+    assert_eq!(
+        d.observations(Instant::now())[0].1,
+        Observation::State(MachineStateName::NeedsUpdate)
+    );
     assert_eq!(d.refusal(&remote), Some(Refusal::SessionTooOld));
     d.retry(&remote.id, Instant::now());
     assert_eq!(d.refusal(&remote), None);
@@ -365,7 +372,8 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
     let update = next_update(&worker);
     let mut d = Discovery::default();
     let p = profile(1);
-    d.reconcile(std::slice::from_ref(&p), Instant::now());
+    d.reconcile(std::slice::from_ref(&p), Some(1), Instant::now());
+    online(&mut d, std::slice::from_ref(&p));
     d.entries[0].generation = 7;
     d.entries[0].worker = Some(worker);
     d.entries[0].accept(update);
@@ -388,10 +396,7 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
     assert!(matches!(reset.event, Event::Reset));
     d.entries[0].accept(reset);
     d.tick(Instant::now());
-    assert_eq!(
-        d.observations(Instant::now())[0].1,
-        Observation::Reconnecting
-    );
+    assert_eq!(d.entries[0].policy.phase, Phase::Reconnecting);
     assert!(d.connection(&p, Instant::now()).is_none());
     assert!(
         !d.entries[0].worker.as_ref().unwrap().finished(),
