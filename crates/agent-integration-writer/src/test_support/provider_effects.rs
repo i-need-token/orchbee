@@ -17,6 +17,7 @@ use std::{
 use serde_json::Value;
 
 use super::super::capsule;
+use super::super::exec_budget::SLOT;
 use super::super::files::{self, FsStep};
 use super::super::inspect;
 use super::super::model::IntegrationId;
@@ -31,6 +32,9 @@ const PACK_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/fixtures/provider-effects/cases.json"
 );
+
+/// The invocation budget every driven mutation starts with.
+const PROVIDER_BUDGET: Duration = Duration::from_secs(40);
 
 // ---------------------------------------------------------------------------
 // Fixture model
@@ -387,9 +391,15 @@ fn install_injections(case: &Case, dirs: &Dirs, plan: &mut Plan) {
             let push = Duration::from_secs(3600);
             if k.contains("before first") {
                 // "Deadline expires during inspection/planning" — the push
-                // lands at the preflight boundary so the first admission
-                // consult already reads expired.
-                plan.on("preflight-inspect", BoundaryAction::AdvanceClock(push));
+                // lands at the preflight boundary and leaves less than one
+                // slot: the inspection read still starts with its teardown
+                // funded, the first mutation step and its re-inspection
+                // reserve cannot.
+                let funded = SLOT - Duration::from_millis(300);
+                plan.on(
+                    "preflight-inspect",
+                    BoundaryAction::AdvanceClock(PROVIDER_BUDGET - funded),
+                );
             } else {
                 match step {
                     "provider-command" => {
@@ -699,7 +709,7 @@ fn drive_fs(case: &Case, dirs: &Dirs) -> Outcome {
     let op = case.drive["op"].as_str().unwrap();
     let target = dirs.target.clone();
     let staged_bytes = case.drive["stagedBytes"].as_str().unwrap_or("payload");
-    let deadline = inject::now() + Duration::from_secs(40);
+    let deadline = inject::now() + PROVIDER_BUDGET;
     let mut residues: Vec<PathBuf> = Vec::new();
 
     // Preflight: classify the occupant by its materialized bytes, and name
@@ -1199,7 +1209,7 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
         }
     }
 
-    let deadline = inject::now() + Duration::from_secs(40);
+    let deadline = inject::now() + PROVIDER_BUDGET;
     let cancel = InjectCancel;
     let context = ProviderContext {
         home: &dirs.home,
@@ -2075,7 +2085,7 @@ fn run_static(case: &Case, cli_status: CliStatus) {
                 capsule_root: &dirs.capsule_root,
                 adapter_source: Some(dirs.adapter_source.as_path()),
                 path_env: Some(dirs.bin.as_os_str()),
-                deadline: inject::now() + Duration::from_secs(40),
+                deadline: inject::now() + PROVIDER_BUDGET,
                 cancel: Some(&cancel),
                 management_mode: super::super::model::ManagementMode::ManagedLocal,
             };
@@ -2139,7 +2149,7 @@ fn drive_provider_at(
         capsule_root: &dirs.capsule_root,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
-        deadline: inject::now() + Duration::from_secs(40),
+        deadline: inject::now() + PROVIDER_BUDGET,
         cancel: Some(&cancel),
         management_mode: super::super::model::ManagementMode::ManagedLocal,
     };
@@ -2149,11 +2159,30 @@ fn drive_provider_at(
 /// Replays the frozen `provider-effects52` pack; `cli_status` is the owning application's
 /// integration exit mapping.
 pub fn provider_effects52_conformance(cli_status: CliStatus) {
+    // Every case runs and reports, as in the conformance64 replay: each one installs its own
+    // plan, so a failed case cannot leak into the next.
+    let mut failures = Vec::new();
     for case in load_cases() {
-        if case.execution == "static" {
-            run_static(&case, cli_status);
-        } else {
-            run_case(&case, cli_status);
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if case.execution == "static" {
+                run_static(&case, cli_status);
+            } else {
+                run_case(&case, cli_status);
+            }
+        }));
+        if let Err(payload) = outcome {
+            let message = payload
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| payload.downcast_ref::<&str>().copied())
+                .unwrap_or("non-string panic");
+            failures.push(format!("{}: {message}", case.id));
         }
     }
+    assert!(
+        failures.is_empty(),
+        "{} effects failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
