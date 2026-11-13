@@ -1,6 +1,6 @@
 {
 	"name": "@orchbee/desktop",
-	"version": "0.1.0",
+	"version": "0.1.0-beta.1",
 	"private": true,
 	"description": "Electron window that joins an Orchbee Session as a Server Client",
 	"type": "module",
