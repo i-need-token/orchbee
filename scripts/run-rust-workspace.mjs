@@ -58,7 +58,10 @@ const commands = new Map([
 			'warnings',
 		],
 	],
-	['test', ['test', '--workspace', '--all-targets', '--all-features', '--locked']],
+	[
+		'test',
+		['test', '--workspace', '--all-targets', '--all-features', '--locked', '--no-fail-fast'],
+	],
 ]);
 // Development dependencies re-enable test-support features under --all-targets, so only library
 // and binary targets with default features compile the product shape a release build sees.
