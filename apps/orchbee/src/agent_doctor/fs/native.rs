@@ -38,6 +38,13 @@ impl ConfigurationTarget {
 }
 
 /// This environment's Capsule folder, `internal/integrations/agent-observation` in its data root.
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters locate the Capsule"
+    )
+)]
 pub(super) fn capsule_folder() -> Option<PathBuf> {
     DataRoot::resolve(|name| std::env::var_os(name))
         .ok()

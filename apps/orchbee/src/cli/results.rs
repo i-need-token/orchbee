@@ -634,6 +634,13 @@ pub(crate) const MAXIMUM_HISTORY_ROWS: u16 = 1000;
 /// including rows the protocol window cap never reached.
 #[cfg(any(unix, windows))]
 #[cfg(test)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows terminal read path projects history"
+    )
+)]
 pub(crate) fn terminal_history_doc(
     terminal: TerminalRow,
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
@@ -1214,6 +1221,13 @@ pub(crate) enum Projection {
     #[cfg(test)]
     TerminalRead(TerminalReadDoc),
     #[cfg(test)]
+    #[cfg_attr(
+        not(any(windows, target_os = "linux")),
+        expect(
+            dead_code,
+            reason = "only the Linux and Windows terminal read path projects history"
+        )
+    )]
     TerminalHistory(TerminalHistoryDoc),
     TerminalWaitOutput(TerminalWaitOutputDoc),
     /// The `worktree list` answer: the registered directory identity plus the

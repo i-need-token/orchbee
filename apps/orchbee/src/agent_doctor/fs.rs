@@ -48,6 +48,13 @@ pub(crate) const MAX_PATH_BYTES: usize = 4096;
 /// The entry kind an `lstat`-shaped observation reports — the consumer's own
 /// `symlink_metadata` classification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters classify entries"
+    )
+)]
 pub(crate) enum EntryKind {
     Regular,
     Directory,
@@ -57,6 +64,13 @@ pub(crate) enum EntryKind {
 
 /// One `lstat` of the final path component — never followed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters classify entries"
+    )
+)]
 pub(crate) enum Lstat {
     /// No entry exists at the path.
     Absent,
@@ -81,6 +95,13 @@ pub(crate) struct Ownership {
 
 /// A descriptor-admitted bounded read of a regular file.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters read files"
+    )
+)]
 pub(crate) enum FileRead {
     /// Regular file whose declared size fit the cap.
     Bytes(Vec<u8>),
@@ -144,6 +165,13 @@ pub(crate) struct PathScan {
 
 /// The owning process's environment value for one variable.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters read the environment"
+    )
+)]
 pub(crate) enum EnvValue {
     Unset,
     Value(Vec<u8>),

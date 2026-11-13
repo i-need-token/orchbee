@@ -39,6 +39,13 @@ const RUN_BUDGET: Duration = Duration::from_secs(5);
 /// endpoint facts. Exhaustion remains explicit as the registry grows.
 const MAX_PROBE_ITEMS: usize = 64;
 /// Aggregate bytes all probes may read in one run.
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters read files"
+    )
+)]
 const MAX_TOTAL_READ_BYTES: u64 = 16 * 1024 * 1024;
 /// `asset.roots` row cap: ≤4 supplied + ≤16 recorded.
 const MAX_ROOTS: usize = 20;
@@ -60,7 +67,31 @@ pub(crate) struct Budget {
     observation: fs::Observation,
     deadline: Instant,
     items: usize,
+    #[cfg_attr(
+        not(any(windows, target_os = "linux")),
+        expect(
+            dead_code,
+            reason = "only the Linux and Windows observation adapters read files"
+        )
+    )]
     bytes: u64,
+}
+
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows observation adapters read files"
+    )
+)]
+impl Budget {
+    pub(crate) fn remaining_bytes(&self) -> u64 {
+        MAX_TOTAL_READ_BYTES.saturating_sub(self.bytes)
+    }
+
+    pub(crate) fn consume(&mut self, bytes: u64) {
+        self.bytes = self.bytes.saturating_add(bytes);
+    }
 }
 
 impl Budget {
@@ -71,14 +102,6 @@ impl Budget {
             items: 0,
             bytes: 0,
         }
-    }
-
-    pub(crate) fn remaining_bytes(&self) -> u64 {
-        MAX_TOTAL_READ_BYTES.saturating_sub(self.bytes)
-    }
-
-    pub(crate) fn consume(&mut self, bytes: u64) {
-        self.bytes = self.bytes.saturating_add(bytes);
     }
 
     /// Reserves one probe item — `false` when the item cap or the

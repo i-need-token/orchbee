@@ -18,6 +18,13 @@ impl InputSource {
         }
     }
 
+    #[cfg_attr(
+        not(any(windows, target_os = "linux")),
+        expect(
+            dead_code,
+            reason = "only the Linux and Windows source adapters read a declared source"
+        )
+    )]
     pub(super) const fn option(self) -> &'static str {
         match self {
             Self::File => "--file",
@@ -31,6 +38,13 @@ impl InputSource {
 /// kinds); `Timeout`/`Cancelled` carry the `orchbee.cli.failure.source`
 /// envelope through the explicit typed conversion in `send.rs`.
 #[derive(Debug)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows source adapters read a declared source"
+    )
+)]
 pub(crate) enum SourceFailure {
     /// Validation or local failure on the standard failure path.
     Standard(Failure),

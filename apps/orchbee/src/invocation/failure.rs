@@ -259,6 +259,13 @@ pub(crate) enum UsageReason {
 /// The closed causes a declared `terminal send` source can fail with before
 /// any byte reaches the wire; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(any(windows, target_os = "linux")),
+    expect(
+        dead_code,
+        reason = "only the Linux and Windows source adapters read a declared source"
+    )
+)]
 pub(crate) enum SendSourceCause {
     /// `--file` did not resolve to a regular file: a directory, FIFO,
     /// device, or a nonregular replacement opened at that path.
