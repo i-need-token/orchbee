@@ -68,7 +68,7 @@ function writeJson(filename, value) {
 }
 
 /** The manifest of one signed release directory, checked against the version this run publishes. */
-function readRelease(directory, version) {
+export function readRelease(directory, version) {
 	if (!path.isAbsolute(directory))
 		throw new Error(`Release directory must be absolute: ${directory}`);
 	const manifestPath = path.join(directory, 'release.json');
@@ -115,7 +115,7 @@ function readRelease(directory, version) {
 }
 
 /** Copies the signed release directory into `destination`, checking every copy against the manifest. */
-function copyRelease(directory, release, destination) {
+export function copyRelease(directory, release, destination) {
 	mkdirSync(destination, { recursive: true });
 	for (const name of ['release.json', 'release.json.sig'])
 		copyFileSync(path.join(directory, name), path.join(destination, name));

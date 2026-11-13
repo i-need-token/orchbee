@@ -245,6 +245,25 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 - The workflow uses read-only repository permissions.
 - Credentials, write permissions, release actions, external checkouts, and other side effects require separate human review and must not enter the required job implicitly.
 
+## Release workflow
+
+- `.github/workflows/release.yml` runs only when started by hand and is never a required check. It
+  has read-only repository permissions, uses no secret or environment, and leaves only workflow
+  artifacts kept for three days.
+- It builds with the test identity and signs the manifest with the repository's test key. Release
+  keys, tags, GitHub Releases, npm publication, and protected environments are release actions
+  under the [CI contract](#ci-contract) and are not part of it.
+- One row per release platform token carries `build` and `publish` flags; the `plan` job selects the
+  `build` rows. Only `windows-x86_64` builds, and no row publishes.
+- `build` installs the pinned toolchains, with Zig and Inno Setup 6.7.1 downloaded and checked by
+  digest, runs `pnpm desktop:installer:test -- --build-id <commit>.<run number>`, and then
+  `node scripts/release-artifacts.mjs collect`, which gathers the signed release directory, the
+  setup file, the npm tarballs, and `SHA256SUMS`.
+- `smoke` and `smoke-npm` take that artifact to fresh runners, check it with
+  `node scripts/release-artifacts.mjs check`, and run `node scripts/release-smoke-windows.mjs` one
+  step at a time: the installer route, then the npm route, each ending with the leftover scan. Run
+  those steps only on a disposable Windows machine; they install and remove for real.
+
 ## External-source audits
 
 - A content-addressed native source dependency used by a production build is a declared build input,
