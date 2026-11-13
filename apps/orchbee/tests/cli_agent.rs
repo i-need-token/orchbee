@@ -1537,6 +1537,7 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
     // wire-impossible variants that must not validate under the published
     // contract.
     let mut summary = session_summary("sess-alpha");
+    // The Agent-read list: one canonical row per summary, projection members unsupported.
     let valid_list = |summary: serde_json::Value| {
         serde_json::json!({
             "schema": "orchbee.agent.list",
@@ -1544,9 +1545,20 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
             "source": {"kind": "agent-read", "requestId": "11111111111111111111111111111111"},
             "result": {
                 "kind": "listed",
-                "items": [summary],
+                "items": [{
+                    "ordinal": 1,
+                    "provider": "acme.agent",
+                    "status": "idle",
+                    "source": "canonical",
+                    "canonical": summary,
+                    "terminal": {"kind": "unsupported"},
+                    "placement": {"kind": "unsupported"},
+                    "cwd": {"kind": "unsupported"},
+                    "client": {"kind": "unsupported"}
+                }],
                 "nextCursor": null,
-                "revision": 7
+                "revision": 7,
+                "clientId": {"kind": "unsupported"}
             }
         })
     };
@@ -2208,15 +2220,8 @@ fn wait_envelope_schema_admits_real_answers_only() -> TestResult {
     let base = base_dir("await-schema");
     let schema = compiled_schema(&base, "orchbee.agent.wait");
     let valid_wait = |matched: serde_json::Value, fence: serde_json::Value| {
-        let mut wait = serde_json::json!({
-            "until": ["idle"],
-            "timeoutMs": 600000,
-            "observations": 1,
-            "elapsedMs": 12
-        });
-        if !fence.is_null() {
-            wait["afterRevision"] = fence;
-        }
+        // The canonical match: the fence is always echoed, null when absent, and the Client
+        // members stay unsupported where the Agent projection is.
         serde_json::json!({
             "schema": "orchbee.agent.wait",
             "version": 1,
@@ -2225,7 +2230,15 @@ fn wait_envelope_schema_admits_real_answers_only() -> TestResult {
                 "matchedConditions": matched,
                 "revision": 7,
                 "session": session_detail("sess-alpha"),
-                "wait": wait
+                "wait": {
+                    "until": ["idle"],
+                    "afterRevision": fence,
+                    "timeoutMs": 600000,
+                    "observations": 1,
+                    "elapsedMs": 12
+                },
+                "client": {"kind": "unsupported"},
+                "matchedChange": {"kind": "unsupported"}
             }
         })
     };

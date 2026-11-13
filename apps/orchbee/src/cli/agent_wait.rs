@@ -390,8 +390,10 @@ fn agent_wait_span(
         } else {
             None
         };
+        // The poll's own `min(read_budget, remaining)` bound as admitted at `now`; the Client
+        // read above spends from it but does not change what was admitted.
         let read_budget_ms = read_deadline
-            .saturating_duration_since(Instant::now())
+            .saturating_duration_since(now)
             .as_millis()
             .max(1) as u64;
         let result = client.submit_agent_read_before_cancellable(
