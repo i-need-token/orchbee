@@ -171,8 +171,15 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> TestResult<Self> {
-        let directory = PathBuf::from(format!(
-            "/tmp/oblifecycle-{}-{}",
+        // A Unix socket path must stay short, so the socket's directory sits in /tmp there.
+        // Windows names its endpoint a pipe, and `/tmp` there is a folder on the current drive
+        // that a machine need not have.
+        #[cfg(unix)]
+        let parent = PathBuf::from("/tmp");
+        #[cfg(windows)]
+        let parent = std::env::temp_dir();
+        let directory = parent.join(format!(
+            "oblifecycle-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

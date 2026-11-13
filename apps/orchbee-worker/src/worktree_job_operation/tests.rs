@@ -341,7 +341,12 @@ fn real_git_fixture_round_trips_through_execute() -> TestResult {
     // disposable repository, per-command `-c` identity only, one physical
     // owner, exact correlation, and a truthful terminal Cancel answer.
     let fixture = RepositoryFixture::new()?;
-    let root = fixture.root.to_str().unwrap().replace('\\', "/");
+    // Git names the repository by its real path, in the long form on Windows, which a `TEMP` given
+    // in 8.3 form, such as a CI runner's, does not spell.
+    let root = crate::git_repository::canonical_path(&fixture.root)
+        .map_err(|()| "the fixture repository has no canonical path")?
+        .as_str()
+        .to_owned();
     let git = |args: &[&str]| -> TestResult {
         let status = std::process::Command::new("git")
             .arg("-c")
