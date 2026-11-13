@@ -288,7 +288,7 @@ Windows installer below is built from the test and release packages.
 `pnpm desktop:installer:test` and `pnpm desktop:installer:release` package their profile as above
 and then compile `installer/windows/orchbee.iss` with Inno Setup into
 `apps/desktop/out/<profile>/installer/`. Extra arguments after `--` reach `scripts/package.mjs`, for
-example `pnpm desktop:installer:release -- --build-id <id> --key-env <VARIABLE>`. The compiler is
+example `pnpm desktop:installer:release --build-id <id> --key-env <VARIABLE>`. The compiler is
 `ORCHBEE_INNO_SETUP_COMPILER`, an absolute path to `ISCC.exe`, or else `ISCC.exe` in the default
 Inno Setup 6 folder. The script refuses every compiler but Inno Setup 6.7.1, the version the release
 workflow installs and checks. Next to the setup file, `<setup name>.files.txt` lists every compiled

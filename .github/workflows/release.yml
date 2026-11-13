@@ -117,7 +117,7 @@ jobs:
       - name: Build the test installer
         env:
           ORCHBEE_INNO_SETUP_COMPILER: ${{ runner.temp }}\innosetup\ISCC.exe
-        run: pnpm desktop:installer:test -- --build-id "${{ github.sha }}.${{ github.run_number }}"
+        run: pnpm desktop:installer:test --build-id "${{ github.sha }}.${{ github.run_number }}"
 
       - name: Collect the release artifacts
         run: node scripts/release-artifacts.mjs collect --profile test --output "$env:RUNNER_TEMP\release-artifacts"

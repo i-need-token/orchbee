@@ -256,7 +256,7 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 - One row per release platform token carries `build` and `publish` flags; the `plan` job selects the
   `build` rows. Only `windows-x86_64` builds, and no row publishes.
 - `build` installs the pinned toolchains, with Zig and Inno Setup 6.7.1 downloaded and checked by
-  digest, runs `pnpm desktop:installer:test -- --build-id <commit>.<run number>`, and then
+  digest, runs `pnpm desktop:installer:test --build-id <commit>.<run number>`, and then
   `node scripts/release-artifacts.mjs collect`, which gathers the signed release directory, the
   setup file, the npm tarballs, and `SHA256SUMS`.
 - `smoke` and `smoke-npm` take that artifact to fresh runners, check it with
