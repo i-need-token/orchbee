@@ -29,7 +29,9 @@
 //
 // When an install, command, uninstall or npm step fails, it also prints whether this process runs
 // elevated and the owner and access list of the store root and its parent; the program's own
-// diagnostic is the standard error printed above them, or the setup log's tail.
+// diagnostic is the standard error printed above them, or the setup log's tail. When no terminal
+// opens, it first prints the build's running processes, `terminal list`, and the tail of the data
+// root's daily diagnostic log, whose records hold only event names, tokens, counts and flags.
 //
 // A test build's uninstall that runs with `ORCHBEE_TEST_REGISTRY_KEY` (`Software\ob-test-scratch\<name>`
 // below HKCU) uses that scratch key's `Environment` and `Uninstall` subkeys instead of the user's, and
@@ -328,6 +330,35 @@ function terminalRoundTrip(identity, env) {
 	log(`The terminal printed ${marker}, read back through the CLI, and closed.`);
 }
 
+/** The newest `logs\<YYYY-MM-DD>.jsonl` of the data root, or a note that there is none. */
+function diagnosticLogTail(identity) {
+	const folder = path.join(identity.dataRoot, 'logs');
+	const days = existsSync(folder)
+		? readdirSync(folder)
+				.filter((name) => /^\d{4}-\d{2}-\d{2}\.jsonl$/u.test(name))
+				.toSorted()
+		: [];
+	return days.length === 0
+		? `(no diagnostic log in ${folder})`
+		: logTail(path.join(folder, days.at(-1)), 40);
+}
+
+/**
+ * What explains a terminal that did not open: which of the build's processes still run, the
+ * Server's terminals, and the processes' own records.
+ */
+function terminalFacts(identity, env) {
+	// A process that is ending gets a moment to leave the process list.
+	sleep(2_000);
+	const tasks = run(system32('tasklist.exe'), ['/fo', 'csv', '/nh'], { quiet: true });
+	const own = tasks.stdout
+		.split(/\r?\n/u)
+		.filter((line) => line.toLowerCase().startsWith(`"${identity.stem}`));
+	log(`Running ${identity.stem} processes:\n${own.length === 0 ? '  none' : own.join('\n')}`);
+	runCommand(identity, ['terminal', 'list'], env);
+	log(`Diagnostic log:\n${diagnosticLogTail(identity)}`);
+}
+
 /** Whether this process runs elevated, read from the integrity level of its token. */
 function elevation() {
 	const result = spawnSync(system32('whoami.exe'), ['/groups', '/fo', 'csv', '/nh'], {
@@ -427,7 +458,12 @@ function command(identity) {
 	log(`A new terminal finds ${found}`);
 	expectVersion(identity, runCommand(identity, ['--version'], env), '--version');
 	expectStatus(runCommand(identity, ['server', 'start'], env), 0, 'server start');
-	terminalRoundTrip(identity, env);
+	try {
+		terminalRoundTrip(identity, env);
+	} catch (error) {
+		if (error instanceof StepFailure) terminalFacts(identity, env);
+		throw error;
+	}
 	expectStatus(runCommand(identity, ['status'], env), 0, 'status');
 	if (!identity.release) {
 		log('Withheld commands: a test build offers them, so only a release build is checked.');
