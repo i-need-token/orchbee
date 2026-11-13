@@ -6,7 +6,7 @@ const contract = @import("src/protocol/contract.zig");
 const fingerprint = @import("build/fingerprint.zig");
 
 const required_zig_version = "0.16.0";
-const default_host_version = "0.1.0-beta.1";
+const default_host_version = "0.1.0-beta.2";
 // A Host built without an environment matches no peer: no build of any other
 // program is named this, so every offer is refused with `environment-mismatch`.
 const default_environment = "unconfigured";
