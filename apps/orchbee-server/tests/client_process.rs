@@ -469,13 +469,25 @@ impl Drop for RunningServer {
     }
 }
 
+/// The folder process fixtures are created in. A Unix socket address holds 103 path bytes on
+/// macOS, and its per-user temporary folder leaves too few of them for the Terminal Host endpoint
+/// a real Worker dials, so macOS fixtures use `/private/tmp`, where the product keeps its own
+/// sockets.
+fn fixture_parent() -> PathBuf {
+    if cfg!(target_os = "macos") {
+        PathBuf::from("/private/tmp")
+    } else {
+        std::env::temp_dir()
+    }
+}
+
 struct TestDirectory(PathBuf);
 
 impl TestDirectory {
     fn new(label: &str) -> io::Result<Self> {
         for _attempt in 0..100 {
             let fixture_id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!(
+            let path = fixture_parent().join(format!(
                 "orchbee-{label}-{}-{fixture_id}",
                 std::process::id()
             ));
