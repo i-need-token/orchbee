@@ -154,23 +154,26 @@ pub(super) fn publish(
     report: &mut Report,
 ) -> Result<PathBuf, Error> {
     context.check()?;
-    let store = ReleaseStore::acquire(root).map_err(|e| {
-        if e.kind() == std::io::ErrorKind::WouldBlock {
+    let store = ReleaseStore::acquire(root).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::WouldBlock {
             Error::Busy
         } else {
-            Error::Storage
+            context.storage(root, &error)
         }
     })?;
     let destination = store
         .version_path(&release.version)
-        .map_err(|_| Error::Storage)?;
-    if destination.try_exists().map_err(|_| Error::Storage)? {
+        .map_err(|error| context.storage(root, &error))?;
+    if destination
+        .try_exists()
+        .map_err(|error| context.storage(&destination, &error))?
+    {
         let mut stored = Vec::new();
         open_release_file(&destination, "release.json")
             .map_err(|_| Error::CohortInvalid)?
             .take(MANIFEST_LIMIT as u64 + 1)
             .read_to_end(&mut stored)
-            .map_err(|_| Error::Storage)?;
+            .map_err(|error| context.storage(&destination, &error))?;
         // A version is built once, so another manifest under its name is a conflict.
         if stored != release.encoded {
             return Err(Error::VersionConflict);
@@ -180,22 +183,27 @@ pub(super) fn publish(
         report.reused = true;
         return Ok(destination);
     }
-    let mut stage = store.stage().map_err(|_| Error::Storage)?;
+    let mut stage = store
+        .stage()
+        .map_err(|error| context.storage(root, &error))?;
+    let staged = stage.path().to_owned();
     let result = (|| {
         for (name, bytes) in [
             ("release.json", release.encoded.as_slice()),
             ("release.json.sig", signature),
         ] {
-            let (_, mut file) = stage.create_file(name).map_err(|_| Error::Storage)?;
+            let (path, mut file) = stage
+                .create_file(name)
+                .map_err(|error| context.storage(&staged.join(name), &error))?;
             file.write_all(bytes)
                 .and_then(|()| file.sync_all())
-                .map_err(|_| Error::Storage)?;
+                .map_err(|error| context.storage(&path, &error))?;
         }
         for artifact in &release.files {
             context.check()?;
             let (path, mut file) = stage
                 .create_file(&artifact.path)
-                .map_err(|_| Error::Storage)?;
+                .map_err(|error| context.storage(&staged.join(&artifact.path), &error))?;
             source
                 .artifact(&artifact.url)?
                 .copy(&path, &mut file, artifact.size, context)?;
@@ -206,7 +214,7 @@ pub(super) fn publish(
         report.phase = "publish";
         let path = stage
             .publish(&release.version)
-            .map_err(|_| Error::Storage)?;
+            .map_err(|error| context.storage(&destination, &error))?;
         report.published = Some(path.clone());
         Ok(path)
     })();

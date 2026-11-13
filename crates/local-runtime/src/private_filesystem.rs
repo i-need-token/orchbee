@@ -18,7 +18,7 @@ use std::{
 use unix::held;
 #[cfg(unix)]
 pub use unix::{
-    file_identity, open_directory, open_file, open_snapshot_file, open_tree, protect_new,
+    file_identity, naming, open_directory, open_file, open_snapshot_file, open_tree, protect_new,
     require_private,
 };
 #[cfg(unix)]
@@ -29,7 +29,7 @@ pub(crate) use unix::{
 use windows::held;
 #[cfg(windows)]
 pub use windows::{
-    file_identity, open_directory, open_file, open_snapshot_file, open_tree, protect_new,
+    file_identity, naming, open_directory, open_file, open_snapshot_file, open_tree, protect_new,
     require_private,
 };
 #[cfg(windows)]

@@ -20,6 +20,10 @@ pub(super) fn open_manifest(_path: &Path) -> io::Result<Option<File>> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
+pub(super) fn open_source_file(_path: &Path) -> io::Result<File> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
 pub(super) fn curl_command() -> io::Result<Command> {
     Err(io::ErrorKind::Unsupported.into())
 }

@@ -149,11 +149,39 @@ impl super::CliText {
                 "Staging cleanup requires recovery: ",
                 "暂存目录需恢复清理：",
             ),
+            "storage-owner" => (
+                "its owner is an account other than you, SYSTEM or Administrators.",
+                "其所有者不是你、SYSTEM 或 Administrators。",
+            ),
+            "storage-access" => (
+                "its permissions let in an account other than you, SYSTEM or Administrators.",
+                "其权限允许你、SYSTEM 和 Administrators 以外的用户访问。",
+            ),
+            "storage-link" => ("it is a link or junction.", "它是链接或联接点。"),
+            "storage-system" => (
+                "Windows refused it with error ",
+                "Windows 拒绝了操作，错误代码 ",
+            ),
+            "storage-unknown" => ("it could not be used.", "无法使用它。"),
             _ => ("Could not finish.", "未能完成。"),
         };
         match self.locale {
             Locale::EnUs => pair.0,
             Locale::ZhCn => pair.1,
+        }
+    }
+
+    /// The line after a `storage` diagnostic: the folder or file the store refused or failed on,
+    /// then the reason `key` names, and the system error code for `storage-system`.
+    pub(crate) fn cli_storage_cause(self, path: &str, key: &str, code: Option<i32>) -> String {
+        let reason = self.cli_update_message(key);
+        let code = code.map_or_else(String::new, |code| match self.locale {
+            Locale::EnUs => format!("{code}."),
+            Locale::ZhCn => format!("{code}。"),
+        });
+        match self.locale {
+            Locale::EnUs => format!("{path}: {reason}{code}"),
+            Locale::ZhCn => format!("{path}：{reason}{code}"),
         }
     }
 }

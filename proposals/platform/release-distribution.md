@@ -151,11 +151,13 @@ new name, as with [`--machine-link-v1`](../../apps/orchbee/docs/machines.md#link
   opens only its own names and never reads `desktop\`. Whichever writer comes first creates the
   root: a root `orchbee install` creates carries a protected private access rule that `desktop\`
   then inherits, and an existing root, such as the one the installer creates for `desktop\`, is
-  admitted only when its inherited access rule is already private, and is never repaired. So this
-  order works when `%LOCALAPPDATA%\Programs` carries only the person, SYSTEM, and Administrators, as
-  in a standard profile; another allow entry there makes the install refuse with `storage` in
-  either order. Verified 2026-11-12 with a scratch root whose `desktop\` existed first. Unverified:
-  no installer has run.
+  admitted only when it is already private, and is never repaired: the person, SYSTEM or
+  Administrators owns it, and its access list lets no one else in. An elevated installer or session
+  makes Administrators the owner, which the rule admits. So this order works when
+  `%LOCALAPPDATA%\Programs` carries only the person, SYSTEM, and Administrators, as in a standard
+  profile; another allow entry there makes the install refuse with `storage` in either order.
+  Verified 2026-11-12 with a scratch root whose `desktop\` existed first. Unverified: an elevated
+  installer on a fresh machine, which the next release dry run exercises.
 - On macOS and Linux the window application runs the bundled `orchbee install` when it starts and
   the store holds no active version or a lower one.
 - The store holds one architecture; an install that finds another refuses without writing.

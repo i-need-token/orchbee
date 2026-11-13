@@ -36,6 +36,11 @@ pub(crate) fn denied() -> io::Error {
     )
 }
 
+/// Returns `error` unchanged: a refusal here names its object when it is made.
+pub fn naming(error: io::Error, _path: &Path) -> io::Error {
+    error
+}
+
 /// Requires an object the effective user owns that grants nobody else any access. macOS also
 /// refuses an extended ACL and a volume that ignores ownership.
 pub fn require_private(file: &File) -> io::Result<()> {

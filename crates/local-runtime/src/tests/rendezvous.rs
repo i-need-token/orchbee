@@ -142,6 +142,15 @@ fn broad_existing_acl_is_rejected_without_repair() {
     )
     .unwrap();
     assert!(permissions::require_private(&handle).is_err());
+    // The refusal names the folder and the reason, which is what a caller reports.
+    let refused = permissions::open_tree(&path).unwrap_err();
+    assert_eq!(
+        crate::AdmissionRefusal::of(&refused),
+        Some(&crate::AdmissionRefusal::new(
+            crate::RefusalReason::OthersCanRead,
+            &path
+        ))
+    );
     assert!(
         Rendezvous::prepare_mode_checked(&fixture.0, SessionScope::parse("unsafe").unwrap())
             .is_err()

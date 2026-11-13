@@ -6,8 +6,11 @@
 //!
 //! Creation order: whichever writer comes first creates the root. A missing root is created with a
 //! protected private access rule, so a `desktop` folder written afterwards inherits it; an existing
-//! root, such as one an installer created for `desktop`, is admitted only when its access rule is
-//! already private and is never repaired, so a foreign rule refuses before anything is written.
+//! root, such as one an installer created for `desktop`, is admitted only when it is already
+//! private and is never repaired, so a foreign owner or access rule refuses before anything is
+//! written. Private is the shared rule of `private_filesystem`: on Windows the user, SYSTEM or
+//! Administrators owns it, as an elevated session's objects belong to Administrators, and no other
+//! account is let in.
 use super::platform;
 use orchbee_local_runtime::{PrivateCache, private_filesystem as permissions};
 use std::{
@@ -99,7 +102,8 @@ impl ReleaseStage<'_> {
             if !self.pinned_directories.contains(&parent) {
                 // Earlier components are already pinned by this stage.
                 let file = permissions::open_directory(&parent, false)?;
-                permissions::require_private(&file)?;
+                permissions::require_private(&file)
+                    .map_err(|error| permissions::naming(error, &parent))?;
                 self.pins.push(file);
                 self.pinned_directories.insert(parent.clone());
             }

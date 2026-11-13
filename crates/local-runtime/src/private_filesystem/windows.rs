@@ -1,6 +1,8 @@
 //! Handle-based Windows runtime admission. Open ancestors without delete sharing
 //! so an admitted path cannot be redirected by renaming one of its components.
+use crate::{AdmissionRefusal, RefusalReason};
 use std::{
+    fmt,
     fs::{File, OpenOptions},
     io,
     os::windows::fs::{MetadataExt, OpenOptionsExt},
@@ -23,7 +25,73 @@ pub(crate) fn denied() -> io::Error {
     )
 }
 
-/// Requires current-user ownership and a DACL limited to that user, SYSTEM and administrators.
+/// A refusal made from a handle alone, before any caller has named the refused object.
+#[derive(Debug)]
+struct Unnamed(RefusalReason);
+
+impl fmt::Display for Unnamed {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("unsafe native Windows runtime object")
+    }
+}
+
+impl std::error::Error for Unnamed {}
+
+fn unnamed(reason: RefusalReason) -> io::Error {
+    io::Error::new(io::ErrorKind::PermissionDenied, Unnamed(reason))
+}
+
+/// Names `path` as the object of a refusal made from its handle alone, so the error becomes an
+/// [`AdmissionRefusal`]; any other error is returned unchanged.
+pub fn naming(error: io::Error, path: &Path) -> io::Error {
+    match error
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<Unnamed>())
+    {
+        Some(Unnamed(reason)) => AdmissionRefusal::io(*reason, path),
+        None => error,
+    }
+}
+
+/// One access-list entry as private admission reads it.
+enum Entry<'a, T: ?Sized> {
+    /// Allows access to this principal.
+    Allow(&'a T),
+    /// Denies access, which can only take access away.
+    Deny,
+    /// Any other kind, which admission cannot judge.
+    Other,
+}
+
+/// The private rule over an object's owner and access list. `trusted` is the token user, SYSTEM and
+/// Administrators. Any of the three may own the object: SYSTEM and the members of Administrators
+/// can take ownership of any object and rewrite its access list whatever it says, so an object
+/// they own is no more open than one the user owns, and an elevated session's new objects belong
+/// to Administrators by Windows' default where an ordinary session's belong to the user. Every
+/// allow entry must name one of the three, so no other account may own the object or reach it; a
+/// missing access list, which grants everyone everything, and an entry of another kind are refused.
+fn admit<T: PartialEq + ?Sized>(
+    owner: Option<&T>,
+    access: Option<&[Entry<'_, T>]>,
+    trusted: &[&T],
+) -> Result<(), RefusalReason> {
+    let is_trusted = |principal: &T| trusted.iter().any(|each| **each == *principal);
+    if !owner.is_some_and(is_trusted) {
+        return Err(RefusalReason::OtherOwner);
+    }
+    for entry in access.ok_or(RefusalReason::OthersCanChange)? {
+        match entry {
+            Entry::Deny => {}
+            Entry::Allow(principal) if is_trusted(principal) => {}
+            Entry::Allow(_) => return Err(RefusalReason::OthersCanRead),
+            Entry::Other => return Err(RefusalReason::AccessControlList),
+        }
+    }
+    Ok(())
+}
+
+/// Requires the private rule of [`admit`]: an owner and allow entries naming only the token user,
+/// SYSTEM and Administrators. A refusal names no object until a caller passes it to [`naming`].
 pub fn require_private(file: &File) -> io::Result<()> {
     let descriptor = wrappers::GetSecurityInfo(
         file,
@@ -33,24 +101,23 @@ pub fn require_private(file: &File) -> io::Result<()> {
     let user: LocalBox<Sid> = orchbee_local_ipc::current_user_sid()?.parse()?;
     let system: LocalBox<Sid> = "S-1-5-18".parse()?;
     let admins: LocalBox<Sid> = "S-1-5-32-544".parse()?;
-    if descriptor.owner() != Some(&*user) {
-        return Err(denied());
-    }
-    let acl = descriptor.dacl().ok_or_else(denied)?;
-    for index in 0..acl.len() {
-        let ace = acl.get_ace(index).ok_or_else(denied)?;
-        if ace.ace_type() == AceType::ACCESS_DENIED_ACE_TYPE {
-            continue;
-        }
-        if ace.ace_type() != AceType::ACCESS_ALLOWED_ACE_TYPE {
-            return Err(denied());
-        }
-        let sid = ace.sid().ok_or_else(denied)?;
-        if sid != &*user && sid != &*system && sid != &*admins {
-            return Err(denied());
-        }
-    }
-    Ok(())
+    let access: Option<Vec<Entry<'_, Sid>>> = descriptor.dacl().map(|acl| {
+        (0..acl.len())
+            .map(|index| match acl.get_ace(index) {
+                Some(ace) if ace.ace_type() == AceType::ACCESS_DENIED_ACE_TYPE => Entry::Deny,
+                Some(ace) if ace.ace_type() == AceType::ACCESS_ALLOWED_ACE_TYPE => {
+                    ace.sid().map_or(Entry::Other, Entry::Allow)
+                }
+                _ => Entry::Other,
+            })
+            .collect()
+    });
+    admit(
+        descriptor.owner(),
+        access.as_deref(),
+        &[&*user, &*system, &*admins],
+    )
+    .map_err(unnamed)
 }
 
 /// Protects an already private, newly created object without repairing an unsafe existing ACL.
@@ -85,7 +152,10 @@ pub fn open_directory(path: &Path, writable_acl: bool) -> io::Result<File> {
     }
     let file = options.open(path)?;
     let metadata = file.metadata()?;
-    if !metadata.is_dir() || metadata.file_attributes() & REPARSE_POINT != 0 {
+    if metadata.file_attributes() & REPARSE_POINT != 0 {
+        return Err(AdmissionRefusal::io(RefusalReason::SymbolicLink, path));
+    }
+    if !metadata.is_dir() {
         return Err(denied());
     }
     Ok(file)
@@ -94,7 +164,7 @@ pub fn open_directory(path: &Path, writable_acl: bool) -> io::Result<File> {
 /// Pins every ancestor of an exact absolute path and requires the final directory to be private.
 pub fn open_tree(path: &Path) -> io::Result<Vec<File>> {
     let handles = open_ancestors(path)?;
-    require_private(handles.last().ok_or_else(denied)?)?;
+    require_private(handles.last().ok_or_else(denied)?).map_err(|error| naming(error, path))?;
     Ok(handles)
 }
 
@@ -154,7 +224,7 @@ pub fn open_file(path: &Path, create: bool, write: bool) -> io::Result<File> {
         .share_mode(3)
         .custom_flags(OPEN_REPARSE_POINT)
         .open(path)?;
-    require_regular_private(&file)?;
+    require_regular_private(&file).map_err(|error| naming(error, path))?;
     Ok(file)
 }
 
@@ -165,16 +235,16 @@ pub fn open_snapshot_file(path: &Path) -> io::Result<File> {
         .share_mode(1)
         .custom_flags(OPEN_REPARSE_POINT)
         .open(path)?;
-    require_regular_private(&file)?;
+    require_regular_private(&file).map_err(|error| naming(error, path))?;
     Ok(file)
 }
 
 fn require_regular_private(file: &File) -> io::Result<()> {
     let metadata = file.metadata()?;
-    if !metadata.is_file()
-        || metadata.file_attributes() & REPARSE_POINT != 0
-        || winapi_util::file::information(file)?.number_of_links() != 1
-    {
+    if metadata.file_attributes() & REPARSE_POINT != 0 {
+        return Err(unnamed(RefusalReason::SymbolicLink));
+    }
+    if !metadata.is_file() || winapi_util::file::information(file)?.number_of_links() != 1 {
         return Err(denied());
     }
     require_private(file)
@@ -229,3 +299,6 @@ pub fn file_identity(file: &File) -> io::Result<(u64, u64)> {
     let value = winapi_util::file::information(file)?;
     Ok((value.volume_serial_number(), value.file_index()))
 }
+
+#[cfg(test)]
+mod tests;

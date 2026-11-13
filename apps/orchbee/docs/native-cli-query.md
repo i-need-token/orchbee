@@ -1737,8 +1737,8 @@ The current catalog is listed above.
 The same existing-only runtime path/SID scope is used without cohort admission,
 activation, endpoint connection or process discovery. Ordered rows describe the
 selected base, admitted runtime directory, marker, activation/lifetime locks and
-five named-pipe addresses. Windows reports the filesystem Host socket scope and POSIX mode/UID members as unsupported. `private` means current-user ownership and
-the runtime DACL allowlist were checked, not a fresh security guarantee.
+five named-pipe addresses. Windows reports the filesystem Host socket scope and POSIX mode/UID members as unsupported. `private` means the private owner rule (the token user, SYSTEM or
+Administrators) and the runtime DACL allowlist were checked, not a fresh security guarantee.
 
 The current schema distinguishes a present marker's `activation: active|stopped`; Stopped
 also carries `stopRequestId`. It is never rendered as absent. Only Active adds the

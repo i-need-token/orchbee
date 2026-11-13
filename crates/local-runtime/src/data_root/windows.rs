@@ -61,10 +61,11 @@ fn private_directory(path: &Path) -> io::Result<File> {
     };
     let mut directory = permissions::open_directory(path, created)?;
     if created {
-        permissions::protect_new(&mut directory)?;
+        permissions::protect_new(&mut directory)
     } else {
-        permissions::require_private(&directory)?;
+        permissions::require_private(&directory)
     }
+    .map_err(|error| permissions::naming(error, path))?;
     Ok(directory)
 }
 
@@ -82,7 +83,7 @@ pub(crate) fn open_state_root(root: &Path) -> io::Result<Option<Vec<File>>> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
-    permissions::require_private(&directory)?;
+    permissions::require_private(&directory).map_err(|error| permissions::naming(error, root))?;
     pins.push(directory);
     Ok(Some(pins))
 }

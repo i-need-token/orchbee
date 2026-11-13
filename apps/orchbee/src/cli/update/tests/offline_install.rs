@@ -3,19 +3,20 @@
 //! This proves verification, staging, publication, reuse and activation through the pointer, not
 //! Server, Worker or Host behavior, the completion helper's own signature check, or a PATH step.
 use super::super::{
-    Error, Report, complete, engine,
+    Error, Report, StorageCause, StorageReason, complete, engine,
     install::Completion,
     signature::{TEST_TABLE, TrustedKey},
 };
 use super::install_fixture::{Fixture, context, in_process_completion, pointer, print_probe};
 use super::{entry, sign, signed_bytes, stranger};
-use orchbee_local_runtime::{Cohort, CohortArtifact};
+use orchbee_local_runtime::{Cohort, CohortArtifact, RefusalReason};
 use orchbee_release_records::Entry;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::Path,
+    process::Command,
     time::{Duration, Instant},
 };
 
@@ -136,6 +137,8 @@ fn publish_feed(source: &Path, manifest: &[u8], signature: Option<&[u8]>) {
 struct Run {
     result: Result<(), Error>,
     report: Report,
+    /// Where and why a `storage` failure happened, which only standard error reports.
+    storage_cause: Option<StorageCause>,
 }
 
 fn run(fixture: &Fixture, keys: &[TrustedKey]) -> Run {
@@ -159,7 +162,11 @@ fn run(fixture: &Fixture, keys: &[TrustedKey]) -> Run {
     let mut context = context();
     let mut report = Report::new();
     let result = engine::run(&inputs, &mut context, &mut report);
-    Run { result, report }
+    Run {
+        result,
+        report,
+        storage_cause: context.storage_cause.take(),
+    }
 }
 
 /// One `install` of the signed release directory `source`.
@@ -178,7 +185,11 @@ fn install(root: &Path, source: &Path, allow_downgrade: bool) -> Run {
     let mut context = context();
     let mut report = Report::new();
     let result = engine::install(&inputs, &mut context, &mut report);
-    Run { result, report }
+    Run {
+        result,
+        report,
+        storage_cause: context.storage_cause.take(),
+    }
 }
 
 fn sha(bytes: &[u8]) -> String {
@@ -426,4 +437,48 @@ fn install_refuses_a_lower_version_unless_allowed_and_repairs_an_unreadable_poin
             "native-release"
         );
     }
+}
+
+/// Lets the built-in Users group change `folder` and everything below it, as a folder another
+/// account shares would.
+fn open_to_users(folder: &Path) {
+    let output = Command::new("icacls.exe")
+        .arg(folder)
+        .args(["/grant", "*S-1-5-32-545:(OI)(CI)M", "/q"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn install_refuses_and_names_a_store_others_can_change_but_reads_an_open_source() {
+    let fixture = Fixture::new();
+    let source = fixture.0.join("source");
+    stage_cohort(&source, "0.1.0");
+    let bytes = manifest(&source, |_| {});
+    publish_feed(&source, &bytes, Some(&sign(&bytes)));
+    open_to_users(&source);
+
+    // A store root another account can change is refused before anything is written, and the
+    // cause names that folder.
+    let shared = fixture.0.join("shared");
+    fs::create_dir(&shared).unwrap();
+    open_to_users(&shared);
+    let refused = install(&shared, &source, false);
+    assert_eq!((code(&refused), refused.report.phase), ("storage", "copy"));
+    let cause = refused
+        .storage_cause
+        .expect("the cause of the storage failure");
+    assert_eq!(cause.path, shared);
+    assert!(matches!(
+        cause.reason,
+        StorageReason::Refused(RefusalReason::OthersCanRead)
+    ));
+    assert_eq!(stages(&shared), 0);
+
+    // The same open source installs into a private store: only the store must be private, and
+    // every copied file is checked against the signed manifest.
+    let installed = install(&fixture.0.join("install"), &source, false);
+    assert_eq!(code(&installed), "complete");
+    assert!(installed.storage_cause.is_none());
 }

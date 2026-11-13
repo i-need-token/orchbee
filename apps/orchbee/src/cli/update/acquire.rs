@@ -4,7 +4,6 @@ use super::{
     signature::{DOCUMENT_LIMIT, MANIFEST_LIMIT},
     source_path::LocalPath,
 };
-use crate::release_store::open_release_file;
 use orchbee_local_runtime::UpdateChannel;
 use std::{
     fs::File,
@@ -155,9 +154,8 @@ impl Source {
         context.check()?;
         match self {
             Self::Local(source) => {
-                let (parent, name) = source.parent_and_name().ok_or(Error::SourceInvalid)?;
                 let mut input =
-                    open_release_file(Path::new(parent), name).map_err(|_| Error::Download)?;
+                    platform::open_source_file(source.as_path()).map_err(|_| Error::Download)?;
                 if input.metadata().map_err(|_| Error::Download)?.len() != size {
                     return Err(Error::Checksum);
                 }
@@ -173,7 +171,8 @@ impl Source {
                     if copied > size {
                         return Err(Error::Checksum);
                     }
-                    file.write_all(&buffer[..n]).map_err(|_| Error::Storage)?;
+                    file.write_all(&buffer[..n])
+                        .map_err(|error| context.storage(path, &error))?;
                 }
                 if copied != size {
                     return Err(Error::Checksum);
@@ -187,7 +186,8 @@ impl Source {
                 context.command_result(&result)?;
             }
         }
-        file.sync_all().map_err(|_| Error::Storage)?;
+        file.sync_all()
+            .map_err(|error| context.storage(path, &error))?;
         Ok(())
     }
 }

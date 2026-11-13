@@ -50,6 +50,24 @@ pub(super) fn open_manifest(path: &Path) -> io::Result<Option<File>> {
     Ok((metadata.is_file() && metadata.file_attributes() & 0x400 == 0).then_some(file))
 }
 
+/// Opens one file of a local release source to copy it: a regular file that is not a link. A
+/// source needs no owner or access rule, unlike the store: nothing read from it is trusted until
+/// its copy in the private stage matches the signed manifest, so a source an elevated npm unpacked
+/// on another drive installs like one in the person's own folder.
+pub(super) fn open_source_file(path: &Path) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .share_mode(3)
+        .custom_flags(0x0020_0000)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    if metadata.is_file() && metadata.file_attributes() & 0x400 == 0 {
+        Ok(file)
+    } else {
+        Err(io::ErrorKind::InvalidInput.into())
+    }
+}
+
 pub(super) fn curl_command() -> io::Result<Command> {
     let system = winsafe::GetSystemDirectory().map_err(io::Error::other)?;
     let mut command = Command::new(PathBuf::from(&system).join("curl.exe"));

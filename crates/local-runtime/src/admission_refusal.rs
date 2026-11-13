@@ -1,6 +1,7 @@
-//! Typed refusals of a macOS or Linux data folder or socket folder that fails the ownership,
-//! permission, or file-lock rules. Each names the item at fault so the startup surface can say how
-//! to fix it; nothing here inspects or repairs the file system.
+//! Typed refusals of a private folder or file, such as a data folder, a socket folder or the
+//! Windows release store, that fails the ownership, permission, link or file-lock rules. Each names
+//! the item at fault so the surface that reports it can say how to fix it; nothing here inspects or
+//! repairs the file system.
 use std::{
     error::Error,
     fmt,
@@ -10,19 +11,24 @@ use std::{
 /// Why a folder or file was refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalReason {
-    /// Another user owns it, as when `sudo` keeps the invoking user's home.
+    /// Another user owns it, as when `sudo` keeps the invoking user's home. On Windows, an account
+    /// other than the user, SYSTEM or Administrators owns it.
     OtherOwner,
-    /// Other users can write it.
+    /// Other users can write it. On Windows, its access list is missing, which grants everyone
+    /// everything.
     OthersCanChange,
-    /// Other users have some access to a private item.
+    /// Other users have some access to a private item. On Windows, an allow entry of its access
+    /// list names an account other than the user, SYSTEM or Administrators.
     OthersCanRead,
     /// The file system did not keep the mode Orchbee set, or ignores ownership.
     PermissionsNotKept,
     /// The file system refused a file lock.
     LocksUnsupported,
-    /// A symbolic link where only real folders and files are admitted.
+    /// A symbolic link where only real folders and files are admitted; on Windows, any reparse
+    /// point, a junction included.
     SymbolicLink,
-    /// A macOS access control list that can let other users in.
+    /// A macOS access control list that can let other users in. On Windows, an access-list entry of
+    /// a kind admission cannot judge.
     AccessControlList,
     /// The socket folder belongs to another user or is open to other users.
     UnsafeSocketFolder,
@@ -44,7 +50,6 @@ impl AdmissionRefusal {
     }
 
     /// The refusal as the I/O error an admission step returns.
-    #[cfg(unix)]
     pub(crate) fn io(reason: RefusalReason, path: &Path) -> std::io::Error {
         std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,

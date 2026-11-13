@@ -30,12 +30,13 @@ use crate::{invocation::OutputFormat, localization::Locale};
 pub(crate) use complete::run as complete_install;
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
 use orchbee_local_runtime::{
-    CohortArtifact, CommandFailure, CommandOutput, EnvironmentKind, UpdateChannel, environment_kind,
+    AdmissionRefusal, CohortArtifact, CommandFailure, CommandOutput, EnvironmentKind,
+    RefusalReason, UpdateChannel, environment_kind,
 };
 use serde_json::json;
 use std::{
     io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 pub(crate) use uninstall::{installer as installer_uninstall, run as uninstall};
@@ -136,8 +137,17 @@ struct Context {
     curl_checked: bool,
     /// The first line a failed completion helper wrote to standard error, which names its cause.
     completion_diagnostic: Option<String>,
+    /// Where and why the first `storage` failure happened.
+    storage_cause: Option<StorageCause>,
 }
 impl Context {
+    /// Keeps the cause of the run's first storage failure, at `path` unless the error names the
+    /// refused object itself, and answers [`Error::Storage`].
+    fn storage(&mut self, path: &Path, error: &io::Error) -> Error {
+        self.storage_cause
+            .get_or_insert_with(|| StorageCause::new(path, error));
+        Error::Storage
+    }
     fn interrupted(&mut self) -> io::Result<bool> {
         self.signals.take().map(|s| s.is_some())
     }
@@ -160,6 +170,56 @@ impl Context {
         }
     }
 }
+/// The object a store step refused or failed on, and why, so that a `storage` failure says more
+/// than that it happened. Only standard error carries it; the documents keep their members.
+struct StorageCause {
+    path: PathBuf,
+    reason: StorageReason,
+}
+enum StorageReason {
+    /// Private admission refused the object.
+    Refused(RefusalReason),
+    /// The system refused the operation with this error code.
+    System(i32),
+    /// Neither says more.
+    Unknown,
+}
+impl StorageCause {
+    fn new(path: &Path, error: &io::Error) -> Self {
+        match AdmissionRefusal::of(error) {
+            Some(refusal) => Self {
+                path: refusal.path.clone(),
+                reason: StorageReason::Refused(refusal.reason),
+            },
+            None => Self {
+                path: path.to_owned(),
+                reason: error
+                    .raw_os_error()
+                    .map_or(StorageReason::Unknown, StorageReason::System),
+            },
+        }
+    }
+    /// One localized line: the path, then what was wrong with it.
+    fn line(&self, text: CliText) -> String {
+        let (key, code) = match self.reason {
+            StorageReason::Refused(RefusalReason::OtherOwner) => ("storage-owner", None),
+            StorageReason::Refused(
+                RefusalReason::OthersCanRead
+                | RefusalReason::OthersCanChange
+                | RefusalReason::AccessControlList,
+            ) => ("storage-access", None),
+            StorageReason::Refused(RefusalReason::SymbolicLink) => ("storage-link", None),
+            StorageReason::System(code) => ("storage-system", Some(code)),
+            StorageReason::Refused(_) | StorageReason::Unknown => ("storage-unknown", None),
+        };
+        text.cli_storage_cause(
+            &crate::native_path::display(&self.path.to_string_lossy()),
+            key,
+            code,
+        )
+    }
+}
+
 struct Report {
     phase: &'static str,
     /// The effective channel once read from the settings file, or the channel an installed
@@ -323,6 +383,7 @@ fn start(format: OutputFormat, locale: Locale) -> Result<Context, Box<Output>> {
         deadline: Instant::now() + DEADLINE,
         curl_checked: false,
         completion_diagnostic: None,
+        storage_cause: None,
     })
 }
 
@@ -405,6 +466,7 @@ pub(crate) fn run(
         engine::run(&inputs, &mut context, &mut report)
     })();
     let completion_diagnostic = context.completion_diagnostic.take();
+    let storage_cause = context.storage_cause.take();
     let settled = settle(context, &report, result);
     let document = document(channel, &report, settled.error, settled.interrupted);
     let encoded = match format {
@@ -426,6 +488,13 @@ pub(crate) fn run(
                     text.push('\n');
                     if let Some(cause) = completion_diagnostic.filter(|_| settled.error.is_some()) {
                         text.push_str(&cause);
+                        text.push('\n');
+                    }
+                    if let Some(cause) = storage_cause
+                        .as_ref()
+                        .filter(|_| matches!(settled.error, Some(Error::Storage)))
+                    {
+                        text.push_str(&cause.line(CliText::new(locale)));
                         text.push('\n');
                     }
                 }
@@ -504,6 +573,7 @@ pub(crate) fn install(
         path_step = PathStep::completed(path_plan.as_ref());
     }
     let completion_diagnostic = context.completion_diagnostic.take();
+    let storage_cause = context.storage_cause.take();
     let settled = settle(context, &report, result);
     let text = CliText::new(locale);
     let diagnostic = settled
@@ -512,6 +582,13 @@ pub(crate) fn install(
             let mut lines = format!("{}\n", text.cli_update_message(error.message()));
             if let Some(cause) = &completion_diagnostic {
                 lines.push_str(cause);
+                lines.push('\n');
+            }
+            if let Some(cause) = storage_cause
+                .as_ref()
+                .filter(|_| matches!(error, Error::Storage))
+            {
+                lines.push_str(&cause.line(text));
                 lines.push('\n');
             }
             lines
