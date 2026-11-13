@@ -178,8 +178,6 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
         &[
             "worktree",
             "list",
-            "--project",
-            project_id.as_str(),
             "--directory",
             directory_id.as_str(),
             "--format",
@@ -207,7 +205,6 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
             .is_some_and(|revision| revision.parse::<u64>().is_ok()),
         "source carries the recheck-time committed revision: {document}"
     );
-    assert_eq!(document["result"]["projectId"], project_id.as_str());
     assert_eq!(document["result"]["directoryId"], directory_id.as_str());
     assert_eq!(document["result"]["path"], repository_path.as_str());
     let entries = document["result"]["worktrees"]
@@ -233,18 +230,11 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
     // English text rendering on the same live path.
     let output = run_cli(
         &fixture,
-        &[
-            "worktree",
-            "list",
-            "--project",
-            project_id.as_str(),
-            "--directory",
-            directory_id.as_str(),
-        ],
+        &["worktree", "list", "--directory", directory_id.as_str()],
     );
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout)?;
-    assert!(text.contains("Project ID"), "{text}");
+    assert!(text.contains("Directory ID"), "{text}");
     assert!(text.contains("PATH"), "{text}");
     assert!(text.contains("refs/heads/main"), "{text}");
     assert!(text.contains("detached"), "{text}");
@@ -253,14 +243,7 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
     let output = run_cli_lang(
         &fixture,
         "zh_CN.UTF-8",
-        &[
-            "worktree",
-            "list",
-            "--project",
-            project_id.as_str(),
-            "--directory",
-            directory_id.as_str(),
-        ],
+        &["worktree", "list", "--directory", directory_id.as_str()],
     );
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout)?;
@@ -281,8 +264,6 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
         &[
             "worktree",
             "list",
-            "--project",
-            project_id.as_str(),
             "--directory",
             "ffffffffffffffffffffffffffffffff",
             "--format",
@@ -382,8 +363,6 @@ fn worktree_list_journey_against_a_live_cohort_and_real_git() -> TestResult {
         &[
             "worktree",
             "list",
-            "--project",
-            project_id.as_str(),
             "--directory",
             unborn_directory.as_str(),
             "--format",
