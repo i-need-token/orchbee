@@ -168,8 +168,8 @@ impl HostBrokerConnection {
         let (host_epoch, negotiated_limits) =
             validate_hello_accepted(&mut stream, &expected, correlation_id)?;
 
-        stream.set_read_timeout(None)?;
-        stream.set_write_timeout(None)?;
+        unless_shut(stream.set_read_timeout(None))?;
+        unless_shut(stream.set_write_timeout(None))?;
         Ok(Self {
             endpoint: endpoint.to_owned(),
             host_epoch,
@@ -407,4 +407,18 @@ fn invalid_handshake() -> Box<dyn Error> {
         "Terminal Host rejected the exact Worker broker handshake",
     )
     .into()
+}
+
+/// Accepts a cleared handshake timeout that a shut connection refuses. macOS refuses every
+/// socket option with `EINVAL` once a connection is shut in both directions, so a Host that closes
+/// right after its Hello would otherwise fail an admission that has completed. A shut connection
+/// never waits, so the timeout no longer matters, and the first exchange finds the closure as it
+/// does on Linux.
+fn unless_shut(cleared: io::Result<()>) -> io::Result<()> {
+    match cleared {
+        Err(error) if cfg!(target_os = "macos") && error.kind() == io::ErrorKind::InvalidInput => {
+            Ok(())
+        }
+        cleared => cleared,
+    }
 }
