@@ -28,7 +28,11 @@ export type Release =
 	| { readonly published: false }
 	| { readonly published: true; readonly version: string; readonly installerUrl: string };
 
-export const release: Release = { published: false };
+export const release: Release = {
+	published: true,
+	version: '0.1.0-beta.1',
+	installerUrl: `${REPOSITORY_URL}/releases/download/v0.1.0-beta.1/Orchbee-0.1.0-beta.1-windows-x86_64-setup.exe`,
+};
 
 export function releaseNotesUrl(version: string): string {
 	return `${REPOSITORY_URL}/releases/tag/v${version}`;
