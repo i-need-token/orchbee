@@ -10,14 +10,27 @@ fn slugs_and_repository_join_keep_destination_inside_root() {
     ] {
         assert_eq!(slug(branch), expected);
     }
-    let root = WorkbenchDirectoryPath::parse(r"C:\configured").unwrap();
-    let repository = WorkbenchDirectoryPath::parse(r"D:\Projects\repo").unwrap();
+    // The destination joins with the host's path grammar.
+    #[cfg(windows)]
+    let (root, repository, expected) = (
+        r"C:\configured",
+        r"D:\Projects\repo",
+        r"C:\configured\repo\feature-one",
+    );
+    #[cfg(not(windows))]
+    let (root, repository, expected) = (
+        "/configured",
+        "/projects/repo",
+        "/configured/repo/feature-one",
+    );
+    let root = WorkbenchDirectoryPath::parse(root).unwrap();
+    let repository = WorkbenchDirectoryPath::parse(repository).unwrap();
     assert_eq!(
         Path::new(
             destination(&root, &repository, "Feature/One")
                 .unwrap()
                 .as_str()
         ),
-        Path::new(r"C:\configured\repo\feature-one")
+        Path::new(expected)
     );
 }

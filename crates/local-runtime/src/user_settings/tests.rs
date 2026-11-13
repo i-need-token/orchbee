@@ -282,18 +282,35 @@ fn startup_read_starts_on_any_file_and_refuses_only_an_inadmissible_location() {
 
 #[test]
 fn paths_keep_file_parent_home_and_literal_operand_semantics() {
+    // Each host resolves with its own path grammar and home variable.
+    #[cfg(windows)]
+    let (file, home_variable, home, parent_sibling, home_child) = (
+        r"C:\config\config.toml",
+        "USERPROFILE",
+        r"C:\home",
+        r"C:\项目",
+        r"C:\home\worktrees",
+    );
+    #[cfg(not(windows))]
+    let (file, home_variable, home, parent_sibling, home_child) = (
+        "/config/config.toml",
+        "HOME",
+        "/home",
+        "/项目",
+        "/home/worktrees",
+    );
     let settings = parse(
         "[terminal]\nnew_cwd = '../项目'\n[worktrees]\ndirectory = '~/worktrees'",
-        Path::new(r"C:\config\config.toml"),
-        &|key| (key == "USERPROFILE").then(|| r"C:\home".into()),
+        Path::new(file),
+        &|key| (key == home_variable).then(|| home.into()),
     );
     assert_eq!(
         Path::new(settings.cwd.as_ref().unwrap().1.as_ref().unwrap()),
-        Path::new(r"C:\项目")
+        Path::new(parent_sibling)
     );
     assert_eq!(
         Path::new(settings.worktree_root.as_ref().unwrap()),
-        Path::new(r"C:\home\worktrees")
+        Path::new(home_child)
     );
     for (value, policy) in [
         ("", DirectoryPolicy::Follow),
