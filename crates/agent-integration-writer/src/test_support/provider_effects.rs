@@ -89,7 +89,14 @@ struct Dirs {
 }
 
 fn make_dirs() -> Dirs {
-    let root = std::env::temp_dir().join(format!(
+    // Cohort admission opens every component of its folder without following a link, and macOS's
+    // per-user temporary folder lies behind the `/var` link, so macOS runs use `/private/tmp`.
+    let temporary = if cfg!(target_os = "macos") {
+        PathBuf::from("/private/tmp")
+    } else {
+        std::env::temp_dir()
+    };
+    let root = temporary.join(format!(
         "orchbee-effects52-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
