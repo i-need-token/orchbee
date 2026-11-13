@@ -150,10 +150,13 @@ impl Drop for CommandChild {
     }
 }
 
-/// A group whose only member has already exited has nothing left to signal.
+/// A group whose members have all exited has nothing left to signal. Linux accepts the signal for
+/// the unreaped root; macOS refuses a group with no live member with `EPERM`, as the membership
+/// test in `settle` already reads it. Settlement is decided by that test after the reap, which
+/// waits within the budget for any member a signal could not reach.
 fn signal_group(group: Pid, signal: Signal) -> io::Result<()> {
     match kill_process_group(group, signal) {
-        Ok(()) | Err(Errno::SRCH) => Ok(()),
+        Ok(()) | Err(Errno::SRCH | Errno::PERM) => Ok(()),
         Err(error) => Err(error.into()),
     }
 }
