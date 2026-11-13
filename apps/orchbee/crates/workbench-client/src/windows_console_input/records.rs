@@ -1,13 +1,17 @@
 //! Preserve VT characters before the semantic decoder. Crossterm's Windows
 //! event parser discards control characters with virtual-key code zero, which
 //! includes the ESC characters in ConPTY bracketed-paste delimiters.
+//!
+//! Typed characters may be a login answer, so what this reader holds of a key after passing it on
+//! is wiped: the encoded bytes of a key, each batch of records read from the console, and the
+//! collected output, which never grows into a second allocation.
 use super::{Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind, encode};
 use crossterm::event::{KeyEvent, MouseEvent};
+use orchbee_machine_protocol::wipe;
 use orchbee_windows_console_host::{
-    ConsoleInput, ConsoleOutput, InputRecord, InputWait, InputWake,
+    ConsoleInput, ConsoleOutput, InputRecord, InputWait, InputWake, KeyRecord,
 };
 use std::{
-    collections::VecDeque,
     fmt, io,
     sync::Arc,
     time::{Duration, Instant},
@@ -42,7 +46,8 @@ impl Reader {
                 wake: None,
                 wait_slice: None,
                 signalled_without_record: false,
-                ready: VecDeque::new(),
+                ready: Vec::new(),
+                taken: 0,
             },
             codec: Codec::default(),
             pending: None,
@@ -85,8 +90,33 @@ struct NativeRecordSource {
     /// Bounds an interruptible wait whose notification has no event to end it.
     wait_slice: Option<Duration>,
     signalled_without_record: bool,
-    /// Records already read from the console, in order, that no collection has taken yet.
-    ready: VecDeque<InputRecord>,
+    /// The last batch read from the console, in order; the first `taken` were collected.
+    ready: Vec<InputRecord>,
+    taken: usize,
+}
+
+impl NativeRecordSource {
+    /// Overwrites every record of the batch, so no key of it outlives its collection.
+    fn wipe_ready(&mut self) {
+        let blank = InputRecord::Key(KeyRecord {
+            key_down: false,
+            repeat_count: 0,
+            virtual_key_code: 0,
+            virtual_scan_code: 0,
+            utf16_unit: 0,
+            control_key_state: 0,
+        });
+        self.ready.fill(blank);
+        std::hint::black_box(&self.ready);
+        self.ready.clear();
+        self.taken = 0;
+    }
+}
+
+impl Drop for NativeRecordSource {
+    fn drop(&mut self) {
+        self.wipe_ready();
+    }
 }
 
 // Isolate console readiness and waiting so the same bounded read loop can be
@@ -103,13 +133,14 @@ trait RecordSource {
 
 impl RecordSource for NativeRecordSource {
     fn read_ready(&mut self) -> io::Result<Option<InputRecord>> {
-        if self.ready.is_empty() {
+        if self.taken == self.ready.len() {
+            self.wipe_ready();
             // No other application-owned reader races this endpoint. External OS
             // aliases remain outside that single-reader guarantee.
-            self.ready
-                .extend(self.input.read_ready_records(READ_BATCH)?);
+            self.ready = self.input.read_ready_records(READ_BATCH)?;
         }
-        let record = self.ready.pop_front();
+        let record = self.ready.get(self.taken).copied();
+        self.taken += usize::from(record.is_some());
         self.signalled_without_record &= record.is_none();
         Ok(record)
     }
@@ -148,6 +179,11 @@ fn collect_input(
     let mut output = Vec::new();
     for _ in 0..BURST {
         if let Some(value) = pending.as_mut() {
+            // The output holds at most one burst: reserved once, it never leaves a copy behind
+            // in an outgrown allocation.
+            if output.capacity() == 0 {
+                output.reserve_exact(BURST);
+            }
             value.drain(&mut output);
             if value.remaining == 0 {
                 *pending = None;
@@ -186,9 +222,18 @@ struct Pending {
     remaining: u16,
     offset: usize,
 }
+impl Drop for Pending {
+    fn drop(&mut self) {
+        wipe(&mut self.bytes);
+    }
+}
 impl Pending {
-    fn new(bytes: Vec<u8>, remaining: u16) -> Option<Self> {
-        (!bytes.is_empty() && remaining != 0).then_some(Self {
+    fn new(mut bytes: Vec<u8>, remaining: u16) -> Option<Self> {
+        if bytes.is_empty() || remaining == 0 {
+            wipe(&mut bytes);
+            return None;
+        }
+        Some(Self {
             bytes,
             remaining,
             offset: 0,

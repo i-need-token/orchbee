@@ -311,7 +311,7 @@ impl Discovery {
         };
         if state != MachineStateName::Online {
             let host = match &entry.profile.draft.connection {
-                MachineConnection::Ssh { target } => crate::machines::default_label(target),
+                MachineConnection::Ssh { target } => crate::machines::known_hosts_name(target),
                 MachineConnection::Unsupported(_) => String::new(),
             };
             return self
@@ -404,6 +404,11 @@ impl Discovery {
     pub(crate) fn login_presented(&self) -> Option<Presented> {
         self.logins.presented()
     }
+    /// The episodes, for a test that plays the hub's login notices without a hub.
+    #[cfg(test)]
+    pub(crate) const fn logins_mut(&mut self) -> &mut Logins {
+        &mut self.logins
+    }
     /// Whether a login of `machine` waits for the person: its selection's clock stops meanwhile.
     pub fn login_active(&self, machine: &ProfileId) -> bool {
         self.logins.active(machine.as_str())
@@ -413,6 +418,12 @@ impl Discovery {
         let effects = self.logins.abandon(machine.as_str());
         self.carry(effects);
     }
+    /// The Machine whose selection the person waits on now, if any. Only its login may ask; a
+    /// Machine no longer waited on has its login abandoned.
+    pub fn wait_for(&mut self, machine: Option<&ProfileId>) {
+        let effects = self.logins.wait_for(machine.map(ProfileId::as_str));
+        self.carry(effects);
+    }
     /// Whether the hub says `profile` waits for a login the person can give: a remote pane of it
     /// has no live link, and choosing it logs in.
     pub fn login_needed(&self, profile: &Profile) -> bool {
@@ -420,10 +431,6 @@ impl Discovery {
             self.hub.state(&profile.id),
             Some(MachineStateName::NeedsLogin | MachineStateName::LoginFailed)
         )
-    }
-    /// Wipes what the open question's field holds, as a resize does.
-    pub fn clear_login_field(&self) {
-        self.logins.clear_field();
     }
     /// The picker message of a selection of `profile` that ended without `online` because of its
     /// login; `None` leaves the generic one.

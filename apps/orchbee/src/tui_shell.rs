@@ -243,13 +243,16 @@ impl InheritedInputSource {
                     "the inherited terminal input reached end of file",
                 ));
             }
-            let input = buffer.get(..count).ok_or_else(|| {
+            let input = buffer.get(..count).map(<[u8]>::to_vec);
+            // Typed characters may be a login answer: the read buffer keeps no copy.
+            orchbee_machine_protocol::wipe(&mut buffer);
+            let input = input.ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
                     "the inherited terminal returned an invalid input length",
                 )
             })?;
-            Ok(Some(input.to_vec()))
+            Ok(Some(input))
         }
     }
 }
@@ -1378,6 +1381,8 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     if changed {
         {
             view.machines.cancel_sidebar_scroll();
+            // A login question is off screen until a frame of this size shows it whole.
+            view.machines.login_undrawn();
         }
         terminal_input.observe_terminal(TerminalObservation::DisplayInvalidated);
         terminal.backend_mut().set_window_dimensions(next);

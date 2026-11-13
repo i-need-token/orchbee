@@ -66,6 +66,7 @@ impl Paint {
 }
 
 fn paint(picker: &Picker, locale: Locale, width: u16, height: u16) -> Paint {
+    let mut picker = picker.clone();
     let backend = ratatui::backend::TestBackend::new(width, height);
     let mut terminal = ratatui::Terminal::new(backend).unwrap();
     let mut hits = HitMapBuilder::new();

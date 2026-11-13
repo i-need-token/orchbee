@@ -4,10 +4,11 @@
 
 use super::Locale;
 use crate::machine_discovery::LoginState;
+use crate::machine_login::Ending;
 use crate::terminal_text::escape;
 use orchbee_machine_protocol::{
     HostKey,
-    hub::{LoginFailedCause, NeedsLoginCause, QuestionKind},
+    hub::{LoginEnd, LoginFailedCause, NeedsLoginCause, QuestionKind},
 };
 
 /// What a login question asks, as its wording names it.
@@ -53,6 +54,8 @@ pub(crate) enum LoginLabel {
     Sending,
     /// Where a secret goes and that it is not kept.
     Privacy,
+    /// Closes the overlay of a login that ended without the person.
+    Close,
 }
 
 impl Locale {
@@ -109,15 +112,16 @@ impl Locale {
         format!("{refused}{asked}")
     }
 
-    /// The first-time host sentence alone, naming the offered key; an interface that asks for the
-    /// typed `yes` in its own field shows [`Self::machine_question_type_yes`] there.
-    pub fn machine_question_new_host(
-        self,
-        target: &str,
-        algorithm: &str,
-        fingerprint: &str,
-    ) -> String {
-        self.machine_question_new_host_with(&escape(target), algorithm, fingerprint)
+    /// The first-time host sentence up to the offered key, for an interface that shows the
+    /// fingerprint whole on its own lines after it and asks for the typed `yes` in its own field
+    /// with [`Self::machine_question_type_yes`].
+    pub fn machine_question_new_host_lead(self, target: &str, algorithm: &str) -> String {
+        let target = escape(target);
+        let algorithm = escape(algorithm);
+        match self {
+            Self::EnUs => format!("New host {target}, {algorithm} key:"),
+            Self::ZhCn => format!("新主机 {target}，{algorithm} 密钥："),
+        }
     }
 
     fn machine_question_new_host_with(
@@ -170,6 +174,26 @@ impl Locale {
             (Self::ZhCn, LoginLabel::Sending) => "正在登录…",
             (Self::EnUs, LoginLabel::Privacy) => "Goes only to ssh. Orchbee does not keep it.",
             (Self::ZhCn, LoginLabel::Privacy) => "只交给 ssh，Orchbee 不保存。",
+            (Self::EnUs, LoginLabel::Close) => "Close",
+            (Self::ZhCn, LoginLabel::Close) => "关闭",
+        }
+    }
+
+    /// How a login ended without the person's act, in the words the picker uses for the same end
+    /// once the overlay closes.
+    pub(crate) fn machine_login_outcome(self, ending: Ending) -> &'static str {
+        match ending {
+            Ending::Hub(LoginEnd::Succeeded) => match self {
+                Self::EnUs => "Logged in.",
+                Self::ZhCn => "已登录。",
+            },
+            Ending::Hub(LoginEnd::Failed) => self.machine_picker_text("login-failed-message"),
+            Ending::Undelivered => self.machine_picker_text("login-undelivered"),
+            Ending::Hub(LoginEnd::Dismissed | LoginEnd::Abandoned)
+            | Ending::Dismissed
+            | Ending::Lost => self.machine_picker_text("login-unanswered-message"),
+            // Unavailable, or an end this build does not know.
+            Ending::Hub(_) => self.machine_picker_text("failed"),
         }
     }
 
@@ -275,7 +299,12 @@ impl Locale {
                     .to_owned(),
                 ];
                 lines.extend(host_key.as_ref().map(key));
-                let host = escape(host);
+                // `[host]:port` is quoted so no shell reads the brackets as a pattern.
+                let host = if host.starts_with('[') {
+                    format!("\"{}\"", escape(host))
+                } else {
+                    escape(host)
+                };
                 lines.push(match self {
                     Self::EnUs => format!("If the change is expected, run: ssh-keygen -R {host}"),
                     Self::ZhCn => format!("如确认变更属实，请运行：ssh-keygen -R {host}"),

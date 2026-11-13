@@ -1,19 +1,17 @@
-//! The login overlay the picker owns while a question waits: what the episode presents, the typed
-//! `yes` of a new host's question, and the person's act until the shell carries it to discovery.
-//! Typed and pasted characters of an answer go straight into the field's fixed buffer and nowhere
-//! else; the overlay keeps only how many there are.
+//! The login overlay the picker owns while a question waits or a login ended without the person:
+//! what the episode presents, whether the last frame showed the whole question, and the person's
+//! act until the shell carries it to discovery. Typed and pasted characters, a new host's `yes`
+//! included, go straight into the field's fixed buffer and nowhere else; the overlay keeps only how
+//! many there are.
 
 use super::{Choice, Picker};
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::machine_discovery::Discovery;
-use crate::machine_login::{Act, Presented, Token};
+use crate::machine_login::{Act, Presented, Token, YES};
 use orchbee_machine_protocol::{hub::QuestionKind, wipe};
 
 #[cfg(test)]
 mod tests;
-
-/// The most characters the `yes` field of a new host's question holds.
-const YES_CHARACTERS: usize = 8;
 
 /// A control of the painted overlay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,11 +24,11 @@ pub enum LoginControl {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LoginOverlay {
     pub(crate) presented: Presented,
-    /// What was typed for a new host's question; it is no secret and never sent: Orchbee answers
-    /// `yes` itself once it reads `yes`.
-    pub(crate) yes: String,
     /// The new host's question was submitted without `yes`.
     pub(crate) type_yes: bool,
+    /// The last frame showed the whole question: the asking sentence, a new host's whole
+    /// fingerprint, the field and the buttons. Until a frame does, only Esc acts.
+    drawn: bool,
     /// Counts edits, so a copy of the view taken before a keystroke compares unequal after it.
     edits: u64,
     act: Option<(Token, Act)>,
@@ -40,8 +38,8 @@ impl LoginOverlay {
     fn new(presented: Presented) -> Self {
         Self {
             presented,
-            yes: String::new(),
             type_yes: false,
+            drawn: false,
             edits: 0,
             act: None,
         }
@@ -49,6 +47,20 @@ impl LoginOverlay {
 
     pub(crate) const fn host_key(&self) -> bool {
         matches!(self.presented.kind, QuestionKind::HostKey { .. })
+    }
+
+    /// The login ended without the person: the overlay shows how, takes no answer, and closes on
+    /// Esc or Enter.
+    pub(crate) const fn ended(&self) -> bool {
+        self.presented.outcome.is_some()
+    }
+
+    /// What a new host's field shows in clear: the typed text while it begins `yes`; anything
+    /// else is masked like a secret.
+    pub(crate) fn shown_yes(&self) -> Option<String> {
+        self.host_key()
+            .then(|| self.presented.field.prefix_of(YES))
+            .flatten()
     }
 
     fn act(&mut self, act: Act) {
@@ -61,30 +73,30 @@ impl LoginOverlay {
         self.presented.sending || self.act.is_some()
     }
 
+    /// Whether typing reaches the field: a question on screen that waits for its answer.
+    const fn editable(&self) -> bool {
+        self.drawn && !self.ended() && !self.settled()
+    }
+
     fn submit(&mut self) {
-        if self.settled() {
+        if !self.editable() {
             return;
         }
-        if !self.host_key() {
-            self.act(Act::Submit);
-        } else if self.yes.trim().eq_ignore_ascii_case("yes") {
-            self.act(Act::Trust);
-        } else {
-            self.type_yes = true;
+        match &self.presented.kind {
+            QuestionKind::HostKey { .. } if self.presented.field.reads(YES.as_bytes()) => {
+                self.act(Act::Trust);
+            }
+            QuestionKind::HostKey { .. } => self.type_yes = true,
+            // An empty password or passphrase would cost an attempt.
+            QuestionKind::Password | QuestionKind::KeyPassphrase
+                if self.presented.field.characters() == 0 => {}
+            _ => self.act(Act::Submit),
         }
     }
 
     fn push(&mut self, character: char) {
-        if self.settled() {
-            return;
-        }
-        if self.host_key() {
-            if !character.is_control() && self.yes.chars().count() < YES_CHARACTERS {
-                self.yes.push(character);
-                self.type_yes = false;
-            }
-        } else {
-            self.presented.field.push(character);
+        if self.editable() && self.presented.field.push(character) {
+            self.type_yes = false;
         }
     }
 
@@ -94,20 +106,25 @@ impl LoginOverlay {
         }
         self.edits = self.edits.wrapping_add(1);
         let shift = Modifiers::NONE.with_shift();
-        match key.normalized() {
-            (KeyCode::Esc, Modifiers::NONE) => self.act(Act::Cancel),
-            (KeyCode::Char('m'), mods) if mods == Modifiers::NONE.with_ctrl() => self.submit(),
-            (KeyCode::Backspace, Modifiers::NONE) if !self.settled() => {
-                if self.host_key() {
-                    self.yes.pop();
-                } else {
-                    self.presented.field.pop();
-                }
+        let (code, mods) = key.normalized();
+        let escape = code == KeyCode::Esc && mods == Modifiers::NONE;
+        let enter = code == KeyCode::Char('m') && mods == Modifiers::NONE.with_ctrl();
+        if self.ended() {
+            // Every other key of an ended login's overlay is discarded.
+            if escape || enter {
+                self.act(Act::Close);
+            }
+            return;
+        }
+        match (code, mods) {
+            _ if escape => self.act(Act::Cancel),
+            _ if enter => self.submit(),
+            (KeyCode::Backspace, Modifiers::NONE) if self.editable() => {
+                self.presented.field.pop();
             }
             (KeyCode::Char('u'), mods)
-                if mods == Modifiers::NONE.with_ctrl() && !self.settled() =>
+                if mods == Modifiers::NONE.with_ctrl() && self.editable() =>
             {
-                self.yes.clear();
                 self.presented.field.clear();
             }
             (KeyCode::Char(character), mods) if mods == Modifiers::NONE || mods == shift => {
@@ -193,6 +210,7 @@ impl Picker {
             return false;
         };
         match control {
+            _ if login.ended() => login.act(Act::Close),
             LoginControl::Close | LoginControl::Cancel => login.act(Act::Cancel),
             LoginControl::Submit => login.submit(),
         }
@@ -205,12 +223,17 @@ impl Picker {
         self.login = None;
     }
 
-    /// Wipes the field, as a lost focus does.
-    pub(crate) fn clear_login_field(&mut self) {
+    /// Records whether the frame just painted showed the whole question.
+    pub(crate) fn set_login_drawn(&mut self, drawn: bool) {
         if let Some(login) = self.login.as_mut() {
-            login.presented.field.clear();
-            login.edits = login.edits.wrapping_add(1);
+            login.drawn = drawn;
         }
+    }
+
+    /// The window changed: the question counts as off screen until a frame shows it whole again.
+    /// The field keeps what was typed.
+    pub fn login_undrawn(&mut self) {
+        self.set_login_drawn(false);
     }
 
     /// Cancelling the login cancels its selection too: the person stays where they were, and the
@@ -236,9 +259,12 @@ impl Picker {
         let presented = discovery.login_presented();
         let before = self.login.clone();
         self.login = match (self.login.take(), presented) {
+            // The same question, or the overlay of its login that ended, keeps the overlay: an
+            // overlay with a field closes only by the person's act.
             (Some(mut login), Some(presented)) if login.presented.token == presented.token => {
                 if login.presented.notice != presented.notice
                     || login.presented.sending != presented.sending
+                    || login.presented.outcome != presented.outcome
                 {
                     login.type_yes = false;
                 }

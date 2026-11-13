@@ -1,6 +1,7 @@
 //! Translate console records into the existing terminal byte decoder. The
 //! decoder remains the only owner of bindings, paste, modal input, and mouse.
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
+use orchbee_machine_protocol::wipe;
 mod records;
 pub(crate) use records::Reader;
 
@@ -14,14 +15,16 @@ fn encode(event: Event, output: &mut Vec<u8>) {
             let mut bytes = match key.code {
                 KeyCode::Char(character) => {
                     let mut bytes = [0; 4];
-                    if key.modifiers.contains(KeyModifiers::CONTROL)
+                    let encoded = if key.modifiers.contains(KeyModifiers::CONTROL)
                         && character.is_ascii()
                         && (' '..='~').contains(&character)
                     {
                         vec![(character as u8).to_ascii_uppercase() & 0x1f]
                     } else {
                         character.encode_utf8(&mut bytes).as_bytes().to_vec()
-                    }
+                    };
+                    wipe(&mut bytes);
+                    encoded
                 }
                 KeyCode::Enter => vec![b'\r'],
                 KeyCode::Backspace => vec![0x7f],
@@ -79,7 +82,9 @@ fn encode(event: Event, output: &mut Vec<u8>) {
             {
                 output.push(0x1b);
             }
-            output.append(&mut bytes);
+            // A typed character may be a login answer: its scratch copy is wiped, not left behind.
+            output.extend_from_slice(&bytes);
+            wipe(&mut bytes);
         }
         Event::FocusGained => output.extend_from_slice(b"\x1b[I"),
         Event::FocusLost => output.extend_from_slice(b"\x1b[O"),

@@ -7,8 +7,17 @@
 //! Ownership semantics: a prefix follower that decodes to any item — key or
 //! non-decision — is exactly one event. UTF-8 continuation bytes and CSI tails
 //! therefore can never reach the pane or a binding as partial input.
+//!
+//! A partial character and a paste run may be a login answer, so the decoder
+//! wipes what it held of them once the item leaves or the frame is refused.
 
-use std::time::{Duration, Instant};
+use std::{
+    fmt,
+    ops::Deref,
+    time::{Duration, Instant},
+};
+
+use orchbee_machine_protocol::wipe;
 
 use super::mouse::{self, MouseEvent};
 use super::utf8::{Continuation, continuation_count};
@@ -151,6 +160,58 @@ enum Drain {
     },
 }
 
+/// The held bytes of a partial character or a paste run: wiped when dropped, and when they
+/// outgrow their allocation, so no copy stays behind in freed memory. Their debug form shows only
+/// their length.
+struct Held(Vec<u8>);
+
+impl Held {
+    /// `bytes` in an allocation that holds `capacity` before it grows.
+    fn new(bytes: &[u8], capacity: usize) -> Self {
+        let mut held = Vec::with_capacity(capacity.max(bytes.len()));
+        held.extend_from_slice(bytes);
+        Self(held)
+    }
+
+    fn push(&mut self, byte: u8) {
+        if self.0.len() == self.0.capacity() {
+            let mut grown = Vec::with_capacity(self.0.capacity().max(8).saturating_mul(2));
+            grown.extend_from_slice(&self.0);
+            wipe(&mut self.0);
+            self.0 = grown;
+        }
+        self.0.push(byte);
+    }
+
+    /// A copy for the item that carries the bytes on; the held bytes are wiped as they drop.
+    fn boxed(&self) -> Box<[u8]> {
+        Box::from(self.0.as_slice())
+    }
+}
+
+impl Deref for Held {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        wipe(&mut self.0);
+    }
+}
+
+impl fmt::Debug for Held {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "Held({})", self.0.len())
+    }
+}
+
+/// Room for an Alt-modified scalar: ESC and four bytes.
+const UTF8_HELD: usize = 5;
+
 #[derive(Debug)]
 enum State {
     Ground,
@@ -196,7 +257,7 @@ enum State {
     /// An in-progress UTF-8 scalar; `raw` includes an optional leading ESC
     /// (Alt-modified scalar) and `need` counts remaining continuation bytes.
     Utf8 {
-        raw: Vec<u8>,
+        raw: Held,
         need: u8,
         alt: bool,
         deadline: Instant,
@@ -217,7 +278,7 @@ enum State {
     /// passthrough; `end` matches the terminator by the opener's notation
     /// and survives the cap/timeout drain boundary.
     Paste {
-        raw: Vec<u8>,
+        raw: Held,
         end: PasteEnd,
         deadline: Instant,
         owned: bool,
@@ -710,14 +771,16 @@ impl LegacyDecoder {
                         let payload_end = raw.len() - end.term.len();
                         let payload = &raw[paste_marker_len(&raw)..payload_end];
                         let text = if payload.len() <= PASTE_TEXT_BOUND {
-                            String::from_utf8(payload.to_vec()).ok()
+                            String::from_utf8(payload.to_vec())
+                                .map_err(|refused| wipe(&mut refused.into_bytes()))
+                                .ok()
                         } else {
                             None
                         };
                         if let Some(text) = text {
                             items.push(DecodedItem {
                                 kind: DecodedKind::Paste { text },
-                                raw: raw.into(),
+                                raw: raw.boxed(),
                                 owned,
                             });
                         } else {
@@ -895,7 +958,7 @@ impl LegacyDecoder {
             _ => match continuation_count(byte) {
                 Some(need) => {
                     self.state = State::Utf8 {
-                        raw: vec![byte],
+                        raw: Held::new(&[byte], UTF8_HELD),
                         need,
                         alt: false,
                         deadline: now + self.wait,
@@ -998,7 +1061,7 @@ impl LegacyDecoder {
             _ => match continuation_count(byte) {
                 Some(need) => {
                     self.state = State::Utf8 {
-                        raw: vec![0x1b, byte],
+                        raw: Held::new(&[0x1b, byte], UTF8_HELD),
                         need,
                         alt: true,
                         deadline: now + self.wait,
@@ -1038,7 +1101,7 @@ impl LegacyDecoder {
         match parse_csi(body) {
             Csi::Paste => {
                 self.state = State::Paste {
-                    raw: raw.to_vec(),
+                    raw: Held::new(raw, CSI_BOUND),
                     end: PasteEnd::new(raw[0] == 0x9b),
                     deadline: now + self.wait,
                     owned,

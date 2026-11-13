@@ -398,7 +398,7 @@ fn rejected_paste_at_every_raw_cap_terminator_split_releases_only_fresh_input() 
             };
             // ASCII padding leaves terminator and UTF-8 state unchanged. Prepare
             // the near-cap prefix once, then feed every boundary byte normally.
-            raw.resize(4 * 1024 * 1024 - split - 2, b'a');
+            raw.0.resize(4 * 1024 * 1024 - split - 2, b'a');
             let mut items = Vec::new();
             for &byte in b"\xc2\x9b".iter().chain(&term[..split]) {
                 items.extend(decoder.push(byte, now, false));

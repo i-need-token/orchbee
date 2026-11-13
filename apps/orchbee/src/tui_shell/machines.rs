@@ -128,8 +128,6 @@ pub(super) struct Manager {
     /// Clients no longer presented, kept until their threads end: dropping one only requests stop
     /// and detaches what still runs, out of process exit's sight.
     retired: Vec<Box<dyn TerminalSurface>>,
-    /// The window size of the last tick; a change wipes what a login field holds.
-    dimensions: Option<WindowDimensions>,
 }
 impl Manager {
     /// Process exit: asks every cached, candidate and retired Client, the connection attempt, and
@@ -226,7 +224,6 @@ impl Manager {
             space_git: None,
             wakeup,
             retired: Vec::new(),
-            dimensions: None,
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -339,13 +336,6 @@ impl Manager {
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         // The login question the hub put to this TUI, and the person's act on the last one.
         change.redraw |= view.machines.exchange_login(&mut self.discovery);
-        if self
-            .dimensions
-            .replace(dimensions)
-            .is_some_and(|before| before != dimensions)
-        {
-            self.discovery.clear_login_field();
-        }
         // The current remote Machine needs a login again: its pane offers Enter to log in.
         let lost_link = self
             .current
@@ -692,6 +682,14 @@ impl Manager {
             }
             change.redraw |= self.queued.is_none();
         }
+        // Only the remote selection still queued may ask the person; a selection that ended in any
+        // way abandons its login.
+        let waiting = self
+            .queued
+            .as_ref()
+            .and_then(|queued| queued.profile.as_ref())
+            .map(|profile| profile.id.clone());
+        self.discovery.wait_for(waiting.as_ref());
         if let Some(mut candidate) = self.candidate.take() {
             candidate.session.tick();
             let drawable = candidate.session.startup_draw_ready();

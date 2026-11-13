@@ -1439,8 +1439,6 @@ impl InputDispatcher {
             self.pointer.set_host_focus(focused);
             if !focused {
                 view.cancel_prefix();
-                // A login field is wiped when the window loses focus; the person types it again.
-                view.machines.clear_login_field();
                 self.dismiss_fenced_introducer();
                 self.pointer.cancel_list_scroll();
                 self.pointer.cancel_modal_press();

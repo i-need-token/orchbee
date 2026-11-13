@@ -106,7 +106,8 @@ pub enum LoginState {
     LoginFailed(Option<LoginFailedCause>),
     /// The new host's offered key.
     Untrusted(HostKey),
-    /// The offered key, when known, and the host `ssh-keygen -R` forgets.
+    /// The offered key, when known, and the name `ssh-keygen -R` forgets: `[host]:port` off port
+    /// 22.
     KeyChanged {
         host_key: Option<HostKey>,
         host: String,

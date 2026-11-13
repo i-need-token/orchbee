@@ -32,10 +32,6 @@ impl Answer {
         answer
     }
 
-    #[cfg_attr(
-        not(any(windows, test)),
-        expect(dead_code, reason = "only the Windows holder delivers an answer")
-    )]
     pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.bytes[..self.len]
     }
@@ -125,9 +121,24 @@ impl SecretField {
         field.characters = 0;
     }
 
-    /// How many characters were typed: all an interface may show of them.
+    /// How many characters were typed: all an interface may show of them, unless they begin
+    /// [`Self::prefix_of`] a public word.
     pub(crate) fn characters(&self) -> usize {
         self.lock().characters
+    }
+
+    /// Whether the field holds `word`, ignoring ASCII case.
+    pub(crate) fn reads(&self, word: &[u8]) -> bool {
+        self.lock().answer.as_bytes().eq_ignore_ascii_case(word)
+    }
+
+    /// What was typed, while it is a prefix of the public `word` ignoring ASCII case; anything
+    /// else, which may be a secret typed into the wrong field, stays unread.
+    pub(crate) fn prefix_of(&self, word: &str) -> Option<String> {
+        let field = self.lock();
+        let typed = field.answer.as_bytes();
+        (typed.len() <= word.len() && typed.eq_ignore_ascii_case(&word.as_bytes()[..typed.len()]))
+            .then(|| String::from_utf8_lossy(typed).into_owned())
     }
 
     /// Moves the answer out for delivery and leaves the field empty: the bytes change owner, not

@@ -62,6 +62,15 @@ pub(in crate::tui_render) enum DialogRow<'a> {
     /// A CLI command that is the only recovery, as code text on its own line in `text-secondary`.
     /// It stays whole: it widens the dialog past its class, up to the wide maximum.
     Command(Cow<'a, str>),
+    /// Text that must be read whole, such as the sentence a question asks or a host key
+    /// fingerprint, in `role`: it wraps at any width, a run longer than a line breaking anywhere,
+    /// and is never cut, dropped or shortened; a dialog that cannot hold it cannot be drawn.
+    /// `widen` lets its width widen the dialog past its class, up to the wide maximum.
+    Whole {
+        text: Cow<'a, str>,
+        role: Role,
+        widen: bool,
+    },
     /// A field label; `accent-focus` marks the focused field of a multi-field form.
     Label(Cow<'a, str>, bool),
     /// One field row. The owner paints its value with [`paint_field`] inside the resolved row.
@@ -189,6 +198,24 @@ impl DialogRow<'_> {
                     Role::TextPrimary
                 },
             ),
+            Self::Whole { text, role, .. } => {
+                let style = theme.style(*role);
+                wrap_text(
+                    &Text::from(sanitize_terminal_text(text).into_owned()),
+                    width,
+                )
+                .lines
+                .into_iter()
+                .map(|line| {
+                    Line::from(
+                        line.spans
+                            .into_iter()
+                            .map(|span| Span::styled(span.content, style))
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect()
+            }
             Self::Prose(text) => wrapped(text, None, Role::TextPrimary, width, short, theme),
             Self::Help(Some(text)) => wrapped(text, None, Role::TextSecondary, width, short, theme),
             Self::Error(text) => wrapped(
@@ -341,12 +368,16 @@ pub(in crate::tui_render) fn dialog_layout(
         .chain([display_width(dialog.title).saturating_add(super::OVERLAY_TITLE_RESERVE - 6)])
         .max()
         .unwrap_or(0);
-    // A command that is the only recovery is useless cut, so it may pass the class maximum.
+    // A command that is the only recovery is useless cut, so it may pass the class maximum; so
+    // may whole text that reads best on one line, such as a fingerprint.
     let command = dialog
         .rows
         .iter()
         .filter_map(|row| match row {
-            DialogRow::Command(text) => Some(display_width(&sanitize_terminal_text(text))),
+            DialogRow::Command(text)
+            | DialogRow::Whole {
+                text, widen: true, ..
+            } => Some(display_width(&sanitize_terminal_text(text))),
             _ => None,
         })
         .max()

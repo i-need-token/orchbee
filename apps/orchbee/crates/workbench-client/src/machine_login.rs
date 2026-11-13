@@ -16,8 +16,8 @@ use orchbee_machine_protocol::{
     hub::{AnswerEndpoint, LoginEnd, Question, QuestionKind},
 };
 
-/// The answer a trusted new host takes.
-const YES: &[u8] = b"yes";
+/// The answer a trusted new host takes, and the word its field must read.
+pub(crate) const YES: &str = "yes";
 
 /// One question of one episode, so an act on an overlay painted for an earlier question changes
 /// nothing.
@@ -67,15 +67,17 @@ pub(crate) enum Delivery {
     Undelivered,
 }
 
-/// The person's act on an open question.
+/// The person's act on an open question, or on the overlay of a login that ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Act {
     /// Send what the field holds.
     Submit,
-    /// Trust a new host: Orchbee answers `yes`.
+    /// Trust a new host: Orchbee answers `yes` itself.
     Trust,
     /// End the login.
     Cancel,
+    /// Close the overlay of a login that ended without the person.
+    Close,
 }
 
 /// What the holder carries out.
@@ -114,8 +116,9 @@ pub(crate) enum AskNotice {
     Inadmissible,
 }
 
-/// What an overlay shows of the open question. No member holds an answer: the field is a handle on
-/// the fixed buffer, which every copy shares.
+/// What an overlay shows of the open question, or of the last question of a login that ended
+/// without the person. No member holds an answer: the field is a handle on the fixed buffer, which
+/// every copy shares.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Presented {
     pub(crate) token: Token,
@@ -128,6 +131,9 @@ pub(crate) struct Presented {
     pub(crate) notice: Option<AskNotice>,
     /// The answer is on its way or was taken; the next question or the end follows.
     pub(crate) sending: bool,
+    /// How the login ended without the person's act. The overlay stays and shows it until the
+    /// person closes it; the field was wiped and takes nothing.
+    pub(crate) outcome: Option<Ending>,
     pub(crate) field: SecretField,
 }
 
@@ -165,11 +171,26 @@ impl Drop for Episode {
     }
 }
 
-/// The client's login episodes: at most one, claimed for the person's selection, and how the last
-/// one of each Machine ended.
+/// The last question shown of a login that ended without the person's act.
+struct Concluded {
+    token: Token,
+    machine: String,
+    target: String,
+    kind: QuestionKind,
+    prompt: Prompt,
+    ending: Ending,
+    /// Always empty: the overlay of an ended login takes no answer.
+    field: SecretField,
+}
+
+/// The client's login episodes: at most one, claimed for the selection the person waits on, the
+/// overlay of one that ended without them, and how the last one of each Machine ended.
 #[derive(Default)]
 pub(crate) struct Logins {
+    /// The Machine whose selection the person waits on; only its login may ask.
+    waiting: Option<String>,
     episode: Option<Episode>,
+    concluded: Option<Concluded>,
     endings: Vec<(String, Ending)>,
 }
 
@@ -182,20 +203,30 @@ impl Logins {
     ) -> Vec<Effect> {
         match notice {
             Notice::Claimed { login, machine } => {
-                if let Some(previous) = self.episode.take() {
-                    self.end(previous, Ending::Lost);
-                }
-                // A Machine this client cannot name is not shown as anyone's: let it go.
-                let Some(target) = target(&machine) else {
+                // Only the selection the person waits on may ask, and a shown overlay is never
+                // replaced: any other login is let go before it asks anything here.
+                let admitted = self.waiting.as_deref() == Some(machine.as_str())
+                    && self.concluded.is_none()
+                    && self
+                        .episode
+                        .as_ref()
+                        .is_none_or(|episode| episode.open.is_none());
+                // A Machine this client cannot name is not shown as anyone's: let it go too.
+                let Some(target) = target(&machine).filter(|_| admitted) else {
                     return vec![Effect::Dismiss(login)];
                 };
+                let mut effects = Vec::new();
+                if let Some(previous) = self.episode.take() {
+                    effects.push(Effect::Dismiss(previous.login));
+                    self.end(previous, Ending::Lost);
+                }
                 self.episode = Some(Episode {
                     login,
                     machine,
                     target,
                     open: None,
                 });
-                Vec::new()
+                effects
             }
             Notice::Question(question) => {
                 let Some(episode) = self
@@ -224,7 +255,7 @@ impl Logins {
             }
             Notice::Ended { login, end } => {
                 if let Some(episode) = self.episode.take_if(|episode| episode.login == login) {
-                    self.end(episode, Ending::Hub(end));
+                    self.conclude(episode, Ending::Hub(end));
                 }
                 Vec::new()
             }
@@ -253,7 +284,7 @@ impl Logins {
                     Delivery::Undelivered => {
                         let login = episode.login;
                         if let Some(episode) = self.episode.take() {
-                            self.end(episode, Ending::Undelivered);
+                            self.conclude(episode, Ending::Undelivered);
                         }
                         vec![Effect::Dismiss(login)]
                     }
@@ -261,7 +292,7 @@ impl Logins {
             }
             Notice::Lost => {
                 if let Some(episode) = self.episode.take() {
-                    self.end(episode, Ending::Lost);
+                    self.conclude(episode, Ending::Lost);
                 }
                 Vec::new()
             }
@@ -269,18 +300,32 @@ impl Logins {
     }
 
     /// Applies the person's `act` on the question `token` names. Cancelling acts on the episode
-    /// whichever of its questions the overlay showed; the others act only on the open question
-    /// while it waits for an answer.
+    /// whichever of its questions the overlay showed; submitting and trusting act only on the open
+    /// question while it waits for an answer; any end of an ended login's overlay closes it.
     pub(crate) fn act(&mut self, token: Token, act: Act) -> Vec<Effect> {
+        if self
+            .concluded
+            .as_ref()
+            .is_some_and(|concluded| concluded.token == token)
+        {
+            if matches!(act, Act::Close | Act::Cancel) {
+                self.concluded = None;
+            }
+            return Vec::new();
+        }
         let Some(episode) = self.episode.as_mut() else {
             return Vec::new();
         };
-        if act == Act::Cancel {
-            return if episode.login == token.login {
-                self.dismiss()
-            } else {
-                Vec::new()
-            };
+        match act {
+            Act::Close => return Vec::new(),
+            Act::Cancel => {
+                return if episode.login == token.login {
+                    self.dismiss()
+                } else {
+                    Vec::new()
+                };
+            }
+            Act::Submit | Act::Trust => {}
         }
         if episode.token() != Some(token) {
             return Vec::new();
@@ -289,7 +334,11 @@ impl Logins {
             return Vec::new();
         };
         let answer = match (act, &open.kind) {
-            (Act::Trust, QuestionKind::HostKey { .. }) => Answer::fixed(YES),
+            // The overlay trusts only once the field reads `yes`; what it held is not sent.
+            (Act::Trust, QuestionKind::HostKey { .. }) => {
+                open.field.clear();
+                Answer::fixed(YES.as_bytes())
+            }
             (Act::Submit, kind) if !matches!(kind, QuestionKind::HostKey { .. }) => {
                 open.field.take()
             }
@@ -304,24 +353,58 @@ impl Logins {
         }]
     }
 
-    /// The person's selection of `machine` ended before its login: the episode is dismissed.
+    /// The person's selection now waits on `machine`, or on no Machine. A selection that stops
+    /// waiting abandons its Machine's login: one that asked nothing yet is dismissed, and a shown
+    /// question's overlay stays with that end until the person closes it. A later question of an
+    /// abandoned login is dismissed on arrival.
+    pub(crate) fn wait_for(&mut self, machine: Option<&str>) -> Vec<Effect> {
+        if self.waiting.as_deref() == machine {
+            return Vec::new();
+        }
+        let effects = match self.waiting.take() {
+            Some(previous) => self.abandon(&previous),
+            None => Vec::new(),
+        };
+        self.waiting = machine.map(str::to_owned);
+        effects
+    }
+
+    /// The person's selection of `machine` ended before its login did.
     pub(crate) fn abandon(&mut self, machine: &str) -> Vec<Effect> {
-        if self.active(machine) {
-            self.dismiss()
+        if self.waiting.as_deref() == Some(machine) {
+            self.waiting = None;
+        }
+        let Some(episode) = self.episode.take_if(|episode| episode.machine == machine) else {
+            return Vec::new();
+        };
+        let login = episode.login;
+        if episode.open.as_ref().is_some_and(|open| open.sending) {
+            // An answered question refuses every key after its Enter, as success does: its
+            // overlay closes with the selection, which may have ended because the Machine came
+            // online before the hub's end arrived.
+            self.end(episode, Ending::Dismissed);
         } else {
-            Vec::new()
+            self.conclude(episode, Ending::Dismissed);
         }
+        vec![Effect::Dismiss(login)]
     }
 
-    /// Wipes what the open question's field holds, as a resize or a lost focus does.
-    pub(crate) fn clear_field(&self) {
-        if let Some(open) = self.episode.as_ref().and_then(|e| e.open.as_ref()) {
-            open.field.clear();
-        }
-    }
-
-    /// The open question, while one is shown.
+    /// The open question, or the last one of a login that ended without the person, while its
+    /// overlay is shown.
     pub(crate) fn presented(&self) -> Option<Presented> {
+        if let Some(concluded) = &self.concluded {
+            return Some(Presented {
+                token: concluded.token,
+                machine: concluded.machine.clone(),
+                target: concluded.target.clone(),
+                kind: concluded.kind.clone(),
+                prompt: concluded.prompt.clone(),
+                notice: None,
+                sending: false,
+                outcome: Some(concluded.ending),
+                field: concluded.field.clone(),
+            });
+        }
         let episode = self.episode.as_ref()?;
         let open = episode.open.as_ref()?;
         Some(Presented {
@@ -335,6 +418,7 @@ impl Logins {
             prompt: open.prompt.clone(),
             notice: open.notice,
             sending: open.sending,
+            outcome: None,
             field: open.field.clone(),
         })
     }
@@ -358,6 +442,32 @@ impl Logins {
         let login = episode.login;
         self.end(episode, Ending::Dismissed);
         vec![Effect::Dismiss(login)]
+    }
+
+    /// Ends the episode without the person's act. A shown question keeps its overlay, showing
+    /// `ending`, until the person closes it; only success after their own answer closes it at
+    /// once, since every key after that answer's Enter is already refused.
+    fn conclude(&mut self, episode: Episode, ending: Ending) {
+        let answered = ending == Ending::Hub(LoginEnd::Succeeded);
+        if let Some(open) = episode
+            .open
+            .as_ref()
+            .filter(|open| !(answered && open.sending))
+        {
+            self.concluded = Some(Concluded {
+                token: Token {
+                    login: episode.login,
+                    question: open.question,
+                },
+                machine: episode.machine.clone(),
+                target: episode.target.clone(),
+                kind: open.kind.clone(),
+                prompt: open.prompt.clone(),
+                ending,
+                field: SecretField::new(),
+            });
+        }
+        self.end(episode, ending);
     }
 
     fn end(&mut self, episode: Episode, ending: Ending) {

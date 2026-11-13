@@ -15,6 +15,8 @@ Are you sure you want to continue connecting (yes/no/[fingerprint])? ";
 const OTHER_NEW_HOST: &str = "The authenticity of host 'jump (10.0.0.9)' can't be established.\n\
 ED25519 key fingerprint is SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG.\n\
 Are you sure you want to continue connecting (yes/no/[fingerprint])? ";
+/// Another Machine this client knows.
+const OTHER_MACHINE: &str = "fedcba9876543210fedcba9876543210";
 const CHANGED_KEY: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
 @    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n\
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@";
@@ -47,6 +49,8 @@ fn hub_kind(prompt: &str) -> QuestionKind {
 
 #[derive(Clone, Copy, Debug)]
 enum Step {
+    /// The person's selection now waits on this Machine, or on none.
+    Wait(Option<&'static str>),
     Claim(u32),
     ClaimUnknown(u32),
     /// Question `question` of episode `login`, with `ssh`'s prompt, maybe repeated.
@@ -82,6 +86,7 @@ struct Seen {
     notice: Option<AskNotice>,
     sending: bool,
     characters: usize,
+    outcome: Option<Ending>,
 }
 
 const fn shown(kind: Kind, notice: Option<AskNotice>, sending: bool, characters: usize) -> Seen {
@@ -90,6 +95,18 @@ const fn shown(kind: Kind, notice: Option<AskNotice>, sending: bool, characters:
         notice,
         sending,
         characters,
+        outcome: None,
+    }
+}
+
+/// The overlay of a login that ended without the person: how it ended, and an empty field.
+const fn ended(kind: Kind, ending: Ending) -> Seen {
+    Seen {
+        kind,
+        notice: None,
+        sending: false,
+        characters: 0,
+        outcome: Some(ending),
     }
 }
 
@@ -100,9 +117,24 @@ struct Run {
 }
 
 impl Run {
+    /// The person's selection waits on `MACHINE`.
+    fn new() -> Self {
+        let mut logins = Logins::default();
+        assert!(logins.wait_for(Some(MACHINE)).is_empty());
+        Self {
+            logins,
+            token: None,
+        }
+    }
+
     fn step(&mut self, step: Step) -> Vec<Did> {
-        let target = |machine: &str| (machine == MACHINE).then(|| TARGET.to_owned());
+        let target = |machine: &str| {
+            [MACHINE, OTHER_MACHINE]
+                .contains(&machine)
+                .then(|| TARGET.to_owned())
+        };
         let effects = match step {
+            Step::Wait(machine) => self.logins.wait_for(machine),
             Step::Claim(login) => self.logins.notice(
                 Notice::Claimed {
                     login: id(login),
@@ -113,7 +145,7 @@ impl Run {
             Step::ClaimUnknown(login) => self.logins.notice(
                 Notice::Claimed {
                     login: id(login),
-                    machine: "fedcba9876543210fedcba9876543210".into(),
+                    machine: "00000000000000000000000000000000".into(),
                 },
                 target,
             ),
@@ -193,6 +225,7 @@ impl Run {
             notice: presented.notice,
             sending: presented.sending,
             characters: presented.field.characters(),
+            outcome: presented.outcome,
         })
     }
 }
@@ -229,7 +262,7 @@ fn password(question: u32, repeated: bool) -> Step {
 
 #[test]
 fn the_episode_follows_its_rules() {
-    use Act::{Cancel, Submit, Trust};
+    use Act::{Cancel, Close, Submit, Trust};
     use AskNotice::{Inadmissible, Repeated};
     use Kind::{HostKey, Other, Passphrase, Password};
     let cases: Vec<Case> = vec![
@@ -451,7 +484,7 @@ fn the_episode_follows_its_rules() {
             None,
         ),
         (
-            "an answer that reaches no endpoint ends the login",
+            "an answer that reaches no endpoint ends the login; its overlay stays until closed",
             vec![
                 (Step::Claim(1), vec![], None),
                 (
@@ -467,13 +500,14 @@ fn the_episode_follows_its_rules() {
                 (
                     Step::Delivered(Delivery::Undelivered),
                     vec![Did::Dismiss(1)],
-                    None,
+                    Some(ended(Password, Ending::Undelivered)),
                 ),
+                (Step::Act(Close), vec![], None),
             ],
             Some(Ending::Undelivered),
         ),
         (
-            "the hub ending the episode while the person types closes the question",
+            "the hub ending the login while the person types keeps the overlay with the end",
             vec![
                 (Step::Claim(1), vec![], None),
                 (
@@ -486,13 +520,23 @@ fn the_episode_follows_its_rules() {
                     vec![],
                     Some(shown(Password, None, false, 4)),
                 ),
-                (Step::Ended(1, LoginEnd::Failed), vec![], None),
-                (Step::Act(Submit), vec![], None),
+                (
+                    Step::Ended(1, LoginEnd::Failed),
+                    vec![],
+                    Some(ended(Password, Ending::Hub(LoginEnd::Failed))),
+                ),
+                // Nothing typed before the end can still be sent.
+                (
+                    Step::Act(Submit),
+                    vec![],
+                    Some(ended(Password, Ending::Hub(LoginEnd::Failed))),
+                ),
+                (Step::Act(Close), vec![], None),
             ],
             Some(Ending::Hub(LoginEnd::Failed)),
         ),
         (
-            "a lost link ends the episode",
+            "a lost link keeps the overlay with the end until the person closes it",
             vec![
                 (Step::Claim(1), vec![], None),
                 (
@@ -500,9 +544,118 @@ fn the_episode_follows_its_rules() {
                     vec![],
                     Some(shown(Password, None, false, 0)),
                 ),
-                (Step::Lost, vec![], None),
+                (
+                    Step::Type("ab"),
+                    vec![],
+                    Some(shown(Password, None, false, 2)),
+                ),
+                (Step::Lost, vec![], Some(ended(Password, Ending::Lost))),
+                (Step::Act(Cancel), vec![], None),
             ],
             Some(Ending::Lost),
+        ),
+        (
+            "success before the person answered keeps the overlay; only an answered one closes",
+            vec![
+                (Step::Claim(1), vec![], None),
+                (
+                    password(1, false),
+                    vec![],
+                    Some(shown(Password, None, false, 0)),
+                ),
+                (
+                    Step::Type("ab"),
+                    vec![],
+                    Some(shown(Password, None, false, 2)),
+                ),
+                (
+                    Step::Ended(1, LoginEnd::Succeeded),
+                    vec![],
+                    Some(ended(Password, Ending::Hub(LoginEnd::Succeeded))),
+                ),
+                (Step::Act(Close), vec![], None),
+            ],
+            Some(Ending::Hub(LoginEnd::Succeeded)),
+        ),
+        (
+            "a selection abandoned before its question is dismissed and nothing is shown",
+            vec![
+                (Step::Wait(None), vec![], None),
+                (Step::Claim(1), vec![Did::Dismiss(1)], None),
+                (password(1, false), vec![], None),
+            ],
+            None,
+        ),
+        (
+            "choosing another Machine abandons the first one's login",
+            vec![
+                (Step::Claim(1), vec![], None),
+                (Step::Wait(Some(OTHER_MACHINE)), vec![Did::Dismiss(1)], None),
+                (password(1, false), vec![], None),
+                // The first Machine is no longer waited on: a new login of it is let go.
+                (Step::Claim(2), vec![Did::Dismiss(2)], None),
+            ],
+            Some(Ending::Dismissed),
+        ),
+        (
+            "a shown overlay is never replaced: another login is dismissed on arrival",
+            vec![
+                (Step::Claim(1), vec![], None),
+                (
+                    password(1, false),
+                    vec![],
+                    Some(shown(Password, None, false, 0)),
+                ),
+                (
+                    Step::Type("abc"),
+                    vec![],
+                    Some(shown(Password, None, false, 3)),
+                ),
+                (
+                    Step::Claim(2),
+                    vec![Did::Dismiss(2)],
+                    Some(shown(Password, None, false, 3)),
+                ),
+                (
+                    Step::Ask {
+                        login: 2,
+                        question: 1,
+                        prompt: PASSPHRASE,
+                        repeated: false,
+                    },
+                    vec![],
+                    Some(shown(Password, None, false, 3)),
+                ),
+                (
+                    Step::Ended(1, LoginEnd::Failed),
+                    vec![],
+                    Some(ended(Password, Ending::Hub(LoginEnd::Failed))),
+                ),
+                (
+                    Step::Claim(3),
+                    vec![Did::Dismiss(3)],
+                    Some(ended(Password, Ending::Hub(LoginEnd::Failed))),
+                ),
+            ],
+            Some(Ending::Hub(LoginEnd::Failed)),
+        ),
+        (
+            "a selection that ends while its question is shown keeps the overlay with that end",
+            vec![
+                (Step::Claim(1), vec![], None),
+                (
+                    password(1, false),
+                    vec![],
+                    Some(shown(Password, None, false, 0)),
+                ),
+                (
+                    Step::Wait(None),
+                    vec![Did::Dismiss(1)],
+                    Some(ended(Password, Ending::Dismissed)),
+                ),
+                (Step::Act(Close), vec![], None),
+            ],
+            Some(Ending::Dismissed),
         ),
         (
             "a changed key, or a question naming another host, never asks for trust",
@@ -568,10 +721,7 @@ fn the_episode_follows_its_rules() {
         ),
     ];
     for (name, steps, ending) in &cases {
-        let mut run = Run {
-            logins: Logins::default(),
-            token: None,
-        };
+        let mut run = Run::new();
         for (index, (step, did, seen)) in steps.iter().enumerate() {
             let effects = run.step(*step);
             // Deliveries compare by kind here; what they carry is checked below.
@@ -595,10 +745,7 @@ fn the_episode_follows_its_rules() {
 
 #[test]
 fn a_delivery_carries_exactly_what_was_typed_and_trust_carries_yes() {
-    let mut run = Run {
-        logins: Logins::default(),
-        token: None,
-    };
+    let mut run = Run::new();
     run.step(Step::Claim(1));
     run.step(password(1, false));
     run.step(Step::Type("tést-wörd"));
@@ -626,13 +773,10 @@ fn every_end_of_a_question_wipes_its_field() {
         &[Step::Ended(1, LoginEnd::Failed)],
         &[Step::Lost],
         &[password(2, true)],
-        &[Step::Claim(2)],
+        &[Step::Wait(None)],
     ];
     for end in ends {
-        let mut run = Run {
-            logins: Logins::default(),
-            token: None,
-        };
+        let mut run = Run::new();
         run.step(Step::Claim(1));
         run.step(password(1, false));
         run.step(Step::Type("secret"));
@@ -643,14 +787,4 @@ fn every_end_of_a_question_wipes_its_field() {
         assert_eq!(held.characters(), 0, "{end:?}");
         assert!(held.take().as_bytes().is_empty(), "{end:?}");
     }
-    // Wiping on resize or focus loss leaves the question open with an empty field.
-    let mut run = Run {
-        logins: Logins::default(),
-        token: None,
-    };
-    run.step(Step::Claim(1));
-    run.step(password(1, false));
-    run.step(Step::Type("secret"));
-    run.logins.clear_field();
-    assert_eq!(run.seen(), Some(shown(Kind::Password, None, false, 0)));
 }

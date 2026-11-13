@@ -158,6 +158,23 @@ pub fn default_label(target: &str) -> String {
     };
     host.to_owned()
 }
+/// The name `known_hosts` keeps the host of `target` under, which `ssh-keygen -R` forgets: the
+/// host alone on port 22, `[host]:port` on any other port.
+pub fn known_hosts_name(target: &str) -> String {
+    let host = default_label(target);
+    let authority = target.strip_prefix("ssh://").unwrap_or(target);
+    let address = authority
+        .split_once('@')
+        .map_or(authority, |(_, address)| address);
+    let port = match address.strip_prefix('[') {
+        Some(rest) => rest.split_once("]:").map(|(_, port)| port),
+        None => address.split_once(':').map(|(_, port)| port),
+    };
+    match port.filter(|port| *port != "22") {
+        Some(port) => format!("[{host}]:{port}"),
+        None => host,
+    }
+}
 /// Deliberately admits SSH destinations, never option fragments or passwords.
 pub fn valid_target(value: &str) -> bool {
     if value.is_empty() || value.len() > 1024 || !value.is_ascii() {

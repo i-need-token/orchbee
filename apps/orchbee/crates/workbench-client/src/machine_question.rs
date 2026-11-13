@@ -37,22 +37,29 @@ pub fn prompt_text(text: &str) -> Option<Prompt> {
     Prompt::new(text.get(..end)?).ok()
 }
 
-/// The lines of `prompt` an interface shows: each escaped so no terminal can act on it, cut at
-/// [`PROMPT_LINE_CHARACTERS`] with `…`, and at most [`PROMPT_LINES`], then one `…` line when more
-/// followed.
+/// The mark that stands for what a bound cut from `ssh`'s prompt.
+pub const CUT: &str = "…";
+
+/// The lines of `prompt` an interface shows, keeping its end, where `ssh` asks: each escaped so
+/// no terminal can act on it, the last [`PROMPT_LINES`] lines, each its last
+/// [`PROMPT_LINE_CHARACTERS`] characters. [`CUT`] starts a line that lost its beginning, and is a
+/// first line of its own when earlier lines went.
 pub fn shown_lines(prompt: &str) -> Vec<String> {
-    let mut shown = Vec::new();
-    let mut lines = prompt.trim_end().lines();
-    for line in lines.by_ref().take(PROMPT_LINES) {
-        let mut characters = line.chars();
-        let mut cut: String = characters.by_ref().take(PROMPT_LINE_CHARACTERS).collect();
-        if characters.next().is_some() {
-            cut.push('…');
-        }
-        shown.push(crate::terminal_text::unquoted(&cut));
+    let lines: Vec<&str> = prompt.trim_end().lines().collect();
+    let skipped = lines.len().saturating_sub(PROMPT_LINES);
+    let mut shown = Vec::with_capacity(PROMPT_LINES + 1);
+    if skipped > 0 {
+        shown.push(CUT.to_owned());
     }
-    if lines.next().is_some() {
-        shown.push("…".to_owned());
+    for line in &lines[skipped..] {
+        let excess = line.chars().count().saturating_sub(PROMPT_LINE_CHARACTERS);
+        let kept = if excess > 0 {
+            let tail: String = line.chars().skip(excess).collect();
+            format!("{CUT}{}", crate::terminal_text::unquoted(&tail))
+        } else {
+            crate::terminal_text::unquoted(line)
+        };
+        shown.push(kept);
     }
     shown
 }

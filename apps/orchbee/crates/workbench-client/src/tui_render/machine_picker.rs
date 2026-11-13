@@ -193,18 +193,20 @@ impl Picker {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         frame: &mut Frame<'_>,
         locale: Locale,
         theme: &Theme,
         hits: &mut HitMapBuilder,
     ) {
-        // A login question covers everything, the picker included: one overlay at a time.
+        // A login question covers everything, the picker included: one overlay at a time. Below
+        // the shell's size the shell's own size notice stands in for it.
         if let Some(login) = self.login() {
-            if ViewportTier::from_area(frame.area()) != ViewportTier::TooSmall {
+            let drawn = ViewportTier::from_area(frame.area()) != ViewportTier::TooSmall && {
                 let label = self.login_label().unwrap_or(&login.presented.machine);
-                let _ = super::machine_login::render(frame, login, label, locale, theme, hits);
-            }
+                super::machine_login::render(frame, login, label, locale, theme, hits)
+            };
+            self.set_login_drawn(drawn);
             return;
         }
         let Some(source) = self.picker_source() else {
