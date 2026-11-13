@@ -117,6 +117,8 @@ describe('Workbench command contract', () => {
 		},
 	);
 
+	// Compiling the five schemas takes several seconds on a shared two-core runner, past the default
+	// limit, so this test states its own.
 	it('agrees with the schema-authored Rust/TypeScript conformance corpus', async () => {
 		const [projectionText, commandText, corpusText, clientViewText, graphicsText] =
 			await Promise.all([
@@ -222,7 +224,7 @@ describe('Workbench command contract', () => {
 				valid: false,
 			});
 		}
-	});
+	}, 30_000);
 
 	it('enforces every Workbench terminal geometry boundary and semantic product', () => {
 		for (const geometry of [
