@@ -91,24 +91,30 @@ fn admits_one_worker_replaces_it_after_disconnect_and_closes_it_on_server_loss()
     server
         .stop()
         .map_err(|error| io::Error::new(error.kind(), format!("failed to stop Server: {error}")))?;
-    let mut byte = [0_u8; 1];
-    match replacement_stream.read(&mut byte) {
-        Ok(0) => {}
-        Err(error)
-            if matches!(
-                error.kind(),
-                io::ErrorKind::ConnectionAborted
-                    | io::ErrorKind::ConnectionReset
-                    | io::ErrorKind::BrokenPipe
-            ) => {}
-        outcome => {
-            return Err(io::Error::other(format!(
-                "Worker connection remained usable after Server loss: {outcome:?}"
-            ))
-            .into());
+    // The Server may already have sent the registered Worker requests of its own, such as title
+    // change reads or an Agent probe, before it stopped; the connection must still end after them.
+    loop {
+        match orchbee_capability_node_protocol::read_message(&mut replacement_stream) {
+            Ok(_request) => {}
+            Err(orchbee_capability_node_protocol::ReadMessageError::Io(error))
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::UnexpectedEof
+                        | io::ErrorKind::ConnectionAborted
+                        | io::ErrorKind::ConnectionReset
+                        | io::ErrorKind::BrokenPipe
+                ) =>
+            {
+                return Ok(());
+            }
+            Err(error) => {
+                return Err(io::Error::other(format!(
+                    "Worker connection remained usable after Server loss: {error}"
+                ))
+                .into());
+            }
         }
     }
-    Ok(())
 }
 
 #[test]

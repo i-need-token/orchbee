@@ -17,6 +17,8 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
+    AgentProbeJobAction, AgentProbeJobCancelOutcome, AgentProbeJobOutcome,
+    AgentProbeJobPollOutcome, AgentProbeJobResult, AgentProbeJobStartOutcome,
     CapabilityNodeMessage, TerminalTitleChangePage, TerminalTitleChangesOutcome,
     TerminalTitleChangesResult, read_message as read_capability_message,
     write_message as write_capability_message,
@@ -343,12 +345,37 @@ fn connect_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<UnixStream
 
 /// Reads the next capability-node message the Server sends to a fake Worker. The Server's title
 /// pump sends title change reads on the carrier's idle lane whenever nothing else is queued, and
-/// the carrier serializes every exchange, so an unanswered read would hold every later request.
-/// These witnesses own no titles: the fake Worker answers each read with an empty complete page,
-/// as a Worker without title changes does, and reads past it.
+/// its Agent probe pump asks a newly registered Worker which Agent commands exist; the carrier
+/// serializes every exchange, so an unanswered read would hold every later request. These
+/// witnesses own no titles and no probe: the fake Worker answers each title read with an empty
+/// complete page and each probe as a Worker whose platform has no probe does, and reads past them.
 fn read_obcn(stream: &mut (impl Read + Write)) -> TestResult<CapabilityNodeMessage> {
     loop {
         match read_capability_message(stream)? {
+            CapabilityNodeMessage::AgentProbeJobRequest(request) => {
+                let (job_id, outcome) = match request.action {
+                    AgentProbeJobAction::Start { .. } => (
+                        request.operation_id,
+                        AgentProbeJobOutcome::Start(AgentProbeJobStartOutcome::Unsupported),
+                    ),
+                    AgentProbeJobAction::Poll { job_id } => (
+                        job_id,
+                        AgentProbeJobOutcome::Poll(AgentProbeJobPollOutcome::Unknown),
+                    ),
+                    AgentProbeJobAction::Cancel { job_id } => (
+                        job_id,
+                        AgentProbeJobOutcome::Cancel(AgentProbeJobCancelOutcome::Unknown),
+                    ),
+                };
+                write_capability_message(
+                    stream,
+                    &CapabilityNodeMessage::AgentProbeJobResult(AgentProbeJobResult {
+                        operation_id: request.operation_id,
+                        job_id,
+                        outcome,
+                    }),
+                )?;
+            }
             CapabilityNodeMessage::TerminalTitleChangesRequest(request) => {
                 write_capability_message(
                     stream,

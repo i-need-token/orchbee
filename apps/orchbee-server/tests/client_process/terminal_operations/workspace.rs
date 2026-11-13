@@ -1,5 +1,4 @@
 use super::*;
-use nix::poll::{PollFd, PollFlags, poll};
 use orchbee_client_server_protocol::{
     SessionId as ObcsSessionId, TerminalId as ClientTerminalId, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
@@ -11,7 +10,7 @@ use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome, read_workbench_response,
     write_workbench_request,
 };
-use std::{num::NonZeroU64, os::fd::AsFd};
+use std::num::NonZeroU64;
 
 pub(super) fn tab_request(snapshot: &Snapshot, value: u128) -> TestResult<WorkbenchRequest> {
     Ok(WorkbenchRequest::Command(WorkbenchCommand {
@@ -157,21 +156,16 @@ fn connect_worker_with_generation(
     }
 }
 
-fn wait_for_worker_record(stream: &UnixStream) -> TestResult {
-    let mut descriptors = [PollFd::new(stream.as_fd(), PollFlags::POLLIN)];
-    let ready = poll(
-        &mut descriptors,
-        u16::try_from(PROCESS_TIMEOUT.as_millis())?,
-    )?;
-    assert_eq!(ready, 1, "Worker Launch was not dispatched");
-    assert!(
-        descriptors
-            .first()
-            .and_then(PollFd::revents)
-            .is_some_and(|events| events.contains(PollFlags::POLLIN)),
-        "Worker socket became ready without a readable Launch"
-    );
-    Ok(())
+/// The Launch the Server dispatches to the fake Worker, read past its background title reads and
+/// Agent probe, which also make the socket readable; a snapshot read after it must already show
+/// the membership the Launch follows.
+fn read_launch(
+    worker: &mut UnixStream,
+) -> TestResult<orchbee_capability_node_protocol::AuthorizedTerminalLaunch> {
+    match read_obcn(worker)? {
+        CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => Ok(launch),
+        message => Err(format!("Worker Launch was not dispatched: {message:?}").into()),
+    }
 }
 
 fn hex_identity(bytes: [u8; 16]) -> String {
@@ -197,13 +191,10 @@ fn workspace_tab_commits_membership_before_launch_and_preserves_it_through_navig
     )?;
     let create = tab_request(&initial, 1)?;
     write_workbench_request(&mut creator, &create)?;
-    wait_for_worker_record(&worker)?;
+    let launch = read_launch(&mut worker)?;
     let committed = read_snapshot(&mut observer, 102)?;
     let binding = workspace_binding(&committed)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
-    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_obcn(&mut worker)? else {
-        return Err("missing Launch".into());
-    };
     let orchbee_capability_node_protocol::TerminalLaunchMode::Immediate(geometry) = launch.mode()
     else {
         return Err("expected immediate Launch".into());
@@ -278,9 +269,20 @@ fn workspace_tab_commits_membership_before_launch_and_preserves_it_through_navig
     }
     let settled = read_snapshot(&mut observer, 105)?;
     assert_eq!(workspace_binding(&settled)?, binding);
+    // The Worker answers the Server's background title reads and Agent probe; nothing else may
+    // reach it.
     worker.set_read_timeout(Some(Duration::from_millis(40)))?;
+    let observed = read_obcn(&mut worker);
     assert!(
-        matches!(worker.read(&mut [0]), Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut))
+        matches!(
+            &observed,
+            Err(error) if matches!(
+                error.downcast_ref::<orchbee_capability_node_protocol::ReadMessageError>(),
+                Some(orchbee_capability_node_protocol::ReadMessageError::Io(error))
+                    if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut)
+            )
+        ),
+        "the Worker received {observed:?}"
     );
     Ok(())
 }
@@ -301,13 +303,10 @@ fn workspace_tab_unknown_after_worker_loss_retains_membership_across_worker_gene
     )?;
     let create = tab_request(&initial, 1)?;
     write_workbench_request(&mut first, &create)?;
-    wait_for_worker_record(&worker)?;
+    let launch = read_launch(&mut worker)?;
     let committed = read_snapshot(&mut observer, 302)?;
     let binding = workspace_binding(&committed)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
-    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_obcn(&mut worker)? else {
-        return Err("missing Launch".into());
-    };
     assert_authorized_binding(&binding, launch.authorization());
     drop(worker);
     let result = tab_outcome(&mut first)?;
