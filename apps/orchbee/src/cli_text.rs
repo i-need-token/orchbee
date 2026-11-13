@@ -113,6 +113,8 @@ mod agent_projection;
 mod configured_commands;
 mod events;
 mod machines;
+#[cfg(windows)]
+pub(crate) use machines::MachineQuestion;
 mod notification;
 mod operation;
 mod pane_graphics;

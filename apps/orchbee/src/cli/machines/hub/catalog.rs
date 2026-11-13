@@ -5,22 +5,22 @@
 
 use super::{
     lifetime::Moment,
-    machine::{Context, Effect, Kind, Machine, Route},
+    machine::{Context, Effect, Kind, Machine, Route, Serials},
 };
 use orchbee_local_runtime::DataRoot;
 use orchbee_machine_protocol::{
-    Count, MachineId, SessionName,
+    Count, Id, MachineId, SessionName,
     hub::{Catalog, Event, MachineState, ReloadOutcome},
 };
 use orchbee_workbench_client::application::machines::{Connection, Error, Store};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub(super) struct Machines {
     revision: Count,
     entries: Vec<Machine>,
-    /// The last carrier number given out in the hub's life.
-    carriers: u64,
+    /// The last carrier number and login id given out in the hub's life.
+    serials: Serials,
 }
 
 /// What the hub knows around a transition, beside the carrier numbers the catalog keeps.
@@ -29,6 +29,10 @@ pub(super) struct Conditions {
     pub(super) now: Moment,
     pub(super) presence: bool,
     pub(super) closing: bool,
+    /// A connection that `asks` is attached.
+    pub(super) asking: bool,
+    /// How long a question stays open unanswered.
+    pub(super) question: Duration,
 }
 
 /// What a transition gives the hub: the `machine` events for watchers and the effects to apply.
@@ -44,7 +48,7 @@ impl Machines {
         Self {
             revision: Count::new(0).expect("zero is a count"),
             entries: Vec::new(),
-            carriers: 0,
+            serials: Serials::default(),
         }
     }
 
@@ -79,7 +83,7 @@ impl Machines {
         let machines = Self {
             revision,
             entries,
-            carriers: 0,
+            serials: Serials::default(),
         };
         machines
             .catalog()
@@ -135,6 +139,13 @@ impl Machines {
             .map(Machine::id)
     }
 
+    /// The Machine whose running login episode is `login`.
+    pub(super) fn login_owner(&self, login: Id) -> Option<&Machine> {
+        self.entries
+            .iter()
+            .find(|machine| machine.login() == Some(login))
+    }
+
     /// When the earliest timed transition of any Machine is due.
     pub(super) fn next_wake(&self) -> Option<Instant> {
         self.entries.iter().filter_map(Machine::next_wake).min()
@@ -151,7 +162,7 @@ impl Machines {
         if let Some(machine) = self.entries.iter_mut().find(|machine| machine.id() == id) {
             step(
                 machine,
-                &mut self.carriers,
+                &mut self.serials,
                 conditions,
                 &mut outcome,
                 transition,
@@ -170,7 +181,7 @@ impl Machines {
         for machine in &mut self.entries {
             step(
                 machine,
-                &mut self.carriers,
+                &mut self.serials,
                 conditions,
                 &mut outcome,
                 &mut transition,
@@ -210,7 +221,7 @@ impl Machines {
                     let kind = incoming.into_kind();
                     step(
                         &mut machine,
-                        &mut self.carriers,
+                        &mut self.serials,
                         conditions,
                         &mut outcome,
                         |machine, cx| machine.reconcile(kind, cx),
@@ -219,7 +230,7 @@ impl Machines {
                 }
                 None => {
                     let mut machine = incoming;
-                    let mut cx = context(conditions, &mut self.carriers);
+                    let mut cx = context(conditions, &mut self.serials);
                     outcome.effects.extend(machine.arrived(&mut cx));
                     outcome.events.push(machine.event());
                     self.entries.push(machine);
@@ -232,20 +243,13 @@ impl Machines {
         }
         outcome
     }
-
-    /// The connection `peer` closed: its requests wait no longer.
-    pub(super) fn forget(&mut self, peer: u64) {
-        for machine in &mut self.entries {
-            machine.forget(peer);
-        }
-    }
 }
 
 /// Applies `transition` to `machine` and records its effects and, when it reads differently, its
 /// `machine` event.
 fn step(
     machine: &mut Machine,
-    carriers: &mut u64,
+    serials: &mut Serials,
     conditions: Conditions,
     outcome: &mut Outcome,
     transition: impl FnOnce(&mut Machine, &mut Context<'_>) -> Vec<Effect>,
@@ -253,18 +257,20 @@ fn step(
     let before = machine.event();
     outcome
         .effects
-        .extend(transition(machine, &mut context(conditions, carriers)));
+        .extend(transition(machine, &mut context(conditions, serials)));
     let after = machine.event();
     if after != before {
         outcome.events.push(after);
     }
 }
 
-fn context(conditions: Conditions, carriers: &mut u64) -> Context<'_> {
+fn context(conditions: Conditions, serials: &mut Serials) -> Context<'_> {
     Context {
         now: conditions.now,
         presence: conditions.presence,
         closing: conditions.closing,
-        carriers,
+        asking: conditions.asking,
+        question: conditions.question,
+        serials,
     }
 }

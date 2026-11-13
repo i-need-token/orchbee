@@ -11,6 +11,8 @@ const SHARED: [&str; 3] = ["ORCHBEE_HOME", "ORCHBEE_INSTALL_DIR", "ORCHBEE_CONFI
 const RUNTIME_BASE: &str = "ORCHBEE_RUNTIME_BASE";
 /// The development and test expiry override, in milliseconds.
 const EXPIRY_OVERRIDE: &str = "ORCHBEE_MACHINE_HUB_EXPIRY_MS";
+/// The development and test override of a question's bound, in milliseconds.
+const QUESTION_OVERRIDE: &str = "ORCHBEE_MACHINE_HUB_QUESTION_MS";
 /// The development and test program that replaces `ssh` and its launch line.
 const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
 /// Describe the terminal the client ran in, which a carrier child does not run in.
@@ -41,7 +43,7 @@ pub(super) enum StandIn {
 impl Environment {
     /// The view the hub keeps of this process's environment: every variable outside Orchbee's,
     /// the three that select shared folders, the runtime base when it applies to this build, and
-    /// the expiry override and the `ssh` stand-in in a development or test build. Names compare
+    /// the expiry and question overrides and the `ssh` stand-in in a development or test build. Names compare
     /// without letter case; a variable that is not valid Unicode is left out.
     pub(super) fn take() -> Self {
         let variables = std::env::vars_os()
@@ -60,7 +62,8 @@ impl Environment {
                 !name.starts_with(PREFIX)
                     || SHARED.contains(&name.as_str())
                     || (name == RUNTIME_BASE && applies)
-                    || (!release && (name == EXPIRY_OVERRIDE || name == STAND_IN))
+                    || (!release
+                        && [EXPIRY_OVERRIDE, QUESTION_OVERRIDE, STAND_IN].contains(&name.as_str()))
             })
             .collect();
         Self { variables }
@@ -81,6 +84,19 @@ impl Environment {
             .parse::<u64>()
             .ok()
             .filter(|milliseconds| (1_000..=600_000).contains(milliseconds))
+            .map(Duration::from_millis)
+    }
+
+    /// The development or test bound of a question, from 1,000 to 120,000 ms; a release has none.
+    pub(super) fn question(&self) -> Option<Duration> {
+        if orchbee_local_runtime::is_release() {
+            return None;
+        }
+        self.get(QUESTION_OVERRIDE)?
+            .to_str()?
+            .parse::<u64>()
+            .ok()
+            .filter(|milliseconds| (1_000..=120_000).contains(milliseconds))
             .map(Duration::from_millis)
     }
 

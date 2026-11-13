@@ -161,14 +161,36 @@ fn probe_names() -> (Vec<String>, Vec<String>) {
         )
     }
 }
-/// Every `ssh` Orchbee starts: batch mode, strict host keys that `ssh` never rewrites in
-/// `known_hosts` by itself, no forwarding, no multiplexing and no askpass.
+/// The `ssh` of `machine add`'s preparation: batch mode, strict host keys that `ssh` never
+/// rewrites in `known_hosts` by itself, no forwarding, no multiplexing and no askpass.
 pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {
+    let mut command = with_options(
+        ssh,
+        target,
+        remote,
+        ["BatchMode=yes", "StrictHostKeyChecking=yes"],
+    );
+    command
+        .env_remove("SSH_ASKPASS")
+        .env("SSH_ASKPASS_REQUIRE", "never");
+    command
+}
+/// The machine hub's carrier `ssh`: as [`command`], but without batch mode and with
+/// `StrictHostKeyChecking=ask`, so `ssh` puts every login question to the askpass program the hub
+/// sets and refuses a changed host key without asking.
+pub fn carrier_command(ssh: &Path, target: &str, remote: &str) -> Command {
+    with_options(
+        ssh,
+        target,
+        remote,
+        ["BatchMode=no", "StrictHostKeyChecking=ask"],
+    )
+}
+/// `ssh` with `policy`, the options every Orchbee `ssh` shares, and `-- <target> <remote>`.
+fn with_options(ssh: &Path, target: &str, remote: &str, policy: [&str; 2]) -> Command {
     let mut command = Command::new(ssh);
     command.arg("-T");
-    for option in [
-        "BatchMode=yes",
-        "StrictHostKeyChecking=yes",
+    for option in policy.into_iter().chain([
         // OpenSSH 8.5 and later otherwise add and remove a host's keys after a login.
         "UpdateHostKeys=no",
         "ConnectionAttempts=1",
@@ -182,13 +204,10 @@ pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {
         "RemoteCommand=none",
         "ControlMaster=no",
         "ControlPath=none",
-    ] {
+    ]) {
         command.args(["-o", option]);
     }
     command.args(["--", target, remote]);
-    command
-        .env_remove("SSH_ASKPASS")
-        .env("SSH_ASKPASS_REQUIRE", "never");
     command
 }
 

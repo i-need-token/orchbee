@@ -10,15 +10,18 @@
 //! Through the `ssh` stand-in, the Client under test run as the far end against a real scratch
 //! Session, `machine connect` brings a Machine online over one carrier child, which reconnects after
 //! it is killed and ends with `machine disconnect` and with the hub; a child receives no `ORCHBEE_*`
-//! or terminal variable; and a far end that closes at once is the Machine's state. Routed commands
-//! start the hub, connect the Machine and share its one carrier, answer as the far Session does, and
-//! end with a definite failure when the carrier ends under them; a routed path operand is resolved
-//! by the far business process against the far home; a Session stream through the hub
-//! carries bytes both ways, its client leaving keeps the hub and the Machine, and `stop-session`
-//! stops the far Session through the link. Every hub runs a stand-in, so no test starts `ssh` or
-//! names a reachable machine.
+//! or terminal variable but the askpass settings; and a far end that closes at once is the
+//! Machine's state. Routed commands start the hub, connect the Machine and share its one carrier,
+//! answer as the far Session does, and end with a definite failure when the carrier ends under
+//! them; a routed path operand is resolved by the far business process against the far home; a
+//! Session stream through the hub carries bytes both ways, its client leaving keeps the hub and the
+//! Machine, and `stop-session` stops the far Session through the link. Through a fake `ssh` that asks its questions through the
+//! askpass helper, `questions` covers the login episode and the answer path. Every hub runs a
+//! stand-in, so no test starts `ssh` or names a reachable machine.
 #![cfg(windows)]
 
+#[path = "cli_windows_machine_hub/questions.rs"]
+mod questions;
 #[allow(dead_code)]
 #[path = "support/windows_tui_session.rs"]
 mod session;
@@ -736,7 +739,7 @@ fn removing_a_connected_machine_ends_its_carrier_in_the_running_hub() {
 }
 
 #[test]
-fn a_carrier_child_receives_no_orchbee_or_terminal_variable() {
+fn a_carrier_child_receives_no_orchbee_or_terminal_variable_but_the_askpass_settings() {
     let carried = Carried::new("mh4-environment-", true);
     // The client that starts the hub carries every excluded kind: the runtime base and the two hub
     // variables the hub's view keeps, an `ORCHBEE_*` variable it drops, and the terminal's own.
@@ -761,11 +764,21 @@ fn a_carrier_child_receives_no_orchbee_or_terminal_variable() {
         .collect();
     assert!(names.iter().any(|name| name.eq_ignore_ascii_case("PATH")));
     assert!(names.contains(&"MH4_CARRIER_MARK"), "other variables pass");
+    // The askpass settings make this program the only way a question reaches anyone.
+    for name in [
+        "SSH_ASKPASS",
+        "SSH_ASKPASS_REQUIRE",
+        "DISPLAY",
+        "ORCHBEE_MACHINE_ASKPASS",
+    ] {
+        assert!(names.contains(&name), "the child lacks {name}");
+    }
     let excluded: Vec<&&str> = names
         .iter()
         .filter(|name| {
             let name = name.to_ascii_uppercase();
-            name.starts_with("ORCHBEE_") || TERMINAL.contains(&name.as_str())
+            (name.starts_with("ORCHBEE_") && name != "ORCHBEE_MACHINE_ASKPASS")
+                || TERMINAL.contains(&name.as_str())
         })
         .collect();
     assert!(excluded.is_empty(), "the child received {excluded:?}");
@@ -1097,6 +1110,8 @@ struct Carried {
     fixture: session::Fixture,
     root: DataRoot,
     stand_in: PathBuf,
+    /// Variables every command of this test sets, so a hub one starts carries them in its view.
+    variables: Vec<(&'static str, OsString)>,
 }
 
 impl Carried {
@@ -1137,6 +1152,7 @@ impl Carried {
             fixture,
             root,
             stand_in,
+            variables: Vec::new(),
         }
     }
 
@@ -1160,7 +1176,8 @@ impl Carried {
         let mut command = self.fixture.command(words);
         command
             .env(STAND_IN, &self.stand_in)
-            .env("ORCHBEE_MACHINE_HUB_EXPIRY_MS", "120000");
+            .env("ORCHBEE_MACHINE_HUB_EXPIRY_MS", "120000")
+            .envs(self.variables.iter().map(|(name, value)| (name, value)));
         command
     }
 
@@ -1217,8 +1234,15 @@ impl Carried {
 
 impl Drop for Carried {
     fn drop(&mut self) {
-        // The hub runs from the fixture's cohort and the far Session lives in its root, so both end
-        // before the fixture stops its own Sessions and removes the root.
+        self.quiesce();
+    }
+}
+
+impl Carried {
+    /// Ends the hub and the far Session. The hub runs from the fixture's cohort and the far Session
+    /// lives in its root, so both end before the fixture stops its own Sessions and removes the
+    /// root.
+    fn quiesce(&self) {
         let endpoint = self.endpoint();
         if orchbee_local_ipc::endpoint_exists(&endpoint).unwrap_or(false)
             && let Ok(AcceptorMessage::QueryResult(result)) = request(&endpoint, RequestKind::Query)

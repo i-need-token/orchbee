@@ -7,12 +7,13 @@ answer: `machine-link`, from the remote-machine hub to the remote helper, and `m
 client to the hub. The language-neutral contract and its fixtures live under
 [`schemas/machine`](../../schemas/machine/README.md), which is the authority for every byte, member,
 bound, and rule. The crate owns the `OBMX` frame codec, the JSON payload rules, the closed typed
-records of both connections, and one end's channel state machine: channel ids, credit, the request
-and `ping` ledgers, the receiver's verdicts, and the fair sender.
+records of both connections, the answer delivery record `OBMA`, and one end's channel state
+machine: channel ids, credit, the request and `ping` ledgers, the receiver's verdicts, and the fair
+sender.
 
 The crate performs no I/O, starts no thread, and keeps no clock. It does not open a carrier or an
 endpoint, start `ssh`, run the `OBHS` exchange, time out a peer, decide hub policy, relay between
-connections, carry a login answer, or localize an outcome. It builds for every platform the
+connections, hold or copy a login answer, or localize an outcome. It builds for every platform the
 workspace targets.
 
 ## Public API
@@ -31,6 +32,7 @@ workspace targets.
 | `Violation`, `Verdict`                                   | The fixture vocabulary for a receiver's outcome; after a violation the connection sends only `bye` with reason `violation`.                                                                                                             |
 | `INITIAL_CREDIT`, `MAXIMUM_CREDIT`, and the other bounds | The contract's numeric bounds, for carriers and tests that size buffers by them.                                                                                                                                                        |
 | `Extensions`                                             | The open `extensions` member, shared with `orchbee-connection-handshake`.                                                                                                                                                               |
+| `encode_answer`, `decode_answer_header`, `wipe`          | Write an `OBMA` record into a buffer the caller sized, read a header for the expected token with a full-length comparison, and zero a buffer that held an answer; the caller owns every answer byte and wipes it.                       |
 
 The JSON payload rules reuse `parse_strict_object` from `orchbee-connection-handshake` and add the
 encoding-layer refusal of `null` and of any number that is not a non-negative integer outside the

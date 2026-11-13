@@ -1,5 +1,7 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
 use crate::cli_text::CliText;
+#[cfg(any(windows, test))]
+pub(crate) mod askpass;
 mod connect;
 pub(crate) mod hub;
 pub(crate) mod link;
@@ -220,7 +222,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         remote: Remote::NotContacted,
         remote_version: None,
     };
-    let mut error = execute(command, &mut context, &mut report).err();
+    let mut error = execute(command, &mut context, &mut report, locale).err();
     let mut finalization = None;
     let interrupted = match context.signals.finish() {
         Ok(Finish::Clear) => matches!(error, Some(Error::Cancelled)),
@@ -248,6 +250,7 @@ fn execute(
     command: &MachineCommand,
     context: &mut Context,
     report: &mut Report,
+    locale: Locale,
 ) -> Result<(), Error> {
     context.check()?;
     if matches!(command, MachineCommand::NotYetAvailable(_)) {
@@ -291,7 +294,7 @@ fn execute(
             });
         }
         MachineCommand::Connect(machine) => {
-            return connect::connect(&store, machine, context, report);
+            return connect::connect(&store, machine, context, report, locale);
         }
         MachineCommand::Disconnect(machine) => {
             return connect::disconnect(&store, machine, context, report);

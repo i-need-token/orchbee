@@ -2,12 +2,13 @@
 //! under the connection's own lock and answers a request under the hub state's lock and then the
 //! connection's, and its writer, which writes whole frames, up to a batch at a time, until `bye` or
 //! the connection's end. A frame wakes only its own connection's threads. A `connect` that has to
-//! wait is answered later by its Machine's transition, and a `stop-session` by its run.
+//! wait is answered later by its Machine's transition, and a `stop-session` by its run; `claim` and
+//! `dismiss` go to the Machine whose login episode they name.
 
 use super::super::shared_carrier::frames;
 use super::{
     catalog::Machines,
-    machine::Waiter,
+    machine::{Answers, Waiter},
     state::{Hub, Line, Shared},
     stop,
 };
@@ -16,7 +17,7 @@ use orchbee_machine_protocol::{
     Delivery, FrameDecoder, Id, Message,
     hub::{
         AttachOutcome, ClaimOutcome, Connect, ConnectFailure, ConnectOutcome, ConnectResult,
-        DisconnectOutcome, DismissOutcome, MachineState, ReloadOutcome, Reply, Request,
+        DisconnectOutcome, DismissOutcome, MachineState, Origin, ReloadOutcome, Reply, Request,
         StopSessionOutcome,
     },
 };
@@ -226,6 +227,7 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             let dropped = !attach.presence && peer.presence;
             let watching = attach.watch && !peer.watch;
             peer.presence = attach.presence;
+            peer.asks = attach.asks;
             peer.watch = attach.watch;
             let changed = if gained {
                 hub.lifetime.attach()
@@ -262,7 +264,16 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             Some(reply) => Some(reply),
             None if connect.draft.is_some() => None,
             None => {
-                let waiter = Waiter { peer: id, request };
+                let answers = match connect.origin {
+                    Origin::User => Answers::User,
+                    Origin::Command { answers: true } => Answers::Command,
+                    Origin::Command { answers: false } => Answers::Never,
+                };
+                let waiter = Waiter {
+                    peer: id,
+                    request,
+                    answers,
+                };
                 hub.machine(&connect.machine, |machine, cx| machine.connect(waiter, cx));
                 return;
             }
@@ -277,16 +288,28 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             hub.machine(&machine, |machine, _| machine.disconnect());
             Some(Reply::Disconnect(DisconnectOutcome::Disconnected))
         }
-        Request::Claim { .. } => Some(Reply::Claim(if closing {
-            ClaimOutcome::Stopping
-        } else {
-            ClaimOutcome::Ended
-        })),
-        Request::Dismiss { .. } => Some(Reply::Dismiss(if closing {
-            DismissOutcome::Stopping
-        } else {
-            DismissOutcome::Ended
-        })),
+        Request::Claim { .. } if closing => Some(Reply::Claim(ClaimOutcome::Stopping)),
+        Request::Claim { login } => Some(Reply::Claim(
+            hub.machines
+                .login_owner(login)
+                .map_or(ClaimOutcome::Ended, |machine| machine.claim(id, login)),
+        )),
+        Request::Dismiss { .. } if closing => Some(Reply::Dismiss(DismissOutcome::Stopping)),
+        Request::Dismiss { login } => {
+            let mut outcome = DismissOutcome::Ended;
+            if let Some(machine) = hub
+                .machines
+                .login_owner(login)
+                .map(|machine| machine.id().clone())
+            {
+                hub.machine(&machine, |machine, cx| {
+                    let (dismissed, effects) = machine.dismiss(id, login, cx);
+                    outcome = dismissed;
+                    effects
+                });
+            }
+            Some(Reply::Dismiss(outcome))
+        }
         // `deliver` hands `reload` and `stop-session` to their own paths.
         Request::Reload => Some(Reply::Reload(ReloadOutcome::Stopping)),
         Request::StopSession { .. } => Some(Reply::StopSession(StopSessionOutcome::Stopping)),

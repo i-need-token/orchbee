@@ -166,9 +166,14 @@ terminal identity. A bare ID that selects different resources across both kinds 
   target name is `orchbee`, are guarded; their destructive admission in
   `apps/orchbee/src/cli/destructive_request.rs` enforces it.
 - Commands never prompt on standard input or read the terminal. The exceptions are the release
-  confirmation above and a command whose grammar authority declares it interactive setup, such as
-  installation or trust review; that command must accept `--yes` for non-interactive use and must
-  refuse, not guess, when `--yes` is absent and no interactive terminal exists.
+  confirmation above, a command whose grammar authority declares it interactive setup, such as
+  installation or trust review, and a sign-in question its owning guide declares. Interactive setup
+  must accept `--yes` for non-interactive use and must refuse, not guess, when `--yes` is absent and
+  no interactive terminal exists. A sign-in question is asked only when standard input and standard
+  error are both interactive consoles, reads a secret without echo, ends the attempt definitely on
+  an empty answer or an interrupt and restores the console, and without two consoles is never asked,
+  so the command fails as it would with nobody to answer; Orchbee's `machine connect` is the one
+  such command.
 - A mutation that may take longer than its deadline declares `--detach`; the invocation then
   returns the request identity for a later `get` or `wait` instead of blocking.
 

@@ -1,7 +1,74 @@
 //! Saved-machine CLI help and result messages; native picker text stays with its surface. Raw
-//! OpenSSH diagnostics never reach this copy; they only classify a failure.
+//! OpenSSH diagnostics never reach this copy; they only classify a failure, except the prompt of a
+//! question `machine connect` shows verbatim, escaped, because only `ssh` knows what it asks.
 use super::Locale;
+
+/// What a login question `machine connect` puts on the console asks.
+#[cfg(windows)]
+pub(crate) enum MachineQuestion<'a> {
+    Password,
+    KeyPassphrase,
+    /// Whether to trust a new host, with its offered key.
+    HostKey {
+        algorithm: &'a str,
+        fingerprint: &'a str,
+    },
+    /// Anything else, with `ssh`'s own prompt.
+    Other {
+        prompt: &'a str,
+    },
+}
+
 impl super::CliText {
+    /// The one line `machine connect` writes on standard error before it reads an answer for the
+    /// machine whose `ssh` target is `target`; `repeated` says `ssh` refused the previous answer of
+    /// this kind.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_question(
+        self,
+        target: &str,
+        question: &MachineQuestion<'_>,
+        repeated: bool,
+    ) -> String {
+        let target = super::escape::escape(target);
+        let refused = match (self.locale, repeated) {
+            (_, false) => "",
+            (Locale::EnUs, true) => "Not accepted. ",
+            (Locale::ZhCn, true) => "未被接受。",
+        };
+        let asked = match (self.locale, question) {
+            (Locale::EnUs, MachineQuestion::Password) => format!("Password for {target}: "),
+            (Locale::ZhCn, MachineQuestion::Password) => format!("{target} 的密码："),
+            (Locale::EnUs, MachineQuestion::KeyPassphrase) => {
+                format!("Key passphrase for {target}: ")
+            }
+            (Locale::ZhCn, MachineQuestion::KeyPassphrase) => format!("{target} 的密钥口令："),
+            (
+                Locale::EnUs,
+                MachineQuestion::HostKey {
+                    algorithm,
+                    fingerprint,
+                },
+            ) => {
+                format!("New host {target}, {algorithm} key {fingerprint}. Type yes to trust it: ")
+            }
+            (
+                Locale::ZhCn,
+                MachineQuestion::HostKey {
+                    algorithm,
+                    fingerprint,
+                },
+            ) => format!("新主机 {target}，{algorithm} 密钥 {fingerprint}。输入 yes 以信任："),
+            (Locale::EnUs, MachineQuestion::Other { prompt }) => {
+                format!("{target}: {} ", super::escape::escape(prompt.trim()))
+            }
+            (Locale::ZhCn, MachineQuestion::Other { prompt }) => {
+                format!("{target}：{} ", super::escape::escape(prompt.trim()))
+            }
+        };
+        format!("{refused}{asked}")
+    }
+
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
         match (self.locale, unknown) {
             (Locale::EnUs, false) => "Remote command was not submitted.",
@@ -87,8 +154,8 @@ impl super::CliText {
             ),
             C::MachineConnect => (
                 "orchbee machine connect <id|label> [--remember] [--format text|json]",
-                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not, such as a sign-in that needs an answer. The connection stays after the command ends. '--remember' is not available yet.",
-                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因，例如登录需要回答问题。命令结束后连接仍保持。‘--remember’ 暂不可用。",
+                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. Run in a terminal, it asks the sign-in questions OpenSSH puts, such as a password or whether to trust a new host; an empty answer or Ctrl+C ends the attempt. Elsewhere a sign-in that needs an answer ends the command. The connection stays after the command ends. '--remember' is not available yet.",
+                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。在终端中运行时，它会提出 OpenSSH 的登录问题，例如密码或是否信任新主机；空回答或 Ctrl+C 结束本次尝试。在其他环境中，需要回答的登录会结束命令。命令结束后连接仍保持。‘--remember’ 暂不可用。",
             ),
             C::MachineDisconnect => (
                 "orchbee machine disconnect <id|label> [--format text|json]",
@@ -231,15 +298,21 @@ impl super::CliText {
                 "无法连接这台机器：名称无法解析、连接被拒绝或未及时响应。"
             }
             (Locale::EnUs, "auth-required") => {
-                "Signing in to this machine needs an answer, such as a password or trusting its host key. This version cannot ask it yet; set up key sign-in and trust the host with OpenSSH first."
+                "Signing in to this machine needs an answer, such as a password, and none was given. Run 'orchbee machine connect' in a terminal to answer."
             }
             (Locale::ZhCn, "auth-required") => {
-                "登录这台机器需要回答问题，例如密码或信任主机密钥。此版本暂不能询问；请先用 OpenSSH 配置密钥登录并信任主机。"
+                "登录这台机器需要回答问题，例如密码，但没有得到回答。请在终端中运行 ‘orchbee machine connect’ 来回答。"
             }
-            (Locale::EnUs, "auth-failed") => "The machine refused the SSH key.",
-            (Locale::ZhCn, "auth-failed") => "这台机器拒绝了 SSH 密钥。",
-            (Locale::EnUs, "host-untrusted") => "The machine's host key is not trusted yet.",
-            (Locale::ZhCn, "host-untrusted") => "这台机器的主机密钥尚未被信任。",
+            (Locale::EnUs, "auth-failed") => {
+                "The machine refused the sign-in: the SSH key, or the answers given."
+            }
+            (Locale::ZhCn, "auth-failed") => "这台机器拒绝了登录：SSH 密钥或所给的回答有误。",
+            (Locale::EnUs, "host-untrusted") => {
+                "The machine's host key is not trusted yet. Run 'orchbee machine connect' in a terminal to check and trust it."
+            }
+            (Locale::ZhCn, "host-untrusted") => {
+                "这台机器的主机密钥尚未被信任。请在终端中运行 ‘orchbee machine connect’ 核对并信任。"
+            }
             (Locale::EnUs, "host-key-changed") => {
                 "The machine's host key differs from the trusted one. Check the machine before you trust the new key."
             }

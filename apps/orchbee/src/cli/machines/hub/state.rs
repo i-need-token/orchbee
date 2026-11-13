@@ -1,6 +1,6 @@
 //! The hub's state under its lock: the lifetime, the catalog with each carried Machine, the
-//! carriers, the registry of attached connections, the relay table, the `stop-session` runs, and
-//! the counts admission and closing wait on.
+//! carriers, the registry of attached connections, the open askpass helpers, the relay table, the
+//! `stop-session` runs, and the counts admission and closing wait on.
 //! Each connection's and each link's protocol state machine lives under its own lock. Lock order:
 //! the hub state's lock before a connection's or a link's; a thread holding one of those takes no
 //! other, and none is held across I/O.
@@ -19,7 +19,7 @@ use orchbee_machine_protocol::{
     Connection, MachineId,
     hub::{self, ConnectOutcome, Event, Reply},
 };
-use std::{collections::BTreeMap, net::Shutdown, sync::Arc};
+use std::{collections::BTreeMap, net::Shutdown, sync::Arc, time::Duration};
 
 /// The hub state under its lock, and the signal that wakes the supervisor and closing.
 pub(super) type Shared = super::super::shared_carrier::Shared<Hub>;
@@ -45,6 +45,13 @@ pub(super) struct Hub {
     pub(super) carriers: BTreeMap<u64, Handle>,
     /// Carriers whose owners the supervisor starts next, outside the lock.
     pub(super) starting: Vec<(u64, Route)>,
+    /// The open askpass helper of each carrier that has one, under its registration number.
+    askers: BTreeMap<u64, (u64, LocalStream)>,
+    next_asker: u64,
+    /// Helper connections being served.
+    pub(super) helpers: usize,
+    /// How long a question stays open unanswered.
+    question: Duration,
     /// Every channel relayed to a link, a `stop-session` run's current exchange among them.
     pub(super) relays: Relays,
     /// Every `stop-session` run until its outcome.
@@ -63,6 +70,8 @@ pub(super) struct Peer {
     pub(super) line: Arc<Line>,
     stream: LocalStream,
     pub(super) presence: bool,
+    /// The connection shows login questions.
+    pub(super) asks: bool,
     pub(super) watch: bool,
     pub(super) writer_done: bool,
     /// The reader and the writer that still run.
@@ -78,7 +87,12 @@ pub(super) struct Wire {
 }
 
 impl Hub {
-    pub(super) fn new(root: DataRoot, lifetime: Lifetime, machines: Machines) -> Self {
+    pub(super) fn new(
+        root: DataRoot,
+        lifetime: Lifetime,
+        machines: Machines,
+        question: Duration,
+    ) -> Self {
         Self {
             root,
             lifetime,
@@ -87,6 +101,10 @@ impl Hub {
             next_peer: 0,
             carriers: BTreeMap::new(),
             starting: Vec::new(),
+            askers: BTreeMap::new(),
+            next_asker: 0,
+            helpers: 0,
+            question,
             relays: Relays::default(),
             stops: Stops::default(),
             controls: 0,
@@ -110,6 +128,7 @@ impl Hub {
                 line: line.clone(),
                 stream,
                 presence: false,
+                asks: false,
                 watch: false,
                 writer_done: false,
                 threads: 2,
@@ -125,13 +144,15 @@ impl Hub {
             return;
         };
         let held = std::mem::take(&mut peer.presence);
+        peer.asks = false;
         peer.line.lock().open = false;
         peer.line.wake();
         let _closed = peer.stream.shutdown(Shutdown::Both);
         if held {
             self.lifetime.detach();
         }
-        self.machines.forget(id);
+        // An episode the connection claimed ends with its attempt.
+        self.machines(|machine, cx| machine.forget(id, cx));
         self.peer_left(id);
     }
 
@@ -193,6 +214,30 @@ impl Hub {
             now: Moment::now(),
             presence: self.peers.values().any(|peer| peer.presence),
             closing: self.lifetime.is_closing(),
+            asking: self.peers.values().any(|peer| peer.asks),
+            question: self.question,
+        }
+    }
+
+    /// Registers the open askpass helper of `carrier`; its registration number, or `None` while the
+    /// carrier has one.
+    pub(super) fn admit_asker(&mut self, carrier: u64, stream: LocalStream) -> Option<u64> {
+        if self.askers.contains_key(&carrier) {
+            return None;
+        }
+        self.next_asker += 1;
+        self.askers.insert(carrier, (self.next_asker, stream));
+        Some(self.next_asker)
+    }
+
+    /// Forgets the helper `serial` of `carrier`; false when the hub already closed it.
+    pub(super) fn release_asker(&mut self, carrier: u64, serial: u64) -> bool {
+        match self.askers.get(&carrier) {
+            Some((registered, _)) if *registered == serial => {
+                self.askers.remove(&carrier);
+                true
+            }
+            _ => false,
         }
     }
 
@@ -270,6 +315,21 @@ impl Hub {
             Effect::Ping { carrier } => {
                 if let Some(handle) = self.carriers.get(&carrier) {
                     handle.ping();
+                }
+            }
+            Effect::Notify { peer, event } => {
+                if let Some(peer) = self.peers.get(&peer) {
+                    let mut wire = peer.line.lock();
+                    if wire.open {
+                        let _queued = wire.connection.event(event);
+                        drop(wire);
+                        peer.line.wake();
+                    }
+                }
+            }
+            Effect::Close { carrier } => {
+                if let Some((_, stream)) = self.askers.remove(&carrier) {
+                    let _closed = stream.shutdown(Shutdown::Both);
                 }
             }
             Effect::Reply { waiters, result } => {

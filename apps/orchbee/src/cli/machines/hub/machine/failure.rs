@@ -2,10 +2,14 @@
 //! state and `connect` outcome each result gives. `docs/machines.md#how-a-carrier-end-reads` owns
 //! the table; OpenSSH exits 255 for every failure, so only its standard error tells them apart.
 
+use crate::cli::machines::askpass::question::changed_key;
 use orchbee_connection_handshake::RejectionReason;
-use orchbee_machine_protocol::hub::{
-    ConnectFailure, LoginFailedCause, MachineState, NeedsLoginCause, NeedsUpdateCause,
-    OfflineCause, ReconnectCause, UnsupportedCause,
+use orchbee_machine_protocol::{
+    HostKey,
+    hub::{
+        ConnectFailure, LoginFailedCause, MachineState, NeedsLoginCause, NeedsUpdateCause,
+        OfflineCause, ReconnectCause, UnsupportedCause,
+    },
 };
 use orchbee_workbench_client::application::machine_ssh::PROGRAM_NOT_FOUND;
 
@@ -23,14 +27,17 @@ pub(in super::super) enum End {
 }
 
 /// The result of an attempt that did not reach `online`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(in super::super) enum Failure {
     /// Transient: a hub that keeps the Machine retries by itself.
     Offline(OfflineCause),
-    /// A person must answer a question this build refuses to ask.
+    /// A person must answer a question and nobody did.
     NeedsLogin,
     LoginFailed(LoginFailedCause),
-    KeyChanged,
+    /// A first-time host key nobody confirmed.
+    Untrusted(HostKey),
+    /// The host key changed; the offered key when `ssh` printed it.
+    KeyChanged(Option<HostKey>),
     NotInstalled,
     Unsupported(UnsupportedCause),
     NeedsUpdate(NeedsUpdateCause),
@@ -40,35 +47,46 @@ pub(in super::super) enum Failure {
 
 impl Failure {
     /// The cause of a transient failure; none for a permanent one.
-    pub(super) const fn transient(self) -> Option<OfflineCause> {
+    pub(super) const fn transient(&self) -> Option<OfflineCause> {
         match self {
-            Self::Offline(cause) => Some(cause),
+            Self::Offline(cause) => Some(*cause),
             _ => None,
         }
     }
 
     /// The state the Machine reads after this failure, when nothing retries it.
-    pub(super) const fn state(self) -> MachineState {
+    pub(super) fn state(&self) -> MachineState {
         match self {
             Self::Offline(cause) => MachineState::Offline {
-                cause: Some(cause),
+                cause: Some(*cause),
                 next_attempt: None,
             },
             Self::NeedsLogin => MachineState::NeedsLogin {
                 cause: Some(NeedsLoginCause::AuthRequired),
             },
-            Self::LoginFailed(cause) => MachineState::LoginFailed { cause: Some(cause) },
-            Self::KeyChanged => MachineState::KeyChanged { host_key: None },
+            Self::LoginFailed(cause) => MachineState::LoginFailed {
+                cause: Some(*cause),
+            },
+            Self::Untrusted(host_key) => MachineState::Untrusted {
+                host_key: host_key.clone(),
+            },
+            Self::KeyChanged(host_key) => MachineState::KeyChanged {
+                host_key: host_key.clone(),
+            },
             Self::NotInstalled => MachineState::NotInstalled,
-            Self::Unsupported(cause) => MachineState::Unsupported { cause: Some(cause) },
-            Self::NeedsUpdate(cause) => MachineState::NeedsUpdate { cause: Some(cause) },
+            Self::Unsupported(cause) => MachineState::Unsupported {
+                cause: Some(*cause),
+            },
+            Self::NeedsUpdate(cause) => MachineState::NeedsUpdate {
+                cause: Some(*cause),
+            },
             Self::LocalNeedsUpdate => MachineState::LocalNeedsUpdate,
             Self::Incompatible => MachineState::Incompatible,
         }
     }
 
     /// The `connect` outcome the state table gives this result.
-    pub(super) const fn outcome(self) -> ConnectFailure {
+    pub(super) const fn outcome(&self) -> ConnectFailure {
         match self {
             Self::Offline(cause) => match cause {
                 OfflineCause::HostUnreachable
@@ -82,7 +100,8 @@ impl Failure {
             },
             Self::NeedsLogin => ConnectFailure::AuthRequired,
             Self::LoginFailed(_) => ConnectFailure::AuthFailed,
-            Self::KeyChanged => ConnectFailure::HostKeyChanged,
+            Self::Untrusted(_) => ConnectFailure::HostUntrusted,
+            Self::KeyChanged(_) => ConnectFailure::HostKeyChanged,
             Self::NotInstalled => ConnectFailure::RemoteNotInstalled,
             Self::Unsupported(UnsupportedCause::RemotePlatform) => {
                 ConnectFailure::RemoteUnsupported
@@ -121,7 +140,12 @@ pub(in super::super) fn classify(end: &End) -> Failure {
     };
     match code {
         Some(PROGRAM_NOT_FOUND) => Failure::NotInstalled,
-        Some(SSH_FAILED) => ssh_failure(&String::from_utf8_lossy(stderr).to_ascii_lowercase()),
+        Some(SSH_FAILED) => {
+            match ssh_failure(&String::from_utf8_lossy(stderr).to_ascii_lowercase()) {
+                Failure::KeyChanged(_) => Failure::KeyChanged(changed_key(stderr)),
+                failure => failure,
+            }
+        }
         _ => Failure::Offline(OfflineCause::RemoteProtocol),
     }
 }
@@ -130,7 +154,7 @@ pub(in super::super) fn classify(end: &End) -> Failure {
 fn ssh_failure(text: &str) -> Failure {
     let any = |phrases: &[&str]| phrases.iter().any(|phrase| text.contains(phrase));
     if text.contains("remote host identification has changed") {
-        Failure::KeyChanged
+        Failure::KeyChanged(None)
     } else if text.contains("host key verification failed") {
         Failure::NeedsLogin
     } else if let Some(at) = text.find("permission denied") {

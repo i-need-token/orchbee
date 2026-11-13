@@ -96,6 +96,11 @@ fn opens_data_root(request: &invocation::Request) -> bool {
 }
 
 fn main() -> ExitCode {
+    // `ssh` starts the askpass helper with a prompt for its one argument, never a command line.
+    #[cfg(windows)]
+    if let Some(status) = cli::machines::askpass::run_if_selected() {
+        return status;
+    }
     let selected = parse_selected_request(env::args_os().skip(1));
     if let Ok(selected) = &selected
         && let Some(output) = cli::invocation_route::offline_default_config(&selected.request)

@@ -1,15 +1,16 @@
 //! The hub process: the lock before the endpoint, the listener, the admission of each candidate
-//! under the candidate deadline, the supervisor that owns the expiry, the Session reads, each
+//! under the candidate deadline, the askpass endpoint, the supervisor that owns the expiry, the Session reads, each
 //! Machine's timed transitions and the start of each carrier, and the closing that ends with
 //! `bye`, every carrier ended, the endpoint closed and the lock released.
 
 use super::super::shared_carrier::{acceptor_profile, answer, query};
 use super::{
+    askpass,
     carrier::{self, Launch},
     catalog::Machines,
     environment::Environment,
     lifetime::{Lifetime, Moment, ReadDue},
-    peer, relay,
+    machine, peer, relay,
     state::{CANDIDATES, CONTROLS, Hub, Line, PEERS, Shared},
 };
 use orchbee_connection_handshake::{
@@ -35,7 +36,8 @@ use std::{
 
 /// The status after closing, or when another hub holds the lock.
 const CLOSED: u8 = 0;
-/// The status when the hub cannot serve: no data root, no lock, or no endpoint.
+/// The status when the hub cannot serve: no data root, no lock, no endpoint, or no askpass
+/// endpoint.
 const CANNOT_SERVE: u8 = 1;
 /// The expiry, and the bound of the development override.
 const EXPIRY: Duration = Duration::from_secs(600);
@@ -81,8 +83,15 @@ pub(super) fn serve() -> u8 {
     let base = machine_hub::runtime_base(|name| environment.get(name));
     let live = any_live(base.as_deref());
     let lifetime = Lifetime::start(environment.expiry().unwrap_or(EXPIRY), live, Moment::now());
-    let launch = Arc::new(Launch::new(&environment));
-    let shared = Arc::new(Shared::new(Hub::new(root, lifetime, machines)));
+    // Every carrier's `ssh` asks through this endpoint, so none starts without it.
+    let Some((asking, questions)) = askpass::bind() else {
+        return CANNOT_SERVE;
+    };
+    let Some(launch) = Launch::new(&environment, asking).map(Arc::new) else {
+        return CANNOT_SERVE;
+    };
+    let question = environment.question().unwrap_or(machine::QUESTION);
+    let shared = Arc::new(Shared::new(Hub::new(root, lifetime, machines, question)));
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
     let listening = {
@@ -94,11 +103,23 @@ pub(super) fn serve() -> u8 {
     let Ok(listening) = listening else {
         return CANNOT_SERVE;
     };
+    let answering = {
+        let (shared, stop) = (shared.clone(), stop.clone());
+        thread::Builder::new()
+            .name("orchbee-hub-askpass-listener".into())
+            .spawn(move || askpass::listen(&shared, &questions, &stop))
+    };
+    let Ok(answering) = answering else {
+        stop.store(true, Ordering::Release);
+        let _listener_ended = listening.join();
+        return CANNOT_SERVE;
+    };
     supervise(&shared, &launch, base.as_deref());
     close(&shared);
     stop.store(true, Ordering::Release);
     // The endpoint closes before the lock is released, so a successor binds a free name.
     let _listener_ended = listening.join();
+    let _askpass_ended = answering.join();
     drop(lock);
     CLOSED
 }

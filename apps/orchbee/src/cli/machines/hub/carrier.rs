@@ -6,7 +6,10 @@
 //! `data` wait to be written; the writer writes the offer at once and then the link's frames.
 //! `docs/machines.md#the-carrier-child` owns the rules.
 
-use super::super::shared_carrier::frames;
+use super::super::{
+    askpass::{Pairing, TICKET_BYTES, VARIABLE},
+    shared_carrier::frames,
+};
 use super::{
     environment::{Environment, StandIn},
     machine::{End, Failure, Route, refusal},
@@ -48,6 +51,8 @@ const WRITE_BATCH_BYTES: usize = 64 * 1024;
 const ROOT_WAIT: Duration = Duration::from_secs(3600);
 /// The exit status the hub gives a carrier it ends.
 const ENDED_BY_HUB: u32 = 1;
+/// The `DISPLAY` an `ssh` older than 8.4 needs before it runs an askpass program.
+const DISPLAY: &str = "orchbee:0";
 
 /// One link's state under its own lock, and the signal that wakes its writer.
 pub(super) type LinkLine = super::super::shared_carrier::Shared<LinkWire>;
@@ -65,6 +70,9 @@ pub(super) struct LinkWire {
 /// A carrier as the hub state knows it, from its start until its owner reports its end.
 pub(super) struct Handle {
     pub(super) machine: MachineId,
+    /// The ticket its askpass helpers bring; all zeros, which the hub never admits, when no random
+    /// bytes could be drawn.
+    pub(super) ticket: [u8; TICKET_BYTES],
     line: Arc<LinkLine>,
     /// The root process, held to end it; set once the child exists.
     root: Option<CloseHandleGuard<HPROCESS>>,
@@ -73,8 +81,13 @@ pub(super) struct Handle {
 
 impl Handle {
     pub(super) fn new(machine: MachineId) -> Self {
+        let mut ticket = [0; TICKET_BYTES];
+        if getrandom::fill(&mut ticket).is_err() {
+            ticket = [0; TICKET_BYTES];
+        }
         Self {
             machine,
+            ticket,
             line: Arc::new(LinkLine::new(LinkWire {
                 connection: Connection::<Link>::initiator(),
                 open: true,
@@ -132,16 +145,23 @@ impl Handle {
     }
 }
 
-/// How every carrier starts: the program, the child environment, the working folder and the offer.
+/// How every carrier starts: the program, the child environment, the askpass settings, the working
+/// folder and the offer.
 pub(super) struct Launch {
     stand_in: StandIn,
     environment: Vec<(String, String)>,
+    /// This program, which `ssh` runs as its askpass helper.
+    askpass: PathBuf,
+    /// The hub's askpass endpoint.
+    endpoint: String,
     folder: Option<PathBuf>,
     offer: Vec<u8>,
 }
 
 impl Launch {
-    pub(super) fn new(environment: &Environment) -> Self {
+    /// `None` when this program's own path is unknown, since no carrier may start without the
+    /// askpass helper.
+    pub(super) fn new(environment: &Environment, endpoint: String) -> Option<Self> {
         let offer = Offer::local(
             ConnectionKind::MachineLink,
             ProductVersion::new(env!("CARGO_PKG_VERSION"))
@@ -149,17 +169,20 @@ impl Launch {
             Build::default(),
             orchbee_local_runtime::environment_name(),
         );
-        Self {
+        Some(Self {
             stand_in: environment.stand_in(),
             environment: environment.child(),
+            askpass: std::env::current_exe().ok()?,
+            endpoint,
             folder: winsafe::GetSystemDirectory().ok().map(PathBuf::from),
             offer: encode_initiator_frame(&InitiatorMessage::Offer(offer))
                 .expect("this build's offer fits one frame"),
-        }
+        })
     }
 
-    /// The command toward `route`, or the end it reads as when it cannot be built.
-    fn command(&self, route: &Route) -> Result<Command, End> {
+    /// The command toward `route` whose askpass helpers bring `ticket`, or the end it reads as
+    /// when it cannot be built.
+    fn command(&self, route: &Route, ticket: [u8; TICKET_BYTES]) -> Result<Command, End> {
         let mut command = match &self.stand_in {
             StandIn::Program(program) => {
                 let mut command = Command::new(program);
@@ -171,7 +194,7 @@ impl Launch {
                 let ssh = machine_ssh::executable().map_err(|error| End::NotStarted {
                     missing: error.kind() == io::ErrorKind::NotFound,
                 })?;
-                machine_ssh::command(&ssh, &route.target, &machine_ssh::link_program())
+                machine_ssh::carrier_command(&ssh, &route.target, &machine_ssh::link_program())
             }
         };
         // The program's own settings, such as `ssh`'s askpass ones, win over the view.
@@ -187,6 +210,16 @@ impl Launch {
                 None => command.env_remove(name),
             };
         }
+        // The askpass helper is the only way a question reaches anyone; it wins over every view.
+        let pairing = Pairing {
+            endpoint: self.endpoint.clone(),
+            ticket,
+        };
+        command
+            .env("SSH_ASKPASS", &self.askpass)
+            .env("SSH_ASKPASS_REQUIRE", "force")
+            .env("DISPLAY", DISPLAY)
+            .env(VARIABLE, pairing.encode());
         if let Some(folder) = &self.folder {
             command.current_dir(folder);
         }
@@ -210,15 +243,15 @@ pub(super) fn start(shared: &Arc<Shared>, launch: &Arc<Launch>, carrier: u64, ro
 
 /// Runs the carrier until it ends and returns how it ended.
 fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> End {
-    let Some(line) = shared
+    let Some((line, ticket)) = shared
         .lock()
         .carriers
         .get(&carrier)
-        .map(|handle| handle.line.clone())
+        .map(|handle| (handle.line.clone(), handle.ticket))
     else {
         return End::NotStarted { missing: false };
     };
-    let mut command = match launch.command(route) {
+    let mut command = match launch.command(route, ticket) {
         Ok(command) => command,
         Err(end) => return end,
     };
@@ -387,10 +420,7 @@ fn read(shared: &Shared, carrier: u64, line: &LinkLine, mut output: PipeReader) 
         match answer {
             Ok(AcceptorMessage::Answer(answer)) => {
                 let version = answer.product_version;
-                hub.machine_of(carrier, |machine, _| {
-                    machine.answered(carrier, version);
-                    Vec::new()
-                });
+                hub.machine_of(carrier, |machine, _| machine.answered(carrier, version));
                 true
             }
             Ok(AcceptorMessage::Rejection(rejection)) => {

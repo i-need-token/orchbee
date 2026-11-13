@@ -2,10 +2,11 @@
 //! remote-machine hub to the remote helper and `machine-hub` from a client to the hub, after their
 //! `OBHS` answer selects generation 1. The contract in `schemas/machine/README.md` is the
 //! authority; this crate binds it: `OBMX` frames, the JSON payload rules, each connection's
-//! records, and one end's channels, credit, request ledger, and fair sender. It performs no I/O,
-//! starts no thread, and keeps no clock, so carriers, timers, liveness, policy, and relaying stay
-//! with the endpoints that own them.
+//! records, the answer delivery record `OBMA`, and one end's channels, credit, request ledger, and
+//! fair sender. It performs no I/O, starts no thread, and keeps no clock, so carriers, timers,
+//! liveness, policy, and relaying stay with the endpoints that own them.
 
+mod answer;
 mod channel;
 mod frame;
 mod payload;
@@ -13,6 +14,10 @@ mod protocol;
 mod record;
 mod value;
 
+pub use answer::{
+    ANSWER_GENERATION, ANSWER_HEADER_BYTES, ANSWER_MAGIC, ANSWER_TAKEN, AnswerError,
+    MAXIMUM_ANSWER_BYTES, admissible_answer, decode_answer_header, encode_answer, wipe,
+};
 pub use channel::{
     CREDIT_REGRANT_THRESHOLD, Connection, Delivery, INITIAL_CREDIT, MAXIMUM_OPEN_CHANNELS,
     MAXIMUM_UNANSWERED_REQUESTS, Receipt, SendError, Verdict, Violation,

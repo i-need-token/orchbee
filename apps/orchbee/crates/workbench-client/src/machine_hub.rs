@@ -1,14 +1,17 @@
 //! The one client-side owner of the machine hub: attach or start, re-attachment after the hub goes
-//! away, requests and their replies, events, and ending a hub on purpose. The CLI and the TUI reach
+//! away, requests and their replies, events, ending a hub on purpose, and delivering an answer to a
+//! question's own endpoint, which never passes the hub. The CLI and the TUI reach
 //! the hub only through it. `apps/orchbee/docs/machines.md#client-owner` owns the rules, and the
 //! contract in `schemas/machine` owns every byte. Windows only, as the hub is.
 
+mod answer;
 mod attach;
 mod control;
 mod holders;
 mod owner;
 mod sessions;
 
+pub use answer::{DeliveryFailure, deliver};
 pub use control::{EndFailure, HubWatch, end, present, running};
 pub use owner::{
     ChannelDelivery, ChannelFailure, ChannelHandle, HubClient, Notice, OpenCancel, Opening,

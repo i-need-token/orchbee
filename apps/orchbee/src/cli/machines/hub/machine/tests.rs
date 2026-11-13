@@ -1,13 +1,15 @@
 use super::*;
 use orchbee_connection_handshake::RejectionReason;
+use orchbee_machine_protocol::{AnswerToken, HostKey, KeyFingerprint, PathText};
 
-/// The model's clock and the hub's carrier numbers, advanced by hand.
+/// The model's clock and the hub's serials, advanced by hand.
 struct Hub {
     start: Instant,
     after: Duration,
-    carriers: u64,
+    serials: Serials,
     presence: bool,
     closing: bool,
+    asking: bool,
 }
 
 impl Hub {
@@ -15,9 +17,10 @@ impl Hub {
         Self {
             start: Instant::now(),
             after: Duration::ZERO,
-            carriers: 0,
+            serials: Serials::default(),
             presence,
             closing: false,
+            asking: false,
         }
     }
 
@@ -34,7 +37,9 @@ impl Hub {
             },
             presence: self.presence,
             closing: self.closing,
-            carriers: &mut self.carriers,
+            asking: self.asking,
+            question: QUESTION,
+            serials: &mut self.serials,
         }
     }
 }
@@ -67,10 +72,75 @@ fn route(effects: &[Effect]) -> Option<&Route> {
 }
 
 fn waiter(request: u32) -> Waiter {
+    asker(1, request, Answers::Never)
+}
+
+fn asker(peer: u64, request: u32, answers: Answers) -> Waiter {
     Waiter {
-        peer: 1,
+        peer,
         request: Id::new(request).unwrap(),
+        answers,
     }
+}
+
+fn host_key() -> HostKey {
+    HostKey {
+        algorithm: Token::new("ed25519").unwrap(),
+        fingerprint: KeyFingerprint::new("SHA256:0123456789abcdefABCDEF").unwrap(),
+    }
+}
+
+/// A question as the askpass helper raises it.
+fn raised(kind: QuestionKind) -> Raised {
+    Raised {
+        kind,
+        prompt: Prompt::new("user@host.invalid's password: ").unwrap(),
+        answer: AnswerEndpoint {
+            endpoint: PathText::new(r"\\.\pipe\orchbee-answer-1-0").unwrap(),
+            token: AnswerToken::from_bytes([7; 16]),
+        },
+    }
+}
+
+/// The events `effects` send, with their connections, in order.
+fn notified(effects: &[Effect]) -> Vec<(u64, &Event)> {
+    effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Notify { peer, event } => Some((*peer, event)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The question `effects` put to the claimant: its id and whether it repeats a refused kind.
+fn asked(effects: &[Effect]) -> Option<(u32, bool)> {
+    notified(effects)
+        .into_iter()
+        .find_map(|(_, event)| match event {
+            Event::Question(question) => Some((question.question.get(), question.repeated)),
+            _ => None,
+        })
+}
+
+/// The end of the episode the `login` events of `effects` report.
+fn login_end(effects: &[Effect]) -> Option<LoginEnd> {
+    notified(effects)
+        .into_iter()
+        .find_map(|(_, event)| match event {
+            Event::Login(LoginEvent {
+                phase: LoginPhase::Ended { end },
+                ..
+            }) => Some(*end),
+            _ => None,
+        })
+}
+
+/// Whether `effects` end the carrier before they close its helper.
+fn ends_then_closes(effects: &[Effect], carrier: u64) -> bool {
+    let end = effects.iter().position(|e| *e == Effect::End { carrier });
+    let close = effects.iter().position(|e| *e == Effect::Close { carrier });
+    matches!((end, close), (Some(end), Some(close)) if end < close)
 }
 
 fn started(effects: &[Effect]) -> Option<u64> {
@@ -363,7 +433,7 @@ fn an_end_before_the_answer_reads_by_exit_status_and_standard_error() {
             ssh(
                 "@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @\nHost key verification failed.",
             ),
-            Failure::KeyChanged,
+            Failure::KeyChanged(None),
         ),
         (
             ssh("ssh: connect to host host.invalid port 22: Connection refused"),
@@ -384,4 +454,290 @@ fn an_end_before_the_answer_reads_by_exit_status_and_standard_error() {
     for (end, failure) in cases {
         assert_eq!(classify(&end), failure, "{end:?}");
     }
+}
+
+#[test]
+fn a_claimant_receives_each_question_in_order_and_a_refused_answer_is_marked_repeated() {
+    // A `user` request, and a `command` that wants answers while nobody else asks, both claim.
+    for answers in [Answers::User, Answers::Command] {
+        let mut hub = Hub::new(false);
+        let mut machine = machine();
+        let carrier = started(&machine.connect(asker(4, 1, answers), &mut hub.cx())).unwrap();
+        let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+        let kinds: Vec<_> = notified(&effects)
+            .into_iter()
+            .map(|(peer, event)| {
+                assert_eq!(peer, 4);
+                match event {
+                    Event::ConnectWaiting(waiting) => {
+                        assert_eq!(waiting.request.get(), 1);
+                        "connect-waiting"
+                    }
+                    Event::Login(login) => {
+                        assert_eq!(login.trigger, Trigger::User);
+                        assert_eq!(
+                            login.phase,
+                            LoginPhase::Claimed {
+                                claim: Claimant::You
+                            }
+                        );
+                        "login"
+                    }
+                    Event::Question(_) => "question",
+                    other => panic!("{other:?}"),
+                }
+            })
+            .collect();
+        assert_eq!(kinds, ["connect-waiting", "login", "question"]);
+        assert_eq!(asked(&effects), Some((1, false)));
+        assert_eq!(
+            machine.state(),
+            &MachineState::Connecting {
+                stage: Some(Stage::Authenticating)
+            }
+        );
+
+        // One question is open at a time: a second helper is refused.
+        assert_eq!(
+            machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx()),
+            [Effect::Close { carrier }]
+        );
+
+        // `ssh` asking the same kind after its answer was taken means it refused that answer.
+        machine.taken(carrier, &hub.at(Duration::from_secs(5)).cx());
+        let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+        assert_eq!(asked(&effects), Some((2, true)));
+        machine.taken(carrier, &hub.cx());
+        let effects = machine.question(carrier, raised(QuestionKind::KeyPassphrase), &mut hub.cx());
+        assert_eq!(asked(&effects), Some((3, false)));
+        machine.taken(carrier, &hub.cx());
+
+        // `ssh` giving up after taken answers refused them; the hub retries nothing.
+        let effects = machine.ended(
+            carrier,
+            &End::Exited {
+                code: Some(255),
+                stderr: b"user@host.invalid: Permission denied (publickey,password).".to_vec(),
+            },
+            &mut hub.cx(),
+        );
+        assert_eq!(login_end(&effects), Some(LoginEnd::Failed));
+        assert_eq!(
+            replies(&effects),
+            [ConnectOutcome::NotOnline(ConnectFailure::AuthFailed)]
+        );
+        assert_eq!(
+            machine.state(),
+            &MachineState::LoginFailed {
+                cause: Some(LoginFailedCause::PasswordRejected)
+            }
+        );
+        assert_eq!(machine.next_wake(), None);
+        let later = machine.tick(&mut hub.at(Duration::from_secs(3600)).cx());
+        assert_eq!(started(&later), None);
+    }
+}
+
+#[test]
+fn a_question_nobody_can_answer_ends_the_attempt_in_its_state_without_an_event() {
+    // A silent attempt, a command without answers, and one while another client asks.
+    for case in 0..3 {
+        for kind in [
+            QuestionKind::HostKey {
+                host_key: host_key(),
+            },
+            QuestionKind::Password,
+        ] {
+            let mut hub = Hub::new(case == 0);
+            hub.asking = case == 2;
+            let mut machine = machine();
+            let effects = match case {
+                0 => machine.attach(&mut hub.cx()),
+                1 => machine.connect(waiter(1), &mut hub.cx()),
+                _ => machine.connect(asker(1, 1, Answers::Command), &mut hub.cx()),
+            };
+            let carrier = started(&effects).unwrap();
+            let host = matches!(kind, QuestionKind::HostKey { .. });
+            let effects = machine.question(carrier, raised(kind), &mut hub.cx());
+            assert!(notified(&effects).is_empty(), "{effects:?}");
+            assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+            let (state, outcome) = if host {
+                (
+                    MachineState::Untrusted {
+                        host_key: host_key(),
+                    },
+                    ConnectFailure::HostUntrusted,
+                )
+            } else {
+                (
+                    MachineState::NeedsLogin {
+                        cause: Some(NeedsLoginCause::AuthRequired),
+                    },
+                    ConnectFailure::AuthRequired,
+                )
+            };
+            assert_eq!(machine.state(), &state);
+            let expected = if case == 0 {
+                Vec::new()
+            } else {
+                vec![ConnectOutcome::NotOnline(outcome)]
+            };
+            assert_eq!(replies(&effects), expected);
+            // Nothing tries again by itself, a kept Machine included.
+            assert_eq!(machine.next_wake(), None);
+        }
+    }
+}
+
+#[test]
+fn an_open_question_ends_at_its_own_bound_and_stops_the_attempt_clock() {
+    let mut hub = Hub::new(false);
+    let mut machine = machine();
+    let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
+    let ten = Duration::from_secs(10);
+    machine.question(
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.at(ten).cx(),
+    );
+    // Past the 60-second attempt deadline only the question's bound runs.
+    assert_eq!(machine.next_wake(), Some(hub.start + ten + QUESTION));
+    let before = ten + QUESTION - Duration::from_millis(1);
+    assert!(machine.tick(&mut hub.at(before).cx()).is_empty());
+    let effects = machine.tick(&mut hub.at(ten + QUESTION).cx());
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_eq!(login_end(&effects), Some(LoginEnd::Unavailable));
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::Timeout)]
+    );
+    assert_eq!(
+        machine.state(),
+        &MachineState::NeedsLogin {
+            cause: Some(NeedsLoginCause::AuthRequired)
+        }
+    );
+
+    // Answered after 30 seconds, the attempt's deadline moves 30 seconds later.
+    let start = ten + QUESTION;
+    let carrier = started(&machine.connect(asker(1, 2, Answers::User), &mut hub.cx())).unwrap();
+    let at = |offset: Duration| start + offset;
+    machine.question(
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.at(at(ten)).cx(),
+    );
+    machine.taken(carrier, &hub.at(at(ten * 4)).cx());
+    assert_eq!(
+        machine.next_wake(),
+        Some(hub.start + start + ATTEMPT + ten * 3)
+    );
+
+    // A helper that leaves with its question open ends the attempt as an unanswered one does.
+    machine.question(
+        carrier,
+        raised(QuestionKind::Password),
+        &mut hub.at(at(ten * 5)).cx(),
+    );
+    let effects = machine.unanswered(carrier, &hub.cx());
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::Timeout)]
+    );
+}
+
+#[test]
+fn only_the_claimant_dismisses_and_its_leaving_abandons_the_episode() {
+    let mut hub = Hub::new(false);
+    let mut machine = machine();
+    let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
+    machine.connect(asker(2, 1, Answers::Never), &mut hub.cx());
+    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    let login = machine.login().unwrap();
+    let other = Id::new(login.get() + 1).unwrap();
+    assert_eq!(machine.claim(1, login), ClaimOutcome::Claimed);
+    assert_eq!(machine.claim(2, login), ClaimOutcome::Taken);
+    assert_eq!(machine.claim(1, other), ClaimOutcome::Ended);
+    assert_eq!(
+        machine.dismiss(2, login, &hub.cx()),
+        (DismissOutcome::NotClaimant, Vec::new())
+    );
+    assert_eq!(
+        machine.dismiss(1, other, &hub.cx()).0,
+        DismissOutcome::Ended
+    );
+    let (outcome, effects) = machine.dismiss(1, login, &hub.cx());
+    assert_eq!(outcome, DismissOutcome::Dismissed);
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_eq!(login_end(&effects), Some(LoginEnd::Dismissed));
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)]
+    );
+    assert_eq!(machine.login(), None);
+
+    // The claimant's connection closing ends the attempt for the request still waiting.
+    let carrier = started(&machine.connect(asker(1, 2, Answers::User), &mut hub.cx())).unwrap();
+    machine.connect(asker(2, 2, Answers::Never), &mut hub.cx());
+    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    machine.taken(carrier, &hub.cx());
+    let effects = machine.forget(1, &hub.cx());
+    assert!(ends(&effects, carrier));
+    assert_eq!(login_end(&effects), Some(LoginEnd::Abandoned));
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)]
+    );
+    assert_eq!(
+        machine.state(),
+        &MachineState::NeedsLogin {
+            cause: Some(NeedsLoginCause::AuthRequired)
+        }
+    );
+
+    // A `disconnect` that ends an episode leaves the Machine needing a login.
+    let carrier = started(&machine.connect(asker(1, 3, Answers::User), &mut hub.cx())).unwrap();
+    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    let effects = machine.disconnect();
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_eq!(
+        machine.state(),
+        &MachineState::NeedsLogin {
+            cause: Some(NeedsLoginCause::Disconnected)
+        }
+    );
+}
+
+#[test]
+fn a_trusted_host_then_a_password_reaching_online_ends_the_episode_succeeded() {
+    let mut hub = Hub::new(false);
+    let mut machine = machine();
+    let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
+    let effects = machine.question(
+        carrier,
+        raised(QuestionKind::HostKey {
+            host_key: host_key(),
+        }),
+        &mut hub.cx(),
+    );
+    let offered = notified(&effects)
+        .into_iter()
+        .find_map(|(_, event)| match event {
+            Event::Question(question) => Some(question.kind.clone()),
+            _ => None,
+        });
+    assert_eq!(
+        offered,
+        Some(QuestionKind::HostKey {
+            host_key: host_key()
+        })
+    );
+    machine.taken(carrier, &hub.cx());
+    let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    assert_eq!(asked(&effects), Some((2, false)));
+    machine.taken(carrier, &hub.cx());
+    let effects = machine.answered(carrier, ProductVersion::new("1.0.0").unwrap());
+    assert_eq!(login_end(&effects), Some(LoginEnd::Succeeded));
+    assert_eq!(machine.login(), None);
 }

@@ -6,6 +6,8 @@
 //! and the races kept here; the contract in
 //! `schemas/machine` owns every byte.
 #[cfg(windows)]
+mod askpass;
+#[cfg(windows)]
 mod carrier;
 #[cfg(windows)]
 mod catalog;

@@ -9,7 +9,10 @@
 #[cfg(not(windows))]
 use super::{Context, Error, Report};
 #[cfg(not(windows))]
-use crate::machines::Store;
+use crate::{localization::Locale, machines::Store};
+
+#[cfg(windows)]
+mod asking;
 
 #[cfg(windows)]
 pub(super) use windows::{
@@ -28,6 +31,7 @@ pub(super) fn connect(
     _selector: &str,
     _context: &mut Context,
     _report: &mut Report,
+    _locale: Locale,
 ) -> Result<(), Error> {
     Err(Error::Internal)
 }
@@ -44,8 +48,14 @@ pub(super) fn disconnect(
 
 #[cfg(windows)]
 mod windows {
-    use super::super::{Context, Error, Remote, Report};
-    use crate::machines::{Error as CatalogError, Store};
+    use super::{
+        super::{Context, Error, Remote, Report},
+        asking::{self, Console},
+    };
+    use crate::{
+        localization::Locale,
+        machines::{Connection, Error as CatalogError, Store},
+    };
     use orchbee_machine_protocol::{
         MachineId,
         hub::{
@@ -68,27 +78,41 @@ mod windows {
     const ROUNDS: usize = 2;
 
     /// Connects the Machine `selector` names and returns once the hub reports it `online` or the
-    /// reason it is not.
+    /// reason it is not. With standard input and standard error both consoles, the command asks
+    /// the login questions on them.
     pub(in super::super) fn connect(
         store: &Store,
         selector: &str,
         context: &mut Context,
         report: &mut Report,
+        locale: Locale,
     ) -> Result<(), Error> {
         let machine = resolve(store, selector, report)?;
+        let console = target(report).and_then(|target| Console::detect(target, locale));
         context.check()?;
         let client = open(context)?;
-        let result = ask_connect(&client, &machine, context, report);
+        let result = connect_through(&client, &machine, console.as_ref(), context, report);
         close(client);
         result
     }
 
-    /// Brings the Machine `machine` `online` through `client` under the `machine connect` rules:
-    /// the hub takes the current catalog first, and a hub closing under the request is asked once
-    /// more through the one that takes its place.
+    /// Brings the Machine `machine` `online` through `client` under the `machine connect` rules,
+    /// asking nobody: the hub takes the current catalog first, and a hub closing under the request
+    /// is asked once more through the one that takes its place.
     pub(in super::super) fn ask_connect(
         client: &Arc<HubClient>,
         machine: &MachineId,
+        context: &mut Context,
+        report: &mut Report,
+    ) -> Result<(), Error> {
+        connect_through(client, machine, None, context, report)
+    }
+
+    /// `ask_connect`, with `answers` and the questions asked on `console` when there is one.
+    fn connect_through(
+        client: &Arc<HubClient>,
+        machine: &MachineId,
+        console: Option<&Console>,
         context: &mut Context,
         report: &mut Report,
     ) -> Result<(), Error> {
@@ -102,10 +126,23 @@ mod windows {
             report.remote = Remote::PossiblyStarted;
             let request = Request::Connect(Connect {
                 machine: machine.clone(),
-                origin: Origin::Command { answers: false },
+                origin: Origin::Command {
+                    answers: console.is_some(),
+                },
                 draft: None,
             });
-            match ask(client, request, context)? {
+            let answered = match console {
+                Some(console) => asking::converse(
+                    client,
+                    request,
+                    machine,
+                    console,
+                    context,
+                    &mut report.remote,
+                )?,
+                None => ask(client, request, context)?,
+            };
+            match answered {
                 Ok(Reply::Connect(ConnectResult {
                     outcome: ConnectOutcome::Online { remote_version },
                     ..
@@ -269,6 +306,22 @@ mod windows {
         let asked = ask(&client, Request::Reload, context);
         close(client);
         asked.map(drop).or_else(interrupted)
+    }
+
+    /// The `ssh` target of the machine the report resolved.
+    fn target(report: &Report) -> Option<String> {
+        let id = report.id.as_ref()?;
+        match &report
+            .catalog
+            .as_ref()?
+            .resolve(id.as_str())
+            .ok()?
+            .draft
+            .connection
+        {
+            Connection::Ssh { target } => Some(target.clone()),
+            Connection::Unsupported(_) => None,
+        }
     }
 
     /// The saved machine `selector` names, recorded in the report with the catalog it was read

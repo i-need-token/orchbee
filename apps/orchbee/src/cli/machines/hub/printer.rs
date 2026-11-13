@@ -161,11 +161,27 @@ fn render(text: CliText, report: &Report, pid: u32) -> String {
         out.push('\n');
     }
     for id in report.catalog.machines() {
-        let state = report.machines.get(id.as_str()).map_or_else(
+        let reported = report.machines.get(id.as_str());
+        let state = reported.map_or_else(
             || text.cli_machine_hub_machine_state(None),
             |state| text.cli_machine_hub_machine_state(Some(state)),
         );
-        out.push_str(&format!("{id}  {state}\n"));
+        out.push_str(&format!("{id}  {state}"));
+        // The key a person compares before trusting a host, or before checking a changed one.
+        if let Some(
+            MachineState::Untrusted { host_key }
+            | MachineState::KeyChanged {
+                host_key: Some(host_key),
+            },
+        ) = reported
+        {
+            out.push_str(&format!(
+                "  {} {}",
+                host_key.algorithm.as_str(),
+                host_key.fingerprint.as_str()
+            ));
+        }
+        out.push('\n');
     }
     out
 }
