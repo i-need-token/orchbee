@@ -1885,7 +1885,12 @@ fn unsupported_commands_share_the_platform_failure_contract() {
                     format,
                     locale,
                 ),
-                super::client_control::run(&ClientCommand::List, format, locale),
+                // Linux reads Client views, but Client control stays Windows-only.
+                super::client_control::run(
+                    &ClientCommand::ControlStatus(WorkbenchRequestId::parse(ID).unwrap()),
+                    format,
+                    locale,
+                ),
                 super::agent_manifests::run(&ManifestCommand::Current, format, locale),
             ] {
                 assert_eq!(output.status, 4);

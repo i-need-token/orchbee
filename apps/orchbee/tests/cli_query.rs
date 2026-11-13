@@ -643,8 +643,12 @@ fn available_snapshot_projects_every_resource() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     let text = String::from_utf8(output.stdout)?;
-    assert!(text.contains("revision 7"), "{text}");
-    assert!(text.contains("bound terminals 2"), "{text}");
+    // Status text is the runtime status: aligned counts, without the snapshot revision.
+    assert!(
+        text.lines()
+            .any(|line| line.split_whitespace().eq(["bound", "terminals", "2"])),
+        "{text}"
+    );
 
     // both duplicated labels are listed
     let output = run(&base, &["tab", "list"]);

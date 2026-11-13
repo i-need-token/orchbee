@@ -2505,7 +2505,8 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     let document = envelope(&output);
-    assert_eq!(document["result"]["projectId"], id(0x10));
+    // The receipt names the Workspace; its Project stays with the Workspace record.
+    assert!(document["result"].get("projectId").is_none(), "{document}");
     assert_eq!(document["result"]["workspaceId"], id(0x12));
     assert_eq!(document["result"]["directoryId"], id(0x50));
     assert_eq!(document["result"]["workerId"], id(0x51));

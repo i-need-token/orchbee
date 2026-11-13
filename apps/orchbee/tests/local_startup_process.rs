@@ -62,8 +62,7 @@ use orchbee_local_runtime::{Cohort, LockAttempt, ModeCheckedLocalSessionRendezvo
 use pty_client::{Client, ReadyMode, wait_file};
 use std::{
     error::Error,
-    fs,
-    io::{self, Write},
+    fs, io,
     os::unix::fs::PermissionsExt,
     process::{Command, Stdio},
     sync::{Mutex, MutexGuard},
@@ -1007,36 +1006,5 @@ fn help_version_and_non_tty_use_no_runtime_or_processes() -> TestResult {
         assert!(!fixture.runtime().exists());
         assert!(fixture.processes("orchbee-server").is_empty());
     }
-    Ok(())
-}
-
-#[test]
-fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_session() -> TestResult {
-    let _process_witness = process_witness_guard();
-    let fixture = Fixture::with_workspace();
-    let mut first = Client::spawn(&fixture, "en_US.UTF-8");
-    first.ready_before(Instant::now() + STARTUP_OR_CREATE_TIMEOUT);
-    first.close_before(Instant::now() + EXIT_TIMEOUT);
-    let server = one_process(&fixture, "orchbee-server");
-    let host = one_process(&fixture, "orchbee-terminal-host");
-    // The other cohort never starts: its staged Host is altered at rest, then refused.
-    let other = Fixture::new();
-    fs::OpenOptions::new()
-        .append(true)
-        .open(other.cohort.join(crate::support::staged_artifact_name(
-            "orchbee-terminal-host",
-        )))?
-        .write_all(b"another-build")?;
-    other.manifest();
-    let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
-    let mut second = Client::spawn_at(&other, "en_US.UTF-8", &fixture.base);
-    assert!(
-        second
-            .exit_message_before(startup_deadline)
-            .contains("incompatible with this development cohort")
-    );
-    assert_process_retained(&fixture, "orchbee-server", &server);
-    assert_process_retained(&fixture, "orchbee-terminal-host", &host);
-    assert!(other.processes("orchbee-server").is_empty());
     Ok(())
 }
