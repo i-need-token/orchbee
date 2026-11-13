@@ -4,7 +4,8 @@
 //!
 //! The Client drives a split Workspace with pointer input as a user would: a click whose pointer
 //! moves before release focuses a pane and leaves a selection in it, which copy-on-select, turned
-//! on in this Session's preferences, exports. A divider drag about 400 ms later resizes that pane once per column.
+//! on in this Session's preferences, exports. A divider drag at least 400 ms later, once the Client
+//! has settled that focus, resizes that pane once per column.
 //! The Host reports the selection again at each new generation, faster than a busy Client polls,
 //! and refuses the export's cancellation or later chunk acknowledgements once the export is over.
 //! None of that may cost a pane its viewer: the TUI never shows a terminal as unavailable.
@@ -60,6 +61,9 @@ const NUMBERED_LINES: &str = "$i = 0; while ($true) { $i++; \
     [Console]::Out.WriteLine(('LINE-{0:D6}-' -f $i) + ('abcdefghijklmnopqrstuvwxyz0123456789' * 3)); \
     Start-Sleep -Milliseconds 500 }";
 const LINE_MARK: &str = "LINE-";
+/// Bounds how long the shell takes to read that loop and print its first line: a slow machine's
+/// PowerShell can spend many seconds reading a typed line of this length.
+const LOOP_START: Duration = Duration::from_secs(30);
 
 #[test]
 fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
@@ -87,6 +91,11 @@ fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
         thread::sleep(Duration::from_millis(20));
         control.input(&release(column + 3, 12));
         thread::sleep(FOCUS_TO_DRAG);
+        // The click's focus takes its pane's terminal over, and the previous round's release may
+        // still settle. Until both end, the Client answers a divider press with its busy notice, as
+        // its divider contract says, and a slow machine takes longer than `FOCUS_TO_DRAG` for that.
+        await_selected(&fixture, &tui.client, panel, round);
+        fixture.settle_ready(&tui.client);
 
         control.input(&press(before.divider, 20));
         thread::sleep(Duration::from_millis(40));
@@ -107,7 +116,7 @@ fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
         assert_eq!(
             view["view"]["selection"]["panelId"],
             panel.as_str(),
-            "the click of round {round} did not focus its pane: {view}"
+            "the drag of round {round} moved the focus off the clicked pane: {view}"
         );
     }
     control.release();
@@ -129,13 +138,20 @@ fn window_resizes_under_soft_wrapped_output_keep_every_viewer() {
         ]);
         assert_eq!(sent.code, Some(0), "{sent}");
     }
-    let mut newest = advance(&fixture, &tui.terminal, 0, "starting the numbered lines");
+    await_printing(&fixture, &left);
+    let mut newest = advance(
+        &fixture,
+        &tui.terminal,
+        &left,
+        0,
+        "starting the numbered lines",
+    );
 
     for (round, (columns, rows)) in WINDOW_SIZES.into_iter().enumerate() {
         control.resize(columns, rows);
         let gesture = format!("window resize {round} to {columns}x{rows}");
         watch(&fixture, &tui.terminal, &gesture);
-        newest = advance(&fixture, &tui.terminal, newest, &gesture);
+        newest = advance(&fixture, &tui.terminal, &left, newest, &gesture);
     }
     for panel in [&left, &right] {
         let read = fixture.run(&["terminal", "read", "--panel", panel, "--source", "visible"]);
@@ -166,6 +182,22 @@ fn report_unmoved(
          column {}:\n{}\nClient: {view}\nServer revision: {revision}",
         later.divider, later.text
     );
+}
+
+/// Waits until the Client selects the pane that the click of `round` focused.
+fn await_selected(fixture: &Fixture, client: &str, panel: &str, round: usize) {
+    let deadline = Instant::now() + OBSERVATION;
+    loop {
+        let view = fixture.client(client);
+        if view["view"]["selection"]["panelId"] == panel {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the click of round {round} did not focus its pane: {view}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// Splits a new Workspace into a left and a right pane.
@@ -200,20 +232,50 @@ fn watch(fixture: &Fixture, terminal: &str, gesture: &str) {
     }
 }
 
-/// Waits until the TUI shows a numbered line after `newest`, and returns the newest line shown.
-fn advance(fixture: &Fixture, terminal: &str, newest: u64, gesture: &str) -> u64 {
+/// Waits until the printing pane's own terminal, read past the TUI, shows a numbered line. How fast
+/// a shell reads a typed line is not under test, only whether the TUI keeps up with what it prints.
+fn await_printing(fixture: &Fixture, panel: &str) {
+    let deadline = Instant::now() + LOOP_START;
+    loop {
+        let text = pane_text(fixture, panel);
+        if newest_line(&text).is_some() {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the printing pane's shell printed no numbered line in {LOOP_START:?}:\n{text}"
+        );
+        thread::sleep(Duration::from_millis(200));
+    }
+}
+
+/// Waits until the TUI shows a numbered line after `newest`, and returns the newest line shown. A
+/// failure also shows the printing pane's own terminal, which tells a shell that stopped from a
+/// TUI that stopped showing it.
+fn advance(fixture: &Fixture, terminal: &str, panel: &str, newest: u64, gesture: &str) -> u64 {
     let deadline = Instant::now() + OBSERVATION;
     loop {
         let text = screen(fixture, terminal, gesture);
         if let Some(line) = newest_line(&text).filter(|line| *line > newest) {
             return line;
         }
-        assert!(
-            Instant::now() < deadline,
-            "after {gesture} the printing pane stopped at line {newest}:\n{text}"
-        );
+        if Instant::now() >= deadline {
+            panic!(
+                "after {gesture} the printing pane stopped at line {newest}:\n{text}\n\
+                 Its own terminal:\n{}",
+                pane_text(fixture, panel)
+            );
+        }
         thread::sleep(Duration::from_millis(100));
     }
+}
+
+/// A pane's terminal, read past the TUI, or the failed read.
+fn pane_text(fixture: &Fixture, panel: &str) -> String {
+    let read = fixture.run(&["terminal", "read", "--panel", panel, "--source", "visible"]);
+    read.document["result"]["content"]["text"]
+        .as_str()
+        .map_or_else(|| read.to_string(), str::to_owned)
 }
 
 /// The TUI's visible text, read through a viewer of the `host` terminal it runs in. A read that
