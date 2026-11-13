@@ -206,6 +206,40 @@ fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
         );
     }
 }
+/// Redacted live opencode 2.2.5 screens. The input area starts at the prompt box's top bar row,
+/// so the answer stays above it and the box, status and footer rows below it are the area;
+/// transcript boxes without the bottom edge and a question in place of the box leave it unknown.
+#[test]
+fn opencode_input_area_starts_at_the_live_prompt_box() {
+    const BOX: &str = "  ┃\n  ┃\n  ┃\n  ┃  Build · Model Default / OpenCode\n  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n  ~/src/app        shift+tab agents  ctrl+p commands";
+    let transcript = " • New session                   +\n\n  ┃\n  ┃  Count slowly from 1 to 40, one number per line.\n  ┃\n\n     Error: ECONNREFUSED: Unable to connect.\n\n     Build · Model Default · 1m 18s\n";
+    let blank = "\n".repeat(25);
+    let answer = format!("{transcript}{blank}{BOX}");
+    let logo = "\n".repeat(15);
+    let home = format!(
+        "{logo}  /update to install v2.2.7\n\n  ┃\n  ┃  Ask anything… \"Fix a TODO\"\n{BOX}\n\n                    2.2.5"
+    );
+    let engine = ScreenDetector::bundled().unwrap();
+    let row = |provider, screen: &str| engine.input_row(provider, input(screen));
+    let rows = |text: &str| Some(u16::try_from(text.lines().count()).unwrap());
+    assert_eq!(
+        row(Provider::OpenCode, &answer),
+        rows(&format!("{transcript}{blank}"))
+    );
+    assert_eq!(
+        row(Provider::OpenCode, &home),
+        rows(&format!("{logo}  /update to install v2.2.7\n\n"))
+    );
+    let question = "  ┃  Questions\n  ┃  Pick one\n  ┃  ↑↓ select  enter submit  esc dismiss\n  ~/src/app   ctrl+p commands";
+    for (provider, screen) in [
+        (Provider::OpenCode, transcript),
+        (Provider::OpenCode, question),
+        (Provider::OpenCode, ""),
+        (Provider::Pi, answer.as_str()),
+    ] {
+        assert_eq!(row(provider, screen), None, "{provider:?}\n{screen}");
+    }
+}
 /// Redacted Windows screens from atomcode 5.2.6, mimo 0.1.16, reasonix, snow 0.9.15, mcode 0.7.6,
 /// mothx 1.3.108, prime-agent 0.10.2, jcode 0.99.1, codebuddy 2.182.0, command-code, deveco
 /// 0.3.0, gemini 0.67.0 and 0.68.0, kilo 7.8.27, openclaw 2026.11, kimi 2.5.3 and the Hermes TUI. Busy chrome outranks the composer that stays on screen, a startup question blocks only
@@ -890,7 +924,10 @@ fn invalid_manifest_never_becomes_an_executable_ruleset() {
         "id='codex'",
         "id='different'\n[[rules]]\nid='x'\ncontains=['x']",
         "id='codex'\nunknown=1\n[[rules]]\nid='x'\ncontains=['x']",
-        "id='codex'\nmin_engine_version=4\n[[rules]]\nid='x'\ncontains=['x']",
+        "id='codex'\nmin_engine_version=5\n[[rules]]\nid='x'\ncontains=['x']",
+        "id='codex'\nmin_engine_version=3\n[input_area]\nanchor='x'\n[[rules]]\nid='x'\ncontains=['x']",
+        "id='codex'\n[input_area]\nabove='x'\n[[rules]]\nid='x'\ncontains=['x']",
+        "id='codex'\n[input_area]\nanchor='['\n[[rules]]\nid='x'\ncontains=['x']",
         "id='codex'\n[[rules]]\nid=''\ncontains=['x']",
         "id='codex'\n[[rules]]\nid='x'\nnot=[{contains=['x']}]",
         "id='codex'\n[[rules]]\nid='x'\ncontains=['x']\nregion='bogus'",

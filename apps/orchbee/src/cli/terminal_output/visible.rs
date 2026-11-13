@@ -40,6 +40,16 @@ pub(super) fn last_content_row(frame: &TerminalTextFrame) -> Option<u64> {
         .map(|index| frame.scrollback_rows + u64::from(frame.rows[index].index))
 }
 
+/// The last nonblank live-screen row strictly above screen row `row`, as an absolute row.
+pub(super) fn last_content_row_above(frame: &TerminalTextFrame, row: u16) -> Option<u64> {
+    let above = frame
+        .rows
+        .partition_point(|candidate| candidate.index < row);
+    TextFacts::default()
+        .last_content(&frame.rows[..above])
+        .map(|index| frame.scrollback_rows + u64::from(frame.rows[index].index))
+}
+
 pub(super) fn rows(
     frame: &TerminalTextFrame,
     selection: OutputSelection,

@@ -1,8 +1,14 @@
 id = "opencode"
-version = "2026.11.04.1"
-min_engine_version = 1
-updated_at = "2026-11-04T00:00:00Z"
+version = "2026.11.12.1"
+min_engine_version = 4
+updated_at = "2026-11-12T00:00:00Z"
 aliases = ["open-code"]
+
+# OpenCode 2.x: the prompt box's left bar rows down to its bottom edge, then status and footer.
+# Transcript message boxes draw the bar without the bottom edge, so they never anchor.
+[input_area]
+anchor = '^\s*╹▀{3,}'
+above = '^\s*┃'
 
 [[rules]]
 id = "permission_required"

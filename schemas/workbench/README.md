@@ -657,6 +657,16 @@ shadowing and bounded typed warnings. Missing metadata preserves the earlier sha
 is rejected. Remote source/version and warning source uniqueness are checked by both bindings.
 The CLI carries this metadata in its sole version-1 envelope.
 
+A physical `explain` request may set `inputArea: true`. The Server then adds `inputRow` to its
+`explained` result when the provider's [screen rules](../../apps/orchbee-server/docs/agent-screen-model.md#input-area)
+place an input area on the sampled screen: that area's first row, counted from the top of the live
+screen of the sample's frame generation and revision. Without the flag the Server never adds it, so
+earlier Clients and the CLI `agent explain` document keep their shape. Omission means unknown and
+explicit null is rejected. A Server that serves the flag lists the `agent-input-area` capability in
+its `client-server` handshake answer, and a Client sets the flag only when the answer lists it.
+[Native terminal output](../../apps/orchbee/docs/native-terminal-output.md#agent-input-area) owns
+the consumer.
+
 Physical Explain also carries a required `identity`: the Server's current Agent identity result for
 that Terminal generation, in the `AgentProcessIdentity` wire form owned by the Agent observation
 protocol crate. `identify` names one presentation ID and returns `identified` with the Workbench

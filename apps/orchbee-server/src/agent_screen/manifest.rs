@@ -20,6 +20,13 @@ struct RawManifest {
     aliases: Vec<String>,
     #[serde(default)]
     rules: Vec<RawRule>,
+    input_area: Option<RawInputArea>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawInputArea {
+    anchor: String,
+    above: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -85,9 +92,15 @@ struct Rule {
     gate: Gate,
     result: Detection,
 }
+/// Where the Agent's input area starts on the live screen; it never decides a state.
+struct InputArea {
+    anchor: Regex,
+    above: Option<Regex>,
+}
 pub(super) struct Manifest {
     pub(super) provider: AgentReportProvider,
     rules: Vec<Rule>,
+    input_area: Option<InputArea>,
     pub(super) version: Option<String>,
     pub(super) minimum_engine_version: Option<u32>,
     pub(super) provenance: AgentDetectionManifest,
@@ -96,6 +109,39 @@ pub(super) struct Manifest {
 struct Complexity {
     gates: usize,
     matchers: usize,
+}
+/// One bounded matcher pattern; every manifest regex shares these limits.
+fn compile(pattern: &str) -> Result<Regex, String> {
+    if pattern.chars().count() > 512 {
+        return Err("Matcher exceeds character bound".into());
+    }
+    RegexBuilder::new(pattern)
+        .size_limit(1024 * 1024)
+        .dfa_size_limit(1024 * 1024)
+        .build()
+        .map_err(|e| e.to_string())
+}
+impl InputArea {
+    fn compile(raw: RawInputArea) -> Result<Self, String> {
+        Ok(Self {
+            anchor: compile(&raw.anchor)?,
+            above: raw.above.as_deref().map(compile).transpose()?,
+        })
+    }
+    /// The first row of the last anchored area: the anchor's line, raised over the unbroken run
+    /// of `above` lines directly over it. Line indexes are screen rows.
+    fn first_row(&self, screen: &str) -> Option<u16> {
+        let lines = screen.lines().collect::<Vec<_>>();
+        let anchor = lines.iter().rposition(|line| self.anchor.is_match(line))?;
+        let run = self.above.as_ref().map_or(0, |above| {
+            lines[..anchor]
+                .iter()
+                .rev()
+                .take_while(|line| above.is_match(line))
+                .count()
+        });
+        u16::try_from(anchor - run).ok()
+    }
 }
 impl Gate {
     fn compile(
@@ -123,19 +169,18 @@ impl Gate {
         {
             return Err("Matcher exceeds character bound".into());
         }
-        let compile = |p: &String| {
-            RegexBuilder::new(p)
-                .size_limit(1024 * 1024)
-                .dfa_size_limit(1024 * 1024)
-                .build()
-                .map_err(|e| e.to_string())
-        };
         Ok(Self {
             contains: raw.contains.into_iter().map(|s| s.to_lowercase()).collect(),
-            regex: raw.regex.iter().map(compile).collect::<Result<_, _>>()?,
+            regex: raw
+                .regex
+                .iter()
+                .map(String::as_str)
+                .map(compile)
+                .collect::<Result<_, _>>()?,
             lines: raw
                 .line_regex
                 .iter()
+                .map(String::as_str)
                 .map(compile)
                 .collect::<Result<_, _>>()?,
             all: raw
@@ -178,7 +223,7 @@ impl Manifest {
                 == Some(provider.report_label())
         };
         if !(matches_provider(&raw.id) || raw.aliases.iter().any(|alias| matches_provider(alias)))
-            || raw.min_engine_version.is_some_and(|v| v > 3)
+            || raw.min_engine_version.is_some_and(|v| v > 4)
             || raw.rules.is_empty()
             || raw.rules.len() > 128
             || raw
@@ -191,6 +236,10 @@ impl Manifest {
         let mut count = Complexity::default();
         let mut rules = Vec::new();
         let version = raw.min_engine_version;
+        if raw.input_area.is_some() && version.is_some_and(|v| v < 4) {
+            return Err("Input area requires engine version 4".into());
+        }
+        let input_area = raw.input_area.map(InputArea::compile).transpose()?;
         for raw in raw.rules {
             if raw.id.trim().is_empty()
                 || raw.id.chars().count() > 128
@@ -263,6 +312,7 @@ impl Manifest {
         Ok(Self {
             provider,
             rules,
+            input_area,
             version: raw.version.map(|v| v.trim().to_owned()),
             minimum_engine_version: raw.min_engine_version,
             provenance: AgentDetectionManifest {
@@ -273,6 +323,10 @@ impl Manifest {
                 warnings: vec![],
             },
         })
+    }
+    /// The input area's first screen row, or unknown without rule data or a match.
+    pub(super) fn input_row(&self, screen: &str) -> Option<u16> {
+        self.input_area.as_ref()?.first_row(screen)
     }
     pub(super) fn detect(&self, input: ScreenInput<'_>) -> Detection {
         self.evaluate(input, |_, _, _| {}).0

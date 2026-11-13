@@ -462,6 +462,7 @@ pub(super) fn explain(
     }
     Some(super::CapturedAgentExplanation {
         explanation: detector.explain(provider, screen.input()).ok()?,
+        input_row: detector.input_row(provider, screen.input()),
         sample: orchbee_workbench_protocol::AgentDetectionSample {
             frame_sequence: orchbee_workbench_protocol::WorkbenchRevision::new(screen.sequence),
             frame_generation: orchbee_workbench_protocol::WorkbenchRevision::new(screen.generation),

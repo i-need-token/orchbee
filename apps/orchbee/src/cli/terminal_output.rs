@@ -67,9 +67,11 @@ pub(crate) struct SampleRange {
     pub(crate) capacity_omitted: u64,
 }
 
+/// `input_row` is an Agent input area's first live-screen row, already paired with `frame`.
 pub(crate) fn range(
     frame: &TerminalTextFrame,
     selection: OutputSelection,
+    input_row: Option<u16>,
 ) -> Result<SampleRange, Failure> {
     let total = frame
         .scrollback_rows
@@ -80,28 +82,48 @@ pub(crate) fn range(
         / u64::from(frame.geometry.columns);
     Ok(select_range(
         selection,
-        frame.scrollback_rows,
-        total,
-        frame.cursor.row,
-        frame.alternate_screen,
-        visible::last_content_row(frame),
+        Endpoint {
+            scrollback: frame.scrollback_rows,
+            total,
+            cursor: frame.cursor.row,
+            alternate: frame.alternate_screen,
+            last_content_row: visible::last_content_row(frame),
+            input_end: input_row.map(|row| {
+                visible::last_content_row_above(frame, row)
+                    .map_or(frame.scrollback_rows + u64::from(row), |index| index + 1)
+            }),
+        },
         capacity,
     ))
 }
 
-fn select_range(
-    selection: OutputSelection,
+/// The applied frame's facts that place the recent endpoint.
+#[derive(Clone, Copy)]
+struct Endpoint {
     scrollback: u64,
     total: u64,
     cursor: u16,
     alternate: bool,
     last_content_row: Option<u64>,
-    capacity: u64,
-) -> SampleRange {
-    let end = if selection.source == OutputSource::Visible || alternate {
+    /// One past the last nonblank row above an Agent's input area, or the area's first row.
+    input_end: Option<u64>,
+}
+
+fn select_range(selection: OutputSelection, at: Endpoint, capacity: u64) -> SampleRange {
+    let Endpoint {
+        scrollback, total, ..
+    } = at;
+    let end = if selection.source == OutputSource::Visible || at.alternate {
         total
     } else {
-        last_content_row.map_or(total, |index| index.max(scrollback + u64::from(cursor)) + 1)
+        at.last_content_row.map_or(total, |index| {
+            index.max(scrollback + u64::from(at.cursor)) + 1
+        })
+    };
+    // Only a recent range stops above the input area, and never later than it would otherwise.
+    let end = match (selection.source, at.input_end) {
+        (OutputSource::Recent | OutputSource::RecentUnwrapped, Some(input)) => end.min(input),
+        _ => end,
     };
     let wanted = if selection.lines == Some(0) {
         0

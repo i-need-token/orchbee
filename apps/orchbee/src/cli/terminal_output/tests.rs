@@ -45,14 +45,18 @@ fn recent_endpoint_respects_content_cursor_empty_and_alternate_screens() {
     let choose = |source, lines, cursor, alternate, rows: &[OutputRow], capacity| {
         select_range(
             selection(source, lines),
-            10,
-            14,
-            cursor,
-            alternate,
-            rows.iter()
-                .rev()
-                .find(|row| !row.text.trim().is_empty())
-                .map(|row| row.index),
+            Endpoint {
+                scrollback: 10,
+                total: 14,
+                cursor,
+                alternate,
+                last_content_row: rows
+                    .iter()
+                    .rev()
+                    .find(|row| !row.text.trim().is_empty())
+                    .map(|row| row.index),
+                input_end: None,
+            },
             capacity,
         )
     };
@@ -95,6 +99,72 @@ fn recent_endpoint_respects_content_cursor_empty_and_alternate_screens() {
         choose(OutputSource::Recent, Some(0), 0, false, &visible, 1000).count,
         0
     );
+}
+
+/// A full-screen Agent's recent range ends at its answer's last row above a placed input area;
+/// an unknown area and every other source keep today's endpoint.
+#[test]
+fn agent_recent_ends_above_a_placed_input_area_only() {
+    use orchbee_terminal_protocol::{
+        TerminalTextCell, TerminalTextRow, decode_terminal_text_frame,
+    };
+    let mut frame = decode_terminal_text_frame(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../schemas/terminal/v1/fixtures/terminal-frame.bin"
+    )))
+    .unwrap();
+    let style = frame.rows[0].cells[0].style;
+    // Rows 100..=107: a header, two answer rows, blank rows, then the input box and its footer.
+    let screen = [
+        "header",
+        "answer 1",
+        "answer 2",
+        "",
+        "",
+        "┃",
+        "┃ Build",
+        "╹▀▀▀",
+    ];
+    let first_input_row = 5;
+    frame.scrollback_rows = 100;
+    frame.geometry.rows = 8;
+    frame.alternate_screen = true;
+    frame.rows = (0_u16..)
+        .zip(screen)
+        .map(|(index, text)| TerminalTextRow {
+            index,
+            flags: 0,
+            prompt_class: 0,
+            cells: text
+                .chars()
+                .map(|c| TerminalTextCell {
+                    text: c.to_string().into(),
+                    style,
+                    width: 0,
+                })
+                .collect(),
+        })
+        .collect();
+    let read = |source, lines, input| {
+        let range = range(&frame, selection(source, lines), input).unwrap();
+        (range.start, range.count)
+    };
+    for source in [OutputSource::Recent, OutputSource::RecentUnwrapped] {
+        assert_eq!(read(source, Some(2), Some(first_input_row)), (101, 2));
+        let (start, count) = read(source, None, Some(first_input_row));
+        assert_eq!(
+            start + u64::from(count),
+            103,
+            "the default range ends after answer 2"
+        );
+        assert_eq!(read(source, Some(2), None), (106, 2));
+    }
+    for source in [OutputSource::Visible, OutputSource::Detection] {
+        assert_eq!(
+            read(source, None, Some(first_input_row)),
+            read(source, None, None)
+        );
+    }
 }
 
 #[test]

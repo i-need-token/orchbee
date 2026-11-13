@@ -125,6 +125,10 @@ pub enum PanelAgentAction {
     },
     Explain {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+        /// Asks for the sampled screen's `inputRow`; sent only to a Server whose handshake
+        /// answer lists `agent-input-area`. Omitted when false, so earlier bytes are unchanged.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        input_area: bool,
     },
     /// The Server's identity result for the presentation's current Terminal generation.
     Identify {
@@ -198,7 +202,8 @@ impl PanelAgentRequest {
                     Err(ContractError::InvalidDocument)
                 }
             }
-            PanelAgentAction::Observe { binding, .. } | PanelAgentAction::Explain { binding } => {
+            PanelAgentAction::Observe { binding, .. }
+            | PanelAgentAction::Explain { binding, .. } => {
                 if orchbee_agent_observation_protocol::AgentHostEpoch::parse(
                     binding.generation.as_str(),
                 )
@@ -493,8 +498,11 @@ impl PanelAgentResult {
                     matches!(&self.outcome, PanelAgentOutcome::PresentationTitles { presentations } if presentation_ids.iter().eq(presentations.iter().map(|r| &r.presentation_id)))
                         || shared_failure
                 }
-                PanelAgentAction::Explain { binding } => {
-                    matches!(&self.outcome, PanelAgentOutcome::Explained { explanation, .. } if &explanation.binding == binding)
+                PanelAgentAction::Explain {
+                    binding,
+                    input_area,
+                } => {
+                    matches!(&self.outcome, PanelAgentOutcome::Explained { explanation, .. } if &explanation.binding == binding && (*input_area || explanation.input_row.is_none()))
                         || shared_failure
                 }
                 PanelAgentAction::Identify { presentation_id } => {

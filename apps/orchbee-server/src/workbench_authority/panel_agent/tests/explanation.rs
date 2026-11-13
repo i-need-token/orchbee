@@ -9,7 +9,10 @@ fn explain_request(a: &WorkbenchAuthority) -> PanelAgentRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&"7".repeat(32)).unwrap(),
         session_id: a.session_id().clone(),
-        action: Action::Explain { binding },
+        action: Action::Explain {
+            binding,
+            input_area: false,
+        },
     }
 }
 fn detect(a: &mut WorkbenchAuthority, facts: &[TerminalAgentBinding], provider: Provider) {

@@ -261,6 +261,9 @@
 						},
 						"binding": {
 							"$ref": "#/$defs/terminalBinding"
+						},
+						"inputArea": {
+							"type": "boolean"
 						}
 					}
 				},
@@ -1190,6 +1193,11 @@
 				},
 				"explanation": {
 					"$ref": "#/$defs/screenExplanation"
+				},
+				"inputRow": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
 				},
 				"sample": {
 					"type": "object",

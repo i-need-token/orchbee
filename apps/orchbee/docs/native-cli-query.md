@@ -735,7 +735,10 @@ Client attention, authenticated-provider behavior and final full acceptance rema
 `agent read <target>` and `agent send-keys <target> <key>...` accept the same
 Session ID, runtime name or Panel selectors as `agent get`, including explicit `--agent-session`,
 `--name`, `--panel` and `--terminal`. Read admits `--source` and `--lines <n>`
-with the same bounds and meaning as `terminal read`. Send admits at most 64 semantic
+with the same bounds and meaning as `terminal read`, except that a recent read of a full-screen
+Agent whose screen rules place its input area ends above that area, so the empty input box, status
+and footer rows are not read ([Agent input area](native-terminal-output.md#agent-input-area)).
+Send admits at most 64 semantic
 keys or modifier combinations and validates the entire sequence before any effects.
 
 On Windows, these commands use the shared projection resolver described in

@@ -9,6 +9,16 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
+fn asks_input_area(request: &PanelAgentRequest) -> bool {
+    matches!(
+        request.action,
+        orchbee_workbench_protocol::PanelAgentAction::Explain {
+            input_area: true,
+            ..
+        }
+    )
+}
+
 impl LocalTerminalService {
     fn explanation_context(
         &self,
@@ -48,6 +58,8 @@ impl LocalTerminalService {
                     explanation: captured.explanation,
                     sample: captured.sample,
                     identity,
+                    // Only a Client that asked may meet the member.
+                    input_row: captured.input_row.filter(|_| asks_input_area(request)),
                 }
             };
             Ok(Outcome::Explained {

@@ -10,6 +10,10 @@ fn present_manifest<'de, D: serde::Deserializer<'de>>(
     AgentDetectionManifest::deserialize(d).map(Some)
 }
 
+fn present_row<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u16>, D::Error> {
+    u16::deserialize(d).map(Some)
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentDetectionRule {
@@ -174,6 +178,15 @@ pub struct TerminalAgentExplanation {
     pub sample: AgentDetectionSample,
     /// The Server's identity result for this Terminal generation, independent of the screen rules.
     pub identity: orchbee_agent_observation_protocol::AgentProcessIdentity,
+    /// The first live-screen row of the Agent's input area in `sample`'s frame, counted from the
+    /// screen's top. Present only when the request asked and the screen rules placed the area;
+    /// omission means unknown and explicit null is rejected.
+    #[serde(
+        default,
+        deserialize_with = "present_row",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub input_row: Option<u16>,
 }
 impl TerminalAgentExplanation {
     pub(super) fn valid(&self) -> bool {

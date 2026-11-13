@@ -22,7 +22,7 @@ impl WorkbenchAuthority {
         facts: &[TerminalAgentBinding],
         now: Instant,
     ) -> Result<TerminalAgentExplainContext, Failure> {
-        let PanelAgentAction::Explain { binding } = &request.action else {
+        let PanelAgentAction::Explain { binding, .. } = &request.action else {
             return Err(Failure::InvalidRequest);
         };
         let mut probe = request.clone();

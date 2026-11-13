@@ -26,6 +26,7 @@ revision and generation. Absolute rows cover retained history followed by the li
 
 On the primary screen, the recent endpoint is the later of the cursor row and last nonblank
 live-screen row. An entirely blank screen or alternate screen uses the physical final row.
+An Agent target may end earlier, above its [input area](#agent-input-area).
 The cell-capacity bound may narrow a history request at its beginning; the result reports that
 fact. Zero lines produces empty text. Text drops grid padding and wide-character continuation
 cells, preserves Unicode, separates hard rows with newlines, and terminates nonempty output with
@@ -37,10 +38,26 @@ state. Only the current authoritative projection is returned; an older cached Wi
 not substituted for a blank screen. ANSI snapshots and source-selected waits are separate consumers
 of this selection model; this text contract does not claim original PTY-byte capture.
 
+### Agent input area
+
+A full-screen Agent keeps its input box, status and footer at the bottom of the screen, so the
+physical final row ends `recent` inside that chrome instead of after the answer. Only the Server's
+[screen rules](../../orchbee-server/docs/agent-screen-model.md#input-area) can place it.
+
+| Field     | Meaning                                                                                                                                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs    | `agent read` with `recent` or `recent-unwrapped` whose target resolved to a physical terminal binding, and a Session whose `client-server` handshake answer lists `agent-input-area`.                                            |
+| Data      | Physical Explain with `inputArea: true` returns optional `inputRow`, the input area's first live-screen row, in the same reply as the sample's frame generation and revision.                                                    |
+| Pairing   | The row applies only to a frame whose Host epoch, Host terminal, generation and revision equal the Explain binding and sample. One terminal generation shows one screen per revision, so the row never meets a later screen.     |
+| Output    | The endpoint becomes one past the last nonblank live-screen row above `inputRow`, or `inputRow` itself when none is; it never moves later than the endpoint above. Rows from the input area down are not read.                   |
+| Unknown   | No capability, a Session target, a refused or failed Explain, an absent `inputRow`, a row outside the screen or a different frame keeps the endpoint above. A broken connection fails the read as any other exchange on it does. |
+| Unchanged | `visible`, `detection`, `terminal read`, waits, grammar, text and the `orchbee.terminal.output` document. Rows above the answer that are not the answer, such as a header, stay in the range.                                    |
+
 ## Observation lifecycle
 
 The CLI owns `admit → snapshot → resolve → attach → frame → rows → detach → project → emit`.
-Agent resolution precedes attachment on the same session. A visible or empty selection needs no
+Agent resolution precedes attachment on the same session; an Agent `recent` read places the
+[input area](#agent-input-area) between resolution and attachment. A visible or empty selection needs no
 row request. Other selections use one buffer `ReadRows` at the frame's exact revision and generation;
 transport, route, extent and decoded rows must all agree. A stale revision, generation or evicted
 history abandons that pin: the read polls the next applied frame and repeats the row request with

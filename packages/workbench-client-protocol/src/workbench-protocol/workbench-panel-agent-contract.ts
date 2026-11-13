@@ -96,7 +96,13 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 				.readonly(),
 		})
 		.readonly(),
-	z.strictObject({ kind: z.literal('explain'), binding: TerminalAgentBindingSchema }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('explain'),
+			binding: TerminalAgentBindingSchema,
+			inputArea: z.boolean().optional(),
+		})
+		.readonly(),
 	z
 		.strictObject({ kind: z.literal('identify'), presentationId: TerminalPresentationIdSchema })
 		.readonly(),
@@ -443,6 +449,7 @@ const terminalExplanation = z
 				agentPid: z.int().min(1).max(4294967295).nullable(),
 			})
 			.readonly(),
+		inputRow: z.int().min(0).max(65535).optional(),
 	})
 	.readonly();
 const PresentationAgentRowSchema = z

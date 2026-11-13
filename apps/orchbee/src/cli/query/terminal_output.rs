@@ -1,11 +1,13 @@
 //! One source-selected read on the existing read-only viewer lifecycle.
 
+use super::agent_input_area::{self, InputArea};
 use super::{
-    Failure, FailureKind, Instant, LocalClient, Projection, TerminalTextFrame,
+    Failure, FailureKind, HostTerminalId, Instant, LocalClient, Projection, TerminalTextFrame,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId, WaitRun,
-    WaitSample, acknowledge_frame, aged_pin, attach_viewer, classify_rows_rejected,
-    classify_viewer, classify_viewer_rejected, decode_history_window, detach_viewer,
-    obcs_request_id, read_settled, snapshot_session, viewer_protocol_invalid, viewer_unavailable,
+    WaitSample, acknowledge_frame, aged_pin, attach_viewer_cancellable_with_host,
+    classify_rows_rejected, classify_viewer, classify_viewer_rejected, decode_history_window,
+    detach_viewer, obcs_request_id, read_settled, snapshot_session, viewer_protocol_invalid,
+    viewer_unavailable,
 };
 use crate::cli::terminal_output::{self, SampleRange};
 use crate::invocation::{OutputSelection, OutputSource, OutputTarget};
@@ -27,15 +29,24 @@ pub(crate) fn read_output(
     crate::cli::execution::admit(crate::cli::execution::Capability::CanonicalWorkbenchRead)?;
     let (mut client, deadline, snapshot) = snapshot_session()?;
     let source = super::super::results::snapshot_source(&snapshot);
-    let target = match target {
-        OutputTarget::Terminal(target) => target.clone(),
+    let (target, binding) = match target {
+        OutputTarget::Terminal(target) => (target.clone(), None),
         OutputTarget::Agent(target) => {
             super::named_terminal::agent_terminal_target(&mut client, &snapshot, target, deadline)?
         }
     };
+    // A recent read of a physical Agent binding first asks where its input area starts.
+    let input_area = binding
+        .filter(|_| {
+            matches!(
+                selection.source,
+                OutputSource::Recent | OutputSource::RecentUnwrapped
+            )
+        })
+        .and_then(|binding| agent_input_area::explain(&mut client, &snapshot, binding, deadline));
     let outcome = (|| {
-        let (terminal, viewer, _attachment, _epoch, mut projection) =
-            attach_viewer(&mut client, deadline, &snapshot, &target)?;
+        let (terminal, viewer, _attachment, _epoch, host_terminal, mut projection) =
+            attach_viewer_cancellable_with_host(&mut client, deadline, &snapshot, &target, None)?;
         let observed = observe(
             &mut client,
             deadline,
@@ -43,6 +54,7 @@ pub(crate) fn read_output(
             &mut projection,
             selection,
             ansi,
+            input_area.as_ref().map(|area| (area, &host_terminal)),
         );
         detach_viewer(&mut client, deadline, viewer);
         observed.map(|(frame, range, rows)| (terminal, frame, range, rows))
@@ -105,6 +117,7 @@ fn observe(
     projection: &mut TerminalProjection,
     selection: OutputSelection,
     ansi: bool,
+    input_area: Option<(&InputArea, &HostTerminalId)>,
 ) -> Result<(TerminalTextFrame, SampleRange, Sample), Failure> {
     read_settled(
         client,
@@ -113,7 +126,8 @@ fn observe(
         projection,
         |client, frame, sequence| {
             acknowledge_frame(client, deadline, viewer, frame)?;
-            let range = terminal_output::range(frame, selection)?;
+            let input_row = input_area.and_then(|(area, host)| area.row_for(host, frame));
+            let range = terminal_output::range(frame, selection, input_row)?;
             if range.count == 0 {
                 return Ok(Ok((range, Sample::Text(Vec::new()))));
             }
@@ -238,7 +252,7 @@ pub(super) fn wait_sample(
     selection: OutputSelection,
     matcher: &super::super::results::WaitMatcher<'_>,
 ) -> Result<Option<WaitSample>, Failure> {
-    let range = terminal_output::range(frame, selection)?;
+    let range = terminal_output::range(frame, selection, None)?;
     let boundary = after_row(run, frame, range)?;
     let mut rows = if range.count == 0 {
         Vec::new()

@@ -121,6 +121,20 @@ impl ScreenDetector {
             .map_or_else(|| Detection::fallback(true), |m| m.detect(input)))
     }
 
+    /// The provider's input area's first row on bounded live-screen text whose lines are screen
+    /// rows; unknown without rule data, a match or an admissible input.
+    pub(crate) fn input_row(
+        &self,
+        provider: AgentReportProvider,
+        input: ScreenInput<'_>,
+    ) -> Option<u16> {
+        bounded(input).ok()?;
+        self.0
+            .iter()
+            .find(|m| m.provider == provider)?
+            .input_row(input.screen)
+    }
+
     pub(crate) fn explain(
         &self,
         provider: AgentReportProvider,

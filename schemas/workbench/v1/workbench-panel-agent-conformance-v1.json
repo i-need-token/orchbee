@@ -1624,6 +1624,126 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "explain-input-area-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "explain",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					},
+					"inputArea": true
+				}
+			}
+		},
+		{
+			"name": "explain-input-row",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
+						},
+						"inputRow": 37
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -6356,6 +6476,208 @@
 						}
 					],
 					"workbenchRevision": "1"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-input-row-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
+						},
+						"inputRow": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-input-row-beyond-u16",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						},
+						"identity": {
+							"result": "agent",
+							"providerId": "claude-code",
+							"grade": "recognized"
+						},
+						"inputRow": 65536
+					}
 				}
 			},
 			"boundary": "schema"

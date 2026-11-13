@@ -10,6 +10,10 @@ include!(concat!(env!("OUT_DIR"), "/fingerprints.rs"));
 /// prompt. A peer without it gets no gated send and no ungated fallback.
 pub const PROMPT_GATED_INPUT: &str = "prompt-gated-input";
 
+/// The `client-server` capability before a Client may ask physical Explain to place the Agent's
+/// input area. A Server without it never receives the flag.
+pub const AGENT_INPUT_AREA: &str = "agent-input-area";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -70,7 +74,8 @@ impl ConnectionKind {
     #[must_use]
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
-            Self::ClientServer | Self::WorkerHost => &[PROMPT_GATED_INPUT],
+            Self::ClientServer => &[AGENT_INPUT_AREA, PROMPT_GATED_INPUT],
+            Self::WorkerHost => &[PROMPT_GATED_INPUT],
             Self::MachineHub | Self::MachineLink => &[],
         };
         CapabilitySet::new(names.iter().map(|name| {

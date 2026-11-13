@@ -13,6 +13,8 @@ pub(in crate::local_terminal_service) struct CapturedAgentExplanation {
     pub(in crate::local_terminal_service) explanation:
         orchbee_workbench_protocol::AgentScreenExplanation,
     pub(in crate::local_terminal_service) sample: orchbee_workbench_protocol::AgentDetectionSample,
+    /// The input area's first row in `sample`'s screen, from the same capture.
+    pub(in crate::local_terminal_service) input_row: Option<u16>,
 }
 
 /// Owned by the periodic sampler until exact Detach/Disposed, or matching Session shutdown proves Worker exit.

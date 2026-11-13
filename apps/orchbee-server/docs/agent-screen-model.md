@@ -127,6 +127,27 @@ state and no custom report source is present, a program status record decided.
 
 Regions select live prompts, response markers, prompt boxes, top/bottom nonempty lines and separate OSC fields. Line boundaries retain correct UTF-8 offsets for LF and CRLF, including blank lines and a final unterminated line; no byte offset may split a Unicode character. All matching is pure and does not access files, processes, clocks or mutable global state. Compiled rules may be retained by the sampling owner and reused.
 
+## Input area
+
+A manifest may carry one optional `[input_area]` table that places the Agent's input area on the
+live screen, so a [`recent` read](../../orchbee/docs/native-terminal-output.md#agent-input-area)
+can end above it. It plays no part in state detection.
+
+| Field          | Meaning                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anchor`       | Required line regex. The area contains the last screen line it matches; no match means the area is unknown.                                  |
+| `above`        | Optional line regex. The unbroken run of lines directly above the anchor that match it belongs to the area too.                              |
+| First row      | The top of that run, or the anchor's line. Every row from it to the bottom of the screen, such as the box, status and footer, is the area.   |
+| Engine version | The table needs engine version 4: a manifest that declares a lower `min_engine_version` is refused, and the engine accepts versions up to 4. |
+| Bounds         | Each pattern follows the matcher bounds above: at most 512 Unicode characters and the same regex memory limits.                              |
+
+Lines are the sampled live-screen rows from the top, with trailing whitespace removed, so a line's
+index is its screen row. Physical Explain computes the row from the same capture as its sample and
+returns it only when the request asks for it. Only OpenCode 2.x carries the table: the anchor is the
+prompt box's bottom edge (`╹▀▀▀`) and `above` its left bar (`┃`). Its transcript message boxes draw
+the bar without that bottom edge, so they never anchor, and a question that replaces the prompt box
+leaves the area unknown.
+
 ## Publication integration contract
 
 The Windows Host adapter validates the exact attachment, Worker generation and Host identity and associates screen evidence with the same observed PID/creation identity. It may not reinterpret a failed/missing frame as an empty screen or derive idle from unavailable data. Existing process exits retain precedence. A newer visible blocker may override a matching custom report through the report aggregate.

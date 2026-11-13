@@ -37,6 +37,7 @@ mod agent_journal;
 pub(crate) use agent_journal::{AgentJournal, JournalError};
 mod agent_explanation;
 mod agent_focus;
+mod agent_input_area;
 mod agent_names;
 mod agent_names_failure;
 pub(in crate::cli) use agent_names_failure::rejection as agent_names_rejection;

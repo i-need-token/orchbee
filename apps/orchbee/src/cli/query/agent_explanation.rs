@@ -92,7 +92,10 @@ impl AgentReadExchange for ExplainRead {
                             protocol_version: ProtocolVersion,
                             request_id: id.clone(),
                             session_id: snapshot.session_id.clone(),
-                            action: PanelAgentAction::Explain { binding },
+                            action: PanelAgentAction::Explain {
+                                binding,
+                                input_area: false,
+                            },
                         },
                         total,
                         wake,

@@ -10,18 +10,19 @@ use orchbee_agent_observation_protocol::{
 pub(in crate::cli) use super::agent_target::resolve_named;
 
 /// Resolve once, get once, and refuse a missing or ambiguous live binding.
-/// The caller keeps the admission and original deadline for the terminal operation.
+/// The caller keeps the admission and original deadline for the terminal operation. A physical
+/// target also yields the binding it resolved to; a canonical session yields none.
 pub(crate) fn agent_terminal_target(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     target: &crate::invocation::AgentTarget,
     deadline: Instant,
-) -> Result<Target, Failure> {
+) -> Result<(Target, Option<AgentLaunchBinding>), Failure> {
     if crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection).is_ok() {
-        named_terminal_target(client, snapshot, target, deadline, None, false)
+        resolve_named_terminal(client, snapshot, target, deadline, None, false)
     } else {
         agent_terminal::resolve_agent_terminal(client, snapshot, target, deadline)
-            .map(|resolved| resolved.terminal)
+            .map(|resolved| (resolved.terminal, None))
     }
 }
 
@@ -33,6 +34,18 @@ pub(crate) fn named_terminal_target(
     wake: Option<BorrowedFd<'_>>,
     verify_process: bool,
 ) -> Result<Target, Failure> {
+    resolve_named_terminal(client, snapshot, target, deadline, wake, verify_process)
+        .map(|(target, _)| target)
+}
+
+fn resolve_named_terminal(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    target: &crate::invocation::AgentTarget,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+    verify_process: bool,
+) -> Result<(Target, Option<AgentLaunchBinding>), Failure> {
     let resolved = resolve_named(client, target, Some(snapshot), deadline, wake)?;
     match resolved.target {
         AgentNameTarget::Session { session_id } => {
@@ -48,9 +61,9 @@ pub(crate) fn named_terminal_target(
             };
             if verify_process {
                 verify_agent_terminal(client, snapshot, selected, deadline)
-                    .map(|item| item.terminal)
+                    .map(|item| (item.terminal, None))
             } else {
-                Ok(selected.terminal)
+                Ok((selected.terminal, None))
             }
         }
         AgentNameTarget::Terminal { binding } => {
@@ -59,7 +72,7 @@ pub(crate) fn named_terminal_target(
             // coordinator fence. Later terminal operations retain this snapshot's exact
             // logical worker/terminal pair. This preflight is not a process lease.
             verify_named_binding(client, &binding, deadline, wake)?;
-            Ok(Target::Id(row.terminal_id))
+            Ok((Target::Id(row.terminal_id), Some(binding)))
         }
     }
 }
