@@ -80,7 +80,38 @@ When local resources are not enough, other computers can be added over SSH to ex
 ## Install
 
 > [!IMPORTANT]
-> Orchbee is in active early development. Pre-built applications are not yet available; the source checkout is currently intended for contributors.
+> Orchbee is in beta. It runs on Windows 11 (x86_64) today; macOS and Linux builds are in progress.
+
+### Desktop app, terminal and CLI
+
+Download `Orchbee-<version>-windows-x86_64-setup.exe` from the
+[releases page](https://github.com/i-need-token/orchbee/releases) and run it.
+
+- Installs for the current user only; no administrator rights needed.
+- Adds the `orchbee` command to your `Path`. Open a new terminal to use it.
+- The installer is not code-signed yet, so Windows SmartScreen may ask you to confirm.
+
+### Terminal and CLI only
+
+```powershell
+npm install -g orchbee@next
+```
+
+Requires Node.js 22 or later. This installs the terminal interface and the CLI, without the desktop app.
+
+### Start
+
+```powershell
+orchbee          # open the terminal interface
+```
+
+Or open **Orchbee** from the Start menu.
+
+### Uninstall
+
+Remove Orchbee from **Settings › Apps**, or run `orchbee uninstall`. For an npm install, run
+`orchbee uninstall` and then `npm rm -g orchbee`. Your data in `~/.orchbee` is kept; add
+`--delete-data` to remove it too.
 
 <details>
 <summary>Build from source</summary>

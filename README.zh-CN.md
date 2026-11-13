@@ -80,7 +80,38 @@ Orchbee 无需任何配置即可识别 30 余种 CLI Agent，并显示每个 Age
 ## 安装
 
 > [!IMPORTANT]
-> Orchbee 正处于积极开发的早期阶段，暂未提供预编译应用；当前源码主要面向贡献者。
+> Orchbee 处于测试阶段，目前支持 Windows 11（x86_64）；macOS 和 Linux 版本正在开发中。
+
+### 桌面应用、终端和 CLI
+
+从[发布页](https://github.com/i-need-token/orchbee/releases)下载
+`Orchbee-<version>-windows-x86_64-setup.exe` 并运行。
+
+- 只为当前用户安装，不需要管理员权限。
+- 会把 `orchbee` 命令加入 `Path`，新开一个终端即可使用。
+- 安装程序暂未做代码签名，Windows SmartScreen 可能会要求你确认。
+
+### 仅终端和 CLI
+
+```powershell
+npm install -g orchbee@next
+```
+
+需要 Node.js 22 或更高版本。这种方式安装终端界面和 CLI，不含桌面应用。
+
+### 启动
+
+```powershell
+orchbee          # 打开终端界面
+```
+
+也可以从开始菜单打开 **Orchbee**。
+
+### 卸载
+
+在**设置 › 应用**中移除 Orchbee，或运行 `orchbee uninstall`。通过 npm 安装的，先运行
+`orchbee uninstall`，再运行 `npm rm -g orchbee`。`~/.orchbee` 中的数据会保留；加上
+`--delete-data` 可一并删除。
 
 <details>
 <summary>从源码构建</summary>
