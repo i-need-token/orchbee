@@ -17,7 +17,7 @@ export function Website({
 	page?: 'home' | 'not-found';
 }): ReactElement {
 	return (
-		<PageShell locale={locale}>
+		<PageShell locale={locale} release={release}>
 			{page === 'home' ? <Home release={release} /> : <NotFound locale={locale} />}
 		</PageShell>
 	);

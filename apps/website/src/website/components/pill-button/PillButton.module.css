@@ -1,0 +1,76 @@
+.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--ob-ref-length-website-9);
+	height: var(--ob-ref-length-website-46);
+	padding: 0 var(--ob-ref-length-website-22);
+	box-sizing: border-box;
+	border-radius: var(--ob-ref-length-website-99);
+	font: var(--ob-sys-typography-website-button);
+	font-stretch: 104%;
+	white-space: nowrap;
+	transition:
+		box-shadow var(--ob-sys-motion-duration-website-200) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-200) var(--ob-sys-motion-easing-website-ease),
+		transform var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.button svg {
+	flex: none;
+}
+.button:active {
+	transform: translateY(var(--ob-ref-length-website-1));
+}
+.primary {
+	background: linear-gradient(
+		180deg,
+		var(--ob-sys-color-website-button-top),
+		var(--ob-sys-color-website-button-bottom)
+	);
+	color: var(--ob-sys-color-website-on-button);
+	box-shadow: var(--ob-sys-shadow-website-button);
+}
+.primary:hover {
+	box-shadow: var(--ob-sys-shadow-website-button-hover);
+}
+.glass {
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-ln2);
+	background: var(--ob-sys-color-website-glass);
+	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-12));
+	backdrop-filter: blur(var(--ob-ref-length-website-12));
+	color: var(--ob-sys-color-website-fg);
+}
+.glass:hover {
+	border-color: var(--ob-sys-color-website-ln3);
+}
+.small {
+	height: var(--ob-ref-length-website-36);
+	padding: 0 var(--ob-ref-length-website-15);
+	font: var(--ob-sys-typography-website-button-small);
+	font-stretch: 104%;
+}
+.nav {
+	height: var(--ob-ref-length-website-34);
+	margin-left: var(--ob-ref-length-website-8);
+	padding: 0 var(--ob-ref-length-website-15);
+	font: var(--ob-sys-typography-website-button-small);
+	font-stretch: 104%;
+}
+.button small {
+	font: var(--ob-sys-typography-website-file-kind);
+	color: var(--ob-sys-color-website-fg3);
+}
+@media (max-width: 40rem) {
+	.large {
+		width: 100%;
+	}
+}
+@media (max-width: 24rem) {
+	.nav {
+		width: var(--ob-ref-length-website-34);
+		padding: 0;
+	}
+	.nav span {
+		display: none;
+	}
+}

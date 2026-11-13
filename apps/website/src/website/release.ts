@@ -11,6 +11,10 @@
 
 export const REPOSITORY_URL = 'https://github.com/i-need-token/orchbee';
 
+export const README_URL = `${REPOSITORY_URL}#readme`;
+
+export const BUILD_GUIDE_URL = `${REPOSITORY_URL}#install`;
+
 export const NPM_INSTALL_COMMAND = 'npm install -g orchbee@next';
 
 export const SOURCE_COMMANDS = [

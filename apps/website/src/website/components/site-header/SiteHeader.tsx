@@ -1,38 +1,58 @@
 import { useOrchbeeIntl, websiteMessages as messages, type OrchbeeLocale } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { REPOSITORY_URL } from '../../release';
+import { README_URL, REPOSITORY_URL, type Release } from '../../release';
+import { BeeMark } from '../bee-mark/BeeMark';
+import { PillButton } from '../pill-button/PillButton';
 import styles from './SiteHeader.module.css';
 
+// The fixed header: the mark, the current section chip, the links, the language and theme
+// switches and the install button. It turns to glass once the page scrolls.
 export function SiteHeader({
 	locale,
 	home,
 	alternate,
-	installHref,
+	release,
 }: {
 	locale: OrchbeeLocale;
 	home: string;
 	alternate: string;
-	installHref: string;
+	release: Release;
 }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const otherLocale = locale === 'zh-CN' ? 'en-US' : 'zh-CN';
 	return (
-		<header className={styles['header']}>
+		<header className={styles['nav']} data-nav=''>
 			<a className={styles['skip']} href='#main'>
 				{t(messages.skip)}
 			</a>
 			<div className={styles['inner']}>
-				<a className={styles['brand']} href={home}>
-					<img src='/icon.svg' width='26' height='26' alt='' />
-					Orchbee
+				<a className={styles['brand']} href={`${home}#top`} aria-label='Orchbee'>
+					<span className={styles['mark']}>
+						<BeeMark />
+					</span>
+					<b>Orchbee</b>
 				</a>
-				<nav className={styles['navigation']} aria-label={t(messages.navigation)}>
+				<a
+					className={styles['scene']}
+					href='#anywhere'
+					aria-hidden='true'
+					tabIndex={-1}
+					data-scene-chip=''
+				>
+					<b data-scene-number=''>01</b>
+					<i>{t(messages.sceneOf)}</i>
+					<span data-scene-name=''>{t(messages.sceneAnywhere)}</span>
+				</a>
+				<nav className={styles['links']} aria-label={t(messages.navigation)}>
+					<a className={styles['link']} href={README_URL}>
+						{t(messages.docs)}
+					</a>
 					<a className={styles['link']} href={REPOSITORY_URL}>
 						GitHub
 					</a>
 					<a
-						className={styles['toggle']}
+						className={styles['language']}
 						href={alternate}
 						hrefLang={otherLocale}
 						lang={otherLocale}
@@ -42,7 +62,7 @@ export function SiteHeader({
 						{t(messages.languageSwitch)}
 					</a>
 					<button
-						className={styles['toggle']}
+						className={styles['theme']}
 						type='button'
 						data-appearance=''
 						data-label-system={t(messages.themeSystem)}
@@ -97,11 +117,12 @@ export function SiteHeader({
 							<path d='M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z' />
 						</svg>
 					</button>
-					<a className={styles['cta']} href={installHref}>
-						{t(messages.getOrchbee)}
-					</a>
+					<PillButton variant='primary' size='nav' icon='dl' href={`${home}#install`}>
+						<span>{release.published ? t(messages.navDownload) : t(messages.navInstall)}</span>
+					</PillButton>
 				</nav>
 			</div>
+			<i className={styles['progress']} data-progress='' />
 		</header>
 	);
 }

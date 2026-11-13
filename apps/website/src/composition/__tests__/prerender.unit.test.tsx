@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { renderNotFound, renderPage } from '../prerender';
 
 const LOCALES = ['en-US', 'zh-CN'] as const;
-const SECTIONS = ['terminal', 'sessions', 'orchestrate', 'agents', 'install'] as const;
+const SECTIONS = ['anywhere', 'agents', 'orchestrate', 'private', 'terminal', 'install'] as const;
 const PUBLISHED = {
 	published: true,
 	version: '9.9.9-test.1',
 	installerUrl: 'https://github.com/i-need-token/orchbee/releases/download/v9.9.9-test.1/test.exe',
 } as const;
 
-// Every picture, stylesheet and script the page loads must come from the site itself.
+// Every resource the page loads must come from the site itself; icons come from the page.
 function loadedAddresses(markup: string): string[] {
 	return [...markup.matchAll(/\s(?:src|srcset)="([^"]+)"/gu)].flatMap((match) =>
 		(match[1] ?? '').split(',').map((candidate) => candidate.trim().split(/\s+/u)[0] ?? ''),
@@ -23,9 +23,9 @@ describe('localized static website', () => {
 		for (const section of SECTIONS) expect(markup).toContain(`id="${section}"`);
 		expect(markup).not.toContain('<iframe');
 		expect(markup).not.toContain('<form');
-		const addresses = loadedAddresses(markup);
-		expect(addresses.length).toBeGreaterThan(0);
-		for (const address of addresses) expect(address).toMatch(/^\/(?!\/)/u);
+		for (const address of loadedAddresses(markup)) expect(address).toMatch(/^\/(?!\/)/u);
+		for (const [, icon] of markup.matchAll(/<use\s[^>]*href="([^"]*)"/gu))
+			expect(icon).toMatch(/^#/u);
 	});
 
 	it.each(LOCALES)('offers the repository and a source build before a release (%s)', (locale) => {

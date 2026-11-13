@@ -1,0 +1,18 @@
+.tag,
+.honey {
+	display: inline-flex;
+	align-items: center;
+	height: var(--ob-ref-length-website-22);
+	padding: 0 var(--ob-ref-length-website-9);
+	box-sizing: border-box;
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-ln2);
+	border-radius: var(--ob-ref-length-website-99);
+	font: var(--ob-sys-typography-website-tag);
+	text-transform: uppercase;
+	color: var(--ob-sys-color-website-fg2);
+	white-space: nowrap;
+}
+.honey {
+	border-color: var(--ob-sys-color-website-honey-tx);
+	color: var(--ob-sys-color-website-honey-tx);
+}

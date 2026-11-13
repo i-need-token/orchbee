@@ -1,44 +1,81 @@
 :global(html) {
 	scroll-behavior: smooth;
-	scroll-padding-top: var(--ob-ref-space-20);
-	background: var(--ob-sys-color-surface-canvas);
+	background: var(--ob-sys-color-website-bg);
 }
 :global(body) {
 	margin: 0;
-	color: var(--ob-sys-color-text-primary);
-	background: var(--ob-sys-color-surface-canvas);
-}
-:global(*) {
-	box-sizing: border-box;
+	background: var(--ob-sys-color-website-bg);
 }
 :global([hidden]) {
 	display: none !important;
 }
 .page {
-	font: var(--ob-sys-typography-body-lg);
+	position: relative;
+	min-height: 100%;
+	overflow-x: clip;
+	background: var(--ob-sys-color-website-bg);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-body);
+	font-stretch: 104%;
 	-webkit-font-smoothing: antialiased;
-	overflow: clip;
-	overflow-wrap: break-word;
-	color: var(--ob-sys-color-text-secondary);
+	-moz-osx-font-smoothing: grayscale;
 }
-/* Resets carry no specificity, so any component class overrides them. */
+.page:lang(zh) {
+	font: var(--ob-sys-typography-website-body-zh);
+	font-stretch: 104%;
+}
+.page ::selection {
+	background: var(--ob-sys-color-website-selection);
+}
 :where(.page) :where(a) {
 	color: inherit;
 	text-decoration: none;
 }
-:where(.page) :where(a, button):focus-visible {
-	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
-	outline-offset: var(--ob-sys-focus-ring-offset);
-}
 :where(.page) :where(button) {
+	color: inherit;
+	background: none;
+	border: none;
+	padding: 0;
+	margin: 0;
 	cursor: pointer;
 }
-:where(.page) :where(h1, h2, h3, p, ul, figure) {
-	margin: 0;
+.page :focus-visible {
+	outline: var(--ob-ref-length-website-2) solid var(--ob-sys-color-website-honey);
+	outline-offset: var(--ob-ref-length-website-3);
 }
-:where(.page) :where(ul) {
-	padding: 0;
-	list-style: none;
+.swarm {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: var(--ob-ref-layer-website-swarm);
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+}
+.main {
+	position: relative;
+	z-index: var(--ob-ref-layer-website-content);
+}
+/* The page column every section and the header share. */
+.wrap {
+	position: relative;
+	max-width: var(--ob-ref-length-website-1240);
+	margin: 0 auto;
+	padding: 0 var(--ob-ref-length-website-40);
+}
+/* A content section below the hero. */
+.section {
+	padding-top: var(--ob-ref-length-website-210);
+}
+@media (max-width: 48rem) {
+	.wrap {
+		padding: 0 var(--ob-ref-length-website-20);
+	}
+	.section {
+		padding-top: var(--ob-ref-length-website-144);
+	}
 }
 @media (prefers-reduced-motion: reduce) {
 	:global(html) {

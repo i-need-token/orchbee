@@ -22,8 +22,9 @@ export default defineConfig(({ command }) => ({
 			},
 			output: {
 				distPath: { root: 'dist' },
-				// Brand files and the README animations are published as they are; public/ adds the
-				// re-encoded stills and the Cloudflare headers file.
+				// The Content Security Policy loads fonts only from the site, so none may be inlined.
+				dataUriLimit: { font: 0 },
+				// Brand files are published as they are; public/ adds the Cloudflare headers file.
 				copy: [
 					{ from: '../../resources/icon.svg', to: 'icon.svg' },
 					{ from: '../../resources/brand/ico/favicon.ico', to: 'favicon.ico' },
@@ -32,8 +33,6 @@ export default defineConfig(({ command }) => ({
 						to: 'apple-touch-icon.png',
 					},
 					{ from: '../../resources/brand/social/orchbee-og-1200x630-dark.png', to: 'og.png' },
-					{ from: '../../resources/readme/multiplex.gif', to: 'pictures/multiplex.gif' },
-					{ from: '../../resources/readme/agents-cli.gif', to: 'pictures/agents-cli.gif' },
 				],
 			},
 		},

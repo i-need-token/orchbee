@@ -1,0 +1,9 @@
+.sprite {
+	position: absolute;
+}
+.body {
+	fill: var(--ob-sys-color-website-bee);
+}
+.wing {
+	fill: var(--ob-sys-color-website-wing);
+}

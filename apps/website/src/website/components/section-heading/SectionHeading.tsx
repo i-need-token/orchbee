@@ -1,33 +1,37 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
-import { AccentText } from '../accent-text/AccentText';
 import styles from './SectionHeading.module.css';
 
+// A section's number and name, its two-line heading with the honey second line, and its lead.
 export function SectionHeading({
 	number,
 	label,
 	lead,
 	accent,
-	body,
+	variant = 'scene',
+	children,
 }: {
-	number: string;
-	label: string;
+	number?: string;
+	label?: string;
 	lead: string;
 	accent: string;
-	body?: string;
+	variant?: 'scene' | 'outro';
+	children?: ReactNode;
 }): ReactElement {
 	return (
-		<div className={styles['heading']}>
-			<p className={styles['label']}>
-				<span className={styles['number']}>{number}</span>
-				<span className={styles['rule']} aria-hidden='true' />
-				{label}
-			</p>
-			<h2 className={styles['title']}>
+		<>
+			{number === undefined ? null : (
+				<p className={styles['label']}>
+					<b>{number}</b>
+					<i />
+					<span>{label}</span>
+				</p>
+			)}
+			<h2 className={styles[variant]}>
 				<span className={styles['line']}>{lead}</span>
-				<AccentText>{accent}</AccentText>
+				<span className={styles['accent']}>{accent}</span>
 			</h2>
-			{body === undefined ? null : <p className={styles['body']}>{body}</p>}
-		</div>
+			{children === undefined ? null : <p className={styles['body']}>{children}</p>}
+		</>
 	);
 }

@@ -1,38 +1,35 @@
 import { useOrchbeeIntl, websiteMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { REPOSITORY_URL } from '../../release';
+import { README_URL, REPOSITORY_URL } from '../../release';
+import { BeeMark } from '../bee-mark/BeeMark';
 import styles from './SiteFooter.module.css';
 
-export function SiteFooter({
-	home,
-	installHref,
-}: {
-	home: string;
-	installHref: string;
-}): ReactElement {
+// The footer: the mark and tagline, the links, and the site's own privacy note.
+export function SiteFooter({ home }: { home: string }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	return (
-		<footer className={styles['footer']}>
+		<footer className={styles['foot']}>
 			<div className={styles['inner']}>
 				<div className={styles['row']}>
-					<div className={styles['identity']}>
-						<a className={styles['brand']} href={home}>
-							<img src='/icon.svg' width='24' height='24' alt='' />
-							Orchbee
+					<div className={styles['brand']}>
+						<a className={styles['mark']} href={`${home}#top`} aria-label='Orchbee'>
+							<span className={styles['bee']}>
+								<BeeMark />
+							</span>
+							<b>Orchbee</b>
 						</a>
-						<p className={styles['tagline']}>{t(messages.footerTagline)}</p>
+						<span className={styles['tagline']}>{t(messages.tagline)}</span>
 					</div>
 					<nav className={styles['links']} aria-label={t(messages.footerNavigation)}>
-						<a href={installHref}>{t(messages.installLabel)}</a>
+						<a href={`${home}#install`}>{t(messages.sceneInstall)}</a>
+						<a href={README_URL}>{t(messages.docs)}</a>
 						<a href={REPOSITORY_URL}>GitHub</a>
-						<a href={`${REPOSITORY_URL}/issues`}>{t(messages.footerIssues)}</a>
-						<a href={`${REPOSITORY_URL}/blob/main/LICENSE`}>{t(messages.footerLicense)}</a>
 					</nav>
 				</div>
 				<div className={styles['note']}>
-					<p>{t(messages.footerPrivacy)}</p>
-					<p>© 2026 Orchbee</p>
+					<span>{t(messages.footerPrivacy)}</span>
+					<span>© 2026 Orchbee</span>
 				</div>
 			</div>
 		</footer>

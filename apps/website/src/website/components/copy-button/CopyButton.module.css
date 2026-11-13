@@ -1,17 +1,45 @@
-.copy {
+.page,
+.terminal {
+	display: inline-flex;
 	flex: none;
-	margin-inline-start: auto;
-	padding: var(--ob-ref-space-1) var(--ob-ref-space-3);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-full);
-	background: transparent;
-	font: var(--ob-sys-typography-label-sm);
-	color: var(--ob-sys-color-text-secondary);
+	align-items: center;
+	justify-content: center;
+	min-width: var(--ob-ref-length-website-36);
+	height: var(--ob-ref-length-website-36);
+	padding: 0 var(--ob-ref-length-website-9);
+	box-sizing: border-box;
+	border-radius: var(--ob-ref-length-website-99);
+	font: var(--ob-sys-typography-website-copy);
+	color: var(--ob-sys-color-website-fg3);
+	transition:
+		background var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
 }
-.copy:hover {
-	border-color: var(--ob-sys-color-border-strong);
-	color: var(--ob-sys-color-text-primary);
+.terminal {
+	margin-left: auto;
+	color: var(--ob-sys-color-website-t-ts);
 }
-.copy[data-copied] {
-	color: var(--ob-sys-color-status-success-text);
+.page:hover,
+.terminal:hover {
+	background: var(--ob-sys-color-website-panel);
+	color: var(--ob-sys-color-website-fg);
+}
+.idle,
+.done {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-6);
+}
+.done {
+	display: none;
+}
+[data-copied].page,
+[data-copied].terminal {
+	color: var(--ob-sys-color-website-t-succ);
+}
+[data-copied] .idle {
+	display: none;
+}
+[data-copied] .done {
+	display: inline-flex;
 }

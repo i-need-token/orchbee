@@ -1,0 +1,350 @@
+.scene {
+	composes: section from '../page-shell/PageShell.module.css';
+}
+.inner {
+	composes: wrap from '../page-shell/PageShell.module.css';
+}
+.heading {
+	max-width: var(--ob-ref-length-website-820);
+}
+.hint {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	margin: var(--ob-ref-length-website-22) 0 0;
+	font: var(--ob-sys-typography-website-hint);
+	color: var(--ob-sys-color-website-fg3);
+}
+.devices {
+	position: relative;
+	height: var(--ob-ref-length-website-640);
+	margin-top: var(--ob-ref-length-website-68);
+}
+.app,
+.term,
+.phone {
+	position: absolute;
+	margin: 0;
+}
+.app {
+	left: 14%;
+	top: 0;
+	width: 66%;
+}
+.term {
+	left: 0;
+	top: var(--ob-ref-length-website-200);
+	z-index: var(--ob-ref-layer-website-device-1);
+	width: 44%;
+}
+.phone {
+	right: 3%;
+	top: var(--ob-ref-length-website-110);
+	z-index: var(--ob-ref-layer-website-device-2);
+	width: var(--ob-ref-length-website-240);
+}
+.caption,
+.captionEnd {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	margin-top: var(--ob-ref-length-website-14);
+	font: var(--ob-sys-typography-website-caption);
+	text-transform: uppercase;
+	color: var(--ob-sys-color-website-fg3);
+}
+.captionEnd {
+	justify-content: flex-end;
+}
+.caption b,
+.captionEnd b {
+	font: var(--ob-sys-typography-website-caption-strong);
+	color: var(--ob-sys-color-website-fg2);
+}
+/* The desktop app. */
+.desktop {
+	display: flex;
+	height: var(--ob-ref-length-website-330);
+	background: var(--ob-sys-color-website-g-main);
+	font: var(--ob-sys-typography-website-app);
+	color: var(--ob-sys-color-website-g-tx);
+}
+.side {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	gap: var(--ob-ref-length-website-2);
+	width: var(--ob-ref-length-website-140);
+	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-8);
+	box-sizing: border-box;
+	border-right: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-g-ln);
+	background: var(--ob-sys-color-website-g-side);
+}
+.newWorkspace {
+	padding: var(--ob-ref-length-website-2) var(--ob-ref-length-website-8)
+		var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-g-tx2);
+	white-space: nowrap;
+}
+.workspace,
+.workspaceCurrent {
+	padding: var(--ob-ref-length-website-4) var(--ob-ref-length-website-8)
+		var(--ob-ref-length-website-6);
+	border-radius: var(--ob-ref-length-website-7);
+	font: var(--ob-sys-typography-website-app-workspace);
+}
+.workspace {
+	margin-top: var(--ob-ref-length-website-10);
+}
+.workspaceCurrent {
+	background: var(--ob-sys-color-website-g-cur);
+}
+.workspace b,
+.workspaceCurrent b {
+	display: block;
+	font: var(--ob-sys-typography-website-app-workspace-name);
+}
+.workspace small,
+.workspaceCurrent small {
+	font: var(--ob-sys-typography-website-app-small);
+	color: var(--ob-sys-color-website-g-tx2);
+}
+.agent {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	height: var(--ob-ref-length-website-27);
+	margin-left: var(--ob-ref-length-website-10);
+	padding: 0 var(--ob-ref-length-website-8);
+	border-left: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-g-ln);
+	white-space: nowrap;
+}
+.agentName {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.muted {
+	color: var(--ob-sys-color-website-g-tx2);
+}
+.main {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+.tabs {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-2);
+	height: var(--ob-ref-length-website-38);
+	padding: 0 var(--ob-ref-length-website-6);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-g-ln);
+	background: var(--ob-sys-color-website-g-side);
+}
+.tab,
+.tabOn {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	height: var(--ob-ref-length-website-27);
+	padding: 0 var(--ob-ref-length-website-11);
+	border-radius: var(--ob-ref-length-website-7);
+	font: var(--ob-sys-typography-website-app-tab);
+	color: var(--ob-sys-color-website-g-tx2);
+	white-space: nowrap;
+}
+.tabOn {
+	background: var(--ob-sys-color-website-g-main);
+	color: var(--ob-sys-color-website-g-tx);
+	box-shadow: var(--ob-sys-shadow-website-app-tab);
+}
+.tabClose {
+	color: var(--ob-sys-color-website-g-tx2);
+}
+.tabAdd {
+	padding: 0 var(--ob-ref-length-website-8);
+	font: var(--ob-sys-typography-website-app-tab);
+	color: var(--ob-sys-color-website-g-tx2);
+}
+.paneHead {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: var(--ob-ref-length-website-26);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-g-ln);
+	font: var(--ob-sys-typography-website-app-tab);
+	color: var(--ob-sys-color-website-g-tx2);
+}
+.paneTitle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-7);
+}
+.paneTools {
+	position: absolute;
+	right: var(--ob-ref-length-website-12);
+	top: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+}
+.terminal {
+	position: relative;
+	flex: 1;
+	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-16);
+	overflow: hidden;
+	font: var(--ob-sys-typography-website-app-terminal);
+	color: var(--ob-sys-color-website-g-tx);
+}
+.terminal > div,
+.phoneTerminal > div {
+	overflow: hidden;
+	white-space: pre;
+}
+.ok {
+	color: var(--ob-sys-color-website-t-succ);
+}
+.error {
+	color: var(--ob-sys-color-website-t-errt);
+}
+.right {
+	float: right;
+}
+.bullet {
+	display: inline-block;
+	width: var(--ob-ref-length-website-em-0-42);
+	height: var(--ob-ref-length-website-em-0-42);
+	margin: 0 var(--ob-ref-length-website-em-0-58) 0 var(--ob-ref-length-website-em-0-1);
+	border-radius: 50%;
+	background: var(--ob-sys-color-website-g-tx2);
+	vertical-align: var(--ob-ref-length-website-em-0-12);
+}
+/* The terminal: the prompt rows sit on the Panel's rows 10 to 12, inside its frame. */
+.overlay {
+	position: absolute;
+	top: var(--ob-ref-length-website-em-13-2);
+	left: var(--ob-ref-length-website-em-1-2);
+	width: var(--ob-ref-length-website-em-24-6);
+}
+/* The phone. */
+.bezel {
+	position: relative;
+	width: var(--ob-ref-length-website-240);
+	height: var(--ob-ref-length-website-450);
+	padding: var(--ob-ref-length-website-9);
+	box-sizing: border-box;
+	border-radius: var(--ob-ref-length-website-42);
+	background: var(--ob-sys-color-website-bezel);
+	box-shadow: var(--ob-sys-shadow-website-phone);
+	transition: box-shadow var(--ob-sys-motion-duration-website-200)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.phone:focus-within .bezel {
+	box-shadow: var(--ob-sys-shadow-website-window-focus);
+}
+.screen {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: var(--ob-ref-length-website-44) var(--ob-ref-length-website-10)
+		var(--ob-ref-length-website-10);
+	box-sizing: border-box;
+	border-radius: var(--ob-ref-length-website-33);
+	background: var(--ob-sys-color-website-t-host);
+	overflow: hidden;
+	color: var(--ob-sys-color-website-t-tp);
+}
+.notch {
+	position: absolute;
+	left: 50%;
+	top: var(--ob-ref-length-website-12);
+	width: var(--ob-ref-length-website-72);
+	height: var(--ob-ref-length-website-20);
+	margin-left: calc(-1 * var(--ob-ref-length-website-36));
+	border-radius: var(--ob-ref-length-website-12);
+	background: var(--ob-sys-color-website-notch);
+}
+.phoneHead {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	padding: 0 var(--ob-ref-length-website-4) var(--ob-ref-length-website-12);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-g-ln);
+	font: var(--ob-sys-typography-website-phone-head);
+}
+.phoneHead b {
+	display: block;
+	font: var(--ob-sys-typography-website-phone-name);
+}
+.phoneHead small {
+	display: block;
+	font: var(--ob-sys-typography-website-phone-small);
+	color: var(--ob-sys-color-website-t-ts);
+}
+.phoneTerminal {
+	position: relative;
+	flex: 1;
+	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-2) 0;
+	overflow: hidden;
+	font: var(--ob-sys-typography-website-phone-terminal);
+}
+.keys {
+	display: flex;
+	gap: var(--ob-ref-length-website-5);
+}
+.keys span {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	height: var(--ob-ref-length-website-28);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-g-ln);
+	border-radius: var(--ob-ref-length-website-7);
+	background: var(--ob-sys-color-website-g-side);
+	font: var(--ob-sys-typography-website-phone-key);
+	color: var(--ob-sys-color-website-g-tx2);
+}
+@media (max-width: 64rem) {
+	.app {
+		left: 8%;
+		width: 72%;
+	}
+}
+@media (max-width: 64rem) {
+	.devices {
+		display: flex;
+		flex-direction: column;
+		gap: var(--ob-ref-length-website-32);
+		height: auto;
+	}
+	.app,
+	.term,
+	.phone {
+		position: relative;
+		left: auto;
+		right: auto;
+		top: auto;
+		width: 100%;
+	}
+	.phone {
+		align-self: center;
+		width: var(--ob-ref-length-website-240);
+	}
+	.captionEnd {
+		justify-content: flex-start;
+	}
+}
+@media (max-width: 48rem) {
+	.devices {
+		margin-top: var(--ob-ref-length-website-44);
+	}
+}
+@media (max-width: 40rem) {
+	.app {
+		display: none;
+	}
+}

@@ -1,3 +1,5 @@
+import '@fontsource-variable/jetbrains-mono/wght.css';
+import '@fontsource-variable/mona-sans/wdth.css';
 import '@orchbee/design-tokens/tokens.css';
 
 import {
@@ -16,9 +18,9 @@ const stylesheets = import.meta.webpackContext('../website', {
 for (const key of stylesheets.keys()) stylesheets(key);
 
 const NEXT_APPEARANCE: Readonly<Record<Appearance, Appearance>> = {
-	system: 'light',
-	light: 'dark',
-	dark: 'system',
+	dark: 'light',
+	light: 'system',
+	system: 'dark',
 };
 // The header button carries each appearance's localized name in these data attributes.
 const LABEL_KEY: Readonly<Record<Appearance, string>> = {

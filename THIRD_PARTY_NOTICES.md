@@ -344,8 +344,21 @@ imply endorsement by their creators.
 - Source: <https://github.com/JetBrains/JetBrainsMono>
 - Version: 2.304
 - License: SIL Open Font License 1.1
-- Use in Orchbee: unmodified variable terminal text faces provisioned for Browser and Desktop
+- Use in Orchbee: unmodified variable terminal text faces provisioned for Browser and Desktop; the
+  website serves the unmodified variable face from the `@fontsource-variable/jetbrains-mono` 5.3
+  package (Google Fonts build v24) for code and terminal text
 - License text: [`JetBrainsMono-OFL.txt`](apps/web/src/workbench-client/projected-terminal-renderer/fonts/JetBrainsMono-OFL.txt)
+
+## Mona Sans
+
+- Copyright notice: Copyright 2022 The Mona Sans Project Authors (https://github.com/github/mona-sans),
+  with Reserved Font Name "Mona"
+- Source: <https://github.com/github/mona-sans>, through the `@fontsource-variable/mona-sans` 5.3
+  package (Google Fonts build v4)
+- License: SIL Open Font License 1.1
+- Use in Orchbee: unmodified variable face the website serves from its own origin for headings and
+  body text
+- License text: `LICENSE` in the `@fontsource-variable/mona-sans` package
 
 ## Nerd Fonts Symbols Only
 
