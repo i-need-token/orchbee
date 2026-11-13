@@ -36,6 +36,8 @@ A `query` request, on every platform, checks only the environment and replies wi
 first, then the Worker it started, then each Terminal Host connected to that Worker, each with
 product version, build, environment, PID, state (`draining` after a drain, `stopping` after a
 recorded stop or an exit), terminal count, and connections; `restartKeepsTerminals` is false. The
+Server and Worker count the terminals whose Host reported a start and that no Close has disposed
+since, so a closed terminal stops counting once its Close disposes it. The
 Server asks its Worker for the Hosts with one OBCN Host query and waits for the answer until one
 second after accepting the connection, leaving the rest of the two-second candidate deadline for the
 reply. Each Host's entry is the one it reports for itself, listed without capabilities and at most

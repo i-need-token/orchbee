@@ -113,9 +113,14 @@ impl SessionCoordinator {
         self
     }
 
-    /// The Session's started terminals, as a `query` reply counts them.
+    /// The terminals the Session still holds, as a `query` reply counts them: started and not
+    /// disposed by a Close since. A started terminal stays retained after its Close for exact
+    /// replay, so only the Close's disposal ends its count.
     pub(crate) fn terminal_count(&self) -> usize {
-        self.terminals.started_count()
+        self.terminals
+            .started_targets()
+            .filter(|target| self.target_lifecycle(*target) != TargetLifecycle::Disposed)
+            .count()
     }
 
     pub(crate) fn workbench_session_matches(

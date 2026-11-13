@@ -347,12 +347,21 @@ impl TerminalCoordinator {
         }
     }
 
-    /// The terminals whose Host reported a start.
-    pub(crate) fn started_count(&self) -> usize {
+    /// The terminals whose Host reported a start, each as the exact target a Close disposes.
+    pub(crate) fn started_targets(&self) -> impl Iterator<Item = BindingViewerTarget> + '_ {
         self.bindings
             .values()
-            .filter(|binding| matches!(binding.phase, TerminalPhase::Started { .. }))
-            .count()
+            .filter_map(|binding| match binding.phase {
+                TerminalPhase::Started { identity, .. } => Some(BindingViewerTarget {
+                    terminal_id: binding.authorization.terminal_id(),
+                    identity,
+                    worker: WorkerPlacement {
+                        worker_id: binding.authorization.worker_id(),
+                        generation: binding.authorization.worker_generation(),
+                    },
+                }),
+                _ => None,
+            })
     }
 
     pub(crate) fn viewer_target(
