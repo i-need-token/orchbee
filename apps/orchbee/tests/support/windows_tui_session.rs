@@ -39,10 +39,11 @@ pub struct Fixture {
     prefix: &'static str,
 }
 
-/// The TUI Client and the terminal of the `host` Session it runs in.
+/// The TUI Client and the terminal and Panel of the `host` Session it runs in.
 pub struct Tui {
     pub client: String,
     pub terminal: String,
+    pub panel: String,
 }
 
 /// One CLI invocation's observed exit, duration and machine output.
@@ -412,7 +413,11 @@ impl Fixture {
             .and_then(|terminal| terminal["terminalId"].as_str())
             .unwrap_or_else(|| panic!("{listed}"))
             .to_owned();
-        Tui { client, terminal }
+        Tui {
+            client,
+            terminal,
+            panel,
+        }
     }
 
     pub fn clients(&self) -> Vec<Value> {
@@ -565,6 +570,164 @@ impl Fixture {
     pub fn settle_ready(&self, client: &str) {
         self.settle(client, "ready");
     }
+}
+
+/// Reads each process of a terminal, by its own console: its CPU time and thread states twice,
+/// three seconds apart, and between them how many records wait unread in its console's input
+/// buffer. Attaching to a console from a helper process needs no help from the processes read, so
+/// it tells a shell that has not taken its typed keys from a terminal that never got them.
+const STALL_PROBE: &str = r#"
+$ErrorActionPreference = 'Continue'
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public static class ObStallProbe {
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool FreeConsole();
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool AttachConsole(uint pid);
+  [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool CloseHandle(IntPtr handle);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool GetNumberOfConsoleInputEvents(IntPtr handle, out uint count);
+  [StructLayout(LayoutKind.Explicit, Size=20)] public struct Record { [FieldOffset(0)] public ushort Type; [FieldOffset(4)] public int KeyDown; [FieldOffset(14)] public ushort Unit; }
+  [DllImport("kernel32.dll", SetLastError=true, EntryPoint="PeekConsoleInputW")] static extern bool Peek(IntPtr handle, [Out] Record[] records, uint length, out uint read);
+  public static string Input(uint pid) {
+    FreeConsole();
+    if (!AttachConsole(pid)) return "attach failed " + Marshal.GetLastWin32Error();
+    IntPtr input = CreateFileW("CONIN$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (input == new IntPtr(-1)) { int error = Marshal.GetLastWin32Error(); FreeConsole(); return "CONIN$ failed " + error; }
+    uint pending; GetNumberOfConsoleInputEvents(input, out pending);
+    Record[] records = new Record[Math.Max(1u, Math.Min(pending, 4096u))]; uint read = 0; int typed = 0, other = 0;
+    if (pending > 0 && Peek(input, records, (uint)records.Length, out read)) {
+      for (int i = 0; i < read; i++) { if (records[i].Type == 1 && records[i].KeyDown != 0 && records[i].Unit != 0) typed++; else other++; }
+    }
+    CloseHandle(input); FreeConsole();
+    return "unread records " + pending + " (typed key presses " + typed + ", other " + other + ")";
+  }
+}
+'@
+function Sample($label, $id) {
+  $process = Get-Process -Id $id -ErrorAction SilentlyContinue
+  if ($null -eq $process) { return "$label $id gone" }
+  $states = $process.Threads | Group-Object { if ($_.ThreadState -eq 'Wait') { "Wait/$($_.WaitReason)" } else { "$($_.ThreadState)" } } | ForEach-Object { "$($_.Name)x$($_.Count)" }
+  "$label $id $($process.ProcessName) cpu $([int]$process.TotalProcessorTime.TotalMilliseconds) ms threads $($states -join ' ')"
+}
+$targets = $args | ForEach-Object { $label, $id = $_ -split '=', 2; [pscustomobject]@{ Label = $label; Id = [uint32]$id } }
+foreach ($target in $targets) { Sample $target.Label $target.Id }
+foreach ($target in $targets) { "$($target.Label) $($target.Id) console: $([ObStallProbe]::Input($target.Id))" }
+Start-Sleep -Seconds 3
+foreach ($target in $targets) { Sample $target.Label $target.Id }
+"#;
+
+impl Fixture {
+    /// Evidence for a typed line that stopped part-way, read past every Orchbee peer: each named
+    /// terminal's processes (see `STALL_PROBE`), then the slow-step and slow-request records the
+    /// Client and Workers left in this fixture's diagnostic log. `terminals` names each terminal
+    /// by a label and the `panel process-info` words that select it.
+    pub fn stall_evidence(&self, terminals: &[(&str, Vec<&str>)]) -> String {
+        let mut report = String::new();
+        let mut targets = Vec::new();
+        for (label, words) in terminals {
+            let mut command = vec!["panel", "process-info"];
+            command.extend(words);
+            let read = self.run(&command);
+            let mut processes = Vec::new();
+            collect_processes(&read.document, &mut processes);
+            if processes.is_empty() {
+                report.push_str(&format!("{label}: no processes read: {read}\n"));
+            }
+            for (pid, image) in processes {
+                let name = image
+                    .rsplit(['\\', '/'])
+                    .next()
+                    .unwrap_or(&image)
+                    .to_owned();
+                report.push_str(&format!("{label}: process {pid} {name}\n"));
+                if !name.eq_ignore_ascii_case("conhost.exe")
+                    && !name.eq_ignore_ascii_case("OpenConsole.exe")
+                {
+                    targets.push(format!("{label}={pid}"));
+                }
+            }
+        }
+        if !targets.is_empty() {
+            let probe = Command::new(system_program("WindowsPowerShell\\v1.0\\powershell.exe"))
+                .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"])
+                .arg(format!("& {{{STALL_PROBE}}} {}", targets.join(" ")))
+                .stdin(Stdio::null())
+                .output();
+            match probe {
+                Ok(output) => {
+                    report.push_str(&String::from_utf8_lossy(&output.stdout));
+                    report.push_str(&String::from_utf8_lossy(&output.stderr));
+                }
+                Err(error) => report.push_str(&format!("the probe did not start: {error}\n")),
+            }
+        }
+        let records = diagnostic_records(&self.root);
+        report.push_str(&format!(
+            "Slow steps and requests among {} diagnostic log records:\n",
+            records.len()
+        ));
+        for line in records {
+            if [
+                "client-step-slow",
+                "request-slow",
+                "client-retired",
+                "host-start-failed",
+            ]
+            .iter()
+            .any(|event| line.contains(event))
+            {
+                report.push_str(&line);
+                report.push('\n');
+            }
+        }
+        report
+    }
+}
+
+/// Every `pid` with an `image` in a process-info document.
+fn collect_processes(value: &Value, processes: &mut Vec<(u64, String)>) {
+    match value {
+        Value::Object(object) => {
+            if let (Some(pid), Some(image)) = (
+                object.get("pid").and_then(Value::as_u64),
+                object.get("image").and_then(Value::as_str),
+            ) {
+                processes.push((pid, image.to_owned()));
+            }
+            object
+                .values()
+                .for_each(|value| collect_processes(value, processes));
+        }
+        Value::Array(values) => values
+            .iter()
+            .for_each(|value| collect_processes(value, processes)),
+        _ => {}
+    }
+}
+
+/// The lines of every daily diagnostic log below `root`, in file order.
+fn diagnostic_records(root: &Path) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut directories = vec![root.to_path_buf()];
+    while let Some(directory) = directories.pop() {
+        for entry in fs::read_dir(&directory).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                directories.push(path);
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "jsonl")
+                && path
+                    .parent()
+                    .and_then(Path::file_name)
+                    .is_some_and(|name| name == "logs")
+                && let Ok(text) = fs::read_to_string(&path)
+            {
+                lines.extend(text.lines().map(str::to_owned));
+            }
+        }
+    }
+    lines
 }
 
 /// The Server or Worker that an earlier Cargo build left beside the CLI. One whose Cargo dep-info

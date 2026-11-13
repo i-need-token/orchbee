@@ -1,10 +1,43 @@
-//! The Workbench Client's diagnostic log record: its connection retiring on a failure, so a
-//! disconnect leaves a trace. The record names the failure, the kind of command it interrupted and
-//! the source location that closed the mailbox, by directory, file stem and line; it holds no
-//! terminal content, input or paths.
+//! The Workbench Client's diagnostic log records: its connection retiring on a failure, so a
+//! disconnect leaves a trace, and a connection step held a second or longer, so typing that waited
+//! names what it waited behind. A retirement names the failure, the kind of command it interrupted
+//! and the source location that closed the mailbox, by directory, file stem and line; a slow step
+//! names its command and counts bytes. No record holds terminal content, input or paths.
 use super::mailbox::ClosedSite;
 use crate::workbench_state::CarrierFailure;
 use orchbee_local_runtime::{LogLevel, LogValue, log_event};
+use std::time::Duration;
+
+/// The connection worker runs one step at a time, and typed bytes queue behind the step in hand.
+/// A step held this long is recorded.
+pub(super) const SLOW_STEP: Duration = Duration::from_secs(1);
+
+/// Records one connection step that took `SLOW_STEP` or longer: its command, the input bytes it
+/// carried, the input bytes queued behind it when it ended, how long it took and whether it ended
+/// without a failure.
+pub(super) fn step_slow(
+    command: &'static str,
+    bytes: usize,
+    queued_input_bytes: usize,
+    elapsed: Duration,
+    succeeded: bool,
+) {
+    let count = |value: usize| LogValue::Count(u64::try_from(value).unwrap_or(u64::MAX));
+    log_event(
+        LogLevel::Warning,
+        "client-step-slow",
+        &[
+            ("command", LogValue::Token(command)),
+            ("inputBytes", count(bytes)),
+            ("queuedInputBytes", count(queued_input_bytes)),
+            (
+                "milliseconds",
+                LogValue::Count(u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)),
+            ),
+            ("succeeded", LogValue::Flag(succeeded)),
+        ],
+    );
+}
 
 /// Records the failure that retired the connection, the command the worker held then, and where
 /// the mailbox closed: the mailbox check that hit the failure, or the Client step that decided it. A

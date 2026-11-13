@@ -24,6 +24,12 @@ content, input and paths never reach it. A pass that removes
 or fails to remove [editor documents](#windows-scrollback-editor-documents) is recorded as
 `editor-documents-removed` with both counts; a folder it cannot inspect, as
 `editor-document-removal-failed` with the error kind. A pass with nothing to remove leaves no record.
+The admitted Worker answers one Server request at a time, so typing for every terminal it carries
+waits behind the request in hand. A request it took a second or longer to answer is recorded as
+`request-slow`: `request`, its kind (`control`, `viewer`, `send`, `lifecycle`, `host-query`,
+`titles`, `job` or `other`); `action`, the control or viewer action (`input`, `resize`, `poll`,
+`read-process-info` and so on) or `none`; `inputBytes`, how many raw input bytes a control input
+carried; and `milliseconds`.
 
 ## Windows scrollback editor selection
 

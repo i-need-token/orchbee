@@ -33,6 +33,8 @@ const POLL: Duration = Duration::from_millis(50);
 const AFTERMATH: Duration = Duration::from_secs(40);
 /// How many distinct bottom rows a failed wait reports, the first ones it read.
 const BOTTOM_ROWS_KEPT: usize = 16;
+/// How long a wait that failed `LANDING` keeps reading the selected pane's terminal.
+const STALL_WATCH: Duration = Duration::from_secs(30);
 /// Outlasts a shell's return to its prompt after what it printed last.
 const PROMPT_RETURN: Duration = Duration::from_secs(2);
 const CLOSE_TAB: &[u8] = b"\x02x";
@@ -104,20 +106,54 @@ impl Driver {
     /// what the selected pane's terminal holds, read past the Client.
     fn report_unseen(&self, what: &str, screen: &str, bottom_rows: &[String]) -> ! {
         let view = self.fixture.client(&self.tui.client);
-        let terminal = view["view"]["selection"]["panelId"].as_str().map_or_else(
-            || "no selected pane".to_owned(),
-            |panel| {
-                let read = self
-                    .fixture
-                    .run(&["terminal", "read", "--panel", panel, "--source", "visible"]);
-                read.document["result"]["content"]["text"]
-                    .as_str()
-                    .map_or_else(|| read.to_string(), str::to_owned)
-            },
-        );
+        let panel = view["view"]["selection"]["panelId"]
+            .as_str()
+            .map(str::to_owned);
+        let read_pane = |panel: &str| {
+            let read = self
+                .fixture
+                .run(&["terminal", "read", "--panel", panel, "--source", "visible"]);
+            read.document["result"]["content"]["text"]
+                .as_str()
+                .map_or_else(|| read.to_string(), str::to_owned)
+        };
+        let terminal = panel
+            .as_deref()
+            .map_or_else(|| "no selected pane".to_owned(), read_pane);
+        let mut evidence = self.fixture.stall_evidence(&[
+            ("shell", panel.iter().map(String::as_str).collect()),
+            ("tui", vec!["--session", "host", &self.tui.panel]),
+        ]);
+        // Whether the rest of the line arrives later: the pane's cursor line, each time it changes.
+        if let Some(panel) = panel.as_deref() {
+            let started = Instant::now();
+            let mut last = String::new();
+            while started.elapsed() < STALL_WATCH {
+                let text = read_pane(panel);
+                let line = text
+                    .lines()
+                    .rev()
+                    .find(|line| !line.trim().is_empty())
+                    .unwrap_or_default()
+                    .to_owned();
+                if line != last {
+                    evidence.push_str(&format!("{:?} later: {line}\n", started.elapsed()));
+                    last = line;
+                }
+                thread::sleep(Duration::from_secs(1));
+            }
+            evidence.push_str(&format!(
+                "TUI after {STALL_WATCH:?}:\n{}\n{}",
+                self.screen(),
+                self.fixture.stall_evidence(&[
+                    ("shell", vec![panel]),
+                    ("tui", vec!["--session", "host", &self.tui.panel]),
+                ])
+            ));
+        }
         panic!(
             "never saw {what}:\n{screen}\nBottom rows read meanwhile: {bottom_rows:#?}\n\
-             Client: {view}\nThe selected pane's terminal:\n{terminal}"
+             Client: {view}\nThe selected pane's terminal:\n{terminal}\nStall evidence:\n{evidence}"
         );
     }
 

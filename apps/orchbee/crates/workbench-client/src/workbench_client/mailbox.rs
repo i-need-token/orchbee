@@ -274,8 +274,9 @@ pub(super) enum QueuedCommand {
 }
 
 impl QueuedCommand {
-    /// The command's kind, as the diagnostic log names the command a failure interrupted.
-    const fn kind(&self) -> &'static str {
+    /// The command's kind, as the diagnostic log names the command a failure interrupted or a slow
+    /// step held.
+    pub(super) const fn kind(&self) -> &'static str {
         match self {
             Self::Input(_) => "input",
             Self::Resize(_) => "resize",
@@ -1607,6 +1608,18 @@ impl CommandMailbox {
         let state = self.lock();
         Self::ensure_open(&state)?;
         Ok(state.latest_geometry)
+    }
+
+    /// The input bytes queued behind the command in hand, for the diagnostic log.
+    pub(super) fn queued_input_bytes(&self) -> usize {
+        self.lock()
+            .queue
+            .iter()
+            .map(|record| match &record.command {
+                QueuedCommand::Input(input) => input.value().as_bytes().len(),
+                _ => 0,
+            })
+            .sum()
     }
 
     /// Enqueues one command and returns the identity of its queue record.

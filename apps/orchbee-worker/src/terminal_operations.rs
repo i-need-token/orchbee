@@ -151,7 +151,12 @@ fn run_admitted_with_handoff(
     #[cfg(windows)]
     let mut server = server;
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
+    let mut answering: Option<crate::diagnostic_events::RequestTiming> = None;
     loop {
+        // Every request's branch ends here, so the one in hand has been answered.
+        if let Some(timing) = answering.take() {
+            timing.finish();
+        }
         #[cfg(not(windows))]
         let request = server_transport::receive(&server, Some(host))?;
         #[cfg(windows)]
@@ -163,6 +168,7 @@ fn run_admitted_with_handoff(
             }
             handoff.expire(std::time::Instant::now());
         };
+        answering = Some(crate::diagnostic_events::RequestTiming::start(&request));
         #[cfg(windows)]
         handoff.expire(std::time::Instant::now());
         #[cfg(windows)]

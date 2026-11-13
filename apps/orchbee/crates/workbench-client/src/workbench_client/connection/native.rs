@@ -884,10 +884,16 @@ impl ClientExecutor {
                 }
                 _ => None,
             };
-            if let Some((request, operation)) = create {
-                self.run_create(&lease, request, operation)?;
+            let started = Instant::now();
+            let command = lease.record().kind();
+            let bytes = match lease.record() {
+                QueuedCommand::Input(tagged) => tagged.value().as_bytes().len(),
+                _ => 0,
+            };
+            let step = if let Some((request, operation)) = create {
+                self.run_create(&lease, request, operation)
             } else {
-                let step = match lease.record() {
+                match lease.record() {
                     QueuedCommand::Input(tagged) => {
                         let deadline = self.client.next_operation_deadline();
                         settle_ready_flow(self.run_input(&lease, tagged, deadline))
@@ -939,9 +945,19 @@ impl ClientExecutor {
                     QueuedCommand::WorkspaceCloseRead(read) => {
                         self.run_workspace_close_read(&lease, read)
                     }
-                };
-                step?;
+                }
+            };
+            let elapsed = started.elapsed();
+            if elapsed >= crate::workbench_client::diagnostic_events::SLOW_STEP {
+                crate::workbench_client::diagnostic_events::step_slow(
+                    command,
+                    bytes,
+                    self.mailbox.queued_input_bytes(),
+                    elapsed,
+                    step.is_ok(),
+                );
             }
+            step?;
             self.mailbox.finish_lease(lease).map_err(closed)?;
         }
     }
