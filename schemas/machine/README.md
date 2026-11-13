@@ -345,6 +345,9 @@ The opener's data is a sequence of records, without padding:
 - The helper treats 90 seconds without a received frame as a lost link: it sends `bye` with reason
   `idle`, ends the commands its channels started, and exits. Sessions are not affected.
 - The helper also exits when its standard input ends.
+- Whether its input ends, the hub sends `bye`, or the idle limit passes, the helper resets only a
+  channel on which no effect can have started; every other open channel ends without a result as
+  the carrier closes, under the [no-effect](#channels) rule.
 
 ## Hub records
 

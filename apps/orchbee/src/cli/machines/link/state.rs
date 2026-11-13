@@ -56,8 +56,8 @@ impl State {
         self.end.is_none()
     }
 
-    /// Ends the link once: every channel ends without a result and `bye` is queued when the link
-    /// can still carry it.
+    /// Ends the link once: a channel on which nothing began is reset when the link can still carry
+    /// it, every begun one ends without a result, and `bye` is queued last.
     pub(super) fn end(&mut self, end: End) {
         if self.end.is_some() {
             return;
@@ -95,6 +95,9 @@ pub(super) struct Entry {
     pub(super) signal: Arc<Condvar>,
     /// The channel is over at the link: closed by this end, reset by either end, or the link ended.
     gone: bool,
+    /// An effect may have started: a `session`'s pipe writer runs after its `accept`, a `route`'s
+    /// command runs after the opener's `end`, an `ensure-session`'s start runs. Never reset then.
+    begun: bool,
     /// Set with `gone`: a running routed command ends.
     pub(super) cancel: Arc<AtomicBool>,
     /// The Session connection, to close it when the channel ends.
@@ -115,6 +118,7 @@ impl Entry {
             work,
             signal: Arc::new(Condvar::new()),
             gone: false,
+            begun: false,
             cancel: Arc::new(AtomicBool::new(false)),
             endpoint: None,
             inbound: VecDeque::new(),
@@ -177,16 +181,25 @@ impl Table {
             .count()
     }
 
-    /// Ends every channel because the link ended; `reset` resets those still open with
-    /// `stopping`, so `bye` does not wait behind their data.
+    /// Ends every channel because the link ended. With `reset`, one still open on which nothing
+    /// began is reset `stopping`; a begun one gets no further frame and ends without a result as
+    /// the carrier closes, since a responder's `reset` would claim that it caused nothing. Every
+    /// routed command ends.
     fn end_all(&mut self, connection: &mut Connection<link::Link>, reset: bool) {
         for (channel, entry) in &mut self.entries {
-            if reset && !entry.gone {
+            if reset && !entry.gone && !entry.begun {
                 let _reset = connection.reset(*channel, ResetReason::Stopping);
             }
             entry.finish();
         }
         self.entries.retain(|_, entry| entry.workers > 0);
+    }
+
+    /// Marks `channel` begun: an effect may have started on it, so it is never reset again.
+    pub(super) fn begin(&mut self, channel: u32) {
+        if let Some(entry) = self.live(channel) {
+            entry.begun = true;
+        }
     }
 
     /// `channel`'s entry while the channel is not over.
@@ -220,3 +233,6 @@ impl Table {
         self.entries.remove(&channel);
     }
 }
+
+#[cfg(test)]
+mod tests;

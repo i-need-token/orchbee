@@ -92,7 +92,8 @@ fn open_channel(link: &Arc<Shared>, state: &mut State, channel: u32, open: link:
                 return;
             };
             let worker = link.clone();
-            start_worker(state, channel, Entry::new(Work::Session), move || {
+            // Connecting changes nothing yet: the channel is begun once its pipe writer runs.
+            let _started = start_worker(state, channel, Entry::new(Work::Session), move || {
                 relay_endpoint(&worker, channel, &name);
             });
         }
@@ -110,21 +111,24 @@ fn open_channel(link: &Arc<Shared>, state: &mut State, channel: u32, open: link:
                 return;
             }
             let worker = link.clone();
-            start_worker(state, channel, Entry::new(Work::Start), move || {
+            // The start runs at once, so the channel is begun with its worker.
+            if start_worker(state, channel, Entry::new(Work::Start), move || {
                 start_session(&worker, channel, &name);
-            });
+            }) {
+                state.channels.begin(channel);
+            }
         }
     }
 }
 
 /// Records `entry` with one worker running `work`, or resets the channel `unavailable` when no
-/// thread starts.
+/// thread starts, which leaves nothing begun. True when the worker runs.
 fn start_worker(
     state: &mut State,
     channel: u32,
     mut entry: Entry,
     work: impl FnOnce() + Send + 'static,
-) {
+) -> bool {
     entry.workers = 1;
     state.channels.insert(channel, entry);
     if thread::Builder::new()
@@ -134,7 +138,9 @@ fn start_worker(
     {
         state.channels.remove(channel);
         let _reset = state.connection.reset(channel, ResetReason::Unavailable);
+        return false;
     }
+    true
 }
 
 fn wait<'a>(signal: &Condvar, state: MutexGuard<'a, State>) -> MutexGuard<'a, State> {
@@ -244,7 +250,10 @@ fn adopt(link: &Arc<Shared>, channel: u32, stream: &LocalStream) -> bool {
     entry.endpoint = Some(closer);
     if started.is_ok() {
         entry.workers += 1;
+        // The writer may now pass the hub's bytes to the Session.
+        state.channels.begin(channel);
     } else {
+        // No byte reached the Session, so the reset still claims no effect truthfully.
         let _reset = state.connection.reset(channel, ResetReason::Unavailable);
         state.channels.finish(channel);
     }
@@ -322,7 +331,8 @@ fn relay_link(link: &Shared, channel: u32, mut stream: &LocalStream) {
     link.wake();
 }
 
-/// Takes `channel`'s request packet and starts its command, or resets it `unavailable`.
+/// Takes `channel`'s request packet and starts its command, which begins the channel, or resets
+/// it `unavailable` when no worker starts and so nothing ran.
 fn start_route(link: &Arc<Shared>, state: &mut State, channel: u32) {
     let Some(entry) = state.channels.live(channel) else {
         return;
@@ -338,6 +348,8 @@ fn start_route(link: &Arc<Shared>, state: &mut State, channel: u32) {
     {
         let _reset = state.connection.reset(channel, ResetReason::Unavailable);
         state.channels.release(channel);
+    } else {
+        state.channels.begin(channel);
     }
 }
 

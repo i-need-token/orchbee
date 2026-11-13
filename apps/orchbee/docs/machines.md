@@ -354,6 +354,24 @@ found as a local Client finds it, through the data root's Session catalog spelli
 belong to the same user. `ensure-session` uses the same activation as `server start`; the Server it
 starts outlives the helper. `install` is answered as an unknown kind until its capability ships.
 
+A channel is begun once an effect may have started on it: a `session` from its `accept`, once its
+pipe writer runs; a `route` from the opener's `end`, once its command worker runs; an
+`ensure-session` from its `accept`, since its start runs at once. The contract lets a responder's
+`reset` say only that nothing happened, so the helper never resets a begun channel: it ends with
+`close` and its outcome, or, when the link ends first, without a result as the carrier closes, which
+the hub reads as an unknown effect. A channel on which nothing began may still be reset. The link
+ends when its standard input ends or fails, on the hub's `bye`, and after 90 seconds without a
+received frame; each of the three ends every channel alike:
+
+| Channel          | Nothing began    | Begun                                                                                |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------ |
+| `session`        | Reset `stopping` | The pipe connection closes; no further frame                                         |
+| `route`          | Reset `stopping` | The command ends through its Job, as the contract requires; no reply, no other frame |
+| `ensure-session` | Never the case   | The start runs to its own 30-second deadline unobserved; no further frame            |
+
+Frames committed before the end, a begun channel's data and a `close` included, are written ahead
+of `bye` within the writer's 2 seconds.
+
 ### Ownership and bounds
 
 The helper is one reader of standard input, one writer of standard output, a supervisor, and
@@ -376,7 +394,7 @@ the channel table; no thread holds it across I/O, and no thread is started per f
 
 | Event                               | Effect                                                                                                                                                           |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Standard input ends or fails        | Every open channel is reset `stopping` and its work ends; best-effort `bye` `done`; exit 0                                                                       |
+| Standard input ends or fails        | Every open channel ends as the [link's end](#link-helper) states; best-effort `bye` `done`; exit 0                                                               |
 | The hub's `bye`                     | The same as the end of standard input                                                                                                                            |
 | A frame breaks the contract         | The reader stops; only `bye` `violation` is written; every channel ends; exit 5                                                                                  |
 | 90 seconds without a received frame | As at the end of standard input, with `bye` `idle`                                                                                                               |
@@ -663,12 +681,12 @@ channel.
 - **A queued `end` counts as dispatched.** The hub cannot tell whether a queued `end` reached the
   helper before the link ended, so a `route` whose `end` was queued ends `lost`, which its opener
   reads as unknown. Claiming no effect then could be false; claiming an unknown one never is.
-- **A far reset after dispatch is no statement of no effect.** The helper resets every open
-  channel `stopping` when its link ends, on the hub's `bye`, its input closing, or its own
-  90-second idle limit, a route whose command has begun included, which the contract's no-effect
-  rule does not allow. The hub is the one place that knows whether the opener's `end` was queued,
-  so it reads such a reset as it reads a lost link, and its client never retries a command that may
-  have run.
+- **A far reset after dispatch is no statement of no effect.** The [link helper](#link-helper)
+  never resets a begun channel, but earlier builds of it reset every open channel `stopping` when
+  their link ended, a route whose command had begun included, and the hub cannot check a far end's
+  no-effect claim. The hub is the one place that knows whether the opener's `end` was queued, so it
+  reads a reset after that point as it reads a lost link, and its client never retries a command
+  that may have run.
 - **Carrier ends reach every pair.** A lost link, `disconnect`, a reload that changes or removes the
   record, and a failed attempt all end the carrier, and each ends its pairs the same way.
 
@@ -874,10 +892,6 @@ connection, so nothing changed for the link.
   reads `failed`; only development and test builds stop the Session. The next slice must decide a
   stop form that the admitted link helper may use and that a release build accepts without a
   console.
-- **The helper resets begun routes.** Its link ending resets every open channel `stopping`, a
-  route whose command started included, against the contract's no-effect rule; the hub reads that
-  reset as a lost link (see [channels](#channels)). The helper should leave such a route to end with
-  its link instead; until it does, only the hub's reading keeps the outcome honest.
 - **`untrusted` is not produced.** A host key that is not yet trusted reads `needs-login` with
   `auth-required` until questions carry `hostKey`.
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
