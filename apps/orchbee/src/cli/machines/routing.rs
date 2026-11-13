@@ -375,67 +375,6 @@ fn execute(
         }
     }
 }
-/// The routed arguments `stop-session` sends: the far Session's own `server stop`, confirmed, read
-/// as its JSON receipt.
-#[cfg(windows)]
-const STOP_ARGUMENTS: [&str; 4] = ["server", "stop", "--confirm", "--format=json"];
-/// The packet that stops the far Session `session`.
-#[cfg(windows)]
-pub(super) fn stop_packet(session: &str) -> Vec<u8> {
-    let packet = Packet {
-        version: generation(),
-        session: session.into(),
-        arguments: STOP_ARGUMENTS
-            .iter()
-            .map(|&argument| argument.into())
-            .collect(),
-        input: None,
-        locale: locale_name(Locale::EnUs).into(),
-        extensions: Extensions::new(),
-    };
-    serde_json::to_vec(&packet).expect("a stop packet encodes")
-}
-/// What the far `server stop` answered, as `stop-session` reads it.
-#[cfg(windows)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum StopReading {
-    Stopped,
-    NotRunning,
-    Unknown,
-    Failed,
-}
-/// Reads the reply packet of a `stop-session` route. `docs/machines.md#channels` owns the mapping.
-#[cfg(windows)]
-pub(super) fn stop_reading(bytes: &[u8]) -> StopReading {
-    let Ok(reply) = serde_json::from_slice::<Reply>(bytes) else {
-        return StopReading::Failed;
-    };
-    if !supported(reply.version) {
-        return StopReading::Failed;
-    }
-    match reply.outcome {
-        Outcome::Unknown => return StopReading::Unknown,
-        Outcome::NotSubmitted => return StopReading::Failed,
-        Outcome::Completed => {}
-    }
-    let Some(receipt) = STANDARD
-        .decode(&reply.stdout)
-        .ok()
-        .and_then(|stdout| serde_json::from_slice::<serde_json::Value>(&stdout).ok())
-    else {
-        return StopReading::Failed;
-    };
-    if receipt["schema"] != "orchbee.server.stop" || receipt["version"] != 1 {
-        return StopReading::Failed;
-    }
-    let result = &receipt["result"];
-    match (result["outcome"].as_str(), result["reason"].as_str()) {
-        (Some("stopped" | "exited"), _) => StopReading::Stopped,
-        (Some("unavailable"), Some("runtime" | "transport")) => StopReading::NotRunning,
-        (Some("unknown"), _) => StopReading::Unknown,
-        _ => StopReading::Failed,
-    }
-}
 pub(crate) fn serve(locale: Locale) -> Output {
     if crate::tui_capabilities::Capability::SavedMachines
         .require()

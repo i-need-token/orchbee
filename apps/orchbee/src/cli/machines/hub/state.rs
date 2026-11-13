@@ -1,6 +1,6 @@
 //! The hub's state under its lock: the lifetime, the catalog with each carried Machine, the
-//! carriers, the registry of attached connections, the relay table, and the counts admission and
-//! closing wait on.
+//! carriers, the registry of attached connections, the relay table, the `stop-session` runs, and
+//! the counts admission and closing wait on.
 //! Each connection's and each link's protocol state machine lives under its own lock. Lock order:
 //! the hub state's lock before a connection's or a link's; a thread holding one of those takes no
 //! other, and none is held across I/O.
@@ -11,6 +11,7 @@ use super::{
     lifetime::{Lifetime, Moment},
     machine::{Context, Effect, Machine, Route},
     relay::Relays,
+    stop::Stops,
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::DataRoot;
@@ -44,8 +45,10 @@ pub(super) struct Hub {
     pub(super) carriers: BTreeMap<u64, Handle>,
     /// Carriers whose owners the supervisor starts next, outside the lock.
     pub(super) starting: Vec<(u64, Route)>,
-    /// Every channel relayed to a link, and every `stop-session` waiting for its link.
+    /// Every channel relayed to a link, a `stop-session` run's current exchange among them.
     pub(super) relays: Relays,
+    /// Every `stop-session` run until its outcome.
+    pub(super) stops: Stops,
     pub(super) controls: usize,
     pub(super) candidates: usize,
     /// Catalog reads in flight, which closing waits for.
@@ -85,6 +88,7 @@ impl Hub {
             carriers: BTreeMap::new(),
             starting: Vec::new(),
             relays: Relays::default(),
+            stops: Stops::default(),
             controls: 0,
             candidates: 0,
             reloads: 0,

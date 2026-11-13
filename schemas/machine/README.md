@@ -573,8 +573,10 @@ The event `question` goes to the claimant only.
 | `stop-session` | `machine` | `stopped`, `not-running`, `not-online`, `not-found`, `failed`, `unknown`, `stopping` | Stops the Machine's remote Session and every terminal in it     |
 | `install`      | `machine` | `started`, `not-offered`, `not-found`, `stopping`                                    | Consents to the Machine's current `offer`; capability `install` |
 
-- The hub stops a Session with a link `route` channel that carries that Session's `server stop`
-  command; the link has no member for it. `unknown` means the link was lost after submission.
+- The hub stops a Session as an admitted Client of that Session does: over a link `session`
+  channel it sends the Session's own stop request through the Session's Client admission, then
+  reads the stop's status over further `session` channels until the Session ends; the link has no
+  member for it. `unknown` means the request may have reached the Session and its end was not read.
 - After `install` replies `started`, the Machine's state reports progress and the result.
 
 ## Answer delivery

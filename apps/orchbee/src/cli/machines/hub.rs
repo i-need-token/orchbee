@@ -2,8 +2,8 @@
 //! interfaces reach saved machines over `machine-hub`, and its diagnostic entries
 //! `orchbee --machine-hub-state-v1` and `orchbee --machine-hub-hold-v1`, which reach it through the
 //! workbench Client's one client owner. `docs/machines.md#machine-hub` owns the lifetime, the frozen
-//! names, each Machine's carrying, the channels it relays, the bounds and the races kept here; the
-//! contract in
+//! names, each Machine's carrying, the channels it relays, how it stops a remote Session, the bounds
+//! and the races kept here; the contract in
 //! `schemas/machine` owns every byte.
 #[cfg(windows)]
 mod carrier;
@@ -27,6 +27,8 @@ mod relay;
 mod server;
 #[cfg(windows)]
 mod state;
+#[cfg(windows)]
+mod stop;
 
 #[cfg(windows)]
 pub(crate) use printer::StateFailure;

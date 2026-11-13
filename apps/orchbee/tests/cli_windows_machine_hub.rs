@@ -992,7 +992,8 @@ fn a_session_stream_through_the_hub_carries_both_ways_and_its_client_leaving_kee
     assert_eq!(one_child(&hub, None).pid, child.pid);
     assert_eq!(query_pid(&endpoint), hub.pid);
 
-    // `stop-session` stops the far Session through a link `route`; the next finds none running.
+    // `stop-session` stops the far Session as a Client of it, through link `session` channels; the
+    // next finds none running.
     let mut asker = Client::connect(&endpoint);
     asker.attach(false, false);
     for expected in [StopSessionOutcome::Stopped, StopSessionOutcome::NotRunning] {

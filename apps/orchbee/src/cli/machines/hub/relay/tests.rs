@@ -3,10 +3,10 @@
 //! the far end resets it.
 //! The relaying itself runs through real processes in `tests/cli_windows_machine_hub.rs`.
 
-use super::{ALLOWANCE, Ending, carrier_end, closing, closing_done, link_reset_end, unreplied};
+use super::{ALLOWANCE, Ending, carrier_end, closing, closing_done, link_reset_end};
 use orchbee_machine_protocol::{
     ResetReason,
-    hub::{ChannelKind, Outcome, StopSessionOutcome},
+    hub::{ChannelKind, Outcome},
 };
 use std::time::{Duration, Instant};
 
@@ -61,8 +61,6 @@ fn a_far_reset_reaches_the_client_only_while_no_effect_can_have_started() {
             Ending::Close(Outcome::Lost)
         );
     }
-    // A `stop-session` route is dispatched from the start: a reset of it never reads as failed.
-    assert_eq!(unreplied(true), StopSessionOutcome::Unknown);
 }
 
 #[test]

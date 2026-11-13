@@ -2,13 +2,14 @@
 //! under the connection's own lock and answers a request under the hub state's lock and then the
 //! connection's, and its writer, which writes whole frames, up to a batch at a time, until `bye` or
 //! the connection's end. A frame wakes only its own connection's threads. A `connect` that has to
-//! wait is answered later by its Machine's transition.
+//! wait is answered later by its Machine's transition, and a `stop-session` by its run.
 
 use super::super::shared_carrier::frames;
 use super::{
     catalog::Machines,
     machine::Waiter,
     state::{Hub, Line, Shared},
+    stop,
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_machine_protocol::{
@@ -47,7 +48,7 @@ pub(super) fn start_writer(
 }
 
 /// The reader of the connection `id`, on the thread that admitted it.
-pub(super) fn read(shared: &Shared, line: &Line, id: u64, stream: &LocalStream) {
+pub(super) fn read(shared: &Arc<Shared>, line: &Line, id: u64, stream: &LocalStream) {
     let mut decoder = FrameDecoder::new();
     let mut buffer = vec![0; READ_BUFFER_BYTES];
     let mut input = stream;
@@ -102,7 +103,12 @@ pub(super) fn read(shared: &Shared, line: &Line, id: u64, stream: &LocalStream) 
 }
 
 /// Takes one frame; false once the connection stops reading.
-fn receive(shared: &Shared, line: &Line, id: u64, frame: &orchbee_machine_protocol::Frame) -> bool {
+fn receive(
+    shared: &Arc<Shared>,
+    line: &Line,
+    id: u64,
+    frame: &orchbee_machine_protocol::Frame,
+) -> bool {
     let delivery = {
         let mut wire = line.lock();
         if !wire.open {
@@ -131,7 +137,7 @@ fn receive(shared: &Shared, line: &Line, id: u64, frame: &orchbee_machine_protoc
 
 /// Takes a delivery that depends on the hub state, under its lock and then the connection's.
 fn deliver(
-    shared: &Shared,
+    shared: &Arc<Shared>,
     line: &Line,
     id: u64,
     delivery: Delivery<orchbee_machine_protocol::hub::Hub>,
@@ -143,6 +149,21 @@ fn deliver(
             ..
         }) => {
             reload(shared, line, request);
+            true
+        }
+        Delivery::Message(Message::Request {
+            id: request,
+            request: Request::StopSession { machine },
+            ..
+        }) => {
+            if let Some(outcome) = stop::request(shared, id, request, machine) {
+                let _replied = line
+                    .lock()
+                    .connection
+                    .reply(request, Reply::StopSession(outcome));
+            }
+            // A run began, or a request joined one.
+            shared.wake();
             true
         }
         Delivery::Message(Message::Request {
@@ -266,17 +287,9 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
         } else {
             DismissOutcome::Ended
         })),
-        Request::StopSession { machine } => match hub.machines.state(&machine) {
-            _ if closing => Some(Reply::StopSession(StopSessionOutcome::Stopping)),
-            None => Some(Reply::StopSession(StopSessionOutcome::NotFound)),
-            Some(_) => match hub.stop_session(id, request, &machine) {
-                Some(outcome) => Some(Reply::StopSession(outcome)),
-                // The link `route`'s reply answers it.
-                None => return,
-            },
-        },
-        // `deliver` hands `reload` to its own path.
+        // `deliver` hands `reload` and `stop-session` to their own paths.
         Request::Reload => Some(Reply::Reload(ReloadOutcome::Stopping)),
+        Request::StopSession { .. } => Some(Reply::StopSession(StopSessionOutcome::Stopping)),
     };
     let mut wire = line.lock();
     let _answered = match reply {

@@ -76,6 +76,13 @@ after a recorded stop receives the typed stopping rejection. Unknown tags, zero 
 attempts and trailing payload bytes fail decoding. The codec itself neither starts nor stops a
 process, and only Windows has a stop adapter.
 
+`exchange_session_stop_before` dials the endpoint and runs one stop or status exchange through
+`exchange_session_stop_over`, which is the exchange alone over a byte stream its caller already
+joined to a Session's Client endpoint and bounds itself: the offer, the request once answered, and
+its result. The machine hub uses it over a link `session` channel to stop a remote Session as an
+admitted Client of that Session does. Its caller's hook runs between the answer and the request's
+write, and a failure keeps whether the request was submitted.
+
 ## Connecting adapter
 
 `ClientConnection::connect(endpoint, offer)` connects one caller-selected Unix socket, proves the

@@ -2,7 +2,6 @@ use super::{
     AsLocalIo, CANDIDATE_DEADLINE, ClientConnection, ConnectClientError, LocalIo, Offer, Path,
     Read, UnixStream, Write, handshake, io,
 };
-use crate::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use std::time::{Duration, Instant};
 
@@ -121,41 +120,24 @@ pub(super) fn session_stop(
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<crate::SessionStopResult, super::SessionStopExchangeError> {
-    let mut submitted = false;
-    let result = (|| {
-        let mut transport =
-            Admission::candidate(connect_stream(endpoint, deadline, wake)?, deadline, wake);
-        let exchange = (|| {
-            handshake::offer(&mut transport, offer)?;
-            transport.deadline = deadline;
-            let id = request.id;
-            write_message(
-                &mut transport,
-                &LocalClientMessage::SessionStopRequest(request),
-            )?;
-            submitted = true;
-            let result = match read_message(&mut transport)? {
-                LocalClientMessage::SessionStopResult(result) if result.id == id => result,
-                LocalClientMessage::Rejected { reason } => {
-                    return Err(ConnectClientError::Rejected(reason));
-                }
-                LocalClientMessage::ClientHello
-                | LocalClientMessage::ClientAccepted { .. }
-                | LocalClientMessage::SessionStopRequest(..)
-                | LocalClientMessage::SessionStopResult(..) => {
-                    return Err(ConnectClientError::UnexpectedResponse);
-                }
-            };
-            Ok(result)
-        })();
-        if exchange.is_err()
-            && let Some(cancelled) = transport.cancelled
-        {
-            return Err(cancelled);
+    let stream = connect_stream(endpoint, deadline, wake).map_err(|failure| {
+        super::SessionStopExchangeError {
+            failure,
+            submitted: false,
         }
-        exchange
-    })();
-    result.map_err(|failure| super::SessionStopExchangeError { failure, submitted })
+    })?;
+    let mut transport = Admission::candidate(stream, deadline, wake);
+    // The handshake reply is due within the candidate deadline; the result within the caller's.
+    let exchange = super::exchange_session_stop_over(&mut transport, offer, request, |transport| {
+        transport.deadline = deadline;
+    });
+    exchange.map_err(|error| match transport.cancelled.take() {
+        Some(cancelled) => super::SessionStopExchangeError {
+            failure: cancelled,
+            submitted: error.submitted,
+        },
+        None => error,
+    })
 }
 
 pub(super) fn exit(

@@ -1,18 +1,15 @@
-//! The relay table: each client channel paired with the link channel it is relayed to, a
-//! `stop-session` request paired with its link `route`, and the bytes each direction holds until
-//! the other side's credit admits them. A relay takes from one side only what the other side
-//! committed, so a pair holds at most one window per direction. The rules for ending pairs when a
-//! carrier ends, when the far end resets a link channel, and while the hub closes are pure
-//! functions of the pair and the time.
+//! The relay table: each client channel paired with the link channel it is relayed to, the link
+//! `session` channel of a `stop-session` run's current exchange paired with that run, and the bytes
+//! each direction holds until the other side's credit admits them. A relay takes from one side
+//! only what the other side committed, so a pair holds at most one window per direction. The rules
+//! for ending pairs when a carrier ends, when the far end resets a link channel, and while the hub
+//! closes are pure functions of the pair and the time.
 //! `docs/machines.md#channels` owns the rules.
 
-use super::{
-    super::routing::{self, StopReading},
-    state::Hub,
-};
+use super::state::Hub;
 use orchbee_machine_protocol::{
-    Id, ResetReason, SendError,
-    hub::{self, ChannelKind, Outcome, Reply, StopSessionOutcome},
+    MachineId, ResetReason, SendError,
+    hub::{self, ChannelKind, Outcome},
     link,
 };
 use std::{
@@ -22,16 +19,26 @@ use std::{
 
 /// How long open `route` channels may still run once the hub is closing.
 pub(super) const ALLOWANCE: Duration = Duration::from_secs(60);
-/// The most reply bytes a `stop-session` keeps; the far `server stop` writes far fewer.
-const STOP_REPLY_BYTES: usize = 1024 * 1024;
 
 /// Who opened a pair.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Opener {
     /// A client's channel on its connection.
     Client { peer: u64, channel: u32 },
-    /// A `stop-session` request, answered from the link `route`'s reply.
-    StopSession { peer: u64, request: Id },
+    /// The `stop-session` run `run`, whose thread writes and reads the link channel through the
+    /// pair.
+    Stop { run: u64 },
+}
+
+/// What a run's channel holds for its thread.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Held {
+    /// This many bytes were copied out, and their credit returned to the link.
+    Bytes(usize),
+    /// The link sends nothing more: it ended, closed or reset the channel, or its carrier ended.
+    Over,
+    /// Nothing yet.
+    Waiting,
 }
 
 /// What becomes of the client's side of a pair.
@@ -69,6 +76,8 @@ struct Pair {
     finish: Option<Finish>,
     /// The link channel is over: closed, reset, or its carrier ended.
     link_done: bool,
+    /// The far end's reset reason, which a run reads.
+    reset: Option<ResetReason>,
 }
 
 /// Every pair, found by either end.
@@ -89,13 +98,14 @@ impl Relays {
             .count()
     }
 
-    fn insert(&mut self, pair: Pair) {
+    fn insert(&mut self, pair: Pair) -> u64 {
         self.next += 1;
         if let Opener::Client { peer, channel } = pair.opener {
             self.by_client.insert((peer, channel), self.next);
         }
         self.by_link.insert((pair.carrier, pair.link), self.next);
         self.pairs.insert(self.next, pair);
+        self.next
     }
 
     fn remove(&mut self, key: u64) -> Option<Pair> {
@@ -181,12 +191,22 @@ const fn relayed(kind: ChannelKind, outcome: &link::Outcome) -> Outcome {
     }
 }
 
-/// The `stop-session` outcome of a link `route` that did not reply.
-const fn unreplied(dispatched: bool) -> StopSessionOutcome {
-    if dispatched {
-        StopSessionOutcome::Unknown
-    } else {
-        StopSessionOutcome::NotOnline
+impl Pair {
+    const fn new(opener: Opener, carrier: u64, link: u32, kind: ChannelKind) -> Self {
+        Self {
+            opener,
+            carrier,
+            link,
+            kind,
+            accepted: false,
+            dispatched: false,
+            end_toward_link: false,
+            toward_link: Vec::new(),
+            toward_client: Vec::new(),
+            finish: None,
+            link_done: false,
+            reset: None,
+        }
     }
 }
 
@@ -204,19 +224,9 @@ impl Hub {
             };
             match self.open_link(open.machine(), link) {
                 Ok((carrier, link)) => {
-                    self.relays.insert(Pair {
-                        opener: Opener::Client { peer, channel },
-                        carrier,
-                        link,
-                        kind: open.kind(),
-                        accepted: false,
-                        dispatched: false,
-                        end_toward_link: false,
-                        toward_link: Vec::new(),
-                        toward_client: Vec::new(),
-                        finish: None,
-                        link_done: false,
-                    });
+                    let opener = Opener::Client { peer, channel };
+                    self.relays
+                        .insert(Pair::new(opener, carrier, link, open.kind()));
                     return;
                 }
                 Err(reason) => reason,
@@ -225,60 +235,74 @@ impl Hub {
         self.reset_client(peer, channel, reason);
     }
 
-    /// A `stop-session` for an `online` Machine: a link `route` carrying that Session's
-    /// `server stop`, answered when it replies. `None` when the Machine is not `online`.
-    pub(super) fn stop_session(
+    /// Opens a link `session` channel for the run `run` while its carrier `carrier` still carries
+    /// the `online` Machine `machine`, and returns its pair's key; `None` when there is no room or
+    /// the Machine has moved on, and then nothing was sent.
+    pub(super) fn open_stop_channel(
         &mut self,
-        peer: u64,
-        request: Id,
-        machine: &orchbee_machine_protocol::MachineId,
-    ) -> Option<StopSessionOutcome> {
-        let Some((carrier, session)) = self.machines.online_link(machine) else {
-            return Some(StopSessionOutcome::NotOnline);
-        };
-        let packet = routing::stop_packet(session.as_str());
-        let Some(handle) = self.carriers.get(&carrier) else {
-            return Some(StopSessionOutcome::NotOnline);
-        };
-        let line = handle.line().clone();
-        let mut wire = line.lock();
-        if !wire.open {
-            return Some(StopSessionOutcome::NotOnline);
+        run: u64,
+        machine: &MachineId,
+        carrier: u64,
+    ) -> Option<u64> {
+        if self.machines.online_link(machine).map(|(on, _)| on) != Some(carrier) {
+            return None;
         }
-        let Ok(link) = wire.connection.open(link::Channel::Route) else {
-            return Some(StopSessionOutcome::Failed);
+        let (carrier, link) = self.open_link(machine, None).ok()?;
+        let opener = Opener::Stop { run };
+        Some(
+            self.relays
+                .insert(Pair::new(opener, carrier, link, ChannelKind::Session)),
+        )
+    }
+
+    /// Commits as much of `bytes` to the run's channel `key` as the link's credit admits and
+    /// returns the count, 0 until the credit returns; `None` once the channel is over.
+    pub(super) fn write_stop_channel(&self, key: u64, bytes: &[u8]) -> Option<usize> {
+        let pair = self.relays.pairs.get(&key).filter(|pair| !pair.link_done)?;
+        let handle = self.carriers.get(&pair.carrier)?;
+        let committed = handle.line().lock().connection.write(pair.link, bytes).ok();
+        handle.line().wake();
+        committed
+    }
+
+    /// Copies what the run's channel `key` holds into `buffer`, returning the link its credit for
+    /// the bytes copied.
+    pub(super) fn read_stop_channel(&mut self, key: u64, buffer: &mut [u8]) -> Held {
+        let Some(pair) = self.relays.pairs.get_mut(&key) else {
+            return Held::Over;
         };
-        // The packet is far smaller than the initial credit, so it is committed whole.
-        let written = wire.connection.write(link, &packet);
-        let dispatched = matches!(written, Ok(count) if count == packet.len())
-            && wire.connection.end(link).is_ok();
-        if !dispatched {
-            let _reset = wire.connection.reset(link, ResetReason::Cancelled);
-            return Some(StopSessionOutcome::Failed);
+        if pair.toward_client.is_empty() {
+            return if pair.link_done || pair.finish.is_some() {
+                Held::Over
+            } else {
+                Held::Waiting
+            };
         }
-        drop(wire);
-        line.wake();
-        self.relays.insert(Pair {
-            opener: Opener::StopSession { peer, request },
-            carrier,
-            link,
-            kind: ChannelKind::Route,
-            accepted: false,
-            dispatched: true,
-            end_toward_link: false,
-            toward_link: Vec::new(),
-            toward_client: Vec::new(),
-            finish: None,
-            link_done: false,
-        });
-        None
+        let count = buffer.len().min(pair.toward_client.len());
+        for (slot, byte) in buffer.iter_mut().zip(pair.toward_client.drain(..count)) {
+            *slot = byte;
+        }
+        if !pair.link_done
+            && let Some(handle) = self.carriers.get(&pair.carrier)
+        {
+            let _taken = handle.line().lock().connection.take(pair.link, count);
+            handle.line().wake();
+        }
+        Held::Bytes(count)
+    }
+
+    /// Ends the run's channel `key`: resets the link channel `cancelled` unless it is over, and
+    /// returns the far end's reset reason, if the far end reset it.
+    pub(super) fn close_stop_channel(&mut self, key: u64) -> Option<ResetReason> {
+        self.cancel_link(key, ResetReason::Cancelled);
+        self.relays.remove(key).and_then(|pair| pair.reset)
     }
 
     /// Opens a link channel toward the `online` Machine `machine`: `route` when `channel` names it,
     /// otherwise `session` for the record's Session.
     fn open_link(
         &self,
-        machine: &orchbee_machine_protocol::MachineId,
+        machine: &MachineId,
         channel: Option<link::Channel>,
     ) -> Result<(u64, u32), ResetReason> {
         let (carrier, session) = self
@@ -345,6 +369,7 @@ impl Hub {
             self.cancel_link(key, ResetReason::Cancelled);
             self.relays.remove(key);
         }
+        self.forget_stop_waiters(peer);
     }
 
     pub(super) fn link_accepted(&mut self, carrier: u64, link: u32) {
@@ -370,25 +395,10 @@ impl Hub {
         let Some(pair) = self.relays.pairs.get_mut(&key) else {
             return;
         };
-        match pair.opener {
-            Opener::Client { .. } => {
-                pair.toward_client.extend_from_slice(&bytes);
-                self.flush_client(key);
-            }
-            Opener::StopSession { peer, request } => {
-                let over = pair.toward_client.len() + bytes.len() > STOP_REPLY_BYTES;
-                if !over {
-                    pair.toward_client.extend_from_slice(&bytes);
-                }
-                if over {
-                    self.cancel_link(key, ResetReason::Cancelled);
-                    self.relays.remove(key);
-                    self.reply_stop(peer, request, StopSessionOutcome::Unknown);
-                } else if let Some(handle) = self.carriers.get(&carrier) {
-                    let _taken = handle.line().lock().connection.take(link, bytes.len());
-                    handle.line().wake();
-                }
-            }
+        pair.toward_client.extend_from_slice(&bytes);
+        // A run's thread takes the bytes, and returns their credit, as it reads them.
+        if matches!(pair.opener, Opener::Client { .. }) {
+            self.flush_client(key);
         }
     }
 
@@ -402,7 +412,6 @@ impl Hub {
         if let Some(key) = self.relays.of_link(carrier, link)
             && let Some(pair) = self.relays.pairs.get_mut(&key)
             && pair.finish.is_none()
-            && matches!(pair.opener, Opener::Client { .. })
         {
             pair.finish = Some(Finish::End);
             self.flush_client(key);
@@ -417,40 +426,34 @@ impl Hub {
             return;
         };
         pair.link_done = true;
-        match pair.opener {
-            Opener::Client { .. } => {
-                // `close` implies `end`, so it replaces an `end` still waiting.
-                pair.finish = Some(Finish::Close(relayed(pair.kind, &outcome)));
-                self.flush_client(key);
-            }
-            Opener::StopSession { peer, request } => {
-                let read = if outcome == link::Outcome::Replied {
-                    routing::stop_reading(&pair.toward_client)
-                } else {
-                    StopReading::Unknown
-                };
-                self.relays.remove(key);
-                self.reply_stop(peer, request, stop_outcome(read));
-            }
+        // `close` implies `end`, so it replaces an `end` still waiting; a run reads the end itself.
+        if matches!(pair.opener, Opener::Client { .. }) {
+            pair.finish = Some(Finish::Close(relayed(pair.kind, &outcome)));
+            self.flush_client(key);
         }
     }
 
     /// The far end reset the link channel: its reason reaches the client only while no effect can
-    /// have started, and a `stop-session`, whose route is dispatched from the start, reads
-    /// `unknown`.
+    /// have started. A run keeps the reason and judges it by its own submission.
     pub(super) fn link_reset(&mut self, carrier: u64, link: u32, reason: ResetReason) {
         let Some(key) = self.relays.of_link(carrier, link) else {
             return;
         };
-        let Some(pair) = self.relays.pairs.get(&key) else {
+        let Some(pair) = self.relays.pairs.get_mut(&key) else {
             return;
         };
+        if matches!(pair.opener, Opener::Stop { .. }) {
+            pair.link_done = true;
+            pair.reset = Some(reason);
+            return;
+        }
         let ending = link_reset_end(pair.kind, pair.accepted, pair.dispatched, reason);
         self.end_pair(key, ending, None);
     }
 
     /// The carrier `carrier` ended, or is being ended: every pair on it whose link channel was still
-    /// open ends by the no-effect rule. A pair whose link already closed keeps its outcome.
+    /// open ends by the no-effect rule, and every run on it ends by whether its request was
+    /// submitted. A pair whose link already closed keeps its outcome.
     pub(super) fn carrier_ended(&mut self, carrier: u64) {
         for key in self
             .relays
@@ -462,18 +465,27 @@ impl Hub {
             let ending = carrier_end(pair.kind, pair.accepted, pair.dispatched);
             self.end_pair(key, ending, None);
         }
+        self.end_stops_on(carrier);
     }
 
-    /// Applies closing at `now`, closing having begun at `began`, to every pair.
+    /// Applies closing at `now`, closing having begun at `began`, to every pair and every run. A
+    /// run's channel may finish within the allowance, as a route may.
     pub(super) fn close_relays(&mut self, began: Instant, now: Instant) {
         for key in self.relays.keys(|pair| !pair.link_done) {
             let Some(pair) = self.relays.pairs.get(&key) else {
                 continue;
             };
-            let ending = closing(pair.kind, pair.accepted, pair.dispatched, began, now);
+            let kind = match pair.opener {
+                Opener::Client { .. } => pair.kind,
+                Opener::Stop { .. } => ChannelKind::Route,
+            };
+            let ending = closing(kind, pair.accepted, pair.dispatched, began, now);
             if ending != Ending::Keep {
                 self.end_pair(key, ending, Some(ResetReason::Stopping));
             }
+        }
+        if now >= began + ALLOWANCE {
+            self.end_stops_closing();
         }
     }
 
@@ -488,12 +500,8 @@ impl Hub {
         };
         pair.link_done = true;
         match (pair.opener, ending) {
-            (_, Ending::Keep) => {}
-            (Opener::StopSession { peer, request }, _) => {
-                let outcome = unreplied(pair.dispatched);
-                self.relays.remove(key);
-                self.reply_stop(peer, request, outcome);
-            }
+            // A run's thread finds its channel over and removes the pair.
+            (_, Ending::Keep) | (Opener::Stop { .. }, _) => {}
             (Opener::Client { peer, channel }, Ending::Reset(reason)) => {
                 self.relays.remove(key);
                 self.reset_client(peer, channel, reason);
@@ -653,27 +661,6 @@ impl Hub {
         }
         drop(wire);
         peer.line.wake();
-    }
-
-    fn reply_stop(&self, peer: u64, request: Id, outcome: StopSessionOutcome) {
-        if let Some(peer) = self.peers.get(&peer) {
-            let mut wire = peer.line.lock();
-            if wire.open {
-                let _replied = wire.connection.reply(request, Reply::StopSession(outcome));
-            }
-            drop(wire);
-            peer.line.wake();
-        }
-    }
-}
-
-/// The `stop-session` outcome of the far `server stop`'s reply.
-const fn stop_outcome(read: StopReading) -> StopSessionOutcome {
-    match read {
-        StopReading::Stopped => StopSessionOutcome::Stopped,
-        StopReading::NotRunning => StopSessionOutcome::NotRunning,
-        StopReading::Unknown => StopSessionOutcome::Unknown,
-        StopReading::Failed => StopSessionOutcome::Failed,
     }
 }
 

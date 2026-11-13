@@ -58,6 +58,43 @@ pub fn exchange_session_stop_before(
     windows_admission::session_stop(endpoint, offer, request, deadline, wake)
 }
 
+/// The same stop/status exchange over `transport`, a byte stream the caller already joined to a
+/// Session's Client endpoint and bounds itself: the `offer`, then, once answered, `request` and its
+/// result. `admitted` runs between the answer and the request's write, so a caller can set the
+/// bounds or the bookkeeping that apply once the request may be sent.
+#[cfg(windows)]
+pub fn exchange_session_stop_over<T: Read + Write>(
+    transport: &mut T,
+    offer: &Offer,
+    request: crate::SessionStopRequest,
+    admitted: impl FnOnce(&mut T),
+) -> Result<crate::SessionStopResult, SessionStopExchangeError> {
+    let mut submitted = false;
+    let exchange = (|| {
+        handshake::offer(transport, offer)?;
+        admitted(transport);
+        let id = request.id;
+        crate::write_message(
+            transport,
+            &crate::LocalClientMessage::SessionStopRequest(request),
+        )?;
+        submitted = true;
+        match crate::read_message(transport)? {
+            crate::LocalClientMessage::SessionStopResult(result) if result.id == id => Ok(result),
+            crate::LocalClientMessage::Rejected { reason } => {
+                Err(ConnectClientError::Rejected(reason))
+            }
+            crate::LocalClientMessage::ClientHello
+            | crate::LocalClientMessage::ClientAccepted { .. }
+            | crate::LocalClientMessage::SessionStopRequest(..)
+            | crate::LocalClientMessage::SessionStopResult(..) => {
+                Err(ConnectClientError::UnexpectedResponse)
+            }
+        }
+    })();
+    exchange.map_err(|failure| SessionStopExchangeError { failure, submitted })
+}
+
 /// What a Server answered an `exit` request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExitReply {

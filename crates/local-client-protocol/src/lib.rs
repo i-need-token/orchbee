@@ -29,4 +29,5 @@ pub use connection::{
 #[cfg(windows)]
 pub use connection::{
     SessionStopExchangeError, exchange_exit_before, exchange_session_stop_before,
+    exchange_session_stop_over,
 };

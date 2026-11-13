@@ -519,7 +519,7 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
   route first and sends `connect` only for a Machine that is not `online`, so commands to a Machine
   already `online` never extend its login.
 - **Expiry never ends work in flight.** A route is a hub `route` channel or a `stop-session`
-  request while it is in the relay table. While one is open the expiry does not begin closing:
+  [run](#stopping-a-session) until its outcome. While one is open the expiry does not begin closing:
   past `expiresAt` the hub stays `expiring`, the state and every watcher keep the past `expiresAt`,
   and no event is sent for the overdue interval; the state printer reads such a hub as expired and
   closing once no remote command runs. The last route ending wakes the supervisor, whose
@@ -531,10 +531,11 @@ hub's state follows the contract's [hub lifetime](../../../schemas/machine/READM
 In `closing` the hub rejects offers with `stopping` and still answers control requests, `query`
 with state `stopping`; it answers every request `stopping`, resets every `open` `stopping`, starts
 no attempt, and answers every waiting `connect` `stopping`. Every open `session` channel closes
-`lost` toward its client at once and its link channel is reset `stopping`. Open `route` channels,
-a `stop-session` among them, may finish until 60 seconds after `closing` began; catalog reads
-already in flight finish within the same allowance and reply `stopping`. At the allowance a route
-still open ends as a lost link would end it ([channels](#channels)). The hub then queues `bye`
+`lost` toward its client at once and its link channel is reset `stopping`. Open `route` channels
+and `stop-session` runs may finish until 60 seconds after `closing` began; catalog reads already in
+flight finish within the same allowance and reply `stopping`. At the allowance a route still open
+ends as a lost link would end it ([channels](#channels)), and a run as
+[stopping a Session](#stopping-a-session) states. The hub then queues `bye`
 `stopping` on every connection, gives its writers at most 2 seconds, ends every carrier child,
 closes the endpoint, releases the lock, and exits 0. Which channel ends when is a rule over the
 time `closing` began and the time now, which the supervisor passes in. `drain` enters `closing`;
@@ -657,8 +658,8 @@ Each channel a client opens is one pair: the client's channel on its connection 
 channel on the Machine's current carrier, a link `session` for the record's Session or a link
 `route`. The relay table in the hub state holds each pair: its two ends, its kind, whether the link
 accepted, whether the hub has queued the opener's `end` toward the link, and the bytes each
-direction holds. A `stop-session` request is a pair whose client end is the request instead of a
-channel.
+direction holds. The current channel of a [`stop-session` run](#stopping-a-session) is a pair whose
+client end is the run instead of a client's channel.
 
 | Step                 | The hub                                                                                                                                                                                                                                                                                                                        |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -690,21 +691,64 @@ channel.
 - **Carrier ends reach every pair.** A lost link, `disconnect`, a reload that changes or removes the
   record, and a failed attempt all end the carrier, and each ends its pairs the same way.
 
-`stop-session` opens a link `route` whose packet runs `server stop --confirm --format=json` in the
-record's Session, under the helper's admission like any routed command. The reply maps to the
-request's outcome:
+### Stopping a Session
 
-| The link `route`                                                                                                                                                                | `stop-session` outcome |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| Reply `completed`, result `stopped` or `exited`                                                                                                                                 | `stopped`              |
-| Reply `completed`, result `unavailable` with reason `runtime` or `transport`                                                                                                    | `not-running`          |
-| Reply `completed` with result `unknown`, reply `unknown`, a reply over 1 MiB, the carrier ending, or a `reset` of the route, which comes after the packet and `end` were queued | `unknown`              |
-| The Machine not `online` at the request, or its link ending before the packet and `end` were queued                                                                             | `not-online`           |
-| Any other reply; no room                                                                                                                                                        | `failed`               |
+`stop-session` stops the Machine's remote Session the way an admitted Client of that Session does:
+with the Session's own [stop request](../../../crates/local-client-protocol/README.md#managed-session-stop-control),
+the one `server stop` sends after its destructive admission and the Desktop sends after its dialog.
+Each exchange is a link `session` channel for the record's Session, which the
+[link helper](#link-helper) joins to the Session's Client endpoint and the Session admits by its own
+same-user rule, as for any client's `session` channel. The far end gains no entry, option or
+variable, runs no command, and reads no confirmation. Confirmation belongs to the asker: whoever
+asks the hub on a person's behalf first applies the
+[destructive-command rule](../../../docs/cli/command-surface.md) of its own build, as a local
+`server stop` does; the hub carries out a request already confirmed.
 
-A Session with no runtime folder, or with no Server answering its pipe, is what `server stop`
-reports as `unavailable` `runtime` or `transport`; the hub reads both as `not-running`. "No room" is a
-link that already holds 256 channels the hub opened.
+A run is the work of one `stop-session` for one Machine, and its thread performs it:
+
+1. **Start.** The run picks a fresh stop identity, opens a link `session` channel, sends this
+   build's `ClientServer` offer, and, once the Session answers, sends `start` and reads its result.
+   The request is _submitted_ from the moment its first byte is committed to the link.
+2. **Watch.** While the stop is pending, or a submitted `start` went unanswered, the run asks the
+   stop's `status` over a new link `session` channel every 250 ms, until an answer or the end of the
+   Session decides it, or until 65 seconds after the start, the default wait of `server stop`.
+3. **One channel at a time.** Each exchange is bounded by 30 seconds, past the helper's 20-second
+   connect window. Once it has its result, or its channel ended, the run resets the channel
+   `cancelled`, which the helper reads as the client leaving.
+
+| What the run sees                                                                                                                                                                          | Outcome                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| The Machine not `online` at the request                                                                                                                                                    | `not-online`                                  |
+| `start`: the channel reset `session-not-running`                                                                                                                                           | `not-running`                                 |
+| `start`: answered `pending`, or submitted and then no answer                                                                                                                               | Watch                                         |
+| `start`: answered `busy`, `failed`, `unmanaged` or `not-recorded`; the offer refused or the request rejected; the channel reset otherwise, or ended before submission; a link with no room | `failed`                                      |
+| Watch: the channel reset `session-not-running`, or `not-recorded` after a `pending` answer                                                                                                 | `stopped`                                     |
+| Watch: `not-recorded` while the `start` was never answered                                                                                                                                 | `unknown`                                     |
+| Watch: answered `failed`, `busy` or `unmanaged`                                                                                                                                            | `failed`                                      |
+| Watch: answered `pending`; the offer refused; the channel reset otherwise or ended without an answer; a link with no room                                                                  | Watch again                                   |
+| Watch: 65 seconds passed                                                                                                                                                                   | `unknown`                                     |
+| The carrier ends during the run                                                                                                                                                            | `unknown` once submitted, `not-online` before |
+| `closing` reaches its allowance during the run                                                                                                                                             | `unknown` once submitted, `stopping` before   |
+
+- **Truth about effects.** Before submission nothing reached the Session, so each failure reads as
+  no effect. After it, only the Session's answer or its end decides the run, and anything else reads
+  `unknown`. A far reset counts only before submission: the helper resets a `session` channel only
+  before `accept`, and every answer follows `accept`.
+- **The outcomes stay the contract's.** A `start` answered `busy` reads `failed`, although another
+  stop may be ending the Session: the Session refused this one. The run cannot tell a Session that
+  ended because of its stop from one that ended otherwise, so both read `stopped`.
+- **`not-recorded` after `pending` means a later Server.** A Server keeps its stop entry until it
+  ends, so a later `status` it does not know comes from another Server of the same Session, and the
+  one asked has ended. Without the `pending` answer the `start` may never have reached the Server,
+  or reached one that ended since; the run cannot tell which.
+- **Joined requests.** A Machine has at most one run; a `stop-session` for a Machine with a run joins
+  it and gets the same outcome. A client that leaves loses its replies, and its run goes on.
+- **Ownership.** The hub state owns each run: its Machine and carrier, its waiting requests, and
+  whether its request was submitted. The first end that decides a run answers every waiting request
+  and removes it: the thread's reading, the carrier's end, or the allowance. A thread that finds its
+  run gone stops. Each exchange's channel is a relay pair whose client end is the run; the thread
+  commits to it and reads from it under the hub state's lock, returns credit as it reads, and waits
+  outside every lock on the hub state's signal, which the carrier's reader fires after each frame.
 
 ### Environment
 
@@ -746,7 +790,7 @@ does for Session endpoints. The `OBHS` frame must arrive within 2 seconds of the
 | `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher, and a changed record is reconciled as above; while `presence` holds, a new, changed or enabled SSH Machine is attempted silently |
 | `connect`                      | `not-found` for an id outside the catalog; otherwise [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once; a `draft` is `unsupported`                                                                                                                |
 | `disconnect`                   | `not-found` for an id outside the catalog, otherwise the Machine is disconnected and the answer is `disconnected`                                                                                                                                                                                  |
-| `stop-session`                 | `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online`, otherwise a link `route` that [stops the Session](#channels)                                                                                                                                           |
+| `stop-session`                 | `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online`, otherwise a run that [stops the Session](#stopping-a-session), or joins the Machine's run                                                                                                              |
 | `claim`, `dismiss`             | `ended`: the hub has no login episode                                                                                                                                                                                                                                                              |
 | `open` of `session` or `route` | [Relayed](#channels) for an `online` Machine; otherwise `reset` `not-found` for an id outside the catalog or `not-online`                                                                                                                                                                          |
 
@@ -769,20 +813,21 @@ succeeds.
 | Machine records                | The hub state; each is a state machine without a clock of its own       | One per catalog Machine; the waiting `connect` requests of a connection leave when it closes                                                                          |
 | Carrier                        | Its owner thread, from the start of its child to the report of its end  | One per Machine; 4 KiB of standard error; the link's own window and queue bounds; its link reader stops reading while 256 frames other than `data` wait to be written |
 | Relay pairs                    | The relay table in the hub state, from `open` to the end of both sides  | 256 per connection and 256 per link, as each side's own channel bound; one window per direction each                                                                  |
+| `stop-session` runs            | The hub state; each run's exchanges, its thread                         | One per Machine; one link channel at a time; the waiting requests of a connection leave when it closes                                                                |
 | Expiry deadline, Session reads | The supervisor                                                          | One deadline; one read at a time, of at most 256 folders, within 5 seconds                                                                                            |
 | Machine timers                 | The supervisor, which wakes at the earliest Machine deadline            | No thread per timer                                                                                                                                                   |
-| Threads                        | The process                                                             | Listener and supervisor, one per candidate, two per attached connection, four per carrier: owner, link reader, link writer, standard-error reader                     |
+| Threads                        | The process                                                             | Listener and supervisor, one per candidate, two per attached connection, four per carrier: owner, link reader, link writer, standard-error reader; one per run        |
 
 ### Locks
 
 A terminal stream carries many frames a second on one connection while others idle, so a frame
 wakes only the threads of the two sides it touches.
 
-| Lock             | Guards                                                                                                                                                                                                                                  | Its signal wakes                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Hub state        | The lifetime, the catalog with every Machine record, the carriers, the registry of connections with each one's `presence`, `watch` and thread count, the relay table, the candidate and control counts, and the catalog reads in flight | The supervisor and the closing                                 |
-| Connection state | One connection's protocol state machine and whether it is still open at the hub                                                                                                                                                         | That connection's writer, and its reader paused at the backlog |
-| Link state       | One carrier's `machine-link` state machine, whether it is still open, and its `ensure-session` channel                                                                                                                                  | That carrier's writer, and its reader paused at the backlog    |
+| Lock             | Guards                                                                                                                                                                                                                                                           | Its signal wakes                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Hub state        | The lifetime, the catalog with every Machine record, the carriers, the registry of connections with each one's `presence`, `watch` and thread count, the relay table, the `stop-session` runs, the candidate and control counts, and the catalog reads in flight | The supervisor, the closing, and each run's thread             |
+| Connection state | One connection's protocol state machine and whether it is still open at the hub                                                                                                                                                                                  | That connection's writer, and its reader paused at the backlog |
+| Link state       | One carrier's `machine-link` state machine, whether it is still open, and its `ensure-session` channel                                                                                                                                                           | That carrier's writer, and its reader paused at the backlog    |
 
 - **Order.** A thread that holds the hub state's lock and a connection's or a link's lock took the
   hub state's first. A thread holding a connection's or a link's lock takes no other lock, and no
@@ -802,7 +847,8 @@ wakes only the threads of the two sides it touches.
   bytes. Each step holds the hub state's lock only for a copy of at most one frame's bytes into a
   state machine, and wakes only the two writers involved.
 - **Wake-ups.** A frame wakes its own writer, never every thread of the hub. The hub state's signal
-  fires when the lifetime, the catalog reads in flight, or the registry change.
+  fires when the lifetime, the catalog reads in flight, the registry, or a run change, and after
+  each link frame, which a run's thread may wait for.
 
 The Windows link helper shares the carrier pieces with the hub: the lock-and-signal pair, the frame
 splitting, the handshake answer and the `query` result. They are unchanged. The hub now keeps one
@@ -885,13 +931,12 @@ connection, so nothing changed for the link.
 - **An unresponsive link stays until something ends it.** A Machine that stops answering `ping`
   reads `unresponsive` and keeps its carrier; the helper's 90-second idle limit or the end of the
   `ssh` process ends the link, which then reconnects.
-- **`stop-session` cannot succeed against a release far end.** Its packet runs
-  `server stop --confirm` in the far Session, and a release Windows build refuses `--confirm` at
-  destructive admission, admitting a stop only from a person who types the Session's name at a
-  console, which a routed command never has. Every `stop-session` to a release far end therefore
-  reads `failed`; only development and test builds stop the Session. The next slice must decide a
-  stop form that the admitted link helper may use and that a release build accepts without a
-  console.
+- **A remote stop reads the Session's end, not its receipt.** The hub cannot read the far
+  activation record that `server stop` reads for its receipt, so a Session that ends after the
+  request was submitted reads `stopped` whatever ended it, and a stop still pending after 65
+  seconds reads `unknown`, although it may still finish.
+- **A reconnect can start the Session again.** A carrier that ends and reconnects during or after
+  a stop sends `ensure-session`, which starts the record's Session again.
 - **`untrusted` is not produced.** A host key that is not yet trusted reads `needs-login` with
   `auth-required` until questions carry `hostKey`.
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
@@ -1044,11 +1089,12 @@ commands with `--machine` and compares each answer with the same command on the 
 three routed commands on one child, opens a Session stream through the hub and reads the far
 Session's handshake answer, ends the child under a routed command in flight and finds a definite
 unknown-outcome failure within a bound, leaves a client mid-stream and finds the hub and the
-Machine still serving, and stops the far Session with `stop-session`, which a second request then
-reads as `not-running`. It starts no `ssh`. The time rules of closing with channels open, of the
-countdown a `connect` restarts and no route moves, and of an expiry held off by open routes are
-unit tests over the injected clock, as are the reading of a far reset by whether an effect may
-have started and the kind and exit code of every routed failure.
+Machine still serving, and stops the far Session with `stop-session` as a Client of that Session,
+which a second request then reads as `not-running`. It starts no `ssh`. The time rules of closing
+with channels open, of the countdown a `connect` restarts and no route moves, and of an expiry held
+off by open routes are unit tests over the injected clock, as are the reading of a far reset by
+whether an effect may have started, the reading of each end of a run's exchanges as its outcome,
+and the kind and exit code of every routed failure.
 
 ## Persistent TUI connections
 
