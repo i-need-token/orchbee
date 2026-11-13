@@ -38,6 +38,9 @@ const RIGHT_PASSWORD: &str = "test-password-9c4d";
 const RIGHT_CODE: &str = "test-code-2718";
 const WRONG: &str = "test-wrong-41aa";
 const SECRETS: [&str; 4] = [RIGHT_PASSPHRASE, RIGHT_PASSWORD, RIGHT_CODE, WRONG];
+/// Bounds how long an answer endpoint stands after it sent its receipt: as long as a client waits
+/// for a receipt.
+const ENDPOINT_DROP: Duration = Duration::from_secs(5);
 
 #[test]
 fn each_kind_reaches_the_claimant_in_order_and_only_ssh_receives_the_answers() {
@@ -252,12 +255,22 @@ fn an_endpoint_takes_one_answer_from_this_user_for_its_own_question_only() {
         deliver(&foreign, WRONG.as_bytes()),
         Err(DeliveryFailure::Refused)
     );
-    // The endpoint kept waiting for its own token; a second answer then meets no endpoint.
+    // The endpoint kept waiting for its own token. It sends the receipt of the answer it takes
+    // before it drops, so a second answer may still meet it and get only a close; that answer is
+    // never taken, and soon there is no endpoint at all.
     deliver(&first.answer, WRONG.as_bytes()).unwrap();
-    assert_eq!(
-        deliver(&first.answer, WRONG.as_bytes()),
-        Err(DeliveryFailure::Unreachable)
-    );
+    let dropped = Instant::now() + ENDPOINT_DROP;
+    loop {
+        match deliver(&first.answer, WRONG.as_bytes()) {
+            Err(DeliveryFailure::Unreachable) => break,
+            Err(DeliveryFailure::Refused) => assert!(
+                Instant::now() < dropped,
+                "the answered endpoint still stood after {ENDPOINT_DROP:?}"
+            ),
+            other => panic!("a second answer met {other:?}"),
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
     let second = question(&mut client);
     assert_ne!(second.answer.endpoint, first.answer.endpoint);
     let crossed = AnswerEndpoint {
