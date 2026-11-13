@@ -25,6 +25,10 @@
 // - leftovers: once the removal has settled, nothing of the identity remains in %LOCALAPPDATA%,
 //   %APPDATA% or %TEMP%, among the uninstall registrations, or in the user `Path`; the data root stays.
 //
+// When an install, command, uninstall or npm step fails, it also prints whether this process runs
+// elevated and the owner and access list of the store root and its parent; the program's own
+// diagnostic is the standard error printed above them, or the setup log's tail.
+//
 // A test build's uninstall that runs with `ORCHBEE_TEST_REGISTRY_KEY` (`Software\ob-test-scratch\<name>`
 // below HKCU) uses that scratch key's `Environment` and `Uninstall` subkeys instead of the user's, and
 // so does this script; `ORCHBEE_INSTALL_DIR` and `ORCHBEE_HOME` move the store and data roots for both.
@@ -237,6 +241,60 @@ function runCommand(identity, argv, env, deadline) {
 	return run(system32('cmd.exe'), ['/d', '/c', identity.stem, ...argv], { env, deadline });
 }
 
+/** Whether this process runs elevated, read from the integrity level of its token. */
+function elevation() {
+	const result = spawnSync(system32('whoami.exe'), ['/groups', '/fo', 'csv', '/nh'], {
+		encoding: 'utf8',
+		windowsHide: true,
+	});
+	const levels = [
+		['S-1-16-16384', 'yes (system integrity)'],
+		['S-1-16-12288', 'yes (high integrity)'],
+		['S-1-16-8192', 'no (medium integrity)'],
+	];
+	const found = levels.find(([sid]) => (result.stdout ?? '').includes(`"${sid}"`));
+	return found === undefined ? 'unknown' : found[1];
+}
+
+// Prints the owner and every access entry of the folder SMOKE_ACL_PATH names, each account by name
+// and SID; a path passed in the environment needs no quoting. It calls .NET directly, since Windows
+// PowerShell started from PowerShell 7 inherits a module path from which Get-Acl does not load.
+const aclScript = `
+$ErrorActionPreference = 'Stop'
+$target = $env:SMOKE_ACL_PATH
+if (-not [IO.Directory]::Exists($target)) { '  does not exist'; return }
+$acl = [IO.Directory]::GetAccessControl($target)
+function Name($sid) { try { $sid.Translate([Security.Principal.NTAccount]).Value } catch { '?' } }
+$owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
+"  owner $(Name $owner) $($owner.Value)"
+"  inheritance from the parent $(if ($acl.AreAccessRulesProtected) { 'blocked' } else { 'kept' })"
+foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+	$sid = $rule.IdentityReference
+	$notes = @()
+	if ($rule.IsInherited) { $notes += 'inherited' }
+	if ($rule.PropagationFlags -band 2) { $notes += 'children only' }
+	"  $($rule.AccessControlType) $(Name $sid) $($sid.Value) $($rule.FileSystemRights) $($notes -join ', ')"
+}`;
+
+/** The facts a failed route needs beside the program's own diagnostic. */
+function failureFacts(identity) {
+	log(`Elevated: ${elevation()}`);
+	for (const folder of [identity.storeRoot, path.dirname(identity.storeRoot)]) {
+		const result = spawnSync(
+			system32(path.join('WindowsPowerShell', 'v1.0', 'powershell.exe')),
+			['-NoProfile', '-NonInteractive', '-Command', aclScript],
+			{
+				encoding: 'utf8',
+				env: { ...process.env, SMOKE_ACL_PATH: folder },
+				timeout: commandDeadline,
+				windowsHide: true,
+			},
+		);
+		const facts = (result.stdout || result.stderr || '  unreadable').trimEnd();
+		log(`${folder}:\n${facts}`);
+	}
+}
+
 function expectStatus(result, expected, what) {
 	if (result.status !== expected)
 		throw new StepFailure(`${what} exited ${result.status}, expected ${expected}`);
@@ -436,10 +494,12 @@ if (
 	process.argv[1] !== undefined &&
 	path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
+	let options;
+	let identity;
 	try {
 		if (process.platform !== 'win32') throw new StepFailure('This smoke test runs on Windows');
-		const options = parseArguments(process.argv.slice(2));
-		const identity = readIdentity(options.artifacts);
+		options = parseArguments(process.argv.slice(2));
+		identity = readIdentity(options.artifacts);
 		const steps = {
 			install: () => install(identity, options.logs),
 			command: () => command(identity),
@@ -451,5 +511,11 @@ if (
 	} catch (error) {
 		process.stderr.write(`${error.message}\n`);
 		process.exitCode = error instanceof UsageError ? 2 : 1;
+		if (
+			error instanceof StepFailure &&
+			identity !== undefined &&
+			['install', 'command', 'uninstall', 'npm'].includes(options.step)
+		)
+			failureFacts(identity);
 	}
 }
