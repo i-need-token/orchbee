@@ -247,12 +247,16 @@ jobs:
   # TEMPORARY (input-stall investigation): repeats the stalling Windows process target on several
   # runners and prints each failed attempt's report. Remove before merging.
   input-stall:
-    name: Input stall repeat (${{ matrix.runner }})
+    name: Input stall repeat (${{ matrix.runner }}, ${{ matrix.console }})
     if: github.ref_name == 'ci/input-stall'
     strategy:
       fail-fast: false
       matrix:
-        runner: [1, 2, 3, 4]
+        include:
+          - { runner: 1, console: system }
+          - { runner: 2, console: system }
+          - { runner: 3, console: openconsole }
+          - { runner: 4, console: openconsole }
     runs-on: windows-latest
     timeout-minutes: 80
     steps:
@@ -287,6 +291,15 @@ jobs:
           curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
           $hash = zig fetch $archive
           if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
+
+      - name: Stage the product's ConPTY
+        if: matrix.console == 'openconsole'
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:RUNNER_TEMP 'conpty'
+          node apps/terminal-host/scripts/windows-conpty.mjs --output $bundle
+          if ($LASTEXITCODE -ne 0) { throw 'ConPTY staging failed' }
+          "ORCHBEE_TEST_CONPTY_DIR=$bundle" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build the peers and the test target
         shell: pwsh
