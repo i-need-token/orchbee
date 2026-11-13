@@ -1,31 +1,15 @@
 import { useOrchbeeIntl, websiteMessages as messages } from '@orchbee/i18n';
-import type { ReactElement, ReactNode } from 'react';
+import type { ReactElement } from 'react';
 
-import { joinClassNames } from '../../joinClassNames';
+import { AGENTS_CLI_RECORDING, AGENTS_CLI_SHELL_RECORDING } from '../../pictures';
+import { ProductRecording } from '../product-recording/ProductRecording';
 import { SectionHeading } from '../section-heading/SectionHeading';
 import { Tag } from '../tag/Tag';
-import { TuiScreen } from '../tui-screen/TuiScreen';
 import { WindowFrame } from '../window-frame/WindowFrame';
-import { orchestrateFrame } from './orchestrateFrame';
 import styles from './Orchestrate.module.css';
-import { SHELL_LINES } from './shell-script';
 
-const QUOTED = /^(?<before>[^"]*)(?<quote>"[^"]*")(?<after>.*)$/u;
-
-function highlightQuote(text: string): ReactNode {
-	const parts = QUOTED.exec(text)?.groups;
-	if (parts === undefined) return text;
-	return (
-		<>
-			{parts['before']}
-			<span className={styles['quote']}>{parts['quote']}</span>
-			{parts['after']}
-		</>
-	);
-}
-
-// A shell drives one Agent from another with orchbee commands while the terminal interface
-// beside it shows the result. The static page shows the finished run; the page script loops it.
+// A recording of a shell Panel driving another Agent with orchbee commands, cropped to that Panel on
+// narrow screens, then the remote machines feature still in development.
 export function Orchestrate(): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	return (
@@ -41,44 +25,26 @@ export function Orchestrate(): ReactElement {
 						{t(messages.orchestrateBody)}
 					</SectionHeading>
 				</div>
-				<div className={styles['grid']}>
-					<WindowFrame title='pwsh — ~/code/website'>
-						<div className={styles['shell']}>
-							<div className={styles['lines']} data-shell=''>
-								{SHELL_LINES.map((line, index) =>
-									line.kind === 'command' ? (
-										<div className={styles['line']} key={index} data-from={line.step}>
-											<span className={styles['prompt']}>PS&gt; </span>
-											<span data-type={line.step}>{highlightQuote(line.text)}</span>
-											<i className={styles['caret']} data-typing-caret='' hidden />
-										</div>
-									) : (
-										<div
-											className={joinClassNames(
-												styles['line'],
-												line.tone === 'muted' && styles['muted'],
-											)}
-											key={index}
-											data-from={line.step}
-										>
-											{line.text}
-										</div>
-									),
-								)}
-								<div className={styles['line']} data-prompt-line=''>
-									<span className={styles['prompt']}>PS&gt; </span>
-									<i className={styles['caret']} />
-								</div>
-							</div>
-						</div>
-					</WindowFrame>
+				<div className={styles['window']}>
 					<WindowFrame title='orchbee'>
-						<TuiScreen
-							lines={orchestrateFrame(4)}
-							size='orchestrate'
-							label={t(messages.orchestrateAlt)}
-							hook='orchestrate'
-						/>
+						<div className={styles['wide']}>
+							<ProductRecording
+								src={AGENTS_CLI_RECORDING.src}
+								poster={AGENTS_CLI_RECORDING.poster}
+								width={AGENTS_CLI_RECORDING.width}
+								height={AGENTS_CLI_RECORDING.height}
+								label={t(messages.agentsCliAlt)}
+							/>
+						</div>
+						<div className={styles['narrow']}>
+							<ProductRecording
+								src={AGENTS_CLI_SHELL_RECORDING.src}
+								poster={AGENTS_CLI_SHELL_RECORDING.poster}
+								width={AGENTS_CLI_SHELL_RECORDING.width}
+								height={AGENTS_CLI_SHELL_RECORDING.height}
+								label={t(messages.agentsCliAlt)}
+							/>
+						</div>
 					</WindowFrame>
 				</div>
 				<p className={styles['next']}>

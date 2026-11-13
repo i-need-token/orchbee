@@ -2,7 +2,7 @@ import { useOrchbeeIntl, websiteMessages as messages, type OrchbeeLocale } from 
 import type { ReactElement } from 'react';
 
 import { README_URL, REPOSITORY_URL, type Release } from '../../release';
-import { BeeMark } from '../bee-mark/BeeMark';
+import { BrandMark } from '../brand-mark/BrandMark';
 import { PillButton } from '../pill-button/PillButton';
 import styles from './SiteHeader.module.css';
 
@@ -29,7 +29,7 @@ export function SiteHeader({
 			<div className={styles['inner']}>
 				<a className={styles['brand']} href={`${home}#top`} aria-label='Orchbee'>
 					<span className={styles['mark']}>
-						<BeeMark />
+						<BrandMark />
 					</span>
 					<b>Orchbee</b>
 				</a>

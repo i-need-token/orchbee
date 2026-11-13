@@ -10,12 +10,12 @@
 	position: relative;
 	height: var(--ob-ref-length-website-440);
 }
-.bee {
+.mark {
 	position: absolute;
 	left: 50%;
 	top: 50%;
 	width: var(--ob-ref-length-website-84);
-	height: var(--ob-ref-length-website-75);
+	height: var(--ob-ref-length-website-84);
 	transform: translate(-50%, -50%);
 	filter: drop-shadow(0 0 var(--ob-ref-length-website-26) var(--ob-sys-color-website-glow));
 }
@@ -34,8 +34,8 @@
 	.middle {
 		height: var(--ob-ref-length-website-260);
 	}
-	.bee {
+	.mark {
 		width: var(--ob-ref-length-website-62);
-		height: var(--ob-ref-length-website-55);
+		height: var(--ob-ref-length-website-62);
 	}
 }

@@ -9,113 +9,44 @@
 }
 .grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) var(--ob-ref-length-website-330);
+	grid-template-columns: minmax(0, 1fr) var(--ob-ref-length-website-260);
 	gap: var(--ob-ref-length-website-28);
 	align-items: start;
 	margin-top: var(--ob-ref-length-website-68);
 }
-.hit0,
-.hit1,
-.hit2,
-.hit3,
-.hit4 {
-	position: absolute;
-	left: var(--ob-ref-length-website-em-5-4);
-	width: var(--ob-ref-length-website-em-51-6);
-	height: var(--ob-ref-length-website-em-1-32);
-	border-radius: var(--ob-ref-length-website-2);
+.figure {
+	margin: 0;
 }
-.hit0 {
-	top: var(--ob-ref-length-website-em-9-24);
+.caption {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-10);
+	margin-top: var(--ob-ref-length-website-14);
+	font: var(--ob-sys-typography-website-caption);
+	text-transform: uppercase;
+	color: var(--ob-sys-color-website-fg3);
 }
-.hit1 {
-	top: var(--ob-ref-length-website-em-10-56);
-}
-.hit2 {
-	top: var(--ob-ref-length-website-em-11-88);
-}
-.hit3 {
-	top: var(--ob-ref-length-website-em-13-2);
-}
-.hit4 {
-	top: var(--ob-ref-length-website-em-14-52);
-}
-:is(.hit0, .hit1, .hit2, .hit3, .hit4):hover {
-	box-shadow: var(--ob-sys-shadow-website-board-hover);
-}
-:is(.hit0, .hit1, .hit2, .hit3, .hit4):focus-visible {
-	outline-offset: 0;
+.caption b {
+	font: var(--ob-sys-typography-website-caption-strong);
+	color: var(--ob-sys-color-website-fg2);
 }
 .side {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-length-website-12);
+	gap: var(--ob-ref-length-website-22);
 }
-.card {
-	display: flex;
-	align-items: center;
-	gap: var(--ob-ref-length-website-12);
-	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-14);
-	border-radius: var(--ob-ref-length-website-18);
-	background: var(--ob-sys-color-website-notebg);
-	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-24)) saturate(1.5);
-	backdrop-filter: blur(var(--ob-ref-length-website-24)) saturate(1.5);
-	box-shadow: var(--ob-sys-shadow-website-card);
-	font: var(--ob-sys-typography-website-note);
-}
-.tile {
-	position: relative;
-	display: flex;
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	width: var(--ob-ref-length-website-38);
-	height: var(--ob-ref-length-website-38);
-	border-radius: var(--ob-ref-length-website-10);
-	background: var(--ob-sys-color-website-tile);
-	box-shadow: var(--ob-sys-shadow-website-tile);
-}
-.tile > svg {
-	width: var(--ob-ref-length-website-24);
-	height: var(--ob-ref-length-website-21);
-}
-.cardBody {
-	flex: 1;
-	min-width: 0;
-}
-.cardBody small {
-	display: block;
-	font: var(--ob-sys-typography-website-note-small);
-	color: var(--ob-sys-color-website-fg3);
-}
-.cardBody b {
-	display: block;
-	font: var(--ob-sys-typography-website-note-strong);
-}
-.cardBody span {
-	display: block;
-	color: var(--ob-sys-color-website-fg2);
-}
-.sound {
-	display: flex;
-	align-items: center;
-	gap: var(--ob-ref-length-website-14);
-	margin-top: var(--ob-ref-length-website-6);
-	padding: var(--ob-ref-length-website-14) var(--ob-ref-length-website-14)
-		var(--ob-ref-length-website-14) var(--ob-ref-length-website-16);
+.reminder {
+	margin: 0;
+	padding: var(--ob-ref-length-website-14) var(--ob-ref-length-website-16);
 	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-ln2);
 	border-radius: var(--ob-ref-length-website-18);
 	background: var(--ob-sys-color-website-glass);
 	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-12));
 	backdrop-filter: blur(var(--ob-ref-length-website-12));
-}
-.soundText {
-	flex: 1;
-	min-width: 0;
 	font: var(--ob-sys-typography-website-sound);
 	font-stretch: 104%;
 }
-.soundText small {
+.reminder small {
 	display: block;
 	margin-top: var(--ob-ref-length-website-2);
 	font: var(--ob-sys-typography-website-sound-small);
@@ -173,16 +104,7 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 	.side {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-	.sound {
-		margin-top: 0;
-	}
-}
-@media (max-width: 64rem) {
-	.side {
-		grid-template-columns: minmax(0, 1fr);
+		max-width: var(--ob-ref-length-website-260);
 	}
 }
 @media (max-width: 48rem) {

@@ -2,12 +2,12 @@ import { useOrchbeeIntl, websiteMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
 import { REPOSITORY_URL, type Release } from '../../release';
-import { BeeMark } from '../bee-mark/BeeMark';
+import { BrandMark } from '../brand-mark/BrandMark';
 import { PillButton } from '../pill-button/PillButton';
 import { SectionHeading } from '../section-heading/SectionHeading';
 import styles from './Outro.module.css';
 
-// The close: the last heading, the bee the swarm gathers around, and the two ways in.
+// The close: the last heading, the mark the swarm gathers around, and the two ways in.
 export function Outro({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	return (
@@ -19,8 +19,8 @@ export function Outro({ release }: { release: Release }): ReactElement {
 					variant='outro'
 				/>
 				<div className={styles['middle']}>
-					<span className={styles['bee']} data-outro-bee=''>
-						<BeeMark />
+					<span className={styles['mark']} data-outro-bee=''>
+						<BrandMark />
 					</span>
 				</div>
 				<div className={styles['actions']}>

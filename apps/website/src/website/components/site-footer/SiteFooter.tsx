@@ -2,7 +2,7 @@ import { useOrchbeeIntl, websiteMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
 import { README_URL, REPOSITORY_URL } from '../../release';
-import { BeeMark } from '../bee-mark/BeeMark';
+import { BrandMark } from '../brand-mark/BrandMark';
 import styles from './SiteFooter.module.css';
 
 // The footer: the mark and tagline, the links, and the site's own privacy note.
@@ -14,8 +14,8 @@ export function SiteFooter({ home }: { home: string }): ReactElement {
 				<div className={styles['row']}>
 					<div className={styles['brand']}>
 						<a className={styles['mark']} href={`${home}#top`} aria-label='Orchbee'>
-							<span className={styles['bee']}>
-								<BeeMark />
+							<span className={styles['logo']}>
+								<BrandMark />
 							</span>
 							<b>Orchbee</b>
 						</a>

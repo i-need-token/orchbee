@@ -1,6 +1,4 @@
-.inline,
-.badge,
-.text {
+.inline {
 	display: inline-block;
 	flex: none;
 	width: var(--ob-ref-length-website-8);
@@ -8,35 +6,23 @@
 	background: currentColor;
 	clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
 }
-/* Sized to the text around it, as in the terminal pictures. */
-.text {
-	width: var(--ob-ref-length-website-em-0-6);
-	height: var(--ob-ref-length-website-em-0-7);
-	vertical-align: calc(-1 * var(--ob-ref-length-website-em-0-05));
-}
-/* The corner badge on a notification tile. */
-.badge {
-	position: absolute;
-	right: calc(-1 * var(--ob-ref-length-website-3));
-	top: calc(-1 * var(--ob-ref-length-website-3));
-}
-:is(.inline, .badge, .text)[data-state='attention'] {
+.inline[data-state='attention'] {
 	color: var(--ob-sys-color-website-attention);
 	animation: pulse var(--ob-sys-motion-duration-website-1000)
 		var(--ob-sys-motion-easing-website-ease-in-out) infinite;
 }
-:is(.inline, .badge, .text)[data-state='working'] {
+.inline[data-state='working'] {
 	color: var(--ob-sys-color-website-t-work);
 	animation: breathe var(--ob-sys-motion-duration-website-2000)
 		var(--ob-sys-motion-easing-website-ease-in-out) infinite;
 }
-:is(.inline, .badge, .text)[data-state='done'] {
+.inline[data-state='done'] {
 	color: var(--ob-sys-color-website-done);
 }
-:is(.inline, .badge, .text)[data-state='failed'] {
+.inline[data-state='failed'] {
 	color: var(--ob-sys-color-website-failed);
 }
-:is(.inline, .badge, .text)[data-state='idle'] {
+.inline[data-state='idle'] {
 	color: var(--ob-sys-color-website-t-idle);
 	clip-path: polygon(
 		evenodd,
@@ -56,7 +42,7 @@
 		50% 20%
 	);
 }
-:is(.inline, .badge, .text)[data-state='unread'] {
+.inline[data-state='unread'] {
 	width: var(--ob-ref-length-website-6);
 	height: var(--ob-ref-length-website-6);
 	border-radius: 50%;
@@ -82,9 +68,7 @@
 	}
 }
 @media (prefers-reduced-motion: reduce) {
-	.inline,
-	.badge,
-	.text {
+	.inline {
 		animation: none !important;
 	}
 }

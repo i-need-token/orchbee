@@ -1,0 +1,52 @@
+.recording {
+	position: relative;
+}
+.video {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+.toggle {
+	position: absolute;
+	right: var(--ob-ref-length-website-12);
+	bottom: var(--ob-ref-length-website-12);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-length-website-32);
+	height: var(--ob-ref-length-website-32);
+	box-sizing: border-box;
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-ln2);
+	border-radius: var(--ob-ref-length-website-99);
+	background: var(--ob-sys-color-website-glass);
+	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-12));
+	backdrop-filter: blur(var(--ob-ref-length-website-12));
+	color: var(--ob-sys-color-website-fg2);
+	opacity: var(--ob-ref-opacity-website-50);
+	transition: opacity var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.toggle[hidden] {
+	display: none;
+}
+.recording:hover .toggle,
+.toggle:focus-visible,
+.toggle:not([data-playing]) {
+	opacity: var(--ob-ref-opacity-website-100);
+}
+.pause,
+.play {
+	display: flex;
+}
+.toggle[data-playing] .play,
+.toggle:not([data-playing]) .pause {
+	display: none;
+}
+@media (max-width: 40rem) {
+	.toggle {
+		right: var(--ob-ref-length-website-8);
+		bottom: var(--ob-ref-length-website-8);
+		width: var(--ob-ref-length-website-26);
+		height: var(--ob-ref-length-website-26);
+	}
+}

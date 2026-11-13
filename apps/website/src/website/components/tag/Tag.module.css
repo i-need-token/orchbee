@@ -1,5 +1,4 @@
-.tag,
-.honey {
+.tag {
 	display: inline-flex;
 	align-items: center;
 	height: var(--ob-ref-length-website-22);
@@ -11,8 +10,4 @@
 	text-transform: uppercase;
 	color: var(--ob-sys-color-website-fg2);
 	white-space: nowrap;
-}
-.honey {
-	border-color: var(--ob-sys-color-website-honey-tx);
-	color: var(--ob-sys-color-website-honey-tx);
 }

@@ -113,8 +113,14 @@
 }
 .demo {
 	position: relative;
+	display: grid;
+}
+.window,
+.hive {
+	grid-area: 1 / 1;
 }
 .window {
+	align-self: start;
 	transform-origin: 50% 0;
 	transition:
 		opacity var(--ob-sys-motion-duration-website-450) var(--ob-sys-motion-easing-website-ease),
@@ -132,8 +138,6 @@
 			var(--ob-sys-motion-duration-website-400);
 }
 .hive {
-	position: absolute;
-	inset: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -209,13 +213,13 @@
 		offset-distance: 100%;
 	}
 }
-.orbitBee {
+.orbitMark {
 	position: absolute;
 	left: 50%;
 	top: 50%;
 	width: var(--ob-ref-length-website-30);
-	height: var(--ob-ref-length-website-27);
-	transform: translate(-50%, -52%);
+	height: var(--ob-ref-length-website-30);
+	transform: translate(-50%, -50%);
 }
 .hiveTitle {
 	margin: 0 0 var(--ob-ref-length-website-26);
@@ -236,8 +240,8 @@
 }
 .agents li {
 	display: grid;
-	grid-template-columns: var(--ob-ref-length-website-8) var(--ob-ref-length-website-86) var(
-			--ob-ref-length-website-104
+	grid-template-columns: var(--ob-ref-length-website-8) var(--ob-ref-length-website-104) var(
+			--ob-ref-length-website-86
 		) minmax(0, 1fr);
 	align-items: center;
 	column-gap: var(--ob-ref-length-website-16);
@@ -247,11 +251,11 @@
 .agents b {
 	font: var(--ob-sys-typography-website-hive-name);
 }
-.kind {
+.workspace {
 	font: var(--ob-sys-typography-website-hive-kind);
 	color: var(--ob-sys-color-website-fg3);
 }
-.activity {
+.state {
 	text-align: right;
 	font: var(--ob-sys-typography-website-hive-activity);
 	font-stretch: 104%;
@@ -268,78 +272,6 @@
 .clock {
 	font: var(--ob-sys-typography-website-clock);
 	font-variant-numeric: tabular-nums;
-	color: var(--ob-sys-color-website-fg3);
-}
-.note {
-	position: absolute;
-	top: var(--ob-ref-length-website-58);
-	right: var(--ob-ref-length-website-18);
-	z-index: var(--ob-ref-layer-website-note);
-	display: flex;
-	align-items: center;
-	gap: var(--ob-ref-length-website-12);
-	width: var(--ob-ref-length-website-350);
-	max-width: calc(100% - var(--ob-ref-length-website-36));
-	padding: var(--ob-ref-length-website-12) var(--ob-ref-length-website-14);
-	box-sizing: border-box;
-	border-radius: var(--ob-ref-length-website-18);
-	background: var(--ob-sys-color-website-notebg);
-	-webkit-backdrop-filter: blur(var(--ob-ref-length-website-24)) saturate(1.6);
-	backdrop-filter: blur(var(--ob-ref-length-website-24)) saturate(1.6);
-	box-shadow: var(--ob-sys-shadow-website-note);
-	font: var(--ob-sys-typography-website-note);
-	text-align: left;
-	animation: note var(--ob-sys-motion-duration-website-550)
-		var(--ob-sys-motion-easing-website-out-quick) var(--ob-sys-motion-duration-website-500) both;
-}
-@keyframes note {
-	from {
-		opacity: 0;
-		transform: translateY(calc(-1 * var(--ob-ref-length-website-14))) scale(0.98);
-	}
-	to {
-		opacity: var(--ob-ref-opacity-website-100);
-		transform: none;
-	}
-}
-.noteIcon {
-	position: relative;
-	display: flex;
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	width: var(--ob-ref-length-website-38);
-	height: var(--ob-ref-length-website-38);
-	border-radius: var(--ob-ref-length-website-10);
-	background: var(--ob-sys-color-website-tile);
-	box-shadow: var(--ob-sys-shadow-website-tile);
-}
-.noteIcon > svg {
-	width: var(--ob-ref-length-website-24);
-	height: var(--ob-ref-length-website-21);
-}
-.noteBody {
-	flex: 1;
-	min-width: 0;
-}
-.noteBody small {
-	display: block;
-	font: var(--ob-sys-typography-website-note-small);
-	color: var(--ob-sys-color-website-fg3);
-}
-.noteBody b {
-	display: block;
-	font: var(--ob-sys-typography-website-note-strong);
-}
-.noteBody span {
-	display: block;
-	overflow: hidden;
-	color: var(--ob-sys-color-website-fg2);
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-.note > svg {
-	flex: none;
 	color: var(--ob-sys-color-website-fg3);
 }
 .replay {
@@ -404,23 +336,17 @@
 		margin-bottom: var(--ob-ref-length-website-14);
 	}
 	.agents li {
-		grid-template-columns: var(--ob-ref-length-website-8) var(--ob-ref-length-website-80) minmax(
+		grid-template-columns: var(--ob-ref-length-website-8) var(--ob-ref-length-website-104) minmax(
 				0,
 				1fr
 			);
 		min-height: var(--ob-ref-length-website-44);
 	}
-	.kind {
+	.workspace {
 		display: none;
-	}
-	.note {
-		top: var(--ob-ref-length-website-50);
-		right: var(--ob-ref-length-website-10);
-		max-width: calc(100% - var(--ob-ref-length-website-20));
 	}
 }
 @media (prefers-reduced-motion: reduce) {
-	.note,
 	.replay {
 		animation: none;
 	}

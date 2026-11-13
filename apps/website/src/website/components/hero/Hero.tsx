@@ -1,34 +1,39 @@
 import { useOrchbeeIntl, websiteMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
+import { HERO_NARROW_PICTURE, HERO_PICTURES } from '../../pictures';
 import { NPM_INSTALL_COMMAND, SOURCE_COMMANDS, type Release } from '../../release';
-import { BeeMark } from '../bee-mark/BeeMark';
+import { BrandMark } from '../brand-mark/BrandMark';
 import { CopyButton } from '../copy-button/CopyButton';
 import { Icon } from '../icon/Icon';
 import { PillButton } from '../pill-button/PillButton';
-import { StatusDot } from '../status-dot/StatusDot';
-import { TuiScreen } from '../tui-screen/TuiScreen';
+import { ProductPicture } from '../product-picture/ProductPicture';
+import { StatusDot, type StatusDotState } from '../status-dot/StatusDot';
 import { WindowFrame } from '../window-frame/WindowFrame';
-import { compactHeroFrame, heroFrame } from './hero-frames';
 import styles from './Hero.module.css';
 import { ORBIT_PATH } from './orbit-path';
 
-// The opening: the heading, the way to get Orchbee, and a live session whose window the visitor
-// can close while its Agents keep working. The page script runs the story.
+// The opening: the heading, the way to get Orchbee, and a screenshot of the terminal interface
+// whose window the visitor can close while its Agents keep working. The page script runs the story.
 export function Hero({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const command = release.published ? NPM_INSTALL_COMMAND : SOURCE_COMMANDS[0];
-	const hive = [
-		{ name: 'claude-1', kind: 'Claude Code', activity: t(messages.activityEditing) },
-		{ name: 'reviewer', kind: 'Codex', activity: t(messages.activityDiff) },
-		{ name: 'pwsh', kind: 'pnpm dev', activity: t(messages.activityServer) },
+	// The Agents in the screenshot, with the state their sidebar rows show.
+	const hive: readonly { name: string; workspace: string; state: StatusDotState }[] = [
+		{ name: 'OpenCode', workspace: 'shop-api', state: 'working' },
+		{ name: 'Gemini CLI', workspace: 'shop-api', state: 'working' },
+		{ name: 'Grok', workspace: 'shop-web', state: 'done' },
 	];
+	const stateName: Readonly<Partial<Record<StatusDotState, string>>> = {
+		working: t(messages.stateWorking),
+		done: t(messages.stateDone),
+	};
 	return (
 		<section className={styles['hero']} data-scene='0'>
 			<div className={styles['inner']}>
 				<div className={styles['copy']}>
 					<p className={styles['live']}>
-						<StatusDot state='working' hook='live-dot' />
+						<StatusDot state='working' />
 						<span data-hook='live-text'>{t(messages.liveWorking)}</span>
 					</p>
 					<h1 className={styles['title']}>
@@ -75,20 +80,13 @@ export function Hero({ release }: { release: Release }): ReactElement {
 					</p>
 					<div className={styles['demo']} data-hook='demo'>
 						<div className={styles['window']}>
-							<WindowFrame title='orchbee — ~/code/website' closeLabel={t(messages.closeWindow)}>
-								<TuiScreen
-									lines={heroFrame(0)}
-									size='hero'
-									label={t(messages.heroAlt)}
-									hook='hero'
-									show='wide'
-								/>
-								<TuiScreen
-									lines={compactHeroFrame(0)}
-									size='compact'
-									label={t(messages.heroAlt)}
-									hook='hero-compact'
-									show='narrow'
+							<WindowFrame title='orchbee' closeLabel={t(messages.closeWindow)}>
+								<ProductPicture
+									files={HERO_PICTURES}
+									narrow={HERO_NARROW_PICTURE}
+									sizes='(max-width: 48rem) calc(100vw - 2.5rem), (max-width: 77.5rem) calc(100vw - 5rem), 72.5rem'
+									alt={t(messages.heroAlt)}
+									eager
 								/>
 							</WindowFrame>
 						</div>
@@ -101,20 +99,18 @@ export function Hero({ release }: { release: Release }): ReactElement {
 									<i className={styles['bead']} />
 									<i className={styles['bead']} />
 									<i className={styles['bead']} />
-									<span className={styles['orbitBee']}>
-										<BeeMark />
+									<span className={styles['orbitMark']}>
+										<BrandMark />
 									</span>
 								</div>
 								<p className={styles['hiveTitle']}>{t(messages.hiveTitle)}</p>
 								<ul className={styles['agents']}>
-									{hive.map((agent, index) => (
+									{hive.map((agent) => (
 										<li key={agent.name}>
-											<StatusDot state='working' hook={`hive-dot-${index}`} />
+											<StatusDot state={agent.state} />
 											<b>{agent.name}</b>
-											<span className={styles['kind']}>{agent.kind}</span>
-											<span className={styles['activity']} data-hook={`hive-activity-${index}`}>
-												{agent.activity}
-											</span>
+											<span className={styles['workspace']}>{agent.workspace}</span>
+											<span className={styles['state']}>{stateName[agent.state]}</span>
 										</li>
 									))}
 								</ul>
@@ -126,30 +122,6 @@ export function Hero({ release }: { release: Release }): ReactElement {
 								</div>
 							</div>
 						</div>
-						<button
-							className={styles['note']}
-							type='button'
-							data-action='open-window'
-							data-hook='note'
-							aria-label={t(messages.noteAria)}
-							hidden
-						>
-							<span className={styles['noteIcon']}>
-								<BeeMark tile />
-							</span>
-							<span className={styles['noteBody']}>
-								<small>Orchbee · {t(messages.now)}</small>
-								<b>{t(messages.noteNeedsAttention, { agent: 'claude-1' })}</b>
-								<span>
-									{t(messages.noteContext, {
-										workspace: 'website',
-										tab: 'build',
-										panel: 'claude-1',
-									})}
-								</span>
-							</span>
-							<Icon name='snd' size={16} />
-						</button>
 						<button
 							className={styles['replay']}
 							type='button'

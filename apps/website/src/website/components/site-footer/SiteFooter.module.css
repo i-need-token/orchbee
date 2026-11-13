@@ -30,10 +30,10 @@
 	align-items: center;
 	gap: var(--ob-ref-length-website-10);
 }
-.bee {
+.logo {
 	display: block;
 	width: var(--ob-ref-length-website-26);
-	height: var(--ob-ref-length-website-23);
+	height: var(--ob-ref-length-website-26);
 }
 .mark b {
 	font: var(--ob-sys-typography-website-brand);

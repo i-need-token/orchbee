@@ -1,30 +1,11 @@
 import type { ReactElement } from 'react';
 
-import { BEE_PATHS } from './bee-paths';
 import styles from './IconSprite.module.css';
-
-const BEE_VIEW_BOX = '60 94 508 450';
-// The notification tile is dark in both themes, so its bee keeps the dark-theme colors.
-const TILE_FILLS: Readonly<Record<string, string>> = { body: '#ece8e1', wing: '#7c7e7d' };
 
 // The symbols every picture on the page draws with <use>, declared once per page.
 export function IconSprite(): ReactElement {
 	return (
 		<svg className={styles['sprite']} width='0' height='0' aria-hidden='true'>
-			<symbol id='ob-bee' viewBox={BEE_VIEW_BOX}>
-				{BEE_PATHS.map(([fill, d]) =>
-					fill === 'body' || fill === 'wing' ? (
-						<path key={d} className={styles[fill]} d={d} />
-					) : (
-						<path key={d} fill={fill} d={d} />
-					),
-				)}
-			</symbol>
-			<symbol id='ob-bee-tile' viewBox={BEE_VIEW_BOX}>
-				{BEE_PATHS.map(([fill, d]) => (
-					<path key={d} fill={TILE_FILLS[fill] ?? fill} d={d} />
-				))}
-			</symbol>
 			<symbol id='i-dl' viewBox='0 0 24 24'>
 				<path
 					d='M12 4v11M7 10l5 5 5-5M5 20h14'
@@ -63,18 +44,6 @@ export function IconSprite(): ReactElement {
 					strokeLinejoin='round'
 				/>
 			</symbol>
-			<symbol id='i-snd' viewBox='0 0 24 24'>
-				<g
-					fill='none'
-					stroke='currentColor'
-					strokeWidth='1.8'
-					strokeLinecap='round'
-					strokeLinejoin='round'
-				>
-					<path d='M11 5 6 9H3v6h3l5 4V5Z' />
-					<path d='M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13' />
-				</g>
-			</symbol>
 			<symbol id='i-win' viewBox='0 0 24 24'>
 				<g
 					fill='none'
@@ -98,6 +67,21 @@ export function IconSprite(): ReactElement {
 					<path d='M3 12a9 9 0 1 0 2.6-6.4L3 8' />
 					<path d='M3 3v5h5' />
 				</g>
+			</symbol>
+			<symbol id='i-pause' viewBox='0 0 24 24'>
+				<path
+					d='M8 5v14M16 5v14'
+					fill='none'
+					stroke='currentColor'
+					strokeWidth='2.4'
+					strokeLinecap='round'
+				/>
+			</symbol>
+			<symbol id='i-play' viewBox='0 0 24 24'>
+				<path
+					d='M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z'
+					fill='currentColor'
+				/>
 			</symbol>
 		</svg>
 	);

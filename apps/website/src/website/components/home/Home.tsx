@@ -19,21 +19,7 @@ export function Home({ release }: { release: Release }): ReactElement {
 		live: {
 			working: t(messages.liveWorking),
 			closed: t(messages.liveClosed),
-			attention: t(messages.liveAttention),
 		},
-		claude: [
-			t(messages.activityEditing),
-			t(messages.activityTesting),
-			t(messages.activitySummary),
-			t(messages.activityPush),
-		],
-		reviewer: [
-			t(messages.activityDiff),
-			t(messages.activityLineBreaks),
-			t(messages.activityNotes),
-			t(messages.activityNotes),
-		],
-		server: t(messages.activityServer),
 		closedFor: t(messages.closedFor, { clock: '{clock}' }),
 		scenes: [
 			'',

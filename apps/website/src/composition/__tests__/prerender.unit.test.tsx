@@ -1,17 +1,21 @@
+import { existsSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 import { renderNotFound, renderPage } from '../prerender';
 
 const LOCALES = ['en-US', 'zh-CN'] as const;
 const SECTIONS = ['anywhere', 'agents', 'orchestrate', 'private', 'terminal', 'install'] as const;
+const PUBLIC_DIRECTORY = new URL('../../../public/', import.meta.url);
 const PUBLISHED = {
 	published: true,
 	version: '9.9.9-test.1',
 	installerUrl: 'https://github.com/i-need-token/orchbee/releases/download/v9.9.9-test.1/test.exe',
 } as const;
 
-// Every resource the page loads must come from the site itself; icons come from the page.
+// Every resource the page loads must come from the site itself, product pictures from the
+// generated files in public/pictures; icons come from the page.
 function loadedAddresses(markup: string): string[] {
-	return [...markup.matchAll(/\s(?:src|srcset)="([^"]+)"/gu)].flatMap((match) =>
+	return [...markup.matchAll(/\s(?:src|srcset|poster)="([^"]+)"/gu)].flatMap((match) =>
 		(match[1] ?? '').split(',').map((candidate) => candidate.trim().split(/\s+/u)[0] ?? ''),
 	);
 }
@@ -24,6 +28,8 @@ describe('localized static website', () => {
 		expect(markup).not.toContain('<iframe');
 		expect(markup).not.toContain('<form');
 		for (const address of loadedAddresses(markup)) expect(address).toMatch(/^\/(?!\/)/u);
+		for (const address of loadedAddresses(markup).filter((path) => path.startsWith('/pictures/')))
+			expect(existsSync(new URL(`.${address}`, PUBLIC_DIRECTORY))).toBe(true);
 		for (const [, icon] of markup.matchAll(/<use\s[^>]*href="([^"]*)"/gu))
 			expect(icon).toMatch(/^#/u);
 	});

@@ -1,12 +1,9 @@
 import { z } from 'zod';
 
-// Localized text the page script swaps in as the demos change. The static page carries it as one
-// JSON attribute, so the script never holds a second copy of the catalogs.
+// Localized text the page script swaps in as the hero story and the header change. The static
+// page carries it as one JSON attribute, so the script never holds a second copy of the catalogs.
 const clientStringsSchema = z.object({
-	live: z.object({ working: z.string(), closed: z.string(), attention: z.string() }),
-	claude: z.tuple([z.string(), z.string(), z.string(), z.string()]),
-	reviewer: z.tuple([z.string(), z.string(), z.string(), z.string()]),
-	server: z.string(),
+	live: z.object({ working: z.string(), closed: z.string() }),
 	closedFor: z.string(),
 	scenes: z.array(z.string()),
 });

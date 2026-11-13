@@ -6,7 +6,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "rsbuild dev",
-		"build": "rsbuild build && node scripts/generate-pages.mjs",
+		"build": "node ../../scripts/generate-website-pictures.mjs --check && rsbuild build && node scripts/generate-pages.mjs",
+		"pictures": "node ../../scripts/generate-website-pictures.mjs",
 		"preview": "rsbuild preview",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",

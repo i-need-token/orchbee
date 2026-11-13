@@ -45,7 +45,7 @@
 .mark {
 	display: block;
 	width: var(--ob-ref-length-website-26);
-	height: var(--ob-ref-length-website-23);
+	height: var(--ob-ref-length-website-26);
 }
 .brand:hover .mark {
 	animation: buzz var(--ob-sys-motion-duration-website-600)
