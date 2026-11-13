@@ -5,6 +5,8 @@
 
 #[path = "inherited_environment.rs"]
 mod inherited_environment;
+#[path = "windows_temporary_root.rs"]
+mod windows_temporary_root;
 
 use orchbee_local_runtime::CohortArtifact;
 use orchbee_workbench_protocol::UserSettingsValues;
@@ -58,8 +60,8 @@ impl Fixture {
     pub fn new(prefix: &'static str, directories: &[&str]) -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
-        let root =
-            std::env::temp_dir().join(format!("{prefix}{:032x}", u128::from_le_bytes(nonce)));
+        let root = windows_temporary_root::long_temporary_directory()
+            .join(format!("{prefix}{:032x}", u128::from_le_bytes(nonce)));
         for path in [
             "cohort", "runtime", "home", "local", "roaming", "work", "noise",
         ]

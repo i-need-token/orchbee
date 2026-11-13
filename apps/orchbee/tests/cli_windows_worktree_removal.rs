@@ -7,6 +7,8 @@
 
 #[path = "support/inherited_environment.rs"]
 mod inherited_environment;
+#[path = "support/windows_temporary_root.rs"]
+mod windows_temporary_root;
 
 use orchbee_local_runtime::CohortArtifact;
 use serde_json::{Value, json};
@@ -160,7 +162,7 @@ impl Fixture {
     fn new() -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
-        let root = std::env::temp_dir().join(format!(
+        let root = windows_temporary_root::long_temporary_directory().join(format!(
             "orchbee-worktree-removal-{:032x}",
             u128::from_le_bytes(nonce)
         ));
