@@ -180,7 +180,9 @@ Host startup, its dial, the `worker-host` offer with its `capacity` redials, and
 handshake share five seconds without renewal.
 Preparation/startup failure returns a pre-handoff failure when deliverable and retires Worker;
 uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
-and replay cache.
+and replay cache. A Worker makes one Host start attempt and never a second: the person who asked
+for the terminal receives the definite `terminal-runtime-unavailable` failure, and the Session then
+stops by the [Server's Worker-exit rule](../orchbee-server/README.md).
 
 Every Launch on this managed path also propagates the local Agent observation channel through the
 existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter derives

@@ -135,6 +135,9 @@ in its host-exit phase as refused: nothing here may end the Host, which waits fo
 The managed Session never enrolls a replacement Worker, so a Server whose Worker exited and whose
 Host is gone, with no stop admitted, begins its own stop under a fresh identity, checking once a
 second. It publishes the same Stopped record, and a later start restores from its final capture.
+A Worker whose Host failed to start sends that Launch's pre-handoff failure before it exits. The
+failure settles as a definite `terminal-runtime-unavailable` even when the registry already dropped
+the Worker, because no Host received the Launch, so the request is answered before this stop begins.
 
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
 navigation authority and private projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission

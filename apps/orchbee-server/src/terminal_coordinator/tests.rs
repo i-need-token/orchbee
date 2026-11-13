@@ -613,6 +613,34 @@ fn pre_delivery_unavailability_and_post_response_replacement_remain_distinct() {
 }
 
 #[test]
+fn a_pre_handoff_launch_failure_stays_definite_after_its_worker_retires() {
+    for current in [None, Some(worker(2))] {
+        let mut coordinator = TerminalCoordinator::new();
+        let pending = dispatch(coordinator.prepare(
+            false,
+            create(1),
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::absent(),
+        ));
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(request) = &pending.command else {
+            panic!("launch expected")
+        };
+        let failed = Completion::Launch(
+            TerminalLaunchResult::new(
+                request.authorization(),
+                TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff),
+            )
+            .unwrap(),
+        );
+        assert!(
+            matches!(commit_completion(&mut coordinator,pending,failed,current),ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Unavailable {reason:CreateUnavailableReason::TerminalRuntimeUnavailable}),
+            "{current:?}"
+        );
+    }
+}
+
+#[test]
 fn retained_authorization_is_phase_independent_and_effect_free() {
     let mut coordinator = TerminalCoordinator::new();
     let pending = dispatch(coordinator.prepare(

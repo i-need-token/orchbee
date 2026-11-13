@@ -1017,7 +1017,15 @@ impl TerminalCoordinator {
             return Err(TerminalCompletionTokenMismatch);
         }
         // A registry snapshot is taken while the service holds the admission lock through commit.
+        // A Worker retires right after a Host start fails, so its pre-handoff failure can arrive
+        // after the registry dropped it; no Host received that Launch, so it stays definite.
+        let pre_handoff_failure = matches!(
+            &completion,
+            Completion::Launch(result) if result.outcome()
+                == TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
+        );
         let completion = if matches!(completion, Completion::Launch(_) | Completion::Start(_))
+            && !pre_handoff_failure
             && !current_worker
                 .is_some_and(|worker| matches_placement(binding.authorization, worker))
         {
