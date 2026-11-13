@@ -51,7 +51,7 @@ enum Error {
     /// The machine hub of this data root could not be reached or started.
     HubUnavailable,
     HostUnreachable,
-    /// Signing in needs an answer this release cannot ask.
+    /// Signing in needs an answer and nobody gave one.
     AuthRequired,
     AuthFailed,
     HostUntrusted,

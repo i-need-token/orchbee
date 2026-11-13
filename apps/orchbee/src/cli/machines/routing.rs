@@ -517,7 +517,10 @@ fn serve_packet(bytes: &[u8], mut interrupted: impl FnMut() -> io::Result<bool>)
         .args(&packet.arguments)
         .env("LC_ALL", locale_name(packet_locale(&packet.locale)))
         .env_remove("ORCHBEE_TERMINAL_ID")
-        .env_remove("ORCHBEE_WORKER_ID");
+        .env_remove("ORCHBEE_WORKER_ID")
+        // A far end that a development stand-in starts inherits the hub's askpass pairing, which a
+        // far end over `ssh` never has; the command it runs must not become the askpass helper.
+        .env_remove(crate::cli::machines::askpass::VARIABLE);
     let result = match platform::exchange(
         command,
         Some(&input),

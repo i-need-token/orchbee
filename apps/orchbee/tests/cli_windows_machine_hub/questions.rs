@@ -4,7 +4,8 @@
 //! claimant in order and the answers reach `ssh`; wrong answers lead to the next question and then
 //! `login-failed`; a changed host key is refused without a question; a silent attempt or a command
 //! without answers asks nobody; an unanswered question ends within its bound; an endpoint takes one
-//! answer for its own question only; and the claimant leaving ends the attempt. After each run that
+//! answer for its own question only; the claimant leaving ends the attempt; and a helper that
+//! cannot ask ends the attempt before `ssh` could read an empty answer. After each run that
 //! delivered answers, no file under the scratch root and no captured stream holds one.
 
 use super::*;
@@ -310,6 +311,30 @@ fn the_claimant_leaving_with_its_question_open_ends_the_attempt() {
         "the carrier outlived its claimant"
     );
     assert!(deliver(&asked.answer, RIGHT_PASSWORD.as_bytes()).is_err());
+}
+
+#[test]
+fn a_helper_that_cannot_ask_ends_the_attempt_before_ssh_reads_an_empty_answer() {
+    // An empty prompt is no question: the helper tells the hub, which ends the carrier while the
+    // helper still waits, so the fake never sees the helper exit.
+    let (carried, fake) = Carried::faking(
+        "mq1-unable-",
+        &json!({"questions": [step("", RIGHT_PASSWORD, 1, false)]}),
+        &[],
+    );
+    let mut client = claimant(&carried);
+    let id = client.send(user_connect());
+    let result = connect_reply(&mut client, id);
+    assert_eq!(
+        result.outcome,
+        ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)
+    );
+    assert!(no_question(&mut client));
+    assert_eq!(
+        carried.state().machines,
+        [(FIRST.to_owned(), "needs login".to_owned())]
+    );
+    assert_eq!(fake.transcript(), "started\nasked 1\n");
 }
 
 /// The fake `ssh` of one test: its plan, which holds digests and never an answer, and the

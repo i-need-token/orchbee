@@ -10,6 +10,7 @@ mod failure;
 pub(super) use failure::{End, Failure, classify, refusal};
 
 use super::lifetime::Moment;
+use crate::cli::machines::askpass::question::attributed;
 use episode::{Episode, Tag};
 use failure::reconnect_cause;
 use orchbee_connection_handshake::ProductVersion;
@@ -550,20 +551,36 @@ impl Machine {
     }
 
     /// `ssh` asked `raised` through the askpass helper of `carrier`, which the hub admitted as the
-    /// carrier's only open helper. With a claimant the question goes to it, the first one starting
-    /// the episode; without one the helper is refused and the attempt ends in the state the
-    /// question names.
+    /// carrier's only open helper. The kind is the one the prompt reads as for this Machine's
+    /// target, so another host's password or new host is `other`. With a claimant the question goes
+    /// to it, the first one starting the episode; without one the attempt ends in the state the
+    /// question names and then the helper is closed. A helper that comes while the attempt cannot
+    /// ask is [refused](Self::refuse).
     pub(super) fn question(
         &mut self,
         carrier: u64,
         raised: Raised,
         cx: &mut Context<'_>,
     ) -> Vec<Effect> {
+        let Raised {
+            kind,
+            prompt,
+            answer,
+        } = raised;
+        let kind = match &self.kind {
+            Kind::Ssh(route) => attributed(kind, prompt.as_str(), &route.target),
+            Kind::Disabled | Kind::Unsupported => QuestionKind::Other,
+        };
+        let raised = Raised {
+            kind,
+            prompt,
+            answer,
+        };
         let Phase::Attempting(attempt) = &self.phase else {
-            return vec![Effect::Close { carrier }];
+            return self.refuse(carrier, cx);
         };
         if attempt.carrier != carrier || attempt.answered.is_some() {
-            return vec![Effect::Close { carrier }];
+            return self.refuse(carrier, cx);
         }
         if attempt.episode.is_some() {
             return self.ask(carrier, raised, cx);
@@ -618,17 +635,17 @@ impl Machine {
 
     /// Puts `raised` to the claimant of the running episode as its next question; a helper that
     /// comes while one is open is refused.
-    fn ask(&mut self, carrier: u64, raised: Raised, cx: &Context<'_>) -> Vec<Effect> {
+    fn ask(&mut self, carrier: u64, raised: Raised, cx: &mut Context<'_>) -> Vec<Effect> {
         let Phase::Attempting(Attempt {
             episode: Some(episode),
             ..
         }) = &mut self.phase
         else {
-            return vec![Effect::Close { carrier }];
+            return self.refuse(carrier, cx);
         };
         let due = cx.now.at + cx.question;
         let Some((question, repeated)) = episode.open(Tag::of(&raised.kind), cx.now.at, due) else {
-            return vec![Effect::Close { carrier }];
+            return self.refuse(carrier, cx);
         };
         vec![Effect::Notify {
             peer: episode.claimant().peer,
@@ -674,6 +691,22 @@ impl Machine {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// A helper of `carrier` that cannot be asked: one that could not build its question, sent a
+    /// record the hub does not admit, came while another was open, or came when the carrier's
+    /// attempt cannot ask. `ssh` would send the empty answer of a helper that exits, so the carrier
+    /// ends first, its attempt `auth-required` or its link lost, and then the helper is closed.
+    pub(super) fn refuse(&mut self, carrier: u64, cx: &mut Context<'_>) -> Vec<Effect> {
+        let mut effects = match &self.phase {
+            Phase::Attempting(attempt) if attempt.carrier == carrier => {
+                self.fail(carrier, Failure::NeedsLogin, cx)
+            }
+            Phase::Online(link) if link.carrier == carrier => self.lost(carrier, cx),
+            _ => vec![Effect::End { carrier }],
+        };
+        effects.push(Effect::Close { carrier });
+        effects
     }
 
     /// `claim` of the episode `login` from the connection `peer`.

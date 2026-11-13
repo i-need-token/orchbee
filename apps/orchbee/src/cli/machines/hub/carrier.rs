@@ -70,8 +70,8 @@ pub(super) struct LinkWire {
 /// A carrier as the hub state knows it, from its start until its owner reports its end.
 pub(super) struct Handle {
     pub(super) machine: MachineId,
-    /// The ticket its askpass helpers bring; all zeros, which the hub never admits, when no random
-    /// bytes could be drawn.
+    /// The ticket its askpass helpers bring; all zeros, with which the carrier does not start, when
+    /// no random bytes could be drawn.
     pub(super) ticket: [u8; TICKET_BYTES],
     line: Arc<LinkLine>,
     /// The root process, held to end it; set once the child exists.
@@ -251,6 +251,11 @@ fn carry(shared: &Arc<Shared>, launch: &Launch, carrier: u64, route: &Route) -> 
     else {
         return End::NotStarted { missing: false };
     };
+    // Without a ticket the hub could not tell this carrier's helpers apart, nor end the carrier
+    // of one that cannot ask, so it does not start.
+    if ticket == [0; TICKET_BYTES] {
+        return End::NotStarted { missing: false };
+    }
     let mut command = match launch.command(route, ticket) {
         Ok(command) => command,
         Err(end) => return end,

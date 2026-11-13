@@ -5,7 +5,7 @@
 
 use super::{machine::Raised, state::Shared};
 use crate::cli::machines::askpass::{
-    RAISE_HEADER_BYTES, Raise, TAKEN, TICKET_BYTES, hex, question, unhex,
+    Asked, RAISE_HEADER_BYTES, Raise, TAKEN, TICKET_BYTES, hex, question, unhex,
 };
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_machine_protocol::{AnswerToken, PathText, hub::AnswerEndpoint, hub::QuestionKind};
@@ -80,23 +80,35 @@ fn serve(shared: &Shared, stream: &LocalStream) {
 }
 
 /// Reads the helper's record and hands its question to the Machine whose carrier its ticket names;
-/// that carrier and the helper's registration, or `None` to refuse it with a close.
+/// that carrier and the helper's registration, or `None` to close it. A helper the hub cannot ask
+/// for a carrier it knows ends that carrier first, so `ssh` never reads the empty answer a refused
+/// helper would leave; a record without a known ticket names no carrier to end.
 fn admit(shared: &Shared, stream: &LocalStream) -> Option<(u64, u64)> {
     let raise = read(stream)?;
     let ticket = unhex(&raise.ticket).filter(|ticket| *ticket != [0; TICKET_BYTES])?;
-    let raised = raised(raise)?;
+    let raised = raise.question.and_then(raised);
     let mut hub = shared.lock();
     let carrier = hub
         .carriers
         .iter()
         .find(|(_, handle)| handle.ticket == ticket)
         .map(|(carrier, _)| *carrier)?;
-    // `ssh` asks one question at a time; a second helper of one carrier is refused.
-    let serial = hub.admit_asker(carrier, stream.clone())?;
-    hub.machine_of(carrier, |machine, cx| machine.question(carrier, raised, cx));
+    // `ssh` asks one question at a time; a second helper of one carrier is not asked.
+    let admitted =
+        raised.and_then(|raised| Some((raised, hub.admit_asker(carrier, stream.clone())?)));
+    let serial = match admitted {
+        Some((raised, serial)) => {
+            hub.machine_of(carrier, |machine, cx| machine.question(carrier, raised, cx));
+            Some(serial)
+        }
+        None => {
+            hub.machine_of(carrier, |machine, cx| machine.refuse(carrier, cx));
+            None
+        }
+    };
     drop(hub);
     shared.wake();
-    Some((carrier, serial))
+    serial.map(|serial| (carrier, serial))
 }
 
 /// Waits for the helper's one byte, or its leaving, and tells the Machine, unless the hub already
@@ -129,7 +141,7 @@ fn read(stream: &LocalStream) -> Option<Raise> {
 }
 
 /// The question a record asks, as the hub admits it.
-fn raised(raise: Raise) -> Option<Raised> {
+fn raised(raise: Asked) -> Option<Raised> {
     let kind = match (raise.kind.as_str(), raise.host_key) {
         ("password", None) => QuestionKind::Password,
         ("key-passphrase", None) => QuestionKind::KeyPassphrase,

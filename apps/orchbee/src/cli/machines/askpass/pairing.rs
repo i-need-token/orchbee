@@ -12,8 +12,9 @@ pub(crate) const TICKET_BYTES: usize = 16;
 const RAISE_MAGIC: [u8; 4] = *b"OBAQ";
 /// The magic and the length before the record's JSON.
 pub(crate) const RAISE_HEADER_BYTES: usize = 8;
-/// The most JSON bytes the record carries.
-const RAISE_LIMIT: usize = 16 * 1024;
+/// The most JSON bytes the record carries: a 4,096-byte prompt whose every byte JSON escapes in
+/// six fits with room to spare, so a helper's own record is never too long.
+const RAISE_LIMIT: usize = 32 * 1024;
 /// The byte the helper writes to the hub once it took an answer, before it prints it.
 pub(crate) const TAKEN: u8 = b'T';
 
@@ -41,12 +42,21 @@ impl Pairing {
     }
 }
 
-/// What a helper hands the hub: its carrier's ticket and the question, with the endpoint and the
-/// token its answer must come with. No member holds an answer.
+/// What a helper hands the hub: its carrier's ticket and, when it can ask, the question. No member
+/// holds an answer.
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct Raise {
     pub(crate) ticket: String,
+    /// `None` from a helper that cannot ask, whose carrier the hub then ends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) question: Option<Asked>,
+}
+
+/// A question with the endpoint and the token its answer must come with.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub(crate) struct Asked {
     pub(crate) kind: String,
     pub(crate) prompt: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -56,6 +66,14 @@ pub(crate) struct Raise {
 }
 
 impl Raise {
+    /// The record of a helper that cannot ask.
+    pub(crate) fn unable(ticket: String) -> Self {
+        Self {
+            ticket,
+            question: None,
+        }
+    }
+
     /// The record: magic, a big-endian length and the JSON.
     pub(crate) fn encode(&self) -> Option<Vec<u8>> {
         let json = serde_json::to_vec(self).ok()?;

@@ -1,16 +1,18 @@
-//! The askpass helper on Windows: it reads the question, binds its own one-shot answer endpoint,
-//! hands the question to the hub, and waits for the answer, the hub's close, or its own bound. With
-//! an answer it prints it for `ssh` and exits 0; otherwise it prints nothing and exits 1. It never
+//! The askpass helper on Windows: it reaches the hub, reads the question, binds its own one-shot
+//! answer endpoint, hands the question to the hub, and waits for the answer. With an answer it
+//! prints it for `ssh` and exits 0. Without one it prints nothing and does not exit before its own
+//! bound, since `ssh` would send the empty answer of a helper that exits: a helper that cannot ask
+//! tells the hub, which ends the carrier, and ending the carrier ends the helper with it. It never
 //! reads its standard input, which `ssh` shares with the link, and never writes its standard error.
 
-use super::{Pairing, Raise, TAKEN, hex, question};
+use super::{Asked, Pairing, Raise, TAKEN, hex, question};
 use orchbee_local_ipc::{LocalListener, LocalStream, Readiness};
 use orchbee_machine_protocol::{
     ANSWER_HEADER_BYTES, ANSWER_TAKEN, AnswerToken, MAXIMUM_ANSWER_BYTES, admissible_answer,
     decode_answer_header, hub::QuestionKind, wipe,
 };
 use std::{
-    ffi::OsString,
+    ffi::OsStr,
     io::{self, Read, Write},
     path::Path,
     process::ExitCode,
@@ -20,7 +22,8 @@ use std::{
 
 /// The bound on reaching the hub and handing it the question.
 const HUB: Duration = Duration::from_secs(5);
-/// The helper's own bound, past the hub's 120-second question bound, should the hub be gone.
+/// The helper's own bound, past the hub's 120-second question bound and 60-second attempt bound,
+/// should the hub stop working.
 const WAIT: Duration = Duration::from_secs(130);
 /// The bound on reading one delivery record.
 const RECORD: Duration = Duration::from_secs(5);
@@ -38,16 +41,52 @@ impl Drop for Answer {
     }
 }
 
-pub(super) fn run(prompt: &OsString, pairing: &OsString) -> ExitCode {
-    if ask(prompt, pairing).is_some() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::from(1)
-    }
+/// A question ready to hand the hub: its record, the endpoint its answer comes to, and the token
+/// that answer must carry.
+struct Ready {
+    record: Vec<u8>,
+    listener: LocalListener,
+    token: AnswerToken,
 }
 
-fn ask(prompt: &OsString, pairing: &OsString) -> Option<()> {
-    let pairing = Pairing::parse(pairing.to_str()?)?;
+pub(super) fn run(prompt: &OsStr, pairing: &OsStr) -> ExitCode {
+    let deadline = Instant::now() + WAIT;
+    let Some(pairing) = pairing.to_str().and_then(Pairing::parse) else {
+        return linger(deadline);
+    };
+    let Ok(hub) = LocalStream::connect_before(Path::new(&pairing.endpoint), Instant::now() + HUB)
+    else {
+        return linger(deadline);
+    };
+    if hub.set_write_timeout(Some(HUB)).is_err() {
+        return linger(deadline);
+    }
+    let ticket = hex(&pairing.ticket);
+    let Some(ready) = prepare(prompt, ticket.clone()) else {
+        // The hub ends the carrier of a helper that cannot ask; its connection stays open meanwhile.
+        if let Some(record) = Raise::unable(ticket).encode() {
+            let _told = (&hub).write_all(&record);
+        }
+        return linger(deadline);
+    };
+    if wait(&hub, ready, deadline).is_some() {
+        return ExitCode::SUCCESS;
+    }
+    // Leaving with the question open ends the attempt, unless the hub closed it first.
+    drop(hub);
+    linger(deadline)
+}
+
+/// Waits for the hub to end the carrier, which ends this helper, or for the helper's own bound.
+fn linger(deadline: Instant) -> ExitCode {
+    if let Some(rest) = deadline.checked_duration_since(Instant::now()) {
+        thread::sleep(rest);
+    }
+    ExitCode::from(1)
+}
+
+/// Reads the question, binds its endpoint and builds its record; `None` when it cannot ask.
+fn prepare(prompt: &OsStr, ticket: String) -> Option<Ready> {
     let prompt = question::prompt_text(&prompt.to_string_lossy())?;
     let kind = question::classify(prompt.as_str());
     let mut token = [0; 16];
@@ -68,29 +107,41 @@ fn ask(prompt: &OsString, pairing: &OsString) -> Option<()> {
         QuestionKind::Other => ("other", None),
     };
     let record = Raise {
-        ticket: hex(&pairing.ticket),
-        kind: name.to_owned(),
-        prompt: prompt.as_str().to_owned(),
-        host_key,
-        endpoint,
-        token: hex(&token),
+        ticket,
+        question: Some(Asked {
+            kind: name.to_owned(),
+            prompt: prompt.as_str().to_owned(),
+            host_key,
+            endpoint,
+            token: hex(&token),
+        }),
     }
     .encode()?;
-    let hub =
-        LocalStream::connect_before(Path::new(&pairing.endpoint), Instant::now() + HUB).ok()?;
-    hub.set_write_timeout(Some(HUB)).ok()?;
-    (&hub).write_all(&record).ok()?;
-    let token = AnswerToken::from_bytes(token);
-    let deadline = Instant::now() + WAIT;
+    Some(Ready {
+        record,
+        listener,
+        token: AnswerToken::from_bytes(token),
+    })
+}
+
+/// Hands the question to the hub and waits for its answer, the hub's close, or `deadline`; with
+/// the answer it prints it for `ssh`.
+fn wait(hub: &LocalStream, ready: Ready, deadline: Instant) -> Option<()> {
+    let Ready {
+        record,
+        listener,
+        token,
+    } = ready;
+    (&*hub).write_all(&record).ok()?;
     let mut answer = Answer([0; MAXIMUM_ANSWER_BYTES + 1]);
     let mut strangers = 0;
     while Instant::now() < deadline {
-        // The hub closes the connection to refuse or close the question.
+        // The hub closes the connection to close the question, after it ended the carrier.
         match hub.readiness() {
             Ok(Readiness::Pending) => {}
             Ok(Readiness::Readable) => {
                 let mut ignored = [0; 1];
-                let _read = (&hub).read(&mut ignored);
+                let _read = (&*hub).read(&mut ignored);
             }
             Ok(Readiness::Closed) | Err(_) => return None,
         }
@@ -106,7 +157,7 @@ fn ask(prompt: &OsString, pairing: &OsString) -> Option<()> {
             continue;
         };
         // The hub learns the question was answered before `ssh` reads the answer.
-        let _told = (&hub).write_all(&[TAKEN]);
+        let _told = (&*hub).write_all(&[TAKEN]);
         let _receipt = (&stream).write_all(&[ANSWER_TAKEN]);
         drop(listener);
         let line = answer.0.get_mut(..=length)?;

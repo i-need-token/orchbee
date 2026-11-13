@@ -111,16 +111,25 @@ false, with the resolved `profileId` and the catalog it was read from.
   puts each question `ssh` asks to this terminal; otherwise it sends `answers` false and a sign-in
   that needs a person ends `auth-required` at once, as before. With another client that `asks`
   attached the hub asks nobody and the command reads `auth-required`; the commands that wait for an
-  interface are a later slice. Each question is one line on standard error in the person's locale:
-  the Machine's `ssh` target and what is asked, the host key's algorithm and fingerprint for a new
-  host, `ssh`'s own prompt only for a question of kind `other`, and a note when `ssh` refused the
-  previous answer of that kind. A password, a passphrase or another answer is read without echo; a
-  new host is trusted by typing `yes`. Every answer goes straight to the question's
-  [answer endpoint](#answer-path), never to the hub. An empty line, or `yes` missing for a new
-  host, sends `dismiss`, which ends the attempt `auth-required`; Ctrl+C sends `dismiss`, closes the
-  attachment and ends `cancelled` with exit 130. Either way the console's echo is restored. Time
-  spent at a question does not count against the 90 seconds; each question has the hub's own
-  bound.
+  interface are a later slice. Each question goes on standard error in the person's locale: first
+  `ssh`'s own prompt, every line marked `ssh:` and escaped, so control characters, escape
+  sequences and bidirectional controls show as `\u{…}`, at most 16 lines of 200 characters each,
+  then one line naming the Machine's `ssh` target and what is asked, with the host key's algorithm
+  and fingerprint for a new host and a note when `ssh` refused the previous answer of that kind.
+  The client reads each prompt as the hub does ([kinds](#login-episode)), so only `ssh`'s own
+  first-time host sentence for the Machine's host is read with echo and trusted by typing `yes`;
+  every other answer is read without echo. Every answer goes straight to the question's
+  [answer endpoint](#answer-path), never to the hub. One the endpoint does not take is reported at
+  once: an answer holding a character `ssh` cannot take, such as NUL, reached nothing, so the same
+  question is asked again; an endpoint that is gone or refuses it dismisses the episode, and the
+  command ends with the hub's reply, `auth-required` when the dismissal ended the attempt. An
+  empty line, or `yes` missing for a new host, sends `dismiss`, which ends the attempt
+  `auth-required`; Ctrl+C sends `dismiss`, closes the attachment and ends `cancelled` with exit 130. Either way the console's echo is restored. Time spent at a question does not count against
+  the 90 seconds; each question has the hub's own bound.
+- **Agents in a Panel.** An Orchbee Panel gives a command a console on both streams, so an Agent
+  that runs `machine connect` there is asked and waits for a person. An Agent that cannot answer
+  redirects standard input away from the console, for example from the null device; the command
+  then sends `answers` false and a sign-in that needs an answer ends `auth-required` at once.
 - **Disconnect** starts no hub: with none running there is no connection, and it succeeds with
   `remote: "not-contacted"` once the operand resolves. Otherwise it asks the hub to `reload`
   before it resolves the operand, so a record that was removed or changed without telling the hub
@@ -712,7 +721,8 @@ comes before that limit.
 | Before the answer, exit 255 with `Permission denied` and a password or keyboard-interactive method, or `Host key verification failed` without a changed key | `needs-login` cause `auth-required`                                                      |
 | Before the answer, exit 255 with `Permission denied` and only `publickey`                                                                                   | `login-failed` cause `key-rejected`                                                      |
 | Before the answer, exit 255 with `REMOTE HOST IDENTIFICATION HAS CHANGED`                                                                                   | `key-changed`, with `hostKey` when `ssh` printed the offered key                         |
-| A question the [login episode](#login-episode) refuses                                                                                                      | `untrusted` with `hostKey` for a new host, otherwise `needs-login` cause `auth-required` |
+| A question nobody can answer in the [login episode](#login-episode)                                                                                         | `untrusted` with `hostKey` for a new host, otherwise `needs-login` cause `auth-required` |
+| An [askpass helper](#askpass-helper) the hub cannot ask while attempting                                                                                    | `needs-login` cause `auth-required`                                                      |
 | Before the answer, exit 255 with a resolution, refusal, timeout or route failure                                                                            | `host-unresolved`, `host-refused`, `host-timeout` or `host-unreachable`                  |
 | Before the answer, exit 255 otherwise                                                                                                                       | `ssh-failed`                                                                             |
 | Before the answer, any other end, or a frame that is not an `OBHS` answer                                                                                   | `remote-protocol`                                                                        |
@@ -738,9 +748,9 @@ events to the claimant, closing the open question's helper, ending the carrier, 
 | From                 | Event                                                                                                                                                                | To and effects                                                                                                                                                                                         |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | None                 | A question, and a waiter that can answer: origin `user`, or `command` with `answers` while no client that `asks` is attached; the first such waiter in arrival order | `claimed` by it, trigger `user`: `connect-waiting` for its request, `login` `claimed` `you`, then `question` 1; `stage` `authenticating`; the 60-second attempt clock stops while the question is open |
-| None                 | A question and no waiter that can answer: a silent attempt, a reconnect, a `command` without `answers`, or one while another client `asks`                           | No episode and no event: the helper is refused and the carrier ended at once; `untrusted` with `hostKey` for a new host, otherwise `needs-login` `auth-required`; waiters replied by that state        |
+| None                 | A question and no waiter that can answer: a silent attempt, a reconnect, a `command` without `answers`, or one while another client `asks`                           | No episode and no event: the carrier ends at once, then the helper is closed; `untrusted` with `hostKey` for a new host, otherwise `needs-login` `auth-required`; waiters replied by that state        |
 | `claimed`, open      | The helper reports the answer taken                                                                                                                                  | The question closes as answered; the attempt clock runs again                                                                                                                                          |
-| `claimed`, open      | The helper leaves without an answer, or a second question arrives while one is open                                                                                  | The newer helper is refused; a helper leaving unanswered ends the attempt as an unanswered question does, so `ssh` never sends an empty answer                                                         |
+| `claimed`, open      | The helper leaves without an answer, or a second question arrives while one is open                                                                                  | The attempt ends as an unanswered question does, the carrier before either helper is closed, so `ssh` never sends an empty answer; a second helper reads `auth-required`                               |
 | `claimed`, none open | A question                                                                                                                                                           | `question` with the next id; `repeated` when an answer of the same kind was taken earlier in the episode                                                                                               |
 | `claimed`            | The link reaches `online`                                                                                                                                            | `login` `ended` `succeeded`; waiters replied `online`                                                                                                                                                  |
 | `claimed`            | The carrier ends with `Permission denied` after a password, passphrase or other answer                                                                               | `login` `ended` `failed`; `login-failed` `password-rejected`; waiters replied `auth-failed`                                                                                                            |
@@ -756,8 +766,18 @@ events to the claimant, closing the open question's helper, ending the carrier, 
   answer, and the episode admits one open question; ids ascend within the episode, and login ids
   ascend in the hub's process life.
 - **Kinds.** The [askpass helper](#askpass-helper) reads the kind from `ssh`'s prompt alone, since
-  `ssh` passes none: a host-key confirmation with its algorithm and fingerprint, a key passphrase,
-  a password, or `other`. A confirmation whose key it cannot read is `other`.
+  `ssh` passes none, and only `ssh`'s own local sentences, whole and from their first word, read
+  as a kind: the one line `Enter passphrase for key '…':` is a key passphrase, the one line
+  `user@host's password:` a password, and `The authenticity of host '…' can't be established`
+  with a later line exactly `<algorithm> key fingerprint is <fingerprint>.` and a last line asking
+  to continue connecting is a host-key confirmation with that key. Anything else is `other`: a
+  keyboard-interactive prompt, which OpenSSH 8.4 and later prefix with `(user@host) `, a server's
+  text, a confirmation whose key it cannot read. The hub reads the prompt again against the
+  Machine's `ssh` target, and so does the asking client: a password or a new host that names
+  another host than the target's, such as a jump host's, is `other`, so it is never shown as the
+  Machine's own, never read with echo, and never marks the Machine `untrusted`. The host compared
+  is the target's host part, without its user and port; an alias whose `HostName` differs reads
+  `other` too.
 - **`claim` and `dismiss`.** `claim` answers `claimed` to the claimant, `taken` to another client
   and `ended` for an episode that is over or unknown; `dismiss` answers `dismissed` to the claimant,
   `not-claimant` to another client and `ended` likewise; both answer `stopping` while closing. No
@@ -765,39 +785,75 @@ events to the claimant, closing the open question's helper, ending the carrier, 
   and mute come with the commands that wait for an interface.
 - **The question bound.** A question nobody answers ends after 120 seconds, the bound the contract
   gives a command's wait for a login and OpenSSH's default `LoginGraceTime`, after which the server
-  has dropped the connection anyway; the helper gives up by itself 10 seconds later should the hub
-  be gone. In development and test builds `ORCHBEE_MACHINE_HUB_QUESTION_MS`, from 1,000 to
+  has dropped the connection anyway; the hub ends the carrier, and with it the helper, before it
+  closes the question, and the helper's own 130-second bound comes 10 seconds later only for a hub
+  that stopped working. In development and test builds `ORCHBEE_MACHINE_HUB_QUESTION_MS`, from 1,000 to
   120,000, shortens the bound for tests; a release never reads it.
 
 #### Askpass helper
 
-`ssh` runs this program as its askpass with the question's prompt as the one argument. The
-program runs as the helper exactly when `ORCHBEE_MACHINE_ASKPASS` is set and its one argument does
-not begin with `--`, before it parses any command line; any other start ignores the variable, so a
-far end the stand-in starts with `--machine-link-v1` runs as the link helper. The variable is
-private: the hub sets it only in its carrier children, as `<askpass endpoint> <ticket>`, with the
-ticket as 32 lowercase hexadecimal digits.
+`ssh` runs this program as its askpass with the question's prompt as its argument. Whenever
+`ORCHBEE_MACHINE_ASKPASS` is set, the program is the helper and nothing else, before it parses any
+command line and whatever its arguments are, so text from the far side never selects a local
+command; the prompt is every argument joined by single spaces, since `ssh` passes one and how
+Windows OpenSSH quotes it is not proven. The one exception is a development or test build started
+with exactly `--machine-link-v1`, the far end a [stand-in](#the-carrier-child) starts, which runs as
+the link helper; a release never makes it. Such a far end inherits the variable, which a far end
+over `ssh` never has, so the routed commands it runs start without it. The variable is private: the hub sets it only in its
+carrier children, as `<askpass endpoint> <ticket>`, with the ticket as 32 lowercase hexadecimal
+digits.
 
-1. It reads the prompt as text, replacing what is not Unicode and cutting at 4,096 bytes on a
-   character boundary, and reads the kind from it.
-2. It binds its own one-shot answer endpoint, `\\.\pipe\orchbee-answer-<pid>-<random>`, first
-   instance only, admitting only its own user, and draws a 16-byte token.
-3. It connects to the hub's askpass endpoint within 5 seconds, which admits only the hub's user, and
-   writes one record: `OBAQ`, a big-endian `u32` length, and a JSON object with the ticket, the
-   kind, the prompt, the host key when there is one, the answer endpoint and the token. The hub
-   reads it within 5 seconds, matches the ticket to a carrier it is running, and closes the
-   connection to refuse it.
-4. It waits for an answer on its endpoint, for the hub to close its connection, or for 130 seconds,
+1. It connects to the hub's askpass endpoint within 5 seconds, which admits only the hub's user.
+2. It reads the prompt as text, replacing what is not Unicode and cutting at 4,096 bytes on a
+   character boundary, and reads the [kind](#login-episode) from it.
+3. It binds its own one-shot answer endpoint, `\\.\pipe\orchbee-answer-<pid>-<random>`, and draws
+   a 16-byte token.
+4. It writes one record: `OBAQ`, a big-endian `u32` length, and a JSON object with the ticket and
+   the question: the kind, the prompt, the host key when there is one, the answer endpoint and the
+   token. A helper that cannot ask, for an empty prompt or when it cannot draw random bytes or bind
+   its endpoint, writes the ticket alone. A record holds at most 32 KiB, which any 4,096-byte
+   prompt fits. The hub reads it within 5 seconds and matches the ticket to a carrier it is
+   running.
+5. It waits for an answer on its endpoint, for the hub to close its connection, or for 130 seconds,
    whichever comes first. A connection whose record is malformed or carries another token is closed
    without a byte and the endpoint keeps waiting, for at most eight such connections.
-5. With an answer it writes the byte `T` to the hub, so the hub knows the question was answered,
+6. With an answer it writes the byte `T` to the hub, so the hub knows the question was answered,
    replies 0x06, drops the endpoint, writes the answer and one line feed to its standard output for
-   `ssh`, wipes its buffer and exits 0. Otherwise it writes nothing and exits 1, and the hub has
-   already ended the carrier, so `ssh` cannot go on with an empty answer.
+   `ssh`, wipes its buffer and exits 0.
+
+A helper without an answer writes nothing and does not exit before its 130-second bound, because
+`ssh` reads a helper that exits as an empty answer and may send it, which a server counts as a
+failed password. The helper runs inside its carrier's Job, so the carrier's end ends it first:
+
+- Every helper the hub cannot ask whose ticket names a running carrier ends that carrier before
+  its connection is closed: a ticket alone, a record the hub does not admit, a second helper while
+  one is open, a question once the attempt cannot ask, which ends the attempt `auth-required` or,
+  once `online`, loses the link, and a question nobody can answer. Dismissal, the question bound,
+  the claimant leaving and `closing` likewise end the carrier before they close the helper.
+- A helper that gives up after it handed over its question, at the eighth stranger, drops its
+  connection, which the hub reads as an unanswered question.
+- A record whose ticket names no running carrier is closed; such a carrier is already ending.
+- A helper that cannot reach the hub, cannot read its pairing, or meets a full askpass endpoint,
+  where the 17th connection is closed unread, waits for the attempt's 60-second clock, or an open
+  question's bound, to end the carrier; a hub that exits ends the Job and every helper in it.
+- Only when nothing ends the carrier within 130 seconds, a hub that stops working without exiting
+  or a helper that cannot reach the hub after its Machine is `online`, where no attempt clock runs,
+  does the helper exit 1; `ssh` may then send one empty answer.
 
 The helper never reads its standard input, which `ssh` shares with the link, and never writes its
 standard error. Its pairing with the hub is internal to this program and may change in any
-release; only the `OBMA` record of the answer endpoint is frozen.
+release; only the `OBMA` record of the answer endpoint is frozen. A carrier whose ticket could not
+be drawn does not start and reads `ssh-failed`.
+
+Both endpoints are bound as the first instance of their name, so an existing pipe of that name is
+never adopted, but the library adds a fresh instance after each accept, so the name alone is not
+exclusive. What protects them: a security descriptor that grants only the current user, so only a
+process of that user can add an instance or connect; no remote clients; a check, before any byte
+is read, that the peer runs as the same user; for the answer endpoint, a name with the helper's
+process id and 8 random bytes, the question's 16-byte token, and one record taken once. A process
+of the same user is not a boundary: it could read the console or the helper's memory. A hub that
+admits a report only from a process inside that carrier's Job, and a client that checks the answer
+endpoint's server process against the id in its name, are not part of this build.
 
 #### Answer path
 
@@ -990,7 +1046,7 @@ succeeds.
 | `stop-session` runs            | The hub state; each run's exchanges, its thread                         | One per Machine; one link channel at a time; the waiting requests of a connection leave when it closes                                                                                                  |
 | Expiry deadline, Session reads | The supervisor                                                          | One deadline; one read at a time, of at most 256 folders, within 5 seconds                                                                                                                              |
 | Machine timers                 | The supervisor, which wakes at the earliest Machine deadline            | No thread per timer                                                                                                                                                                                     |
-| Askpass endpoint               | Its listener thread, from the hub's start to its close                  | `\\.\pipe\orchbee-askpass-<pid>-<random>`, first instance, the hub's user only; 16 helpers at once, each record read within 5 seconds and at most 16 KiB                                                |
+| Askpass endpoint               | Its listener thread, from the hub's start to its close                  | `\\.\pipe\orchbee-askpass-<pid>-<random>`, bound as the first instance, the hub's user only; 16 helpers at once, each record read within 5 seconds and at most 32 KiB                                   |
 | Helper connection              | Its thread, until the helper leaves or the hub closes the question      | One per carrier; a second while one is open is refused                                                                                                                                                  |
 | Threads                        | The process                                                             | Listener and supervisor, the askpass listener, one per candidate, two per attached connection, four per carrier: owner, link reader, link writer, standard-error reader; one per helper and one per run |
 

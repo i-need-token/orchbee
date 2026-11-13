@@ -90,11 +90,36 @@ fn host_key() -> HostKey {
     }
 }
 
-/// A question as the askpass helper raises it.
+/// `ssh`'s own prompt for `kind` toward `host.invalid`.
+fn prompt_of(kind: &QuestionKind) -> String {
+    match kind {
+        QuestionKind::Password => "user@host.invalid's password: ".to_owned(),
+        QuestionKind::KeyPassphrase => "Enter passphrase for key 'id_ed25519': ".to_owned(),
+        QuestionKind::HostKey { host_key } => new_host("host.invalid (192.0.2.1)", host_key),
+        QuestionKind::Other => "(user@host.invalid) Verification code: ".to_owned(),
+    }
+}
+
+/// OpenSSH's first-time host sentence naming `named` and offering `host_key`.
+fn new_host(named: &str, host_key: &HostKey) -> String {
+    format!(
+        "The authenticity of host '{named}' can't be established.\n{} key fingerprint is {}.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? ",
+        host_key.algorithm.as_str().to_ascii_uppercase(),
+        host_key.fingerprint.as_str()
+    )
+}
+
+/// A question as the askpass helper raises it, with `ssh`'s prompt for its kind.
 fn raised(kind: QuestionKind) -> Raised {
+    let prompt = prompt_of(&kind);
+    raised_as(kind, &prompt)
+}
+
+/// A question of `kind` the askpass helper raises with `prompt`.
+fn raised_as(kind: QuestionKind, prompt: &str) -> Raised {
     Raised {
         kind,
-        prompt: Prompt::new("user@host.invalid's password: ").unwrap(),
+        prompt: Prompt::new(prompt).unwrap(),
         answer: AnswerEndpoint {
             endpoint: PathText::new(r"\\.\pipe\orchbee-answer-1-0").unwrap(),
             token: AnswerToken::from_bytes([7; 16]),
@@ -497,12 +522,6 @@ fn a_claimant_receives_each_question_in_order_and_a_refused_answer_is_marked_rep
             }
         );
 
-        // One question is open at a time: a second helper is refused.
-        assert_eq!(
-            machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx()),
-            [Effect::Close { carrier }]
-        );
-
         // `ssh` asking the same kind after its answer was taken means it refused that answer.
         machine.taken(carrier, &hub.at(Duration::from_secs(5)).cx());
         let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
@@ -740,4 +759,106 @@ fn a_trusted_host_then_a_password_reaching_online_ends_the_episode_succeeded() {
     let effects = machine.answered(carrier, ProductVersion::new("1.0.0").unwrap());
     assert_eq!(login_end(&effects), Some(LoginEnd::Succeeded));
     assert_eq!(machine.login(), None);
+}
+
+#[test]
+fn a_helper_that_cannot_be_asked_ends_its_carrier_before_it_is_closed() {
+    let needs_login = MachineState::NeedsLogin {
+        cause: Some(NeedsLoginCause::AuthRequired),
+    };
+    // A second helper while a question is open ends the attempt and the episode.
+    let mut hub = Hub::new(false);
+    let mut machine = machine();
+    let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
+    machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_eq!(login_end(&effects), Some(LoginEnd::Unavailable));
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)]
+    );
+    assert_eq!(machine.state(), &needs_login);
+
+    // A helper that could not build its question, before any episode.
+    let carrier = started(&machine.connect(waiter(2), &mut hub.cx())).unwrap();
+    let effects = machine.refuse(carrier, &mut hub.cx());
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)]
+    );
+    assert_eq!(machine.state(), &needs_login);
+    assert_eq!(machine.next_wake(), None);
+
+    // A question after `online` loses the link rather than leave `ssh` an empty answer.
+    let carrier = started(&machine.connect(waiter(3), &mut hub.cx())).unwrap();
+    reach_online(&mut machine, &mut hub, carrier);
+    let effects = machine.question(carrier, raised(QuestionKind::Password), &mut hub.cx());
+    assert!(ends_then_closes(&effects, carrier), "{effects:?}");
+    assert_ne!(machine.state(), &MachineState::Online);
+
+    // A carrier the Machine no longer runs is ended again and its helper closed.
+    let stale = carrier;
+    let current = machine.carrier();
+    let effects = machine.refuse(stale, &mut hub.cx());
+    assert_eq!(
+        effects,
+        [
+            Effect::End { carrier: stale },
+            Effect::Close { carrier: stale }
+        ]
+    );
+    assert_eq!(machine.carrier(), current);
+}
+
+#[test]
+fn a_question_naming_another_host_is_other_and_never_marks_the_machine_untrusted() {
+    let jump_host = new_host("jump.invalid (192.0.2.9)", &host_key());
+    let server = format!(
+        "(user@host.invalid) {}",
+        prompt_of(&QuestionKind::HostKey {
+            host_key: host_key()
+        })
+    );
+    let password = prompt_of(&QuestionKind::Password);
+    let claimed = || QuestionKind::HostKey {
+        host_key: host_key(),
+    };
+    for prompt in [jump_host.as_str(), server.as_str(), password.as_str()] {
+        // Nobody claims: the attempt ends needing a login, never untrusted with that key.
+        let mut hub = Hub::new(false);
+        let mut machine = machine();
+        let carrier = started(&machine.connect(waiter(1), &mut hub.cx())).unwrap();
+        let effects = machine.question(carrier, raised_as(claimed(), prompt), &mut hub.cx());
+        assert_eq!(
+            replies(&effects),
+            [ConnectOutcome::NotOnline(ConnectFailure::AuthRequired)],
+            "{prompt:?}"
+        );
+        assert_eq!(
+            machine.state(),
+            &MachineState::NeedsLogin {
+                cause: Some(NeedsLoginCause::AuthRequired)
+            }
+        );
+    }
+    // A claimant is asked a jump host's questions as `other`.
+    let jump_password = "user@jump.invalid's password: ";
+    for (kind, prompt) in [
+        (claimed(), jump_host.as_str()),
+        (QuestionKind::Password, jump_password),
+    ] {
+        let mut hub = Hub::new(false);
+        let mut machine = machine();
+        let carrier = started(&machine.connect(asker(1, 1, Answers::User), &mut hub.cx())).unwrap();
+        let effects = machine.question(carrier, raised_as(kind, prompt), &mut hub.cx());
+        let put = notified(&effects)
+            .into_iter()
+            .find_map(|(_, event)| match event {
+                Event::Question(question) => Some(question.kind.clone()),
+                _ => None,
+            });
+        assert_eq!(put, Some(QuestionKind::Other), "{prompt:?}");
+    }
 }

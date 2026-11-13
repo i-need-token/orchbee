@@ -1,6 +1,7 @@
 //! Saved-machine CLI help and result messages; native picker text stays with its surface. Raw
 //! OpenSSH diagnostics never reach this copy; they only classify a failure, except the prompt of a
-//! question `machine connect` shows verbatim, escaped, because only `ssh` knows what it asks.
+//! question `machine connect` shows verbatim, escaped and bounded, because only `ssh` knows what
+//! it asks and who asks it.
 use super::Locale;
 
 /// What a login question `machine connect` puts on the console asks.
@@ -13,23 +14,53 @@ pub(crate) enum MachineQuestion<'a> {
         algorithm: &'a str,
         fingerprint: &'a str,
     },
-    /// Anything else, with `ssh`'s own prompt.
-    Other {
-        prompt: &'a str,
-    },
+    /// Anything else: a server's question, a jump host's, or one of `ssh`'s this build does not
+    /// read.
+    Other,
 }
 
+#[cfg(all(test, windows))]
+mod tests;
+
+/// The most lines of `ssh`'s prompt a question shows, and the most characters of each.
+#[cfg(windows)]
+const PROMPT_LINES: usize = 16;
+#[cfg(windows)]
+const PROMPT_LINE_CHARACTERS: usize = 200;
+
 impl super::CliText {
-    /// The one line `machine connect` writes on standard error before it reads an answer for the
-    /// machine whose `ssh` target is `target`; `repeated` says `ssh` refused the previous answer of
-    /// this kind.
+    /// What `machine connect` writes on standard error before it reads an answer for the machine
+    /// whose `ssh` target is `target`: each line of `ssh`'s own `prompt`, escaped and bounded, then
+    /// one line of Orchbee's wording for the kind; `repeated` says `ssh` refused the previous
+    /// answer of this kind.
     #[cfg(windows)]
     pub(crate) fn cli_machine_question(
         self,
         target: &str,
         question: &MachineQuestion<'_>,
+        prompt: &str,
         repeated: bool,
     ) -> String {
+        let said = match self.locale {
+            Locale::EnUs => "ssh: ",
+            Locale::ZhCn => "ssh：",
+        };
+        let mut shown = String::new();
+        let mut lines = prompt.trim_end().lines();
+        for line in lines.by_ref().take(PROMPT_LINES) {
+            let mut characters = line.chars();
+            let mut cut: String = characters.by_ref().take(PROMPT_LINE_CHARACTERS).collect();
+            if characters.next().is_some() {
+                cut.push('…');
+            }
+            shown.push_str(said);
+            shown.push_str(&super::escape::unquoted(&cut));
+            shown.push('\n');
+        }
+        if lines.next().is_some() {
+            shown.push_str(said);
+            shown.push_str("…\n");
+        }
         let target = super::escape::escape(target);
         let refused = match (self.locale, repeated) {
             (_, false) => "",
@@ -59,14 +90,29 @@ impl super::CliText {
                     fingerprint,
                 },
             ) => format!("新主机 {target}，{algorithm} 密钥 {fingerprint}。输入 yes 以信任："),
-            (Locale::EnUs, MachineQuestion::Other { prompt }) => {
-                format!("{target}: {} ", super::escape::escape(prompt.trim()))
+            (Locale::EnUs, MachineQuestion::Other) => {
+                format!("Answer for ssh above, connecting to {target}: ")
             }
-            (Locale::ZhCn, MachineQuestion::Other { prompt }) => {
-                format!("{target}：{} ", super::escape::escape(prompt.trim()))
+            (Locale::ZhCn, MachineQuestion::Other) => {
+                format!("回答上面 ssh 的提问（正在连接 {target}）：")
             }
         };
-        format!("{refused}{asked}")
+        format!("{shown}{refused}{asked}")
+    }
+
+    /// The line `machine connect` writes when an answer was not delivered: `again` when the answer
+    /// held a character `ssh` cannot take and the question is asked again; otherwise its endpoint
+    /// was gone or refused it and the login stops.
+    #[cfg(windows)]
+    pub(crate) fn cli_machine_answer_undelivered(self, again: bool) -> &'static str {
+        match (self.locale, again) {
+            (Locale::EnUs, true) => {
+                "That answer holds a character ssh cannot take. Type it again.\n"
+            }
+            (Locale::ZhCn, true) => "该回答含有 ssh 无法接收的字符，请重新输入。\n",
+            (Locale::EnUs, false) => "The answer did not reach ssh, so signing in stops.\n",
+            (Locale::ZhCn, false) => "回答未能送达 ssh，登录已停止。\n",
+        }
     }
 
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
@@ -154,8 +200,8 @@ impl super::CliText {
             ),
             C::MachineConnect => (
                 "orchbee machine connect <id|label> [--remember] [--format text|json]",
-                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. Run in a terminal, it asks the sign-in questions OpenSSH puts, such as a password or whether to trust a new host; an empty answer or Ctrl+C ends the attempt. Elsewhere a sign-in that needs an answer ends the command. The connection stays after the command ends. '--remember' is not available yet.",
-                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。在终端中运行时，它会提出 OpenSSH 的登录问题，例如密码或是否信任新主机；空回答或 Ctrl+C 结束本次尝试。在其他环境中，需要回答的登录会结束命令。命令结束后连接仍保持。‘--remember’ 暂不可用。",
+                "Connect an enabled saved machine through the background machine hub, starting the hub when none runs. Returns once the machine is online or with the reason it is not. When standard input and standard error are both consoles, an Orchbee Panel included, it shows each sign-in question OpenSSH asks, such as a password or whether to trust a new host, with OpenSSH's own words, and waits for an answer; an empty answer or Ctrl+C ends the attempt. Otherwise, as with standard input redirected from the null device, which an Agent that cannot answer uses, a sign-in that needs an answer ends the command. The connection stays after the command ends. '--remember' is not available yet.",
+                "通过后台连接进程连接一台已启用的已保存机器，没有连接进程时会启动它。机器上线后返回，或返回未能上线的原因。标准输入和标准错误都是控制台时（包括 Orchbee 面板），它会连同 OpenSSH 的原文显示 OpenSSH 提出的每个登录问题，例如密码或是否信任新主机，并等待回答；空回答或 Ctrl+C 结束本次尝试。否则（例如标准输入重定向自空设备，无法回答的 Agent 应这样做），需要回答的登录会结束命令。命令结束后连接仍保持。‘--remember’ 暂不可用。",
             ),
             C::MachineDisconnect => (
                 "orchbee machine disconnect <id|label> [--format text|json]",

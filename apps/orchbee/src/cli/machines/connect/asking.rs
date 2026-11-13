@@ -1,13 +1,15 @@
 //! `machine connect` asking on the console. When standard input and standard error are both
 //! consoles the command's `connect` carries `answers`, the hub makes it the claimant of the login
-//! episode, and each question is one line on standard error answered on standard input: without
-//! echo for a secret, `yes` for a new host. An answer goes straight to the question's endpoint; an
+//! episode, and each question is `ssh`'s own prompt, escaped, and one line of Orchbee's wording on
+//! standard error, answered on standard input: without echo for a secret, `yes` for a new host. An
+//! answer goes straight to the question's endpoint; one it does not take is reported at once. An
 //! empty line or anything but `yes` for a host dismisses the episode, and an interrupt dismisses
 //! it and ends the command. `docs/machines.md#connect-and-disconnect` owns the rule and
 //! `docs/machines.md#answer-path` the buffers that hold an answer.
 
 use super::super::{Context, Error, Remote};
 use crate::{
+    cli::machines::askpass::question::attributed,
     cli_text::{CliText, MachineQuestion},
     localization::Locale,
 };
@@ -17,7 +19,7 @@ use orchbee_machine_protocol::{
     wipe,
 };
 use orchbee_workbench_client::application::machine_hub::{
-    HubClient, Notice, RequestFailure, deliver,
+    DeliveryFailure, HubClient, Notice, RequestFailure, deliver,
 };
 use std::{
     io::{self, Write},
@@ -120,10 +122,24 @@ pub(super) fn converse(
                 context.deadline += open.since.elapsed();
                 let question = open.finish();
                 match reply(&line, &question.kind) {
-                    Act::Deliver(answer) => {
-                        // A question that closed meanwhile is the reply's to explain.
-                        let _ = deliver(&question.answer, answer);
-                    }
+                    Act::Deliver(answer) => match deliver(&question.answer, answer) {
+                        Ok(()) => {}
+                        // Nothing reached the endpoint, which still waits: the same question
+                        // again.
+                        Err(DeliveryFailure::Inadmissible) => {
+                            say(console.text.cli_machine_answer_undelivered(true));
+                            match Asking::start(console, question) {
+                                Some(open) => asking = Some(open),
+                                None => dismiss(client, login),
+                            }
+                        }
+                        // The endpoint is gone or refused it: the login stops, and the reply
+                        // says how the attempt ended.
+                        Err(DeliveryFailure::Unreachable | DeliveryFailure::Refused) => {
+                            say(console.text.cli_machine_answer_undelivered(false));
+                            dismiss(client, login);
+                        }
+                    },
                     Act::Dismiss => dismiss(client, login),
                     Act::Cancel => {
                         *remote = Remote::Unchanged;
@@ -202,8 +218,11 @@ struct Asking {
 
 impl Asking {
     /// Writes the question, sets the console for it and starts the read; `None` when the console
-    /// cannot be set, so a secret would echo.
-    fn start(console: &Console, question: Question) -> Option<Self> {
+    /// cannot be set, so a secret would echo. Only a new host, which the hub reads from `ssh`'s
+    /// own sentence naming this Machine's host, is read with echo.
+    fn start(console: &Console, mut question: Question) -> Option<Self> {
+        // The client reads the prompt as the hub does, so nothing else turns echo on or takes `yes`.
+        question.kind = attributed(question.kind, question.prompt.as_str(), &console.target);
         let echo = matches!(question.kind, QuestionKind::HostKey { .. });
         let mode = Mode::set(console.mode, echo)?;
         let shown = match &question.kind {
@@ -213,13 +232,14 @@ impl Asking {
                 algorithm: host_key.algorithm.as_str(),
                 fingerprint: host_key.fingerprint.as_str(),
             },
-            QuestionKind::Other => MachineQuestion::Other {
-                prompt: question.prompt.as_str(),
-            },
+            QuestionKind::Other => MachineQuestion::Other,
         };
-        let line = console
-            .text
-            .cli_machine_question(&console.target, &shown, question.repeated);
+        let line = console.text.cli_machine_question(
+            &console.target,
+            &shown,
+            question.prompt.as_str(),
+            question.repeated,
+        );
         let mut stderr = io::stderr().lock();
         stderr
             .write_all(line.as_bytes())
@@ -262,8 +282,15 @@ impl Asking {
 }
 
 fn end_line() {
+    say("\n");
+}
+
+/// Writes `text` on standard error.
+fn say(text: &str) {
     let mut stderr = io::stderr().lock();
-    let _ = stderr.write_all(b"\n").and_then(|()| stderr.flush());
+    let _ = stderr
+        .write_all(text.as_bytes())
+        .and_then(|()| stderr.flush());
 }
 
 /// The console's input mode while a question reads; the earlier mode returns when it drops.

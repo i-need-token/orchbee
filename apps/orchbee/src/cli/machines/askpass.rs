@@ -11,26 +11,53 @@ pub(crate) mod question;
 
 #[cfg(windows)]
 pub(crate) use pairing::{
-    Pairing, RAISE_HEADER_BYTES, Raise, TAKEN, TICKET_BYTES, VARIABLE, hex, unhex,
+    Asked, Pairing, RAISE_HEADER_BYTES, Raise, TAKEN, TICKET_BYTES, VARIABLE, hex, unhex,
 };
+
+use std::ffi::OsString;
 
 #[cfg(test)]
 mod tests;
 
-/// Runs the askpass helper when this start is one: the variable is set and the one argument, the
-/// prompt, does not begin with `--`. `None` lets every other start parse its command line.
+/// The one start a development or test stand-in makes with the variable set that is not a
+/// question: the far end it runs as the link helper.
+const STAND_IN_ENTRY: &str = "--machine-link-v1";
+
+/// What a start with the variable set is.
+#[derive(Debug, Eq, PartialEq)]
+enum Start {
+    /// The askpass helper, asking this prompt.
+    Helper(OsString),
+    /// A development or test stand-in's far end, which parses its command line.
+    StandIn,
+}
+
+/// Runs the askpass helper when the variable is set, whatever the arguments are, so text `ssh`
+/// passes never reaches the command-line parser. `None` lets every other start parse its command
+/// line: one without the variable, and a non-release stand-in's far end.
 #[cfg(windows)]
 pub(crate) fn run_if_selected() -> Option<std::process::ExitCode> {
     let pairing = std::env::var_os(VARIABLE)?;
-    let prompt = selected_prompt(std::env::args_os().skip(1).collect())?;
-    Some(helper::run(&prompt, &pairing))
+    let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
+    match start(&arguments, orchbee_local_runtime::is_release()) {
+        Start::Helper(prompt) => Some(helper::run(&prompt, &pairing)),
+        Start::StandIn => None,
+    }
 }
 
-/// The prompt of an askpass start: exactly one argument, never one of this program's options, so
-/// a far end the stand-in starts with `--machine-link-v1` stays the link helper.
-#[cfg(windows)]
-fn selected_prompt(mut arguments: Vec<std::ffi::OsString>) -> Option<std::ffi::OsString> {
-    let prompt = arguments.pop()?;
-    let option = prompt.to_str().is_some_and(|text| text.starts_with("--"));
-    (arguments.is_empty() && !option).then_some(prompt)
+/// The start `arguments` make with the variable set. The prompt is every argument joined by single
+/// spaces, since `ssh` passes one and how a launcher splits it is not proven; only a build that is
+/// not a release lets the stand-in's own entry through, alone.
+fn start(arguments: &[OsString], release: bool) -> Start {
+    if !release && matches!(arguments, [only] if only == STAND_IN_ENTRY) {
+        return Start::StandIn;
+    }
+    let mut prompt = OsString::new();
+    for (index, argument) in arguments.iter().enumerate() {
+        if index > 0 {
+            prompt.push(" ");
+        }
+        prompt.push(argument);
+    }
+    Start::Helper(prompt)
 }
