@@ -1,0 +1,47 @@
+.layout {
+	display: grid;
+	grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+	gap: var(--ob-ref-space-16);
+	align-items: start;
+}
+.requirements {
+	max-width: var(--ob-ref-container-md);
+	margin-top: var(--ob-ref-space-6);
+	font: var(--ob-sys-typography-body-md);
+	color: var(--ob-sys-color-text-muted);
+}
+.link {
+	display: inline-flex;
+	gap: var(--ob-ref-space-2);
+	margin-top: var(--ob-ref-space-6);
+	font: var(--ob-sys-typography-label-lg);
+	color: var(--ob-sys-color-text-secondary);
+}
+.link:hover {
+	color: var(--ob-sys-color-text-primary);
+}
+.download {
+	margin-top: var(--ob-ref-space-8);
+	padding: var(--ob-ref-space-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-xl);
+	background: var(--ob-sys-color-surface-subtle);
+}
+.downloadTitle {
+	font: var(--ob-sys-typography-label-lg);
+	color: var(--ob-sys-color-text-secondary);
+}
+.downloadAction {
+	margin-top: var(--ob-ref-space-4);
+}
+.note {
+	margin-top: var(--ob-ref-space-3);
+	font: var(--ob-sys-typography-body-md);
+	color: var(--ob-sys-color-text-muted);
+}
+@media (max-width: 64rem) {
+	.layout {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-space-10);
+	}
+}

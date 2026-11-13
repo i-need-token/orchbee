@@ -1,1 +1,1 @@
-export { renderPage } from './composition';
+export { renderNotFound, renderPage } from './composition';

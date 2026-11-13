@@ -1,0 +1,118 @@
+.header {
+	position: sticky;
+	top: 0;
+	z-index: var(--ob-ref-layer-dropdown);
+	background: color-mix(in srgb, var(--ob-sys-color-surface-canvas) 80%, transparent);
+	border-bottom: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	backdrop-filter: blur(var(--ob-ref-filter-blur-md));
+}
+.skip {
+	position: fixed;
+	inset-block-start: var(--ob-ref-space-3);
+	inset-inline-start: var(--ob-ref-space-3);
+	z-index: var(--ob-ref-layer-overlay);
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+	background: var(--ob-sys-color-surface-raised);
+	transform: translateY(-200%);
+}
+.skip:focus {
+	transform: none;
+}
+.inner {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-5);
+	max-width: var(--ob-ref-container-7xl);
+	min-height: var(--ob-ref-space-16);
+	margin: auto;
+	padding-inline: var(--ob-ref-space-10);
+}
+.brand {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-2-5);
+	font: var(--ob-sys-typography-heading-md);
+	color: var(--ob-sys-color-text-heading);
+}
+.brand img {
+	display: block;
+}
+.navigation {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	margin-inline-start: auto;
+}
+.link {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--ob-ref-space-10);
+	padding-inline: var(--ob-ref-space-3);
+	font: var(--ob-sys-typography-body-md);
+	color: var(--ob-sys-color-text-secondary);
+}
+.link:hover {
+	color: var(--ob-sys-color-text-primary);
+}
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: var(--ob-ref-space-10);
+	height: var(--ob-ref-space-10);
+	padding: 0 var(--ob-ref-space-2);
+	border: none;
+	border-radius: var(--ob-ref-radius-full);
+	background: transparent;
+	font: var(--ob-sys-typography-code-sm);
+	color: var(--ob-sys-color-text-secondary);
+}
+.toggle:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+.toggle svg {
+	display: none;
+}
+.toggle .iconSystem,
+.toggle[data-current='light'] .iconLight,
+.toggle[data-current='dark'] .iconDark {
+	display: block;
+}
+.toggle[data-current='light'] .iconSystem,
+.toggle[data-current='dark'] .iconSystem {
+	display: none;
+}
+.cta {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--ob-ref-space-10);
+	margin-inline-start: var(--ob-ref-space-2);
+	padding-inline: var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-brand-accent);
+	font: var(--ob-sys-typography-label-lg);
+	color: var(--ob-sys-color-brand-on-accent);
+	white-space: nowrap;
+}
+.cta:hover {
+	background: var(--ob-sys-color-brand-accent-hover);
+}
+@media (max-width: 64rem) {
+	.inner {
+		padding-inline: var(--ob-ref-space-6);
+	}
+}
+@media (max-width: 40rem) {
+	.inner {
+		gap: var(--ob-ref-space-3);
+		padding-inline: var(--ob-ref-space-4);
+	}
+	.link {
+		display: none;
+	}
+	.brand {
+		font: var(--ob-sys-typography-heading-sm);
+	}
+}

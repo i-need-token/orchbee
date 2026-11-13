@@ -10,11 +10,6 @@ export interface PreferenceStorage {
 	setItem(key: string, value: string): void;
 }
 
-export function parseAppearance(value: unknown): Appearance {
-	const parsed = AppearanceSchema.safeParse(value);
-	return parsed.success ? parsed.data : 'system';
-}
-
 export function readAppearance(storage: PreferenceStorage): Appearance {
 	try {
 		const raw = storage.getItem(APPEARANCE_KEY);

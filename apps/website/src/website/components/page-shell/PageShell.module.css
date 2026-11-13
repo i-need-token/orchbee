@@ -1,0 +1,47 @@
+:global(html) {
+	scroll-behavior: smooth;
+	scroll-padding-top: var(--ob-ref-space-20);
+	background: var(--ob-sys-color-surface-canvas);
+}
+:global(body) {
+	margin: 0;
+	color: var(--ob-sys-color-text-primary);
+	background: var(--ob-sys-color-surface-canvas);
+}
+:global(*) {
+	box-sizing: border-box;
+}
+:global([hidden]) {
+	display: none !important;
+}
+.page {
+	font: var(--ob-sys-typography-body-lg);
+	-webkit-font-smoothing: antialiased;
+	overflow: clip;
+	overflow-wrap: break-word;
+	color: var(--ob-sys-color-text-secondary);
+}
+/* Resets carry no specificity, so any component class overrides them. */
+:where(.page) :where(a) {
+	color: inherit;
+	text-decoration: none;
+}
+:where(.page) :where(a, button):focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: var(--ob-sys-focus-ring-offset);
+}
+:where(.page) :where(button) {
+	cursor: pointer;
+}
+:where(.page) :where(h1, h2, h3, p, ul, figure) {
+	margin: 0;
+}
+:where(.page) :where(ul) {
+	padding: 0;
+	list-style: none;
+}
+@media (prefers-reduced-motion: reduce) {
+	:global(html) {
+		scroll-behavior: auto;
+	}
+}

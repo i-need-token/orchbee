@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseAppearance, readAppearance, writeAppearance } from '../site-preferences-storage';
+import { readAppearance, writeAppearance } from '../site-preferences-storage';
 
 describe('website appearance preference', () => {
 	it('starts with the system without writing a default record', () => {
@@ -52,10 +52,5 @@ describe('website appearance preference', () => {
 		};
 		expect(readAppearance(denied)).toBe('system');
 		expect(() => writeAppearance(denied, 'dark')).not.toThrow();
-	});
-	it('validates control input independently of storage', () => {
-		expect(parseAppearance('light')).toBe('light');
-		expect(parseAppearance('unknown')).toBe('system');
-		expect(parseAppearance(null)).toBe('system');
 	});
 });

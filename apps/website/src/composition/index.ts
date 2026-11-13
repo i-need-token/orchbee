@@ -1,1 +1,1 @@
-export { renderPage } from './prerender';
+export { renderNotFound, renderPage } from './prerender';

@@ -1,22 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { renderPage } from '../prerender';
+import { renderNotFound, renderPage } from '../prerender';
+
+const LOCALES = ['en-US', 'zh-CN'] as const;
+const SECTIONS = ['terminal', 'sessions', 'orchestrate', 'agents', 'install'] as const;
+const PUBLISHED = {
+	published: true,
+	version: '9.9.9-test.1',
+	installerUrl: 'https://github.com/i-need-token/orchbee/releases/download/v9.9.9-test.1/test.exe',
+} as const;
+
+// Every picture, stylesheet and script the page loads must come from the site itself.
+function loadedAddresses(markup: string): string[] {
+	return [...markup.matchAll(/\s(?:src|srcset)="([^"]+)"/gu)].flatMap((match) =>
+		(match[1] ?? '').split(',').map((candidate) => candidate.trim().split(/\s+/u)[0] ?? ''),
+	);
+}
 
 describe('localized static website', () => {
-	it.each(['en-US', 'zh-CN'] as const)(
-		'renders crawlable %s content without a browser runtime',
-		(locale) => {
-			const page = renderPage(locale);
-			expect(page.markup.match(/<h1>/gu)).toHaveLength(1);
-			expect(page.markup).toContain(locale === 'zh-CN' ? '多开 Agent，' : 'More agents.');
-			expect(page.markup).toContain(
-				locale === 'zh-CN' ? '暂未提供预编译下载包' : 'Pre-built downloads are not available',
-			);
-			expect(page.markup).toContain('<summary>');
-			expect(page.markup).toContain(locale === 'zh-CN' ? '外观' : 'Appearance');
-			expect(page.markup).not.toContain('<iframe');
-			expect(page.markup).not.toContain('<form');
-		},
-	);
+	it.each(LOCALES)('renders every section of the %s page without a browser runtime', (locale) => {
+		const { markup } = renderPage(locale);
+		expect(markup.match(/<h1[\s>]/gu)).toHaveLength(1);
+		for (const section of SECTIONS) expect(markup).toContain(`id="${section}"`);
+		expect(markup).not.toContain('<iframe');
+		expect(markup).not.toContain('<form');
+		const addresses = loadedAddresses(markup);
+		expect(addresses.length).toBeGreaterThan(0);
+		for (const address of addresses) expect(address).toMatch(/^\/(?!\/)/u);
+	});
+
+	it.each(LOCALES)('offers the repository and a source build before a release (%s)', (locale) => {
+		const { markup } = renderPage(locale, { published: false });
+		expect(markup).toContain('href="https://github.com/i-need-token/orchbee"');
+		expect(markup).toContain('pnpm desktop');
+		expect(markup).not.toContain('npm install -g orchbee@next');
+		expect(markup).not.toContain('/releases/download/');
+	});
+
+	it.each(LOCALES)('offers the installer and the npm package after a release (%s)', (locale) => {
+		const { markup } = renderPage(locale, PUBLISHED);
+		expect(markup).toContain(`href="${PUBLISHED.installerUrl}"`);
+		expect(markup).toContain('npm install -g orchbee@next');
+		expect(markup).toContain(PUBLISHED.version);
+		expect(markup).not.toContain('pnpm desktop');
+	});
+
 	it('gives both languages stable canonical URLs and localized search metadata', () => {
 		const english = renderPage('en-US');
 		const chinese = renderPage('zh-CN');
@@ -24,8 +51,14 @@ describe('localized static website', () => {
 		expect(chinese.canonical).toBe('https://orchbee.com/zh-CN/');
 		expect(english.alternate).toBe('/zh-CN/');
 		expect(chinese.alternate).toBe('/');
-		expect(english.title).toContain('AI agents');
-		expect(chinese.title).toContain('AI 智能体');
+		expect(english.title).not.toEqual(chinese.title);
 		expect(english.description).not.toEqual(chinese.description);
+	});
+
+	it.each(LOCALES)('renders a %s not-found page that leads home', (locale) => {
+		const page = renderNotFound(locale);
+		expect(page.markup.match(/<h1[\s>]/gu)).toHaveLength(1);
+		expect(page.markup).toContain(`href="${locale === 'zh-CN' ? '/zh-CN/' : '/'}"`);
+		expect(page.title).not.toEqual(renderPage(locale).title);
 	});
 });

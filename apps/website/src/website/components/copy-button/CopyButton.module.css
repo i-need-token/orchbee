@@ -1,0 +1,17 @@
+.copy {
+	flex: none;
+	margin-inline-start: auto;
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-full);
+	background: transparent;
+	font: var(--ob-sys-typography-label-sm);
+	color: var(--ob-sys-color-text-secondary);
+}
+.copy:hover {
+	border-color: var(--ob-sys-color-border-strong);
+	color: var(--ob-sys-color-text-primary);
+}
+.copy[data-copied] {
+	color: var(--ob-sys-color-status-success-text);
+}

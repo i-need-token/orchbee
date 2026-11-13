@@ -1,0 +1,30 @@
+.figure {
+	margin: 0;
+	min-width: 0;
+}
+.frame {
+	overflow: hidden;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-strong);
+	border-radius: var(--ob-ref-radius-xl);
+	background: var(--ob-sys-color-surface-canvas);
+	box-shadow: var(--ob-sys-shadow-overlay);
+}
+.image {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+.caption {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-3);
+	margin-top: var(--ob-ref-space-4);
+	font: var(--ob-sys-typography-code-sm);
+	color: var(--ob-sys-color-text-muted);
+}
+.caption::before {
+	content: '';
+	flex: none;
+	width: var(--ob-ref-space-6);
+	border-top: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-strong);
+}
