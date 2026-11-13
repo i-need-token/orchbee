@@ -1720,8 +1720,10 @@ command. Renderer/backend tests cover duplicate labels, nonempty whitespace-only
 C0/ESC/CR/LF/DEL/C1, U+2028/U+2029, combining and double-width characters,
 one-column clipping, an active token after many Tabs, and exact canonical data after rendering.
 
-The stable English and Chinese status strings are below. Ready and control-mode
-context appears on demand with `Ctrl+b`; ordinary terminal passthrough has no status bar. Ordinary Move admission refusal preserves
+The stable English and Chinese status strings are below. Ordinary control is silent: a Ready
+Controlling Tab shows no status at rest and ordinary terminal passthrough has no status bar, while
+view-only input stays explicit at rest. `Ctrl+b` replaces the status with prefix hints and does not
+reveal readiness. Ordinary Move admission refusal preserves
 the existing notice without reacquiring the mailbox; the local-busy row applies to the other
 structural admission paths.
 
@@ -1746,8 +1748,11 @@ structural admission paths.
 | Known terminal outcome unknown       | `Tab {N} · terminal result unknown · no replay`   | `Tab {N} · 终端结果未知 · 不会重放`   |
 
 Refresh statuses render inside the open navigator. They are retained but visually silent while it
-is closed. PTY observers explicitly open the prefix status overlay and require one active
-compact token with the exact Ready string, then dismiss the overlay before continuing input.
+is closed. PTY observers read the resting frame: one active Tab token, and for control the absence
+of the view-only status, or for view-only input its exact string. The first frame can be drawn
+before the Client reaches phase `ready`, and input in that window is refused with a notice, so a
+journey that types also waits until `client list` reads the Client's phase `ready` on consecutive
+reads.
 A transient Creating/Refreshing draw is never required.
 
 A definite Create precommit settlement never creates a timer-driven phase. The UI consumes the
@@ -2067,7 +2072,7 @@ complete `local_startup_process` target passed all 23 tests on Linux under WSL. 
 scenarios exercise six Move steps over three Tabs, both directions and boundary wrap, distinct shell
 PIDs, fresh output and Resize, independent peer selection and explicit refresh, and canonical-first
 reopen followed by revisiting surviving terminals. Ordered completed-frame observers require one
-active marker and its exact Ready context in an explicitly requested prefix overlay. These process checks establish observable shell
+active marker and the resting status of its control mode. These process checks establish observable shell
 continuity; the worker and UI traces separately establish attachment preservation. They do not
 establish other operating systems, installation, restart recovery or Close.
 

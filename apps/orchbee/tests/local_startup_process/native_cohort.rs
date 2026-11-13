@@ -18,7 +18,7 @@ use std::{
     },
     path::{Path, PathBuf},
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     thread,
@@ -112,6 +112,8 @@ pub(super) struct Fixture {
     pub(super) base: PathBuf,
     cleanup_armed: bool,
     authorized_runtimes: Mutex<Vec<PathBuf>>,
+    /// How the PTY Clients of this fixture find their own published Client views.
+    pub(super) client_views: Arc<Mutex<super::pty_client::ClientViewLedger>>,
 }
 
 impl Fixture {
@@ -206,6 +208,7 @@ impl Fixture {
             base,
             cleanup_armed: true,
             authorized_runtimes: Mutex::new(vec![runtime]),
+            client_views: Arc::default(),
         };
         let binaries = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let staged = std::env::var_os("ORCHBEE_TEST_NATIVE_COHORT").map(PathBuf::from);
@@ -656,6 +659,7 @@ mod tests {
             base: root.join("own-base"),
             cleanup_armed: false,
             authorized_runtimes: Mutex::new(vec![runtime_for_base(&root.join("own-base"))]),
+            client_views: Arc::default(),
         };
         let alternate_base = root.join("other-base");
         fixture.register_runtime_base(&alternate_base);

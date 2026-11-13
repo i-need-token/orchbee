@@ -9,11 +9,13 @@ use nix::{
     sys::termios::{Termios, tcgetattr},
 };
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File},
     io::{self, Read, Write},
     os::fd::{AsFd, OwnedFd},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, ChildStderr, ExitStatus, Stdio},
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -21,6 +23,11 @@ use std::{
 pub(super) const COLUMNS: usize = 120;
 pub(super) const ROWS: usize = 32;
 const MAX_OUTPUT: usize = 8 * 1024 * 1024;
+/// The Windows journeys' readiness rule: the Client reports phase `ready` on this many
+/// `client list` reads in a row, this far apart; its own transient work holds it busy only for
+/// moments.
+const SETTLED_READS: usize = 4;
+const SETTLE_INTERVAL: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ReadyMode {
@@ -100,6 +107,146 @@ pub(super) struct Client {
     stderr_bytes: Vec<u8>,
     screen: Screen,
     pixels: bool,
+    views: ClientViews,
+}
+
+/// Which published Client views belong to the PTY Clients of one runtime base whose own view is
+/// not yet known.
+#[derive(Default)]
+pub(super) struct ClientViewLedger {
+    bases: BTreeMap<PathBuf, PendingViews>,
+}
+
+#[derive(Default)]
+struct PendingViews {
+    /// Views listed when the oldest still unidentified Client was spawned.
+    baseline: BTreeSet<String>,
+    unidentified: usize,
+}
+
+/// How a PTY Client finds its own published Client view through the staged CLI.
+struct ClientViews {
+    cli: PathBuf,
+    base: PathBuf,
+    ledger: Arc<Mutex<ClientViewLedger>>,
+    identity: Option<String>,
+    /// Still counted among the unidentified Clients of its base.
+    pending: bool,
+}
+
+impl ClientViews {
+    fn new(fixture: &Fixture, base: &Path) -> Self {
+        let cli = fixture
+            .cohort
+            .join(crate::support::staged_artifact_name("orchbee"));
+        let mut ledger = fixture.client_views.lock().unwrap();
+        let pending = ledger.bases.entry(base.to_owned()).or_default();
+        if pending.unidentified == 0 {
+            // Before the first Client starts the Session no view exists and the read refuses.
+            pending.baseline = read_client_views(&cli, base)
+                .map(|clients| clients.iter().filter_map(client_id).collect())
+                .unwrap_or_default();
+        }
+        pending.unidentified += 1;
+        drop(ledger);
+        Self {
+            cli,
+            base: base.to_owned(),
+            ledger: Arc::clone(&fixture.client_views),
+            identity: None,
+            pending: true,
+        }
+    }
+
+    /// Reads the views this Client must see `ready` and whether there are enough of them: its
+    /// own once known; otherwise every view newer than the baseline, which must number at least
+    /// the unidentified Clients of the base, so its own is among them. The single new view is
+    /// its own when it is the only unidentified Client.
+    fn read(&mut self) -> (Vec<serde_json::Value>, bool) {
+        let clients =
+            read_client_views(&self.cli, &self.base).unwrap_or_else(|error| panic!("{error}"));
+        if let Some(identity) = &self.identity {
+            let own = clients
+                .into_iter()
+                .filter(|client| client_id(client).as_deref() == Some(identity))
+                .collect::<Vec<_>>();
+            assert!(!own.is_empty(), "Client {identity} left the Session");
+            return (own, true);
+        }
+        let mut ledger = self.ledger.lock().unwrap();
+        let pending = ledger.bases.entry(self.base.clone()).or_default();
+        let newer = clients
+            .into_iter()
+            .filter(|client| client_id(client).is_some_and(|id| !pending.baseline.contains(&id)))
+            .collect::<Vec<_>>();
+        let complete = newer.len() >= pending.unidentified;
+        if self.pending && pending.unidentified == 1 && newer.len() == 1 {
+            self.identity = client_id(&newer[0]);
+            retire(&mut self.pending, pending);
+        }
+        (newer, complete)
+    }
+
+    /// The Client exited: it no longer publishes a view the others wait for.
+    fn exited(&mut self) {
+        if self.pending {
+            let mut ledger = self.ledger.lock().unwrap();
+            let pending = ledger.bases.entry(self.base.clone()).or_default();
+            retire(&mut self.pending, pending);
+        }
+    }
+}
+
+impl Drop for ClientViews {
+    fn drop(&mut self) {
+        if self.pending
+            && let Ok(mut ledger) = self.ledger.lock()
+        {
+            let pending = ledger.bases.entry(self.base.clone()).or_default();
+            retire(&mut self.pending, pending);
+        }
+    }
+}
+
+/// Stops counting a Client among the unidentified Clients of its base, once.
+fn retire(counted: &mut bool, pending: &mut PendingViews) {
+    if std::mem::take(counted) {
+        pending.unidentified -= 1;
+    }
+}
+
+fn client_id(client: &serde_json::Value) -> Option<String> {
+    client["clientId"].as_str().map(str::to_owned)
+}
+
+/// One `client list` read through the staged CLI under the Client's runtime base.
+fn read_client_views(cli: &Path, base: &Path) -> Result<Vec<serde_json::Value>, String> {
+    let output = crate::support::orchbee_command(cli)
+        .args(["client", "list", "--format", "json"])
+        .env("ORCHBEE_RUNTIME_BASE", base)
+        .env("LANG", "en_US.UTF-8")
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap_or_else(|error| panic!("spawn `client list`: {error}"));
+    let describe = || {
+        format!(
+            "`client list` exited {:?}; stdout: {}; stderr: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    };
+    if !output.status.success() {
+        return Err(describe());
+    }
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("{error}: {}", describe()))?;
+    document["result"]["outcome"]["clients"]
+        .as_array()
+        .cloned()
+        .ok_or_else(describe)
 }
 
 impl Client {
@@ -177,6 +324,7 @@ impl Client {
         pixels_known: bool,
     ) -> Self {
         fixture.register_runtime_base(base);
+        let views = ClientViews::new(fixture, base);
         let pty = open_outer_pty(columns, rows, pixels_known).unwrap();
         let original = tcgetattr(&pty.slave).unwrap();
         let mut child = crate::support::orchbee_command(
@@ -208,6 +356,7 @@ impl Client {
             // stores every cell the product draws.
             screen: Screen::new(COLUMNS, ROWS),
             pixels: pixels_known,
+            views,
         }
     }
 
@@ -388,7 +537,9 @@ impl Client {
     }
 
     // Status is read from the latest resting frame: the status chip shows read-only input and
-    // other states at rest, while prefix hints replace it.
+    // other states at rest, while prefix hints replace it. A Ready status also needs the Client
+    // to report phase `ready`: its first frame can be drawn before that phase, and input in that
+    // window is refused with a notice.
     #[track_caller]
     fn probe_status<T>(
         &mut self,
@@ -396,6 +547,7 @@ impl Client {
         pumped_peers: &mut [&mut Client],
         mut predicate: impl FnMut(&CompletedFrame) -> Option<T>,
     ) -> T {
+        self.settle_ready(deadline, pumped_peers);
         self.observe_after_pumping(0, deadline, "resting status", pumped_peers, |frame| {
             (!frame.prefix_active()).then(|| predicate(frame)).flatten()
         })
@@ -676,6 +828,7 @@ impl Client {
         loop {
             self.collect();
             if let Some(status) = self.child.try_wait().unwrap() {
+                self.views.exited();
                 assert!(
                     Instant::now() < deadline,
                     "Client exited after deadline; {}",
@@ -701,6 +854,7 @@ impl Client {
         loop {
             self.collect();
             if let Some(status) = self.child.try_wait().unwrap() {
+                self.views.exited();
                 assert!(
                     Instant::now() < deadline,
                     "Client exited after deadline; {}",
@@ -720,6 +874,40 @@ impl Client {
                 self.diagnostic(0)
             );
             thread::yield_now();
+        }
+    }
+
+    /// Waits until the Client reports phase `ready` on consecutive `client list` reads, the rule
+    /// of the Windows journeys' `settle_ready`: a mode holds it, not one transient step.
+    #[track_caller]
+    fn settle_ready(&mut self, deadline: Instant, pumped_peers: &mut [&mut Client]) {
+        let mut reads = 0;
+        loop {
+            self.collect();
+            for peer in &mut *pumped_peers {
+                peer.collect();
+            }
+            if let Some(status) = self.child.try_wait().unwrap() {
+                panic!(
+                    "Client exited {status} before phase ready; {}",
+                    self.diagnostic(0)
+                );
+            }
+            let (views, complete) = self.views.read();
+            reads = if complete && views.iter().all(|view| view["view"]["phase"] == "ready") {
+                reads + 1
+            } else {
+                0
+            };
+            if reads == SETTLED_READS {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the Client never settled phase ready: {views:?}; {}",
+                self.diagnostic(0)
+            );
+            thread::sleep(SETTLE_INTERVAL);
         }
     }
 
