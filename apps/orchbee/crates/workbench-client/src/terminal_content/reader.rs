@@ -221,7 +221,7 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
             .frame
             .current_directory
             .as_deref()
-            .and_then(orchbee_local_runtime::windows_reported_directory)
+            .and_then(orchbee_local_runtime::reported_directory)
         {
             return Ok(Some(directory));
         }
@@ -605,7 +605,7 @@ pub fn process_directory(
             .iter()
             .find(|process| process.pid == info.root_pid)
             .and_then(|process| process.current_directory.as_deref())
-            .and_then(orchbee_local_runtime::windows_reported_directory));
+            .and_then(orchbee_local_runtime::reported_directory));
     }
     if let Ok(ConnectionControl::TypedFailure(failure)) =
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)

@@ -79,18 +79,7 @@ pub fn windows_reported_directory(value: &str) -> Option<String> {
         {
             return None;
         }
-        let mut bytes = Vec::with_capacity(path.len());
-        let mut input = path.as_bytes().iter().copied();
-        while let Some(byte) = input.next() {
-            bytes.push(if byte == b'%' {
-                let high = char::from(input.next()?).to_digit(16)?;
-                let low = char::from(input.next()?).to_digit(16)?;
-                (high * 16 + low) as u8
-            } else {
-                byte
-            });
-        }
-        let path = String::from_utf8(bytes).ok()?.replace('/', "\\");
+        let path = super::percent_decoded(path)?.replace('/', "\\");
         if path.as_bytes().get(1) == Some(&b':') {
             path
         } else if !host.is_empty() && !host.eq_ignore_ascii_case("localhost") {
@@ -102,7 +91,10 @@ pub fn windows_reported_directory(value: &str) -> Option<String> {
         value.to_owned()
     };
     let parsed = std::path::Path::new(&path);
-    if path.len() > 16 * 1024 || path.chars().any(char::is_control) || !parsed.is_absolute() {
+    if path.len() > super::OBSERVATION_LIMIT
+        || path.chars().any(char::is_control)
+        || !parsed.is_absolute()
+    {
         return None;
     }
     // Observed UNC directories are data, not permission to launch a Workspace there.

@@ -55,9 +55,9 @@ pub use user_settings::{
 pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};
 mod directory;
 pub use directory::{
-    WINDOWS_AGENT_START_VARIABLE, windows_agent_start_command,
-    windows_interactive_powershell_initialization, windows_powershell_application,
-    windows_reported_directory,
+    WINDOWS_AGENT_START_VARIABLE, posix_reported_directory, reported_directory,
+    windows_agent_start_command, windows_interactive_powershell_initialization,
+    windows_powershell_application, windows_reported_directory,
 };
 mod command_outcome;
 pub use command_outcome::{CommandFailure, CommandOutput};

@@ -59,7 +59,8 @@ pub(in crate::cli) fn observed() -> Read {
     }
 }
 
-// Frame directories decode only as Windows paths (`windows_reported_directory`).
+// Frame directories decode by this machine's rules (`reported_directory`); these fixtures are
+// Windows paths.
 #[cfg(windows)]
 #[test]
 fn metadata_directory_precedes_root_without_hiding_separate_process_directory() {

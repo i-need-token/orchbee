@@ -382,7 +382,7 @@ impl BufferReader<'_> {
             .frame
             .current_directory
             .as_deref()
-            .and_then(orchbee_local_runtime::windows_reported_directory)
+            .and_then(orchbee_local_runtime::reported_directory)
         {
             return Ok(Some(directory));
         }
