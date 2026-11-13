@@ -16,7 +16,6 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    if: github.ref_name != 'ci/input-stall'
     timeout-minutes: 45
     steps:
       - name: Check out repository
@@ -63,7 +62,6 @@ jobs:
 
   tla:
     name: Change-triggered TLA+
-    if: github.ref_name != 'ci/input-stall'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -100,7 +98,6 @@ jobs:
 
   rust-windows:
     name: Rust native (windows-latest)
-    if: github.ref_name != 'ci/input-stall'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -159,7 +156,6 @@ jobs:
 
   terminal-host-native:
     name: Terminal Host native (${{ matrix.os }})
-    if: github.ref_name != 'ci/input-stall'
     strategy:
       fail-fast: false
       matrix:
@@ -243,103 +239,3 @@ jobs:
 
       - name: Check native Terminal Host formatting
         run: pnpm --filter @orchbee/terminal-host format:check
-
-  # TEMPORARY (input-stall investigation): repeats the stalling Windows process target on several
-  # runners and prints each failed attempt's report. Remove before merging.
-  input-stall:
-    name: Input stall repeat (${{ matrix.runner }}, ${{ matrix.console }}, ${{ matrix.threads }} threads)
-    if: github.ref_name == 'ci/input-stall'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { runner: 1, console: openconsole, threads: 4 }
-          - { runner: 2, console: openconsole, threads: 2 }
-          - { runner: 3, console: openconsole, threads: 1 }
-          - { runner: 4, console: system, threads: 1 }
-    runs-on: windows-latest
-    timeout-minutes: 80
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        shell: pwsh
-        run: |
-          rustup toolchain install --profile minimal --component clippy,rustfmt
-          rustc --version
-
-      - name: Set up Zig
-        shell: pwsh
-        run: |
-          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
-          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
-          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
-          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
-          curl.exe --fail --location --silent --show-error $zigUrl --output $archive
-          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
-          Expand-Archive -Path $archive -DestinationPath $destination
-          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
-          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Prefetch the arocc Zig package
-        shell: pwsh
-        working-directory: apps/terminal-host
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
-          curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
-          $hash = zig fetch $archive
-          if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
-
-      - name: Stage the product's ConPTY
-        if: matrix.console == 'openconsole'
-        shell: pwsh
-        run: |
-          $bundle = Join-Path $env:RUNNER_TEMP 'conpty'
-          node apps/terminal-host/scripts/windows-conpty.mjs --output $bundle
-          if ($LASTEXITCODE -ne 0) { throw 'ConPTY staging failed' }
-          "ORCHBEE_TEST_CONPTY_DIR=$bundle" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Build the peers and the test target
-        shell: pwsh
-        run: |
-          cargo build --package orchbee-server --package orchbee-worker --bins --all-features --locked
-          if ($LASTEXITCODE -ne 0) { throw 'peer build failed' }
-          cargo test --package orchbee --all-features --locked --test cli_windows_idle_close --no-run
-          if ($LASTEXITCODE -ne 0) { throw 'test build failed' }
-
-      - name: Repeat the target
-        shell: pwsh
-        working-directory: apps/orchbee
-        run: |
-          $exe = Get-ChildItem ..\..\target\debug\deps\cli_windows_idle_close-*.exe | Sort-Object LastWriteTime | Select-Object -Last 1
-          $logs = Join-Path $env:RUNNER_TEMP 'stall-logs'
-          New-Item -ItemType Directory -Force $logs | Out-Null
-          # Warm the Host build the fixtures share, one test alone.
-          $env:RUST_TEST_THREADS = '1'
-          & $exe.FullName the_panel_route_and_hidden_presentations_decide_from_the_real_facts --exact *> (Join-Path $logs 'warm.log')
-          Remove-Item Env:RUST_TEST_THREADS
-          $env:RUST_TEST_THREADS = '${{ matrix.threads }}'
-          $failed = @()
-          for ($i = 1; $i -le 10; $i++) {
-            $log = Join-Path $logs "attempt-$i.log"
-            $cpu = Join-Path $logs "cpu-$i.csv"
-            $sampler = Start-Process typeperf -ArgumentList '"\Processor(_Total)\% Processor Time"', '-si', '2', '-y', '-o', $cpu -WindowStyle Hidden -PassThru
-            $started = Get-Date
-            & $exe.FullName *> $log
-            $code = $LASTEXITCODE
-            Stop-Process -Id $sampler.Id -ErrorAction SilentlyContinue
-            $values = @(Import-Csv $cpu -ErrorAction SilentlyContinue | ForEach-Object { [double]($_.PSObject.Properties | Select-Object -Last 1).Value } | Where-Object { $_ -ge 0 })
-            $load = if ($values.Count) { "cpu mean $([int]($values | Measure-Object -Average).Average)% max $([int]($values | Measure-Object -Maximum).Maximum)% over $($values.Count) samples" } else { 'cpu unsampled' }
-            $summary = Select-String -Path $log -Pattern '^test result:' | Select-Object -Last 1
-            "attempt $i exit $code after $([int]((Get-Date) - $started).TotalSeconds) s, $($load): $($summary.Line)"
-            if ($code -ne 0) { $failed += $log }
-          }
-          foreach ($log in $failed) {
-            "::group::$(Split-Path $log -Leaf)"
-            Get-Content $log | Where-Object { $_ -notmatch '^\s*\S?\s*│\s*$' -and $_ -notmatch '^Failed TUI screen:' }
-            '::endgroup::'
-          }
-          "failed attempts: $($failed.Count) of 10"
-          if ($failed.Count -gt 0) { exit 1 }
