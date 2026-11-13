@@ -967,7 +967,7 @@ Before the command runs, every Windows invocation of these commands that passes 
 | `version`     | `1`                                                                                                                                |
 | `time`        | UTC RFC 3339 with milliseconds, or `null` when the clock cannot be read                                                            |
 | `environment` | The compiled environment stem                                                                                                      |
-| `command`     | `server stop`, `machine server stop` for a remote stop, `session stop` or `session delete`                                         |
+| `command`     | `server stop`, `machine server stop` for a remote stop, `session stop`, `session delete` or `uninstall`                            |
 | `session`     | The target Session name, or `null` when it cannot be named                                                                         |
 | `interactive` | `{stdin, stdout}`: whether each stream is a console                                                                                |
 | `parent`      | `{pid, image}` from a process snapshot; `image` is `null` when the parent has exited or its PID now names a newer process          |

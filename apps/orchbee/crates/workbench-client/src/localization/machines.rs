@@ -353,23 +353,23 @@ impl Locale {
                 "机器连接未能开始。\nOrchbee 会自动重试。".into()
             }
             (Self::EnUs, HubStatus::Blocked(Blocked::Held { version })) => format!(
-                "Orchbee {version} still holds machine connections.\nClose its windows and stop its Session; connections then resume."
+                "Orchbee {version} still holds machine connections.\nClose its windows and stop its Session to connect machines here."
             ),
             (Self::ZhCn, HubStatus::Blocked(Blocked::Held { version })) => format!(
-                "Orchbee {version} 仍占用着机器连接。\n关闭它的窗口并停止它的会话后，连接会自动恢复。"
+                "Orchbee {version} 仍占用着机器连接。\n关闭它的窗口并停止它的会话后，这里才能连接机器。"
             ),
             (Self::EnUs, HubStatus::Blocked(Blocked::Environment { environment })) => format!(
-                "Orchbee of another environment holds machine connections:\n{environment}. Close it; connections then resume."
+                "Orchbee of another environment holds machine connections:\n{environment}. Close it to connect machines here."
             ),
             (Self::ZhCn, HubStatus::Blocked(Blocked::Environment { environment })) => format!(
-                "另一个环境的 Orchbee 占用着机器连接：\n{environment}。关闭它后，连接会自动恢复。"
+                "另一个环境的 Orchbee 占用着机器连接：\n{environment}。关闭它后，这里才能连接机器。"
             ),
             (Self::EnUs, HubStatus::Blocked(Blocked::Denied)) => {
-                "Another user's Orchbee holds machine connections here.\nThey resume once it closes."
+                "Another user's Orchbee holds machine connections here.\nMachines cannot connect here until it closes."
                     .into()
             }
             (Self::ZhCn, HubStatus::Blocked(Blocked::Denied)) => {
-                "另一个用户的 Orchbee 占用着这里的机器连接。\n它关闭后，连接会自动恢复。".into()
+                "另一个用户的 Orchbee 占用着这里的机器连接。\n它关闭之前，这里无法连接机器。".into()
             }
             (Self::EnUs, HubStatus::Blocked(Blocked::Protocol)) => {
                 "Machine connections answered outside the protocol.\nChoose this machine to try again."
