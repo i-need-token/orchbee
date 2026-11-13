@@ -177,7 +177,10 @@ results remain unchanged.
   or dependency resolution before producing an artifact.
 - `scripts/run-rust-workspace.mjs` connects the root pnpm gate to Cargo. Before the first accepted
   Rust member exists, it validates the pinned toolchain and empty workspace metadata; afterward the
-  same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`.
+  same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`. The test
+  task adds `--no-fail-fast`, so one run reports every failing test target instead of stopping at
+  the first; a Windows CI run takes about half an hour, so a run that names one failure at a time
+  costs a run per failure. The result is unchanged: any failing target still fails the task.
 - The Rust lint task runs Clippy twice: over every target with all features, then over the
   default-feature library and binary targets of every member. Development dependencies re-enable
   test-support features under `--all-targets`, so only the second pass compiles the product feature
