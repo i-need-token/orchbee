@@ -1,5 +1,5 @@
-//! Control requests to the hub, `query`, `drain` and `exit`, each on a connection of its own, and the
-//! one path that ends a hub on purpose.
+//! Control requests to the hub, `query`, `drain` and `exit`, each on a connection of its own, the
+//! one path that ends a hub on purpose, and watching a hub until it goes.
 
 use super::attach::{self, Reached};
 use orchbee_connection_handshake::{
@@ -8,11 +8,12 @@ use orchbee_connection_handshake::{
 };
 use orchbee_local_runtime::{DataRoot, machine_hub_endpoint};
 use std::{
-    path::Path,
+    cell::Cell,
+    path::{Path, PathBuf},
     thread,
     time::{Duration, Instant},
 };
-use winsafe::{self as w, co};
+use winsafe::{self as w, co, guard::CloseHandleGuard};
 
 /// How long `end` waits for a drained hub to exit before it sends `exit`.
 const DRAIN_WAIT: Duration = Duration::from_secs(10);
@@ -20,6 +21,8 @@ const DRAIN_WAIT: Duration = Duration::from_secs(10);
 const EXIT_WAIT: Duration = Duration::from_secs(5);
 /// Hubs one `end` ends, counting any a client started while it ran.
 const ROUNDS: usize = 3;
+/// How often a [`HubWatch`] without the hub's process looks at its endpoint's name.
+const LOOK: Duration = Duration::from_secs(1);
 
 /// Why `running` or `end` could not finish.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -115,6 +118,70 @@ pub fn end(root: &DataRoot, deadline: Instant) -> Result<Option<u32>, EndFailure
             process_id: Some(process_id),
         }),
     }
+}
+
+/// The hub serving a data root when the watch began, watched until it goes: through its process
+/// when a `query` names it, which costs nothing while it runs, otherwise through its endpoint's
+/// name. It starts nothing and creates nothing.
+pub struct HubWatch {
+    endpoint: Option<PathBuf>,
+    process: Option<CloseHandleGuard<w::HPROCESS>>,
+    /// When a watch without the process looks at the endpoint's name next.
+    look: Cell<Instant>,
+}
+
+impl HubWatch {
+    /// Watches the hub serving `root` now; the query that names its process ends by `deadline`.
+    pub fn new(root: &DataRoot, deadline: Instant) -> Self {
+        let look = Cell::new(Instant::now());
+        let Ok(endpoint) = machine_hub_endpoint(root) else {
+            return Self {
+                endpoint: None,
+                process: None,
+                look,
+            };
+        };
+        let process = hub_process(&endpoint, deadline)
+            .ok()
+            .flatten()
+            .and_then(|process_id| {
+                let process =
+                    w::HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, process_id).ok()?;
+                // The same id once the handle is open proves the handle is the hub's.
+                (hub_process(&endpoint, deadline).ok().flatten() == Some(process_id))
+                    .then_some(process)
+            });
+        Self {
+            endpoint: Some(endpoint),
+            process,
+            look,
+        }
+    }
+
+    /// Waits until `until` for the hub to go; true once it is gone. Without its process it looks at
+    /// the endpoint's name every [`LOOK`], and may read a later hub's endpoint as this one's.
+    pub fn gone(&self, until: Instant) -> bool {
+        match (&self.process, &self.endpoint) {
+            (Some(process), _) => exited(process, until),
+            (None, Some(endpoint)) => {
+                if Instant::now() >= self.look.get() {
+                    self.look.set(Instant::now() + LOOK);
+                    if !orchbee_local_ipc::endpoint_exists(endpoint).unwrap_or(true) {
+                        return true;
+                    }
+                }
+                thread::sleep(until.saturating_duration_since(Instant::now()));
+                false
+            }
+            (None, None) => true,
+        }
+    }
+}
+
+/// Whether a hub serves `root` now, by its endpoint's name alone: nothing is opened or created.
+pub fn present(root: &DataRoot) -> bool {
+    machine_hub_endpoint(root)
+        .is_ok_and(|endpoint| orchbee_local_ipc::endpoint_exists(&endpoint).unwrap_or(false))
 }
 
 /// Asks a hub to enter `closing`.

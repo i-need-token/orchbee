@@ -20,6 +20,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The picker messages that say why no hub is reached; the hub's own state replaces them.
+const HUB_MESSAGES: [&str; 3] = ["hub", "hub-message-stopped", "hub-message-blocked"];
+
 struct Attempt {
     profile: Option<Profile>,
     context: Option<ClientStartupTarget>,
@@ -322,13 +325,18 @@ impl Manager {
             .observe_native_navigation(choice(self.current.as_ref()), navigation);
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
-        // The status line says so while no hub is reached, without hiding another message.
-        let hub_unavailable = self.discovery.hub_unavailable();
-        if hub_unavailable && view.machines.error.is_none() {
-            view.machines.error = Some("hub");
-            change.redraw = true;
-        } else if !hub_unavailable && view.machines.error == Some("hub") {
-            view.machines.error = None;
+        // The status line says why no hub is reached, without hiding another message or a
+        // selection in progress.
+        let hub_message = self.discovery.hub_message();
+        let shown = view
+            .machines
+            .error
+            .filter(|error| HUB_MESSAGES.contains(error));
+        if hub_message != shown
+            && (shown.is_some() || view.machines.error.is_none())
+            && (hub_message.is_none() || (self.queued.is_none() && self.attempt.is_none()))
+        {
+            view.machines.error = hub_message;
             change.redraw = true;
         }
         let mut agent_sources = Vec::new();
@@ -525,11 +533,12 @@ impl Manager {
                     .as_ref()
                     .is_some_and(|p| self.discovery.failed(p))
             {
-                let failure = if queued.profile.is_some() && self.discovery.hub_unavailable() {
-                    "hub"
-                } else {
-                    "failed"
-                };
+                // A selection that reached no hub says why instead of naming SSH.
+                let failure = queued
+                    .profile
+                    .as_ref()
+                    .and_then(|_| self.discovery.hub_message())
+                    .unwrap_or("failed");
                 self.fail_selection(view, failure);
             } else if self
                 .selection_scope

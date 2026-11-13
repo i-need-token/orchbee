@@ -657,13 +657,22 @@ impl Picker {
                         theme.glyphs.ellipsis,
                     ));
                 }
-            } else if let Some(Observation::Online(o)) = self
-                .visible_rows()
-                .get(self.selected())
-                .and_then(|r| r.observation.as_ref())
-            {
-                lines.push(locale.machine_details(o.projects, o.workspaces, o.tabs));
-                lines.extend(o.labels.iter().take(3).map(|label| format!("  {label}")));
+            } else {
+                match self
+                    .visible_rows()
+                    .get(self.selected())
+                    .and_then(|r| r.observation.as_ref())
+                {
+                    Some(Observation::Online(o)) => {
+                        lines.push(locale.machine_details(o.projects, o.workspaces, o.tabs));
+                        lines.extend(o.labels.iter().take(3).map(|label| format!("  {label}")));
+                    }
+                    // The row shows one word; why, and what to do, read here.
+                    Some(Observation::Hub(status)) => {
+                        lines.extend(locale.machine_hub_detail(status));
+                    }
+                    _ => {}
+                }
             }
             if self.row_id(self.selected()).is_some() {
                 let label = format!(

@@ -856,7 +856,7 @@ impl super::CliText {
             ),
             HelpText::MachineRules => (
                 "Use orchbee --machine <name-or-id> <command> for a saved remote machine. Duplicate names, disabled machines and connection kinds this version does not support are refused. --file/--stdin read locally; --cwd names a remote path. TUI and terminal streams are not routed. Removing or disabling a machine leaves remote sessions running.",
-                "使用 orchbee --machine <name-or-id> <command> 选择已保存的远程机器。拒绝重名、已禁用的机器和此版本不支持的连接方式。--file/--stdin 在本地读取，--cwd 指向远端路径。不转发 TUI 或终端流。移除或禁用机器不会停止远端会话。",
+                "使用 orchbee --machine <name-or-id> <command> 选择已保存的远程机器。拒绝重名、已停用的机器和此版本不支持的连接方式。--file/--stdin 在本地读取，--cwd 指向远端路径。不转发 TUI 或终端流。移除或停用机器不会停止远端会话。",
             ),
             HelpText::Usage => ("Usage", "用法"),
             HelpText::QuickStart => ("Quick start", "快速开始"),

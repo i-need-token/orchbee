@@ -46,8 +46,8 @@ edits last only until the process ends, and the process shows the record message
 | `extensions` (both levels) | Objects a later release fills; this one keeps them unread, writes them back unchanged, and writes `{}` when they are absent                                                                                                                                                  |
 
 A connection `kind` this build does not know is kept verbatim with every member it carries and
-written back unchanged. That machine is listed as unsupported by this version, cannot be routed
-to, chosen, or discovered, and leaves every other machine usable. The record never stores a
+written back unchanged. That machine is listed as unsupported, the same word in every client,
+cannot be routed to, chosen, or discovered, and leaves every other machine usable. The record never stores a
 credential, password, port, key path, or the remote platform. Duplicate target/session pairs may
 have distinct IDs. At most 128 KiB is admitted.
 
@@ -279,7 +279,11 @@ routed command runs under the resolved locale.
 When the remote grammar cannot parse the routed arguments, the reply carries the remote's ordinary usage failure in the packet's locale and with the usage exit status, rendered by the link helper without spawning a command. A parsed request outside the routed scope, a packet that names a Session, and invalid input are refused as not submitted. The existing remote CLI remains the
 business-operation owner. No local peer credential admission is bypassed.
 Terminal file and stdin sources are acquired on the caller once and sent as raw
-bytes; directories and executable paths are interpreted by the remote command.
+bytes; directories and executable paths are interpreted by the remote command. A process case
+proves it through the hub's route and the stand-in: a home-relative path operand reaches the far
+side as written, the far business process resolves it against the far home, and a far home that
+cannot be used fails as that command's usage failure, naming the variable and never its value,
+and writes nothing to the far profile.
 Caller terminal/worker context is cleared; explicit targets or remote Client
 selection determine the destination. Output bytes, diagnostics and exit status
 are returned in a bounded reply, never reconstructed from SSH diagnostics.
@@ -1000,6 +1004,10 @@ connection, so nothing changed for the link.
   `key-rejected` when it offers only `publickey`, which the person cannot tell from a key the
   server refuses. It stays so until the slice that asks questions, and no real run has confirmed
   either reading yet: the first real run checks both.
+- **A remote surface stays disconnected after the TUI's owner ended.** A Session carrier serves the
+  owner it was created with. When the TUI holder's owner ends and the holder opens a new one, an
+  open remote surface keeps reading disconnected until the Machine is selected again. A loss the
+  owner re-attaches heals by itself, since the carrier keeps its owner.
 
 ### Client owner
 
@@ -1064,6 +1072,8 @@ when none runs, and restores the caller's last `presence`, `asks` and `watch`.
   nothing holding it. The owner never starts a hub in reaction: it waits for that hub to go and
   attaches to one somebody else starts. Ten seconds after the endpoint is gone it ends
   `closing`; a hub of another version that appears is reported `incompatible` and left running.
+  A client that opens a new owner afterwards keeps the rule: the [TUI](#the-tui-as-a-hub-client)
+  starts the next hub only on a person's act, and uninstall relies on that.
 - **Bound.** One attempt has 10 seconds. A hub that is stopping is waited for until 75 seconds
   after the loss: the allowance, the writers' bound, and a margin. A fifth loss within 60 seconds
   ends the owner `unavailable` instead, so a hub that drops every connection cannot keep it
@@ -1179,14 +1189,18 @@ the [client owner](#client-owner). It starts no `ssh`, runs no remote program an
 the hub's carrier is the one connection to each Machine, which the picker, discovery, remote
 terminals, Workspace switches, Agents mode and every `orchbee --machine` command share.
 
-| Rule             | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Presence         | The first catalog read that holds an enabled Machine of a known connection kind starts one background holder. It attaches with `presence` and `watch`, starting a hub when none runs, and keeps that attachment, across the owner's re-attachments, until the TUI exits. The hub's countdown begins only when its last holder leaves, so a TUI opened again within the expiry finds each Machine as the hub kept it: `online` at once, on the same carrier child. A TUI whose catalog never holds such a Machine starts no hub |
-| No questions     | The holder attaches with `asks` false until this TUI shows login notices, so no command waits on it for a login. A Machine that would need a password, a passphrase or trust in a new host shows its state, and nothing asks                                                                                                                                                                                                                                                                                                   |
-| Off the frame    | Attaching, the hub's events, every request and every channel run on background threads that publish into one shared view and wake the UI loop. A frame reads that view and never waits for the hub                                                                                                                                                                                                                                                                                                                             |
-| Hub out of reach | When no hub can be started or reached, or the owner ends, every remote row reads Unavailable, the picker's status line says that machine connections are unavailable and Local remains available, and selecting a Machine fails at once. The holder attaches again under the [retry policy](#carrying-a-machine), and the rows clear once it does. Local work, its Panels and its Session are untouched                                                                                                                        |
-| Catalog          | The TUI rereads `machines.json` every second. When the revision it read differs from the hub's last `catalog` revision, the holder asks the hub to `reload`, once per revision, so a Machine saved, changed or removed while the TUI runs reaches the hub                                                                                                                                                                                                                                                                      |
-| Re-attachment    | After `reattached` the view forgets every Machine state until the new hub reports it again; the rows show no word meanwhile                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Rule            | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Presence        | The first catalog read that holds an enabled Machine of a known connection kind starts one background holder. It attaches with `presence` and `watch`, starting a hub when none runs, and keeps that attachment, across the owner's re-attachments, until the TUI exits or its hub is asked to stop. The hub's countdown begins only when its last holder leaves, so a TUI opened again within the expiry finds each Machine as the hub kept it: `online` at once, on the same carrier child. A TUI whose catalog never holds such a Machine starts no hub                                                                                                                                                            |
+| No questions    | The holder attaches with `asks` false until this TUI shows login notices, so no command waits on it for a login. A Machine that would need a password, a passphrase or trust in a new host shows its state, and nothing asks. The slice that turns `asks` true must, in the same change, send the selection's `connect` with `origin` `user` and `answers` true                                                                                                                                                                                                                                                                                                                                                       |
+| Off the frame   | Attaching, the hub's events, every request and every channel run on background threads that publish into one shared view and wake the UI loop. A frame reads that view and never waits for the hub                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Row words       | A row shows the hub's state of the Machine only while the holder's owner holds a live connection and the hub has not said it is closing. Otherwise it reads what the holder knows of the hub: Unknown while it attaches or re-attaches, or while the hub has not reported the Machine; Stopped; or Unavailable. No row reads Online without a live attachment, and the holder notices a lost connection within 100 ms                                                                                                                                                                                                                                                                                                 |
+| Hub stopped     | A hub that says it is closing, or that an attachment finds closing, was asked to stop, by a person or by uninstall, or expired with nothing holding it. The holder starts no hub in its place: its rows read Stopped, the picker's status line says machine connections stopped and that choosing a Machine starts them, and Local remains available. The holder joins a hub somebody else starts, which it looks for once a second, and a selection, a person's act, starts one                                                                                                                                                                                                                                      |
+| Hub crashed     | A connection lost without `closing` is the owner's to re-attach, starting a hub when none runs. When the owner ends, or no hub could start, the rows read Unavailable and the picker's status line says machine connections are unavailable; the holder starts a hub again under the [retry policy](#carrying-a-machine), but none in place of a hub that answers it is stopping. A selection skips the pause                                                                                                                                                                                                                                                                                                         |
+| Lasting failure | A failure that trying again cannot cure is not retried on a timer: a hub of another version that something still holds, another environment's hub, another user's endpoint, a protocol violation, or a data root that cannot be used. The rows read Unavailable with the error tone, the picker's status line says machine connections cannot start, and the selected row's details say why and what to do, naming the held version. The holder waits on that hub's process, or looks at its endpoint name once a second when it cannot open the process, and attaches again once the hub is gone; a selection tries once more at once. A data root that cannot be used names no hub, so only a selection tries again |
+| Exit            | Quitting asks the holder to stop and does not wait for it, so the terminal is restored at once. An attachment in progress ends at once and starts no hub; the holder's thread writes nothing to the terminal, holds nothing that keeps the process alive, and ends with the process                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Catalog         | The TUI rereads `machines.json` every second. When the revision it read differs from the hub's last `catalog` revision, the holder asks the hub to `reload`, once per revision, so a Machine saved, changed or removed while the TUI runs reaches the hub                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Re-attachment   | After `reattached` the view forgets every Machine state until the new hub reports it again; the rows read Unknown meanwhile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### Session carrier
 
@@ -1300,12 +1314,20 @@ words. Details and actions per state come with the machine status screens.
 | `unsupported`                          | Unsupported / 不支持        | Error       |
 | `incompatible`                         | Incompatible / 不兼容       | Error       |
 | `unknown`, or a state this build lacks | Unknown / 未知              | Neutral     |
-| No hub can be started or reached       | Unavailable / 不可用        | Warning     |
+
+When the hub's state of a Machine does not hold, as [row words](#the-tui-as-a-hub-client) set out,
+the row reads the holder's knowledge instead:
+
+| The holder                                              | Word (en-US / zh-CN) | Tone    |
+| ------------------------------------------------------- | -------------------- | ------- |
+| Attaches or re-attaches, or the hub has not reported it | Unknown / 未知       | Neutral |
+| Found the hub asked to stop, or closing                 | Stopped / 已停止     | Neutral |
+| Reaches no hub for now and tries again                  | Unavailable / 不可用 | Warning |
+| Cannot use a hub until a cause outside it goes          | Unavailable / 不可用 | Error   |
 
 A disabled record reads Disabled / 已停用 from the catalog, and a connection kind this build does
-not know reads Unsupported, without asking the hub. A Machine the hub has not reported yet shows no
-word. Installing arrives with remote installation. The former Waiting, Needs attention and Stale
-words are retired.
+not know reads Unsupported / 不支持, without asking the hub; the CLI uses the same words. Installing
+arrives with remote installation. The former Waiting, Needs attention and Stale words are retired.
 
 ### Observers
 
@@ -1340,7 +1362,8 @@ Local sidebar checkpoints and remote summaries preserve those same Workspace ide
   carrier through failure delivery; the UI clears its cached origin and both collectors retire
   their cached sources/subscriptions before acknowledging retirement. The observer clears its
   mailbox and releases its last carrier guard on its own thread. The catalog's 64 records bound the
-  observers; shutdown cancels every observer and the holder before joins.
+  observers; shutdown cancels and joins every observer, and asks the holder to stop without
+  joining it.
 
 ### Selection
 
@@ -1364,10 +1387,13 @@ to the selection, and `Enter` accepts only a selection inside the painted viewpo
 so an `Enter` after scrolling it away only reveals it. Explicit
 selection of a Machine the hub does not read `online` asks the hub to `connect` it, with origin
 `command` and `answers` false while this TUI cannot answer questions; the request joins the hub's
-attempt or starts one at once. Selection waits at most 60 seconds for the Machine `online` and a
+attempt or starts one at once. While the holder reaches no hub, the selection asks it for one, a
+person's act that starts a hub even after a stop, and waits for it within the same bound.
+Selection waits at most 60 seconds for the Machine `online` and a
 fresh observer, reuses the observer's admitted origin on a logical lane of the same carrier, and
 commits only a drawable candidate. A `connect` that ends without `online` fails the selection at
-once with the generic failure, and a hub out of reach with the hub message; the row keeps its word.
+once with the generic failure; an attachment the selection asked for that fails, or a lasting
+failure, fails it with the hub message. The row keeps its word.
 Selection
 failure, expiry or Escape preserves the current surface. Escape cancels the selection, while
 discovery continues. Retry applies only to observations, never submitted terminal input or Client

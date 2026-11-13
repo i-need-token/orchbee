@@ -11,8 +11,10 @@ use std::{
 /// Process-exit bound on Client background cleanup. It is the longest deadline that a background
 /// owner can still be inside after it observes a stop request: the plugin overlay read, the
 /// configured-command run, and the Windows system-notification delivery each allow ten seconds.
-/// Longer operation deadlines, such as Agent start, machine discovery, and the independent popup,
-/// end at the stop request instead of running to their deadline.
+/// Longer operation deadlines, such as Agent start, machine discovery's observers, and the
+/// independent popup, end at the stop request instead of running to their deadline. The machine
+/// hub holder is asked to stop and never waited for: it writes nothing to the terminal and ends
+/// with the process.
 pub const EXIT_BUDGET: Duration = Duration::from_secs(10);
 
 /// Interval at which a deadline wait observes an unfinished thread again.

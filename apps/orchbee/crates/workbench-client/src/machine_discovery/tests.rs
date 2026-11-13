@@ -89,15 +89,17 @@ fn profile_generations_survive_rename_replacement_and_readd() {
     profiles[0].draft.connection = crate::machines::Connection::ssh("replacement.invalid").unwrap();
     d.reconcile(&profiles, Some(1), now);
     assert_ne!(d.entries[0].generation, generation);
+    // The replaced endpoint's observer cannot fail a selection of the replacement.
     d.entries[0].accept(Update {
         generation,
         event: Event::Failed {
             permanent: true,
-            refusal: None,
+            refusal: Some(Refusal::SessionTooOld),
             at: now,
         },
     });
-    assert_eq!(d.entries[0].policy.phase, Phase::Waiting);
+    assert!(!d.failed(&profiles[0]));
+    assert_eq!(d.refusal(&profiles[0]), None);
     let replacement = d.entries[0].generation;
     profiles[0].enabled = false;
     d.reconcile(&profiles, Some(1), now);
@@ -122,11 +124,17 @@ fn profile_generations_survive_rename_replacement_and_readd() {
     drop(d); // All workers observe cancellation before the first join.
 }
 #[test]
-fn every_hub_state_reads_as_one_distinct_localized_word_with_its_tone() {
+fn every_hub_state_reads_as_one_distinct_localized_word_and_only_online_reads_as_success() {
+    let blocked = Observation::Hub(HubStatus::Blocked(Blocked::Held {
+        version: "0.0.1".into(),
+    }));
     let rows: Vec<_> = MachineStateName::ALL
         .iter()
         .map(|&state| Observation::State(state))
-        .chain([Observation::Unavailable])
+        .chain([
+            Observation::Hub(HubStatus::Stopped),
+            Observation::Hub(HubStatus::Unavailable),
+        ])
         .collect();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut words = std::collections::HashSet::new();
@@ -135,18 +143,25 @@ fn every_hub_state_reads_as_one_distinct_localized_word_with_its_tone() {
             assert!(!word.is_empty(), "{locale:?} {row:?}");
             assert!(words.insert(word), "{locale:?} {row:?} repeats {word}");
         }
+        // A state the hub does not report now reads as not known; a lasting cause is explained.
+        assert!(
+            !locale
+                .machine_picker_text(Observation::Hub(HubStatus::Unknown).key())
+                .is_empty()
+        );
+        assert!(locale.machine_hub_detail(&HubStatus::Stopped).is_some());
+        let Observation::Hub(status) = &blocked else {
+            unreachable!()
+        };
+        assert!(locale.machine_hub_detail(status).unwrap().contains("0.0.1"));
     }
-    // Needing a login is not an error; a refused login is.
-    for (state, tone) in [
-        (MachineStateName::Online, Tone::Success),
-        (MachineStateName::Reconnecting, Tone::Progress),
-        (MachineStateName::NeedsLogin, Tone::Neutral),
-        (MachineStateName::Unresponsive, Tone::Warning),
-        (MachineStateName::LoginFailed, Tone::Error),
-    ] {
-        assert_eq!(Observation::State(state).tone(), tone, "{state:?}");
+    for row in rows
+        .iter()
+        .chain([&blocked, &Observation::Hub(HubStatus::Unknown)])
+    {
+        let online = matches!(row, Observation::State(MachineStateName::Online));
+        assert_eq!(row.tone() == Tone::Success, online, "{row:?}");
     }
-    assert_eq!(Observation::Unavailable.tone(), Tone::Warning);
 }
 fn next_update(worker: &Worker) -> Update {
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -229,7 +244,7 @@ fn terminal_subscription_refusals_require_attention_without_automatic_retry() ->
         d.reconcile(&[profile(1)], Some(1), Instant::now());
         online(&mut d, &[profile(1)]);
         d.entries[0].accept(update);
-        assert_eq!(d.entries[0].policy.phase, Phase::Attention);
+        assert!(d.failed(&profile(1)));
         d.start_due(Instant::now() + Duration::from_secs(3600), |_, _| {
             panic!("permanent refusal retried")
         });
@@ -396,7 +411,6 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
     assert!(matches!(reset.event, Event::Reset));
     d.entries[0].accept(reset);
     d.tick(Instant::now());
-    assert_eq!(d.entries[0].policy.phase, Phase::Reconnecting);
     assert!(d.connection(&p, Instant::now()).is_none());
     assert!(
         !d.entries[0].worker.as_ref().unwrap().finished(),

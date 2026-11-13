@@ -12,7 +12,8 @@
 //! it is killed and ends with `machine disconnect` and with the hub; a child receives no `ORCHBEE_*`
 //! or terminal variable; and a far end that closes at once is the Machine's state. Routed commands
 //! start the hub, connect the Machine and share its one carrier, answer as the far Session does, and
-//! end with a definite failure when the carrier ends under them; a Session stream through the hub
+//! end with a definite failure when the carrier ends under them; a routed path operand is resolved
+//! by the far business process against the far home; a Session stream through the hub
 //! carries bytes both ways, its client leaving keeps the hub and the Machine, and `stop-session`
 //! stops the far Session through the link. Every hub runs a stand-in, so no test starts `ssh` or
 //! names a reachable machine.
@@ -925,6 +926,58 @@ fn routed_commands_share_one_carrier_answer_as_the_far_side_and_end_definitely_w
     one_child(&hub, Some(child.pid));
 }
 
+/// Commands whose path operand names the home, and what the usage failure of an invalid home names.
+const HOME_PATH_COMMANDS: &[(&[&str], &str)] = &[
+    (&["plugin", "link", r"~\remote"], "<path>"),
+    (
+        &["workspace", "create", "--cwd", r"~\remote"],
+        "USERPROFILE",
+    ),
+    (&["worktree", "list", "--cwd", r"~\remote"], "USERPROFILE"),
+    (&["worktree", "create", "--cwd", r"~\remote"], "USERPROFILE"),
+    (
+        &["worktree", "create", "--path", r"~\remote"],
+        "USERPROFILE",
+    ),
+    (&["worktree", "open", "--path", r"~\remote"], "USERPROFILE"),
+];
+
+/// A path operand reaches the far side as written, and the far business process resolves it
+/// against the far home. This side's home is valid and the far end's is not, so only a resolution
+/// there fails; it fails as the far command's usage failure, names the variable and never its
+/// value, and creates nothing in the far profile.
+#[test]
+fn a_routed_home_path_is_resolved_by_the_far_business_process_against_the_far_home() {
+    let mut carried = Carried::new("mr1-home-", false);
+    let far_profile = PathBuf::from(carried.fixture.path("farprofile"));
+    let root = carried.root.path().as_os_str().to_owned();
+    carried.far_environment(&[
+        ("USERPROFILE", OsString::from("private-invalid-home")),
+        ("ORCHBEE_HOME", root),
+        ("APPDATA", far_profile.join("roaming").into_os_string()),
+        ("LOCALAPPDATA", far_profile.join("local").into_os_string()),
+    ]);
+    let connected = carried.run(&["machine", "connect", FIRST]);
+    assert_eq!(connected.code, Some(0), "{connected}");
+    for (command, expected) in HOME_PATH_COMMANDS {
+        let routed = carried.output(&[&["--machine", FIRST][..], command].concat());
+        let diagnostic = String::from_utf8_lossy(&routed.stderr);
+        assert_eq!(routed.status.code(), Some(2), "{command:?}: {diagnostic}");
+        let document: Value = serde_json::from_slice(&routed.stdout)
+            .unwrap_or_else(|_| panic!("{command:?}: {diagnostic}"));
+        assert_eq!(
+            document["failure"]["kind"], "invalid-usage",
+            "{command:?}: {document}"
+        );
+        assert!(diagnostic.contains(expected), "{command:?}: {diagnostic}");
+        assert!(
+            !diagnostic.contains("private-invalid-home"),
+            "{command:?}: {diagnostic}"
+        );
+    }
+    assert!(!far_profile.exists(), "the far side wrote profile data");
+}
+
 #[test]
 fn a_session_stream_through_the_hub_carries_both_ways_and_its_client_leaving_keeps_the_machine() {
     let carried = Carried::new("mr1-stream-", false);
@@ -1085,6 +1138,21 @@ impl Carried {
             root,
             stand_in,
         }
+    }
+
+    /// Runs the far end through a script that sets `far` first, as a far machine whose own
+    /// environment differs from this side's. Takes effect for a hub started afterwards.
+    fn far_environment(&mut self, far: &[(&str, OsString)]) {
+        let client =
+            Path::new(&self.fixture.path("cohort")).join(CohortArtifact::Client.file_name());
+        let script = PathBuf::from(self.fixture.path("standin/far.cmd"));
+        let mut text = String::from("@echo off\r\n");
+        for (name, value) in far {
+            text.push_str(&format!("set \"{name}={}\"\r\n", value.to_string_lossy()));
+        }
+        text.push_str(&format!("\"{}\" %*\r\n", client.display()));
+        fs::write(&script, text).unwrap();
+        self.stand_in = script;
     }
 
     /// The CLI under test with the stand-in set, so a hub it starts runs no `ssh`.

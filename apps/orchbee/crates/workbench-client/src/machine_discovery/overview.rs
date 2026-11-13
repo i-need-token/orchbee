@@ -83,16 +83,43 @@ pub fn display_label(value: &str) -> String {
     }
     label
 }
-/// A saved machine's row: the hub's state of the Machine, its overview while one is observed, or
-/// the hub out of reach. A Machine the hub has not reported has none.
+/// A saved machine's row: the hub's current state of the Machine, its overview while one is
+/// observed, or why no state of the hub's holds now.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Observation {
-    /// No hub can be started or reached.
-    Unavailable,
+    /// The TUI holds no live connection to a hub that reports the Machine.
+    Hub(HubStatus),
     /// The hub's state, without a current overview.
     State(MachineStateName),
     /// The hub reads the Machine `online` and its observer holds a current overview.
     Online(Overview),
+}
+/// Why no Machine state of the hub's holds now.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HubStatus {
+    /// An attachment is being made or restored, the hub is closing, or the hub has not reported
+    /// the Machine: its state is not known now.
+    Unknown,
+    /// The hub was asked to stop; a selection starts one.
+    Stopped,
+    /// No hub could be started or reached; the TUI tries again.
+    Unavailable,
+    /// A failure that trying again cannot cure, until its cause goes or a selection asks again.
+    Blocked(Blocked),
+}
+/// A hub failure that trying again cannot cure.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Blocked {
+    /// A hub of another version runs, held by a Session or a client of that version.
+    Held { version: String },
+    /// A build of another environment serves this data root.
+    Environment { environment: String },
+    /// The endpoint refused this process, or another user's hub serves it.
+    Denied,
+    /// The hub answered outside the contract.
+    Protocol,
+    /// The data root or its machines folder is unavailable.
+    DataRoot,
 }
 /// What a row's word means at a glance; render chooses the color.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -107,7 +134,9 @@ impl Observation {
     /// The picker message of the row's word.
     pub(crate) fn key(&self) -> &'static str {
         match self {
-            Self::Unavailable => "hub-unavailable",
+            Self::Hub(HubStatus::Unknown) => "unknown",
+            Self::Hub(HubStatus::Stopped) => "hub-stopped",
+            Self::Hub(HubStatus::Unavailable | HubStatus::Blocked(_)) => "hub-unavailable",
             Self::Online(_) => "online",
             Self::State(name) => match name {
                 MachineStateName::Online => "online",
@@ -132,7 +161,9 @@ impl Observation {
     }
     pub(crate) fn tone(&self) -> Tone {
         match self {
-            Self::Unavailable => Tone::Warning,
+            Self::Hub(HubStatus::Unknown | HubStatus::Stopped) => Tone::Neutral,
+            Self::Hub(HubStatus::Unavailable) => Tone::Warning,
+            Self::Hub(HubStatus::Blocked(_)) => Tone::Error,
             Self::Online(_) => Tone::Success,
             Self::State(name) => match name {
                 MachineStateName::Online => Tone::Success,

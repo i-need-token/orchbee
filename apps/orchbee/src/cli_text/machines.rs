@@ -58,7 +58,7 @@ impl super::CliText {
             C::MachineList => (
                 "orchbee machine list [--json | --format text|json]",
                 "Read the saved machine catalog without contacting any machine or creating directories. Enabled is a saved preference, not a live connection observation. A machine a later version saved with a connection kind this version does not know is listed as unsupported.",
-                "读取已保存的机器目录，不连接任何机器，也不创建目录。启用状态是已保存的偏好，不代表实时连接。更新版本保存的、使用此版本不认识的连接方式的机器显示为此版本不支持。",
+                "读取已保存的机器目录，不连接任何机器，也不创建目录。启用状态是已保存的偏好，不代表实时连接。更新版本保存的、使用此版本不认识的连接方式的机器显示为不支持。",
             ),
             C::MachineAdd => (
                 "orchbee machine add <ssh-target> [--label <label>] [--remote-session <name>] [--no-install] [--format text|json]",
@@ -83,7 +83,7 @@ impl super::CliText {
             C::MachineDisable => (
                 "orchbee machine disable <id|label> [--format text|json]",
                 "Disable the saved machine without stopping its remote session.",
-                "禁用已保存的机器，不停止远端会话。",
+                "停用已保存的机器，不停止远端会话。",
             ),
             C::MachineConnect => (
                 "orchbee machine connect <id|label> [--remember] [--format text|json]",
@@ -113,9 +113,9 @@ impl super::CliText {
             (Locale::EnUs, "enabled") => "enabled",
             (Locale::ZhCn, "enabled") => "已启用",
             (Locale::EnUs, "disabled") => "disabled",
-            (Locale::ZhCn, "disabled") => "已禁用",
-            (Locale::EnUs, "unsupported") => "unsupported by this version",
-            (Locale::ZhCn, "unsupported") => "此版本不支持",
+            (Locale::ZhCn, "disabled") => "已停用",
+            (Locale::EnUs, "unsupported") => "unsupported",
+            (Locale::ZhCn, "unsupported") => "不支持",
             (Locale::EnUs, "unsupported-machine") => {
                 "This version does not support how this machine is connected."
             }
@@ -218,7 +218,7 @@ impl super::CliText {
                 "This machine is disabled. Run 'orchbee machine enable' first."
             }
             (Locale::ZhCn, "disabled-machine") => {
-                "这台机器已禁用，请先运行 ‘orchbee machine enable’。"
+                "这台机器已停用，请先运行 ‘orchbee machine enable’。"
             }
             (Locale::EnUs, "hub-unavailable") => {
                 "The background machine hub could not be reached or started. Try again."

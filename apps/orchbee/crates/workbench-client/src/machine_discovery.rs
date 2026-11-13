@@ -3,7 +3,7 @@
 mod hub;
 pub(crate) mod overview;
 mod policy;
-pub use overview::{Context, Observation, Overview, display_label};
+pub use overview::{Blocked, Context, HubStatus, Observation, Overview, display_label};
 #[cfg(test)]
 mod tests;
 mod worker;
@@ -273,32 +273,43 @@ impl Discovery {
             }
         }
     }
-    fn observation(&self, entry: &Entry, now: Instant) -> Option<Observation> {
-        if self.hub.reach == Reach::Unavailable {
-            return Some(Observation::Unavailable);
+    /// Why no state of the hub's holds now, while the holder has no live attachment.
+    fn hub_status(&self) -> Option<HubStatus> {
+        match &self.hub.reach {
+            Reach::Attached => None,
+            Reach::Attaching => Some(HubStatus::Unknown),
+            // A closing hub was asked to stop, or expired: it reads stopped while it goes.
+            Reach::Closing | Reach::Stopped => Some(HubStatus::Stopped),
+            Reach::Unavailable => Some(HubStatus::Unavailable),
+            Reach::Blocked(blocked) => Some(HubStatus::Blocked(blocked.clone())),
         }
-        let state = self.hub.state(&entry.profile.id)?;
+    }
+    fn observation(&self, entry: &Entry, now: Instant) -> Observation {
+        if let Some(status) = self.hub_status() {
+            return Observation::Hub(status);
+        }
+        let Some(state) = self.hub.state(&entry.profile.id) else {
+            return Observation::Hub(HubStatus::Unknown);
+        };
         if state != MachineStateName::Online {
-            return Some(Observation::State(state));
+            return Observation::State(state);
         }
         if let Some(refusal) = entry.refusal {
-            return Some(Observation::State(refused(refusal)));
+            return Observation::State(refused(refusal));
         }
-        Some(
-            entry
-                .ready
-                .as_ref()
-                .filter(|r| r.connection.is_current(now))
-                .map_or(Observation::State(state), |r| {
-                    Observation::Online(r.overview.clone())
-                }),
-        )
+        entry
+            .ready
+            .as_ref()
+            .filter(|r| r.connection.is_current(now))
+            .map_or(Observation::State(state), |r| {
+                Observation::Online(r.overview.clone())
+            })
     }
-    /// One observation per Machine the hub reported, or every Machine while no hub is reached.
+    /// One observation per Machine: the hub's current state, or why none holds now.
     pub fn observations(&self, now: Instant) -> Vec<(ProfileId, Observation)> {
         self.entries
             .iter()
-            .filter_map(|e| Some((e.profile.id.clone(), self.observation(e, now)?)))
+            .map(|e| (e.profile.id.clone(), self.observation(e, now)))
             .collect()
     }
     pub fn connection(&self, profile: &Profile, now: Instant) -> Option<Connection> {
@@ -306,14 +317,14 @@ impl Discovery {
             .iter()
             .find(|e| {
                 same_endpoint(&e.profile, profile)
-                    && matches!(self.observation(e, now), Some(Observation::Online(_)))
+                    && matches!(self.observation(e, now), Observation::Online(_))
             })
             .and_then(|e| e.ready.as_ref().map(|r| r.connection.clone()))
     }
-    /// Whether a selection of `profile` fails now: no hub is reached, the hub's `connect` ended
-    /// without `online`, or the observer of an `online` Machine failed.
+    /// Whether a selection of `profile` fails now: no holder can reach a hub, the selection's ask
+    /// found no hub or ended without `online`, or the observer of an `online` Machine failed.
     pub fn failed(&self, profile: &Profile) -> bool {
-        self.hub_unavailable()
+        (self.holder.is_none() && self.hub.reach != Reach::Attached)
             || self.hub.asks.get(profile.id.as_str()) == Some(&Ask::Failed)
             || self.entries.iter().any(|e| {
                 same_endpoint(&e.profile, profile)
@@ -329,12 +340,21 @@ impl Discovery {
             .find(|e| same_endpoint(&e.profile, profile))
             .and_then(|entry| entry.refusal)
     }
-    /// Whether no hub can be started or reached now.
-    pub fn hub_unavailable(&self) -> bool {
-        self.hub.reach == Reach::Unavailable
+    /// The picker's message while machine connections are out of reach for longer than an
+    /// attachment: stopped, unavailable, or blocked.
+    pub fn hub_message(&self) -> Option<&'static str> {
+        if self.entries.is_empty() {
+            return None;
+        }
+        match self.hub_status()? {
+            HubStatus::Unknown => None,
+            HubStatus::Stopped => Some("hub-message-stopped"),
+            HubStatus::Unavailable => Some("hub"),
+            HubStatus::Blocked(_) => Some("hub-message-blocked"),
+        }
     }
     /// A selection asks again: the observer's hold and refusal clear, and a Machine the hub does
-    /// not read `online` is asked to `connect`.
+    /// not read `online` is asked to `connect`, which starts a hub when none is reached.
     pub fn retry(&mut self, id: &ProfileId, now: Instant) {
         if let Some(entry) = self.entries.iter_mut().find(|e| &e.profile.id == id) {
             entry.refusal = None;
@@ -353,23 +373,20 @@ impl Discovery {
     }
 }
 impl Discovery {
-    /// Process exit: observes the holder and every observer thread against the shared deadline
-    /// after all of them were cancelled.
+    /// Process exit: observes every observer thread against the shared deadline after all of them
+    /// and the holder were cancelled. The holder is not waited for: after the stop request it
+    /// starts nothing and writes nothing to the terminal, and exit leaves it detached.
     ///
     /// # Errors
     /// TimedOut when an observer is still running at the deadline; it is detached on drop.
     pub fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
         self.request_stop();
-        let holder = self
-            .holder
-            .as_mut()
-            .map_or(Ok(()), |holder| holder.stop_before(deadline));
         self.entries
             .iter_mut()
             .filter_map(|entry| entry.worker.as_mut())
             .chain(&mut self.retired)
             .map(|worker| worker.stop_before(deadline))
-            .fold(holder, io::Result::and)
+            .fold(Ok(()), io::Result::and)
     }
 
     /// Wakes all I/O owners and cancels every observer and the holder without waiting.

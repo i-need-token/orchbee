@@ -108,6 +108,30 @@ pub enum ChannelFailure {
     Ended(AttachFailure),
 }
 
+/// Whether [`HubClient::open_with`] may start a hub.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Opening {
+    /// Start one when none runs, once a closing hub is gone.
+    Start,
+    /// Start one when none runs, as the owner's re-attachment does; a hub answering `stopping`
+    /// fails the call `closing` at once, since it was asked to stop.
+    Restart,
+    /// Attach only to a hub somebody else started; a hub of another version is reported, not
+    /// replaced, and no hub at the deadline fails `closing`.
+    Join,
+}
+
+/// Ends an open in progress from another thread. Once [`OpenCancel::cancel`] returns, no start is
+/// under way and none begins, and every open that takes it fails `timeout` at once.
+#[derive(Default)]
+pub struct OpenCancel(Cancel);
+
+impl OpenCancel {
+    pub fn cancel(&self) {
+        self.0.cancel();
+    }
+}
+
 /// One attachment to the hub of this process's data root, kept across the hub going away.
 pub struct HubClient {
     inner: Arc<Inner>,
@@ -197,14 +221,28 @@ impl HubClient {
         attachment: Attachment,
         deadline: Instant,
     ) -> Result<(Self, Attached), AttachFailure> {
+        Self::open_with(attachment, deadline, Opening::Start, &OpenCancel::default())
+    }
+
+    /// Attaches as `attachment` within `deadline`, starting a hub only as `opening` allows, until
+    /// `cancel` ends the attempt.
+    ///
+    /// # Errors
+    ///
+    /// As [`HubClient::open`]; `timeout` once cancelled.
+    pub fn open_with(
+        attachment: Attachment,
+        deadline: Instant,
+        opening: Opening,
+        cancel: &OpenCancel,
+    ) -> Result<(Self, Attached), AttachFailure> {
         let root = data_root()?;
-        let link = attach::attach(
-            &root,
-            attachment,
-            deadline,
-            Start::Always,
-            &Cancel::default(),
-        )?;
+        let start = match opening {
+            Opening::Start => Start::Always,
+            Opening::Restart => Start::UntilStopping,
+            Opening::Join => Start::Never,
+        };
+        let link = attach::attach(&root, attachment, deadline, start, &cancel.0)?;
         let attached = link.attached;
         let inner = Arc::new(Inner {
             root,
@@ -343,6 +381,13 @@ impl HubClient {
                 return None;
             }
         }
+    }
+
+    /// Whether the owner holds a connection to a hub not seen stopping: false from a loss until the
+    /// re-attachment, once the hub said it is closing, and after the end. Never waits.
+    pub fn connected(&self) -> bool {
+        let state = self.inner.lock();
+        state.current.is_some() && !state.stopping && state.ended.is_none()
     }
 
     /// Opens `channel` on the attached connection, waiting for one while re-attaching and for room

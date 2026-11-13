@@ -9,9 +9,10 @@ mod holders;
 mod owner;
 mod sessions;
 
-pub use control::{EndFailure, end, running};
+pub use control::{EndFailure, HubWatch, end, present, running};
 pub use owner::{
-    ChannelDelivery, ChannelFailure, ChannelHandle, HubClient, Notice, RequestFailure,
+    ChannelDelivery, ChannelFailure, ChannelHandle, HubClient, Notice, OpenCancel, Opening,
+    RequestFailure,
 };
 pub use sessions::{SessionRead, read_sessions, runtime_base};
 

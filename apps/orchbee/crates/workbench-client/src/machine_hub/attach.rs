@@ -64,8 +64,8 @@ pub(super) enum Start {
     /// Whenever no endpoint exists, once a closing hub is gone too: `open`.
     Always,
     /// Whenever no endpoint exists, until a hub this call did not drain answers `stopping`, which
-    /// ends the call `closing` at once: the owner's re-attachment after a lost connection, whose
-    /// hub may have been asked to stop.
+    /// ends the call `closing` at once: the owner's re-attachment after a lost connection, and a
+    /// holder's restart after its owner ended, whose hub may have been asked to stop.
     UntilStopping,
     /// Never: the owner's re-attachment after its hub was asked to stop. The call attaches to a hub
     /// somebody else starts, reports a hub of another version without replacing it, and fails

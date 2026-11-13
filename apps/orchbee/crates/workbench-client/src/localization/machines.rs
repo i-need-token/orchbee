@@ -1,6 +1,7 @@
 //! Localized machine and sidebar descriptions; navigation/filter/drop owners select the facts.
 
 use super::Locale;
+use crate::machine_discovery::{Blocked, HubStatus};
 /// Description of one sidebar command selected by its navigation owner.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarActionLabel {
@@ -180,6 +181,8 @@ impl Locale {
             (Self::ZhCn, "unknown") => "未知",
             (Self::EnUs, "hub-unavailable") => "Unavailable",
             (Self::ZhCn, "hub-unavailable") => "不可用",
+            (Self::EnUs, "hub-stopped") => "Stopped",
+            (Self::ZhCn, "hub-stopped") => "已停止",
             // A Workspace row whose last checkpoint outlived its source.
             (Self::EnUs, "stale") => "Stale",
             (Self::ZhCn, "stale") => "状态已过期",
@@ -289,6 +292,14 @@ impl Locale {
             (Self::ZhCn, "catalog") => "机器目录不可用，仍可选择本地。",
             (Self::EnUs, "hub") => "Machine connections are unavailable. Local remains available.",
             (Self::ZhCn, "hub") => "机器连接不可用，仍可使用本地。",
+            (Self::EnUs, "hub-message-stopped") => {
+                "Machine connections stopped. Choose a machine to start them."
+            }
+            (Self::ZhCn, "hub-message-stopped") => "机器连接已停止，选择机器即可重新开始。",
+            (Self::EnUs, "hub-message-blocked") => {
+                "Machine connections cannot start; the machine's details say why."
+            }
+            (Self::ZhCn, "hub-message-blocked") => "机器连接无法开始，原因见机器详情。",
             (Self::EnUs, "failed") => {
                 "Connection failed. Check SSH readiness, then choose to retry."
             }
@@ -296,7 +307,7 @@ impl Locale {
             (Self::EnUs, "removed") => {
                 "Machine removed or disabled. Choose Local or another machine."
             }
-            (Self::ZhCn, "removed") => "机器已删除或禁用，请选择本地或其他机器。",
+            (Self::ZhCn, "removed") => "机器已删除或停用，请选择本地或其他机器。",
             // Refusals name the side that must change; each line fits the 70-column picker.
             (Self::EnUs, "refused-environment") => {
                 "The remote Orchbee belongs to another environment.\nUse release on both, or builds from the same checkout path."
@@ -324,6 +335,58 @@ impl Locale {
             }
             _ => "",
         }
+    }
+
+    /// The selected row's explanation while no hub state holds: what happened and what the person
+    /// can do. Each line fits the 70-column picker; the row itself shows one word.
+    pub(crate) fn machine_hub_detail(self, status: &HubStatus) -> Option<String> {
+        let text = match (self, status) {
+            (_, HubStatus::Unknown) => return None,
+            (Self::EnUs, HubStatus::Stopped) => {
+                "Machine connections were stopped.\nChoosing this machine starts them again.".into()
+            }
+            (Self::ZhCn, HubStatus::Stopped) => "机器连接已被停止。\n选择这台机器会重新开始。".into(),
+            (Self::EnUs, HubStatus::Unavailable) => {
+                "Machine connections could not start.\nOrchbee tries again by itself.".into()
+            }
+            (Self::ZhCn, HubStatus::Unavailable) => {
+                "机器连接未能开始。\nOrchbee 会自动重试。".into()
+            }
+            (Self::EnUs, HubStatus::Blocked(Blocked::Held { version })) => format!(
+                "Orchbee {version} still holds machine connections.\nClose its windows and stop its Session; connections then resume."
+            ),
+            (Self::ZhCn, HubStatus::Blocked(Blocked::Held { version })) => format!(
+                "Orchbee {version} 仍占用着机器连接。\n关闭它的窗口并停止它的会话后，连接会自动恢复。"
+            ),
+            (Self::EnUs, HubStatus::Blocked(Blocked::Environment { environment })) => format!(
+                "Orchbee of another environment holds machine connections:\n{environment}. Close it; connections then resume."
+            ),
+            (Self::ZhCn, HubStatus::Blocked(Blocked::Environment { environment })) => format!(
+                "另一个环境的 Orchbee 占用着机器连接：\n{environment}。关闭它后，连接会自动恢复。"
+            ),
+            (Self::EnUs, HubStatus::Blocked(Blocked::Denied)) => {
+                "Another user's Orchbee holds machine connections here.\nThey resume once it closes."
+                    .into()
+            }
+            (Self::ZhCn, HubStatus::Blocked(Blocked::Denied)) => {
+                "另一个用户的 Orchbee 占用着这里的机器连接。\n它关闭后，连接会自动恢复。".into()
+            }
+            (Self::EnUs, HubStatus::Blocked(Blocked::Protocol)) => {
+                "Machine connections answered outside the protocol.\nChoose this machine to try again."
+                    .into()
+            }
+            (Self::ZhCn, HubStatus::Blocked(Blocked::Protocol)) => {
+                "机器连接的应答不符合协议。\n选择这台机器可再试一次。".into()
+            }
+            (Self::EnUs, HubStatus::Blocked(Blocked::DataRoot)) => {
+                "The Orchbee data folder is unavailable.\nCheck it, then choose this machine again."
+                    .into()
+            }
+            (Self::ZhCn, HubStatus::Blocked(Blocked::DataRoot)) => {
+                "Orchbee 数据目录不可用。\n检查后，再选择这台机器。".into()
+            }
+        };
+        Some(text)
     }
 
     pub(crate) fn machine_agent_control(self, control: MachineControlLabel) -> String {

@@ -382,17 +382,17 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
             .contains("在线")
     );
     let status_only = text.target(PickerAction::Row(1));
-    picker.observe(&[(
-        p.id,
-        Observation::State(orchbee_machine_protocol::hub::MachineStateName::Reconnecting),
-    )]);
+    let reconnecting =
+        Observation::State(orchbee_machine_protocol::hub::MachineStateName::Reconnecting);
+    picker.observe(&[(p.id, reconnecting.clone())]);
     assert!(
         picker.activate_drawn_picker(&status_only),
         "status-only refreshes retain the same semantic row authority"
     );
     assert!(picker.request.take().is_some());
+    // The row's one word follows the hub's state.
     let text = paint(&picker, Locale::EnUs, 80, 24);
-    assert!(text.contains("Reconnecting"));
+    assert!(text.contains(Locale::EnUs.machine_picker_text(reconnecting.key())));
     assert!(text.contains("0 machines"));
     assert!(!text.contains("Workspace B"));
 }
