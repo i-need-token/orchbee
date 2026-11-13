@@ -394,8 +394,7 @@ function hostStartCause(identity) {
 	if (file === undefined) return undefined;
 	const record = readFileSync(file, 'utf8')
 		.split(/\r?\n/u)
-		.filter((line) => line.includes('"event":"host-start-failed"'))
-		.at(-1);
+		.findLast((line) => line.includes('"event":"host-start-failed"'));
 	if (record === undefined) return undefined;
 	let fields;
 	try {
