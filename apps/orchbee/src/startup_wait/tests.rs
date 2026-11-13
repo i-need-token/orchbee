@@ -284,7 +284,10 @@ fn waiting_draws_prompt_once_then_admits_valid_geometry() {
     let drawn = String::from_utf8_lossy(&harness.output);
     assert!(drawn.contains("too small"));
     assert!(drawn.contains(Locale::EnUs.startup_wait_hint().trim_end()));
-    assert!(drawn.starts_with("\u{1b}[2J\u{1b}[1;1H"));
+    // One synchronized frame whose lines each return to the first column.
+    assert!(drawn.starts_with("\u{1b}[?2026h\u{1b}[2J\u{1b}[1;1H"));
+    assert!(drawn.ends_with("\u{1b}[?2026l"));
+    assert!(!drawn.replace("\r\n", "").contains('\n'));
     assert_eq!(input.timeouts.len(), 2);
 }
 

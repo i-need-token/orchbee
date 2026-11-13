@@ -29,7 +29,8 @@ use crate::{
         DispatchOutcome, InputDispatcher, PointerCaptureRequest, UnavailableTerminalInputPort,
     },
     terminal_lifecycle::{
-        PointerTrackingLevel, TerminalModeGuard, TerminalModes, write_ansi_command,
+        PointerTrackingLevel, SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END,
+        TerminalModeGuard, TerminalModes, write_ansi_command,
     },
     termination_signal::TerminationSource,
     tui_layout,
@@ -264,14 +265,22 @@ fn sample<V: WaitViewport>(
 }
 
 fn draw_prompt(output: &mut impl Write, prompt: WaitPrompt<'_>) -> io::Result<()> {
-    write_ansi_command(output, &Clear(ClearType::All))?;
-    write_ansi_command(output, &MoveTo(0, 0))?;
-    output.write_all(prompt.notice.as_bytes())?;
-    output.write_all(prompt.exit_hint.as_bytes())?;
+    // The waiting prompt is a whole frame, so it is one synchronized update like every session
+    // frame (docs/tui/terminal-environment.md), built first and written in one piece.
+    let mut frame = SYNCHRONIZED_UPDATE_BEGIN.to_vec();
+    write_ansi_command(&mut frame, &Clear(ClearType::All))?;
+    write_ansi_command(&mut frame, &MoveTo(0, 0))?;
+    for line in [prompt.notice, prompt.exit_hint] {
+        // Raw mode leaves a line feed without its carriage return on POSIX terminals.
+        frame.extend_from_slice(line.trim_end_matches('\n').as_bytes());
+        frame.extend_from_slice(b"\r\n");
+    }
     // The session renderer terminates every complete frame with a double
-    // reset; the waiting prompt is a whole frame too, so it closes the same
-    // way instead of leaving an open attribute state on the screen.
-    output.write_all(b"\x1b[0m\x1b[0m")?;
+    // reset; the waiting prompt closes the same way instead of leaving an
+    // open attribute state on the screen.
+    frame.extend_from_slice(b"\x1b[0m\x1b[0m");
+    frame.extend_from_slice(SYNCHRONIZED_UPDATE_END);
+    output.write_all(&frame)?;
     output.flush()
 }
 
