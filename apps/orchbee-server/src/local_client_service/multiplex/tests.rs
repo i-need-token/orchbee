@@ -538,9 +538,11 @@ fn title_changes_wake_only_the_published_title_read() {
     };
     let (mut peer, server) = bounded_pair();
     let signal = Arc::new(SessionChangeSignal::default());
-    let publisher = Arc::clone(&signal);
+    let waker = Arc::clone(&signal);
+    let (changes, pending) = std::sync::mpsc::channel::<fn(&SessionChangeSignal)>();
     let task = thread::spawn(move || {
         let mut value = 0u8;
+        let publisher = Arc::clone(&signal);
         run(
             &server,
             open(1, 1, StreamMode::State),
@@ -553,9 +555,20 @@ fn title_changes_wake_only_the_published_title_read() {
             no_job_read,
             |_| {},
             |_| {},
-            || Ok(None),
+            // A change is published as a pass begins, before any stream is evaluated, so one
+            // pass sees it whole whenever the test asks for it.
+            || {
+                for publish in pending.try_iter() {
+                    publish(&publisher);
+                }
+                Ok(None)
+            },
         )
     });
+    let publish = |change: fn(&SessionChangeSignal)| {
+        changes.send(change).unwrap();
+        waker.wake();
+    };
     fn frame(peer: &mut LocalStream, expected: u64, kind: StreamFrameKind) {
         let MultiplexMessage::StreamFrame {
             stream_id,
@@ -595,12 +608,13 @@ fn title_changes_wake_only_the_published_title_read() {
     .unwrap();
     frame(&mut peer, 2, StreamFrameKind::Snapshot);
     // Streams evaluate in identity order and every evaluation yields a new value, so the first
-    // frame after each signal names the first stream that reevaluated.
-    publisher.notify_titles();
+    // frame after each change names the first stream that reevaluated. A change published while
+    // a pass still evaluates later streams waits for the next pass instead of reaching only them.
+    publish(SessionChangeSignal::notify_titles);
     frame(&mut peer, 2, StreamFrameKind::Update);
-    publisher.notify_output();
+    publish(SessionChangeSignal::notify_output);
     frame(&mut peer, 1, StreamFrameKind::Update);
-    publisher.notify();
+    publish(SessionChangeSignal::notify);
     frame(&mut peer, 1, StreamFrameKind::Update);
     frame(&mut peer, 2, StreamFrameKind::Update);
     peer.shutdown(std::net::Shutdown::Both).unwrap();
