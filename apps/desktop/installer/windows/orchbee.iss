@@ -7,7 +7,8 @@
 ; runs the bundled `orchbee install`, which publishes the runtime into the store and owns the user
 ; `Path` entry. A removal runs `orchbee --installer-uninstall-v1`, which removes everything of
 ; Orchbee's, the installer's shortcut and registration included, and then removes the
-; installer's own files.
+; installer's own files. `orchbee uninstall` run in a terminal removes those files too, by name:
+; the uninstaller stays `{app}\unins000.exe` with `unins000.dat`, Inno Setup's default.
 
 #if Ver != EncodeVer(6, 7, 1)
   #error This installer is compiled only with Inno Setup 6.7.1, which the release workflow pins.

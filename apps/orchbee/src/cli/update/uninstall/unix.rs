@@ -9,6 +9,9 @@ use std::{
 
 pub(super) struct Locations;
 
+/// No platform installer leaves files in the store root here.
+pub(super) const INSTALLER_FILES: &[&str] = &[];
+
 pub(super) struct StoreProcess {
     pub(super) pid: u32,
     pub(super) image: PathBuf,

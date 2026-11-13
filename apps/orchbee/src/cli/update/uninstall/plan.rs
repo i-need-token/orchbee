@@ -4,9 +4,12 @@
 //! Ownership: a run removes only the entries each root's layout names, and only from a root that
 //! carries its layout's mark: the store's pointer `active.json`, the data root's layout record
 //! `internal\version.json`. A root that holds anything this run would remove but not the mark
-//! refuses the whole run. Anything else in a root stays and is counted. Each mark goes after
-//! everything else of its layout, and a root goes only when it carried the mark and is empty by
-//! then, so an interrupted run leaves a root that the next run still recognizes.
+//! refuses the whole run. In a marked store root the platform installer's own files, which its
+//! contract with the Client names, are the installer's: a person's run removes them with the
+//! store, and the helper form leaves them to the uninstaller that runs it. Anything else in a root
+//! stays and is counted. Each mark goes after everything else of its layout, and a root goes only
+//! when it carried the mark and is empty by then, so an interrupted run leaves a root that the next
+//! run still recognizes.
 //!
 //! The fence refuses the whole run when a root is unsafe to remove, when the roots overlap, when a
 //! root is itself a link or junction, when a target is not strictly inside a root, or when a target
@@ -15,8 +18,8 @@
 use std::path::{Component, Path, PathBuf};
 
 /// The store root's entries, as install, update, the PATH step and the platform installer's
-/// Desktop leave them, in removal order; staging folders `.stage-<process>-<number>` follow. The
-/// pointer goes after all of them.
+/// Desktop leave them, in removal order; staging folders `.stage-<process>-<number>` and, when the
+/// run removes them, the installer's own files follow. The pointer goes after all of them.
 const STORE_ENTRIES: [&str; 5] = [
     "bin",
     "desktop",
@@ -59,6 +62,18 @@ pub(super) enum Presence {
     Link,
     /// The path could not be read, so nothing about it is known.
     Unreadable,
+}
+
+/// The platform installer's own files in the store root, named by its contract with the Client,
+/// and whether this run removes them.
+#[derive(Clone, Copy)]
+pub(super) struct Installer {
+    /// Names directly in the store root.
+    pub(super) files: &'static [&'static str],
+    /// A person's run removes them with the store, so nothing of the installer outlives its
+    /// registration; the helper form leaves them to the uninstaller that started it and waits for
+    /// it, which removes them itself.
+    pub(super) remove: bool,
 }
 
 /// The two roots one environment owns and the folders no root may contain or equal.
@@ -163,12 +178,13 @@ impl Refusal {
 }
 
 /// The checked and fenced plan for one run: with `delete_data` every data-root entry, otherwise
-/// the entries of [`REMOVED_DATA`], and every store entry with the pointer last. `store` and
-/// `data` say what each root holds; `presence` answers what one path holds without following a
-/// link.
+/// the entries of [`REMOVED_DATA`], and every store entry with the pointer last, the installer's
+/// own files among them when `installer` says this run removes them. `store` and `data` say what
+/// each root holds; `presence` answers what one path holds without following a link.
 pub(super) fn plan(
     roots: &Roots,
     delete_data: bool,
+    installer: Installer,
     store: &Contents,
     data: &Contents,
     presence: impl Fn(&Path) -> Presence,
@@ -182,6 +198,11 @@ pub(super) fn plan(
         last,
     };
 
+    let pointer = target(roots.store.join(STORE_MARK), None);
+    let store_marked = store.marked && pointer.presence == Presence::File;
+    // The installer's files are its own only in a store root this environment marked; in any other
+    // folder those names are another program's.
+    let installer_files: &[&str] = if store_marked { installer.files } else { &[] };
     let mut stages: Vec<&String> = store_names.iter().filter(|name| stage(name)).collect();
     stages.sort();
     let store_targets: Vec<Target> = STORE_ENTRIES
@@ -192,9 +213,13 @@ pub(super) fn plan(
                 .into_iter()
                 .map(|name| target(roots.store.join(name), None)),
         )
+        .chain(
+            installer_files
+                .iter()
+                .filter(|_| installer.remove)
+                .map(|name| target(roots.store.join(name), None)),
+        )
         .collect();
-    let pointer = target(roots.store.join(STORE_MARK), None);
-    let store_marked = store.marked && pointer.presence == Presence::File;
     let store_plan = RootPlan {
         root: roots.store.clone(),
         targets: store_targets,
@@ -202,7 +227,12 @@ pub(super) fn plan(
         remove_root: store_marked,
         kept: store_names
             .iter()
-            .filter(|name| !stage(name) && !named(name, &STORE_ENTRIES) && !same(name, STORE_MARK))
+            .filter(|name| {
+                !stage(name)
+                    && !named(name, &STORE_ENTRIES)
+                    && !named(name, installer_files)
+                    && !same(name, STORE_MARK)
+            })
             .count(),
     };
 

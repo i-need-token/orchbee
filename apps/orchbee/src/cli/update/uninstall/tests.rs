@@ -3,11 +3,17 @@
 //! or a root holds what the run would remove without its layout's mark; otherwise it removes only
 //! the entries the layouts name, keeps and counts everything else, and leaves each mark for last.
 //! Nothing here reads the disk; presence is a table.
-use super::plan::{Contents, Presence, Refusal, Roots, Target, fence, plan};
+use super::plan::{Contents, Installer, Presence, Refusal, Roots, Target, fence, plan};
 use std::path::{Path, PathBuf};
 
 const STORE: &str = r"C:\Users\Ada\AppData\Local\Programs\ob-test-0123456789abcdef";
 const DATA: &str = r"C:\Users\Ada\.ob-test-0123456789abcdef";
+/// No installer names any file here, so every name the store's layout does not list is another
+/// item; the process rehearsal covers the installer's own files.
+const NO_INSTALLER: Installer = Installer {
+    files: &[],
+    remove: true,
+};
 
 fn roots(store: &str, data: &str) -> Roots {
     Roots {
@@ -242,6 +248,7 @@ fn the_plan_is_refused_whole_unless_every_target_is_safely_inside_a_root() {
         let result = plan(
             &roots(store, data),
             delete_data,
+            NO_INSTALLER,
             &marked(STORE_LAYOUT),
             &marked(DATA_LAYOUT),
             presence(table),
@@ -446,6 +453,7 @@ fn uninstall_removes_only_what_the_layouts_name_and_only_from_a_marked_root() {
         let result = plan(
             &roots(STORE, DATA),
             delete_data,
+            NO_INSTALLER,
             &contents(store, store_mark),
             &contents(data, data_mark),
             holding(store, data),

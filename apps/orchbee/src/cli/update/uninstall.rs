@@ -15,7 +15,9 @@
 //! nothing further, so a second run continues. The removal plan is computed and fenced before
 //! anything changes. The helper form asks nothing and ends no terminal: with one open in any
 //! Session it changes nothing. The platform uninstaller that started it and waits for it stays in
-//! the store root with its own files, which the uninstaller removes after the helper exits.
+//! the store root with its own files, which the uninstaller removes after the helper exits; a
+//! person's run removes those files too, by the names the installer's contract gives them, so
+//! nothing of the installer outlives its registration.
 //!
 //! The Agent integration writer runs here, in this process, rather than as a Worker job: every
 //! Session, and so every Worker, has stopped by step c.
@@ -210,9 +212,14 @@ fn inventory(report: &mut Report, delete_data: bool, caller: Caller) -> Option<I
             .is_some_and(|bytes| Pointer::parse(&bytes).is_some())
     });
     let data_contents = contents(data.path(), || data.carries_layout_record());
+    let installer = plan::Installer {
+        files: platform::INSTALLER_FILES,
+        remove: matches!(caller, Caller::Person { .. }),
+    };
     let plan = match plan::plan(
         &roots,
         delete_data,
+        installer,
         &store_contents,
         &data_contents,
         removal::presence,

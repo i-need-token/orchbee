@@ -1,6 +1,7 @@
 //! Windows effects of uninstall outside the two roots: the user `Path` entry, the Start menu
-//! shortcut and the uninstall registration; the processes running from the store; the npm carrier;
-//! and the removal of the running program's own files after it exits.
+//! shortcut and the uninstall registration, with the names of the installer's own files in the
+//! store root; the processes running from the store; the npm carrier; and the removal of the
+//! running program's own files after it exits.
 //!
 //! A running executable cannot be deleted on Windows, so the last files of the store, the Client's
 //! own file, the launcher waiting for it and their folders, are removed by a detached `cmd.exe`
@@ -31,6 +32,10 @@ const TEST_REGISTRY_PREFIX: &str = "Software\\ob-test-scratch\\";
 const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
 /// About one minute of removal attempts, one second apart.
 const REMOVAL_ATTEMPTS: u32 = 60;
+/// The Desktop installer's own files in the store root, by its contract with the Client: Inno
+/// Setup's uninstaller, which the registration names, and its uninstall log. The installer script,
+/// `apps/desktop/installer/windows/orchbee.iss`, keeps them there under these names.
+pub(super) const INSTALLER_FILES: &[&str] = &["unins000.exe", "unins000.dat"];
 
 /// Where this environment's entries outside the roots are.
 pub(super) struct Locations {

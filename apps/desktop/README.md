@@ -352,6 +352,13 @@ Removal from Settings › Apps runs the uninstaller, which asks once and then, i
 A second removal finds no Client and nothing of Orchbee's, and removes only what remains of its
 own. The data root (`~/.orchbee` for release) stays until `orchbee uninstall --delete-data`.
 
+`orchbee uninstall` run in a terminal removes the same things and the uninstaller's two files with
+them, so the store root goes too and nothing is left that Settings › Apps no longer lists. That is
+a contract between the script and the Client: Setup keeps its uninstaller in the store root as
+`unins000.exe` with its log `unins000.dat`, Inno Setup's names for the first uninstaller in a
+folder, and the Client removes exactly these two names, only from a store root that holds its
+pointer; any other file there stays and the command counts it.
+
 For workflows, `<setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="<file>"` installs
 without a window, and `<store root>\unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 /LOG="<file>"` removes. Without `/LOG`, Setup still writes `Setup Log <date> #<n>.txt` in `%TEMP%`,

@@ -1,9 +1,10 @@
 //! Uninstall of an installed test package, in both modes, in a scratch profile: one Agent
-//! integration enabled and one Session running beforehand; afterwards the program folder, the
-//! user `Path` entry, the installer entries, the integration and the removed data entries are gone,
-//! and the person's settings and Sessions stay unless all data was deleted. With all data deleted,
-//! an item Orchbee did not write stays in each root, which then stays too, and a second run still
-//! finds nothing to refuse. The Agent's own file returns byte for byte. The platform uninstaller's
+//! integration enabled and one Session running beforehand; afterwards the program folder with the
+//! installer's own uninstaller files in it, the user `Path` entry, the installer entries, the
+//! integration and the removed data entries are gone, and the person's settings and Sessions stay
+//! unless all data was deleted. With all data deleted, an item neither Orchbee nor its installer
+//! wrote stays in each root, which then stays too and reports it, and a second run still finds
+//! nothing to refuse. The Agent's own file returns byte for byte. The platform uninstaller's
 //! removal empties a user `Path` that held only the store's entry and keeps its registry type. The
 //! uninstaller that runs the removal from the store root and waits for it does not stop it, while
 //! another program in the same place still does.
@@ -230,12 +231,16 @@ impl Profile {
     }
 
     /// Installs the package, then stands in for the installer and the PATH step: the launcher in
-    /// `bin`, the `Path` entry, the registration, the shortcut and a `desktop` folder. Enables one
-    /// Agent integration and starts the Session.
+    /// `bin`, the `Path` entry, the registration, the shortcut, a `desktop` folder and the
+    /// installer's own uninstaller files in the store root. Enables one Agent integration and starts
+    /// the Session.
     fn prepare(&self) -> PathBuf {
         let launcher = self.install();
         fs::create_dir_all(self.store().join("desktop")).unwrap();
         fs::write(self.store().join(r"desktop\placeholder.txt"), b"desktop").unwrap();
+        for name in ["unins000.exe", "unins000.dat"] {
+            fs::write(self.store().join(name), b"the installer's").unwrap();
+        }
         let path = format!(
             "{};{};{}",
             OTHER_ENTRIES[0],
@@ -286,9 +291,8 @@ impl Profile {
 
     fn uninstall_once(&self, delete_data: bool) {
         let launcher = self.prepare();
-        // With all data deleted, an item Orchbee did not write stays in each root, as the platform
-        // uninstaller's own file does in the store.
-        let other: &[&str] = if delete_data { &["unins000.dat"] } else { &[] };
+        // With all data deleted, an item neither Orchbee nor its installer wrote stays in each root.
+        let other: &[&str] = if delete_data { &["notes.txt"] } else { &[] };
         for root in [self.store(), self.data()] {
             for name in other {
                 fs::write(root.join(name), b"not Orchbee's").unwrap();
@@ -346,8 +350,8 @@ impl Profile {
             Vec::new()
         };
         assert_eq!(result["kept"], Value::Array(kept), "{document}");
-        // Orchbee's program files go once the Client and the launcher have exited; the folder goes
-        // with them unless it keeps another item.
+        // Orchbee's program files go once the Client and the launcher have exited, and nothing of the
+        // installer stays; the folder goes with them unless it keeps another item.
         let expected = (!other.is_empty()).then(|| names(other));
         while entries(&self.store()) != expected {
             assert!(
