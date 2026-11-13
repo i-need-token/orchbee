@@ -31,6 +31,8 @@ const POLL: Duration = Duration::from_millis(50);
 /// outlasts the Client's 50-second bound on one close exchange, so a request still waiting on its
 /// answer shows how it ends.
 const AFTERMATH: Duration = Duration::from_secs(40);
+/// How many distinct bottom rows a failed wait reports, the first ones it read.
+const BOTTOM_ROWS_KEPT: usize = 16;
 /// Outlasts a shell's return to its prompt after what it printed last.
 const PROMPT_RETURN: Duration = Duration::from_secs(2);
 const CLOSE_TAB: &[u8] = b"\x02x";
@@ -83,14 +85,45 @@ impl Driver {
 
     fn await_screen(&self, what: &str, done: impl Fn(&str) -> bool) -> String {
         let deadline = Instant::now() + LANDING;
+        let mut bottom_rows = Vec::new();
         loop {
             let screen = self.screen();
             if done(&screen) {
                 return screen;
             }
-            assert!(Instant::now() < deadline, "never saw {what}:\n{screen}");
+            let bottom = screen.lines().last().unwrap_or_default().trim_end();
+            if bottom_rows.last().map(String::as_str) != Some(bottom)
+                && bottom_rows.len() < BOTTOM_ROWS_KEPT
+            {
+                bottom_rows.push(bottom.to_owned());
+            }
+            if Instant::now() >= deadline {
+                self.report_unseen(what, &screen, &bottom_rows);
+            }
             thread::sleep(POLL);
         }
+    }
+
+    /// Fails a wait that missed `LANDING`, with what tells input the Client refused from a frame it
+    /// did not redraw: each bottom row the wait read, where a notice shows, the Client's view, and
+    /// what the selected pane's terminal holds, read past the Client.
+    fn report_unseen(&self, what: &str, screen: &str, bottom_rows: &[String]) -> ! {
+        let view = self.fixture.client(&self.tui.client);
+        let terminal = view["view"]["selection"]["panelId"].as_str().map_or_else(
+            || "no selected pane".to_owned(),
+            |panel| {
+                let read = self
+                    .fixture
+                    .run(&["terminal", "read", "--panel", panel, "--source", "visible"]);
+                read.document["result"]["content"]["text"]
+                    .as_str()
+                    .map_or_else(|| read.to_string(), str::to_owned)
+            },
+        );
+        panic!(
+            "never saw {what}:\n{screen}\nBottom rows read meanwhile: {bottom_rows:#?}\n\
+             Client: {view}\nThe selected pane's terminal:\n{terminal}"
+        );
     }
 
     fn pointer(&mut self, code: u8, column: usize, row: usize) {
