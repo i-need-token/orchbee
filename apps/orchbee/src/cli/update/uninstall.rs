@@ -418,19 +418,20 @@ fn running_agents(session: &Rendezvous, cohort: &Cohort, deadline: Instant) -> O
     u32::try_from(checkpoint.rows.len()).ok()
 }
 
-/// Every provider, marked when its files show an entry or only its own program can tell; this
+/// Every provider, marked when its files show an entry of this environment or only its own
+/// program can tell; another environment's entry, which disable leaves, marks nothing. This
 /// starts no Agent program.
 fn integrations(report: &mut Report, deadline: Instant) -> Result<(), ()> {
     let context =
         orchbee_agent_integration_writer::context_before(None, None, deadline).map_err(|_| ())?;
-    let (items, _) = orchbee_agent_integration_writer::list(&context, None);
+    let rows = orchbee_agent_integration_writer::list_owned(&context);
     report.integrations = IntegrationId::ALL
         .iter()
         .map(|id| IntegrationLine {
             provider: id.provider(),
-            listed: items.iter().any(|item| {
+            listed: rows.iter().any(|(item, own)| {
                 item.integration_id == *id
-                    && match item.state {
+                    && match own {
                         State::Enabled | State::UpdateRequired | State::Conflict => true,
                         State::Unknown => item.availability == Availability::Available,
                         State::Disabled | State::NotInstalled => false,

@@ -1036,6 +1036,10 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     for (old, expected) in [
         ("// foreign user module".to_string(), "conflict"),
         (
+            String::from_utf8(bytes.clone()).unwrap() + "// edited by a person\n",
+            "conflict",
+        ),
+        (
             String::from_utf8(bytes.clone()).unwrap().replace(
                 &format!("/agent-observation/{}/", fixture.capsule_version()),
                 "/foreign/identity/",
@@ -1050,6 +1054,39 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         assert_eq!(fs::read(&current).unwrap(), bytes);
         assert_eq!(fs::read_to_string(&obsolete).unwrap(), old);
     }
+    // Another environment's exact module is that environment's. It reads as a conflict, so
+    // nothing claims it enabled here and enable refuses to replace it; disable removes only this
+    // environment's entries, leaves it byte for byte, and completes.
+    let theirs = String::from_utf8(bytes.clone()).unwrap().replace(
+        &format!("/.{}/", orchbee_local_runtime::environment_stem()),
+        "/.ob-dev-0123456789abcdef/",
+    );
+    assert_ne!(theirs.as_bytes(), bytes);
+    fs::write(&obsolete, &theirs).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "conflict");
+    fixture.provider_document("enable", "opencode", 3);
+    assert_eq!(fs::read(&current).unwrap(), bytes);
+    inspect("disable");
+    assert!(!current.exists());
+    assert_eq!(fs::read_to_string(&obsolete).unwrap(), theirs);
+    fs::rename(&obsolete, &current).unwrap();
+    assert_eq!(
+        inspect("list")["result"]["integrations"][0]["state"],
+        "conflict"
+    );
+    fixture.provider_document("enable", "opencode", 3);
+    let disabled = inspect("disable");
+    assert!(
+        disabled["result"]["attempted"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "{disabled}"
+    );
+    assert_eq!(fs::read_to_string(&current).unwrap(), theirs);
+    fs::remove_file(&current).unwrap();
+    inspect("enable");
+    assert_eq!(fs::read(&current).unwrap(), bytes);
     fs::write(
         &obsolete,
         String::from_utf8(bytes.clone())
@@ -1225,6 +1262,41 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
             "retain"
         );
         fs::remove_file(target.join("user-file")).unwrap();
+        // A proven extension whose copied owner record names another environment is that
+        // environment's: it reads as a conflict, enable refuses to replace it, and disable
+        // completes without touching it.
+        let record = target.join("scripts/environment.json");
+        let original_record = fs::read(&record).unwrap();
+        let theirs = json!({"environment": "ob-dev-0123456789abcdef", "version": 1}).to_string();
+        fs::write(&record, &theirs).unwrap();
+        let mut marker: Value = serde_json::from_slice(&original_marker).unwrap();
+        marker["files"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|v| v["path"] == "scripts/environment.json")
+            .unwrap()["sha256"] =
+            Value::from(format!("{:x}", sha2::Sha256::digest(theirs.as_bytes())));
+        let marker = marker.to_string();
+        fs::write(&marker_path, &marker).unwrap();
+        assert_eq!(
+            inspect("list")["result"]["integrations"][0]["state"],
+            "conflict"
+        );
+        fixture.provider_document("enable", provider, 3);
+        let disabled = inspect("disable");
+        assert!(
+            disabled["result"]["attempted"]
+                .as_array()
+                .unwrap()
+                .is_empty(),
+            "{disabled}"
+        );
+        assert_eq!(fs::read_to_string(&record).unwrap(), theirs);
+        assert_eq!(fs::read_to_string(&marker_path).unwrap(), marker);
+        assert_eq!(fs::read(&manifest_path).unwrap(), original_manifest);
+        fs::write(&record, &original_record).unwrap();
+        fs::write(&marker_path, &original_marker).unwrap();
         inspect("disable");
         assert!(!target.exists());
         let configured = fixture.0.join(format!("{provider} config & 数据"));

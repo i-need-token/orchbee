@@ -282,6 +282,20 @@ mod imp {
         )
     }
 
+    /// Every provider's files-only `list` row beside the state this environment's disable acts on,
+    /// which reads another environment's whole-file entry as `not-installed` where the row reads
+    /// `conflict`. `uninstall` names from it the integrations it changes.
+    pub fn list_owned(context: &IntegrationContext) -> Vec<(SnapshotItem, State)> {
+        let provider_context = context.provider_context();
+        IntegrationId::ALL
+            .iter()
+            .map(|id| {
+                let inspection = providers::list_inspection(*id, &provider_context);
+                (inspection.item, inspection.own)
+            })
+            .collect()
+    }
+
     /// `agent integration explain --provider <id>` — the snapshot row, the
     /// provider's guard dimensions, and the guard-evaluated enable vector. It starts the Agent's
     /// program when only that program reports the state.
@@ -394,7 +408,7 @@ pub use imp::context_before;
 #[cfg(any(unix, windows))]
 pub use imp::{
     AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, MutationReport,
-    PlannedStep, Refusal, StepKind, Verdict, context, explain, list, mutate,
+    PlannedStep, Refusal, StepKind, Verdict, context, explain, list, list_owned, mutate,
 };
 
 /// Cooperative termination the writer observes between bounded steps.

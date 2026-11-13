@@ -1,4 +1,30 @@
 use super::*;
+/// Entry files Orchbee writes for another environment's Capsule are that environment's; an edited
+/// byte, or a member of this environment's, proves no other owner.
+#[test]
+fn entry_files_of_another_environment_are_left_to_it() {
+    let own = Path::new(
+        r"C:\Users\u\.ob-test-0123456789abcdef\internal\integrations\agent-observation\0.4.17",
+    );
+    let theirs = Path::new(
+        r"C:\Users\u\.ob-dev-fedcba9876543210\internal\integrations\agent-observation\0.4.17",
+    );
+    let options = ResourceOptions { resource_root: own };
+    let entry = member_bytes(Member::Entry, theirs).unwrap();
+    let manifest = member_bytes(Member::Manifest, theirs).unwrap();
+    assert!(elsewhere(Some(&entry), Some(&manifest), &options));
+    assert!(elsewhere(None, Some(&manifest), &options));
+    assert_eq!(
+        local_state(Some(&entry), Some(&manifest), &options),
+        State::Conflict
+    );
+    assert!(!elsewhere(None, None, &options));
+    let mine = member_bytes(Member::Entry, own).unwrap();
+    assert!(!elsewhere(Some(&mine), Some(&manifest), &options));
+    let mut edited = manifest.clone();
+    edited.push(b' ');
+    assert!(!elsewhere(Some(&entry), Some(&edited), &options));
+}
 #[test]
 fn exact_members_partial_repair_versions_and_provider_rows() {
     let current =

@@ -92,6 +92,56 @@ pub(crate) fn owned_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
         )
 }
 
+/// Whether this platform leaves an exact whole-file entry naming `root` as another environment's.
+/// Only Windows does; other platforms keep reading it as a conflict.
+fn left_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
+    #[cfg(windows)]
+    let left = owned_elsewhere(root, options);
+    #[cfg(unix)]
+    let left = {
+        let _ = (root, options);
+        false
+    };
+    left
+}
+
+/// Whether a proven extension's copied owner record names another environment, which this
+/// platform leaves as that environment's. An unreadable record proves no owner.
+fn recorded_elsewhere(scripts: &Path) -> bool {
+    cfg!(windows)
+        && super::capsule::recorded_owner(scripts)
+            .is_some_and(|owner| owner != orchbee_local_runtime::environment_stem())
+}
+
+/// A whole-file entry as this environment reads it, following the crate README's whole-file
+/// rule.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum GuardedTarget {
+    /// Absent, this environment's, or not provably any environment's.
+    Here(TargetState),
+    /// Exactly an entry the writer makes, proven to be another environment's: left as it is.
+    Elsewhere,
+}
+
+impl GuardedTarget {
+    /// The contract state: another environment's entry is a conflict here, which keeps every
+    /// Client from showing it as enabled and enable from replacing it.
+    pub(crate) fn state(self) -> TargetState {
+        match self {
+            Self::Here(state) => state,
+            Self::Elsewhere => TargetState::Conflict,
+        }
+    }
+
+    /// What disable acts on: another environment's entry is not this environment's to remove.
+    pub(crate) fn own(self) -> TargetState {
+        match self {
+            Self::Here(state) => state,
+            Self::Elsewhere => TargetState::Missing,
+        }
+    }
+}
+
 fn normalize(path: &Path) -> PathBuf {
     // `path.resolve` equivalent for absolute inputs: lexical `.`/`..`
     // collapse without touching the filesystem.
@@ -966,7 +1016,7 @@ impl BootstrapKind {
 
 /// The guarded target inspection for module-file providers (opencode/pi/omp),
 /// extension-directory providers (gemini/qwen-code) and the OpenCode 2.x client
-/// directory.
+/// directory, as its contract state.
 pub(crate) fn inspect_guarded_target(
     target: &Path,
     kind: BootstrapKind,
@@ -974,69 +1024,90 @@ pub(crate) fn inspect_guarded_target(
     source_relative: &Path,
     options: &ResourceOptions,
 ) -> TargetState {
+    read_guarded_target(target, kind, integration_id, source_relative, options).state()
+}
+
+/// The guarded target inspection, telling another environment's entry apart.
+pub(crate) fn read_guarded_target(
+    target: &Path,
+    kind: BootstrapKind,
+    integration_id: IntegrationId,
+    source_relative: &Path,
+    options: &ResourceOptions,
+) -> GuardedTarget {
+    use GuardedTarget::Here;
     let metadata = match fs::symlink_metadata(target) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return TargetState::Missing;
+            return Here(TargetState::Missing);
         }
-        Err(_) => return TargetState::Unknown,
+        Err(_) => return Here(TargetState::Unknown),
     };
     if metadata.file_type().is_symlink() {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     }
     if kind == BootstrapKind::ExtensionDirectory {
         if !metadata.is_dir() {
-            return TargetState::Conflict;
+            return Here(TargetState::Conflict);
         }
-        let state = inspect_owned_directory(target, integration_id);
+        let Here(state) = owned_directory(target, integration_id) else {
+            return GuardedTarget::Elsewhere;
+        };
         #[cfg(windows)]
-        return windows::inspect_extension_manifest(target, integration_id, state);
+        return Here(windows::inspect_extension_manifest(
+            target,
+            integration_id,
+            state,
+        ));
         #[cfg(unix)]
-        return state;
+        return Here(state);
     }
     #[cfg(windows)]
     if kind == BootstrapKind::OpencodeClient {
         if !metadata.is_dir() {
-            return TargetState::Conflict;
+            return Here(TargetState::Conflict);
         }
         return inspect_client_directory(target, integration_id, source_relative, options);
     }
     if !metadata.is_file() {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     }
     inspect_module_file(target, kind, integration_id, source_relative, options)
 }
 
 /// The OpenCode 2.x client directory holds nothing but the owned client
 /// bootstraps. Any other entry is foreign; a missing bootstrap, or an empty
-/// directory, is repairable.
+/// directory, is repairable. Bootstraps that all name another environment's
+/// Capsule make the directory that environment's; mixed owners conflict.
 #[cfg(windows)]
 fn inspect_client_directory(
     target: &Path,
     integration_id: IntegrationId,
     source_relative: &Path,
     options: &ResourceOptions,
-) -> TargetState {
+) -> GuardedTarget {
+    use GuardedTarget::Here;
     let Ok(_pins) = super::files::pin_tree(target, false) else {
-        return TargetState::Unknown;
+        return Here(TargetState::Unknown);
     };
     let Ok(entries) = fs::read_dir(target) else {
-        return TargetState::Unknown;
+        return Here(TargetState::Unknown);
     };
     let mut present = 0;
+    let mut elsewhere = 0;
     let mut state = TargetState::Current;
     for entry in entries {
         let Ok(entry) = entry else {
-            return TargetState::Unknown;
+            return Here(TargetState::Unknown);
         };
         let name = entry.file_name();
         if !OPENCODE_CLIENT_FILES.iter().any(|file| name == *file) {
-            return TargetState::Conflict;
+            return Here(TargetState::Conflict);
         }
         match entry.file_type() {
             Ok(file_type) if file_type.is_file() => {}
-            Ok(_) => return TargetState::Conflict,
-            Err(_) => return TargetState::Unknown,
+            Ok(_) => return Here(TargetState::Conflict),
+            Err(_) => return Here(TargetState::Unknown),
         }
         present += 1;
         match inspect_module_file(
@@ -1046,15 +1117,23 @@ fn inspect_client_directory(
             source_relative,
             options,
         ) {
-            TargetState::Current => {}
-            TargetState::UpdateRequired => state = TargetState::UpdateRequired,
+            Here(TargetState::Current) => {}
+            Here(TargetState::UpdateRequired) => state = TargetState::UpdateRequired,
+            GuardedTarget::Elsewhere => elsewhere += 1,
             other => return other,
         }
     }
+    if elsewhere > 0 {
+        return if elsewhere == present {
+            GuardedTarget::Elsewhere
+        } else {
+            Here(TargetState::Conflict)
+        };
+    }
     if present < OPENCODE_CLIENT_FILES.len() {
-        TargetState::UpdateRequired
+        Here(TargetState::UpdateRequired)
     } else {
-        state
+        Here(state)
     }
 }
 
@@ -1065,25 +1144,29 @@ fn inspect_module_file(
     integration_id: IntegrationId,
     source_relative: &Path,
     options: &ResourceOptions,
-) -> TargetState {
+) -> GuardedTarget {
+    use GuardedTarget::Here;
     let bytes = match bounded_file(target, 16 * 1024) {
         Ok(Some(bytes)) => bytes,
-        Err(_) => return TargetState::Unknown,
-        _ => return TargetState::Conflict,
+        Err(_) => return Here(TargetState::Unknown),
+        _ => return Here(TargetState::Conflict),
     };
     let Some((source, template)) = module_source(&bytes, kind, integration_id) else {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     };
     let Some(root) = resource_root_for_source(&source, source_relative) else {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     };
     match (
         classify_resource_root(&root.to_string_lossy(), options),
         template,
     ) {
-        (ResourceOwnership::Foreign, _) => TargetState::Conflict,
-        (ResourceOwnership::Current, BootstrapTemplate::Current) => TargetState::Current,
-        _ => TargetState::UpdateRequired,
+        (ResourceOwnership::Foreign, _) if left_elsewhere(&root, options) => {
+            GuardedTarget::Elsewhere
+        }
+        (ResourceOwnership::Foreign, _) => Here(TargetState::Conflict),
+        (ResourceOwnership::Current, BootstrapTemplate::Current) => Here(TargetState::Current),
+        _ => Here(TargetState::UpdateRequired),
     }
 }
 
@@ -1150,27 +1233,38 @@ fn resource_root_for_source(source_path: &Path, relative_source: &Path) -> Optio
 /// A non-current contract requires reinstall only after the marker's ownership
 /// and every actual file fingerprint agree.
 pub(crate) fn inspect_owned_directory(root: &Path, integration_id: IntegrationId) -> TargetState {
+    owned_directory(root, integration_id).state()
+}
+
+fn owned_directory(root: &Path, integration_id: IntegrationId) -> GuardedTarget {
+    use GuardedTarget::Here;
     let Some(value) = read_json_record(&root.join(DIRECTORY_MARKER_NAME), MAX_MARKER_BYTES) else {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     };
     let Some(marker) = parse_directory_marker(&value, integration_id) else {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     };
     let Some(files) = fingerprint_directory(root) else {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     };
     if files != marker.files {
-        return TargetState::Conflict;
+        return Here(TargetState::Conflict);
     }
-    // The copied scripts carry the owner record of the environment that installed the extension.
-    if !super::capsule::owned_here(&root.join("scripts")) {
-        return TargetState::Conflict;
+    // The copied scripts carry the owner record of the environment that installed the extension,
+    // and the fingerprint covers that record.
+    let scripts = root.join("scripts");
+    if !super::capsule::owned_here(&scripts) {
+        return if recorded_elsewhere(&scripts) {
+            GuardedTarget::Elsewhere
+        } else {
+            Here(TargetState::Conflict)
+        };
     }
-    if marker.contract_version == ENTRY_CONTRACT_VERSION {
+    Here(if marker.contract_version == ENTRY_CONTRACT_VERSION {
         TargetState::Current
     } else {
         TargetState::UpdateRequired
-    }
+    })
 }
 
 struct OwnedMarker {

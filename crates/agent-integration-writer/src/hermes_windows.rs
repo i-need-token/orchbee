@@ -1,7 +1,7 @@
 //! Hermes owns activation; Orchbee owns exactly two independently recoverable entry files.
 use super::{
     files, hook_configuration_windows,
-    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root},
+    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, owned_elsewhere},
     model::State,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -88,11 +88,26 @@ fn local_state(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &Resource
     }
     State::Enabled
 }
+/// Whether every entry file present is exactly one Orchbee writes for another environment's
+/// Capsule. That environment owns the plugin and its activation, which this environment leaves.
+fn elsewhere(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &ResourceOptions) -> bool {
+    let mut present = [(Member::Entry, entry), (Member::Manifest, manifest)]
+        .into_iter()
+        .filter_map(|(member, bytes)| Some((member, bytes?)))
+        .peekable();
+    present.peek().is_some()
+        && present.all(|(member, bytes)| {
+            member_root(member, bytes).is_some_and(|root| owned_elsewhere(&root, options))
+        })
+}
 pub(super) struct Local {
     pub(super) directory: PathBuf,
     pub(super) entry: Option<Vec<u8>>,
     pub(super) manifest: Option<Vec<u8>>,
+    /// `conflict` when the entry files are another environment's.
     pub(super) state: State,
+    /// The entry files are another environment's.
+    pub(super) elsewhere: bool,
 }
 pub(super) fn local(home: &Path, options: &ResourceOptions) -> Option<Local> {
     let directory = crate::configuration_windows::hermes_home(home)?
@@ -109,11 +124,13 @@ pub(super) fn local(home: &Path, options: &ResourceOptions) -> Option<Local> {
     } else {
         local_state(entry.as_deref(), manifest.as_deref(), options)
     };
+    let elsewhere = !alternative && elsewhere(entry.as_deref(), manifest.as_deref(), options);
     Some(Local {
         directory,
         entry,
         manifest,
         state,
+        elsewhere,
     })
 }
 struct Listed {

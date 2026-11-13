@@ -15,8 +15,8 @@ use super::capsule;
 use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult};
 use super::inspect::{
-    self, BootstrapKind, ClinePackage, CodexInspection, PluginInspection, ResourceOptions,
-    TargetState,
+    self, BootstrapKind, ClinePackage, CodexInspection, GuardedTarget, PluginInspection,
+    ResourceOptions, TargetState,
 };
 use super::model::{Availability, IntegrationId, Issue, ManagementMode, SnapshotItem, State};
 
@@ -368,11 +368,11 @@ fn inspect_guarded_spec(
     spec: GuardedSpec,
     context: &ProviderContext,
     options: &ResourceOptions,
-) -> TargetState {
+) -> GuardedTarget {
     let Some(target) = guarded_target(id, spec, context.home) else {
-        return TargetState::Unknown;
+        return GuardedTarget::Here(TargetState::Unknown);
     };
-    inspect::inspect_guarded_target(
+    inspect::read_guarded_target(
         &target,
         spec.kind,
         id,
@@ -459,31 +459,39 @@ enum AgentReads {
 /// capsule fold. CLI-command providers report `unknown` (no issue) when the
 /// executable is unresolvable; filesystem providers inspect regardless.
 pub(crate) fn inspect_provider(id: IntegrationId, context: &ProviderContext) -> SnapshotItem {
-    inspect_full(id, context).0
+    inspect_full(id, context).item
 }
 
 /// One provider's `list` row: the files-only inspection. A provider whose state only its own
 /// program reports stays `unknown` with no issue — not checked — unless its files alone decide.
 pub(crate) fn list_provider(id: IntegrationId, context: &ProviderContext) -> SnapshotItem {
-    inspect_with(id, context, AgentReads::Skip).0
+    list_inspection(id, context).item
+}
+
+/// The files-only inspection behind a `list` row.
+pub(crate) fn list_inspection(id: IntegrationId, context: &ProviderContext) -> Inspection {
+    inspect_with(id, context, AgentReads::Skip)
+}
+
+/// One provider's inspection.
+pub(crate) struct Inspection {
+    /// The contract row every Client shows.
+    pub(crate) item: SnapshotItem,
+    pub(crate) detail: InspectionDetail,
+    /// The row's state with every whole-file entry of another environment read as absent, which
+    /// is what disable acts on; it equals `item.state` when no such entry was found.
+    pub(crate) own: State,
 }
 
 /// The single read pass every consumer shares: one scripted queue slot per
 /// read, one inspection parse, both the snapshot row and the guard
 /// dimensions derived from it — the mutation vectors plan against this
 /// detail without ever re-issuing the provider's read commands.
-pub(crate) fn inspect_full(
-    id: IntegrationId,
-    context: &ProviderContext,
-) -> (SnapshotItem, InspectionDetail) {
+pub(crate) fn inspect_full(id: IntegrationId, context: &ProviderContext) -> Inspection {
     inspect_with(id, context, AgentReads::Start)
 }
 
-fn inspect_with(
-    id: IntegrationId,
-    context: &ProviderContext,
-    reads: AgentReads,
-) -> (SnapshotItem, InspectionDetail) {
+fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads) -> Inspection {
     let management_mode = management_mode(id, context.management_mode);
     let spec = spec(id);
     let executable = exec::resolve_executable(spec.executable, context.path_env);
@@ -498,8 +506,8 @@ fn inspect_with(
     // CLI-command adapters skip inspection entirely when the executable is
     // absent — state unknown; the platform issue still reports manual-only.
     if matches!(spec.kind, Kind::Cli(_)) && executable.is_none() {
-        return (
-            SnapshotItem {
+        return Inspection {
+            item: SnapshotItem {
                 availability,
                 integration_id: id,
                 issue: (management_mode == ManagementMode::ManualOnly)
@@ -508,34 +516,37 @@ fn inspect_with(
                 state: State::Unknown,
                 timed_out: false,
             },
-            InspectionDetail::Cli {
+            detail: InspectionDetail::Cli {
                 marketplace: None,
                 plugin_present: None,
             },
-        );
+            own: State::Unknown,
+        };
     }
 
     if reads == AgentReads::Skip
         && id.read_by_starting_agent()
         && management_mode == ManagementMode::ManagedLocal
     {
-        return (
-            SnapshotItem {
+        let (state, own) = unread_state(id, context, &options);
+        return Inspection {
+            item: SnapshotItem {
                 availability,
                 integration_id: id,
                 issue: None,
                 management_mode,
-                state: unread_state(id, context, &options),
+                state,
                 timed_out: false,
             },
-            match spec.kind {
+            detail: match spec.kind {
                 Kind::Cli(CliKind::Hermes) => InspectionDetail::Plain {},
                 _ => InspectionDetail::Cli {
                     marketplace: None,
                     plugin_present: None,
                 },
             },
-        );
+            own,
+        };
     }
 
     let mut timed_out = false;
@@ -560,6 +571,9 @@ fn inspect_with(
         plugin_present: inspection.map(|found| found.plugin_present),
     };
 
+    // Set where another environment's whole-file entry may make what disable acts on differ
+    // from the row.
+    let mut own = None;
     let (state, inspection_failed, detail) = match spec.kind {
         Kind::ConfigurationHooks => {
             #[cfg(windows)]
@@ -572,7 +586,12 @@ fn inspect_with(
         Kind::Cli(CliKind::Hermes) => {
             #[cfg(windows)]
             let state = match super::hermes_windows::local(context.home, &options) {
-                Some(local) if local.state == State::Conflict => local.state,
+                Some(local) if local.state == State::Conflict => {
+                    if local.elsewhere {
+                        own = Some(State::NotInstalled);
+                    }
+                    local.state
+                }
                 Some(local) => match read_slot(
                     executable.as_deref().expect("gated above"),
                     &["plugins", "list", "--json"],
@@ -694,16 +713,18 @@ fn inspect_with(
                 guarded.kind,
                 runtime_source.as_deref(),
             );
-            let target_state = combine_companion_target(
-                inspect_guarded_spec(id, guarded, context, &options),
-                companion_guarded_spec(id)
-                    .map(|companion| inspect_guarded_spec(id, companion, context, &options)),
-            );
-            let obsolete_target_state = obsolete_guarded_spec(id)
+            let primary = inspect_guarded_spec(id, guarded, context, &options);
+            let companion = companion_guarded_spec(id)
+                .map(|companion| inspect_guarded_spec(id, companion, context, &options));
+            let obsolete = obsolete_guarded_spec(id)
                 .map(|old| inspect_guarded_spec(id, old, context, &options));
-            let combined_target_state =
-                combine_guarded_targets(target_state, obsolete_target_state);
-            let state = match combined_target_state {
+            // The row reads another environment's entry as a conflict; what disable acts on
+            // reads it as absent.
+            let read = |view: fn(GuardedTarget) -> TargetState| {
+                let target = combine_companion_target(view(primary), companion.map(view));
+                (target, combine_guarded_targets(target, obsolete.map(view)))
+            };
+            let observed = |combined: TargetState| match combined {
                 TargetState::Missing => State::NotInstalled,
                 TargetState::UpdateRequired => State::UpdateRequired,
                 TargetState::Current if !source_ready => State::UpdateRequired,
@@ -711,13 +732,15 @@ fn inspect_with(
                 TargetState::Conflict => State::Conflict,
                 TargetState::Unknown => State::Unknown,
             };
+            let (target_state, combined_target_state) = read(GuardedTarget::state);
+            own = Some(observed(read(GuardedTarget::own).1));
             (
-                state,
+                observed(combined_target_state),
                 combined_target_state == TargetState::Unknown,
                 InspectionDetail::Guarded {
                     target_state,
                     source_ready,
-                    obsolete_target_state,
+                    obsolete_target_state: obsolete.map(GuardedTarget::state),
                 },
             )
         }
@@ -725,12 +748,21 @@ fn inspect_with(
 
     // The capsule fold — `enabled` downgrades to `update-required` when the
     // managed payload is not ready.
-    let state = if state == State::Enabled
-        && !capsule::is_ready(context.capsule_root, context.adapter_source)
-    {
-        State::UpdateRequired
+    let fold = |state: State| {
+        if state == State::Enabled
+            && !capsule::is_ready(context.capsule_root, context.adapter_source)
+        {
+            State::UpdateRequired
+        } else {
+            state
+        }
+    };
+    let own = own.unwrap_or(state);
+    let (state, own) = if own == state {
+        let folded = fold(state);
+        (folded, folded)
     } else {
-        state
+        (fold(state), fold(own))
     };
 
     // Issue precedence (canonical): the platform slot wins, then the
@@ -743,8 +775,8 @@ fn inspect_with(
         None
     };
 
-    (
-        SnapshotItem {
+    Inspection {
+        item: SnapshotItem {
             availability,
             integration_id: id,
             issue,
@@ -753,21 +785,31 @@ fn inspect_with(
             timed_out,
         },
         detail,
-    )
+        own,
+    }
 }
 
-/// The state of a provider left unread: `unknown`, except that Orchbee's own Hermes entry files
-/// alone prove a conflict.
-fn unread_state(id: IntegrationId, context: &ProviderContext, options: &ResourceOptions) -> State {
+/// The row state and what disable acts on for a provider left unread: `unknown`, except that
+/// Orchbee's own Hermes entry files alone prove a conflict, or another environment's plugin.
+fn unread_state(
+    id: IntegrationId,
+    context: &ProviderContext,
+    options: &ResourceOptions,
+) -> (State, State) {
     #[cfg(windows)]
     if id == IntegrationId::Hermes
-        && super::hermes_windows::local(context.home, options)
-            .is_some_and(|local| local.state == State::Conflict)
+        && let Some(local) = super::hermes_windows::local(context.home, options)
+        && local.state == State::Conflict
     {
-        return State::Conflict;
+        let own = if local.elsewhere {
+            State::NotInstalled
+        } else {
+            State::Conflict
+        };
+        return (State::Conflict, own);
     }
     let _ = (id, context, options);
-    State::Unknown
+    (State::Unknown, State::Unknown)
 }
 
 /// The whole snapshot — canonical order, each provider inspected in turn
@@ -796,5 +838,6 @@ pub(crate) fn inspect_provider_detail(
     id: IntegrationId,
     context: &ProviderContext,
 ) -> (SnapshotItem, InspectionDetail) {
-    inspect_full(id, context)
+    let Inspection { item, detail, .. } = inspect_full(id, context);
+    (item, detail)
 }

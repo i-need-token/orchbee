@@ -198,7 +198,16 @@ pub(crate) fn mutate(
         }
     }
 
-    let (initial, detail) = providers::inspect_full(id, context);
+    let inspection = providers::inspect_full(id, context);
+    // Disable acts only on this environment's entries, so it gates on `own`, where another
+    // environment's whole-file entry is absent; enable gates on the row, where that entry is a
+    // conflict it refuses to replace.
+    let gate = gate_state(direction, &inspection);
+    let providers::Inspection {
+        item: initial,
+        detail,
+        ..
+    } = inspection;
     // Whether the capsule publish step already ran decides what `initial`
     // proves: a snapshot taken behind an Orchbee-owned effect can never be
     // reported as admission-before-effect, even when the provider state it
@@ -246,8 +255,8 @@ pub(crate) fn mutate(
 
     // Controller pre-gates, in canonical order.
     let refused = match (direction, &initial) {
-        _ if initial.state == State::Conflict => Some(Refusal::Conflict),
-        _ if initial.state == State::Unknown => Some(Refusal::InspectionFailed),
+        _ if gate == State::Conflict => Some(Refusal::Conflict),
+        _ if gate == State::Unknown => Some(Refusal::InspectionFailed),
         (Direction::Enable, item) if item.availability != Availability::Available => {
             Some(Refusal::AgentUnavailable)
         }
@@ -265,12 +274,7 @@ pub(crate) fn mutate(
             verdict: Verdict::Refused(refusal),
         };
     }
-    let already_at_goal = match direction {
-        Direction::Enable => initial.state == State::Enabled,
-        Direction::Disable => {
-            matches!(initial.state, State::Disabled | State::NotInstalled)
-        }
-    };
+    let already_at_goal = goal_observed(direction, gate);
     if already_at_goal {
         return MutationReport {
             integration_id: id,
@@ -392,8 +396,8 @@ pub(crate) fn mutate(
             if now() < context.deadline {
                 #[cfg(all(any(test, feature = "test-support"), unix))]
                 super::test_support::fault_injection::boundary("reinspect", Path::new(""));
-                let item = providers::inspect_provider(id, context);
-                let verdict = if goal_observed(direction, item.state) {
+                let inspection = providers::inspect_full(id, context);
+                let verdict = if goal_observed(direction, gate_state(direction, &inspection)) {
                     Verdict::Completed
                 } else {
                     Verdict::Failed(FailureCode::VerificationFailed)
@@ -403,7 +407,7 @@ pub(crate) fn mutate(
                     direction,
                     attempted,
                     residuals,
-                    observed: Some(item),
+                    observed: Some(inspection.item),
                     provenance: Provenance::PostEffect,
                     effect_begun,
                     verdict,
@@ -455,10 +459,12 @@ pub(crate) fn mutate(
     // further is owed: the provenance stays unavailable.
     let reserve_deadline_ok = now() + SLOT * (reserve as u32) < context.deadline
         && attempt != Attempt::Failed(FailureCode::TimedOut);
-    let (observed, provenance) = if reserve_deadline_ok {
+    let (observed, reached, provenance) = if reserve_deadline_ok {
         #[cfg(all(any(test, feature = "test-support"), unix))]
         super::test_support::fault_injection::boundary("reinspect", Path::new(""));
-        let item = providers::inspect_provider(id, context);
+        let inspection = providers::inspect_full(id, context);
+        let reached = goal_observed(direction, gate_state(direction, &inspection));
+        let item = inspection.item;
         let provenance = if item.state == State::Unknown
             && item.issue == Some(super::model::Issue::InspectionFailed)
         {
@@ -466,13 +472,13 @@ pub(crate) fn mutate(
         } else {
             Provenance::PostEffect
         };
-        (Some(item), provenance)
+        (Some(item), reached, provenance)
     } else {
-        (None, Provenance::Unavailable)
+        (None, false, Provenance::Unavailable)
     };
 
     let verdict = match observed {
-        Some(item) if goal_observed(direction, item.state) => Verdict::Completed,
+        Some(_) if reached => Verdict::Completed,
         // A degraded observation can neither confirm nor refute the goal —
         // verification-failed, undetermined.
         Some(_) if provenance == Provenance::Partial => {
@@ -520,6 +526,14 @@ pub(crate) fn mutate(
         provenance,
         effect_begun,
         verdict,
+    }
+}
+
+/// The state a mutation in `direction` gates on and verifies against.
+fn gate_state(direction: Direction, inspection: &providers::Inspection) -> State {
+    match direction {
+        Direction::Enable => inspection.item.state,
+        Direction::Disable => inspection.own,
     }
 }
 
@@ -1971,13 +1985,17 @@ fn guarded_disable(
     };
     #[cfg(all(any(test, feature = "test-support"), unix))]
     super::test_support::fault_injection::boundary("remove-verify-owned", &target);
-    let state = inspect::inspect_guarded_target(
+    let state = match inspect::read_guarded_target(
         &target,
         spec.kind,
         id,
         Path::new(spec.source_relative),
         options,
-    );
+    ) {
+        // Another environment's entry stays as it is.
+        inspect::GuardedTarget::Elsewhere => return Attempt::Attempted,
+        inspect::GuardedTarget::Here(state) => state,
+    };
     match state {
         TargetState::Missing => return Attempt::Attempted,
         TargetState::Current | TargetState::UpdateRequired => {}
