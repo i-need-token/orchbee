@@ -128,6 +128,8 @@ jobs:
           name: release-test-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts
           if-no-files-found: error
+          # The release directory holds dot-named plugin folders, which the action skips by default.
+          include-hidden-files: true
           retention-days: 3
 
   smoke:
