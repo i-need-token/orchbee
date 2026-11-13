@@ -137,7 +137,13 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
     }
 }
 pub(crate) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale) -> Output {
-    if let Err(failure) = super::execution::admit(super::execution::Capability::ClientControl) {
+    let capability = match command {
+        ClientCommand::List | ClientCommand::Get(_) => super::execution::Capability::ClientViewRead,
+        ClientCommand::ControlStatus(_)
+        | ClientCommand::Navigate { .. }
+        | ClientCommand::Swap(_) => super::execution::Capability::ClientControl,
+    };
+    if let Err(failure) = super::execution::admit(capability) {
         return failure_output(failure, Some(format), locale);
     }
     workflow::run(command, format, locale)

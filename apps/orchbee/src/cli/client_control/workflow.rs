@@ -1,6 +1,7 @@
 //! Submits exact admitted Client controls and observes their correlated monotonic status under
 //! one cancellable deadline. It does not activate an OS window or undo an admitted control
-//! when the caller stops waiting.
+//! when the caller stops waiting. Cancellation borrows the CLI interrupt-pair port, so the
+//! read-only list and get also run where Linux admits them.
 
 use super::{
     Answer, Wait, emit,
@@ -11,7 +12,8 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
-        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        command_interrupt::{ArmedSignals, Finish},
+        console_interrupt::SignalWatch,
         failure_output, query,
         stale_retry::{Ended, StaleRetry},
     },

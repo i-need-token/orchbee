@@ -17,6 +17,7 @@ pub(super) enum Capability {
     TerminalRun,
     WorkspaceGroupClose,
     WorktreeOperation,
+    ClientViewRead,
     ClientControl,
     Layout,
     TerminalCreation,
@@ -67,6 +68,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::TerminalRun
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation
+        | Capability::ClientViewRead
         | Capability::ClientControl
         | Capability::Layout
         | Capability::TerminalCreation
