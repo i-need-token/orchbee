@@ -18,7 +18,8 @@ crossterm.workspace = true
 # Integration requests and reports exchanged with the Session Worker.
 orchbee-agent-integration = { path = "../../crates/agent-integration" }
 # Read-only provider configuration helpers for offline `agent doctor` and update verification,
-# and the disable `uninstall` runs after every Session has stopped.
+# the files-only inspection of `agent integration list`, and the disable `uninstall` runs after
+# every Session has stopped.
 orchbee-agent-integration-writer = { path = "../../crates/agent-integration-writer" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }

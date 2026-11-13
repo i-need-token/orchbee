@@ -10,10 +10,11 @@ retained mutation outcomes. Values and report vocabularies come from the
 - One invocation runs under one cooperative 40-second budget. Callers pass a
   `TerminationSource`; the writer observes it between bounded steps and settles as cancelled.
 - Unix and Windows are supported. Windows configuration-location helpers compile only on Windows.
-- The actual consumers are `orchbee-worker`, whose job owner runs every inspection and mutation
-  for its Session, and `orchbee`, which reuses the read-only configuration helpers for offline
-  `agent doctor` and Windows update verification and runs the disable of every provider in
-  `uninstall` after the environment's Sessions have stopped.
+- The actual consumers are `orchbee-worker`, whose job owner runs `explain`, every mutation and
+  the Settings `list` for its Session, and `orchbee`, which runs the files-only `list` of
+  `agent integration list` in its own process, reuses the read-only configuration helpers for
+  offline `agent doctor` and Windows update verification, and runs the disable of every provider
+  in `uninstall` after the environment's Sessions have stopped.
 
 ## What each operation starts
 

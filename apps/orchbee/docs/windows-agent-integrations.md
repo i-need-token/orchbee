@@ -1,10 +1,16 @@
 # Windows Agent integrations
 
 This record owns the Windows refinement of native `agent integration list`,
-`explain`, `enable`, and `disable`. Each command activates the local Session and
-runs one Server-authorized job on its Worker, so the user profile, PATH and configuration
-roots below are those of the process that started the Session. Activation itself
-refuses a missing or non-absolute LOCALAPPDATA or APPDATA before any job runs.
+`explain`, `enable`, and `disable`. `list` is a query: it runs the files-only inspection in the
+CLI's own process, so the user profile, PATH and configuration roots below are the invoking
+process's, and it never starts, contacts or locks a Session, so no saved terminal is restored.
+A Session that `list` started before inherited that same environment, so the answer is unchanged;
+while a Session started from another environment runs, `availability` reflects the CLI's PATH,
+not its Worker's. A missing or unusable profile or data root answers `home-unavailable`.
+`explain`, `enable` and `disable` activate the local Session and run one Server-authorized job on
+its Worker, so their profile, PATH and configuration roots are those of the process that started
+the Session. Activation itself refuses a missing or non-absolute LOCALAPPDATA or APPDATA before
+any job runs.
 The shared provider classifier and mutation workflow remain authoritative
 for ownership, payload identity, plans, receipts, and residuals.
 

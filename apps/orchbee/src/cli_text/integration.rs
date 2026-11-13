@@ -5,13 +5,13 @@ use super::Locale;
 pub(super) const HELP_AGENT_INTEGRATION_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration list [--provider <id>] [--outdated-only] [--adapter-source <abs>] [--format text|json]",
-        "Inspect every supported provider's local integration state — or only the\none selected by '--provider'. Starts the local Session when none is\nrunning; its Worker reads files only and starts no Agent program, so a\nprovider whose plugins only its own program reports stays not checked;\nnothing is written. '--adapter-source' overrides the cohort adapter payload for development\nand tests. Windows --outdated-only shows owned updates/repairs, preserving\nunknown and blocked provider diagnostics. Use enable to apply a guarded repair.\n'--format json' emits the orchbee.agent.integrations envelope.",
+        "Inspect every supported provider's local integration state — or only the\none selected by '--provider'. Reads files only, with this shell's home\nand PATH; starts or contacts no Session and starts no Agent program, so a\nprovider whose plugins only its own program reports stays not checked;\nnothing is written. '--adapter-source' overrides the cohort adapter payload for development\nand tests. Windows --outdated-only shows owned updates/repairs, preserving\nunknown and blocked provider diagnostics. Use enable to apply a guarded repair.\n'--format json' emits the orchbee.agent.integrations envelope.",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent integration list [--provider <id>] [--outdated-only] [--adapter-source <abs>] [--format text|json]",
-        "检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一个。没有运行中的本地 Session 时会先启动它；其 Worker 只读取文件，不启动任何智能体程序，因此插件状态只能由自身程序报告的 provider 保持未检查；不写入任何内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\nWindows --outdated-only 只显示需更新／修复的自有条目，保留未知和冲突诊断。使用 enable 显式执行受保护的修复。'--format json' 输出 orchbee.agent.integrations 封套。",
+        "检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一个。只按当前 shell 的主目录和 PATH 读取文件，不启动也不连接 Session，不启动任何智能体程序，因此插件状态只能由自身程序报告的 provider 保持未检查；不写入任何内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\nWindows --outdated-only 只显示需更新／修复的自有条目，保留未知和冲突诊断。使用 enable 显式执行受保护的修复。'--format json' 输出 orchbee.agent.integrations 封套。",
     );
 
 pub(super) const HELP_AGENT_INTEGRATION_EXPLAIN_EN: crate::cli_text::HelpDetails =

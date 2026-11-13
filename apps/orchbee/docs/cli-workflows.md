@@ -216,10 +216,12 @@ unborn repository and `null` marks the bare entry.
 
 `agent integration` manages the local onboarding of a supported provider —
 inspect its state, explain the enable plan, and enable or disable the
-managed integration. Each command activates the local Session when none is
-running, then runs as one job on the Session's Worker, which resolves the
-provider from its own home directory and `PATH` — those of the process that
-started the Session. Every mutation stays bounded and non-interactive. An
+managed integration. `list` only reads: it inspects the provider files in its
+own process, with its own home directory and `PATH`, and never starts or
+contacts a Session. `explain`, `enable` and `disable` activate the local Session
+when none is running, then run as one job on the Session's Worker, which
+resolves the provider from its own home directory and `PATH` — those of the
+process that started the Session. Every mutation stays bounded and non-interactive. An
 interruption during activation ends the command like `server start`; once
 the job exists, the first interruption registers cooperative cancellation as
 soon as the exchange in flight answers, and the command waits for the job's

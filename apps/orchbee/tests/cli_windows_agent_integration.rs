@@ -1,7 +1,8 @@
 //! Public Windows onboarding through a real local Session: isolated profile/configuration, a
 //! private cohort carrying the Server and Worker under test, a deterministic provider CLI, real
-//! batch launch, capsule publication, and schema receipts. The Worker inspects and edits with the
-//! environment of the Session that runs it, so each verb invocation activates its own Session.
+//! batch launch, capsule publication, and schema receipts. `list` reads in the CLI's own process;
+//! the Worker explains and edits with the environment of the Session that runs it, so each of
+//! those verb invocations activates its own Session.
 #![cfg(windows)]
 
 use orchbee_local_runtime::CohortArtifact;
@@ -2071,6 +2072,27 @@ fn list_starts_no_agent_program_and_explain_does() {
             );
         }
     }
+}
+
+/// A query has no effect beyond its answer: with no Session running, `list` answers and leaves
+/// no Session behind, so none restores saved terminals and no runtime folder appears.
+#[test]
+fn list_answers_without_starting_a_session() {
+    let fixture = Fixture::new();
+    fixture.document("list", 0);
+    let output = fixture
+        .cli()
+        .args(["status", "server", "--format", "json"])
+        .output()
+        .unwrap();
+    let status: Value = serde_json::from_slice(&output.stdout).unwrap_or(Value::Null);
+    assert_eq!(
+        status["result"]["server"],
+        json!({"state": "not-running", "reason": "runtime-absent"}),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
