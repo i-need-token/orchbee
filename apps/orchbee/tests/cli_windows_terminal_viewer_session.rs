@@ -100,11 +100,9 @@ fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
         watch(&fixture, &tui.terminal, &format!("divider drag {round}"));
         let after = Layout::read(&fixture, &tui.terminal);
         let moved = (i32::from(after.divider) - i32::from(before.divider)) * step;
-        assert!(
-            moved >= i32::from(DRAG_COLUMNS) - 1,
-            "divider drag {round} moved the divider {moved} columns:\n{}",
-            after.text
-        );
+        if moved < i32::from(DRAG_COLUMNS) - 1 {
+            report_unmoved(&fixture, &tui, round, moved, before.divider, &after.text);
+        }
         let view = fixture.client(&tui.client);
         assert_eq!(
             view["view"]["selection"]["panelId"],
@@ -144,6 +142,30 @@ fn window_resizes_under_soft_wrapped_output_keep_every_viewer() {
         assert_eq!(read.code, Some(0), "{read}");
     }
     control.release();
+}
+
+/// Fails a drag that left the divider in place, with what tells a refused drag from a late one: the
+/// Client's view, the Server's Workbench revision, and where the divider stood once the Client had
+/// had `OBSERVATION` more to settle.
+fn report_unmoved(
+    fixture: &Fixture,
+    tui: &session::Tui,
+    round: usize,
+    moved: i32,
+    pressed: u16,
+    screen: &str,
+) -> ! {
+    let view = fixture.client(&tui.client);
+    let revision =
+        fixture.run(&["api", "snapshot"]).document["result"]["snapshot"]["revision"].clone();
+    thread::sleep(OBSERVATION);
+    let later = Layout::read(fixture, &tui.terminal);
+    panic!(
+        "divider drag {round} moved the divider {moved} columns:\n{screen}\n\
+         The drag was pressed at column {pressed}; {OBSERVATION:?} later the divider stood at \
+         column {}:\n{}\nClient: {view}\nServer revision: {revision}",
+        later.divider, later.text
+    );
 }
 
 /// Splits a new Workspace into a left and a right pane.

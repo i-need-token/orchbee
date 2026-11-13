@@ -27,6 +27,10 @@ const HOLD: Duration = Duration::from_millis(80);
 /// Bounds how long a shell, a program's output or a close may take to show.
 const LANDING: Duration = Duration::from_secs(20);
 const POLL: Duration = Duration::from_millis(50);
+/// How long a close that already failed `LANDING` is watched for evidence. With `LANDING`, it
+/// outlasts the Client's 50-second bound on one close exchange, so a request still waiting on its
+/// answer shows how it ends.
+const AFTERMATH: Duration = Duration::from_secs(40);
 /// Outlasts a shell's return to its prompt after what it printed last.
 const PROMPT_RETURN: Duration = Duration::from_secs(2);
 const CLOSE_TAB: &[u8] = b"\x02x";
@@ -147,9 +151,41 @@ impl Driver {
             if gone(&screen) {
                 return;
             }
-            assert!(Instant::now() < deadline, "{what} never closed:\n{screen}");
+            if Instant::now() >= deadline {
+                self.report_unclosed(what, dialog, &gone, &screen);
+            }
             thread::sleep(POLL);
         }
+    }
+
+    /// Fails a close that missed `LANDING`, with what tells a lost request from a slow one: the
+    /// Client's view, the Server's Workbench, and how the close went on once it had failed.
+    fn report_unclosed(
+        &self,
+        what: &str,
+        dialog: &str,
+        gone: &impl Fn(&str) -> bool,
+        screen: &str,
+    ) -> ! {
+        let view = self.fixture.client(&self.tui.client);
+        let snapshot = self.fixture.run(&["api", "snapshot"]).document;
+        let failed = Instant::now();
+        let afterwards = loop {
+            let later = self.screen();
+            if gone(&later) {
+                break format!("it closed {:?} later", failed.elapsed());
+            }
+            if later.contains(dialog) {
+                break format!("it presented its confirmation {:?} later", failed.elapsed());
+            }
+            if failed.elapsed() >= AFTERMATH {
+                break format!("it was still open {AFTERMATH:?} later:\n{later}");
+            }
+            thread::sleep(POLL);
+        };
+        panic!(
+            "{what} never closed:\n{screen}\nthen {afterwards}\nClient: {view}\nServer: {snapshot}"
+        );
     }
 
     /// The close must present its confirmation; the answer here keeps the target.
