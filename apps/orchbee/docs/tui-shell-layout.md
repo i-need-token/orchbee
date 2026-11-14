@@ -174,7 +174,7 @@ thumb grabs it where pressed; on the track it centers the thumb on that row and 
 Dragging moves the list with the thumb, and release ends the drag. The wheel there scrolls as it
 does over the list. Like a wheel scroll, the thumb stops the window following focus until the next
 keyboard move; it never moves keyboard focus or leaves sidebar navigation. Keyboard input, host
-focus loss, a modal overlay, resize mode, the open picker, and a frame that paints another extent
+focus loss, a modal overlay, the open picker, and a frame that paints another extent
 or no scrollbar each end the drag.
 
 The tree shape comes from shared columns. Project, Recents and Workspace rows keep a one-cell
@@ -405,13 +405,13 @@ for the sidebar and the Tab strip's own surface. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
 
-The top strip reserves its space for terminal navigation. Copy and resize modes replace it with
-their controls, or overlay the first workbench row when no strip exists. On the three-row
-[Mobile Tab bar](#mobile-tab-bar) they cover all three rows and put their controls on the middle
+The top strip reserves its space for terminal navigation. Copy mode replaces it with
+its controls, or overlays the first workbench row when no strip exists. On the three-row
+[Mobile Tab bar](#mobile-tab-bar) it covers all three rows and puts its controls on the middle
 one.
 These controls reserve no additional terminal geometry; painted control cells take pointer
-precedence over the content beneath them. Their behavior belongs to the owning action, copy
-and resize references.
+precedence over the content beneath them. Their behavior belongs to the owning action and copy
+references.
 
 When help cannot fit a complete page in a presentable tier, the status chip shows the
 localized resize notice with a complete three-cell `[x]` button. This button can remain visible

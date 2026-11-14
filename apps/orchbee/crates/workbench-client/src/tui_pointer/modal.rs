@@ -2,13 +2,13 @@
 //! The state owner then validates that exact token before any shared effect.
 use super::{
     BoardAction, CloseDecision, CopyAction, FindAction, FrameHitMap, Gesture, HitResolution,
-    InteractionTarget, LayoutAction, ModalControl, Modifiers, MotionObservability, MouseAction,
-    MouseButton, MouseEvent, PointerOutcome, PointerState, ReleaseOwnership, RenameAction,
-    SetupAction, SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
+    InteractionTarget, ModalControl, Modifiers, MotionObservability, MouseAction, MouseButton,
+    MouseEvent, PointerOutcome, PointerState, ReleaseOwnership, RenameAction, SetupAction,
+    SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
 };
 use crate::tui_hit_map::modal::{
     ControlTarget, Fingerprint, Projection, accepts_confirmation, accepts_copy, accepts_find,
-    accepts_login, accepts_modal, accepts_resize,
+    accepts_login, accepts_modal,
 };
 
 /// Live pointer position and hover for specialized modal controls. Press
@@ -480,67 +480,6 @@ impl PointerState {
         self.stale_map();
         true
     }
-    pub(crate) fn resize_event(
-        &mut self,
-        view: &mut crate::client_view::ClientView,
-        port: &mut (impl TerminalInputPort + ?Sized),
-        event: MouseEvent,
-    ) -> bool {
-        self.observe_modal_motion(event, accepts_resize);
-        let admit_new = self.can_admit_modal_press();
-        let ControlEvent::Released(target) = control_event(
-            self.map.as_ref(),
-            self.capture,
-            admit_new,
-            &mut self.modal_press,
-            event,
-            accepts_resize,
-        ) else {
-            return false;
-        };
-        if target.is_none() {
-            self.modal_projection.clear_transport();
-        }
-        if view.resize_mode()
-            && let Some(ControlTarget::Resize(control)) = target
-        {
-            match control {
-                super::ResizeControl::Adjust {
-                    target,
-                    direction,
-                    fine,
-                } => {
-                    view.clear_resize_notice();
-                    port.surface_action(SurfaceAction::Layout(LayoutAction::ResizeControl {
-                        target: &target,
-                        direction,
-                        fine,
-                    }));
-                }
-                super::ResizeControl::Step(previous) if view.resize_pointer_fine == previous => {
-                    view.resize_pointer_fine = !previous;
-                }
-                super::ResizeControl::Help => {
-                    let transition =
-                        view.decide_action(crate::client_view::ClientAction::OpenShortcutHelp);
-                    view.commit(
-                        transition,
-                        crate::client_view::ClientActionDisposition::KeepNavigator,
-                    );
-                }
-                super::ResizeControl::Exit => {
-                    port.apply_client_action(
-                        (crate::client_view::ClientAction::ExitResizeMode).into(),
-                    );
-                    view.exit_resize_mode();
-                }
-                _ => {}
-            }
-        }
-        self.stale_map();
-        true
-    }
-
     pub(crate) fn board_event(
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),

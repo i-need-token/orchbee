@@ -574,7 +574,6 @@ impl PointerState {
             || event.action != MouseAction::Press
             || event.button != MouseButton::Left
             || event.mods != Modifiers::NONE
-            || view.resize_mode()
             || view.prefix_active()
         {
             return false;
@@ -610,7 +609,6 @@ impl PointerState {
             && matches!(event.button, MouseButton::Left | MouseButton::None);
         let alive = event.mods == Modifiers::NONE
             && !(event.action == MouseAction::Motion && event.button != MouseButton::Left)
-            && !view.resize_mode()
             && view.machines.sidebar_source() == drag.paint.source
             && drag.baseline_current(port.sidebar_reorder_source().as_ref())
             && self.sidebar_reorder_framed(&drag);
@@ -716,7 +714,6 @@ impl PointerState {
         };
         if !drag.baseline_current(port.sidebar_reorder_source().as_ref())
             || view.machines.sidebar_source() != drag.paint.source
-            || view.resize_mode()
             || !self.sidebar_reorder_framed(drag)
         {
             return self.cancel_sidebar_reorder();

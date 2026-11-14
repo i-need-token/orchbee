@@ -9,7 +9,6 @@ pub(super) const ACTIONS: &[&str] = &[
     "menu",
     "copy_mode",
     "find",
-    "resize_mode",
     "resize_panel_left",
     "resize_panel_right",
     "resize_panel_up",

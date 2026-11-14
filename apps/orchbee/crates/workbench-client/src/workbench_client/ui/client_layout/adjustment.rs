@@ -13,7 +13,6 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn prepare_keyboard_adjustment(
         &self,
         direction: orchbee_workbench_protocol::ClientPanelDirection,
-        fine: bool,
         viewport: Option<(Rect, SidebarSurface)>,
     ) -> Result<
         (
@@ -74,9 +73,8 @@ impl WorkbenchClientUi {
         layout
             .validate()
             .map_err(|_| Reason::ProjectionUnavailable)?;
-        let amount =
-            orchbee_workbench_protocol::ClientResizeAmount::new(if fine { 0.01 } else { 0.05 })
-                .expect("fixed admitted keyboard step");
+        let amount = orchbee_workbench_protocol::ClientResizeAmount::new(0.05)
+            .expect("fixed admitted keyboard step");
         let change = layout
             .resize_split(direction)
             .map_err(|_| Reason::ProjectionUnavailable)?

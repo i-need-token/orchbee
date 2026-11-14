@@ -684,60 +684,6 @@ fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
 }
 
 #[test]
-fn resize_mode_consumes_keys_prefix_paste_and_complete_sequences_then_escape_restores_passthrough()
-{
-    let calls = Rc::new(RefCell::new(Vec::new()));
-    let mut port = UnavailablePort(Rc::clone(&calls));
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(120);
-    run(
-        &mut view,
-        &mut dispatcher,
-        &mut port,
-        b"before\x02P\x1b[C\x1b[1;2Dabc\x02q\x1b[200~\x1b[C\x1b\x02q\x1b[201~\x1b[99~",
-    );
-    assert!(view.resize_mode());
-    assert!(!view.prefix_active());
-    assert_eq!(
-        *calls.borrow(),
-        [
-            Call::Forward(b"before".to_vec()),
-            Call::Action(ClientAction::EnterResizeMode),
-            Call::Action(ClientAction::ResizePane {
-                direction: crate::client_view::PanelDirection::Right,
-                fine: false
-            }),
-            Call::Action(ClientAction::ResizePane {
-                direction: crate::client_view::PanelDirection::Left,
-                fine: true
-            })
-        ]
-    );
-    let start = Instant::now();
-    dispatcher
-        .dispatch(
-            &mut view,
-            b"\x1b",
-            &mut port,
-            start,
-            |_, _| Ok::<bool, io::Error>(false),
-            &mut |_| Ok(()),
-        )
-        .unwrap();
-    dispatcher
-        .synchronize(
-            &mut view,
-            &mut port,
-            start + Duration::from_millis(60),
-            &mut |_| Ok::<_, io::Error>(()),
-        )
-        .unwrap();
-    assert!(!view.resize_mode());
-    run(&mut view, &mut dispatcher, &mut port, b"after\x1b[C");
-    assert_eq!(forwarded_bytes(&calls), b"beforeafter\x1b[C".to_vec());
-}
-
-#[test]
 fn default_prefix_then_alt_arrow_resizes_and_forwards_nothing_of_the_chord() {
     let mut view = ClientView::new(120);
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -755,7 +701,6 @@ fn default_prefix_then_alt_arrow_resizes_and_forwards_nothing_of_the_chord() {
             Call::Forward(b"before".to_vec()),
             Call::Action(ClientAction::ResizePane {
                 direction: crate::client_view::PanelDirection::Right,
-                fine: false
             }),
             Call::Forward(b"after\x1b[1;3C".to_vec())
         ]
@@ -763,10 +708,8 @@ fn default_prefix_then_alt_arrow_resizes_and_forwards_nothing_of_the_chord() {
 }
 
 #[test]
-fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_chord() {
-    let keys =
-        KeySettings::from_profile("[keys]\nresize_mode='prefix+R'\nresize_panel_left='ctrl+left'")
-            .unwrap();
+fn configured_direct_resize_uses_registry_and_never_forwards_the_chord() {
+    let keys = KeySettings::from_profile("[keys]\nresize_panel_left='ctrl+left'").unwrap();
     let mut view = ClientView::new(120);
     view.configure_keys(&keys);
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -778,26 +721,22 @@ fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_
         &mut port,
         b"before\x1b[1;5Dafter",
     );
-    assert!(!view.resize_mode());
     assert_eq!(
         *calls.borrow(),
         [
             Call::Forward(b"before".to_vec()),
             Call::Action(ClientAction::ResizePane {
                 direction: crate::client_view::PanelDirection::Left,
-                fine: false
             }),
             Call::Forward(b"after".to_vec())
         ]
     );
     let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
     assert!(entries.iter().any(|entry| {
-        entry.title == "Resize panel"
+        entry.title == "Resize panel left"
             && entry
                 .key
                 .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+"))
             && (entry.key.contains("Left") || entry.key.contains("←"))
     }));
-    run(&mut view, &mut dispatcher, &mut port, b"\x02R");
-    assert!(view.resize_mode());
 }

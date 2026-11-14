@@ -3376,16 +3376,7 @@ impl WorkbenchClientUi {
             }
 
             ClientAction::RequestControlTakeover => self.request_takeover(),
-            ClientAction::EnterResizeMode => {
-                let _consumed = self.history_key(&crate::client_view::KeyEvent::press(
-                    crate::client_view::KeyCode::Esc,
-                    crate::client_view::Modifiers::NONE,
-                ));
-                ClientActionDisposition::KeepNavigator
-            }
-            ClientAction::ResizePane { .. } | ClientAction::ExitResizeMode => {
-                ClientActionDisposition::KeepNavigator
-            }
+            ClientAction::ResizePane { .. } => ClientActionDisposition::KeepNavigator,
             ClientAction::ConfirmClose => self.confirm_close(),
             ClientAction::CancelClose => self.cancel_close(),
             // Without a current Workspace the key starts one instead; the Shell enters it.

@@ -123,29 +123,10 @@ impl LocalResizePending {
 }
 
 impl ClientControl {
-    pub(in crate::workbench_client) fn resize_drawn(
-        &mut self,
-        native: &WorkbenchClientUi,
-        target: &crate::tui_layout::DrawnResize,
-        direction: PanelDirection,
-        fine: bool,
-    ) {
-        if !native
-            .view()
-            .divider_source()
-            .is_some_and(|source| source.same_layout(&target.source))
-            || self.viewport != Some((target.viewport, target.sidebar))
-        {
-            self.local_resize_feedback = Some(LocalResizeFeedback::Notice(Notice::ResizeFailed));
-            return;
-        }
-        self.resize(native, direction, fine);
-    }
     pub(in crate::workbench_client) fn resize(
         &mut self,
         native: &WorkbenchClientUi,
         direction: PanelDirection,
-        fine: bool,
     ) {
         let direction = match direction {
             PanelDirection::Left => ClientPanelDirection::Left,
@@ -155,7 +136,7 @@ impl ClientControl {
         };
         self.submit_local(
             native,
-            native.prepare_keyboard_adjustment(direction, fine, self.viewport),
+            native.prepare_keyboard_adjustment(direction, self.viewport),
         );
     }
 

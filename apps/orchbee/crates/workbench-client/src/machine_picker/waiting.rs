@@ -81,7 +81,6 @@ impl ClientView {
         self.machines.open
             || self.machines.login.is_some()
             || self.overlay().is_some()
-            || self.resize_mode()
             || self.prefix_active()
             || self.surface_owns_input()
             || port.copy_mode_active()

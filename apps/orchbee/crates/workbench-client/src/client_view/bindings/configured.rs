@@ -456,32 +456,27 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "menu" => (A::OpenActionMenu, D::ActionMenu),
         "copy_mode" => (A::EnterCopyMode, D::CopyMode),
         "find" => (A::FindInTerminal, D::FindInTerminal),
-        "resize_mode" => (A::EnterResizeMode, D::ResizeMode),
         "resize_panel_left" => (
             A::ResizePane {
                 direction: PanelDirection::Left,
-                fine: false,
             },
             D::ResizeLeft,
         ),
         "resize_panel_right" => (
             A::ResizePane {
                 direction: PanelDirection::Right,
-                fine: false,
             },
             D::ResizeRight,
         ),
         "resize_panel_up" => (
             A::ResizePane {
                 direction: PanelDirection::Up,
-                fine: false,
             },
             D::ResizeUp,
         ),
         "resize_panel_down" => (
             A::ResizePane {
                 direction: PanelDirection::Down,
-                fine: false,
             },
             D::ResizeDown,
         ),

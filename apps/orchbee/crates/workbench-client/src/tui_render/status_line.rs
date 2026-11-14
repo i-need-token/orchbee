@@ -1,6 +1,5 @@
 //! Typed projection and painting for the shell status: a floating chip, and the TooSmall row.
 
-use crate::client_view::PrefixDesc;
 use crate::client_view::{
     ClientAction, ClientView, KeyLabelGlyphs, LabelStyle, Notice, PanelDirection, PrefixAction,
     format_binding_with_glyphs, join_key_labels,
@@ -32,7 +31,6 @@ enum InputIndicator {
     Prefix,
     Navigator,
     Sidebar,
-    Resize,
     ResizePending,
     /// The Find bar owns the keyboard.
     Find,
@@ -1205,9 +1203,6 @@ fn input_indicator(
     capture_owner: Option<CaptureOwner>,
     session_notice: bool,
 ) -> Option<InputIndicator> {
-    if capture_owner == Some(CaptureOwner::Resize) {
-        return Some(InputIndicator::Resize);
-    }
     // The Find bar's own notices lead; the prefix stays live over the bar.
     if capture_owner == Some(CaptureOwner::Copy) && view.find_bar_active() {
         if view.prefix_active() {
@@ -1259,19 +1254,6 @@ fn indicator_projection(
             key: None,
             role: Role::AccentFocus,
         },
-        InputIndicator::Resize => Indicator {
-            label: if view.resize_pending {
-                copy.resize_pending
-            } else {
-                copy.resize
-            },
-            key: None,
-            role: if view.resize_pending {
-                Role::StatusWorking
-            } else {
-                Role::AccentFocus
-            },
-        },
         InputIndicator::ResizePending => Indicator {
             label: copy.resize_pending,
             key: None,
@@ -1318,7 +1300,6 @@ fn status_hints(
             .into();
         }
         Some(InputIndicator::Sidebar) => return sidebar_hints(locale, glyphs),
-        Some(InputIndicator::Resize) => return resize_hints(view, locale, glyphs).into(),
         Some(InputIndicator::ResizePending) => return HintSet::default(),
         Some(InputIndicator::Find) => {
             use crate::client_view::{KeyCode, Modifiers};
@@ -1525,36 +1506,6 @@ fn prefix_action_keys(
         .into_iter()
         .filter_map(|label| label.strip_prefix(prefix.as_str()).map(str::to_owned))
         .collect()
-}
-
-fn resize_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) -> Vec<OwnedHint> {
-    let copy = locale.status();
-    let rows = view.resize_help_rows_with_glyphs(glyphs);
-    let mut result = Vec::new();
-    for wanted in [
-        PrefixDesc::ResizeExit,
-        PrefixDesc::ResizeCoarse,
-        PrefixDesc::ResizeFine,
-        PrefixDesc::ShowHelp,
-    ] {
-        if view.resize_pending && wanted != PrefixDesc::ResizeExit {
-            continue;
-        }
-        if let Some((key, _)) = rows.iter().find(|(_, desc)| *desc == wanted) {
-            let label = match wanted {
-                PrefixDesc::ResizeExit => copy.exit,
-                PrefixDesc::ResizeCoarse => copy.resize_coarse,
-                PrefixDesc::ResizeFine => copy.resize_fine,
-                PrefixDesc::ShowHelp => copy.help,
-                _ => unreachable!("bounded resize status actions"),
-            };
-            result.push(OwnedHint {
-                key: key.clone(),
-                label,
-            });
-        }
-    }
-    result
 }
 
 fn effective_hint(

@@ -15,7 +15,6 @@ use crate::terminal_events::keys;
 use crate::terminal_text::line_editor::LineKey;
 pub(crate) mod navigator;
 pub(crate) mod notifications;
-mod resize;
 pub(crate) mod tab_list;
 
 pub use bindings::Bindings;
@@ -202,8 +201,6 @@ pub struct ClientView {
     project_quick_entry_eligible: Option<bool>,
     pub(crate) navigator: navigator::Navigator,
     prefix_active: bool,
-    resize_mode: bool,
-    pub(crate) resize_pointer_fine: bool,
     /// Mirror of the `WorkbenchClientUi` copy-mode owner, written only by `settle_copy_mode`
     /// from the owner's current answer; it detects the exit edge for discovery.
     copy_mode_active: bool,
@@ -254,8 +251,6 @@ impl ClientView {
             project_quick_entry_eligible: None,
             navigator: navigator::Navigator::default(),
             prefix_active: false,
-            resize_mode: false,
-            resize_pointer_fine: false,
             copy_mode_active: false,
             find_bar_active: false,
             resize_pending: false,
@@ -630,11 +625,6 @@ impl ClientView {
         self.prefix_active = false;
     }
 
-    /// Whether pane resize mode currently owns ordinary Client input.
-    pub const fn resize_mode(&self) -> bool {
-        self.resize_mode
-    }
-
     pub(crate) const fn copy_mode_active(&self) -> bool {
         self.copy_mode_active
     }
@@ -703,43 +693,6 @@ impl ClientView {
         if self.resize_notice_shown() {
             self.notice = None;
         }
-    }
-
-    pub(crate) fn exit_resize_mode(&mut self) {
-        self.resize_pointer_fine = false;
-        if self.resize_mode {
-            self.resize_mode = false;
-            if self.overlay == Some(Overlay::ShortcutHelp) {
-                self.replace_overlay(None);
-            }
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn resize_help_rows(&self) -> Vec<(String, PrefixDesc)> {
-        self.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode)
-    }
-
-    pub(crate) fn resize_help_rows_with_glyphs(
-        &self,
-        glyphs: KeyLabelGlyphs,
-    ) -> Vec<(String, PrefixDesc)> {
-        vec![
-            (
-                resize::labels_with_glyphs(false, glyphs),
-                PrefixDesc::ResizeCoarse,
-            ),
-            (
-                resize::labels_with_glyphs(true, glyphs),
-                PrefixDesc::ResizeFine,
-            ),
-            (resize::help_label_with_glyphs(glyphs), PrefixDesc::ShowHelp),
-            (resize::page_label_with_glyphs(glyphs), PrefixDesc::HelpPage),
-            (
-                resize::exit_label_with_glyphs(glyphs),
-                PrefixDesc::ResizeExit,
-            ),
-        ]
     }
 
     /// First rendered line requested by the Help list.
@@ -839,7 +792,6 @@ impl ClientView {
             || !self.viewport.on_demand()
             || self.overlay != Some(Overlay::BusinessSidebar)
             || self.prefix_active
-            || self.resize_mode
             || self.copy_mode_active
             || self.machines.captures()
         {
@@ -949,7 +901,6 @@ impl ClientView {
         self.machines.leave_sidebar_navigation();
         self.dismiss_overlay();
         self.prefix_active = false;
-        self.exit_resize_mode();
     }
 
     /// Help covers the tree without creating another navigation mode.
@@ -1058,7 +1009,6 @@ impl ClientView {
     }
 
     pub(crate) fn configure_keys(&mut self, keys: &orchbee_local_runtime::KeySettings) {
-        self.exit_resize_mode();
         self.bindings = std::sync::Arc::new(Bindings::configured(keys));
         self.prefix_active = false;
     }
@@ -1158,17 +1108,6 @@ impl ClientView {
                         layout_changed: false,
                     };
                 }
-                if self.resize_mode
-                    && matches!(resize::decide(event), Some(resize::ResizeKey::Help))
-                {
-                    next.dismiss_overlay();
-                    return ClientTransition {
-                        next,
-                        action: Some(ClientAction::CloseShortcutHelp),
-                        shell: ShellCommand::None,
-                        layout_changed: false,
-                    };
-                }
                 if next.machines.sidebar_navigation_active() && next.sidebar_help_key(event) {
                     return ClientTransition {
                         next,
@@ -1203,49 +1142,6 @@ impl ClientView {
             return ClientTransition {
                 next,
                 action: None,
-                shell: ShellCommand::None,
-                layout_changed: false,
-            };
-        }
-        if self.resize_mode {
-            let key = match input {
-                PrefixInput::Key(key) => resize::decide(key),
-                _ => None,
-            };
-            let action = match key {
-                Some(resize::ResizeKey::Adjust { direction, fine }) => {
-                    next.notice = None;
-                    Some(ClientAction::ResizePane { direction, fine })
-                }
-                Some(resize::ResizeKey::Exit) => {
-                    next.exit_resize_mode();
-                    Some(ClientAction::ExitResizeMode)
-                }
-                Some(resize::ResizeKey::Help) => {
-                    if next.overlay == Some(Overlay::ShortcutHelp) {
-                        next.dismiss_overlay();
-                        Some(ClientAction::CloseShortcutHelp)
-                    } else {
-                        next.open_help().then_some(ClientAction::OpenShortcutHelp)
-                    }
-                }
-                Some(resize::ResizeKey::Page { previous }) => {
-                    if next.overlay == Some(Overlay::ShortcutHelp) {
-                        next.request_help_page(if previous {
-                            next.help_page().saturating_sub(1)
-                        } else {
-                            next.help_page() + 1
-                        });
-                        Some(ClientAction::PageShortcutHelp)
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            };
-            return ClientTransition {
-                next,
-                action,
                 shell: ShellCommand::None,
                 layout_changed: false,
             };
@@ -1349,14 +1245,6 @@ impl ClientView {
         match action {
             ClientAction::EnterCopyMode | ClientAction::FindInTerminal => {
                 self.dismiss_focus_modes();
-                self.request_help_page(0);
-                (action, ShellCommand::None)
-            }
-            ClientAction::EnterResizeMode => {
-                self.machines.leave_sidebar_navigation();
-                self.resize_mode = true;
-                self.prefix_active = false;
-                self.replace_overlay(None);
                 self.request_help_page(0);
                 (action, ShellCommand::None)
             }

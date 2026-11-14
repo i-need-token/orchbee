@@ -620,7 +620,6 @@ impl WorkbenchClient {
                     view.overlay().is_some()
                         || view.prefix_active()
                         || view.machines.captures()
-                        || view.resize_mode()
                         || view.copy_mode_active(),
                 );
                 let mut local_resize_changed =
@@ -896,16 +895,6 @@ impl TerminalInputPort for WorkbenchClient {
         let ClientBackend::Native(native) = &mut self.backend;
         let disposition = match action {
             // Layout resizing hands off to the client-control lane that this composition owns.
-            SurfaceAction::Layout(LayoutAction::ResizeControl {
-                target,
-                direction,
-                fine,
-            }) => {
-                if let Some(control) = self.client_control.as_mut() {
-                    control.resize_drawn(native, target, direction, fine);
-                }
-                None
-            }
             SurfaceAction::Layout(LayoutAction::Divider { target, ratio }) => {
                 if let Some(control) = self.client_control.as_mut() {
                     control.resize_divider(native, target, ratio);
@@ -1139,17 +1128,16 @@ impl TerminalInputPort for WorkbenchClient {
         {
             return Some(ClientActionDisposition::KeepNavigator);
         }
-        if let ClientAction::ResizePane { direction, fine } = action {
+        if let ClientAction::ResizePane { direction } = action {
             let native = self.backend.native_mut()?;
             if let Some(control) = &mut self.client_control {
-                control.resize(native, direction, fine);
+                control.resize(native, direction);
             }
             return Some(ClientActionDisposition::KeepNavigator);
         }
         if matches!(
             action,
-            ClientAction::ExitResizeMode
-                | ClientAction::OpenShortcutHelp
+            ClientAction::OpenShortcutHelp
                 | ClientAction::CloseShortcutHelp
                 | ClientAction::PageShortcutHelp
         ) && self

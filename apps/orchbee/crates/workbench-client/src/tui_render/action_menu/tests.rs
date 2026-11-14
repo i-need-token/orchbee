@@ -853,10 +853,6 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
             MenuAction::Copy,
             PrefixAction::Client(ClientAction::EnterCopyMode),
         ),
-        (
-            MenuAction::Resize,
-            PrefixAction::Client(ClientAction::EnterResizeMode),
-        ),
     ];
 
     let width = 140;

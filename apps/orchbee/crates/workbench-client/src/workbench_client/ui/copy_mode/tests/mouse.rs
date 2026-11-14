@@ -1,7 +1,7 @@
 //! Real painted controls and decoder reports reach the existing native effect owners.
 use super::*;
 use crate::{
-    client_view::{ClientAction, ClientActionDisposition, ClientView},
+    client_view::ClientView,
     localization::Locale,
     terminal_copy_mode::{CopyControl, CopyModeCursor, CopyModeStatus},
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
@@ -216,70 +216,6 @@ fn click(
             report(position, 0, true)
         )
         .as_bytes(),
-    );
-}
-
-#[test]
-fn copy_is_the_only_painted_owner_while_resize_remains_ready_underneath() {
-    const WIDTH: u16 = 80;
-    const HEIGHT: u16 = 28;
-
-    let (mut port, _, _, mut view) = fixture(WIDTH);
-    let transition = view.decide_action(ClientAction::EnterResizeMode);
-    assert_eq!(transition.action(), Some(ClientAction::EnterResizeMode));
-    view.commit(transition, ClientActionDisposition::KeepNavigator);
-    assert!(view.resize_mode());
-    assert!(view.copy_mode_active());
-
-    let copy = paint(
-        &port,
-        &view,
-        WIDTH,
-        HEIGHT,
-        Locale::EnUs,
-        &Theme::orchbee_dark(),
-    );
-    let has = |predicate: &dyn Fn(&HitTarget) -> bool| {
-        (0..HEIGHT).any(|row| {
-            (0..WIDTH).any(|column| copy.hit_target_at(column, row).is_some_and(predicate))
-        })
-    };
-    assert!(has(&|target| matches!(
-        target,
-        HitTarget::CopySurface { .. }
-    )));
-    assert!(has(&|target| matches!(
-        target,
-        HitTarget::CopyControl { .. }
-    )));
-    assert!(!has(&|target| matches!(target, HitTarget::Resize(_))));
-
-    assert!(port.ui.cancel_copy_mode());
-    view.settle_copy_mode(false);
-    assert!(view.resize_mode(), "the covered resize owner is retained");
-    let resize = paint(
-        &port,
-        &view,
-        WIDTH,
-        HEIGHT,
-        Locale::EnUs,
-        &Theme::orchbee_dark(),
-    );
-    let mut resize_hit = false;
-    for row in 0..HEIGHT {
-        for column in 0..WIDTH {
-            match resize.hit_target_at(column, row) {
-                Some(HitTarget::Resize(_)) => resize_hit = true,
-                Some(HitTarget::CopySurface { .. } | HitTarget::CopyControl { .. }) => {
-                    panic!("a settled Copy owner left a painted target")
-                }
-                _ => {}
-            }
-        }
-    }
-    assert!(
-        resize_hit,
-        "the retained Resize owner paints on the next frame"
     );
 }
 

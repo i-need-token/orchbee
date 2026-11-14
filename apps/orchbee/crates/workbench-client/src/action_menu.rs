@@ -164,7 +164,6 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::MovePanel(PanelDirection::Right),
     MenuAction::FindInTerminal,
     MenuAction::Copy,
-    MenuAction::Resize,
     MenuAction::NewWorkspace,
     MenuAction::WorkspaceAtDirectory,
     MenuAction::NewWorktree,
@@ -219,7 +218,6 @@ pub(crate) fn menu_binding_action(
         (T::Global | T::Pane(_), M::FindInTerminal) => PrefixAction::Client(A::FindInTerminal),
         (T::Global, M::LastPanel) => PrefixAction::Client(A::FocusLastPanel),
         (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
-        (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
         (T::Global, M::EarlierLayouts) => PrefixAction::Client(A::RequestEarlierLayouts),
         (T::Global, M::Settings) => PrefixAction::Client(A::OpenSettings),
         (T::Global, M::Machines) => PrefixAction::Client(A::OpenMachines),
@@ -458,7 +456,6 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::CloseTrailingTabs => GlobalMenuGroup::Tab,
         MenuAction::SplitPanel(_)
         | MenuAction::Zoom
-        | MenuAction::Resize
         | MenuAction::Copy
         | MenuAction::CopySelection
         | MenuAction::ClosePane

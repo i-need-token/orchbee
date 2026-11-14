@@ -13,7 +13,6 @@ pub(crate) struct StatusText {
     pub(crate) directory_missing: &'static str,
     pub(crate) disconnected: &'static str,
     pub(crate) terminal_exited: &'static str,
-    pub(crate) resize: &'static str,
     pub(crate) resize_pending: &'static str,
     pub(crate) divider: &'static str,
     pub(crate) release_to_apply: &'static str,
@@ -34,8 +33,6 @@ pub(crate) struct StatusText {
     pub(crate) retry_close: &'static str,
     pub(crate) take_control: &'static str,
     pub(crate) retry_rename: &'static str,
-    pub(crate) resize_coarse: &'static str,
-    pub(crate) resize_fine: &'static str,
     pub(crate) switch_panel: &'static str,
 }
 
@@ -49,7 +46,6 @@ const EN_US: StatusText = StatusText {
     directory_missing: "Directory missing",
     disconnected: "Disconnected",
     terminal_exited: "Terminal exited",
-    resize: "Resize",
     resize_pending: "Resizing",
     divider: "Divider",
     release_to_apply: "release to apply",
@@ -70,8 +66,6 @@ const EN_US: StatusText = StatusText {
     retry_close: "retry Close",
     take_control: "take control",
     retry_rename: "rename again",
-    resize_coarse: "move 5%",
-    resize_fine: "move 1%",
     switch_panel: "switch",
 };
 
@@ -85,7 +79,6 @@ const ZH_CN: StatusText = StatusText {
     directory_missing: "目录不存在",
     disconnected: "已断开",
     terminal_exited: "终端已退出",
-    resize: "调整",
     resize_pending: "正在调整",
     divider: "分隔线",
     release_to_apply: "松手应用",
@@ -106,8 +99,6 @@ const ZH_CN: StatusText = StatusText {
     retry_close: "重试关闭",
     take_control: "接管",
     retry_rename: "再次重命名",
-    resize_coarse: "移动 5%",
-    resize_fine: "移动 1%",
     switch_panel: "切换",
 };
 

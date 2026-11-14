@@ -24,7 +24,6 @@ pub enum CaptureOwner {
     Machine,
     Native(WorkbenchCaptureOwner),
     Copy,
-    Resize,
 }
 
 /// Pure capture-intent facts projected by the native surface owners.
@@ -118,7 +117,7 @@ impl CaptureClaims {
         }
     }
 
-    /// Whether a native surface above the Copy/Resize modes owns composition.
+    /// Whether a native surface above Copy mode owns composition.
     pub(crate) const fn exclusive_any(self) -> bool {
         project_native_capture(self).is_some()
     }
@@ -127,17 +126,11 @@ impl CaptureClaims {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ClientCaptureClaims {
     machine: bool,
-    resize: bool,
 }
 
 impl ClientCaptureClaims {
     pub const fn with_machine(mut self, captured: bool) -> Self {
         self.machine = captured;
-        self
-    }
-
-    pub const fn with_resize(mut self, captured: bool) -> Self {
-        self.resize = captured;
         self
     }
 }
@@ -192,19 +185,16 @@ pub const fn project_capture(
     if native.copy {
         return Some(CaptureOwner::Copy);
     }
-    if client.resize {
-        return Some(CaptureOwner::Resize);
-    }
     None
 }
 
 /// Whether Client chrome may paint and handle pointer input over the selected
-/// owner. Help can cover Copy and Resize while retaining those modes for
+/// owner. Help can cover Copy while retaining that mode for
 /// resumption; native task captures remain above Client chrome.
 pub(crate) const fn client_chrome_overlay_allowed(owner: Option<CaptureOwner>) -> bool {
     match owner {
         None => true,
-        Some(CaptureOwner::Copy | CaptureOwner::Resize) => true,
+        Some(CaptureOwner::Copy) => true,
         Some(CaptureOwner::Native(_)) => false,
         Some(CaptureOwner::Machine) => false,
     }
@@ -246,7 +236,6 @@ mod tests {
         ))));
         {
             assert!(client_chrome_overlay_allowed(Some(CaptureOwner::Copy)));
-            assert!(client_chrome_overlay_allowed(Some(CaptureOwner::Resize)));
             assert!(!client_chrome_overlay_allowed(Some(CaptureOwner::Machine)));
         }
     }
@@ -285,26 +274,21 @@ mod tests {
     #[test]
     fn lower_client_modes_follow_native_exclusives_in_one_total_order() {
         let copy = CaptureClaims::default().with_copy(true);
-        let resize = ClientCaptureClaims::default().with_resize(true);
+        let client = ClientCaptureClaims::default();
         assert!(!copy.exclusive_any(), "Copy is below native exclusives");
         assert_eq!(project_native_capture(copy), None);
         assert_eq!(
             project_capture(ClientCaptureClaims::default(), copy),
             Some(CaptureOwner::Copy)
         );
-        assert_eq!(
-            project_capture(resize, CaptureClaims::default()),
-            Some(CaptureOwner::Resize)
-        );
-        assert_eq!(project_capture(resize, copy), Some(CaptureOwner::Copy));
 
         let native = copy.with_agent_board(true);
         assert_eq!(
-            project_capture(resize, native),
+            project_capture(client, native),
             Some(CaptureOwner::Native(WorkbenchCaptureOwner::AgentBoard))
         );
         assert_eq!(
-            project_capture(resize.with_machine(true), native),
+            project_capture(client.with_machine(true), native),
             Some(CaptureOwner::Machine)
         );
     }

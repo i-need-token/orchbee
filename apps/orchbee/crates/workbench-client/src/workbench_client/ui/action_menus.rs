@@ -208,7 +208,6 @@ fn action_availability(
                 | MenuAction::LastPanel
                 | MenuAction::SplitPanel(_)
                 | MenuAction::Zoom
-                | MenuAction::Resize
                 | MenuAction::Copy
                 | MenuAction::ClosePane
                 | MenuAction::MovePanel(_)

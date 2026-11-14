@@ -329,7 +329,6 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         ),
         (MenuAction::ClosePane, ClientAction::ClosePanel),
         (MenuAction::Copy, ClientAction::EnterCopyMode),
-        (MenuAction::Resize, ClientAction::EnterResizeMode),
     ];
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
 
@@ -367,7 +366,6 @@ fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
         MenuAction::MovePanel(Direction::Left),
         MenuAction::MovePanel(Direction::Right),
         MenuAction::Copy,
-        MenuAction::Resize,
     ] {
         let row = action_row(&ui, action);
         assert_eq!(

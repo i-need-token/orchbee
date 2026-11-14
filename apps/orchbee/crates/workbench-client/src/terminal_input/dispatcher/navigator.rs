@@ -51,11 +51,7 @@ impl InputDispatcher {
     ) -> bool {
         let mut changed = false;
         if view.navigator_active() {
-            if exclusive_capture
-                || port.copy_mode_active()
-                || view.resize_mode()
-                || port.pointer_probe().input_captured
-            {
+            if exclusive_capture || port.copy_mode_active() || port.pointer_probe().input_captured {
                 view.close_navigator(None);
             } else if self.navigator.unpresented {
                 view.close_navigator(Some(Notice::NavigatorTooSmall));

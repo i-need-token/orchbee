@@ -4,7 +4,6 @@ mod pane_geometry;
 mod resize;
 mod sidebar;
 pub use crate::sidebar_width::SidebarWidth;
-pub(crate) use divider::DrawnResize;
 pub use divider::{DividerDrag, DividerSource, DrawnDivider};
 #[cfg(test)]
 pub(crate) use pane_geometry::arranged_pane_area;

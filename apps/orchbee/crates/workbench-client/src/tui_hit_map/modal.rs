@@ -16,7 +16,6 @@ pub(crate) enum ControlTarget {
         crate::terminal_find::FindToken,
         crate::terminal_find::FindControl,
     ),
-    Resize(super::ResizeControl),
     TabClose(crate::workbench_state::CloseConfirmationToken, bool),
     PanelClose(crate::workbench_state::PanelCloseConfirmationToken, bool),
     Rename(crate::workbench_state::rename_draft::RenameDraftToken, bool),
@@ -47,7 +46,6 @@ impl ControlTarget {
         Some(match target {
             HitTarget::CopyControl { token, control } => Self::Copy(*token, *control),
             HitTarget::FindControl { token, control } => Self::Find(*token, *control),
-            HitTarget::Resize(control) => Self::Resize(control.clone()),
             HitTarget::TabClose { token, confirm } => Self::TabClose(*token, *confirm),
             HitTarget::PanelClose { token, confirm } => Self::PanelClose(*token, *confirm),
             HitTarget::Rename { token, submit } => Self::Rename(*token, *submit),
@@ -77,10 +75,6 @@ pub(crate) fn accepts_copy(target: &ControlTarget) -> bool {
 
 pub(crate) fn accepts_find(target: &ControlTarget) -> bool {
     matches!(target, ControlTarget::Find(..))
-}
-
-pub(crate) fn accepts_resize(target: &ControlTarget) -> bool {
-    matches!(target, ControlTarget::Resize(_))
 }
 
 pub(crate) fn accepts_login(target: &ControlTarget) -> bool {

@@ -89,8 +89,8 @@ menu, because a click already creates a Tab with the default. These menus open t
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
 Find in terminal, Clear terminal, Rename, Split right and Split down, Toggle panel maximization only beside another panel and Take control only while another Client
-holds that panel's size, then the red Close; dragging a divider resizes, and keyboard resize and copy
-mode keep their keys and global menu rows. The global menu also exposes the new-Tab submenu for keyboard
+holds that panel's size, then the red Close; dragging a divider resizes, keyboard resizing keeps its
+keys, and copy mode keeps its key and global menu row. The global menu also exposes the new-Tab submenu for keyboard
 users.
 
 Copy selection is a pane-only row whose label and catalog identity (`terminal.selection.copy`) match the
@@ -360,7 +360,7 @@ right, to the start or to the end, Select all Tabs, Keep only current Tab select
 Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
 Close Tab… is the current-Tab close request that `Ctrl+b x` makes, with that key and its confirmation
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
-includes Back to last focused panel, directional split and move, close, maximize, keyboard resize,
+includes Back to last focused panel, directional split and move, close, maximize,
 Find in terminal and copy mode. Workspace includes
 creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing

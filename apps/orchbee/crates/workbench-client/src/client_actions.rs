@@ -17,16 +17,14 @@ pub enum ClientAction {
     OpenActionMenu,
     OpenSettings,
     ConfiguredCommand(String),
-    EnterResizeMode,
     EnterCopyMode,
     /// Opens the Find bar over the focused Panel.
     FindInTerminal,
     /// Copies the focused pane's settled Host selection without entering copy mode.
     CopySelection,
-    ExitResizeMode,
+    /// Moves the focused Panel's nearest divider one keyboard step in this direction.
     ResizePane {
         direction: PanelDirection,
-        fine: bool,
     },
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
@@ -110,11 +108,9 @@ impl ClientAction {
         match self {
             Self::OpenActionMenu | Self::FocusBusinessSidebar => None,
             Self::OpenSettings => None,
-            Self::EnterResizeMode
-            | Self::EnterCopyMode
+            Self::EnterCopyMode
             | Self::FindInTerminal
             | Self::CopySelection
-            | Self::ExitResizeMode
             | Self::ResizePane { .. } => None,
             Self::ConfiguredCommand(_) => None,
             Self::OpenMachines
@@ -184,7 +180,6 @@ impl ClientAction {
 pub enum MenuAction {
     SplitPanel(PanelDirection),
     Zoom,
-    Resize,
     Copy,
     /// Copies the focused pane's settled Host selection; `Copy` enters keyboard copy mode.
     CopySelection,
@@ -276,7 +271,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
         match action {
             MenuAction::SplitPanel(value) => Self::SplitPanel(*value),
             MenuAction::Zoom => Self::Zoom,
-            MenuAction::Resize => Self::Resize,
             MenuAction::Copy => Self::Copy,
             MenuAction::CopySelection => Self::CopySelection,
             MenuAction::Takeover => Self::Takeover,
@@ -372,7 +366,6 @@ impl MenuAction {
         Some(match self {
             Self::SplitPanel(direction) => ClientAction::SplitPanel(*direction),
             Self::Zoom => ClientAction::ToggleZoom,
-            Self::Resize => ClientAction::EnterResizeMode,
             Self::Copy => ClientAction::EnterCopyMode,
             Self::CopySelection => ClientAction::CopySelection,
             Self::Takeover => ClientAction::RequestControlTakeover,

@@ -249,38 +249,6 @@ fn append_contextual_entries(
                 locale.shortcut_context(ShortcutContext::Copy),
             );
         }
-    } else if view.resize_mode() {
-        for (key, description) in view.resize_help_rows_with_glyphs(glyphs) {
-            if description == PrefixDesc::ResizeExit {
-                continue;
-            }
-            let (title, identity, group) = match description {
-                PrefixDesc::ShowHelp => (
-                    locale.shortcut_close_label(),
-                    semantic_identity(PrefixAction::ShowHelp),
-                    ShortcutHelpGroup::Other,
-                ),
-                PrefixDesc::HelpPage => (
-                    locale.shortcut_scroll_label(),
-                    semantic_identity(PrefixAction::HelpPageNext),
-                    ShortcutHelpGroup::Other,
-                ),
-                _ => (
-                    (shell.prefix_desc)(description),
-                    format!("context.resize.{description:?}"),
-                    ShortcutHelpGroup::Panel,
-                ),
-            };
-            merge_context_entry(
-                locale,
-                entries,
-                key,
-                title,
-                group,
-                identity,
-                locale.shortcut_context(ShortcutContext::Resize),
-            );
-        }
     }
 }
 
@@ -326,9 +294,7 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         }
         PrefixAction::Client(A::OpenSettings) => ShortcutLabel::Settings,
         PrefixAction::Client(A::OpenActionMenu) => ShortcutLabel::ActionMenu,
-        PrefixAction::Client(A::EnterResizeMode | A::ResizePane { .. }) => {
-            ShortcutLabel::ResizePanel
-        }
+        PrefixAction::Client(A::ResizePane { direction }) => ShortcutLabel::ResizePanel(*direction),
         PrefixAction::Client(A::EnterCopyMode) => ShortcutLabel::CopyText,
         PrefixAction::Client(A::FindInTerminal) => ShortcutLabel::FindInTerminal,
         PrefixAction::Client(A::ConfiguredCommand(_)) => ShortcutLabel::ConfiguredCommand,
@@ -843,7 +809,7 @@ mod tests {
         }
 
         use crate::{
-            client_view::{KeyCode, KeyLabelGlyphs, Modifiers},
+            client_view::KeyLabelGlyphs,
             machine_picker::{SidebarCommand, sidebar_binding_label},
         };
 
@@ -871,22 +837,6 @@ mod tests {
                 .iter()
                 .any(|entry| { entry.key == move_key && entry.title == "移动复制光标" })
         );
-
-        let mut resize = ClientView::new(100);
-        press(&mut resize, KeyCode::Char('b'), Modifiers::CTRL);
-        press(&mut resize, KeyCode::Char('P'), Modifiers::NONE);
-        press(&mut resize, KeyCode::Char('?'), Modifiers::NONE);
-        assert!(resize.resize_mode());
-        let resize_rows = resize.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode);
-        let resize_entries = super::entries(Locale::EnUs, &resize, true, KeyLabelGlyphs::Unicode);
-        let coarse_key = resize_rows
-            .iter()
-            .find(|(_, description)| *description == PrefixDesc::ResizeCoarse)
-            .unwrap()
-            .0
-            .as_str();
-        assert!(resize_entries.iter().any(|entry| entry.key == coarse_key));
-        assert!(!resize_entries.iter().any(|entry| entry.key == "Esc"));
 
         let mut sidebar = ClientView::new(100);
         sidebar.machines.available = true;

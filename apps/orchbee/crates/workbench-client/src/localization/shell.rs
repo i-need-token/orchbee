@@ -242,13 +242,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn resize_done_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Done",
-            Self::ZhCn => "完成",
-        }
-    }
-
     pub const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         use crate::host_capabilities::Capability;
         match (self, notice) {

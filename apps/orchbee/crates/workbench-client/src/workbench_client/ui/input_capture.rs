@@ -158,9 +158,7 @@ pub fn notification_available(
     };
     let client_claims = ClientCaptureClaims::default();
     #[cfg(windows)]
-    let client_claims = client_claims
-        .with_machine(view.machines.captures())
-        .with_resize(view.resize_mode());
+    let client_claims = client_claims.with_machine(view.machines.captures());
     project_capture(client_claims, native.capture_claims()).is_none()
         && !view.prefix_active()
         && view.overlay().is_none()

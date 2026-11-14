@@ -56,22 +56,6 @@ fn workbench_binding_identities_match_the_owning_catalog_contracts() {
 }
 
 #[test]
-fn direction_is_typed_input_and_does_not_mint_resize_identity() {
-    let left = PrefixAction::Client(ClientAction::ResizePane {
-        direction: PanelDirection::Left,
-        fine: false,
-    });
-    let fine_right = PrefixAction::Client(ClientAction::ResizePane {
-        direction: PanelDirection::Right,
-        fine: true,
-    });
-    assert_eq!(
-        binding_metadata(&left).unwrap().identity,
-        binding_metadata(&fine_right).unwrap().identity
-    );
-}
-
-#[test]
 fn configured_command_identity_preserves_the_opaque_id() {
     let id = "user.action/日本語/$opaque".to_owned();
     let action = PrefixAction::Client(ClientAction::ConfiguredCommand(id.clone()));
@@ -122,10 +106,6 @@ fn menu_and_binding_presenters_share_common_action_identity() {
         (
             MenuAction::Zoom,
             PrefixAction::Client(ClientAction::ToggleZoom),
-        ),
-        (
-            MenuAction::Resize,
-            PrefixAction::Client(ClientAction::EnterResizeMode),
         ),
         (
             MenuAction::Copy,

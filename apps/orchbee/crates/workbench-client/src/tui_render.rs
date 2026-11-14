@@ -22,7 +22,6 @@ pub(crate) fn render_action_menu_for_test(
 ) -> ModalPresentation<crate::action_menu::MenuDraw> {
     action_menu::render(frame, content, menu, &[], bindings, locale, theme, hits)
 }
-mod resize_mode;
 mod settings;
 
 #[cfg(test)]
@@ -219,9 +218,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     }
     let area = frame.area();
     let client_claims = ClientCaptureClaims::default();
-    let client_claims = client_claims
-        .with_machine(view.machines.captures())
-        .with_resize(view.resize_mode());
+    let client_claims = client_claims.with_machine(view.machines.captures());
     let native_claims = match workbench_client.as_ref() {
         Some(native) => native.capture_claims(),
         _ => CaptureClaims::default(),
@@ -438,19 +435,6 @@ pub fn render_terminal_shell_with_resize<'a>(
         );
     }
 
-    if tier != ViewportTier::TooSmall && capture_owner == Some(CaptureOwner::Resize) {
-        resize_mode::render(
-            frame,
-            view,
-            match workbench_client.as_ref() {
-                Some(native) => Some(native),
-                _ => None,
-            },
-            locale,
-            theme,
-            hits,
-        );
-    }
     if tier != ViewportTier::TooSmall
         && capture_owner == Some(CaptureOwner::Copy)
         && let Some(native) = workbench_client.as_ref()

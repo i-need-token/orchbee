@@ -1,7 +1,6 @@
 use super::super::tests::move_membership::ready_ui;
 use super::super::tests::publication_hint::ready_split_ui;
 use super::super::*;
-mod resize_controls;
 use crate::client_view::{ClientKey, ClientView};
 use crate::terminal_input::{
     DispatchOutcome, InputDispatcher, TerminalInputPort, TerminalInputUnavailable,

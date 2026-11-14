@@ -1469,9 +1469,8 @@ fn menu_prefix_split_reads_replace_help_and_capture_opening_and_decision_tails()
 }
 
 #[test]
-fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
+fn menu_shared_dispatch_applies_layout_pointer_modes_and_shell_exit() {
     for action in [
-        MenuAction::Resize,
         MenuAction::Sidebar,
         MenuAction::ReleasePointer,
         MenuAction::Detach,
@@ -1502,7 +1501,6 @@ fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
             .unwrap();
         assert!(forwarded_bytes(&port.calls).is_empty());
         match action {
-            MenuAction::Resize => assert!(view.resize_mode()),
             MenuAction::Sidebar => assert_eq!(layouts, 1),
             MenuAction::ReleasePointer => {
                 assert!(view.pointer_released());

@@ -40,7 +40,6 @@ impl PointerState {
             .map_or(target, |drag| &drag.painted);
         view.machines.available
             && !view.machines.captures()
-            && !view.resize_mode()
             && matches!(view.overlay(), None | Some(Overlay::BusinessSidebar))
             && DrawnSidebarWidth::new(target.viewport, view.sidebar_surface()) == Some(*target)
             && self

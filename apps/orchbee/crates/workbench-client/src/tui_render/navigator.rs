@@ -29,7 +29,6 @@ pub(super) fn render(
     // A covering owner may appear between reconciliation and this draw. Covered
     // rows publish no authority even before the next dispatcher reconciliation.
     if view.machines.captures()
-        || view.resize_mode()
         || native.is_some_and(|native| {
             native.close_confirmation().is_some()
                 || native.panel_close_confirmation().is_some()

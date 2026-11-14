@@ -272,14 +272,9 @@ pub enum TabAction<'a> {
     },
 }
 
-/// Committed layout gestures. Resize and divider releases hand off to the asynchronous local
+/// Committed layout gestures. Divider releases hand off to the asynchronous local
 /// owner, which reports its eventual result.
 pub enum LayoutAction<'a> {
-    ResizeControl {
-        target: &'a crate::tui_layout::DrawnResize,
-        direction: crate::client_view::PanelDirection,
-        fine: bool,
-    },
     Divider {
         target: &'a crate::tui_layout::DrawnDivider,
         ratio: orchbee_workbench_protocol::ClientSplitRatio,

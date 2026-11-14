@@ -150,12 +150,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             category: C::Application,
             search_aliases: COMMANDS,
         },
-        PrefixAction::Client(A::EnterResizeMode) => {
-            built_in("orchbee.native.panel.resize-mode.enter", C::Pane, RESIZE)
-        }
-        PrefixAction::Client(A::ResizePane { .. }) => {
-            built_in("workbench.panel.active.resize", C::Pane, RESIZE)
-        }
+        PrefixAction::Client(A::ResizePane { direction }) => resize_panel(*direction),
         PrefixAction::Client(A::EnterCopyMode) => {
             built_in("orchbee.native.copy-mode.enter", C::Input, COPY)
         }
@@ -341,6 +336,16 @@ const fn split_panel(direction: PanelDirection) -> ActionMetadata<'static> {
     built_in(id, ActionCategory::Pane, SPLIT)
 }
 
+const fn resize_panel(direction: PanelDirection) -> ActionMetadata<'static> {
+    let id = match direction {
+        PanelDirection::Down => "workbench.panel.active.resize-down",
+        PanelDirection::Left => "workbench.panel.active.resize-left",
+        PanelDirection::Right => "workbench.panel.active.resize-right",
+        PanelDirection::Up => "workbench.panel.active.resize-up",
+    };
+    built_in(id, ActionCategory::Pane, RESIZE)
+}
+
 const fn move_panel(direction: PanelDirection) -> ActionMetadata<'static> {
     let id = match direction {
         PanelDirection::Down => "workbench.panel.active.move-down",
@@ -382,7 +387,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::SplitPanel(direction) => split_panel(direction),
         A::MovePanel(direction) => move_panel(direction),
         A::Zoom => built_in("workbench.panel.active.maximization.toggle", C::Pane, PANE),
-        A::Resize => built_in("orchbee.native.panel.resize-mode.enter", C::Pane, RESIZE),
         A::Copy => built_in("orchbee.native.copy-mode.enter", C::Input, COPY),
         // Shares the GUI terminal catalog identity: the same copy operation, not a new one.
         A::CopySelection => built_in("terminal.selection.copy", C::Pane, COPY),

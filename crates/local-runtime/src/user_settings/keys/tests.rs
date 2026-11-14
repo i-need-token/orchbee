@@ -212,8 +212,8 @@ fn ordinal_agent_keys_admit_only_digits_preserve_modifiers_and_roundtrip_disable
 
 #[test]
 fn resize_actions_accept_safe_direct_and_prefix_chords_without_changing_other_defaults() {
-    let keys = read("resize_mode='prefix+P'\nresize_panel_left='ctrl+left'\nresize_panel_right='alt+right'\nresize_panel_up='prefix+up'\nresize_panel_down=[]").unwrap();
-    assert_eq!(keys.overrides.len(), 5);
+    let keys = read("resize_panel_left='ctrl+left'\nresize_panel_right='alt+right'\nresize_panel_up='prefix+up'\nresize_panel_down=[]").unwrap();
+    assert_eq!(keys.overrides.len(), 4);
     assert_eq!(keys.prefix, KeySettings::default().prefix);
     assert_eq!(
         keys.overrides

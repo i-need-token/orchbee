@@ -46,8 +46,8 @@ use crate::workbench_state::PaneRef;
 pub use crate::tui_hit_map::HitMapBuilder;
 use crate::tui_hit_map::{
     FrameHitMap, HitLayer, HitRegionResolution, HitResolution, HitTarget, InteractionTarget,
-    ListScrollTarget, ModalControl, PointerProjection, PrimaryContract, ResizeControl,
-    SidebarReorderDraw, SidebarReorderPaint, TabDragPreview, contains,
+    ListScrollTarget, ModalControl, PointerProjection, PrimaryContract, SidebarReorderDraw,
+    SidebarReorderPaint, TabDragPreview, contains,
 };
 
 mod chrome;
@@ -589,7 +589,6 @@ impl PointerState {
             && !view.prefix_active()
             && !view.navigator_active()
             && !view.machines.sidebar_navigation_active()
-            && !view.resize_mode()
             && matches!(self.gesture, Gesture::Idle)
     }
 
@@ -1815,10 +1814,9 @@ impl PointerState {
         let mut changed = tooltip_changed;
         if matches!(&self.gesture, Gesture::Tab(drag) if port.tab_drag_source().as_ref() != Some(&drag.source))
             || (self.tab_drag_captured()
-                && (view
+                && view
                     .overlay()
-                    .is_some_and(|overlay| !overlay.keeps_chrome_pointer())
-                    || view.resize_mode()))
+                    .is_some_and(|overlay| !overlay.keeps_chrome_pointer()))
         {
             changed |= self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
@@ -1827,7 +1825,6 @@ impl PointerState {
             changed |= self.tick_sidebar_reorder(view, port, now);
         }
         let modal = view.overlay().is_some();
-        let modal = modal || view.resize_mode();
         if let Gesture::Scrollbar(drag) = &self.gesture
             && (!drag.alive(&probe) || modal)
         {
@@ -1838,7 +1835,6 @@ impl PointerState {
             && (view
                 .overlay()
                 .is_some_and(|overlay| overlay != crate::client_view::Overlay::BusinessSidebar)
-                || view.resize_mode()
                 || view.machines.captures())
         {
             self.gesture = Gesture::Idle;
@@ -1852,7 +1848,6 @@ impl PointerState {
         }
         if self.divider_preview().is_some_and(|drag| {
             view.overlay().is_some()
-                || view.resize_mode()
                 || view.machines.captures()
                 || self
                     .map
@@ -1945,7 +1940,6 @@ impl PointerState {
         }
         if event.action == MouseAction::Press
             && event.mods == crate::client_view::Modifiers::NONE
-            && !view.resize_mode()
             && !view.machines.captures()
             && self.can_open_action_menu()
         {
@@ -2078,7 +2072,6 @@ impl PointerState {
                 | HitTarget::NavigatorClose(_)
                 | HitTarget::MachinePicker(_)
                 | HitTarget::TabCreate(_)
-                | HitTarget::Resize(_)
                 | HitTarget::CopyControl { .. }
                 | HitTarget::CopySurface { .. }
                 | HitTarget::FindControl { .. }

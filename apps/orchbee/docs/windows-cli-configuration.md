@@ -168,13 +168,12 @@ The same safe direct chords and explicit disabling apply. Machines keeps `prefix
 `prefix+o`, as the [notification contract](windows-notifications.md#opening-the-notification-target)
 describes. Safe direct chords and disabling use the same registry.
 
-`resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
 `resize_panel_left`, `resize_panel_right`, `resize_panel_up` and `resize_panel_down` default to
 `prefix+alt+left`, `prefix+alt+right`, `prefix+alt+up` and `prefix+alt+down` and accept the same
-safe chords. Each press moves the nearest eligible divider of the focused Panel five percentage
-points without entering the mode; for example, `resize_panel_left = "ctrl+left"`. Mode arrows are
-fixed at five points, Shift+arrows at one, and Esc exits. Extra resize keys while pending are consumed,
-not queued. Profiles opting into these action names require a matching current cohort; remove those
+safe chords ([keyboard resizing](native-keyboard-resize.md)). Each press moves the nearest eligible
+divider of the focused Panel five percentage points; for example, `resize_panel_left = "ctrl+left"`.
+There is no resize mode, and a former `resize_mode` key is an unknown action. Extra resize keys while
+pending are consumed, not queued. Profiles opting into these action names require a matching current cohort; remove those
 keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
 
 The resolved registry supplies dispatch, help rows and principal live hints. Help omits actions with
@@ -195,7 +194,7 @@ one space. These display rules do not change TOML spelling, normalization, match
 Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
 `earlier_layouts`, `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
-`copy_mode`, `find`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
+`copy_mode`, `find`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom` and `toggle_sidebar`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and walks every Agent of the stable

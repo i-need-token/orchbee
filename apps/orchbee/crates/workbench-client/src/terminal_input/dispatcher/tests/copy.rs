@@ -146,48 +146,6 @@ impl TerminalInputPort for CopyPort {
     }
 }
 
-#[test]
-fn copy_exit_packet_cannot_fall_through_to_retained_resize_mode() {
-    let mut port = CopyPort {
-        active: true,
-        ..CopyPort::default()
-    };
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(80);
-    let transition = view.decide_action(ClientAction::EnterResizeMode);
-    let action = transition.action().unwrap();
-    let disposition = port.apply_client_action((action).into()).unwrap();
-    view.commit(transition, disposition);
-    assert!(port.active);
-    assert!(view.resize_mode());
-
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        b"qtail\x1b[200~paste\x1b[201~",
-    );
-    assert!(!port.active);
-    assert!(view.resize_mode());
-    assert_eq!(port.keys.len(), 1);
-    assert_eq!(copy_mode_key(port.keys[0]), Some(CopyModeKey::Exit));
-    assert!(port.pastes.is_empty());
-    assert!(port.forwarded.is_empty());
-    assert_eq!(port.actions, [ClientAction::EnterResizeMode]);
-
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[C");
-    assert_eq!(
-        port.actions,
-        [
-            ClientAction::EnterResizeMode,
-            ClientAction::ResizePane {
-                direction: crate::client_view::PanelDirection::Right,
-                fine: false,
-            },
-        ]
-    );
-}
-
 fn copy_surface_map() -> (crate::tui_hit_map::FrameHitMap, Rect) {
     let area = Rect::new(10, 5, 8, 3);
     let surface = Surface::checked(

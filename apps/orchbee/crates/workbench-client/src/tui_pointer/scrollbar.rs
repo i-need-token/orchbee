@@ -141,7 +141,6 @@ impl PointerState {
         source: ScrollbarSnapshot,
     ) -> PointerOutcome {
         let modal = view.overlay().is_some();
-        let modal = modal || view.resize_mode();
         if event.action != MouseAction::Press
             || event.button != MouseButton::Left
             || event.mods != Modifiers::NONE
@@ -238,7 +237,6 @@ impl PointerState {
         if view
             .overlay()
             .is_some_and(|overlay| overlay != crate::client_view::Overlay::BusinessSidebar)
-            || view.resize_mode()
             || view.machines.captures()
         {
             return PointerOutcome::Handled;

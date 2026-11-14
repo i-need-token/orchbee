@@ -1718,9 +1718,7 @@ const fn to_area(dimensions: WindowDimensions) -> Rect {
 
 fn client_capture_claims(_view: &ClientView) -> crate::tui_composition::ClientCaptureClaims {
     let claims = crate::tui_composition::ClientCaptureClaims::default();
-    claims
-        .with_machine(_view.machines.captures())
-        .with_resize(_view.resize_mode())
+    claims.with_machine(_view.machines.captures())
 }
 
 #[cfg(test)]

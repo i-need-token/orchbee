@@ -19,7 +19,7 @@ pub(crate) enum ShortcutHelpGroup {
 pub(crate) enum ShortcutLabel {
     Settings,
     ActionMenu,
-    ResizePanel,
+    ResizePanel(PanelDirection),
     CopyText,
     FindInTerminal,
     ConfiguredCommand,
@@ -64,7 +64,6 @@ pub(crate) enum ShortcutLabel {
 pub(crate) enum ShortcutContext {
     Sidebar,
     Copy,
-    Resize,
 }
 
 impl Locale {
@@ -189,8 +188,6 @@ impl Locale {
             (Self::ZhCn, ShortcutContext::Sidebar) => "边栏导航",
             (Self::EnUs, ShortcutContext::Copy) => "copy mode",
             (Self::ZhCn, ShortcutContext::Copy) => "复制模式",
-            (Self::EnUs, ShortcutContext::Resize) => "resize mode",
-            (Self::ZhCn, ShortcutContext::Resize) => "调整大小模式",
         }
     }
 
@@ -215,11 +212,9 @@ impl Locale {
                 Self::ZhCn => "打开操作菜单",
             }
             .to_owned(),
-            ShortcutLabel::ResizePanel => match self {
-                Self::EnUs => "Resize panel",
-                Self::ZhCn => "调整面板大小",
+            ShortcutLabel::ResizePanel(direction) => {
+                self.panel_direction_title("Resize panel", "调整面板大小", direction)
             }
-            .to_owned(),
             ShortcutLabel::CopyText => match self {
                 Self::EnUs => "Copy text",
                 Self::ZhCn => "复制文本",

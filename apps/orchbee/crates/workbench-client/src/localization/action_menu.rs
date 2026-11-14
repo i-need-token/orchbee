@@ -32,7 +32,6 @@ pub(crate) enum ActionSearchAlias {
 pub(crate) enum MenuLabel {
     SplitPanel(PanelDirection),
     Zoom,
-    Resize,
     Copy,
     CopySelection,
     Takeover,
@@ -463,8 +462,6 @@ impl Locale {
             (Self::ZhCn, SplitPanel(PanelDirection::Right)) => "向右分屏",
             (Self::EnUs, Zoom) => "Toggle panel maximization",
             (Self::ZhCn, Zoom) => "切换面板最大化",
-            (Self::EnUs, Resize) => "Resize panels",
-            (Self::ZhCn, Resize) => "调整面板大小",
             (Self::EnUs, Copy) => "Keyboard copy mode",
             (Self::ZhCn, Copy) => "键盘复制模式",
             (Self::EnUs, CopySelection) => "Copy selection",

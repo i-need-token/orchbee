@@ -600,18 +600,16 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
     enum Scenario {
         Ordinary,
         Help,
-        Resize,
     }
 
     for (width, height) in [(100, 1), (100, 3), (100, 4), (19, 24)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for scenario in [Scenario::Ordinary, Scenario::Help, Scenario::Resize] {
+            for scenario in [Scenario::Ordinary, Scenario::Help] {
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
                 match scenario {
                     Scenario::Ordinary => {}
                     Scenario::Help => prefix(&mut view, plain('?')),
-                    Scenario::Resize => prefix(&mut view, plain('P')),
                 }
 
                 let theme = Theme::orchbee_dark();
@@ -635,14 +633,6 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                     .next()
                     .expect("the effective Exit action remains bound");
                 let exit_hint = format!("{exit_key} {}", locale.status().exit);
-                let resize_exit = crate::client_view::format_binding_with_glyphs(
-                    &crate::client_view::Binding::new(
-                        crate::client_view::KeyCode::Esc,
-                        crate::client_view::Modifiers::NONE,
-                    ),
-                    crate::client_view::LabelStyle::for_host(),
-                    key_glyphs,
-                );
                 let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
                 let mut hits = HitMapBuilder::new();
                 infallible(terminal.draw(|frame| {
@@ -747,16 +737,10 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                     }
                 }
                 let status = &rows[usize::from(height - 1)];
-                match scenario {
-                    Scenario::Resize => assert!(
-                        without_cell_padding(status).contains(&without_cell_padding(&resize_exit)),
-                        "{width}x{height} resize lost its exit hint: {status:?}"
-                    ),
-                    Scenario::Ordinary | Scenario::Help => assert!(
-                        without_cell_padding(status).contains(&without_cell_padding(&exit_hint)),
-                        "{width}x{height} {scenario:?} lost the available exit hint: {status:?}"
-                    ),
-                }
+                assert!(
+                    without_cell_padding(status).contains(&without_cell_padding(&exit_hint)),
+                    "{width}x{height} {scenario:?} lost the available exit hint: {status:?}"
+                );
             }
         }
     }
@@ -2025,95 +2009,4 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
     );
     let pressed = paint(&pointer);
     assert_projection(&pressed);
-}
-
-#[test]
-fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feedback() {
-    for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [
-                crate::tui_theme::Theme::terminal_native(),
-                crate::tui_theme::Theme::rgb_test_dark(),
-                crate::tui_theme::Theme::orchbee_light(),
-                crate::tui_theme::Theme::orchbee_dark(),
-            ] {
-                let mut view = ClientView::new(width);
-                prefix(&mut view, plain('P'));
-                let glyphs = match theme.glyphs.mode() {
-                    crate::tui_theme::GlyphMode::Unicode => {
-                        crate::client_view::KeyLabelGlyphs::Unicode
-                    }
-                    crate::tui_theme::GlyphMode::Simplified => {
-                        crate::client_view::KeyLabelGlyphs::Ascii
-                    }
-                };
-                let resize_exit = view
-                    .resize_help_rows_with_glyphs(glyphs)
-                    .into_iter()
-                    .find(|(_, desc)| *desc == crate::client_view::PrefixDesc::ResizeExit)
-                    .map(|(key, _)| key)
-                    .expect("Resize retains its local exit binding");
-                for pending in [false, true] {
-                    view.resize_pending = pending;
-                    view.configuration_notice(crate::client_view::Notice::ResizeBusy);
-                    let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
-                    infallible(terminal.draw(|frame| {
-                        render_shell(frame, &view, locale, &theme);
-                    }));
-                    let rendered: String = terminal
-                        .backend()
-                        .buffer()
-                        .content
-                        .iter()
-                        .map(|cell| cell.symbol())
-                        .collect();
-                    let indicator = if pending {
-                        locale.status().resize_pending
-                    } else {
-                        locale.status().resize
-                    };
-                    let resize_exit_hint = format!("{resize_exit} {}", locale.status().exit);
-                    let indicator_fits = crate::terminal_text::display_width(indicator)
-                        .saturating_add(
-                            crate::terminal_text::display_width(theme.glyphs.middle_dot)
-                                .saturating_add(2),
-                        )
-                        .saturating_add(crate::terminal_text::display_width(&resize_exit_hint))
-                        <= usize::from(width);
-                    assert_eq!(
-                        without_cell_padding(&rendered).contains(&without_cell_padding(indicator)),
-                        indicator_fits,
-                        "{width}x{height}: {rendered}"
-                    );
-                    assert!(
-                        without_cell_padding(&rendered)
-                            .contains(&without_cell_padding(&resize_exit_hint)),
-                        "{width}x{height}: {rendered}"
-                    );
-                }
-            }
-        }
-    }
-    let mut view = ClientView::new(120);
-    prefix(&mut view, plain('P'));
-    commit(&mut view, plain('?'));
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let entries = crate::tui_shortcut_help::entries(
-            locale,
-            &view,
-            true,
-            crate::client_view::KeyLabelGlyphs::Unicode,
-        );
-        assert!(entries.iter().any(|entry| {
-            entry.title == locale.shortcut_scroll_label() && entry.key.contains("Page")
-        }));
-        assert!(!entries.iter().any(|entry| entry.key == "Esc"));
-        let rendered = rendered_text(120, 40, &view, locale);
-        assert!(rendered.contains("Esc"));
-        assert!(
-            without_cell_padding(&rendered)
-                .contains(&without_cell_padding(locale.shortcut_scroll_action())),
-            "the always-visible scroll footer should render for {locale:?}: {rendered}"
-        );
-    }
 }

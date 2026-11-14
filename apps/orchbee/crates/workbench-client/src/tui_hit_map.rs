@@ -136,7 +136,6 @@ pub enum HitTarget {
     FindSurface(crate::terminal_find::FindToken),
     /// The content of the Panel the Find bar searches: a press closes the bar, the wheel scrolls.
     FindContent(crate::terminal_find::FindToken),
-    Resize(ResizeControl),
     Help {
         page: usize,
         action: HelpControl,
@@ -320,18 +319,6 @@ pub enum ModalControl {
     /// The frame's close control, which ends a whole dialog even from a follow-up step.
     Close,
     Surface,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ResizeControl {
-    Adjust {
-        target: Box<crate::tui_layout::DrawnResize>,
-        direction: crate::client_view::PanelDirection,
-        fine: bool,
-    },
-    Step(bool),
-    Help,
-    Exit,
 }
 
 impl HitTarget {

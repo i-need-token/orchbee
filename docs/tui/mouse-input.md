@@ -149,7 +149,7 @@ must still be reachable from the keyboard.
 | Editor                     | Primary click focuses it and may place the caret                                                   | `Tab` or documented focus movement; editing keys then apply |
 | Value control              | Primary click invokes its declared edit, picker, or immediate-toggle contract                      | Focus plus the same semantic edit or toggle action          |
 | Pane viewport              | Primary press focuses the pane, then passthrough may receive the event                             | The documented pane-focus route                             |
-| Pane boundary              | Primary drag previews resize; release commits one resize                                           | A resize mode that can preview, commit, and cancel          |
+| Pane boundary              | Primary drag previews resize; release commits one resize                                           | Directional resize bindings that each commit one step       |
 | Scrollable region          | Wheel moves that region without changing focus                                                     | Arrow or page movement in the same region                   |
 | Scroll indicator           | Primary click moves the viewport to the represented position                                       | Page or jump commands reaching the same viewport positions  |
 

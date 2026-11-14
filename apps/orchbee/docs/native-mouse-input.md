@@ -98,7 +98,7 @@ its effect.
 | Workspace/Worktree forms        | Clickable fields, exact choice rows, Cancel/Submit and stage-specific status/hide controls; accepted operations retain their existing completion owner.   |
 | Settings                        | Clickable categories, rows, controls, steppers and Back; a click that changes a value applies it at once; the wheel scrolls the column under the pointer. |
 | Agent board                     | Full-row selection, Open, Refresh and X; Open addresses the selected stable Agent identity.                                                               |
-| Copy and resize modes           | The global action menu enters them; mode toolbars, copy drag/scroll and resize directions use their existing native owners.                               |
+| Copy mode                       | The global action menu enters it; its toolbar and copy drag/scroll use their existing native owners.                                                      |
 
 Wheel belongs only to the painted list under the pointer; headings, buttons, frame padding and the backdrop are inert. Lists normalize three rows/choices per notch, bound accumulated work and settle at most one painted viewport per pass; Worktree capacity counts its two-line choices. Reversal drops old-direction work while retaining the first opposite notch. A changed owner/source/geometry cancels backlog. Pending list movement settles before a following keyboard decision, and any resulting native draft token still requires its own successful draw. No scroll path executes a row or changes a setting value.
 
@@ -386,7 +386,7 @@ thumb in list rows: plain left press jumps on the track or grabs the thumb, moti
 through the machine picker's window owner, release ends it, and wheel scrolls as over the list.
 The `SidebarScrollbar` gesture keeps the press's track and range extent, takes over each
 repainted window, and cancels when a frame paints another extent or none, on keyboard input, host
-focus loss, a modal overlay, resize mode or an open picker. It never moves sidebar focus or leaves
+focus loss, a modal overlay or an open picker. It never moves sidebar focus or leaves
 sidebar navigation; the [shell layout](tui-shell-layout.md#viewport-tiers) owns its presentation.
 
 | State       | Meaning and exits                                                                                                                                                                                                                                             |
@@ -567,7 +567,7 @@ owners and no thread or timer of its own.
   the event loop's existing poll cadence, opens it 300 ms after real motion only while capture is
   armed, the host is focused, `AnyMotion` is observable, no capture owner or captured input is
   active, no overlay other than the business sidebar is open, and no prefix, Navigator, sidebar
-  keyboard navigation, resize mode, or gesture is active.
+  keyboard navigation, or gesture is active.
 - The dispatcher calls `dismiss_tooltip` for every key, paste, and rejected paste, then routes the
   item unchanged. A press, wheel notch, or drag closes it inside `PointerState::event`;
   `invalidate_map`, `stale_map`, released capture, focus loss, and observability downgrade clear it.

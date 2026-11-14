@@ -6,65 +6,6 @@ use orchbee_workbench_protocol::{
 use ratatui::layout::Rect;
 
 #[test]
-fn painted_resize_rejects_changed_source_or_geometry_and_uses_the_keyboard_lane() {
-    for changed in [
-        "current", "session", "context", "tab", "focus", "revision", "viewport", "sidebar",
-    ] {
-        let (mut native, mailbox, clock, _) = ready_split_ui();
-        let poll = mailbox.try_recv().unwrap().unwrap();
-        mailbox.finish_lease(poll).unwrap();
-        let mut control = controller(clock);
-        let viewport = Rect::new(0, 0, 120, 40);
-        control.observe_geometry(viewport, SidebarSurface::Hidden);
-        control.tick(&mut native, false);
-        let mut target = crate::tui_layout::DrawnResize {
-            source: native.view().divider_source().unwrap(),
-            viewport,
-            sidebar: SidebarSurface::Hidden,
-        };
-        let other = format!("{:032x}", 987);
-        match changed {
-            "session" => {
-                target.source.session =
-                    orchbee_workbench_protocol::SessionId::parse(&other).unwrap()
-            }
-            "context" => {
-                target.source.context =
-                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&other).unwrap()
-            }
-            "tab" => {
-                target.source.tab =
-                    orchbee_workbench_protocol::WorkbenchTabId::parse(&other).unwrap()
-            }
-            "focus" => {
-                target.source.focus =
-                    orchbee_workbench_protocol::WorkbenchPanelId::parse(&other).unwrap()
-            }
-            "revision" => target.source.revision = WorkbenchRevision::new(98),
-            "viewport" => target.viewport.width -= 1,
-            "sidebar" => {
-                target.sidebar = SidebarSurface::Docked(crate::tui_layout::SidebarWidth::DEFAULT)
-            }
-            _ => {}
-        }
-        control.resize_drawn(&native, &target, PanelDirection::Right, true);
-        let mutation = control.lane.as_ref().unwrap().take_layout_for_test();
-        // A commit outside the layout advances only the revision; the toolbar still names it.
-        if changed == "current" || changed == "revision" {
-            assert!(
-                matches!(mutation.unwrap().action, WorkbenchAction::SplitRatioSet { ratio, .. } if (ratio.value() - 0.51).abs() < 1e-9)
-            );
-        } else {
-            assert!(mutation.is_none(), "{changed}");
-            assert!(matches!(
-                control.take_local_resize_feedback(),
-                Some(LocalResizeFeedback::Notice(Notice::ResizeFailed))
-            ));
-        }
-    }
-}
-
-#[test]
 fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_until_expiry() {
     use crate::workbench_client::ui::tests::publication_hint::{
         settle_queued_refresh, split_snapshot,
@@ -76,7 +17,7 @@ fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_unt
     let mut control = controller(clock);
     control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
     control.tick(&mut native, false);
-    control.resize(&native, PanelDirection::Right, false);
+    control.resize(&native, PanelDirection::Right);
     let mutation = control
         .lane
         .as_ref()
@@ -105,7 +46,7 @@ fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_unt
             control.local_resize_pending(),
             "an older read is not proof of commit failure"
         );
-        control.resize(&native, PanelDirection::Right, false);
+        control.resize(&native, PanelDirection::Right);
         assert!(
             control
                 .lane
@@ -153,16 +94,13 @@ fn keyboard_geometry_uses_shared_resolver_for_both_slots_zoom_fine_steps_and_hid
                 native.apply_client_action(ClientAction::ToggleZoom);
             }
             let before = native.control_observation(false).unwrap();
-            for (direction, fine, expected) in [
-                (ClientPanelDirection::Left, false, 0.45),
-                (ClientPanelDirection::Right, false, 0.55),
-                (ClientPanelDirection::Left, true, 0.49),
-                (ClientPanelDirection::Right, true, 0.51),
+            for (direction, expected) in [
+                (ClientPanelDirection::Left, 0.45),
+                (ClientPanelDirection::Right, 0.55),
             ] {
                 let (_, adjustment, observation) = native
                     .prepare_keyboard_adjustment(
                         direction,
-                        fine,
                         Some((Rect::new(0, 0, 120, 40), SidebarSurface::Hidden)),
                     )
                     .unwrap();
@@ -177,7 +115,6 @@ fn keyboard_geometry_uses_shared_resolver_for_both_slots_zoom_fine_steps_and_hid
                 native
                     .prepare_keyboard_adjustment(
                         ClientPanelDirection::Right,
-                        false,
                         Some((Rect::new(0, 0, 10, 3), SidebarSurface::Hidden))
                     )
                     .is_err()
@@ -199,7 +136,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
     control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
     control.tick(&mut native, false);
     let before = native.control_observation(false).unwrap();
-    control.resize(&native, PanelDirection::Right, false);
+    control.resize(&native, PanelDirection::Right);
     assert!(control.local_resize_pending());
     let mutation = control
         .lane
@@ -212,7 +149,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
         matches!(mutation.action, WorkbenchAction::SplitRatioSet { ratio, .. } if (ratio.value() - 0.55).abs() < 1e-9)
     );
     for _ in 0..6 {
-        control.resize(&native, PanelDirection::Right, false);
+        control.resize(&native, PanelDirection::Right);
     }
     assert!(matches!(
         control.take_local_resize_feedback(),
@@ -226,7 +163,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
             .take_layout_for_test()
             .is_none()
     );
-    control.tick(&mut native, true); // resize mode is shell-blocked for remote commands, not for its own completion
+    control.tick(&mut native, true); // a pending resize blocks remote commands, not its own completion
     control.after_draw(&mut native);
     assert!(control.local_resize_pending());
     assert_eq!(native.control_observation(false).unwrap(), before);
@@ -292,7 +229,7 @@ fn failed_interrupted_and_stale_keyboard_completions_never_replay_or_complete_an
         let mut control = controller(clock);
         control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
         control.tick(&mut native, false);
-        control.resize(&native, PanelDirection::Right, true);
+        control.resize(&native, PanelDirection::Right);
         let mutation = control
             .lane
             .as_ref()

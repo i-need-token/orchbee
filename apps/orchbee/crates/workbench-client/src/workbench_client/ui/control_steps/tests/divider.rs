@@ -676,7 +676,7 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
         .1
         .remove(0);
     assert!(control.divider_ready(&native, &drafted).is_ok());
-    control.resize(&native, PanelDirection::Right, false);
+    control.resize(&native, PanelDirection::Right);
     control.resize_divider(&native, &drafted, ClientSplitRatio::new(0.8).unwrap());
     let queued = ResizeProjection::Divider {
         source: target.clone(),

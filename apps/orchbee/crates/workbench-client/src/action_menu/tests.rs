@@ -711,10 +711,6 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
             PrefixAction::Client(ClientAction::EnterCopyMode),
         ),
         (
-            MenuAction::Resize,
-            PrefixAction::Client(ClientAction::EnterResizeMode),
-        ),
-        (
             MenuAction::RenameTab,
             PrefixAction::Client(ClientAction::RequestRenameTab),
         ),

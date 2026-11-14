@@ -181,9 +181,7 @@ impl InputDispatcher {
         port: &(impl TerminalInputPort + ?Sized),
     ) -> Option<CaptureOwner> {
         let client = ClientCaptureClaims::default();
-        let client = client
-            .with_machine(_view.machines.captures())
-            .with_resize(_view.resize_mode());
+        let client = client.with_machine(_view.machines.captures());
         let native = port
             .native_capture_claims()
             .with_copy(port.copy_mode_active());
@@ -1013,40 +1011,9 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
 
-        if owner == CaptureOwner::Resize {
-            if let DecodedKind::Mouse(event) = item.kind {
-                if after_layout(view, port)? {
-                    self.pointer.invalidate_map_with_port(port);
-                }
-                let decision = self.pointer.resize_event(view, port, event);
-                self.capture_modal_release(event);
-                if event.action == super::MouseAction::Press
-                    && matches!(
-                        event.button,
-                        super::MouseButton::Left
-                            | super::MouseButton::Right
-                            | super::MouseButton::Middle
-                    )
-                {
-                    self.modal_release = Some(event.button);
-                }
-                if decision {
-                    self.pointer_packet = true;
-                    self.keys.capture_pending();
-                }
-                return Ok(DispatchOutcome::Continue);
-            }
-            if matches!(item.kind, DecodedKind::Key(event) if event.kind == KeyKind::Release) {
-                return Ok(DispatchOutcome::Continue);
-            }
-            return self.decide(view, port, now, item, after_layout, mode);
-        }
-
         let native_owner = match owner {
             CaptureOwner::Machine => unreachable!("the machine capture returned above"),
-            CaptureOwner::Copy | CaptureOwner::Resize => {
-                unreachable!("the client capture returned above")
-            }
+            CaptureOwner::Copy => unreachable!("the client capture returned above"),
             CaptureOwner::Native(owner) => owner,
         };
         let context = port.native_capture_context(native_owner);
@@ -2456,7 +2423,6 @@ impl InputDispatcher {
                     ClientActionDisposition::KeepNavigator
                 };
                 if self.pointer.can_open_action_menu()
-                    && !view.resize_mode()
                     && !port.copy_mode_active()
                     && Self::projected_capture(view, port).is_none()
                     && port.open_action_menu(
@@ -2689,7 +2655,7 @@ impl InputDispatcher {
         let projected = Self::projected_capture(view, port);
         let native_owner = match projected {
             Some(CaptureOwner::Native(owner)) => Some(owner),
-            Some(CaptureOwner::Machine | CaptureOwner::Copy | CaptureOwner::Resize) => None,
+            Some(CaptureOwner::Machine | CaptureOwner::Copy) => None,
             None => None,
         };
         let higher_exclusive = matches!(
@@ -2712,7 +2678,6 @@ impl InputDispatcher {
             _ => None,
         };
         if higher_exclusive {
-            view.exit_resize_mode();
             port.surface_action(SurfaceAction::CopyMode(CopyAction::Exit));
         }
         let capture_retains_sidebar =
@@ -2788,7 +2753,6 @@ impl InputDispatcher {
         if let Some(token) = current
             && self.decoder.start_with_capacity(capacity)
         {
-            view.exit_resize_mode();
             self.epoch = Some(token);
         }
         true

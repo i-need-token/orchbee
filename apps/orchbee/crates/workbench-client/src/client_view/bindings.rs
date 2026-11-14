@@ -105,16 +105,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::FindInTerminal,
     },
     PrefixGroup {
-        members: &[member(
-            KeySet::One(Binding::new(
-                KeyCode::Char('p'),
-                Modifiers::NONE.with_shift(),
-            )),
-            ClientAction::EnterResizeMode,
-        )],
-        desc: PrefixDesc::ResizeMode,
-    },
-    PrefixGroup {
         members: &[member(shift_key('n'), ClientAction::RequestQuickWorkspace)],
         desc: PrefixDesc::QuickWorkspaceCreate,
     },
@@ -244,7 +234,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             alt_key(KeyCode::Left),
             ClientAction::ResizePane {
                 direction: PanelDirection::Left,
-                fine: false,
             },
         )],
         desc: PrefixDesc::ResizeLeft,
@@ -254,7 +243,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             alt_key(KeyCode::Right),
             ClientAction::ResizePane {
                 direction: PanelDirection::Right,
-                fine: false,
             },
         )],
         desc: PrefixDesc::ResizeRight,
@@ -264,7 +252,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             alt_key(KeyCode::Up),
             ClientAction::ResizePane {
                 direction: PanelDirection::Up,
-                fine: false,
             },
         )],
         desc: PrefixDesc::ResizeUp,
@@ -274,7 +261,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             alt_key(KeyCode::Down),
             ClientAction::ResizePane {
                 direction: PanelDirection::Down,
-                fine: false,
             },
         )],
         desc: PrefixDesc::ResizeDown,
