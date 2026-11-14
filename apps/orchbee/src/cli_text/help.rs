@@ -50,45 +50,13 @@ impl super::CliText {
     /// Explain the purpose of one help topic without exposing its implementation.
     pub(crate) fn cli_help_summary(self, topic: HelpTopic) -> &'static str {
         let (english, chinese) = match topic {
-            HelpTopic::Command(CommandPath::WorkspaceStatus) => (
+            HelpTopic::Command(CommandPath::OperationStatus) => (
                 "Show the state of an earlier operation by its request ID.",
                 "按请求 ID 查看一项先前操作的状态。",
             ),
-            HelpTopic::Command(CommandPath::WorkspaceResume) => (
+            HelpTopic::Command(CommandPath::OperationResume) => (
                 "Continue an earlier operation if it is unchanged since its status was read.",
                 "继续一项先前操作；仅当它自读取状态后未变化时执行。",
-            ),
-            HelpTopic::Command(CommandPath::TabStatus) => (
-                "Show the state of an earlier operation by its request ID.",
-                "按请求 ID 查看一项先前操作的状态。",
-            ),
-            HelpTopic::Command(CommandPath::TabResume) => (
-                "Continue an earlier operation if it is unchanged since its status was read.",
-                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
-            ),
-            HelpTopic::Command(CommandPath::PanelStatus) => (
-                "Show the state of an earlier operation by its request ID.",
-                "按请求 ID 查看一项先前操作的状态。",
-            ),
-            HelpTopic::Command(CommandPath::PanelResume) => (
-                "Continue an earlier operation if it is unchanged since its status was read.",
-                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
-            ),
-            HelpTopic::Command(CommandPath::ProjectStatus) => (
-                "Show the state of an earlier operation by its request ID.",
-                "按请求 ID 查看一项先前操作的状态。",
-            ),
-            HelpTopic::Command(CommandPath::ProjectResume) => (
-                "Continue an earlier operation if it is unchanged since its status was read.",
-                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
-            ),
-            HelpTopic::Command(CommandPath::ClientStatus) => (
-                "Show the state of an earlier operation by its request ID.",
-                "按请求 ID 查看一项先前操作的状态。",
-            ),
-            HelpTopic::Command(CommandPath::ServerStatus) => (
-                "Show the state of an earlier operation by its request ID.",
-                "按请求 ID 查看一项先前操作的状态。",
             ),
 
             HelpTopic::Family(Family::PanelGraphics) => (
@@ -280,6 +248,10 @@ impl super::CliText {
             HelpTopic::Family(Family::Server) => (
                 "Manage the session's background service.",
                 "管理会话的后台服务。",
+            ),
+            HelpTopic::Family(Family::Operation) => (
+                "Inspect or continue an earlier operation by its request ID.",
+                "按请求 ID 查看或继续一项先前操作。",
             ),
             HelpTopic::Family(Family::Config) => (
                 "Check, print and reload settings.",
@@ -503,14 +475,6 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::WorktreeRemove) => (
                 "Remove a Git worktree after confirmation.",
                 "确认后移除 Git 工作树。",
-            ),
-            HelpTopic::Command(CommandPath::WorktreeStatus) => (
-                "Check a Git worktree operation.",
-                "查看 Git 工作树操作状态。",
-            ),
-            HelpTopic::Command(CommandPath::WorktreeResume) => (
-                "Resume an unfinished Git worktree operation.",
-                "继续尚未完成的 Git 工作树操作。",
             ),
             HelpTopic::Family(Family::LaunchProfile) => (
                 "Manage reusable terminal launch settings.",

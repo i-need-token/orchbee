@@ -1,4 +1,5 @@
 //! CLI waiting is separate from the Server's retained Worktree operation.
+use super::operation::Probe;
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
@@ -62,6 +63,22 @@ impl Answer {
     fn pending(&self) -> bool {
         matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
             WorkbenchWorktreeOutcome::Available {status, ..} if matches!(status.as_ref(), WorktreeOperationStatus::Pending {..})))
+    }
+    /// Whether the Server keeps the operation, or `None` when this answer cannot say.
+    fn held(&self) -> Option<bool> {
+        if self.wait.is_some() {
+            return None;
+        }
+        let Observation::Server { reply } = &self.observation else {
+            return None;
+        };
+        match &reply.outcome {
+            WorkbenchWorktreeOutcome::NotFound {} => Some(false),
+            WorkbenchWorktreeOutcome::Available { .. } => Some(true),
+            WorkbenchWorktreeOutcome::Conflict {}
+            | WorkbenchWorktreeOutcome::Denied {}
+            | WorkbenchWorktreeOutcome::Unavailable { .. } => None,
+        }
     }
     fn exit_code(&self) -> u8 {
         let canonical = self.canonical_exit_code();
@@ -142,7 +159,12 @@ pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: 
             Ok(command) => command,
             Err(failure) => return super::parse_failure(failure, locale),
         };
-    let command = &command;
+    probe(&command, format, locale).into_output()
+}
+
+/// The workflow after admission and path resolution, saying also whether the Server keeps the
+/// operation.
+pub(super) fn probe(command: &WorktreeCommand, format: OutputFormat, locale: Locale) -> Probe {
     let operation_id = match command {
         WorktreeCommand::Start(command) => command
             .operation_id
@@ -155,7 +177,7 @@ pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: 
     };
     let operation_id = match operation_id {
         Ok(id) => id,
-        Err(failure) => return failure_output(failure, Some(format), locale),
+        Err(failure) => return failure_output(failure, Some(format), locale).into(),
     };
     workflow::run(command, operation_id, format, locale)
 }

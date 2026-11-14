@@ -3352,7 +3352,7 @@ impl Drop for BaseGuard {
 /// `workspace close` against one scripted peer proves the command route end to
 /// end — argv parse, `main` label → `(project, workspace)` resolution on the
 /// real snapshot, and the Server-issued stable close id in the accepted receipt.
-/// Reading and resuming that close by its id go through `workspace status|resume`.
+/// Reading and resuming that close by its id go through `operation status|resume`.
 #[test]
 fn workspace_close_route_reaches_the_typed_receipt() -> TestResult {
     let base = BaseGuard::new("ws-close-route");

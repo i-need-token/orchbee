@@ -121,7 +121,7 @@ Popup placement requires a current ready Client and focus. Remove `--no-focus`, 
 
 ## Close, stop and recover
 
-Destructive commands require their declared `--confirm`. Workspace close does not delete its Git checkout or branch. Use `<family> status|resume <request-id>` (for example workspace, project or worktree) with the retained request ID and generation when a receipt requires recovery. Do not start a second operation as an implicit retry.
+Destructive commands require their declared `--confirm`. Workspace close does not delete its Git checkout or branch. Use `operation status|resume <request-id>` with the retained request ID and generation when a receipt requires recovery. Do not start a second operation as an implicit retry.
 
 Stop a Server or Session only when the user asks for that stop in the current conversation; never add `--confirm` to a stop on your own. `server stop --confirm` or `session stop <name> --confirm` ends the Session after its final checkpoint. Startup restores eligible layout and launch facts, not live screen history or active Agent state. A failed/cancelled CLI wait can leave the stop in progress; query its retained identity. `orchbee --machine <name-or-id> server stop --confirm` stops that saved machine's remote Session and every terminal in it through the machine hub; it takes no request ID, retry, detach or timeout, so an `unknown` outcome has no identity to query.
 
@@ -187,7 +187,7 @@ Uninstall removes an installed plugin.
 
 ## Recover async operations
 
-Use the receipt ID with `<family> status <request-id>` for Workspace, Tab, Panel, Project, Worktree, Client and Server operations. Supported resume paths use `<family> resume <request-id> --generation <n> --confirm`; inspect status first. [Retained operation status](native-operation-status.md) owns the identity mapping, limits, compatibility paths and Server stop precedence.
+Use the receipt ID with `operation status <request-id>` for Workspace, Tab, Panel, Project, Worktree, Client, Session stop and Agent detection rule operations; no family word is needed. `operation resume <request-id> --generation <n> --confirm` continues one that is resumable; inspect status first. [Retained operation status](native-operation-status.md) owns the identity mapping, lookup order and limits.
 
 ## Panel targets for terminal I/O
 

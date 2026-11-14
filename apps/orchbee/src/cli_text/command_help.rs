@@ -60,40 +60,14 @@ impl super::CliText {
     ) -> crate::cli_text::HelpDetails {
         use crate::invocation::CommandPath;
         match (self.locale, path) {
-            (_, CommandPath::WorkspaceStatus) => {
-                self.operation_help("orchbee workspace status <request-id> [--format text|json]", false)
-            }
-            (_, CommandPath::WorkspaceResume) => self.operation_help(
-                "orchbee workspace resume <request-id> --generation <n> --confirm [--format text|json]",
+            (_, CommandPath::OperationStatus) => self.operation_help(
+                "orchbee operation status <request-id> [--format text|json]",
+                false,
+            ),
+            (_, CommandPath::OperationResume) => self.operation_help(
+                "orchbee operation resume <request-id> --generation <n> --confirm [--detach] [--timeout <ms>] [--format text|json]",
                 true,
             ),
-            (_, CommandPath::TabStatus) => {
-                self.operation_help("orchbee tab status <request-id> [--format text|json]", false)
-            }
-            (_, CommandPath::TabResume) => self.operation_help(
-                "orchbee tab resume <request-id> --generation <n> --confirm [--format text|json]",
-                true,
-            ),
-            (_, CommandPath::PanelStatus) => {
-                self.operation_help("orchbee panel status <request-id> [--format text|json]", false)
-            }
-            (_, CommandPath::PanelResume) => self.operation_help(
-                "orchbee panel resume <request-id> --generation <n> --confirm [--format text|json]",
-                true,
-            ),
-            (_, CommandPath::ProjectStatus) => {
-                self.operation_help("orchbee project status <request-id> [--format text|json]", false)
-            }
-            (_, CommandPath::ProjectResume) => self.operation_help(
-                "orchbee project resume <request-id> --generation <n> --confirm [--detach] [--timeout <ms>] [--format text|json]",
-                true,
-            ),
-            (_, CommandPath::ClientStatus) => {
-                self.operation_help("orchbee client status <request-id> [--format text|json]", false)
-            }
-            (_, CommandPath::ServerStatus) => {
-                self.operation_help("orchbee server status <request-id> [--format text|json]", false)
-            }
 
             (_, CommandPath::EventsSubscribe | CommandPath::EventsWait) => self.events_help(path),
             (
@@ -275,9 +249,7 @@ impl super::CliText {
                 _,
                 path @ (CommandPath::WorktreeCreate
                 | CommandPath::WorktreeOpen
-                | CommandPath::WorktreeRemove
-                | CommandPath::WorktreeStatus
-                | CommandPath::WorktreeResume),
+                | CommandPath::WorktreeRemove),
             ) => self.cli_worktree_help(path),
             (Locale::EnUs, CommandPath::LaunchProfileList) => super::launch_profile::HELP_LAUNCH_PROFILE_LIST_EN,
             (Locale::ZhCn, CommandPath::LaunchProfileList) => super::launch_profile::HELP_LAUNCH_PROFILE_LIST_ZH,

@@ -79,7 +79,7 @@ stay listed on `terminal session observe|control`. `agent integration --adapter-
 unlisted development and test override: the cohort supplies the adapter payload.
 
 `--request-id`, `--retry`, `--detach` and `--generation` belong to stop, close and worktree
-operations and their `status|resume` recovery. Focus, resize, `panel maximize`,
+operations and their `operation status|resume` recovery. Focus, resize, `panel maximize`,
 `layout set-split-ratio` and the Agent manifests commands refuse them as unknown options; they
 always generate the operation ID they report.
 
@@ -783,14 +783,14 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   verbatim to the Server, which resolves it under the catalog's ID-first/name-cardinality
   rule — the CLI never reads the catalog or guesses a match. A resolved profile supplies
   the launch for that one request; it is not persisted anywhere else.
-- `--generation <n>`: single-use value flag, required on every `<family> resume` and valid
+- `--generation <n>`: single-use value flag, required on `operation resume` and valid
   nowhere else. The value is the explicit attempt-generation fence: a nonzero decimal `u64`
   without a leading zero — the protocol's `WorkbenchTabCloseAttemptGeneration` spelling. A
   stale-but-valid generation is a semantic request the Server answers `stale`, never a
   grammar concern; a missing, empty, zero, non-numeric, or overflowing value is
   `invalid-usage` before any runtime access.
 - `--confirm`: valueless boolean, required on `tab close`, `panel close`,
-  `workspace close`, and every `<family> resume`; absent there or
+  `workspace close`, and `operation resume`; absent there or
   present on any other command is `invalid-usage`. A `tab close` or `workspace close` with
   `--dry-run` needs no `--confirm`.
 - `--match <text>`: single-use value flag on `terminal wait-output`, one of the two search
@@ -891,8 +891,6 @@ orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace set-directory <target> --path <path>
 orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
-orchbee workspace status <close-request-id>
-orchbee workspace resume <close-request-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
 orchbee tab list [--workspace <target>] | tab get <target>
 orchbee tab create [--workspace <target>] [--label <label>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
@@ -920,7 +918,7 @@ orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
 orchbee agent integration enable --provider <id>
 orchbee agent integration disable --provider <id>
-orchbee client list | client get <client-id> | client status <operation-id>
+orchbee client list | client get <client-id>
 orchbee workspace focus <target> [--client <id>]
 orchbee tab focus <target> [--client <id>]
 orchbee panel focus [<target> | --current] [--client <id>]
@@ -929,7 +927,8 @@ orchbee api snapshot
 orchbee api schema [<schema-id>] [--output <path>]
 orchbee server start
 orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
-orchbee server status <request-id>
+orchbee operation status <request-id>
+orchbee operation resume <request-id> --generation <n> --confirm [--detach] [--timeout <ms>]
 orchbee doctor
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
@@ -1020,8 +1019,8 @@ loading. This proves static completion, not runtime target discovery or other op
 `help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `config default` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `<family> status`, `agent explain`,
-`agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`, `server status`,
+commands (`status`, all `list`/`get`, `operation status`, `agent explain`,
+`agent wait`, `api snapshot`, `api schema`, `server start`, `server stop`,
 `doctor`, `config check`, and all four `agent integration` commands) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
@@ -1840,7 +1839,7 @@ profileId?,name?}` per
   not carry the terminal ID. Other text receipts and hints follow the same rule: report, metadata,
   relocation, swap, layout, Project-close and worktree receipts name Panels, Tabs, Workspaces and
   Projects by handle, and `terminal clear` names its terminal by `@terminal:0x<hex>`. The
-  `workspace status` hint names the close request ID, which that command requires.
+  `operation status` hint names the close request ID, which that command requires.
   `panel current` text starts with the current Panel ID. `workspace get`, `terminal get` and `panel process-info` text likewise opens
   with one sentence followed by aligned labels: the Workspace view shows its Project and primary
   directory path before any Agent or worktree supplement; the terminal view shows its Panel, Tab
@@ -1972,13 +1971,13 @@ Safety contract:
   to repeat the command.
 - **Close confirmation.** `tab close`, `panel close`, and `workspace close` are
   destructive; the parser requires the explicit `--confirm` flag so a noninteractive
-  invocation can never close by default. Every `<family> resume` owes the same flag:
+  invocation can never close by default. `operation resume` owes the same flag:
   opening a fresh attempt window on a retained close is itself an effect.
 - **Close waiting.** `tab close` and `workspace close` by default read fresh snapshots after
   acceptance until the Tab or Workspace is gone, within a total `--timeout` (1..3600000 ms,
   default 30000). The text receipt then reports the closed name and terminal count. Expiry exits
   with a `timeout` failure (`details:{stage:"wait",timeoutMs,observed}`) while the close
-  continues in the session; the text diagnostic names the `tab list` or `workspace status <close-request-id>`
+  continues in the session; the text diagnostic names the `tab list` or `operation status <close-request-id>`
   command. An observation step that fails only after the total deadline, such as a cohort check
   that ran out the remaining time, outlasted the wait and settles as that same `timeout`. `--detach` keeps the `accepted` receipt returned at acceptance and conflicts with
   `--timeout`. `--dry-run` submits nothing and returns the `terminal list` result filtered to that
@@ -2047,11 +2046,11 @@ and directories are preserved. An `accepted` receipt carries `acceptedRevision`,
 `closeRequestId`, and the resolved `workspaceId`/`terminalContextId`; the Session
 finishes the close asynchronously and the retained operation record outlives the
 Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
-retained operation is continued only through `workspace resume <close-request-id>`.
+retained operation is continued only through `operation resume <close-request-id>`.
 
-`workspace status <close-request-id>` reads that retained record by its close request ID
+`operation status <close-request-id>` reads that retained record by its close request ID
 alone, so a completed close still answers with its `closed` tombstone `revision`.
-`workspace resume <close-request-id> --generation <n> --confirm` submits exactly one resume
+`operation resume <close-request-id> --generation <n> --confirm` submits exactly one resume
 exchange under the caller's last-observed attempt fence; only resumable lifecycle states
 resume, and a stale fence settles as the typed `stale` answer, never as a second attempt.
 
@@ -2581,7 +2580,7 @@ JSON carries the value verbatim.
 
 The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. After the Worker exits, the final save keeps each terminal's last sampled directory, and the stop fails as `host-exit` `refused` while that Worker's Host still runs, because nothing may end it; a Server whose Worker and Host are both gone stops on its own. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
 
-`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `server status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.server.stop` v1 envelope distinguishes stopped, exited, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects. In the Windows release build, `server stop`, `session stop` and `session delete` take no `--confirm` and pass the [release confirmation](../README.md#windows-release-destructive-confirmation) first, which also logs every request. `--machine <selector> server stop` is not this request carried to another computer: the [remote Session stop](machines.md#remote-session-stop) owns it.
+`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `operation status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.server.stop` v1 envelope distinguishes stopped, exited, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects. In the Windows release build, `server stop`, `session stop` and `session delete` take no `--confirm` and pass the [release confirmation](../README.md#windows-release-destructive-confirmation) first, which also logs every request. `--machine <selector> server stop` is not this request carried to another computer: the [remote Session stop](machines.md#remote-session-stop) owns it.
 
 A Session whose Server refuses this build's offer is handled by kind; status reads never take this path. A Session from before the handshake gets `unavailable` `predates-handshake`: no shim speaks to it, so the text names the action, running `server stop` with the Orchbee that started it, as `pnpm desktop` does. A Server that refuses as too old, as another development build, or with `stopping` is asked for its terminal count with one `query` control request. With none open, one `exit` request ends that Server and its Worker, and the CLI waits for the Session lifetime lock to be released before reporting `exited` (exit 0); there is no stop record, and the next start recovers the Session from its last checkpoint as an unclean end. With terminals open the answer is `unavailable` `terminals-open`, or `draining` for a Server that refused with `stopping`, because `exit` never ends a terminal and, until Host `exit` arrives in P1, only the build that started a Session can end its terminals. A Server that answers `exit` `unsupported` gets `exit-unsupported` with the same action. An `exit` whose reply was lost after submission, or whose Session still holds its lifetime lock at the deadline, is `unknown` with reason `transport` or `session-lifetime`.
 
@@ -2595,7 +2594,7 @@ Windows `worktree list` additionally accepts a source Workspace/cwd and optional
 
 ## Project close-all projection
 
-Windows `project close-all <target> --confirm` explicitly closes captured members of one Project, with `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). `project status <operation-id>` has a five-second read budget; `project resume <operation-id> --generation <1..64> --confirm` admits the same detach/timeout options. Ordinary `workspace close` closes only the selected Workspace; retired `--group` forms are rejected. Both preserve Git checkouts/branches. Project close-all retains the Project; dissolve only ungroups and retains Workspaces.
+Windows `project close-all <target> --confirm` explicitly closes captured members of one Project, with `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). `operation status <operation-id>` has a five-second read budget; `operation resume <operation-id> --generation <1..64> --confirm` admits the same detach/timeout options. Ordinary `workspace close` closes only the selected Workspace; retired `--group` forms are rejected. Both preserve Git checkouts/branches. Project close-all retains the Project; dissolve only ungroups and retains Workspaces.
 
 `orchbee.project.close-all` v1 separates retained Server truth from nullable wait disposition. Source is `local-workspace-group` with required-nullable Session ID. Results have only a Project scope; at most 256 captured members carry Workspace ID, label and nullable child Close. Empty groups are valid. Start/Resume submits once, followed only by reads of the same attempt/members; unknown effects are never replayed. Exit codes and partial truth follow [Project close-all](windows-worktrees.md#project-close-all). Help, `--skill` and completion declare these commands offline.
 
@@ -2818,7 +2817,7 @@ is frozen at Session startup. With a catalog, managed release Sessions automatic
 every thirty minutes; no setting turns this off. Debug/test and standalone
 execution do not schedule checks. Rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
 a separate latest-result slot without consuming manual receipts.
-`server status <operation-id>` reads either retained receipt without resubmitting.
+`operation status <operation-id>` reads either retained receipt without resubmitting.
 These commands require an already running Session and do not focus a Client or send terminal input.
 
 Each invocation uses one five-second admission/exchange budget. Reload and Update submit once and
@@ -2860,9 +2859,9 @@ status poll but before receiving the queued response. It then stops writing; the
 still return the exact timeout failure with no partial result. Other write errors and malformed
 requests remain failures, and no receipt is fabricated after the connection closes.
 
-## Uniform retained operation paths
+## Retained operation paths
 
-[Retained operation status](native-operation-status.md) defines the preferred `<family> status <request-id>` and supported `<family> resume <request-id> --generation <n> --confirm` grammar. Older family-specific paths described in this reference remain compatibility entry points; new callers use the uniform paths. Tab and Panel now have explicit status and resume access.
+[Retained operation status](native-operation-status.md) defines `operation status <request-id>` and `operation resume <request-id> --generation <n> --confirm`, which find a retained operation by its request ID alone, with no family word.
 
 ## Panel targets for terminal I/O
 

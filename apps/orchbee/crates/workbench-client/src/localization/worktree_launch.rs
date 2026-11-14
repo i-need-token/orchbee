@@ -176,8 +176,8 @@ impl Locale {
             (Self::ZhCn, N::NotSubmitted) => "工作树操作未提交，已有数据已保留。",
             (Self::EnUs, N::Pending) => "Worktree operation is running…",
             (Self::ZhCn, N::Pending) => "工作树操作正在执行…",
-            (Self::EnUs, N::Unknown) => "Result unknown. Check it with orchbee worktree status.",
-            (Self::ZhCn, N::Unknown) => "结果未知。请用 orchbee worktree status 查询。",
+            (Self::EnUs, N::Unknown) => "Result unknown. Check it with orchbee operation status.",
+            (Self::ZhCn, N::Unknown) => "结果未知。请用 orchbee operation status 查询。",
             (Self::EnUs, N::Failed) => {
                 "Operation stopped. Checkout and Workspace facts are retained."
             }

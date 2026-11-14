@@ -121,16 +121,6 @@ fn resolution_preserves_launch_selection_identity_geometry_and_wait_policy() {
 #[test]
 fn commands_without_explicit_paths_never_read_path_context() {
     for words in [
-        vec!["worktree", "status", "00000000000000000000000000000001"],
-        vec![
-            "worktree",
-            "resume",
-            "00000000000000000000000000000001",
-            "--generation=2",
-            "--confirm",
-            "--detach",
-            "--timeout=7",
-        ],
         vec![
             "worktree",
             "remove",

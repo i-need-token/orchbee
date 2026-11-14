@@ -1079,8 +1079,7 @@ fn confirmed_workspace_close_shows_pending_through_the_ui_tick_after_200_ms() {
                     "{background} {locale:?} {width}x{height}: {text}"
                 );
                 assert!(
-                    !text.contains("orchbee workspace status")
-                        && !text.contains("orchbee project status"),
+                    !text.contains("orchbee operation status"),
                     "a partial status is never drawn"
                 );
             }

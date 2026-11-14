@@ -79,7 +79,7 @@ pub(super) fn directory_option(
     })
 }
 
-/// `<family> resume <request-id> --generation <n>`: the explicit attempt fence —
+/// `operation resume <request-id> --generation <n>`: the explicit attempt fence —
 /// the protocol's nonzero generation spelling; a stale-but-valid value is
 /// the Server's settled `stale` answer, while a malformed value is usage.
 pub(super) fn close_generation_option(

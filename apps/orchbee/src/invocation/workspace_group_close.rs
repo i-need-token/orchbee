@@ -1,4 +1,4 @@
-//! Explicit group confirmation; retained reads and resumes use `project status|resume`.
+//! Explicit group confirmation; retained reads and resumes use `operation status|resume`.
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, Resource, Target,
     UsageContext, UsageReason, check_scope, missing_required, target, usage_with,
@@ -43,7 +43,7 @@ pub(super) fn start(
                         context,
                         option: "--request-id",
                         value: value.clone(),
-                        expected: ExpectedValue::WorktreeOperationId,
+                        expected: ExpectedValue::OperationId,
                     },
                     envelope,
                 )

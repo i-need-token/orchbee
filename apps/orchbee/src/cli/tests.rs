@@ -912,16 +912,8 @@ fn fixed_outputs_are_far_below_the_bound() {
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
     let commands = [
-        CommandPath::WorkspaceStatus,
-        CommandPath::WorkspaceResume,
-        CommandPath::TabStatus,
-        CommandPath::TabResume,
-        CommandPath::PanelStatus,
-        CommandPath::PanelResume,
-        CommandPath::ProjectStatus,
-        CommandPath::ProjectResume,
-        CommandPath::ClientStatus,
-        CommandPath::ServerStatus,
+        CommandPath::OperationStatus,
+        CommandPath::OperationResume,
         CommandPath::SessionList,
         CommandPath::SessionAttach,
         CommandPath::SessionStop,
@@ -1066,8 +1058,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::WorktreeCreate,
         CommandPath::WorktreeOpen,
         CommandPath::WorktreeRemove,
-        CommandPath::WorktreeStatus,
-        CommandPath::WorktreeResume,
     ];
     for command in &commands {
         for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -1108,6 +1098,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "doctor",
         "help",
         "launch-profile",
+        "operation",
         "panel",
         "project",
         "server",

@@ -41,7 +41,7 @@ export interface DesktopBackgroundRuntimeOptions extends Omit<
 > {
 	readonly noticeShown: boolean;
 	readonly quit: () => void;
-	/** Reads a Session stop's progress with `server status`. */
+	/** Reads a Session stop's progress with `operation status`. */
 	readonly readStopStatus: (stopId: string) => Promise<ServerStopStatus>;
 	readonly record: Pick<FileDesktopTrayRecord, 'recordNoticeShown'>;
 	/** Opens the window, or shows and focuses the hidden one. */

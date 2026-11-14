@@ -4,36 +4,13 @@ use crate::invocation::CommandPath;
 
 pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
     match path {
-        CommandPath::WorkspaceStatus => &["00000000000000000000000000000001"],
-        CommandPath::WorkspaceResume => &[
+        CommandPath::OperationStatus => &["00000000000000000000000000000001"],
+        CommandPath::OperationResume => &[
             "00000000000000000000000000000001",
             "--generation",
             "1",
             "--confirm",
         ],
-        CommandPath::TabStatus => &["00000000000000000000000000000001"],
-        CommandPath::TabResume => &[
-            "00000000000000000000000000000001",
-            "--generation",
-            "1",
-            "--confirm",
-        ],
-        CommandPath::PanelStatus => &["00000000000000000000000000000001"],
-        CommandPath::PanelResume => &[
-            "00000000000000000000000000000001",
-            "--generation",
-            "1",
-            "--confirm",
-        ],
-        CommandPath::ProjectStatus => &["00000000000000000000000000000001"],
-        CommandPath::ProjectResume => &[
-            "00000000000000000000000000000001",
-            "--generation",
-            "1",
-            "--confirm",
-        ],
-        CommandPath::ClientStatus => &["00000000000000000000000000000001"],
-        CommandPath::ServerStatus => &["00000000000000000000000000000001"],
 
         CommandPath::PanelGraphicsSet => &["@panel:0xabcd", "--spec", "@graphics.png"],
         CommandPath::PanelGraphicsClear => &["@panel:0xabcd"],
@@ -156,13 +133,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::WorktreeCreate => &["--cwd", ".", "--branch", "review"],
         CommandPath::WorktreeOpen => &["--cwd", ".", "--branch", "review"],
         CommandPath::WorktreeRemove => &["--workspace", "work", "--confirm"],
-        CommandPath::WorktreeStatus => &["00000000000000000000000000000001"],
-        CommandPath::WorktreeResume => &[
-            "00000000000000000000000000000001",
-            "--generation",
-            "1",
-            "--confirm",
-        ],
         CommandPath::LaunchProfileList => &[],
         CommandPath::LaunchProfileGet => &["review"],
         CommandPath::LaunchProfileCreate => &[

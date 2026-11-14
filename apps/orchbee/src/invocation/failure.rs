@@ -79,8 +79,8 @@ pub(crate) enum ExpectedValue {
     OutputFilePath,
     ClientId,
     WorktreeReference,
-    WorktreeOperationId,
-    WorktreeAttempt,
+    /// A request or operation ID operand: nonzero 32-character lowercase hexadecimal.
+    OperationId,
     Format,
     Label,
     Dimension,
@@ -146,10 +146,7 @@ pub(crate) enum ExpectedValue {
     Provider,
     /// `agent integration --adapter-source <abs>`: a literal absolute path.
     AdapterSource,
-    /// The `<family> status|resume <request-id>` operand: the operation's
-    /// own nonzero 32-character lowercase hexadecimal request ID.
-    CloseRequestId,
-    /// The `<family> resume --generation` operand: the caller's
+    /// The `operation resume --generation` operand: the caller's
     /// last-observed nonzero attempt generation, canonical decimal text.
     CloseGeneration,
 }

@@ -119,8 +119,8 @@ use orchbee_agent_observation_protocol::{AgentName, AgentSafeInteger, AgentSessi
 use orchbee_workbench_protocol::{
     LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchClientId,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchRequestId, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry,
 };
 
 /// Launch/version result consumed by `presentation::present`.
@@ -712,14 +712,10 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
-    RetainedClose {
-        family: operation::CloseFamily,
+    /// `operation status|resume`: looked up by the request ID alone.
+    Operation {
         operation_id: WorkbenchRequestId,
-        generation: Option<WorkbenchTabCloseAttemptGeneration>,
-        format: OutputFormat,
-    },
-    ServerOperationStatus {
-        operation_id: WorkbenchRequestId,
+        resume: Option<operation::Resume>,
         format: OutputFormat,
     },
     PaneGraphics {
@@ -1078,7 +1074,7 @@ struct Options {
     profile: Option<String>,
     provider: Option<String>,
     adapter_source: Option<String>,
-    /// `<family> resume --generation <n>`: the explicit attempt
+    /// `operation resume --generation <n>`: the explicit attempt
     /// fence; a stale value is a settled `stale` answer, never an effect.
     generation: Option<String>,
 }

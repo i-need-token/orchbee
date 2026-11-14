@@ -18,16 +18,8 @@ macro_rules! commands {
 }
 
 commands! {
-    WorkspaceStatus => ["workspace", "status"], 1, Operand, Portable, true, true, false;
-    WorkspaceResume => ["workspace", "resume"], 1, Operand, Portable, true, true, false;
-    TabStatus => ["tab", "status"], 1, Operand, Portable, true, true, false;
-    TabResume => ["tab", "resume"], 1, Operand, Portable, true, true, false;
-    PanelStatus => ["panel", "status"], 1, Panel, Portable, true, true, false;
-    PanelResume => ["panel", "resume"], 1, Panel, Portable, true, true, false;
-    ProjectStatus => ["project", "status"], 1, Operand, Portable, true, true, false;
-    ProjectResume => ["project", "resume"], 1, Operand, Portable, true, true, false;
-    ClientStatus => ["client", "status"], 1, Operand, Portable, true, true, false;
-    ServerStatus => ["server", "status"], 1, Operand, Portable, true, true, false;
+    OperationStatus => ["operation", "status"], 1, Operand, Portable, true, true, false;
+    OperationResume => ["operation", "resume"], 1, Operand, Portable, true, true, false;
     PanelGraphicsSet => ["panel", "graphics", "set"], 1, Panel, Windows, true, false, false;
     PanelGraphicsClear => ["panel", "graphics", "clear"], 1, Panel, Windows, true, false, false;
     PanelGraphicsInfo => ["panel", "graphics", "info"], 1, Panel, Windows, true, false, false;
@@ -129,8 +121,6 @@ commands! {
     WorktreeCreate => ["worktree", "create"], 0, Operand, Portable, true, true, false;
     WorktreeOpen => ["worktree", "open"], 0, Operand, Portable, true, true, false;
     WorktreeRemove => ["worktree", "remove"], 0, Operand, Portable, true, true, false;
-    WorktreeStatus => ["worktree", "status"], 1, Operand, Portable, true, true, false;
-    WorktreeResume => ["worktree", "resume"], 1, Operand, Portable, true, true, false;
     LaunchProfileList => ["launch-profile", "list"], 0, Operand, Portable, true, true, false;
     LaunchProfileGet => ["launch-profile", "get"], 1, Operand, Portable, true, true, false;
     LaunchProfileCreate => ["launch-profile", "create"], 0, Operand, Portable, true, true, false;

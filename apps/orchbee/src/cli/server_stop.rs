@@ -27,8 +27,8 @@ struct ExchangeFailure {
     submitted: bool,
 }
 
-/// `server stop` or `server status` from the command line; a stop first passes destructive
-/// admission, which may prompt for the Session name and logs the request.
+/// `server stop` from the command line; a stop first passes destructive admission, which may
+/// prompt for the Session name and logs the request.
 pub(crate) fn run_command(
     command: &ServerStopCommand,
     format: OutputFormat,

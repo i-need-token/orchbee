@@ -35,8 +35,8 @@ navigation as described in [Accepted close leaves navigation](#accepted-close-le
 
 Explicitly confirmed Close uses `WorkbenchAction::WorkspaceClose`; only explicit Project close-all uses group
 Start. Neither path deletes Git data or automatically resumes a failed attempt. Read retained status
-with `workspace status <close-request-id>` or
-`project status <operation-id>`. Eligible recovery uses explicit CLI Resume;
+with `operation status <close-request-id>` or
+`operation status <operation-id>`. Eligible recovery uses explicit CLI Resume;
 Pending and Unknown permit observation only.
 
 ## Conditional sidebar admission

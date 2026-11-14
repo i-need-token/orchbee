@@ -21,7 +21,7 @@
 					"$ref": "#/$defs/id"
 				},
 				"family": {
-					"enum": ["workspace", "tab", "panel"]
+					"enum": ["workspace", "tab", "panel", null]
 				},
 				"observation": {
 					"type": "object",

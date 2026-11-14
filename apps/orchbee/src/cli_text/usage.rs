@@ -168,16 +168,10 @@ impl super::CliText {
             (Locale::ZhCn, ExpectedValue::WorktreeReference) => {
                 "至多 1024 UTF-8 字节、无前导短横线或控制字符的非空 Git 引用"
             }
-            (Locale::EnUs, ExpectedValue::WorktreeOperationId) => {
+            (Locale::EnUs, ExpectedValue::OperationId) => {
                 "a nonzero 32-character lowercase hexadecimal operation ID"
             }
-            (Locale::ZhCn, ExpectedValue::WorktreeOperationId) => {
-                "非零的 32 位小写十六进制操作标识"
-            }
-            (Locale::EnUs, ExpectedValue::WorktreeAttempt) => {
-                "a decimal attempt number from 1 to 64"
-            }
-            (Locale::ZhCn, ExpectedValue::WorktreeAttempt) => "1–64 的十进制尝试序号",
+            (Locale::ZhCn, ExpectedValue::OperationId) => "非零的 32 位小写十六进制操作标识",
             (Locale::EnUs, ExpectedValue::ServerStopRequestId) => {
                 "a nonzero 32-character lowercase hexadecimal stop request ID"
             }
@@ -309,12 +303,6 @@ impl super::CliText {
                 "a nonzero 32-character lowercase hexadecimal directory ID"
             }
             (Locale::ZhCn, ExpectedValue::DirectoryId) => "非零的 32 位小写十六进制目录 ID",
-            (Locale::EnUs, ExpectedValue::CloseRequestId) => {
-                "the close operation's own nonzero 32-character lowercase hexadecimal request ID"
-            }
-            (Locale::ZhCn, ExpectedValue::CloseRequestId) => {
-                "该 close 操作自身的非零 32 位小写十六进制 request ID"
-            }
             (Locale::EnUs, ExpectedValue::CloseGeneration) => {
                 "a nonzero decimal attempt generation without a leading zero"
             }

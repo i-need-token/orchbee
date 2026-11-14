@@ -219,8 +219,7 @@ fn given(arguments: &[String], option: &str) -> bool {
 pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalSendInput>)> {
     let format = match request {
         Request::Query {
-            command:
-                QueryCommand::ApiSchema { .. } | QueryCommand::ConfigCheck,
+            command: QueryCommand::ApiSchema { .. } | QueryCommand::ConfigCheck,
             ..
         } => return None,
         Request::Query { format, .. }
@@ -234,16 +233,10 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
         | Request::WorkspaceCreation { format, .. }
         | Request::PanelTerminalCreation { format, .. }
         | Request::Creation { format, .. }
-        | Request::RetainedClose { format, .. }
-        | Request::ServerOperationStatus { format, .. }
+        | Request::Operation { format, .. }
         | Request::WorkspaceGroupClose { format, .. }
         | Request::WorktreeQuery { format, .. }
         | Request::Worktree { format, .. }
-        // A stop goes through the machine hub instead; see [`RemoteStop`].
-        | Request::ServerStop {
-            command: ServerStopCommand::Status { .. },
-            format,
-        }
         | Request::WindowTitle { format, .. }
         | Request::Notification { format, .. }
         | Request::RuntimeConfiguration { format, .. }

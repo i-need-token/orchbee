@@ -9,47 +9,29 @@ fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent(
     for words in [
         vec!["project", "close-all", "demo"],
         vec!["workspace", "close", "demo", "--group", "--confirm"],
-        vec!["project", "status"],
-        vec!["project", "status", ID, "--project", ID],
-        vec!["project", "status", ID, "--confirm"],
-        vec!["project", "resume", ID, "--generation=1"],
-        vec!["project", "resume", ID, "--generation=65", "--confirm"],
-        vec!["project", "resume", ID, "--generation=01", "--confirm"],
     ] {
         assert!(
             parse_request(words.iter().map(OsString::from)).is_err(),
             "{words:?}"
         );
     }
-    for words in [
-        vec![
-            "project",
-            "close-all",
-            "demo",
-            "--confirm",
-            "--request-id",
-            ID,
-            "--timeout=7",
-            "--detach",
-        ],
-        vec!["project", "status", ID],
-        vec![
-            "project",
-            "resume",
-            ID,
-            "--generation=64",
-            "--confirm",
-            "--detach",
-        ],
-    ] {
-        assert!(
-            matches!(
-                parse_request(words.iter().map(OsString::from)),
-                Ok(Request::WorkspaceGroupClose { .. })
-            ),
-            "{words:?}"
-        );
-    }
+    assert!(matches!(
+        parse_request(
+            [
+                "project",
+                "close-all",
+                "demo",
+                "--confirm",
+                "--request-id",
+                ID,
+                "--timeout=7",
+                "--detach",
+            ]
+            .into_iter()
+            .map(OsString::from)
+        ),
+        Ok(Request::WorkspaceGroupClose { .. })
+    ));
 
     assert!(matches!(
         parse_request(
@@ -115,7 +97,7 @@ fn partial_group_truth_and_wait_disposition_survive_schema_and_localized_output(
         let text = String::from_utf8(output.stdout).unwrap();
         assert!(!text.contains('\x1b'));
         assert!(!text.contains("\nspoof"));
-        assert!(text.contains("project status "));
+        assert!(text.contains("operation status "));
         assert!(text.contains("--generation 1 --confirm"));
     }
     for (wait, code) in [

@@ -1,4 +1,5 @@
 //! Native Client discovery and one-shot control submission with retained status reads.
+use super::operation::Probe;
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
@@ -57,6 +58,22 @@ impl Answer {
                     reason: orchbee_workbench_protocol::ClientViewControlReason::StaleView,
                 })
             })
+    }
+    /// Whether the Server keeps the read control, or `None` when this answer cannot say.
+    fn held(&self) -> Option<bool> {
+        if self.wait.is_some() || self.unknown {
+            return None;
+        }
+        match &self.reply.as_ref()?.outcome {
+            ClientViewOutcome::NotFound {} => Some(false),
+            ClientViewOutcome::Operation { .. } => Some(true),
+            ClientViewOutcome::Listed { .. }
+            | ClientViewOutcome::Found { .. }
+            | ClientViewOutcome::Denied {}
+            | ClientViewOutcome::Conflict {}
+            | ClientViewOutcome::Unavailable { .. }
+            | ClientViewOutcome::Synchronized { .. } => None,
+        }
     }
     fn pending(&self) -> bool {
         self.reply.as_ref().is_some_and(|reply| {
@@ -146,7 +163,21 @@ pub(crate) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     if let Err(failure) = super::execution::admit(capability) {
         return failure_output(failure, Some(format), locale);
     }
-    workflow::run(command, format, locale)
+    workflow::run(command, format, locale).into_output()
+}
+
+/// Reads one Client control by its operation ID after admission, saying also whether the Server
+/// keeps it.
+pub(super) fn probe(
+    operation_id: &WorkbenchRequestId,
+    format: OutputFormat,
+    locale: Locale,
+) -> Probe {
+    workflow::run(
+        &ClientCommand::ControlStatus(operation_id.clone()),
+        format,
+        locale,
+    )
 }
 
 pub(super) fn emit(answer: &Answer, format: OutputFormat, locale: Locale) -> Output {

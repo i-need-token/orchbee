@@ -88,7 +88,7 @@ impl super::CliText {
                 "Deadline: 1..3600000 ms; default: 30000.",
                 "时限：1..3600000 毫秒；默认 30000。",
             ),
-            (CommandPath::WorktreeResume, "--timeout") => (
+            (CommandPath::OperationResume, "--timeout") => (
                 "<ms>",
                 "Deadline: 1..3600000 ms; default: 120000.",
                 "时限：1..3600000 毫秒；默认 120000。",

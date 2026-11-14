@@ -1,48 +1,33 @@
-//! Shared request identity grammar; resource creation and operation observation stay separate.
+//! `operation status|resume <request-id>`: the request ID alone names the operation; no family
+//! word selects the store that keeps it.
 use super::{
-    ClientCommand, ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request,
-    UsageContext, UsageReason, WorkspaceGroupCloseCommand, check_scope, close_generation_option,
-    missing_required, unexpected_argument, usage_with, wait_timeout_option,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
+    UsageReason, check_scope, close_generation_option, missing_required, unexpected_argument,
+    usage_with, wait_timeout_option,
 };
-use orchbee_workbench_protocol::WorkbenchRequestId;
+use orchbee_workbench_protocol::{WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration};
 
+/// `operation resume`'s fence and wait. The wait bounds only a Project or Worktree resume; a close
+/// resume returns once it is submitted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CloseFamily {
-    Workspace,
-    Tab,
-    Panel,
-}
-
-impl CloseFamily {
-    pub(crate) const fn token(self) -> &'static str {
-        match self {
-            Self::Workspace => "workspace",
-            Self::Tab => "tab",
-            Self::Panel => "panel",
-        }
-    }
+pub(crate) struct Resume {
+    pub(crate) generation: WorkbenchTabCloseAttemptGeneration,
+    pub(crate) detach: bool,
+    pub(crate) timeout_ms: u32,
 }
 
 pub(super) fn parse(
-    family: &str,
     verb: &str,
     operands: &[&str],
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    let context = UsageContext::Path(match (family, verb) {
-        ("workspace", "status") => "workspace status",
-        ("workspace", _) => "workspace resume",
-        ("tab", "status") => "tab status",
-        ("tab", _) => "tab resume",
-        ("panel", "status") => "panel status",
-        ("panel", _) => "panel resume",
-        ("project", "status") => "project status",
-        ("project", _) => "project resume",
-        ("client", _) => "client status",
-        _ => "server status",
-    });
     let resume = verb == "resume";
+    let context = UsageContext::Path(if resume {
+        "operation resume"
+    } else {
+        "operation status"
+    });
     check_scope(options, context, envelope)?;
     let [value] = operands else {
         return Err(if operands.is_empty() {
@@ -57,110 +42,72 @@ pub(super) fn parse(
                 context,
                 option: "<request-id>",
                 value: (*value).to_owned(),
-                expected: ExpectedValue::CloseRequestId,
+                expected: ExpectedValue::OperationId,
             },
             envelope,
         )
     })?;
-    let generation = if resume {
+    let resume = if resume {
         if !options.confirm {
             return Err(missing_required(context, "'--confirm'", envelope));
         }
-        Some(close_generation_option(options, context, envelope)?)
+        Some(Resume {
+            generation: close_generation_option(options, context, envelope)?,
+            detach: options.detach,
+            timeout_ms: if options.timeout.is_some() {
+                wait_timeout_option(options, context, envelope)?
+            } else {
+                120_000
+            },
+        })
     } else {
         None
     };
-    let format = options.format.unwrap_or(OutputFormat::Text);
-    Ok(match family {
-        "client" => Request::Client {
-            command: ClientCommand::ControlStatus(operation_id),
-            format,
-        },
-        "server" => Request::ServerOperationStatus {
-            operation_id,
-            format,
-        },
-        "project" => {
-            let command = if let Some(generation) = generation {
-                let expected_attempt = u32::try_from(generation.value())
-                    .ok()
-                    .filter(|n| *n <= 64)
-                    .ok_or_else(|| {
-                        usage_with(
-                            UsageReason::InvalidValue {
-                                context,
-                                option: "--generation",
-                                value: generation.value().to_string(),
-                                expected: ExpectedValue::CloseGeneration,
-                            },
-                            envelope,
-                        )
-                    })?;
-                WorkspaceGroupCloseCommand::Resume {
-                    operation_id,
-                    expected_attempt,
-                    detach: options.detach,
-                    timeout_ms: if options.timeout.is_some() {
-                        wait_timeout_option(options, context, envelope)?
-                    } else {
-                        120_000
-                    },
-                }
-            } else {
-                WorkspaceGroupCloseCommand::Status { operation_id }
-            };
-            Request::WorkspaceGroupClose { command, format }
-        }
-        _ => Request::RetainedClose {
-            family: match family {
-                "tab" => CloseFamily::Tab,
-                "panel" => CloseFamily::Panel,
-                _ => CloseFamily::Workspace,
-            },
-            operation_id,
-            generation,
-            format,
-        },
+    Ok(Request::Operation {
+        operation_id,
+        resume,
+        format: options.format.unwrap_or(OutputFormat::Text),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::invocation::parse_request;
     use std::ffi::OsString;
 
-    fn request(words: &[&str]) -> Result<Request, ParseFailure> {
-        parse_request(words.iter().map(OsString::from))
+    fn parses(words: &[&str]) -> bool {
+        parse_request(words.iter().map(OsString::from)).is_ok()
     }
 
     #[test]
-    fn every_status_takes_the_receipt_identity_without_resource_selectors() {
-        for family in [
-            "workspace",
-            "tab",
-            "panel",
-            "project",
-            "client",
-            "server",
-            "worktree",
-        ] {
-            let words = [family, "status", "00000000000000000000000000000001"];
-            assert!(request(&words).is_ok(), "{words:?}");
-            assert!(request(&[family, "status"]).is_err());
-            assert!(request(&[family, "status", "@workspace:0x1"]).is_err());
-            assert!(request(&[family, "status", words[2], "--workspace", words[2]]).is_err());
-        }
+    fn status_takes_only_the_request_identity() {
+        let id = "00000000000000000000000000000001";
+        assert!(parses(&["operation", "status", id]));
+        assert!(!parses(&["operation", "status"]));
+        assert!(!parses(&["operation", "status", "@workspace:0x1"]));
+        assert!(!parses(&["operation", "status", id, "--workspace", id]));
     }
 
     #[test]
-    fn resumes_require_confirmation_and_an_explicit_nonzero_fence() {
-        for family in ["workspace", "tab", "panel", "project", "worktree"] {
-            let id = "00000000000000000000000000000001";
-            assert!(request(&[family, "resume", id, "--generation", "1", "--confirm"]).is_ok());
-            assert!(request(&[family, "resume", id, "--confirm"]).is_err());
-            assert!(request(&[family, "resume", id, "--generation", "1"]).is_err());
-            assert!(request(&[family, "resume", id, "--generation", "0", "--confirm"]).is_err());
-        }
+    fn resume_requires_confirmation_and_an_explicit_nonzero_fence() {
+        let id = "00000000000000000000000000000001";
+        assert!(parses(&[
+            "operation",
+            "resume",
+            id,
+            "--generation",
+            "1",
+            "--confirm"
+        ]));
+        assert!(!parses(&["operation", "resume", id, "--confirm"]));
+        assert!(!parses(&["operation", "resume", id, "--generation", "1"]));
+        assert!(!parses(&[
+            "operation",
+            "resume",
+            id,
+            "--generation",
+            "0",
+            "--confirm"
+        ]));
     }
 }

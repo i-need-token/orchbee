@@ -5,9 +5,11 @@
 use super::{Answer, Observation, Wait, emit};
 use crate::{
     cli::{
-        Failure, FailureKind, Output,
+        Failure, FailureKind,
         console_interrupt::{ArmedSignals, Finish},
-        failure_output, query,
+        failure_output,
+        operation::Probe,
+        query,
     },
     invocation::{OutputFormat, WorktreeCommand, WorktreeStartKind},
     localization::Locale,
@@ -25,7 +27,7 @@ pub(super) fn run(
     operation_id: WorkbenchRequestId,
     format: OutputFormat,
     locale: Locale,
-) -> Output {
+) -> Probe {
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => {
@@ -33,7 +35,8 @@ pub(super) fn run(
                 Failure::new(FailureKind::InternalFailure),
                 Some(format),
                 locale,
-            );
+            )
+            .into();
         }
     };
     let mut answer = Answer {
@@ -81,12 +84,15 @@ pub(super) fn run(
     } else {
         result
     };
+    let held = (result.is_ok() && finalization.is_none())
+        .then(|| answer.held())
+        .flatten();
     let mut output = match result {
         Ok(()) => emit(session_id.as_ref(), answer, format, locale),
         Err(error) => failure_output(error, Some(format), locale),
     };
     output.finalization = finalization;
-    output
+    Probe::new(held, output)
 }
 
 fn observe(

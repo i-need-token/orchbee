@@ -212,70 +212,14 @@ pub(super) fn start(
         format: options.format.unwrap_or(OutputFormat::Text),
     })
 }
-pub(super) fn observe(
-    verb: &str,
-    value: &str,
-    options: &Options,
-    envelope: FailureEnvelope,
-) -> Result<Request, ParseFailure> {
-    let resume = verb == "resume";
-    let context = UsageContext::Path(if resume {
-        "worktree resume"
-    } else {
-        "worktree status"
-    });
-    check_scope(options, context, envelope)?;
-    let operation_id = operation_id(value, context, "<operation-id>", envelope)?;
-    let command = if resume {
-        if !options.confirm {
-            return Err(missing_required(context, "'--confirm'", envelope));
-        }
-        let generation = options
-            .generation
-            .as_deref()
-            .ok_or_else(|| missing_required(context, "'--generation'", envelope))?;
-        let expected_attempt = generation
-            .parse::<u32>()
-            .ok()
-            .filter(|attempt| (1..=64).contains(attempt) && attempt.to_string() == generation)
-            .ok_or_else(|| {
-                invalid(
-                    context,
-                    "--generation",
-                    generation,
-                    ExpectedValue::WorktreeAttempt,
-                    envelope,
-                )
-            })?;
-        WorktreeCommand::Resume {
-            operation_id,
-            expected_attempt,
-            detach: options.detach,
-            timeout_ms: timeout(options, context, envelope)?,
-        }
-    } else {
-        WorktreeCommand::Status { operation_id }
-    };
-    Ok(Request::Worktree {
-        command,
-        format: options.format.unwrap_or(OutputFormat::Text),
-    })
-}
 fn operation_id(
     value: &str,
     context: UsageContext,
     option: &'static str,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchRequestId, ParseFailure> {
-    WorkbenchRequestId::parse(value).map_err(|_| {
-        invalid(
-            context,
-            option,
-            value,
-            ExpectedValue::WorktreeOperationId,
-            envelope,
-        )
-    })
+    WorkbenchRequestId::parse(value)
+        .map_err(|_| invalid(context, option, value, ExpectedValue::OperationId, envelope))
 }
 fn timeout(
     options: &Options,

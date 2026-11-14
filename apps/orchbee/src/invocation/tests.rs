@@ -698,10 +698,6 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
             format: OutputFormat::Json
         })
     ));
-    assert!(matches!(
-        parse(&["server", "status", id]),
-        Ok(Request::ServerOperationStatus { .. })
-    ));
     for args in [
         vec!["server", "stop"],
         vec!["server", "stop", "--confirm", "--retry"],
@@ -722,10 +718,6 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
         vec!["server", "stop", "--confirm", "--timeout=0"],
         vec!["server", "stop", "--confirm", "--timeout=3600001"],
         vec!["server", "stop", "--confirm", "--detach", "--detach"],
-        vec!["server", "status", id, "--confirm"],
-        vec!["server", "status", id, "--retry"],
-        vec!["server", "status", "short"],
-        vec!["server", "status"],
         vec!["server", "start", "--detach"],
         vec!["--retry", "status"],
     ] {
@@ -6996,9 +6988,7 @@ fn manifest_commands_accept_only_their_owned_options() {
         })
     ));
     assert!(parse(&["server", "reload-agent-manifests"]).is_ok());
-    assert!(parse(&["server", "status", "11111111111111111111111111111111"]).is_ok());
     for args in [
-        vec!["server", "status"],
         vec!["server", "reload-agent-manifests", "--request-id", "bad"],
         vec![
             "server",

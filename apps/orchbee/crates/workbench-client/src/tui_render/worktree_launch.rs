@@ -298,7 +298,7 @@ fn render_task(
             && let Some(id) = view.operation_id()
         {
             rows.push(DialogRow::Command(
-                format!("orchbee worktree status {}", sanitize_terminal_text(id)).into(),
+                format!("orchbee operation status {}", sanitize_terminal_text(id)).into(),
             ));
         }
     }

@@ -144,7 +144,7 @@ Start, Resume or read, each Pending reply schedules another read after 250 ms, d
 Closing running observation or a resumable/unknown result never cancels it; W, O or another
 addressed removal entry reopens that retained task. **Stop Tracking** (`x`) on such a result opens
 its own confirmation, which also needs a new draw. Confirming forgets only this Client's receipt: it never
-cancels or rolls back Server work, and `orchbee worktree status` still reads the operation. Once the
+cancels or rolls back Server work, and `orchbee operation status` still reads the operation. Once the
 target Workspace is absent from the canonical snapshot, Close, W, O and addressed entries discard a
 settled removal result instead of reopening it.
 Completion and shell recovery request the existing canonical publication refresh. They never
@@ -290,7 +290,7 @@ The guard applies only to its admitted refresh generation and never changes unre
 
 Canonical commit and Client entry are separate outcomes. A post-commit read, attachment or draw
 failure does not undo Git, remove a Workspace or resend Start. Other Clients keep their focus.
-Use `orchbee worktree status <id> --format json` while Server retains the operation; Server restart
+Use `orchbee operation status <id> --format json` while Server retains the operation; Server restart
 has the [existing retention limit](windows-worktrees.md#retained-continuation).
 
 ## Correctness and verification

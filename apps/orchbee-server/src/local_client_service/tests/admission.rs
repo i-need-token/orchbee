@@ -440,7 +440,7 @@ fn an_admitted_client_records_its_session_stop_once() {
     };
     assert_eq!(attempt.id, id);
     assert_eq!(shutdown.take_within(Duration::ZERO), None);
-    // `server status` reads it under the same identity, and another identity finds it busy.
+    // `operation status` reads it under the same identity, and another identity finds it busy.
     let status = shutdown.request(&SessionStopRequest {
         id,
         action: StopAction::Status,

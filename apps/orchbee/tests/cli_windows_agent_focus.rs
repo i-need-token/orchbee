@@ -530,7 +530,7 @@ fn ambiguous_or_unready_clients_fail_before_agent_resolution() {
 }
 
 #[test]
-fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() {
+fn lost_submit_preserves_the_operation_identity() {
     let fixture = FocusFixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -547,26 +547,11 @@ fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() 
     let command = received.recv().unwrap();
     let document = document(&output);
     receipt(&document);
-    let operation = document["result"]["operationId"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    assert_eq!(
+        document["result"]["operationId"].as_str(),
+        Some(command.operation_id.as_str())
+    );
     assert!(!output.status.success());
-    let rendezvous = fixture.rendezvous();
-    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let server = peer(&fixture, listener, move |mut stream| {
-        snapshot_reply(&mut stream);
-        let request = view_request(&mut stream);
-        assert!(
-            matches!(&request.action,ClientViewAction::Read {operation_id} if operation_id==&command.operation_id)
-        );
-        settled(&mut stream, &request, &command);
-        assert_closed(&mut stream);
-    });
-    let output = fixture.run(&["client", "status", &operation, "--format=json"]);
-    server.join().unwrap();
-    assert!(output.status.success());
-    receipt(&serde_json::from_slice(&output.stdout).unwrap());
 }
 
 #[test]

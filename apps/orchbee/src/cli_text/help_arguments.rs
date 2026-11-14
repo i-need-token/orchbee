@@ -18,7 +18,6 @@ enum Argument {
     Provider,
     Args,
     Client,
-    Operation,
     Request,
     Ssh,
     Machine,
@@ -39,16 +38,7 @@ enum Argument {
 impl super::CliText {
     pub(crate) fn cli_help_arguments(self, path: CommandPath) -> Vec<(&'static str, &'static str)> {
         let roles: &[Argument] = match path {
-            CommandPath::WorkspaceStatus => &[Argument::Request],
-            CommandPath::WorkspaceResume => &[Argument::Request],
-            CommandPath::TabStatus => &[Argument::Request],
-            CommandPath::TabResume => &[Argument::Request],
-            CommandPath::PanelStatus => &[Argument::Request],
-            CommandPath::PanelResume => &[Argument::Request],
-            CommandPath::ProjectStatus => &[Argument::Request],
-            CommandPath::ProjectResume => &[Argument::Request],
-            CommandPath::ClientStatus => &[Argument::Request],
-            CommandPath::ServerStatus => &[Argument::Request],
+            CommandPath::OperationStatus | CommandPath::OperationResume => &[Argument::Request],
 
             CommandPath::PanelGraphicsSet => &[Argument::Panel],
             CommandPath::PanelGraphicsClear => &[Argument::Panel],
@@ -151,8 +141,6 @@ impl super::CliText {
             CommandPath::WorktreeCreate => &[],
             CommandPath::WorktreeOpen => &[],
             CommandPath::WorktreeRemove => &[],
-            CommandPath::WorktreeStatus => &[Argument::Operation],
-            CommandPath::WorktreeResume => &[Argument::Operation],
             CommandPath::LaunchProfileList => &[],
             CommandPath::LaunchProfileGet => &[Argument::Profile],
             CommandPath::LaunchProfileCreate => &[],
@@ -215,7 +203,6 @@ impl super::CliText {
                 Argument::Args => ("-- <args> ...", "Arguments passed to the Agent after --; --arg can be repeated instead.", "在 -- 之后传给智能体的参数；也可重复使用 --arg。"),
                 Argument::Client => ("<client-id>", "Full client ID returned by orchbee client list.", "orchbee client list 返回的完整客户端 ID。"),
                 Argument::Request => ("<request-id>", "Exact retained request ID returned by the operation.", "操作返回的精确保留请求 ID。"),
-                Argument::Operation => ("<operation-id>", "Complete operation ID returned by the original request.", "原请求返回的完整操作 ID。"),
                 Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host; batch authentication must already work.", "OpenSSH 目标，例如 user@host；须已能进行批处理认证。"),
                 Argument::Machine => ("<id|label>", "Saved machine ID, or its exact name when no other machine shares it.", "已保存机器的 ID，或没有其他机器重名时的完整名称。"),
                 Argument::Channel => ("<stable|preview>","Release channel to save and install.", "要保存并安装的发布频道。"),

@@ -66,26 +66,6 @@ fn grammar_rejects_destructive_or_conflicting_intents_before_runtime_access() {
         ],
         vec!["project", "list", "--trust-repository"],
         vec!["worktree", "create", "extra"],
-        vec!["worktree", "status", "bad"],
-        vec![
-            "worktree",
-            "status",
-            "00000000000000000000000000000001",
-            "--detach",
-        ],
-        vec![
-            "worktree",
-            "resume",
-            "00000000000000000000000000000001",
-            "--generation=1",
-        ],
-        vec![
-            "worktree",
-            "resume",
-            "00000000000000000000000000000001",
-            "--generation=0",
-            "--confirm",
-        ],
     ] {
         assert!(
             parse_request(words.iter().map(OsString::from)).is_err(),
@@ -105,13 +85,6 @@ fn grammar_rejects_destructive_or_conflicting_intents_before_runtime_access() {
     assert!(create.detach);
     assert_eq!(create.timeout_ms, 7);
     assert_eq!(create.operation_id.unwrap().as_str(), id(1));
-    assert!(matches!(
-        command(&["worktree", "resume", &id(1), "--generation=64", "--confirm"]),
-        WorktreeCommand::Resume {
-            expected_attempt: 64,
-            ..
-        }
-    ));
 }
 
 #[test]

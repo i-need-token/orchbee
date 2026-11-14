@@ -21,7 +21,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.close.closed': 'Project Workspaces closed · {label}',
 	'workbench.projects.close.closing': 'Closing Project Workspaces · {label}',
 	'workbench.projects.close.outcomeUnknown':
-		'Project close-all outcome unknown; no replay · {label} · orchbee project status {operationId}',
+		'Project close-all outcome unknown; no replay · {label} · orchbee operation status {operationId}',
 	'workbench.projects.close.refused':
 		'Project close-all was not submitted or was refused; refresh and try again · {label}',
 	'workbench.projects.close.stopped':
@@ -451,7 +451,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.worktrees.removing': 'Removing worktree…',
 	'workbench.worktrees.removed': 'Worktree removed and Workspace closed. Branch kept.',
 	'workbench.worktrees.outcomeUnknown':
-		'Worktree result unknown. Do not repeat it; check it with orchbee worktree status {operationId}.',
+		'Worktree result unknown. Do not repeat it; check it with orchbee operation status {operationId}.',
 	'workbench.worktrees.createFailed':
 		'The worktree could not be created. Check the repository, then try again.',
 	'workbench.worktrees.openFailed':
@@ -474,7 +474,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.worktrees.failure.gitFailed':
 		'Git could not remove the checkout. If a program is using its directory, close it, then resume.',
 	'workbench.worktrees.failure.internal':
-		'The worktree operation could not finish. Check it with orchbee worktree status.',
+		'The worktree operation could not finish. Check it with orchbee operation status.',
 	'workbench.worktrees.failure.mainCheckout':
 		'The main checkout is protected and cannot be removed.',
 	'workbench.worktrees.failure.notSubmitted':

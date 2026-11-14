@@ -162,13 +162,13 @@ impl super::CliText {
             });
         }
         if state == "pending" || state == "unknown" || result["wait"].is_string() {
-            text.push_str(&format!("orchbee worktree status {id}\n"));
+            text.push_str(&format!("orchbee operation status {id}\n"));
         }
         if status["resumable"] == true
             && let Some(attempt) = outcome["attempt"].as_u64()
         {
             text.push_str(&format!(
-                "orchbee worktree resume {id} --generation {attempt} --confirm\n"
+                "orchbee operation resume {id} --generation {attempt} --confirm\n"
             ));
         }
         if status["resumable"] == false
@@ -223,11 +223,11 @@ impl super::CliText {
         match (self.locale, path) {
             (Locale::EnUs, CommandPath::WorktreeCreate) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <path>] [--branch <name>] [--base <ref>] [--path <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]",
-                "Windows: create a Git worktree, associate a Workspace, and launch its terminal.\nSource: explicit --client overrides caller; otherwise caller, unique current ready TUI, then CLI cwd only with no caller/Clients. A Workspace source keeps its exact identity; the Server validates its primary directory.\nWorkspace sources may be ungrouped: the server atomically groups source and new Workspace, reusing an existing group. Only Directory sources accept --project; without it the new Workspace is ungrouped. JSON v1 has no Project setup stage.\nWindows paths: absolute, relative or ~ (USERPROFILE, HOMEDRIVE+HOMEPATH, HOME). The final executing CLI resolves its own cwd/home after routing; sender and relay preserve raw operands. No shell expansion.\nDefault branch: worktree/<operation-id>; default base: HEAD.\nDefault path: sibling <repository>-worktrees/<branch-slug>. Existing branches ignore --base.\n--trust-repository grants Git trust only to this operation. It does not change Git configuration.\n--focus switches an existing TUI after opening; default --no-focus. Focus rejects --detach; a focus failure retains the Worktree result (JSON v1).\nTimeout: 1–3600000 ms, default 120000. --detach returns the retained operation immediately.\nCtrl+C stops waiting; status reads the continuing operation. Do not replay an uncertain mutation.\nOptional terminal geometry: --cols <n> --rows <n> --cell-width <n> --cell-height <n> (all four).",
+                "Windows: create a Git worktree, associate a Workspace, and launch its terminal.\nSource: explicit --client overrides caller; otherwise caller, unique current ready TUI, then CLI cwd only with no caller/Clients. A Workspace source keeps its exact identity; the Server validates its primary directory.\nWorkspace sources may be ungrouped: the server atomically groups source and new Workspace, reusing an existing group. Only Directory sources accept --project; without it the new Workspace is ungrouped. JSON v1 has no Project setup stage.\nWindows paths: absolute, relative or ~ (USERPROFILE, HOMEDRIVE+HOMEPATH, HOME). The final executing CLI resolves its own cwd/home after routing; sender and relay preserve raw operands. No shell expansion.\nDefault branch: worktree/<operation-id>; default base: HEAD.\nDefault path: sibling <repository>-worktrees/<branch-slug>. Existing branches ignore --base.\n--trust-repository grants Git trust only to this operation. It does not change Git configuration.\n--focus switches an existing TUI after opening; default --no-focus. Focus rejects --detach; a focus failure retains the Worktree result (JSON v1).\nTimeout: 1–3600000 ms, default 120000. --detach returns the retained operation immediately.\nCtrl+C stops waiting; orchbee operation status reads the continuing operation. Do not replay an uncertain mutation.\nOptional terminal geometry: --cols <n> --rows <n> --cell-width <n> --cell-height <n> (all four).",
             ),
             (Locale::ZhCn, CommandPath::WorktreeCreate) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <路径>] [--branch <名称>] [--base <引用>] [--path <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]",
-                "Windows：创建 Git worktree，关联工作区并启动其终端。\n来源：显式 --client 优先于调用者；否则依次为调用者、唯一当前就绪 TUI、无调用者和客户端时的 CLI cwd。工作区来源始终保留其稳定标识；主目录由服务端验证。\nWorkspace 来源可以未分组；服务端原子创建项目并将来源和新工作区分组，或复用已有分组。仅目录来源可用 --project 指定已有项目；默认创建未分组工作区。JSON v1 无项目准备阶段。\nWindows 路径支持绝对路径、相对路径或 ~（USERPROFILE、HOMEDRIVE+HOMEPATH、HOME）。路由后由最终执行的 CLI 使用自身 cwd／主目录解析，发送端与中继保留原始操作数。不做 shell 展开。\n默认分支：worktree/<操作标识>；默认基准：HEAD。\n默认路径：同级 <仓库名>-worktrees/<分支路径名>。已有分支忽略 --base。\n--trust-repository 仅对此操作授予 Git 信任，不修改 Git 配置。\n--focus 在打开后切换已有 TUI，默认 --no-focus。聚焦不可与 --detach 混用；聚焦失败保留工作树结果（JSON v1）。\n超时：1–3600000 毫秒，默认 120000。--detach 立即返回保留的操作。\nCtrl+C 停止等待；status 可查询继续执行的操作。不要重放结果不确定的变更。\n可选终端尺寸：--cols <n> --rows <n> --cell-width <n> --cell-height <n>（四项全填）。",
+                "Windows：创建 Git worktree，关联工作区并启动其终端。\n来源：显式 --client 优先于调用者；否则依次为调用者、唯一当前就绪 TUI、无调用者和客户端时的 CLI cwd。工作区来源始终保留其稳定标识；主目录由服务端验证。\nWorkspace 来源可以未分组；服务端原子创建项目并将来源和新工作区分组，或复用已有分组。仅目录来源可用 --project 指定已有项目；默认创建未分组工作区。JSON v1 无项目准备阶段。\nWindows 路径支持绝对路径、相对路径或 ~（USERPROFILE、HOMEDRIVE+HOMEPATH、HOME）。路由后由最终执行的 CLI 使用自身 cwd／主目录解析，发送端与中继保留原始操作数。不做 shell 展开。\n默认分支：worktree/<操作标识>；默认基准：HEAD。\n默认路径：同级 <仓库名>-worktrees/<分支路径名>。已有分支忽略 --base。\n--trust-repository 仅对此操作授予 Git 信任，不修改 Git 配置。\n--focus 在打开后切换已有 TUI，默认 --no-focus。聚焦不可与 --detach 混用；聚焦失败保留工作树结果（JSON v1）。\n超时：1–3600000 毫秒，默认 120000。--detach 立即返回保留的操作。\nCtrl+C 停止等待；orchbee operation status 可查询继续执行的操作。不要重放结果不确定的变更。\n可选终端尺寸：--cols <n> --rows <n> --cell-width <n> --cell-height <n>（四项全填）。",
             ),
             (Locale::EnUs, CommandPath::WorktreeOpen) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree open (--path <path>|--branch <name>) [--project <target>] [--workspace <target>|--cwd <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]",
@@ -237,29 +237,13 @@ impl super::CliText {
                 "orchbee worktree open (--path <路径>|--branch <名称>) [--project <target>] [--workspace <target>|--cwd <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]",
                 "Windows：检查已有检出目录，复用或创建其工作区；不会新建 Git 检出目录。支持主检出及关联检出；分支选择有歧义时须使用 --path。来源、项目默认值、绝对／相对／~ 路径、终端尺寸和等待方式与 worktree create 一致。\n--focus 在打开后切换已有 TUI；默认 --no-focus，聚焦不可与 --detach 混用。\n--label 同样会重命名复用的工作区；请检查结果中的终端启动状态。",
             ),
-            (Locale::EnUs, CommandPath::WorktreeRemove) => crate::cli_text::HelpDetails::new(
+            (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree remove --workspace <target> --confirm [--force] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
                 "Windows: inspect the linked checkout, dispose its terminals, remove it through Git, then close the Workspace.\nDirty worktrees are refused before closing unless --force explicitly permits discarding changes.\nMain/bare checkouts and checkouts used by another Workspace are refused. Branches are preserved.\nKnown Git failure verifies the checkout and restores default shells in the original panels. Unknown deletion starts no shells. JSON v1 retains separate restoration counts and failures; unknown launches cannot be replayed.\nTimeout defaults to 120000 ms. Ctrl+C stops waiting; it does not undo accepted work.",
             ),
-            (Locale::ZhCn, CommandPath::WorktreeRemove) => crate::cli_text::HelpDetails::new(
+            (Locale::ZhCn, _) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree remove --workspace <target> --confirm [--force] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json]",
                 "Windows：检查关联检出目录，释放终端，通过 Git 移除目录，最后关闭工作区。脏目录会在关闭前拒绝；--force 明确允许丢弃改动。拒绝主检出、裸仓库及其他工作区占用的目录；保留分支。已知 Git 失败会验证 checkout，并在原面板恢复默认 shell。删除结果未知时不启动 shell。JSON v1 独立保留恢复计数和失败，未知启动不可重放。默认超时 120000 毫秒。Ctrl+C 停止等待，不撤销已接受的操作。",
-            ),
-            (Locale::EnUs, CommandPath::WorktreeStatus) => crate::cli_text::HelpDetails::new(
-                "orchbee worktree status <operation-id> [--format text|json]",
-                "Show an earlier operation without changing anything or starting a session. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.",
-            ),
-            (Locale::ZhCn, CommandPath::WorktreeStatus) => crate::cli_text::HelpDetails::new(
-                "orchbee worktree status <operation-id> [--format text|json]",
-                "只读查询先前的操作，不执行变更或激活会话。记录可跨 CLI 断线保留，但不跨 Server 重启。结果包含尝试序号、Git 影响、工作区状态、shell 恢复计数／失败及能否恢复。",
-            ),
-            (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(
-                "orchbee worktree resume <operation-id> --generation <attempt> --confirm [--detach] [--timeout <ms>] [--format text|json]",
-                "Explicitly resume a known, resumable failed operation using the attempt from status.\nIt refuses when the attempt changed, the Worker restarted, or it cannot confirm that earlier processes ended.\nGit creation is observed before recovery; Remove may close restored shells before retrying deletion. An already closed Workspace stays closed.\nConfirmation is required because the operation can remove user work.",
-            ),
-            (Locale::ZhCn, _) => crate::cli_text::HelpDetails::new(
-                "orchbee worktree resume <operation-id> --generation <尝试序号> --confirm [--detach] [--timeout <毫秒>] [--format text|json]",
-                "使用 status 返回的尝试序号，显式恢复已知且可恢复的失败操作。尝试序号已变化、Worker 已重启，或无法确认先前进程已结束时拒绝恢复。恢复前先观察 Git 创建结果；Remove 重试删除前可能先关闭已恢复的 shell。已关闭的工作区保持关闭。该操作可能删除用户工作，因此必须确认。",
             ),
         }
     }

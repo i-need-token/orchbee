@@ -1,4 +1,5 @@
 //! Installed manifests and retained reload receipts; transport loss never replays a mutation.
+use super::operation::Probe;
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
@@ -47,6 +48,22 @@ impl Answer {
             }
         }
         serde_json::json!({"schema":"orchbee.server.agent-manifests","version":1,"result":{"requestId":self.request_id,"sessionId":self.session_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed}})
+    }
+    /// Whether the Server keeps the operation, or `None` when this answer cannot say.
+    fn held(&self) -> Option<bool> {
+        if self.interrupted || self.cleanup_failed {
+            return None;
+        }
+        let Observation::Server(reply) = &self.observation else {
+            return None;
+        };
+        match &reply.outcome {
+            AgentManifestsOutcome::Failed {
+                reason: AgentManifestsFailure::NotFound,
+            } => Some(false),
+            AgentManifestsOutcome::Operation { .. } => Some(true),
+            AgentManifestsOutcome::Failed { .. } | AgentManifestsOutcome::Current { .. } => None,
+        }
     }
     fn exit_code(&self) -> u8 {
         let failure = match &self.observation {
@@ -163,5 +180,21 @@ pub(crate) fn run(command: &ManifestCommand, format: OutputFormat, locale: Local
     if let Err(failure) = super::execution::admit(super::execution::Capability::AgentManifests) {
         return failure_output(failure, Some(format), locale);
     }
-    workflow::run(command, format, locale)
+    workflow::run(command, format, locale).into_output()
+}
+
+/// Reads one Agent detection rule operation by its ID after admission, saying also whether the
+/// Server keeps it.
+pub(super) fn probe(
+    operation_id: &WorkbenchRequestId,
+    format: OutputFormat,
+    locale: Locale,
+) -> Probe {
+    workflow::run(
+        &ManifestCommand::Status {
+            operation_id: operation_id.clone(),
+        },
+        format,
+        locale,
+    )
 }

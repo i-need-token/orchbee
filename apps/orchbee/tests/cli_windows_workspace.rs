@@ -107,8 +107,8 @@ fn group_close_confirmation_and_scope_conflicts_fail_before_runtime_access() {
                 "--project",
                 id,
             ],
-            vec!["workspace", "status", "--group", id, "--workspace", id],
-            vec!["workspace", "resume", "--group", id, "--generation", "1"],
+            vec!["operation", "status", id, "--workspace", id],
+            vec!["operation", "resume", id, "--generation", "1"],
         ] {
             let mut words = words;
             words.push("--format=json");
@@ -169,7 +169,7 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
             vec!["project", "dissolve"],
             vec!["project", "dissolve", "p", "--confirm"],
             vec!["project", "close-all", "p"],
-            vec!["project", "status", "--workspace=work"],
+            vec!["operation", "status", "--workspace=work"],
             vec!["worktree", "create", "--workspace=w", "--project=p"],
             vec![
                 "worktree",
@@ -191,8 +191,8 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
             ("workspace", "set-project"),
             ("project", "dissolve"),
             ("project", "close-all"),
-            ("project", "status"),
-            ("project", "resume"),
+            ("operation", "status"),
+            ("operation", "resume"),
         ] {
             let output = run(&["help", family, verb], locale);
             assert!(output.status.success(), "{family} {verb}");

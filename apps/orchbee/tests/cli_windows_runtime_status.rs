@@ -385,10 +385,7 @@ fn offline_client_json_identifies_a_sibling_proven_missing_by_open() {
         assert!(output.stdout.is_empty());
         let text = String::from_utf8(output.stderr).unwrap();
         assert!(text.contains(&format!("`{server}`")), "{text}");
-        assert!(
-            text.contains("orchbee doctor --format json"),
-            "{text}"
-        );
+        assert!(text.contains("orchbee doctor --format json"), "{text}");
         texts.push(text);
     }
     assert_ne!(texts[0], texts[1]);

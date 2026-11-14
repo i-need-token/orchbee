@@ -508,7 +508,7 @@ fn unknown_worktree_result_retains_one_operation_and_can_be_hidden_without_repla
         crate::localization::Locale::ZhCn,
     ] {
         let text = draw(&mut ui, locale, 80, 24);
-        assert!(text.contains("orchbeeworktreestatus"));
+        assert!(text.contains("orchbeeoperationstatus"));
         assert!(text.contains(operation.as_str()));
     }
     let token = ui.worktrees.launcher.token().unwrap();
@@ -621,7 +621,7 @@ fn a_result_without_an_operation_offers_only_close() {
     assert!(
         drawn
             .text
-            .contains(&format!("orchbeeworktreestatus{}", operation.as_str())),
+            .contains(&format!("orchbeeoperationstatus{}", operation.as_str())),
         "{}",
         drawn.text
     );

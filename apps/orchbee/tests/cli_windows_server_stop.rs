@@ -48,7 +48,7 @@ impl Fixture {
             .unwrap()
     }
     fn query(&self) -> Value {
-        let output = self.run(&["server", "status", ID, "--format=json"], "en_US.UTF-8");
+        let output = self.run(&["operation", "status", ID, "--format=json"], "en_US.UTF-8");
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         let schema: Value =
             serde_json::from_str(include_str!("../src/cli/schemas/orchbee.server.stop.json"))
@@ -107,7 +107,7 @@ fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
         for path in [
             &["server"][..],
             &["server", "stop"][..],
-            &["server", "status"][..],
+            &["operation", "status"][..],
             &["terminal", "session", "control"][..],
         ] {
             let reference = run(&std::iter::once("help")
@@ -182,7 +182,7 @@ fn only_matching_completed_record_and_free_lifetime_prove_stop_without_a_cohort(
         serde_json::from_slice::<Value>(&output.stdout).unwrap()["result"]["outcome"],
         "stopped"
     );
-    let text = fixture.run(&["server", "status", ID], "zh_CN.UTF-8");
+    let text = fixture.run(&["operation", "status", ID], "zh_CN.UTF-8");
     assert!(text.status.success());
     assert!(String::from_utf8(text.stdout).unwrap().contains("已停止"));
     drop(record);

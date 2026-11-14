@@ -27,16 +27,15 @@ pub(super) fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
-        [
-            family @ ("workspace" | "tab" | "panel" | "project"),
-            verb @ ("status" | "resume"),
-            operands @ ..,
-        ]
-        | [
-            family @ ("client" | "server"),
-            verb @ "status",
-            operands @ ..,
-        ] => operation::parse(family, verb, operands, options, envelope),
+        ["operation", verb @ ("status" | "resume"), operands @ ..] => {
+            operation::parse(verb, operands, options, envelope)
+        }
+        ["operation"] => Err(missing_command(UsageContext::Path("operation"), envelope)),
+        ["operation", verb, ..] => Err(unknown_command(
+            UsageContext::Path("operation"),
+            verb,
+            envelope,
+        )),
         ["command", ..] => configured_commands::parse(words, options, envelope),
         ["events", ..] => events::parse(words, options, envelope),
         ["panel", "graphics", ..] => pane_graphics::parse(words, options, envelope),
@@ -932,19 +931,6 @@ pub(super) fn resolve_words(
         ["worktree", verb @ ("create" | "open" | "remove")] => {
             worktree::start(verb, options, envelope)
         }
-        ["worktree", verb @ ("status" | "resume"), id] => {
-            worktree::observe(verb, id, options, envelope)
-        }
-        ["worktree", "status"] => Err(missing_required(
-            UsageContext::Path("worktree status"),
-            "<operation-id>",
-            envelope,
-        )),
-        ["worktree", "resume"] => Err(missing_required(
-            UsageContext::Path("worktree resume"),
-            "<operation-id>",
-            envelope,
-        )),
         ["worktree", "list"] => worktree::list(options, envelope),
         ["launch-profile", "list"] => {
             reject_filters(options, UsageContext::Path("launch-profile list"), envelope)?;
@@ -1515,15 +1501,6 @@ pub(super) fn resolve_words(
                 "create" => "worktree create",
                 "open" => "worktree open",
                 _ => "worktree remove",
-            }),
-            extra,
-            envelope,
-        )),
-        ["worktree", verb @ ("status" | "resume"), _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path(if *verb == "status" {
-                "worktree status"
-            } else {
-                "worktree resume"
             }),
             extra,
             envelope,

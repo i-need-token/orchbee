@@ -158,7 +158,7 @@ fn a_remote_stop_is_confirmed_here_and_refuses_the_local_stop_options() {
         parse_request(
             [
                 "--machine=work",
-                "server",
+                "operation",
                 "status",
                 "0123456789abcdef0123456789abcdef"
             ]

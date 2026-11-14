@@ -191,7 +191,7 @@ impl Launcher {
         Some(result)
     }
 
-    /// Forgets only this Client's receipt; `orchbee worktree status` still reads the operation.
+    /// Forgets only this Client's receipt; `orchbee operation status` still reads the operation.
     pub(crate) fn confirm_remove_abandon(&mut self, token: WorktreeToken) -> bool {
         if self.token() != Some(token)
             || self.shown != Some(token)

@@ -263,16 +263,11 @@ fn main() -> ExitCode {
             Ok(invocation::Request::DiagnosticsCreate { path, format }) => {
                 cli::create_diagnostics(&path, format, locale)
             }
-            Ok(invocation::Request::RetainedClose {
-                family,
+            Ok(invocation::Request::Operation {
                 operation_id,
-                generation,
+                resume,
                 format,
-            }) => cli::operation::run_close(family, &operation_id, generation, format, locale),
-            Ok(invocation::Request::ServerOperationStatus {
-                operation_id,
-                format,
-            }) => cli::operation::run_server(&operation_id, format, locale),
+            }) => cli::operation::run(&operation_id, resume, format, locale),
             Ok(invocation::Request::Client { command, format }) => {
                 cli::run_client_control(&command, format, locale)
             }

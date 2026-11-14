@@ -10,11 +10,13 @@ use super::{
 };
 use crate::{
     cli::{
-        Failure, FailureKind, Output,
+        Failure, FailureKind,
         caller_context::PanelTarget,
         command_interrupt::{ArmedSignals, Finish},
         console_interrupt::SignalWatch,
-        failure_output, query,
+        failure_output,
+        operation::Probe,
+        query,
         stale_retry::{Ended, StaleRetry},
     },
     invocation::{ClientCommand, ClientNavigationTarget, OutputFormat},
@@ -27,7 +29,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 
-pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale) -> Output {
+pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale) -> Probe {
     if let ClientCommand::Navigate {
         target,
         client: None,
@@ -35,10 +37,10 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     } = command
         && crate::cli::layout_topology::explicit(target)
     {
-        return crate::cli::layout_topology::run(target, *timeout_ms, format, locale);
+        return crate::cli::layout_topology::run(target, *timeout_ms, format, locale).into();
     }
     if let ClientCommand::Swap(command) = command {
-        return super::swap::run(command, format, locale);
+        return super::swap::run(command, format, locale).into();
     }
     let timeout = match command {
         ClientCommand::Navigate { timeout_ms, .. } => *timeout_ms,
@@ -48,7 +50,7 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     let caller = if matches!(command, ClientCommand::Navigate { client: None, .. }) {
         match PanelTarget::prepare_optional(|name| std::env::var_os(name)) {
             Ok(caller) => caller,
-            Err(error) => return failure_output(error, Some(format), locale),
+            Err(error) => return failure_output(error, Some(format), locale).into(),
         }
     } else {
         None
@@ -56,7 +58,7 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     let operation_id = match command {
         ClientCommand::Navigate { .. } => match query::request_id() {
             Ok(id) => Some(id),
-            Err(error) => return failure_output(error, Some(format), locale),
+            Err(error) => return failure_output(error, Some(format), locale).into(),
         },
         ClientCommand::ControlStatus(id) => Some(id.clone()),
         _ => None,
@@ -68,7 +70,8 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
                 Failure::new(FailureKind::InternalFailure),
                 Some(format),
                 locale,
-            );
+            )
+            .into();
         }
     };
     let mut answer = Answer {
@@ -100,6 +103,9 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     } else {
         result
     };
+    let held = (result.is_ok() && finalization.is_none())
+        .then(|| answer.held())
+        .flatten();
     let mut output = match result {
         Ok(()) if answer.operation_id.is_none() && answer.reply.is_none() => failure_output(
             Failure::new(if answer.wait == Some(Wait::Cancelled) {
@@ -120,7 +126,7 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
         Err(error) => failure_output(error, Some(format), locale),
     };
     output.finalization = finalization;
-    output
+    Probe::new(held, output)
 }
 fn observe(
     command: &ClientCommand,

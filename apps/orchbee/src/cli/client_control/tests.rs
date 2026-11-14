@@ -316,7 +316,6 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         vec!["client", "get"],
         vec!["client", "list", "extra"],
         vec!["client", "get", id, "extra"],
-        vec!["client", "status", "0"],
         vec!["workspace", "focus"],
         vec!["tab", "focus"],
         vec!["panel", "maximize", "--on", "--off"],

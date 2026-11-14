@@ -49,6 +49,23 @@ fn removals_held_past_the_close_budget_resume_and_close_without_close_resume() {
             && status["resumable"] == false,
         "{refused}"
     );
+    // The request ID alone finds the Worktree operation; an ID that no store keeps is a miss.
+    let found = fixture.run(&["operation", "status", &kept.operation]);
+    assert!(
+        found.document["schema"] == "orchbee.worktree.operation"
+            && found.document["result"]["observation"]["reply"]["operationId"] == kept.operation
+            && operation_status(&found)["reason"]["error"] == "checkout-not-found",
+        "{found}"
+    );
+    let missing = fixture.run(&["operation", "status", "0123456789abcdef0123456789abcdef"]);
+    let failure = &missing.document["failure"];
+    assert!(
+        missing.code == Some(3)
+            && failure["kind"] == "not-found"
+            && failure["details"]["stage"] == "operation-status"
+            && failure["details"]["reason"] == "not-recorded",
+        "{missing}"
+    );
 
     // Each failed removal holds its Workspace Close past the attempt budget while the user keeps
     // working in another Workspace: its terminal prints, and each tab closed there runs Session
@@ -80,20 +97,20 @@ fn removals_held_past_the_close_budget_resume_and_close_without_close_resume() {
         "--quiet",
         "refs/heads/verify-unlocked",
     ]);
-    // A held Close waits for the Worktree decision rather than parking, and `workspace
+    // A held Close waits for the Worktree decision rather than parking, and `operation
     // resume` cannot end the hold, so it is refused instead of renewing a budget.
     let close_request = kept
         .close
         .as_deref()
         .expect("the held removal names its Close");
-    let held = fixture.run(&["workspace", "status", close_request]);
+    let held = fixture.run(&["operation", "status", close_request]);
     let close = &held.document["result"]["observation"]["outcome"];
     assert!(
         held.code == Some(0) && close["status"]["resumable"] == false,
         "{held}"
     );
     let renewed = fixture.run(&[
-        "workspace",
+        "operation",
         "resume",
         close_request,
         "--generation",
@@ -393,7 +410,7 @@ impl Fixture {
 
     fn resume(&self, removal: &Removal) -> Run {
         self.run(&[
-            "worktree",
+            "operation",
             "resume",
             &removal.operation,
             "--generation",

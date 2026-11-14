@@ -22,7 +22,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.close.closed': '项目工作区已关闭 · {label}',
 	'workbench.projects.close.closing': '正在关闭项目工作区 · {label}',
 	'workbench.projects.close.outcomeUnknown':
-		'项目全部关闭结果未知；不会重放 · {label} · orchbee project status {operationId}',
+		'项目全部关闭结果未知；不会重放 · {label} · orchbee operation status {operationId}',
 	'workbench.projects.close.refused': '项目全部关闭未提交或被拒绝；刷新后重试 · {label}',
 	'workbench.projects.close.stopped': '项目全部关闭已停止；已知结果保留 · {label}',
 	'workbench.projects.closeAll.description':
@@ -422,7 +422,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.worktrees.removing': '正在移除工作树…',
 	'workbench.worktrees.removed': '工作树已移除，工作区已关闭，分支已保留。',
 	'workbench.worktrees.outcomeUnknown':
-		'工作树操作结果未知。请勿重复操作，可用 orchbee worktree status {operationId} 查询。',
+		'工作树操作结果未知。请勿重复操作，可用 orchbee operation status {operationId} 查询。',
 	'workbench.worktrees.createFailed': '无法创建工作树。请检查仓库后重试。',
 	'workbench.worktrees.openFailed': '无法打开工作树。请检查检出目录后重试。',
 	'workbench.worktrees.failure.checkoutInUse': '其他工作区仍在使用此检出目录。请先关闭对应工作区。',
@@ -440,7 +440,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.worktrees.failure.git': 'Git 未能完成移除。已知检出目录和工作区信息已保留。',
 	'workbench.worktrees.failure.gitFailed':
 		'Git 未能移除检出目录。如有程序正在使用该目录，请先关闭，再继续移除。',
-	'workbench.worktrees.failure.internal': '工作树操作未能完成。请用 orchbee worktree status 查询。',
+	'workbench.worktrees.failure.internal':
+		'工作树操作未能完成。请用 orchbee operation status 查询。',
 	'workbench.worktrees.failure.mainCheckout': '主检出受保护，无法移除。',
 	'workbench.worktrees.failure.notSubmitted': 'Orchbee 无法连接服务器，未做任何更改。',
 	'workbench.worktrees.failure.sessionStopping': '会话正在停止。请在它重新启动后重试。',

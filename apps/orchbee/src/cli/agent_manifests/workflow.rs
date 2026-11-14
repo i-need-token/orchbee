@@ -5,9 +5,11 @@
 use super::{Answer, Observation};
 use crate::{
     cli::{
-        Failure, FailureKind, Output,
+        Failure, FailureKind,
         console_interrupt::{ArmedSignals, Finish, SignalWatch},
-        failure_output, query,
+        failure_output,
+        operation::Probe,
+        query,
     },
     invocation::{ManifestCommand, OutputFormat},
     local_client::MetadataExchangeReason,
@@ -17,7 +19,7 @@ use orchbee_workbench_protocol::{
     AgentManifestsAction, AgentManifestsOperation, AgentManifestsOutcome, AgentManifestsRequest,
 };
 use std::time::{Duration, Instant};
-pub(super) fn run(command: &ManifestCommand, format: OutputFormat, locale: Locale) -> Output {
+pub(super) fn run(command: &ManifestCommand, format: OutputFormat, locale: Locale) -> Probe {
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -26,7 +28,8 @@ pub(super) fn run(command: &ManifestCommand, format: OutputFormat, locale: Local
                 Failure::new(FailureKind::InternalFailure),
                 Some(format),
                 locale,
-            );
+            )
+            .into();
         }
     };
     let mut result = submit(command, &mut signals, deadline);
@@ -47,12 +50,12 @@ pub(super) fn run(command: &ManifestCommand, format: OutputFormat, locale: Local
             Err(_) => result = Err(Failure::new(FailureKind::InternalFailure)),
         },
     }
-    let mut output = match result {
-        Ok(answer) => answer.emit(format, locale),
-        Err(failure) => failure_output(failure, Some(format), locale),
+    let (mut output, held) = match result {
+        Ok(answer) => (answer.emit(format, locale), answer.held()),
+        Err(failure) => (failure_output(failure, Some(format), locale), None),
     };
     output.finalization = finalization;
-    output
+    Probe::new(held, output)
 }
 fn submit(
     command: &ManifestCommand,

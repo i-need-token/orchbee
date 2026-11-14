@@ -27,6 +27,7 @@ families! {
     WorkbenchClient => ["terminal", "session"],
     Api => ["api"],
     Server => ["server"],
+    Operation => ["operation"],
     Config => ["config"],
     Diagnostics => ["diagnostics"],
     Channel => ["channel"],

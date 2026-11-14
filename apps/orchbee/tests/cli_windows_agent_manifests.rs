@@ -11,7 +11,6 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
         "current",
         "automatic",
         "reload",
-        "status",
         "lost",
         "wrong-operation",
         "denied",
@@ -58,9 +57,6 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 AgentManifestsAction::Reload { operation_id }
                 | AgentManifestsAction::Update { operation_id }
                 | AgentManifestsAction::Operation { operation_id } => {
-                    if case == "status" {
-                        assert_eq!(operation_id.as_str(), "11111111111111111111111111111111");
-                    }
                     if case == "denied" {
                         AgentManifestsOutcome::Failed {
                             reason: AgentManifestsFailure::Denied,
@@ -129,7 +125,6 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
         let mut args = vec!["server"];
         match case {
             "current" | "automatic" | "en" | "zh" => args.push("agent-manifests"),
-            "status" => args.extend(["status", "11111111111111111111111111111111"]),
             _ => args.push("reload-agent-manifests"),
         }
         args.extend(["--format", if text { "text" } else { "json" }]);

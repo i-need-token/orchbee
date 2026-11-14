@@ -164,7 +164,7 @@ impl super::CliText {
         timeout_ms: u32,
     ) -> String {
         let check = if workspace {
-            format!("orchbee workspace status {}", unquoted(request_id))
+            format!("orchbee operation status {}", unquoted(request_id))
         } else {
             "orchbee tab list".to_owned()
         };

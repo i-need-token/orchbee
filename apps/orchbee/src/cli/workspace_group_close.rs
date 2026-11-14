@@ -1,4 +1,5 @@
 //! CLI waiting is separate from the Server's retained group Close operation.
+use super::operation::Probe;
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
@@ -60,6 +61,22 @@ impl Answer {
         matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
             WorkspaceGroupCloseOutcome::Available {status, ..} if matches!(status, WorkspaceGroupCloseStatus::Pending {..})))
     }
+    /// Whether the Server keeps the operation, or `None` when this answer cannot say.
+    fn held(&self) -> Option<bool> {
+        if self.wait.is_some() {
+            return None;
+        }
+        let Observation::Server { reply } = &self.observation else {
+            return None;
+        };
+        match &reply.outcome {
+            WorkspaceGroupCloseOutcome::NotFound {} => Some(false),
+            WorkspaceGroupCloseOutcome::Available { .. } => Some(true),
+            WorkspaceGroupCloseOutcome::Conflict {}
+            | WorkspaceGroupCloseOutcome::Denied {}
+            | WorkspaceGroupCloseOutcome::Unavailable { .. } => None,
+        }
+    }
     fn exit_code(&self) -> u8 {
         match self.wait {
             Some(Wait::Cancelled) => return 130,
@@ -99,6 +116,15 @@ pub(crate) fn run(
     {
         return failure_output(failure, Some(format), locale);
     }
+    probe(command, format, locale).into_output()
+}
+
+/// The workflow after admission, saying also whether the Server keeps the operation.
+pub(super) fn probe(
+    command: &WorkspaceGroupCloseCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Probe {
     let operation_id = match command {
         WorkspaceGroupCloseCommand::Start { operation_id, .. } => operation_id
             .clone()
@@ -109,7 +135,7 @@ pub(crate) fn run(
     };
     let operation_id = match operation_id {
         Ok(id) => id,
-        Err(failure) => return failure_output(failure, Some(format), locale),
+        Err(failure) => return failure_output(failure, Some(format), locale).into(),
     };
     workflow::run(command, operation_id, format, locale)
 }
