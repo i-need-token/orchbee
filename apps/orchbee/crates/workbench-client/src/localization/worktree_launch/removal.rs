@@ -47,8 +47,8 @@ impl Locale {
             (Self::ZhCn, WorktreeStage::AbandonRemove) => "停止跟踪",
             (Self::EnUs, WorktreeStage::ResumeRemove) => "Resume Removal",
             (Self::ZhCn, WorktreeStage::ResumeRemove) => "恢复移除",
-            (Self::EnUs, _) => "Resume Removal…",
-            (Self::ZhCn, _) => "恢复移除…",
+            (Self::EnUs, _) => "Remove Worktree…",
+            (Self::ZhCn, _) => "移除工作树…",
         }
     }
     pub(crate) fn worktree_remove_failure(self, reason: &WorktreeOperationFailure) -> &'static str {

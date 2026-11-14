@@ -130,11 +130,12 @@ Each reason names its cause, such as a checkout Git no longer lists, a directory
 failed Git step, instead of presenting every Git-stage failure as a refusal. A nonresumable failure
 whose Workspace Close is still held names `orchbee workspace close <workspace-id> --confirm`, which
 releases that hold without Git.
-For a known resumable failure, **Resume removal…** opens a new confirmation for the original
-target; cancelling it restores the failure receipt. Confirming sends one Resume with the original
-operation ID and exact failed attempt, followed only by reads. No ID transcription is needed.
-A new draw is required before that confirmation can act. Attempt exhaustion, unknown results and
-nonresumable failures never offer Resume. A lost Resume handoff retains the receipt and fences old
+For a known resumable failure, the receipt's **Remove Worktree…** row, worded as the ordinary
+removal row, opens a new confirmation for the original target; cancelling it restores the failure
+receipt. Confirming sends one Resume with the original operation ID and exact failed attempt,
+followed only by reads. No ID transcription is needed. A new draw is required before that
+confirmation can act. Attempt exhaustion, unknown results and nonresumable failures never offer
+this row. A lost Resume handoff retains the receipt and fences old
 attempts; it never sends another Start or automatically retries Resume.
 
 Pending progress publishes no canonical change, so within the 120-second observation window of a
