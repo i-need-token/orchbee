@@ -13,7 +13,6 @@ enum Token {
     HelpFlag(&'static str),
     VersionFlag(&'static str),
     SkillFlag,
-    DefaultConfigFlag,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -204,10 +203,6 @@ pub(super) fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure>
                 positionals.push(Token::SkillFlag);
                 index += 1;
             }
-            "--default-config" => {
-                positionals.push(Token::DefaultConfigFlag);
-                index += 1;
-            }
             _ => {
                 let (spelling, joined) = token
                     .split_once('=')
@@ -304,7 +299,7 @@ pub(super) fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure>
     if matches!(&request, Request::DefaultConfig) && session.is_some() {
         return Err(usage_with(
             UsageReason::UnexpectedOption {
-                context: UsageContext::Literal("orchbee --default-config"),
+                context: UsageContext::Path("config default"),
                 option: "--session",
             },
             envelope,
@@ -335,14 +330,6 @@ pub(super) fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure>
 
 fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFailure> {
     let envelope = selection_envelope(options.format);
-    if positionals.len() == 1 && matches!(positionals[0], Token::DefaultConfigFlag) {
-        reject_extras(
-            &options,
-            UsageContext::Literal("orchbee --default-config"),
-            envelope,
-        )?;
-        return Ok(Request::DefaultConfig);
-    }
     if positionals.len() == 1 && matches!(positionals[0], Token::SkillFlag) {
         reject_extras(&options, UsageContext::Literal("orchbee --skill"), envelope)?;
         return Ok(Request::Skill);
@@ -382,7 +369,6 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
             Token::HelpFlag(_) | Token::VersionFlag(_) | Token::SkillFlag => {
                 unreachable!("flags excluded above")
             }
-            Token::DefaultConfigFlag => unreachable!("flags excluded above"),
         })
         .collect();
     let request = resolve_words(&words, &options, envelope)?;
@@ -401,7 +387,6 @@ fn flag_literal(token: &Token) -> Option<&'static str> {
         Token::HelpFlag(literal) => Some(literal),
         Token::VersionFlag(literal) => Some(literal),
         Token::SkillFlag => Some("--skill"),
-        Token::DefaultConfigFlag => Some("--default-config"),
         Token::Word(_) => None,
     }
 }
@@ -410,7 +395,6 @@ fn word_literal(token: &Token) -> Option<&str> {
     match token {
         Token::Word(word) => Some(word.as_str()),
         Token::HelpFlag(_) | Token::VersionFlag(_) | Token::SkillFlag => None,
-        Token::DefaultConfigFlag => None,
     }
 }
 

@@ -63,7 +63,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             "--body",
             false,
         ),
-        ("orchbee server config --so", "--sound", false),
+        ("orchbee config reload --so", "--sound", false),
         ("orchbee panel create-terminal abc --cl", "--client", false),
         ("orchbee panel create-terminal abc --cu", "--current", false),
         (

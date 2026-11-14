@@ -332,10 +332,10 @@ impl Locale {
                 "配置已加载，但有警告；请运行 orchbee config check"
             }
             (Self::EnUs, Some(Notice::ConfigurationUnknown)) => {
-                "Reload outcome unknown; inspect server config"
+                "Reload outcome unknown; run orchbee config reload"
             }
             (Self::ZhCn, Some(Notice::ConfigurationUnknown)) => {
-                "重载结果未知；请查看 server config"
+                "重载结果未知；请运行 orchbee config reload"
             }
             (Self::EnUs, Some(Notice::NotificationUnavailable)) => {
                 "Notification transport unavailable; terminal remains usable"

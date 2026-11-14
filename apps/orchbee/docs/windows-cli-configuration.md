@@ -2,7 +2,7 @@
 
 ## File and validation
 
-Orchbee reads `config.toml` in its environment's [data root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults. An invalid or empty location variable is fatal to every read, Session startup and Client activation included. A missing explicit file, an unreadable file, a directory or a file larger than 2 MiB is fatal to `config check`, `channel show`, `channel set`, `update` and `server reload-config`, but never stops Session startup or Client activation, because the person needs a terminal to repair it: the Session starts on the defaults, its settings snapshot reports the file as `unreadable`, edits are refused while the file exists but cannot be read, and the first edit creates a missing file. A file that is not valid UTF-8 or TOML gives the defaults and a `file` warning whose reader result names the line and column; Session startup and Client activation continue on those defaults, while `config check`, `channel show`, `channel set`, `update`, `server reload-config` and the Server's sampler treat it as fatal and keep what they had. A parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
+Orchbee reads `config.toml` in its environment's [data root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults. An invalid or empty location variable is fatal to every read, Session startup and Client activation included. A missing explicit file, an unreadable file, a directory or a file larger than 2 MiB is fatal to `config check`, `channel show`, `channel set`, `update` and `config reload`, but never stops Session startup or Client activation, because the person needs a terminal to repair it: the Session starts on the defaults, its settings snapshot reports the file as `unreadable`, edits are refused while the file exists but cannot be read, and the first edit creates a missing file. A file that is not valid UTF-8 or TOML gives the defaults and a `file` warning whose reader result names the line and column; Session startup and Client activation continue on those defaults, while `config check`, `channel show`, `channel set`, `update`, `config reload` and the Server's sampler treat it as fatal and keep what they had. A parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
 
 ```toml
 [terminal]
@@ -27,7 +27,7 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ### Default configuration output
 
-`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table headers included: a fixed-English reference generated from the settings registry gives each key's purpose, default, allowed values and when a change applies; English keeps this copyable config artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The TUI Settings page edits this same file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file.
+`orchbee config default` is an offline command that takes no other argument. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. Every line is a comment, table headers included: a fixed-English reference generated from the settings registry gives each key's purpose, default, allowed values and when a change applies; English keeps this copyable config artifact identical across CLI locales. Uncommenting a header and a line opts into that one setting. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The TUI Settings page edits this same file. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file.
 
 ## Named chrome themes
 
@@ -52,7 +52,7 @@ the TUI's runtime source of application appearance. A `[theme]` table is an unkn
 
 Branch slugs lowercase ASCII letters, collapse nonalphanumeric runs to a hyphen, trim hyphens and use `worktree` if empty. Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The read-only repository query uses the same source and trust policy as creation. The Server still rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem transaction. Explicit path avoids the extra query.
 
-Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin panel never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a file that does not parse starts it on defaults with a `file` warning, a fatal edit keeps the last published snapshot and fails `server reload-config`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
+Creation reads its defaults from the running Session, not from the file. Right after the Session snapshot read and before any other request, a Workspace, Tab, Panel or Worktree creation that omits its cwd or checkout path reads the current configuration snapshot once (`workbench.configuration` `current`) and applies `newCwd` or `worktreesDirectory`. An explicit cwd or checkout path skips that read, and a plugin panel never applies `newCwd`. A busy reply is retried until the command deadline; a denied, unavailable or Session-mismatch reply stops the command before any effect. Configuration errors therefore belong to the Server: a fatal file refuses Session startup, a file that does not parse starts it on defaults with a `file` warning, a fatal edit keeps the last published snapshot and fails `config reload`, and field fallbacks appear as snapshot diagnostics and the Client warning. A broken file on disk no longer fails creation; creation keeps using the last published values, and without a running Session it fails as `service-unavailable`.
 
 The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload and keybindings retain their own contracts; every creation surface takes its default program from the shared launch profile described below.
 
@@ -83,7 +83,7 @@ missing-default versus missing-explicit semantics. It does not create configurat
 Persistent managed release Sessions check rules at startup and every thirty minutes. Debug/test builds
 and standalone endpoints disable automatic network work. `server agent-manifests` exposes effective
 policy and latest automatic results. `server reload-agent-manifests` reloads rules only and never
-reads `config.toml`; `server reload-config` publishes the rule-check switch with the rest of the
+reads `config.toml`; `config reload` publishes the rule-check switch with the rest of the
 configuration. A fatal file/TOML error retains the previous switch; field warnings apply the admitted
 fallback settings.
 Turning checks off removes scheduling; turning them back on schedules an immediate check. An
@@ -93,41 +93,6 @@ by this command. Explicit updates remain available when automatic checks are dis
 Release acceptance fixtures must explicitly disable checks when public network access is outside
 the test's purpose. A reader predating the current key names ignores the renamed tables with warnings;
 user overrides and already committed rule caches are retained.
-
-## Reset custom keybindings
-
-Windows `config reset-keys [--format text|json]` is an offline configuration repair operation.
-It uses the same file location as `config check`, but a missing file (including an explicit path)
-or no top-level `keys` value succeeds without creating or writing anything. It removes `[keys]`,
-its nested tables and command arrays, or a safely removable top-level assignment. Other settings,
-comments outside the removed tables and line endings remain byte-for-byte. Invalid UTF-8/TOML, files over 2 MiB and edits whose
-parsed result differs from the original minus `keys` fail before writing. This allows recovery from
-custom keys that the current settings reader does not yet support; it does not validate or repair
-other settings or reload a running Client.
-
-The shared Windows settings repair owner pins the private parent directory tree, rejects reparse
-points/nonregular or multiply linked files, and reopens the file exclusively before comparing its
-bytes with the prepared input. Changed input or a concurrent file holder refuses the edit. The
-backup is a copy with the settings file's name in a new private
-`internal/backups/<YYYY-MM-DD>-reset-keys` folder of the data root, or `-2`, `-3` and so on when
-that day's folder exists, so no earlier backup is overwritten. It is flushed before rewriting the
-original through its exclusive handle. The original's file identity
-and permissions remain. A write/flush failure restores and flushes the original before releasing it;
-failed recovery retains the complete backup and reports `recoveryRequired: true`. A process crash
-after rewriting begins also leaves the previously flushed backup available. This is recoverable
-in-place replacement, not a filesystem transaction across power loss.
-
-The closed `orchbee.config.reset-keys` v1 receipt identifies `missing`, `no-keys`, `reset` or `failed`,
-the selected path, nullable backup path, bounded error field/reason and recovery requirement. Exit 0
-means reset or no change, exit 1 means failure, and usage errors exit 2 before file access. Text output
-is localized and escapes paths; configuration values are never echoed. Successful backup files are
-user recovery artifacts, explicitly handed to the caller in the receipt for restoration/removal.
-Unneeded failed-attempt backups are removed; cleanup failure exposes their exact path. No automatic
-Session admission, reload, process launch or unrelated settings write occurs.
-
-Pure transformation tests, exclusive-file/backup checks, injected write/recovery failure witnesses
-and real Windows CLI processes cover this contract. Full keybindings, complete reload parity and final
-Windows replacement acceptance remain separate obligations.
 
 ## Automatic Windows shell
 
@@ -267,8 +232,7 @@ while connecting is provisional. Configuration checking reports the supported la
 See the [Agent sidebar configuration model](machines.md#agent-sidebar-configuration-model)
 for tokens, provider selection, rules, geometry and evidence obligations.
 
-Windows `server reload-config` requests a reload in the running Session; `server config` reads the last
-published revision. Neither activates a Session. Server freezes the startup configuration location,
+Windows `config reload` requests a reload in the running Session and does not activate one. Server freezes the startup configuration location,
 serializes reloads, parses the bounded whole file and prepares one admitted candidate containing
 effective settings and warnings before commit. A fatal read or parse failure retains the previous
 revision, every profile, diagnostics and live manifest-check schedule. A warning candidate atomically
@@ -281,13 +245,13 @@ while another reload owns admission. A submitted request with a lost reply is ou
 Clients do not automatically resubmit mutations and can read current state for recovery.
 
 The Server also samples the frozen location about once per second. A changed size or modification
-time reloads the file with the same admission, preflight and commit as `server reload-config`, except
+time reloads the file with the same admission, preflight and commit as `config reload`, except
 that an unchanged candidate publishes nothing. A file that cannot be read or parsed keeps the last
 valid settings: the settings snapshot publishes the file's `unreadable` or `syntax-error` status
 over them, and the configuration snapshot stays as it was until the file is valid again; a refused commit retries the same file at the next sample. The first
 sample after startup reloads once, so an edit made while the Session started is not missed. Sampled
 publications wake every configuration subscriber; they have no reply and show no notice beyond the
-configuration-warning summary. `server reload-config` remains the way to confirm a publication
+configuration-warning summary. `config reload` remains the way to confirm a publication
 immediately.
 
 The 2 MiB source limit and each profile's individual bound are admission inputs; the composed
@@ -314,7 +278,7 @@ CLI creation applies the directory and worktree defaults published when it runs.
 
 No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
 
-`server config` and `server reload-config` version 1 add the required `diagnostics` object to every
+`config reload` version 1 adds the required `diagnostics` object to every
 successful snapshot. Text output prints the visible count, exact omitted count and each bounded
 field/reason/disposition record.
 
@@ -333,11 +297,11 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Outer window titles
 
-`[appearance] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v1 warning record; unknown `[appearance]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `server config`/`server reload-config` v1 expose the effective published template and diagnostics.
+`[appearance] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v1 warning record; unknown `[appearance]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `config reload` v1 exposes the effective published template and diagnostics.
 
 ## Custom-notification configuration
 
-`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `notifications.position` selects the four-corner default. `notifications.agent_reminder` and `notifications.sound` govern automatic Agent notifications and sound. `notifications.delay_seconds` supplies the delay (one second by default, 0–3600); `[notifications.sound_by_agent]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v1 carry the 16 KiB `notificationProfile`, spelled like the file: one `[notifications]` table with `cli_delivery`, `agent_delivery` (profile only), `delay_seconds`, `position` and `sound`, and `[notifications.sound_by_agent]`; a profile that cannot be admitted is refused with field `notifications`. `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`notifications.cli_delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `notifications.position` selects the four-corner default. `notifications.agent_reminder` and `notifications.sound` govern automatic Agent notifications and sound. `notifications.delay_seconds` supplies the delay (one second by default, 0–3600); `[notifications.sound_by_agent]` supplies per-Agent sound overrides without changing explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `config reload` v1 carries the 16 KiB `notificationProfile`, spelled like the file: one `[notifications]` table with `cli_delivery`, `agent_delivery` (profile only), `delay_seconds`, `position` and `sound`, and `[notifications.sound_by_agent]`; a profile that cannot be admitted is refused with field `notifications`. `config check` v1 exposes manual and automatic policy, and configuration failure v1 adds the automatic delay/sound diagnostics. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
 
 Common Agent reminder mode and global sound remain authoritative; manual notification delivery
 and per-Agent sound overrides retain their separate ownership.
@@ -414,7 +378,7 @@ A test build reads `ORCHBEE_TEST_REGISTRY_KEY`, a key below `HKCU\Software\ob-te
 
 ## Windows Agent sidebar layouts
 
-The main Windows TUI applies `appearance.sidebar.agents` at startup and after `server reload-config`.
+The main Windows TUI applies `appearance.sidebar.agents` at startup and after `config reload`.
 For example:
 
 ```toml

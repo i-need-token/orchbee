@@ -120,7 +120,7 @@ impl super::CliText {
                 | CommandPath::PluginUpdate,
             ) => self.plugin_help(path),
             (_, CommandPath::NotificationShow) => self.notification_help(),
-            (_, CommandPath::ServerConfig | CommandPath::ServerReloadConfig) => {
+            (_, CommandPath::ConfigReload) => {
                 self.runtime_configuration_help(path)
             }
             (Locale::EnUs, CommandPath::ClientList) => super::client_control::HELP_CLIENT_LIST_EN,
@@ -366,8 +366,8 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Locale::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
             (Locale::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
-            (Locale::EnUs, CommandPath::ConfigResetKeys) => super::configuration::HELP_CONFIG_RESET_KEYS_EN,
-            (Locale::ZhCn, CommandPath::ConfigResetKeys) => super::configuration::HELP_CONFIG_RESET_KEYS_ZH,
+            (Locale::EnUs, CommandPath::ConfigDefault) => super::configuration::HELP_CONFIG_DEFAULT_EN,
+            (Locale::ZhCn, CommandPath::ConfigDefault) => super::configuration::HELP_CONFIG_DEFAULT_ZH,
             (Locale::EnUs, CommandPath::DiagnosticsCreate) => super::diagnostics::HELP_DIAGNOSTICS_CREATE_EN,
             (Locale::ZhCn, CommandPath::DiagnosticsCreate) => super::diagnostics::HELP_DIAGNOSTICS_CREATE_ZH,
             (_, CommandPath::MachineList) => self.cli_machine_help(path),

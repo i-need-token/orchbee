@@ -1126,12 +1126,6 @@ pub(super) fn resolve_words(
         ["api", "schema"] => schema_export::request(None, options, envelope),
         ["api", "schema", schema_id] => schema_export::request(Some(schema_id), options, envelope),
         ["diagnostics", "create"] => diagnostics::request(options, envelope),
-        ["config", "reset-keys"] => {
-            reject_filters(options, UsageContext::Path("config reset-keys"), envelope)?;
-            Ok(Request::ConfigResetKeys {
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
         ["channel", "show"] => {
             reject_filters(options, UsageContext::Path("channel show"), envelope)?;
             Ok(Request::ChannelShow {
@@ -1182,6 +1176,17 @@ pub(super) fn resolve_words(
         ["config", "check"] => {
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
+        }
+        ["config", "default"] => {
+            reject_extras(options, UsageContext::Path("config default"), envelope)?;
+            Ok(Request::DefaultConfig)
+        }
+        ["config", "reload"] => {
+            reject_filters(options, UsageContext::Path("config reload"), envelope)?;
+            Ok(Request::RuntimeConfiguration {
+                action: orchbee_workbench_protocol::ConfigurationAction::Reload,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
         }
         ["server", "connect"] => {
             reject_extras_scope(options, UsageContext::Path("server connect"), envelope)?;
@@ -1284,25 +1289,6 @@ pub(super) fn resolve_words(
             .map_err(|_| invalid("<title>", title, ExpectedValue::NotificationTitle))?;
             Ok(Request::Notification {
                 message,
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
-        ["server", verb @ ("config" | "reload-config")] => {
-            reject_filters(
-                options,
-                UsageContext::Path(if *verb == "config" {
-                    "server config"
-                } else {
-                    "server reload-config"
-                }),
-                envelope,
-            )?;
-            Ok(Request::RuntimeConfiguration {
-                action: if *verb == "config" {
-                    orchbee_workbench_protocol::ConfigurationAction::Current
-                } else {
-                    orchbee_workbench_protocol::ConfigurationAction::Reload
-                },
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
@@ -1794,13 +1780,12 @@ pub(super) fn resolve_words(
             envelope,
         )),
         ["config"] => Err(missing_command(UsageContext::Path("config"), envelope)),
-        ["config", "reset-keys", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("config reset-keys"),
-            extra,
-            envelope,
-        )),
-        ["config", "check", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("config check"),
+        ["config", verb @ ("check" | "default" | "reload"), extra, ..] => Err(unexpected_argument(
+            UsageContext::Path(match *verb {
+                "check" => "config check",
+                "default" => "config default",
+                _ => "config reload",
+            }),
             extra,
             envelope,
         )),

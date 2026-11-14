@@ -46,7 +46,7 @@ Start with the default Session and use Workspaces to organize ordinary work. Win
 Sessions provide separate runtime endpoints and persisted state for independent sets of terminal programs.
 
 `--session <name>` selects that environment; `session list/attach/stop/delete` manages named
-Sessions, while `server start/diagnose/stop/config/reload-config` manages the selected Session's
+Sessions, while `server start/diagnose/stop` and `config reload` manage the selected Session's
 background service. An **Agent session** identifies one Agent conversation/runtime record and
 uses `--agent-session <id>` or an ordinary Agent target. A protocol **Client Connection** identifies
 one admitted connection; it is not a separate work environment.
@@ -929,7 +929,7 @@ orchbee server status <request-id>
 orchbee server diagnose
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
-orchbee --default-config  # Windows
+orchbee config default  # Windows
 orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
@@ -946,7 +946,7 @@ recognized options (`project get x --format json --help` describes `project get`
 It never applies those options or reads runtime state. Unknown options, missing values,
 duplicate options and unknown family verbs remain usage failures. Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
-`-v`/`-V`/`--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `--default-config` never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
+`-v`/`-V`/`--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `config default` never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
 Help has three information levels, in both `en-US` and `zh-CN`:
 
 - Root help introduces Orchbee, shows a small set of common examples, groups each admitted
@@ -975,7 +975,7 @@ examples without executing their effects. `cli_windows_server_stop` additionally
 binary's version aliases, nested help and missing stop confirmation with an unusable runtime base;
 the existing stop receipt witnesses retain the lifecycle safety checks.
 
-On Windows, `--default-config` must be the sole root argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
+On Windows, `config default` takes no other argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
 The shared process router preserves this path before locale selection. Its named native ports
 retain Windows Session selection and Unix rejection of unavailable runtime routes; offline
 discovery continues to ignore Session selection. Integration `--outdated-only` admission also
@@ -1017,7 +1017,7 @@ loading. This proves static completion, not runtime target discovery or other op
 --cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24
 grid with unknown cell pixels (0,0).
 
-`help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `--default-config` are fixed text outputs that do
+`help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `config default` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `<family> status`, `agent explain`,
@@ -2314,7 +2314,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 ## Invariants
 
 - A syntactically invalid invocation never touches the filesystem, cohort, or socket.
-- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and Windows `--default-config`) never perform platform,
+- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and Windows `config default`) never perform platform,
   runtime, cohort, or Session discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability
@@ -2800,7 +2800,7 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 
 [Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect; creation takes those defaults from the Session's published configuration snapshot. Windows `config check` v1 preserves five runtime checks and adds `user-config`; every platform ends with `records`, which warns with each record whose version this build cannot use, as `{record, problem, version, path}`, and text output prints each record message with its path. Any other command whose stores met such a record ends its stderr with that record's message, once per process. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. The offline catalog lists the current documents and command paths.
 
-The current Windows `config check` v1 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count follow the current closed contract. `server config`/`server reload-config` v1 carry the same admitted warning record in each successful snapshot. The embedded schema catalog is v1.
+The current Windows `config check` v1 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count follow the current closed contract. `config reload` v1 carries the same admitted warning record in each successful snapshot. The embedded schema catalog is v1.
 
 ## Windows terminal observation stream
 
@@ -2886,7 +2886,7 @@ invalid value, Update is unavailable, no check runs, the remote cache is ignored
 is frozen at Session startup. With a catalog, managed release Sessions automatically check at startup and
 every thirty minutes when `agent_detection.auto_update` is true (default). Debug/test and standalone
 execution do not schedule checks. Only configuration publication (the Session's sampler or
-`server reload-config`) changes this switch; rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
+`config reload`) changes this switch; rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
 a separate latest-result slot without consuming manual receipts.
 `server status <operation-id>` reads either retained receipt without resubmitting.
 These commands require an already running Session and do not focus a Client or send terminal input.
@@ -2923,7 +2923,7 @@ replacement, plugin eligibility, Client attention and TUI projection. The
 
 ## Agent sidebar configuration publication
 
-Windows `config check` v1 and `server config`/`server reload-config` v1 expose the required bounded `agentSidebarProfile`; configuration failure v1 includes sidebar admission diagnostics. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, fatal source boundaries, field-local admission, canonical publication and atomic Client application. The offline catalog lists the current documents and command paths.
+Windows `config check` v1 and `config reload` v1 expose the required bounded `agentSidebarProfile`; configuration failure v1 includes sidebar admission diagnostics. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, fatal source boundaries, field-local admission, canonical publication and atomic Client application. The offline catalog lists the current documents and command paths.
 
 ## Windows CLI process verification
 

@@ -109,10 +109,10 @@ impl super::CliText {
     pub(crate) const fn cli_command_empty(self) -> &'static str {
         match self.locale {
             Locale::EnUs => {
-                "No custom commands. Add a [[keys.command]] entry to the config file; `orchbee --default-config` shows the rules.\n"
+                "No custom commands. Add a [[keys.command]] entry to the config file; `orchbee config default` shows the rules.\n"
             }
             Locale::ZhCn => {
-                "没有自定义命令。在配置文件中添加 [[keys.command]] 条目；`orchbee --default-config` 列出规则。\n"
+                "没有自定义命令。在配置文件中添加 [[keys.command]] 条目；`orchbee config default` 列出规则。\n"
             }
         }
     }

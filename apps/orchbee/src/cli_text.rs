@@ -8,7 +8,6 @@ mod help;
 mod help_arguments;
 mod help_options;
 pub(crate) use help::{HelpDetails, HelpText};
-mod config_reset;
 mod destructive_request;
 mod details;
 mod diagnostics;

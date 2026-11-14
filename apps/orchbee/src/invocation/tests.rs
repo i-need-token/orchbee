@@ -363,18 +363,15 @@ fn usage(envelope: FailureEnvelope) -> ParseFailure {
 
 #[cfg(windows)]
 #[test]
-fn default_config_is_a_sole_offline_root_mode() {
-    assert_eq!(parse(&["--default-config"]), Ok(Request::DefaultConfig));
+fn default_config_is_an_offline_command_without_options() {
+    assert_eq!(parse(&["config", "default"]), Ok(Request::DefaultConfig));
     for words in [
-        vec!["--default-config", "--format", "json"],
-        vec!["--format=json", "--default-config"],
-        vec!["--default-config", "status"],
-        vec!["status", "--default-config"],
-        vec!["--default-config", "--default-config"],
-        vec!["--default-config", "--help"],
-        vec!["--", "--default-config"],
-        vec!["--session", "work", "--default-config"],
-        vec!["--machine", "work", "--default-config"],
+        vec!["config", "default", "--format", "json"],
+        vec!["--format=json", "config", "default"],
+        vec!["config", "default", "status"],
+        vec!["--default-config"],
+        vec!["--session", "work", "config", "default"],
+        vec!["--machine", "work", "config", "default"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
@@ -7386,42 +7383,6 @@ fn manifest_commands_accept_only_their_owned_options() {
         vec!["server", "reload-agent-manifests", "--confirm"],
     ] {
         assert!(parse(&args).is_err());
-    }
-}
-
-#[test]
-#[cfg(windows)]
-fn config_reset_keys_grammar_is_offline_and_rejects_effect_options() {
-    assert_eq!(
-        parse(&["config", "reset-keys"]),
-        Ok(Request::ConfigResetKeys {
-            format: OutputFormat::Text
-        })
-    );
-    assert_eq!(
-        parse(&["--format=json", "config", "reset-keys"]),
-        Ok(Request::ConfigResetKeys {
-            format: OutputFormat::Json
-        })
-    );
-    for args in [
-        vec!["config", "reset-keys", "extra"],
-        vec!["config", "reset-keys", "--force"],
-        vec!["config", "reset-keys", "--current"],
-        vec!["config", "reset-keys", "--timeout=20"],
-    ] {
-        assert!(parse(&args).is_err(), "{args:?}");
-    }
-    for args in [
-        ["config", "reset-keys", "--help"],
-        ["help", "config", "reset-keys"],
-    ] {
-        assert_eq!(
-            parse(&args),
-            Ok(Request::Help(HelpTopic::Command(
-                CommandPath::ConfigResetKeys
-            )))
-        );
     }
 }
 

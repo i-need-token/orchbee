@@ -255,7 +255,7 @@ name:
 
 Native host configuration is a separate admitted surface, not extra shared-editor
 rows. Windows TOML changes publish when the Server's sampler sees the edit, about
-once per second, or immediately through `server reload-config` (default prefix F5). Configuration and settings use separate state subscriptions on the
+once per second, or immediately through `config reload` (default prefix F5). Configuration and settings use separate state subscriptions on the
 Client's shared carrier, including while Settings is closed. The UI consumes their snapshots
 on its existing tick, whose input wait is at most 50 ms; neither observer polls the Server.
 An edit the Server commits publishes at once. An edit by another Session or by hand reaches the

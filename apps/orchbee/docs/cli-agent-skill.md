@@ -6,7 +6,7 @@ This guide describes native CLI workflows. Windows, Linux and macOS expose the s
 
 Start with `orchbee --help`, then `orchbee <family> --help` and `orchbee <family> <command> --help`. A single help flag before `--` also works with already supplied operands and options, without executing them. Unknown options, missing values and duplicates still fail. `help <path>` accepts an exact help path. A bare `orchbee` starts the TUI.
 
-`--version`, `--skill`, `completion <shell>`, `api schema`, and Windows `--default-config` work offline. Completion supports Bash, Zsh, Fish, PowerShell and Elvish. `api schema` lists the schema IDs; use `api schema <schema-id>` for the same build's machine contract, or add `--output <path>` to export it. Read the emitted `schema` and `version`; this guide does not pin catalog counts or historical versions.
+`--version`, `--skill`, `completion <shell>`, `api schema`, and Windows `config default` work offline. Completion supports Bash, Zsh, Fish, PowerShell and Elvish. `api schema` lists the schema IDs; use `api schema <schema-id>` for the same build's machine contract, or add `--output <path>` to export it. Read the emitted `schema` and `version`; this guide does not pin catalog counts or historical versions.
 
 All CLI JSON documents use version `1` and one current schema. Fields stay present across platforms and options: `{kind:"unsupported"}` means no platform capability, `null` means the source said none, and `"unknown"` means it cannot say. A whole unsupported command returns `stage: "platform"`, `reason: "unsupported-platform"`, exit `4`; a command this release withholds returns `stage: "release"`, `reason: "withheld-in-release"`, exit `4`. `server diagnose` uses `orchbee.server.diagnose` on Linux and Windows.
 
@@ -144,7 +144,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 
 ## Further capabilities
 
-Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal selection/copy/links/graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload/reset. Some are Windows-only; the installed grammar owns admission and effect details.
+Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload. Some are Windows-only; the installed grammar owns admission and effect details.
 <!-- unreleased -->
 
 Help also covers update and channel selection. `channel set` saves its selection and starts an update attempt, so inspect both the saved setting and update result.

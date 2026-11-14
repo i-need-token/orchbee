@@ -315,8 +315,8 @@ impl super::CliText {
                 "管理会话的后台服务。",
             ),
             HelpTopic::Family(Family::Config) => (
-                "Check, import and restore settings.",
-                "检查、导入和恢复设置。",
+                "Check, print and reload settings.",
+                "检查、输出和重新加载设置。",
             ),
             HelpTopic::Family(Family::Channel) => ("Choose the release channel.", "选择更新频道。"),
             HelpTopic::Family(Family::Machine) => {
@@ -587,8 +587,8 @@ impl super::CliText {
                 "Validate settings without starting a session.",
                 "校验设置，不启动会话。",
             ),
-            HelpTopic::Command(CommandPath::ConfigResetKeys) => {
-                ("Restore default keyboard shortcuts.", "恢复默认快捷键。")
+            HelpTopic::Command(CommandPath::ConfigDefault) => {
+                ("Print the default configuration.", "输出默认配置。")
             }
             HelpTopic::Family(Family::Diagnostics) => (
                 "Collect diagnostics to send when you ask for help.",
@@ -633,11 +633,7 @@ impl super::CliText {
                 "Download and apply Agent detection rules.",
                 "下载并应用智能体识别规则。",
             ),
-            HelpTopic::Command(CommandPath::ServerConfig) => (
-                "Show the running session's configuration.",
-                "显示运行中会话的配置。",
-            ),
-            HelpTopic::Command(CommandPath::ServerReloadConfig) => (
+            HelpTopic::Command(CommandPath::ConfigReload) => (
                 "Reload the running session's configuration.",
                 "重新加载会话配置。",
             ),
@@ -786,7 +782,6 @@ pub(crate) enum HelpText {
     ShowSkill,
     Session,
     Machine,
-    DefaultConfig,
     Descend,
     FormatScope,
     Synopsis,
@@ -847,7 +842,6 @@ impl super::CliText {
                 "Select a saved SSH machine; place this option first, before the command.",
                 "选择已保存的 SSH 机器；此选项必须放在命令之前的第一个位置。",
             ),
-            HelpText::DefaultConfig => ("Print the default configuration.", "输出默认配置。"),
             HelpText::Descend => (
                 "Use orchbee <command> -h or orchbee help <command> for details.",
                 "使用 orchbee <command> -h 或 orchbee help <command> 查看详情。",

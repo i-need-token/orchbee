@@ -149,7 +149,8 @@ commands! {
     ApiSnapshot => ["api", "snapshot"], 0, Operand, Portable, true, true, false;
     ApiSchema => ["api", "schema"], 1, Operand, Portable, true, false, false;
     ConfigCheck => ["config", "check"], 0, Operand, Portable, true, false, false;
-    ConfigResetKeys => ["config", "reset-keys"], 0, Operand, Windows, true, false, false;
+    ConfigDefault => ["config", "default"], 0, Operand, Windows, false, false, false;
+    ConfigReload => ["config", "reload"], 0, Operand, Portable, true, true, false;
     DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Windows, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
     ServerConnect => ["server", "connect"], 0, Operand, Portable, false, false, false;
@@ -159,8 +160,6 @@ commands! {
     SessionDelete => ["session", "delete"], 1, Session, Windows, true, false, false;
     ServerDiagnose => ["server", "diagnose"], 0, Operand, Portable, true, false, false;
     ServerUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
-    ServerConfig => ["server", "config"], 0, Operand, Portable, true, true, false;
-    ServerReloadConfig => ["server", "reload-config"], 0, Operand, Portable, true, true, false;
     TerminalTitleSet => ["terminal", "title", "set"], 1, Operand, Portable, true, true, false;
     TerminalTitleClear => ["terminal", "title", "clear"], 0, Operand, Portable, true, true, false;
     EventsSubscribe => ["events", "subscribe"], 0, Operand, Windows, true, false, false;

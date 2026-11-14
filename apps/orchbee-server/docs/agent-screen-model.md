@@ -379,8 +379,8 @@ owner and one retained latest result; it never consumes or evicts the manual ope
 
 Client activation passes only the admitted configuration path and explicit-location status. The
 Server reads that file once at startup; the check value and provenance come from that read, and the
-observer never rereads configuration. Only a committed configuration publication (`server
-reload-config`) changes the manifest-check setting. Explicit rule Reload never reads `config.toml`:
+observer never rereads configuration. Only a committed configuration publication (`config
+reload`) changes the manifest-check setting. Explicit rule Reload never reads `config.toml`:
 it loads the detector and status from the startup configuration parent, and a failed installation
 retains the old detector. Disabling clears the next check; re-enabling schedules immediately. This
 is rule-maintenance reload, not a general settings or keybinding reload. An active Update owns the slot

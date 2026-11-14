@@ -7,10 +7,8 @@ use serde_json::Value;
 use support::{Fixture, assert_closed, bound_snapshot_reply, peer, validate};
 
 #[test]
-fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_replay() {
+fn reload_rejections_and_lost_reply_have_closed_typed_receipts_without_replay() {
     for case in [
-        "startup",
-        "current",
         "reload",
         "warning",
         "warning-en",
@@ -24,7 +22,6 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
     ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
-        let reading = matches!(case, "startup" | "current");
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);
             let WorkbenchRequest::Configuration(request) =
@@ -32,19 +29,12 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             else {
                 panic!("configuration");
             };
-            assert_eq!(
-                request.action,
-                if reading {
-                    ConfigurationAction::Current
-                } else {
-                    ConfigurationAction::Reload
-                }
-            );
+            assert_eq!(request.action, ConfigurationAction::Reload);
             if case == "lost" {
                 return;
             }
             let snapshot = ConfigurationSnapshot {
-                revision: WorkbenchRevision::new(if case == "startup" { 0 } else { 3 }),
+                revision: WorkbenchRevision::new(3),
                 diagnostics: if case.starts_with("warning") {
                     ConfigurationDiagnostics {
                         items: vec![ConfigurationDiagnostic {
@@ -80,9 +70,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                     field: Some("keys.help".into()),
                     detail: Some("invalid-keybinding".into()),
                 },
-                "startup" | "current" | "wrong-action" => {
-                    ConfigurationOutcome::Current { snapshot }
-                }
+                "wrong-action" => ConfigurationOutcome::Current { snapshot },
                 _ => ConfigurationOutcome::Reloaded {
                     snapshot,
                     changed: true,
@@ -103,8 +91,8 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
         let text = matches!(case, "en" | "zh" | "warning-en" | "warning-zh");
         let output = fixture.run_with_env(
             &[
-                "server",
-                if reading { "config" } else { "reload-config" },
+                "config",
+                "reload",
                 "--format",
                 if text { "text" } else { "json" },
             ],
@@ -163,7 +151,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 include_str!("../src/cli/schemas/orchbee.server.configuration.json"),
             );
             assert_eq!(document["version"], 1);
-            if matches!(case, "startup" | "current" | "reload" | "warning") {
+            if matches!(case, "reload" | "warning") {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["manifestCheck"],
                     false
@@ -190,7 +178,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
 fn reload_does_not_activate_a_session_and_rejects_unrelated_flags_before_admission() {
     let fixture = Fixture::new();
     let _rendezvous = fixture.rendezvous();
-    let output = fixture.run(&["server", "reload-config", "--format", "json"]);
+    let output = fixture.run(&["config", "reload", "--format", "json"]);
     assert_eq!(
         output.status.code(),
         Some(4),
@@ -198,8 +186,8 @@ fn reload_does_not_activate_a_session_and_rejects_unrelated_flags_before_admissi
         String::from_utf8_lossy(&output.stderr)
     );
     for arguments in [
-        vec!["server", "reload-config", "--workspace", "x"],
-        vec!["server", "config", "extra"],
+        vec!["config", "reload", "--workspace", "x"],
+        vec!["config", "reload", "extra"],
     ] {
         let output = fixture.run(&arguments);
         assert_eq!(output.status.code(), Some(2));

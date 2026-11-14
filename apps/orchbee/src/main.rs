@@ -255,9 +255,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::InstallerUninstall { delete_data }) => {
                 cli::update::installer_uninstall(delete_data, locale)
             }
-            Ok(invocation::Request::ConfigResetKeys { format }) => {
-                cli::config_reset::run(format, locale)
-            }
             Ok(invocation::Request::NamedSession { command, format }) => {
                 cli::named_sessions::run(&command, format, locale)
             }

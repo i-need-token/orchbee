@@ -8,9 +8,11 @@ impl super::CliText {
             }
             (Locale::ZhCn, "startup") => "会话启动基线；尚未发布在线配置。",
             (Locale::EnUs, "unknown") => {
-                "Configuration outcome unknown; inspect 'server config' before retrying."
+                "Configuration outcome unknown; run 'orchbee config reload' to confirm the published settings."
             }
-            (Locale::ZhCn, "unknown") => "配置结果未知；重试前请用 server config 查看当前状态。",
+            (Locale::ZhCn, "unknown") => {
+                "配置结果未知；请运行 orchbee config reload 确认已发布的设置。"
+            }
             (Locale::EnUs, "failed") => {
                 "Configuration reload/read failed; previous published settings retained."
             }
@@ -74,13 +76,8 @@ impl super::CliText {
     ) -> crate::cli_text::HelpDetails {
         use crate::invocation::CommandPath as C;
         let (usage, english, chinese) = match path {
-            C::ServerConfig => (
-                "orchbee server config [--format text|json]",
-                "Read the configuration currently used by the running session. This command neither reloads configuration nor starts a session.",
-                "读取正在运行的会话当前使用的配置。本命令不重新加载配置，也不启动会话。",
-            ),
-            C::ServerReloadConfig => (
-                "orchbee server reload-config [--format text|json]",
+            C::ConfigReload => (
+                "orchbee config reload [--format text|json]",
                 "Reload the configuration path selected when the session started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing session; a lost reply is never retried automatically.",
                 "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、智能体边栏布局、通知策略和清单检查。启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",
             ),

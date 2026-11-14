@@ -123,10 +123,6 @@ pub(crate) fn root(locale: Locale) -> String {
                 "--machine <target>",
                 CliText::new(locale).cli_help_text(HelpText::Machine),
             ),
-            row(
-                "--default-config",
-                CliText::new(locale).cli_help_text(HelpText::DefaultConfig),
-            ),
         ]);
     }
     sections.push(Section::Rows {

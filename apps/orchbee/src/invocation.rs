@@ -942,9 +942,6 @@ pub(crate) enum Request {
     InstallerUninstall {
         delete_data: bool,
     },
-    ConfigResetKeys {
-        format: OutputFormat,
-    },
     /// Read or reload the running Session's configuration; never activates a Session.
     WindowTitle {
         title: Option<orchbee_workbench_protocol::WindowTitle>,

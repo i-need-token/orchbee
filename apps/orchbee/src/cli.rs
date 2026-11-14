@@ -66,7 +66,6 @@ pub(crate) use terminal_clear::run as clear_terminal;
 mod layout_history;
 pub(crate) use layout_history::{list as layout_history, reopen as layout_reopen};
 pub(crate) mod config;
-pub(crate) mod config_reset;
 mod configuration;
 pub(crate) mod integration;
 mod layout_topology;

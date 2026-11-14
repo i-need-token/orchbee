@@ -29,7 +29,6 @@ mod editor;
 mod launch_profiles;
 mod reference;
 mod registry;
-mod reset_keys;
 mod snapshot;
 mod terminal_colors;
 mod terminal_defaults;
@@ -59,7 +58,6 @@ pub use registry::{
     SETTING_KEYS, SETTING_PLATFORMS, Scalar, SettingCategory, SettingClients, SettingDefault,
     SettingEffect, SettingGroup, SettingKey, SettingScope, SettingValue, find_setting,
 };
-pub use reset_keys::{KeysResetOutcome, KeysResetReport, reset_keybindings};
 pub use snapshot::{configuration_diagnostics, settings_snapshot};
 use std::{
     ffi::OsString,

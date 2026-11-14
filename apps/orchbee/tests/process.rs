@@ -37,8 +37,8 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
             .output()
     };
 
-    let english = invoke(&["--default-config"], "en_US.UTF-8")?;
-    let chinese = invoke(&["--default-config"], "zh_CN.UTF-8")?;
+    let english = invoke(&["config", "default"], "en_US.UTF-8")?;
+    let chinese = invoke(&["config", "default"], "zh_CN.UTF-8")?;
     assert!(english.status.success());
     assert!(chinese.status.success());
     assert!(english.stderr.is_empty());
@@ -62,9 +62,9 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
     assert!(text.contains("# focus_agent = []"));
 
     for arguments in [
-        &["--default-config", "--format=json"][..],
-        &["--default-config", "extra"][..],
-        &["--session", "work", "--default-config"][..],
+        &["config", "default", "--format=json"][..],
+        &["config", "default", "extra"][..],
+        &["--session", "work", "config", "default"][..],
     ] {
         let output = invoke(arguments, "en_US.UTF-8")?;
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
@@ -448,10 +448,6 @@ check() {
  for candidate in "${COMPREPLY[@]}"; do [[ "$candidate" == "$expected" ]] && found=1; done
  if [[ "$found" != "$present" ]]; then printf '%s\n' "completion failed: $* -> ${COMPREPLY[*]} expected $expected = $present"; exit 1; fi
 }
-check --default-config 1 orchbee --d
-check --format 0 orchbee --default-config --f
-check --default-config 0 orchbee --session work --d
-check --default-config 0 orchbee --machine work --d
 check events 1 orchbee e
 check events 1 orchbee --session audit e
 check events 1 orchbee --format json e

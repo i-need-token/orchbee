@@ -31,6 +31,7 @@ pub use private_cache::PrivateCache;
 mod user_path;
 pub use user_path::{USER_PATH_LIMIT, UserPathError, UserPathOperand, normalize_user_path};
 mod user_settings;
+pub use user_settings::set_update_channel;
 pub use user_settings::{
     AgentSidebarSettings, AgentSidebarToken, AgentSidebarTokenKind, CommandSize, CustomCommand,
     CustomCommandAction, CustomCommandEntry, DEFAULT_WINDOW_TITLE, DefaultActionBindings,
@@ -52,7 +53,6 @@ pub use user_settings::{
     settings_snapshot, settings_values, snapshot_values, trigger_label, user_settings_path,
     value_changes,
 };
-pub use user_settings::{KeysResetOutcome, KeysResetReport, reset_keybindings, set_update_channel};
 mod directory;
 pub use directory::{
     WINDOWS_AGENT_START_VARIABLE, posix_reported_directory, reported_directory,

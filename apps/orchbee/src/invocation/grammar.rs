@@ -43,10 +43,6 @@ pub(crate) const ROOT_MODES: &[RootModeFlag] = &[
         spelling: "--skill",
         requires_no_seen_flags: false,
     },
-    RootModeFlag {
-        spelling: "--default-config",
-        requires_no_seen_flags: true,
-    },
 ];
 
 use super::{FailureEnvelope, Options, ParseFailure};

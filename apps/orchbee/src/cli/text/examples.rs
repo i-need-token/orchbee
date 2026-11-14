@@ -191,7 +191,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ApiSnapshot => &[],
         CommandPath::ApiSchema => &["orchbee.status"],
         CommandPath::ConfigCheck => &[],
-        CommandPath::ConfigResetKeys => &[],
+        CommandPath::ConfigDefault => &[],
         CommandPath::DiagnosticsCreate => {
             &["--output", "C:/Users/me/Desktop/orchbee-diagnostics.zip"]
         }
@@ -203,8 +203,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::SessionDelete => &["work", "--confirm"],
         CommandPath::ServerDiagnose => &[],
         CommandPath::ServerUpdateAgentManifests => &[],
-        CommandPath::ServerConfig => &[],
-        CommandPath::ServerReloadConfig => &[],
+        CommandPath::ConfigReload => &[],
         CommandPath::TerminalTitleSet => &["Review"],
         CommandPath::TerminalTitleClear => &[],
         CommandPath::EventsSubscribe => &["--event", "workspace.created", "--timeout", "30000"],

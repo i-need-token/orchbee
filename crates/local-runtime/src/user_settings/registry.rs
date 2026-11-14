@@ -201,7 +201,7 @@ pub struct SettingKey {
     pub effect: SettingEffect,
     /// Whether the settings page shows the key; other keys live only in the file.
     pub page: bool,
-    /// Whether `--default-config` lists the key.
+    /// Whether `config default` lists the key.
     pub reference: bool,
     /// Fixed English purpose for the offline reference.
     pub description: &'static str,

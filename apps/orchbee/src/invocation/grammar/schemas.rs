@@ -138,10 +138,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.server.configuration.json"),
     ),
     (
-        "orchbee.config.reset-keys",
-        include_str!("../../cli/schemas/orchbee.config.reset-keys.json"),
-    ),
-    (
         "orchbee.panel.terminal-create",
         include_str!("../../cli/schemas/orchbee.panel.terminal-create.json"),
     ),

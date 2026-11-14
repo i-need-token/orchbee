@@ -127,7 +127,6 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
 | `internal/state/<record>.json`                       | `StateRecord`: onboarding and the machine catalog                                                                                            |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
-| `internal/backups/<date>-reset-keys/`                | Copy of the settings file taken by `config reset-keys`                                                                                       |
 | `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
@@ -906,7 +905,7 @@ Initialization and encoded helpers consume only the owned assets.
 registry, `SETTING_KEYS` in `src/user_settings/registry.rs`, declares every key once: its dotted
 path, value type with allowed values or range, default, page category and group ids, its scope,
 the Clients it applies to, when a change applies and whether the settings page shows it. The
-reader, the `orchbee --default-config` reference, `config check` key knowledge, the editor and the
+reader, the `orchbee config default` reference, `config check` key knowledge, the editor and the
 published key file all derive from it, so adding a key starts there.
 
 A key's `SettingScope` says whose file holds it. `Client` keys describe how one Client looks and
@@ -942,7 +941,7 @@ Each top-level table names the page category whose keys it mainly holds: `[gener
 so a key can appear under another category's group, as the table below shows. Themes is the one
 category without a table of its own: its two keys keep their `[appearance]` paths, the single
 exception to a table naming its category. `<platform>` stands for `windows`, `macos` or `linux`,
-`<action>` for a registered Client action and `*` for any name. `orchbee --default-config` prints
+`<action>` for a registered Client action and `*` for any name. `orchbee config default` prints
 every key's purpose, allowed values and default.
 
 | Key                                                                                         | Default                          | Page (category / group)              |
@@ -1033,7 +1032,7 @@ The reader is strict per key and tolerant per file:
   `UserSettingsLoad::or_last_valid`, plus a `file` diagnostic. `UserSettingsLoad::syntax` names the
   reason and the 1-based line and column, counted in characters. Startup paths (Client activation
   and the managed Server's first read) continue on that result; `config check`, `channel show`,
-  `channel set`, `update`, `server reload-config` and the Server's sampler treat it as fatal and
+  `channel set`, `update`, `config reload` and the Server's sampler treat it as fatal and
   keep what they had. The CLI reads `UserSettingsLoad::syntax` itself so its failures keep the line
   and column; the Server calls `UserSettingsLoad::require_valid_syntax`, which keeps only the
   reason.
