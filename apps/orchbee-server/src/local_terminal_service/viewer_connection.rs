@@ -24,7 +24,6 @@ use orchbee_client_server_protocol::{
 };
 use std::sync::Arc;
 
-mod editor;
 pub(in crate::local_terminal_service) mod process_sampling;
 mod routing;
 pub(super) use process_sampling::{CapturedAgentExplanation, PendingCleanup};

@@ -4,8 +4,8 @@ use orchbee_workbench_protocol::{
     AgentManifestsAction, ClientViewAction, ConfigurationAction, ConfiguredCommandAction,
     LayoutHistoryAction, NotificationAction, PaneGraphicsAction, PanelAgentAction,
     PanelMetadataAction, SemanticEventsAction, SettingsOperation, TabDuplicateAction,
-    TabSetCloseAction, TerminalEditorAction, WindowTitleAction, WorkbenchRequest,
-    WorkbenchWorktreeAction, WorkspaceMetadataAction,
+    TabSetCloseAction, WindowTitleAction, WorkbenchRequest, WorkbenchWorktreeAction,
+    WorkspaceMetadataAction,
 };
 
 pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
@@ -37,9 +37,6 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         WorkbenchRequest::Plugin(request) => !request.action.mutating(),
         WorkbenchRequest::AgentIntegration(request) => !request.action.mutating(),
         WorkbenchRequest::AgentView(request) => !request.action.mutating(),
-        WorkbenchRequest::TerminalEditor(request) => {
-            matches!(request.action, TerminalEditorAction::Read { .. })
-        }
         WorkbenchRequest::PaneGraphics(request) => matches!(
             request.action,
             PaneGraphicsAction::Info { .. }

@@ -161,20 +161,6 @@ impl PlannedCreate<'_> {
         self.launch_program.as_ref()
     }
 
-    pub(crate) fn set_editor_source(
-        &mut self,
-        source: orchbee_capability_node_protocol::TerminalEditorSource,
-    ) -> Result<(), orchbee_capability_node_protocol::ProtocolError> {
-        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = &self.pending.command else {
-            unreachable!("planned creation contains a launch")
-        };
-        let launch = launch.clone().with_editor_source(Some(source))?;
-        let command = CapabilityNodeMessage::AuthorizedTerminalLaunch(launch);
-        orchbee_capability_node_protocol::encode_message(&command)?;
-        self.pending.command = command;
-        Ok(())
-    }
-
     /// Attaches the Agent the new shell runs as its first command.
     pub(crate) fn set_agent_start(
         &mut self,

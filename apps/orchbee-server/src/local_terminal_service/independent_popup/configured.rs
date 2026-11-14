@@ -13,7 +13,7 @@ impl From<Failure> for CommandFailure {
         match value {
             Failure::InvalidIntent => Self::InvalidIntent,
             Failure::SessionMismatch => Self::SessionMismatch,
-            Failure::Unavailable | Failure::EditorUnavailable => Self::Unavailable,
+            Failure::Unavailable => Self::Unavailable,
             Failure::PhysicalUnknown => Self::PhysicalUnknown,
             Failure::Busy => Self::Busy,
             Failure::Conflict => Self::Conflict,

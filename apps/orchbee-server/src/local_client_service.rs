@@ -492,14 +492,7 @@ fn handle_candidate_control(
                     ),
                 )
             }
-            request => workbench_connection.execute_with_terminal_lane(
-                request,
-                connections
-                    .borrow_mut()
-                    .entry(lane)
-                    .or_insert_with(terminal_connection),
-                lane,
-            ),
+            request => workbench_connection.execute_scoped(request, lane),
         },
         |request| workbench_connection.execute(request),
         |request| match request {

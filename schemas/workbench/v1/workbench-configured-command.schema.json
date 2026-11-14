@@ -1148,19 +1148,6 @@
 					"type": "object",
 					"properties": {
 						"kind": {
-							"const": "editor-open"
-						},
-						"spec": {
-							"$ref": "#/$defs/editorSpec"
-						}
-					},
-					"required": ["kind", "spec"],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"kind": {
 							"const": "command-popup-open"
 						},
 						"spec": {
@@ -2833,35 +2820,6 @@
 			"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
 			"additionalProperties": false,
 			"$comment": "Rust and TypeScript additionally require context.tabId and focusedPanelId to equal the source Tab and Panel, and enforce aggregate context/environment UTF-8 budgets."
-		},
-		"editorSource": {
-			"type": "object",
-			"properties": {
-				"terminalContextId": {
-					"$ref": "#/$defs/terminalContextId"
-				},
-				"tabId": {
-					"$ref": "#/$defs/tabId"
-				},
-				"member": {
-					"$ref": "#/$defs/boundPresentationSelection"
-				},
-				"panelId": {
-					"$ref": "#/$defs/panelId"
-				}
-			},
-			"required": ["terminalContextId", "tabId", "member", "panelId"],
-			"additionalProperties": false
-		},
-		"editorSpec": {
-			"type": "object",
-			"properties": {
-				"source": {
-					"$ref": "#/$defs/editorSource"
-				}
-			},
-			"required": ["source"],
-			"additionalProperties": false
 		},
 		"configuredPopupSpec": {
 			"type": "object",

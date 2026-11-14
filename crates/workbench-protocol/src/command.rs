@@ -19,6 +19,13 @@ pub use events::{
     SemanticPane, matches_semantic_filter,
 };
 mod graphics;
+pub use configured_command::{
+    ConfiguredCommandAction, ConfiguredCommandDescriptor, ConfiguredCommandFailure,
+    ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
+    ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,
+    ConfiguredCommandSelection, ConfiguredCommandSource, ConfiguredCommandTextPoint,
+    MAXIMUM_CONFIGURED_COMMAND_BYTES, MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES,
+};
 pub use graphics::{
     MAXIMUM_GRAPHICS_CHUNK_BYTES, MAXIMUM_GRAPHICS_DECODED_BYTES, MAXIMUM_GRAPHICS_LAYERS,
     MAXIMUM_GRAPHICS_LAYERS_PER_PANE, MAXIMUM_GRAPHICS_REQUEST_BYTES,
@@ -29,18 +36,6 @@ pub use graphics::{
     PaneGraphicsLayer, PaneGraphicsOutcome, PaneGraphicsPlacement, PaneGraphicsRequest,
     PaneGraphicsResult, PaneGraphicsStreamImage, PaneGraphicsTarget, PaneGraphicsTransport,
     graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
-};
-mod terminal_editor;
-pub use configured_command::{
-    ConfiguredCommandAction, ConfiguredCommandDescriptor, ConfiguredCommandFailure,
-    ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
-    ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,
-    ConfiguredCommandSelection, ConfiguredCommandSource, ConfiguredCommandTextPoint,
-    MAXIMUM_CONFIGURED_COMMAND_BYTES, MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES,
-};
-pub use terminal_editor::{
-    EditorPopupCapture, MAXIMUM_TERMINAL_EDITOR_BYTES, ScrollbackEditorSpec, TerminalEditorAction,
-    TerminalEditorFailure, TerminalEditorOutcome, TerminalEditorRequest, TerminalEditorResult,
 };
 mod plugin_popup;
 pub use plugin_popup::{ClientPopupSource, PluginPopupSize, PluginPopupSpec};
@@ -1104,8 +1099,6 @@ pub enum WorkbenchRequest {
     ConfiguredCommand(ConfiguredCommandRequest),
     #[serde(rename = "agent.view")]
     AgentView(crate::AgentViewRequest),
-    #[serde(rename = "workbench.terminal-editor")]
-    TerminalEditor(TerminalEditorRequest),
     #[serde(rename = "workbench.agent-integration")]
     AgentIntegration(AgentIntegrationRequest),
     #[serde(rename = "workbench.plugin")]
@@ -1553,8 +1546,6 @@ pub enum WorkbenchResponse {
     ConfiguredCommand(ConfiguredCommandResult),
     #[serde(rename = "agent.view.result")]
     AgentView(crate::AgentViewResult),
-    #[serde(rename = "workbench.terminal-editor.result")]
-    TerminalEditor(TerminalEditorResult),
     #[serde(rename = "workbench.agent-integration.result")]
     AgentIntegration(AgentIntegrationResult),
     #[serde(rename = "workbench.plugin.result")]
@@ -1648,9 +1639,6 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return request.validate();
     }
     if let WorkbenchRequest::AgentView(request) = request {
-        return request.validate();
-    }
-    if let WorkbenchRequest::TerminalEditor(request) = request {
         return request.validate();
     }
     if let WorkbenchRequest::Plugin(request) = request {
@@ -1797,9 +1785,6 @@ fn request_byte_limit(request: &WorkbenchRequest) -> usize {
     if matches!(request, WorkbenchRequest::AgentView(_)) {
         return crate::MAXIMUM_AGENT_VIEW_BYTES;
     }
-    if matches!(request, WorkbenchRequest::TerminalEditor(_)) {
-        return MAXIMUM_TERMINAL_EDITOR_BYTES;
-    }
     if matches!(request, WorkbenchRequest::Plugin(_)) {
         return MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES;
     }
@@ -1915,10 +1900,6 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::AgentView(result) => {
             enforce_encoded_limit(encoded, crate::MAXIMUM_AGENT_VIEW_BYTES)?;
-            result.validate()
-        }
-        WorkbenchResponse::TerminalEditor(result) => {
-            enforce_encoded_limit(encoded, MAXIMUM_TERMINAL_EDITOR_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::Plugin(result) => {

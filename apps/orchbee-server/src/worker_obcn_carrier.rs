@@ -70,7 +70,6 @@ pub(crate) enum WorkerOperationRequest {
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesRequest),
-    EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandRequest),
     HostQuery(orchbee_capability_node_protocol::HostQueryRequest),
 }
 
@@ -118,7 +117,6 @@ impl WorkerOperationRequest {
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
             Self::TitleChanges(request) => (request.worker_id, request.worker_generation),
-            Self::EditorCommand(request) => (request.worker_id, request.worker_generation),
             Self::HostQuery(request) => (request.worker_id, request.worker_generation),
         }
     }
@@ -127,9 +125,7 @@ impl WorkerOperationRequest {
         match self {
             #[cfg(any(windows, test))]
             Self::Handoff(_) => RequestLane::High,
-            Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) | Self::HostQuery(_) => {
-                RequestLane::Low
-            }
+            Self::AgentDrain(_) | Self::Titles(_) | Self::HostQuery(_) => RequestLane::Low,
             Self::Viewer(_) | Self::GraphicsDecode(_) | Self::AgentProbeJob(_) => RequestLane::Low,
             Self::TitleChanges(_) => RequestLane::Idle,
             #[cfg(any(windows, test))]
@@ -187,9 +183,6 @@ impl WorkerOperationRequest {
             Self::TitleChanges(request) => {
                 CapabilityNodeMessage::TerminalTitleChangesRequest(*request)
             }
-            Self::EditorCommand(request) => {
-                CapabilityNodeMessage::TerminalEditorCommandRequest(*request)
-            }
             Self::HostQuery(request) => CapabilityNodeMessage::HostQueryRequest(*request),
         }
     }
@@ -217,7 +210,6 @@ pub(crate) enum WorkerOperationResult {
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
     Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesResult),
-    EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandResult),
     HostQuery(orchbee_capability_node_protocol::HostQueryResult),
 }
 
@@ -1771,20 +1763,6 @@ fn validate_response(
             Ok(WorkerOperationResult::TitleChanges(actual))
         }
         (
-            WorkerOperationRequest::EditorCommand(expected),
-            CapabilityNodeMessage::TerminalEditorCommandResult(actual),
-        ) => {
-            if actual.request.request_id != expected.request_id {
-                return Err(WorkerResponseFailure::MismatchedCorrelation);
-            }
-            if actual.request.worker_id != expected.worker_id
-                || actual.request.worker_generation != expected.worker_generation
-            {
-                return Err(WorkerResponseFailure::MismatchedTarget);
-            }
-            Ok(WorkerOperationResult::EditorCommand(actual))
-        }
-        (
             WorkerOperationRequest::AgentDrain(expected),
             CapabilityNodeMessage::AgentDrainReply(actual),
         ) => {
@@ -1953,7 +1931,6 @@ fn validate_response(
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
         | (WorkerOperationRequest::Titles(_), _)
         | (WorkerOperationRequest::TitleChanges(_), _)
-        | (WorkerOperationRequest::EditorCommand(_), _)
         | (WorkerOperationRequest::WorktreeJob(_), _)
         | (WorkerOperationRequest::PluginJob(_), _)
         | (WorkerOperationRequest::AgentIntegrationJob(_), _)

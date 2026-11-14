@@ -446,26 +446,6 @@ Panel launch options additionally carry optional bounded `pluginContext` only wi
 
 Launch options also accept nullable `agentStart`, a canonical provider id from the closed startable Agent catalog, on `tab.create`, `panel.split` and `workspace.launch`. It is refused beside `pluginPanel` and on `panel.create-terminal`, and normalizes away when null. The Server resolves the command a new shell runs first; the field never carries command text. A Worktree Create intent accepts the same id as optional, non-nullable `agentStart` for its new Workspace's first shell, matching the Rust binding's refusal of explicit null.
 
-## Private scrollback editor popup contract
-
-Rust and TypeScript share the closed `workbench.terminal-editor` Open/Read/Close
-request and action-correlated result. A bound canonical Client source and a
-same-connection viewer/content version are selector input, never executable,
-file-path or transcript input. Canonical decimal full-u64 fields, nonzero
-identities, drawable geometry, strict fields and whole-message8KiB limits agree.
-The [Rust contract](../../crates/workbench-protocol/README.md#private-scrollback-editor-popup-contract)
-and [Server model](../../apps/orchbee-server/README.md#windows-scrollback-editor-popup-model)
-own authorization and physical lifecycle; this is private native ingress, not a
-new Desktop operation or a completed public CLI capability.
-
-The matched Client view contract also admits private `editor-open` with only a
-bound `ScrollbackEditorSpec.source`. It shares the exact-source `popup-opened`
-completion and generic `popup-close` with typed plugin/editor actors. The
-[Client popup model](../../apps/orchbee/docs/windows-client-control.md#scrollback-editor-popup-model)
-owns same-connection read-only capture, full-content geometry, input, cancellation
-and cleanup.
-Focused wire/actor evidence does not establish final GUI/cohort acceptance.
-
 ## Configured Windows command contracts
 
 The configured-command request/result binding and Client `command-popup-open` intent share one strict popup specification. The native installed keys profile owns opaque IDs; a catalog entry's `display` repeats the sanitized command text only for people to read, and no decoded value is executable input. Four action receipts preserve Worker spawn, canonical Pane creation, plugin invocation and Client popup control as distinct results. Optional plugin selection pins both row/column endpoints and the exact terminal content revision, requires a bound current source and limits capture to 4096 rows and 8192 UTF-8 bytes. Requests/results remain bounded at 256 KiB. The sole version-1 Client control contract admits the configured popup intent. Server resolution, temporary observer cleanup, physical jobs and TUI execution are described in [Windows custom commands](../../apps/orchbee/docs/windows-custom-commands.md).

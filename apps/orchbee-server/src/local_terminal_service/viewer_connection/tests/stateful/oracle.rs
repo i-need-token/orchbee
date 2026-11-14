@@ -658,9 +658,6 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::PopupLaunch(..) => "popup-launch",
         Effect::PopupForce(..) => "popup-force",
         Effect::PopupInventory(..) => "popup-inventory",
-        Effect::EditorCommand => "editor-command",
-        Effect::EditorCapture(..) => "editor-capture",
-        Effect::EditorStart => "editor-start",
     }
 }
 fn effect_mismatch(expected: &[Effect], actual: &[Effect]) -> String {

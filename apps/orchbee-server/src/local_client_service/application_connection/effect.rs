@@ -7,9 +7,8 @@ use orchbee_workbench_protocol::{
     AgentIntegrationAction, AgentManifestsAction, AgentViewAction, ClientViewAction,
     ConfigurationAction, ConfiguredCommandAction, LayoutHistoryAction, NotificationAction,
     PaneGraphicsAction, PanelAgentAction, PanelMetadataAction, PluginAction, SemanticEventsAction,
-    SettingsOperation, TabDuplicateAction, TabSetCloseAction, TerminalEditorAction,
-    WindowTitleAction, WorkbenchRequest, WorkbenchWorktreeAction, WorkspaceGroupCloseAction,
-    WorkspaceMetadataAction,
+    SettingsOperation, TabDuplicateAction, TabSetCloseAction, WindowTitleAction, WorkbenchRequest,
+    WorkbenchWorktreeAction, WorkspaceGroupCloseAction, WorkspaceMetadataAction,
 };
 
 /// What an application record asks of the Session.
@@ -123,10 +122,6 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         WorkbenchRequest::AgentView(request) => match request.action {
             AgentViewAction::Read {} => Read,
             AgentViewAction::Set { .. } | AgentViewAction::Clear { .. } => Intent,
-        },
-        WorkbenchRequest::TerminalEditor(request) => match request.action {
-            TerminalEditorAction::Read { .. } => Read,
-            TerminalEditorAction::Open { .. } | TerminalEditorAction::Close { .. } => Intent,
         },
         WorkbenchRequest::AgentIntegration(request) => match request.action {
             AgentIntegrationAction::Poll { .. } => Read,

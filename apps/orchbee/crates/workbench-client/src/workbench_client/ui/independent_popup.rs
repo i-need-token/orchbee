@@ -64,9 +64,7 @@ impl WorkbenchClientUi {
                 self.popup.begin_close();
                 Ok(())
             }
-            ClientViewIntent::CommandPopupOpen { .. }
-            | ClientViewIntent::PopupOpen { .. }
-            | ClientViewIntent::EditorOpen { .. } => {
+            ClientViewIntent::CommandPopupOpen { .. } | ClientViewIntent::PopupOpen { .. } => {
                 let source = command.intent.popup_source().ok_or(Reason::Unsupported)?;
                 let session =
                     self.admit_popup_source(source, command.minimum_workbench_revision, snapshot)?;
@@ -77,11 +75,6 @@ impl WorkbenchClientUi {
                         spec.as_ref().clone(),
                     ),
                     ClientViewIntent::PopupOpen { spec } => self.popup.begin_open(
-                        session,
-                        command.operation_id.clone(),
-                        spec.as_ref().clone(),
-                    ),
-                    ClientViewIntent::EditorOpen { spec } => self.popup.begin_editor(
                         session,
                         command.operation_id.clone(),
                         spec.as_ref().clone(),

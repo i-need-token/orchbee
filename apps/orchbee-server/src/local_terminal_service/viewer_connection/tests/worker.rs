@@ -32,9 +32,6 @@ pub(in crate::local_terminal_service::viewer_connection::tests) enum Effect {
     PopupLaunch([u8; 16]),
     PopupForce(usize),
     PopupInventory(usize, u8),
-    EditorCommand,
-    EditorCapture(orchbee_capability_node_protocol::TerminalEditorSource),
-    EditorStart,
 }
 pub(super) fn run(
     mut peer: UnixStream,
@@ -282,14 +279,8 @@ pub(super) fn run(
                             returned_count: 1,
                             target: (!pending).then_some(LifecycleTargetObservation {
                                 revision: 3,
-                                phase: if popup_fault.load(std::sync::atomic::Ordering::Acquire)
-                                    == 9
-                                {
-                                    LifecycleTerminalPhase::AwaitingStart
-                                } else {
-                                    LifecycleTerminalPhase::Exited {
-                                        terminate_requested: false,
-                                    }
+                                phase: LifecycleTerminalPhase::Exited {
+                                    terminate_requested: false,
                                 },
                             }),
                         })
@@ -306,28 +297,12 @@ pub(super) fn run(
                 )
             }
             CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
-                let state = if let Some(source) = launch.editor_source() {
-                    assert_eq!(launch.mode(), TerminalLaunchMode::Deferred);
-                    assert!(launch.plugin_environment().is_none());
-                    assert_eq!(launch.launch().unwrap().executable(), "C:/editor.exe");
-                    assert_eq!(
-                        launch.launch().unwrap().arguments(),
-                        ["--wait", "", "literal & % 字"]
-                    );
-                    assert!(viewers.contains_key(&source.attachment_id.as_bytes()));
-                    assert_eq!(source.host_epoch.as_bytes(), [4; 16]);
-                    assert_eq!(source.terminal_id.as_bytes(), [5; 16]);
-                    assert_eq!((source.generation.get(), source.revision), (1, 1));
-                    effects.lock().unwrap().push(Effect::EditorCapture(source));
-                    HostLaunchState::AwaitingStart
-                } else {
-                    assert!(launch.plugin_environment().is_some());
-                    assert!(launch.launch().unwrap().executable().ends_with("pane.exe"));
-                    let TerminalLaunchMode::Immediate(geometry) = launch.mode() else {
-                        panic!("popup immediate")
-                    };
-                    HostLaunchState::Started(geometry)
+                assert!(launch.plugin_environment().is_some());
+                assert!(launch.launch().unwrap().executable().ends_with("pane.exe"));
+                let TerminalLaunchMode::Immediate(geometry) = launch.mode() else {
+                    panic!("popup immediate")
                 };
+                let state = HostLaunchState::Started(geometry);
                 effects.lock().unwrap().push(Effect::PopupLaunch(
                     launch.authorization().terminal_id().as_bytes(),
                 ));
@@ -342,53 +317,9 @@ pub(super) fn run(
                 CapabilityNodeMessage::TerminalLaunchResult(
                     TerminalLaunchResult::new(
                         launch.authorization(),
-                        if popup_fault.load(std::sync::atomic::Ordering::Acquire)==11 {
-                            TerminalLaunchOutcome::Rejected(orchbee_capability_node_protocol::TerminalLaunchRejection::HostRejected {host_epoch:identity.host_epoch()})
-                        } else { TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
-                            identity,
-                            state,
-                        )) },
-                    )
-                    .unwrap(),
-                )
-            }
-            CapabilityNodeMessage::TerminalEditorCommandRequest(request) => {
-                effects.lock().unwrap().push(Effect::EditorCommand);
-                CapabilityNodeMessage::TerminalEditorCommandResult(
-                    orchbee_capability_node_protocol::TerminalEditorCommandResult {
-                        request,
-                        outcome: if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 8 {
-                            orchbee_capability_node_protocol::TerminalEditorCommandOutcome::Refused(orchbee_capability_node_protocol::TerminalEditorCommandRefusal::InvalidCommand)
-                        } else {
-                            orchbee_capability_node_protocol::TerminalEditorCommandOutcome::Resolved {
-                        source:orchbee_capability_node_protocol::TerminalEditorCommandSource::Editor,
-                        selection:orchbee_capability_node_protocol::LaunchSelection::new("C:/editor.exe".into(),vec!["--wait".into(),"".into(),"literal & % 字".into()]).unwrap(),
-                    }
-                        },
-                    },
-                )
-            }
-            CapabilityNodeMessage::AuthorizedTerminalStart(request) => {
-                effects.lock().unwrap().push(Effect::EditorStart);
-                if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 10 {
-                    return;
-                }
-                let outcome = if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 9 {
-                    orchbee_capability_node_protocol::TerminalStartOutcome::Failed(orchbee_capability_node_protocol::TerminalStartFailure::HostReportedFailure {host_epoch:request.identity().host_epoch()})
-                } else {
-                    orchbee_capability_node_protocol::TerminalStartOutcome::HostAccepted(
-                        orchbee_capability_node_protocol::HostStartAccepted::new(
-                            request.identity(),
-                            request.geometry(),
-                            orchbee_capability_node_protocol::StartTransition::Started,
-                        ),
-                    )
-                };
-                CapabilityNodeMessage::TerminalStartResult(
-                    orchbee_capability_node_protocol::TerminalStartResult::new(
-                        request.authorization(),
-                        request.identity(),
-                        outcome,
+                        TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
+                            identity, state,
+                        )),
                     )
                     .unwrap(),
                 )

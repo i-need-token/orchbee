@@ -21,7 +21,6 @@ pub(crate) mod panel_metadata;
 mod plugins;
 #[cfg(test)]
 mod settings;
-mod terminal_editor;
 mod window_title;
 mod workspace_git;
 pub(crate) mod workspace_metadata;

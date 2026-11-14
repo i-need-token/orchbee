@@ -19,7 +19,6 @@ use std::{
 };
 
 mod configured;
-mod editor;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) struct PopupOwner {
@@ -50,7 +49,6 @@ const OBSERVATION_INTERVAL: Duration = Duration::from_millis(100);
 enum PopupKind {
     Configured,
     Plugin,
-    Editor,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Failure {
@@ -62,7 +60,6 @@ enum Failure {
     Conflict,
     NotFound,
     StaleSource,
-    EditorUnavailable,
 }
 impl From<PluginFailure> for Failure {
     fn from(value: PluginFailure) -> Self {
@@ -93,7 +90,7 @@ impl From<Failure> for PluginFailure {
             Failure::Conflict => Self::Conflict,
             Failure::NotFound => Self::NotFound,
             Failure::StaleSource => Self::SourceUnavailable,
-            Failure::Unavailable | Failure::EditorUnavailable => Self::Unavailable,
+            Failure::Unavailable => Self::Unavailable,
         }
     }
 }

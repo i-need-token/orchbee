@@ -60,14 +60,9 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
         } else {
             *attachment_generation = WorkbenchRevision::new(attachment_generation.value() + 1);
         }
-        for kind in 0..3 {
+        for kind in 0..2 {
             command.intent = match kind {
-                0 => ClientViewIntent::EditorOpen {
-                    spec: Box::new(orchbee_workbench_protocol::ScrollbackEditorSpec {
-                        source: stale.source.clone(),
-                    }),
-                },
-                1 => ClientViewIntent::PopupOpen {
+                0 => ClientViewIntent::PopupOpen {
                     spec: Box::new(stale.clone()),
                 },
                 _ => ClientViewIntent::CommandPopupOpen {

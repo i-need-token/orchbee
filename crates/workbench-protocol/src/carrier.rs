@@ -101,7 +101,6 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
         WorkbenchRequest::PaneGraphics(_) => 57,
         WorkbenchRequest::ConfiguredCommand(_) => 53,
         WorkbenchRequest::Events(_) => 55,
-        WorkbenchRequest::TerminalEditor(_) => 51,
         WorkbenchRequest::WorkspaceGit(_) => 49,
         WorkbenchRequest::AgentView(_) => 47,
         WorkbenchRequest::Plugin(_) => 45,
@@ -157,7 +156,6 @@ fn response_kind(response: &WorkbenchResponse) -> u16 {
         WorkbenchResponse::PaneGraphics(_) => 58,
         WorkbenchResponse::ConfiguredCommand(_) => 54,
         WorkbenchResponse::Events(_) => 56,
-        WorkbenchResponse::TerminalEditor(_) => 52,
         WorkbenchResponse::WorkspaceGit(_) => 50,
         WorkbenchResponse::AgentView(_) => 48,
         WorkbenchResponse::Plugin(_) => 46,
@@ -226,7 +224,6 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 45
                     | 47
                     | 49
-                    | 51
                     | 53
                     | 55
                     | 57
@@ -266,7 +263,6 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 46
                     | 48
                     | 50
-                    | 52
                     | 54
                     | 56
                     | 58
@@ -297,8 +293,6 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_EVENTS_BYTES
     } else if matches!(kind, 53 | 54) {
         crate::MAXIMUM_CONFIGURED_COMMAND_BYTES
-    } else if matches!(kind, 51 | 52) {
-        crate::MAXIMUM_TERMINAL_EDITOR_BYTES
     } else if matches!(kind, 49 | 50) {
         crate::MAXIMUM_WORKSPACE_GIT_BYTES
     } else if matches!(kind, 65 | 66) {

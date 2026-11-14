@@ -125,13 +125,6 @@ fn popup_geometry_clamps_cells_percent_defaults_and_too_small_without_zero_resiz
 
 #[test]
 fn popup_lane_projects_inputs_resizes_and_waits_for_known_disposal() -> TestResult {
-    popup_lane_trace(false)
-}
-#[test]
-fn editor_lane_captures_read_only_source_then_projects_inputs_resizes_and_disposes() -> TestResult {
-    popup_lane_trace(true)
-}
-fn popup_lane_trace(editor: bool) -> TestResult {
     let frame = orchbee_terminal_protocol::decode_terminal_text_frame(FRAME)?;
     let route = orchbee_terminal_protocol::inspect_terminal_frame_route(FRAME)?;
     let geometry = Geometry::new(
@@ -146,27 +139,23 @@ fn popup_lane_trace(editor: bool) -> TestResult {
         if index == 0 {
             return Ok(());
         }
-        if editor {
-            editor::open_source(&mut stream, geometry, editor::OpenMode::Accept, None)?;
-        } else {
-            let WorkbenchRequest::Plugin(request) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
-            else {
-                panic!("popup open")
-            };
-            assert!(
-                matches!(&request.action, PluginAction::PopupOpen { popup_id, geometry: g, .. }
+        let WorkbenchRequest::Plugin(request) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("popup open")
+        };
+        assert!(
+            matches!(&request.action, PluginAction::PopupOpen { popup_id, geometry: g, .. }
             if popup_id.as_str() == id(10) && g.columns() == geometry.columns() && g.rows() == geometry.rows())
-            );
-            plugin_reply(
-                &mut stream,
-                request,
-                PluginOutcome::PopupOpened {
-                    popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
-                    title: "Trusted dashboard".into(),
-                },
-            )?;
-        }
+        );
+        plugin_reply(
+            &mut stream,
+            request,
+            PluginOutcome::PopupOpened {
+                popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
+                title: "Trusted dashboard".into(),
+            },
+        )?;
         let mut current = geometry;
         let mut first = true;
         let mut sequence = 1u64;
@@ -287,47 +276,40 @@ fn popup_lane_trace(editor: bool) -> TestResult {
             };
             write_server_message(&mut stream, &response).map_err(io::Error::other)?;
         }
-        if editor {
-            editor::lifecycle_reply(&mut stream, true, false)?;
-            for done in [false, true] {
-                editor::lifecycle_reply(&mut stream, false, done)?;
-            }
-        } else {
+        let WorkbenchRequest::Plugin(request) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("popup close")
+        };
+        assert!(matches!(request.action, PluginAction::PopupClose { .. }));
+        plugin_reply(
+            &mut stream,
+            request,
+            PluginOutcome::PopupClosing {
+                popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
+            },
+        )?;
+        for done in [false, true] {
             let WorkbenchRequest::Plugin(request) =
                 read_workbench_request(&mut stream).map_err(io::Error::other)?
             else {
-                panic!("popup close")
+                panic!("popup close observation")
             };
-            assert!(matches!(request.action, PluginAction::PopupClose { .. }));
+            assert!(matches!(request.action, PluginAction::PopupRead { .. }));
             plugin_reply(
                 &mut stream,
                 request,
-                PluginOutcome::PopupClosing {
-                    popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
+                if done {
+                    PluginOutcome::PopupClosed {
+                        popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
+                    }
+                } else {
+                    PluginOutcome::PopupState {
+                        popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
+                        settled: true,
+                    }
                 },
             )?;
-            for done in [false, true] {
-                let WorkbenchRequest::Plugin(request) =
-                    read_workbench_request(&mut stream).map_err(io::Error::other)?
-                else {
-                    panic!("popup close observation")
-                };
-                assert!(matches!(request.action, PluginAction::PopupRead { .. }));
-                plugin_reply(
-                    &mut stream,
-                    request,
-                    if done {
-                        PluginOutcome::PopupClosed {
-                            popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
-                        }
-                    } else {
-                        PluginOutcome::PopupState {
-                            popup_id: WorkbenchRequestId::parse(&id(10)).unwrap(),
-                            settled: true,
-                        }
-                    },
-                )?;
-            }
         }
         assert_eq!(stream.read(&mut [0; 1])?, 0);
         Ok(())
@@ -337,12 +319,7 @@ fn popup_lane_trace(editor: bool) -> TestResult {
     drop(client);
     let mut driver = Driver::new(clock());
     driver.set_origin(origin);
-    let area = Rect::new(
-        0,
-        0,
-        geometry.columns() + if editor { 2 } else { 20 },
-        geometry.rows() + if editor { 2 } else { 10 },
-    );
+    let area = Rect::new(0, 0, geometry.columns() + 20, geometry.rows() + 10);
     driver.observe_surface(
         area,
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
@@ -351,12 +328,9 @@ fn popup_lane_trace(editor: bool) -> TestResult {
     spec.width = Some(PluginPopupSize::Cells(geometry.columns() + 2));
     spec.height = Some(PluginPopupSize::Cells(geometry.rows() + 2));
     let operation = WorkbenchRequestId::parse(&id(10))?;
-    let opened = if editor {
-        driver.begin_editor(SessionId::parse(&id(2))?, operation.clone(), editor::spec())
-    } else {
-        driver.begin_open(SessionId::parse(&id(2))?, operation.clone(), spec.clone())
-    };
-    opened.map_err(|r| io::Error::other(format!("{r:?}")))?;
+    driver
+        .begin_open(SessionId::parse(&id(2))?, operation.clone(), spec.clone())
+        .map_err(|r| io::Error::other(format!("{r:?}")))?;
     assert_eq!(
         driver.begin_open(
             SessionId::parse(&id(2))?,
@@ -528,5 +502,3 @@ fn popup_shutdown_interrupts_open_without_replay_and_known_refusal_allows_retry(
     }
     Ok(())
 }
-
-mod editor;

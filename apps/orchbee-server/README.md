@@ -1174,43 +1174,6 @@ exact completion, expiry, cancellation and shutdown. On Windows, a real window a
 started New Workspace in the shell's directory after `cd`, and the window's read was answered in
 14 ms.
 
-## Windows scrollback editor popup model
-
-The private matched-cohort `workbench.terminal-editor` request/result (OBWP kinds51/52,
-version1) admits Open, Read and Close for a connection-owned independent terminal.
-Open carries an exact canonical context/Tab/Panel/Presentation/binding source, a
-read-only viewer owned by that same connection, decimal full-u64 content generation
-and revision, and drawable geometry. It carries no executable, environment,
-document path or terminal transcript. Current-Client focus admission belongs to
-the Client view; Server repeats canonical membership, connection viewer/frame,
-Worker incarnation and physical target checks before creation and after read-only
-Worker editor resolution. Read capability never grants controller or resize rights.
-
-The independent popup owner is shared with plugin popups without installed-plugin
-resolution or canonical Panel membership for editors. Admission reserves ownership
-before handoff. Host deferred Create captures immutable text before Start writes
-its exclusive document and spawns the editor. Confirmed creation precedes Start;
-unknown creation/start is retained and never resubmitted. The states are Opening,
-Active, Queued, Waiting, Dispose, Unknown and Closed. A known deferred target
-abandoned before Start may enter Dispose directly; inventory AwaitingStart is
-also disposable without claiming child exit. EOF transfers accepted cleanup to
-existing Session maintenance. Source read attachments remain owned until their last
-capture consumer, then detach; popup process/document cleanup remains Host-owned.
-
-The serial application dispatcher shares each logical lane's viewer owner between
-OBCS and editor OBWP requests through a local RefCell map, with one borrow per request
-and no reentrant callback or cross-thread access. Grant/site/source/editor refusal
-precedes Create. Focused protocol and native Windows pipe traces judge source
-fences, deferred ordering, literal argv, unknown results, existing plugin behavior,
-canonical preservation and physical cleanup. They do not establish deployed GUI,
-TUI/emulator or full-cohort acceptance. Client overlay and public CLI ingress must
-be verified separately before reporting the complete editor capability.
-
-Deferred Start admission renews the terminal authorization/fence. The popup owner
-is locked before that admission and updated with the exact prepared Start
-authorization before dispatch, so failure/unknown receipts and later lifecycle
-cleanup retain the current owner rather than the obsolete Create authority.
-
 ## Windows Panel image ownership
 
 The accepted model and current implementation boundary are maintained in [Windows Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.

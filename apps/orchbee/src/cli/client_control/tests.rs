@@ -1122,78 +1122,21 @@ fn presentation_receipts_keep_bound_and_empty_shapes_closed() {
 }
 
 #[test]
-fn editor_control_receipt_is_closed() {
+fn configured_popup_receipt_is_closed() {
     let corpus: Value = serde_json::from_str(include_str!(
-        "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+        "../../../../../schemas/workbench/v1/workbench-configured-command-conformance-v1.json"
     ))
     .unwrap();
-    let sample = corpus["valid"]
+    let mut control = corpus["valid"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|c| c["name"] == "editor-opened-acknowledged-source")
-        .unwrap();
-    let orchbee_workbench_protocol::WorkbenchResponse::ClientView(reply) =
-        orchbee_workbench_protocol::parse_workbench_response(
-            &serde_json::to_vec(&sample["document"]).unwrap(),
-        )
-        .unwrap()
-    else {
+        .find(|entry| entry["name"] == "popup-command-opened-control")
+        .unwrap()["document"]["outcome"]["result"]
+        .clone();
+    control["kind"] = json!("workbench.client-view.result");
+    let WorkbenchResponse::ClientView(reply) = serde_json::from_value(control).unwrap() else {
         panic!()
-    };
-    let ClientViewOutcome::Operation { operation } = &reply.outcome else {
-        panic!()
-    };
-    let answer = super::Answer {
-        status_only: false,
-        operation_id: Some(operation.command.operation_id.clone()),
-        session_id: Some(reply.session_id.clone()),
-        reply: Some(reply),
-        unknown: false,
-        wait: None,
-    };
-    let document = answer.document();
-    assert_eq!(document["version"], 1);
-    assert_eq!(answer.exit_code(), 0);
-    let schema: Value =
-        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
-    let validator = jsonschema::validator_for(&schema).unwrap();
-    assert!(
-        validator.is_valid(&document),
-        "{:?}",
-        validator.iter_errors(&document).collect::<Vec<_>>()
-    );
-    let mut extra = document.clone();
-    extra["result"]["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]
-        ["program"] = json!("notepad.exe");
-    assert!(!validator.is_valid(&extra));
-}
-
-#[test]
-fn configured_popup_receipt_is_closed() {
-    let WorkbenchResponse::ClientView(mut reply) =
-        serde_json::from_value(sample("editor-opened-acknowledged-source")).unwrap()
-    else {
-        panic!()
-    };
-    let ClientViewOutcome::Operation { operation } = &mut reply.outcome else {
-        panic!()
-    };
-    let ClientViewIntent::EditorOpen { spec } = &operation.command.intent else {
-        panic!()
-    };
-    operation.command.intent = ClientViewIntent::CommandPopupOpen {
-        spec: Box::new(orchbee_workbench_protocol::ConfiguredCommandPopupSpec {
-            command_id: "cmd_tools".into(),
-            source: spec.source.clone(),
-            context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
-                tab_id: Some(spec.source.tab_id.to_string()),
-                focused_panel_id: Some(spec.source.panel_id.to_string()),
-                ..Default::default()
-            }),
-            width: None,
-            height: None,
-        }),
     };
     reply.validate().unwrap();
     let ClientViewOutcome::Operation { operation } = &reply.outcome else {
@@ -1244,7 +1187,7 @@ fn read_failures_preserve_denial_missing_observation_and_interruption_classes() 
 fn a_refused_read_step_retains_the_clients_typed_reason_without_new_details() {
     use orchbee_workbench_protocol::{ClientViewControlReason, ClientViewControlStatus};
     let WorkbenchResponse::ClientView(mut reply) =
-        serde_json::from_value(sample("editor-opened-acknowledged-source")).unwrap()
+        serde_json::from_value(sample("popup-opened-actual-source")).unwrap()
     else {
         panic!()
     };

@@ -49,8 +49,7 @@ fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
     !cfg!(windows)
         && matches!(
             request,
-            WorkbenchRequest::TerminalEditor(_)
-                | WorkbenchRequest::PanelAgent(_)
+            WorkbenchRequest::PanelAgent(_)
                 | WorkbenchRequest::ConfiguredCommand(_)
                 | WorkbenchRequest::PaneGraphics(_)
                 | WorkbenchRequest::AgentView(_)
@@ -107,7 +106,7 @@ impl WorkbenchService {
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::AgentIntegration(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
-            WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
+            WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, orchbee_workbench_protocol::ConfigurationAction::Current => self.policy.read },
             WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::SettingsOperation::Edit { .. } => self.policy.manage_navigation, orchbee_workbench_protocol::SettingsOperation::Read {} => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
@@ -242,7 +241,6 @@ impl WorkbenchService {
         }
         match &request {
             WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) | WorkbenchRequest::SessionStop(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
-            WorkbenchRequest::TerminalEditor(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
         WorkbenchRequest::Plugin(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
             }
@@ -618,20 +616,6 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             },
         ),
-        WorkbenchRequest::TerminalEditor(request) => {
-            WorkbenchResponse::TerminalEditor(orchbee_workbench_protocol::TerminalEditorResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                session_id: request.session_id,
-                outcome: orchbee_workbench_protocol::TerminalEditorOutcome::Failed {
-                    reason: if denied {
-                        orchbee_workbench_protocol::TerminalEditorFailure::Denied
-                    } else {
-                        orchbee_workbench_protocol::TerminalEditorFailure::Unavailable
-                    },
-                },
-            })
-        }
         WorkbenchRequest::Plugin(request) => {
             WorkbenchResponse::Plugin(orchbee_workbench_protocol::PluginResult {
                 protocol_version: ProtocolVersion,
@@ -1114,52 +1098,6 @@ impl WorkbenchClientConnection<'_> {
             .maintain_event_deadline()
             .map_err(|_| std::io::ErrorKind::ConnectionAborted.into())
     }
-    #[cfg(all(test, windows))]
-    pub(crate) fn execute_with_terminal_connection(
-        &self,
-        request: WorkbenchRequest,
-        terminal_connection: &mut crate::local_terminal_service::LocalTerminalConnection<'_>,
-    ) -> WorkbenchExecution {
-        self.execute_with_terminal_lane(
-            request,
-            terminal_connection,
-            orchbee_workbench_protocol::MultiplexLaneId::ROOT,
-        )
-    }
-    pub(crate) fn execute_with_terminal_lane(
-        &self,
-        request: WorkbenchRequest,
-        terminal_connection: &mut crate::local_terminal_service::LocalTerminalConnection<'_>,
-        lane: orchbee_workbench_protocol::MultiplexLaneId,
-    ) -> WorkbenchExecution {
-        if let WorkbenchRequest::TerminalEditor(editor) = &request
-            && !withheld_off_windows(&request)
-        {
-            use orchbee_workbench_protocol::TerminalEditorAction;
-            let allowed = self.service.policy.read
-                && match editor.action {
-                    TerminalEditorAction::Open { .. } => {
-                        self.service.policy.create_terminal
-                            && self.service.policy.manage_terminal_lifecycle
-                    }
-                    TerminalEditorAction::Close { .. } => {
-                        self.service.policy.manage_terminal_lifecycle
-                    }
-                    TerminalEditorAction::Read { .. } => true,
-                };
-            if !allowed {
-                return WorkbenchExecution::Response(unavailable_or_denied(request, true));
-            }
-            return WorkbenchExecution::Response(WorkbenchResponse::TerminalEditor(
-                terminal_connection.execute_editor(
-                    crate::local_terminal_service::PopupOwner::new(self.generation, lane),
-                    editor.clone(),
-                ),
-            ));
-        }
-        self.execute_scoped(request, lane)
-    }
-
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         self.execute_scoped(request, orchbee_workbench_protocol::MultiplexLaneId::ROOT)
     }
@@ -1182,7 +1120,7 @@ impl WorkbenchClientConnection<'_> {
             crate::local_terminal_service::PopupOwner::new(self.generation, lane),
         );
     }
-    fn execute_scoped(
+    pub(crate) fn execute_scoped(
         &self,
         request: WorkbenchRequest,
         lane: orchbee_workbench_protocol::MultiplexLaneId,

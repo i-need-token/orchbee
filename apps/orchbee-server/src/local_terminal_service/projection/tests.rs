@@ -10,8 +10,6 @@ type TestResult = Result<(), Box<dyn Error>>;
 fn records_and_feedback_cannot_cross_attachment_or_host_scope() -> TestResult {
     let mut projection = projection()?;
     let good = frame(1, 5)?;
-    #[cfg(windows)]
-    assert!(!projection.capturable_version(1, 5));
     for range in [40..56, 64 + 16..64 + 32, 64 + 32..64 + 48] {
         let mut wrong = good.clone();
         wrong[range].fill(9);
@@ -20,12 +18,6 @@ fn records_and_feedback_cannot_cross_attachment_or_host_scope() -> TestResult {
     projection
         .receive(&good)
         .map_err(|_| "valid frame rejected")?;
-    #[cfg(windows)]
-    {
-        assert!(projection.capturable_version(1, 5));
-        assert!(!projection.capturable_version(2, 5));
-        assert!(!projection.capturable_version(1, 6));
-    }
     let feedback = TerminalViewerAction::FrameApplied {
         attachment_id: orchbee_client_server_protocol::ViewerId::parse(
             &projection.attachment_id.to_text(),
@@ -56,8 +48,6 @@ fn records_and_feedback_cannot_cross_attachment_or_host_scope() -> TestResult {
     );
     assert!(projection.receive(&frame(2, 6)?).is_err());
     projection.complete_feedback(&feedback);
-    #[cfg(windows)]
-    assert!(projection.capturable_version(1, 5));
     assert!(!projection.accepts_feedback(&feedback));
     assert!(projection.receive(&good).is_err());
     projection
@@ -80,15 +70,11 @@ fn blocked_and_requested_snapshot_recovery_require_the_correct_snapshot() -> Tes
     projection
         .receive(&bytes)
         .map_err(|_| "blocked record rejected")?;
-    #[cfg(windows)]
-    assert!(!projection.capturable_version(1, 4));
     assert!(projection.flight.is_none());
     assert!(projection.receive(&frame(1, 4)?).is_err());
     projection
         .receive(&frame(1, 5)?)
         .map_err(|_| "recovery rejected")?;
-    #[cfg(windows)]
-    assert!(projection.capturable_version(1, 5));
     let feedback = TerminalViewerAction::NeedSnapshot {
         attachment_id: orchbee_client_server_protocol::ViewerId::parse(
             &projection.attachment_id.to_text(),
@@ -98,8 +84,6 @@ fn blocked_and_requested_snapshot_recovery_require_the_correct_snapshot() -> Tes
     };
     assert!(projection.accepts_feedback(&feedback));
     projection.complete_feedback(&feedback);
-    #[cfg(windows)]
-    assert!(!projection.capturable_version(1, 5));
     let mut delta = frame(2, 6)?;
     delta[20..22].copy_from_slice(&42_u16.to_le_bytes());
     delta[64 + 6] = 2;

@@ -1,4 +1,4 @@
-//! Canonical popup membership is independent of plugin or editor command resolution.
+//! Canonical popup membership is independent of plugin or configured command resolution.
 use orchbee_workbench_protocol::{ClientPopupSource, PanelNode};
 
 impl super::WorkbenchAuthority {

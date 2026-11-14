@@ -22,15 +22,13 @@ pub(crate) use agent_start::AgentStartLaunch;
 #[cfg(any(windows, test))]
 mod checkpoint_restore;
 mod configured_command;
-mod editor_popup;
+mod exit_close;
 #[cfg(windows)]
 mod held_restore;
 mod independent_popup;
 #[cfg(windows)]
 mod layout_reopen;
 mod plugin_popup;
-pub(crate) use editor_popup::EditorPopupLaunch;
-mod exit_close;
 mod tab_close;
 pub(crate) use tab_close::IdleCloseMember;
 mod tab_set_close;

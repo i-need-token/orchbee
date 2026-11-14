@@ -1,6 +1,5 @@
 import { ConfiguredCommandPopupSpecSchema } from './workbench-configured-command-spec-contract';
 import { PluginPopupSpecSchema } from './workbench-plugin-popup-contract';
-import { ScrollbackEditorSpecSchema } from './workbench-terminal-editor-contract';
 import { ClientPresentationSnapshotSchema } from './workbench-client-presentation-contract';
 import { TerminalAgentBindingSchema } from './workbench-panel-agent-contract';
 import {
@@ -195,7 +194,6 @@ const clientNavigation = z
 	.readonly();
 const ClientViewIntentSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('popup-open'), spec: PluginPopupSpecSchema }).readonly(),
-	z.strictObject({ kind: z.literal('editor-open'), spec: ScrollbackEditorSpecSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('command-popup-open'), spec: ConfiguredCommandPopupSpecSchema })
 		.readonly(),
@@ -474,9 +472,7 @@ const ClientViewOperationSchema = z
 			const valid =
 				BigInt(view.workbenchRevision) >= BigInt(command.minimumWorkbenchRevision) &&
 				(status.kind === 'popup-opened'
-					? (intent.kind === 'popup-open' ||
-							intent.kind === 'editor-open' ||
-							intent.kind === 'command-popup-open') &&
+					? (intent.kind === 'popup-open' || intent.kind === 'command-popup-open') &&
 						status.popupId === command.operationId &&
 						view.phase === 'busy' &&
 						view.selection?.terminalContextId === intent.spec.source.terminalContextId &&
@@ -736,7 +732,6 @@ const ClientViewOperationSchema = z
 
 		if (
 			intent.kind === 'popup-open' ||
-			intent.kind === 'editor-open' ||
 			intent.kind === 'command-popup-open' ||
 			intent.kind === 'popup-close' ||
 			intent.kind === 'agent-attention' ||

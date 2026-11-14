@@ -49,6 +49,7 @@ mod close_maintenance;
 mod connected_hosts;
 mod controller_connection;
 mod controller_focus;
+mod current_directory;
 #[cfg(windows)]
 mod layout_history;
 mod operation_maintenance;
@@ -69,8 +70,6 @@ mod tab_set_close;
 #[cfg(windows)]
 mod terminal_output;
 mod viewer_connection;
-pub(crate) use viewer_connection::LocalTerminalConnection;
-mod current_directory;
 mod workspace_directory;
 mod workspace_git;
 mod workspace_group_close;
@@ -413,8 +412,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start
         // requests submitted here; it exists for the Agent drain pump.
-        Ok(WorkerOperationResult::EditorCommand(_))
-        | Ok(WorkerOperationResult::Titles(_))
+        Ok(WorkerOperationResult::Titles(_))
         | Ok(WorkerOperationResult::TitleChanges(_))
         | Ok(WorkerOperationResult::HostQuery(_))
         | Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,

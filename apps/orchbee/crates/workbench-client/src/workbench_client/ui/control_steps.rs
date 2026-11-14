@@ -421,7 +421,6 @@ impl ClientControl {
                 ClientViewIntent::CommandPopupOpen { .. }
                     | ClientViewIntent::PopupOpen { .. }
                     | ClientViewIntent::PopupClose {}
-                    | ClientViewIntent::EditorOpen { .. }
             ) {
                 if let Err(reason) =
                     native.begin_popup_control(&command, delivery.workbench_snapshot.as_ref())

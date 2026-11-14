@@ -282,7 +282,6 @@ impl ApplicationRequest {
                         | WorkbenchRequest::WorktreeQuery(_)
                         | WorkbenchRequest::WorktreeListRead(_)
                         | WorkbenchRequest::Plugin(_)
-                        | WorkbenchRequest::TerminalEditor(_)
                 )
         )
     }

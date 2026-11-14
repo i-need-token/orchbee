@@ -29,7 +29,6 @@ mod tab_creation;
 mod tab_duplicate;
 mod tab_labels;
 mod tab_set_close;
-mod terminal_editor;
 mod window_title;
 mod workspace_git;
 mod workspace_group_close;

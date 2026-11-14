@@ -1214,19 +1214,6 @@
 							"type": "object",
 							"properties": {
 								"kind": {
-									"const": "editor-open"
-								},
-								"spec": {
-									"$ref": "#/$defs/control/$defs/editorSpec"
-								}
-							},
-							"required": ["kind", "spec"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
 									"const": "command-popup-open"
 								},
 								"spec": {
@@ -2860,35 +2847,6 @@
 					"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
 					"additionalProperties": false
 				},
-				"editorSource": {
-					"type": "object",
-					"properties": {
-						"terminalContextId": {
-							"$ref": "#/$defs/control/$defs/terminalContextId"
-						},
-						"tabId": {
-							"$ref": "#/$defs/control/$defs/tabId"
-						},
-						"member": {
-							"$ref": "#/$defs/control/$defs/boundPresentationSelection"
-						},
-						"panelId": {
-							"$ref": "#/$defs/control/$defs/panelId"
-						}
-					},
-					"required": ["terminalContextId", "tabId", "member", "panelId"],
-					"additionalProperties": false
-				},
-				"editorSpec": {
-					"type": "object",
-					"properties": {
-						"source": {
-							"$ref": "#/$defs/control/$defs/editorSource"
-						}
-					},
-					"required": ["source"],
-					"additionalProperties": false
-				},
 				"configuredPopupSpec": {
 					"type": "object",
 					"properties": {
@@ -3690,19 +3648,6 @@
 								}
 							},
 							"required": ["kind"],
-							"additionalProperties": false
-						},
-						{
-							"type": "object",
-							"properties": {
-								"kind": {
-									"const": "editor-open"
-								},
-								"spec": {
-									"$ref": "#/$defs/overlayControl/$defs/editorSpec"
-								}
-							},
-							"required": ["kind", "spec"],
 							"additionalProperties": false
 						},
 						{
@@ -5340,35 +5285,6 @@
 						}
 					},
 					"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
-					"additionalProperties": false
-				},
-				"editorSource": {
-					"type": "object",
-					"properties": {
-						"terminalContextId": {
-							"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
-						},
-						"tabId": {
-							"$ref": "#/$defs/overlayControl/$defs/tabId"
-						},
-						"member": {
-							"$ref": "#/$defs/overlayControl/$defs/boundPresentationSelection"
-						},
-						"panelId": {
-							"$ref": "#/$defs/overlayControl/$defs/panelId"
-						}
-					},
-					"required": ["terminalContextId", "tabId", "member", "panelId"],
-					"additionalProperties": false
-				},
-				"editorSpec": {
-					"type": "object",
-					"properties": {
-						"source": {
-							"$ref": "#/$defs/overlayControl/$defs/editorSource"
-						}
-					},
-					"required": ["source"],
 					"additionalProperties": false
 				},
 				"configuredPopupSpec": {

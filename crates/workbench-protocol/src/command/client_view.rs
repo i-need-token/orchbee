@@ -124,9 +124,6 @@ pub enum ClientViewIntent {
     CommandPopupOpen {
         spec: Box<crate::ConfiguredCommandPopupSpec>,
     },
-    EditorOpen {
-        spec: Box<crate::ScrollbackEditorSpec>,
-    },
     PopupOpen {
         spec: Box<crate::PluginPopupSpec>,
     },
@@ -229,9 +226,8 @@ impl ClientViewIntent {
     pub fn popup_source(&self) -> Option<&crate::ClientPopupSource> {
         match self {
             Self::CommandPopupOpen { spec } => Some(&spec.source),
-            Self::EditorOpen { spec } => Some(&spec.source),
             Self::PopupOpen { spec } => Some(&spec.source),
-            // Only popup/editor intents capture a source presentation.
+            // Only popup intents capture a source presentation.
             _ => None,
         }
     }
@@ -371,7 +367,6 @@ impl ClientViewIntent {
         };
         match self {
             Self::CommandPopupOpen { .. }
-            | Self::EditorOpen { .. }
             | Self::PopupOpen { .. }
             | Self::PopupClose {}
             | Self::TerminalAgentAttention { .. }
@@ -447,9 +442,6 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if let ClientViewIntent::EditorOpen { spec } = &self.intent {
-            spec.validate()?;
-        }
         if let ClientViewIntent::CommandPopupOpen { spec } = &self.intent {
             spec.validate()?;
         }

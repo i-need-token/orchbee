@@ -482,7 +482,6 @@ impl WorkbenchClientUi {
             | ClientViewIntent::SetSplitRatio { .. }
             | ClientViewIntent::CommandPopupOpen { .. }
             | ClientViewIntent::PopupOpen { .. }
-            | ClientViewIntent::EditorOpen { .. }
             | ClientViewIntent::PopupClose { .. } => {
                 return ControlStep::Failed(Reason::Unsupported);
             }

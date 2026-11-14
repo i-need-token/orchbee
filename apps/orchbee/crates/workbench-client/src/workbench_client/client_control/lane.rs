@@ -556,7 +556,6 @@ fn run(
                 control.intent,
                 ClientViewIntent::CommandPopupOpen { .. }
                     | ClientViewIntent::PopupOpen { .. }
-                    | ClientViewIntent::EditorOpen { .. }
                     | ClientViewIntent::Overlay { .. }
                     | ClientViewIntent::Panel { .. }
                     | ClientViewIntent::Selections { .. }

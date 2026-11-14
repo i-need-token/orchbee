@@ -24,10 +24,6 @@ import {
 } from './workbench-command-outcome-contract';
 
 import {
-	TerminalEditorRequestSchema,
-	TerminalEditorResultSchema,
-} from './workbench-terminal-editor-contract';
-import {
 	WorkspaceGitRequestSchema,
 	WorkspaceGitResultSchema,
 } from './workbench-workspace-git-contract';
@@ -688,7 +684,6 @@ export const WorkbenchRequestSchema = z
 		ConfigurationRequestSchema,
 		CloseOperationReadSchema,
 		SettingsRequestSchema,
-		TerminalEditorRequestSchema,
 		ConfiguredCommandRequestSchema,
 		SemanticEventsRequestSchema,
 		PaneGraphicsRequestSchema,
@@ -828,7 +823,6 @@ export const WorkbenchResponseSchema = z
 		ConfigurationResultSchema,
 		CloseOperationResultSchema,
 		SettingsResultSchema,
-		TerminalEditorResultSchema,
 		ConfiguredCommandResultSchema,
 		SemanticEventsResultSchema,
 		PaneGraphicsResultSchema,

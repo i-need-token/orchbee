@@ -381,29 +381,7 @@ Panel launch options additionally carry optional bounded `pluginContext` only wi
 
 ## Independent plugin popup contract
 
-Private plugin PopupOpen/PopupRead/PopupClose use the existing matched-cohort plugin transport and explicit correlated PopupOpened/PopupState/PopupClosing/PopupClosed/PopupUnknown results. PopupOpen carries a closed catalog selector, exact context/Tab/Panel and full Client Presentation selection, bounded display context, required nullable cwd/dimensions, and the shared protected-name launch-environment admission. Bound attachment generation/incarnation and nonzero unbound selection generation remain part of the source identity. These requests do not create canonical Pane membership. Client PopupOpen/PopupClose require explicit matching completion; generic Applied cannot complete them. A hadPopup=false close may preserve an unrelated Busy dialog. A Client refuses a popup open with `modal-open` while another popup, overlay, dialog, history view, or input mode such as copy or resize mode owns its input, with `insufficient-space` when its surface is absent or cannot fit the smallest popup frame, and with `busy` for any other not-ready state. So that the Client can name that cause, the Server delivers popup, command-popup and editor open intents to a Busy Client (`ClientViewIntent::refused_before_delivery`); a Starting Client and the single active command per Client still refuse them as `busy`. Rust, TypeScript and JSON share valid/invalid conformance vectors. [Independent popup behavior](../../apps/orchbee/docs/windows-plugins.md#independent-terminal-popup) owns physical lifecycle, UI input and acceptance. Peers deploy together; no Desktop operation or new Host capability is granted.
-
-## Private scrollback editor popup contract
-
-`workbench.terminal-editor` and its result use matched-cohort OBWP51/52 without
-changing old kinds or public CLI definitions. Closed Open/Read/Close messages carry
-Session/request/popup correlation. Open names a canonical bound Client popup source,
-a same-connection read viewer and positive generation/full-u64 revision as decimal
-strings, plus drawable geometry. No executable, environment, document path or
-transcript is admitted. Results distinguish opened/state/closing/closed/unknown
-and closed failures; action-specific responses and exact correlation are checked.
-The 8KiB request/result limit is whole-message, with strict unknown-field and
-nonzero identity checks. The [Server popup model](../../apps/orchbee-server/README.md#windows-scrollback-editor-popup-model)
-owns source authorization, deferred creation/start and cleanup. This private
-contract does not prove Client focus or completed public editor parity.
-
-The matched Client view contract also admits private `editor-open` with only a
-bound `ScrollbackEditorSpec.source`. It shares the exact-source `popup-opened`
-completion and generic `popup-close` with typed plugin/editor actors. The
-[Client popup model](../../apps/orchbee/docs/windows-client-control.md#scrollback-editor-popup-model)
-owns same-connection read-only capture, full-content geometry, input, cancellation
-and cleanup.
-Focused wire/actor evidence does not establish final GUI/cohort acceptance.
+Private plugin PopupOpen/PopupRead/PopupClose use the existing matched-cohort plugin transport and explicit correlated PopupOpened/PopupState/PopupClosing/PopupClosed/PopupUnknown results. PopupOpen carries a closed catalog selector, exact context/Tab/Panel and full Client Presentation selection, bounded display context, required nullable cwd/dimensions, and the shared protected-name launch-environment admission. Bound attachment generation/incarnation and nonzero unbound selection generation remain part of the source identity. These requests do not create canonical Pane membership. Client PopupOpen/PopupClose require explicit matching completion; generic Applied cannot complete them. A hadPopup=false close may preserve an unrelated Busy dialog. A Client refuses a popup open with `modal-open` while another popup, overlay, dialog, history view, or input mode such as copy or resize mode owns its input, with `insufficient-space` when its surface is absent or cannot fit the smallest popup frame, and with `busy` for any other not-ready state. So that the Client can name that cause, the Server delivers popup and command-popup open intents to a Busy Client (`ClientViewIntent::refused_before_delivery`); a Starting Client and the single active command per Client still refuse them as `busy`. Rust, TypeScript and JSON share valid/invalid conformance vectors. [Independent popup behavior](../../apps/orchbee/docs/windows-plugins.md#independent-terminal-popup) owns physical lifecycle, UI input and acceptance. Peers deploy together; no Desktop operation or new Host capability is granted.
 
 ## Panel image contracts
 
