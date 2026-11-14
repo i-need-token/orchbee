@@ -43,8 +43,6 @@ pub(crate) enum ExpectedValue {
     TerminalSelectionSpan,
     TerminalContentRevision,
     TerminalContentGeneration,
-    AgentViewSpec,
-    AgentViewSource,
     MachineSelector,
     MachineLabel,
     SshTarget,

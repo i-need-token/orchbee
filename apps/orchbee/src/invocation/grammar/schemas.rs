@@ -82,10 +82,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.popup.result.json"),
     ),
     (
-        "orchbee.agent.view",
-        include_str!("../../cli/schemas/orchbee.agent.view.json"),
-    ),
-    (
         "orchbee.machine",
         include_str!("../../cli/schemas/orchbee.machine.json"),
     ),
@@ -216,10 +212,6 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
     (
         "orchbee.terminal.stream",
         include_str!("../../cli/schemas/orchbee.terminal.stream.json"),
-    ),
-    (
-        "orchbee.agent.changes",
-        include_str!("../../cli/schemas/orchbee.agent.changes.json"),
     ),
     (
         "orchbee.status.client",

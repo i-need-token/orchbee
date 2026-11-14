@@ -157,7 +157,7 @@ impl super::CliText {
                 "Direction of the neighboring panel to swap with.",
                 "要交换的相邻面板所在方向。",
             ),
-            (CommandPath::AgentList | CommandPath::AgentChanges, "--cursor") => (
+            (CommandPath::AgentList, "--cursor") => (
                 "<cursor>",
                 "Continue from the cursor a previous page returned.",
                 "从上一页返回的游标继续。",

@@ -1,7 +1,6 @@
 //! Owns CLI help and human-result formatting over the lower locale value.
 //! Grammar, failure details and terminal escaping stay here; machine envelope fields are unchanged.
 
-mod agent_view_spec;
 mod client_control;
 mod client_layout;
 mod help;
@@ -28,7 +27,6 @@ mod workspace_metadata;
 use crate::cli_outcome::Failure;
 use crate::localization::Locale;
 mod agent;
-mod agent_changes;
 mod agent_diagnostics;
 mod agent_names;
 mod agent_prompt;

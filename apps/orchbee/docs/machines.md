@@ -1939,9 +1939,9 @@ input isolation. Live terminal-title tokens and real-network/OS visual acceptanc
 
 ## Source-owned Agent views
 
-`agent view set --spec <json>`, `agent view clear [--source <name>]` and
-`agent view get` operate on the selected Windows Session. The Server owns one
-transient revisioned specification: the latest valid set replaces it; a clear
+Each Windows Session's Server owns one transient revisioned specification, which the
+Workbench `agent-view` request reads, sets and clears; no shipped command sets it, and the
+TUI projects it when present. The latest valid set replaces it; a clear
 without a source removes it, and a source-qualified clear removes only an exact
 match. Restart removes the override. Reads require read permission; changes
 require navigation management. Invalid, denied or unavailable operations preserve

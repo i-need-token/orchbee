@@ -275,7 +275,6 @@ const VALUE_OVERRIDES: &[ValueOverride] = &[
             CommandPath::PanelReportAgent,
             CommandPath::PanelReleaseAgent,
             CommandPath::PanelClearAgentAuthority,
-            CommandPath::AgentViewClear,
         ],
         flag: "--source",
         values: &[],

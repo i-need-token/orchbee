@@ -5,7 +5,6 @@
 use crate::cli_text::CliText;
 mod agent_list;
 pub(crate) mod agent_manifests;
-pub(crate) mod agent_view_spec;
 mod agent_wait;
 mod command_interrupt;
 mod console_interrupt;
@@ -511,12 +510,6 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         },
         // Agent reads exchange on their own admitted Client Connection; answers
         // arrive already projected with the correlated request identity.
-        QueryCommand::AgentChanges { limit, cursor } => agent_output(
-            query::agent_changes(*limit, cursor.clone()),
-            &command,
-            format,
-            locale,
-        ),
         QueryCommand::AgentList {
             include_ended,
             limit,

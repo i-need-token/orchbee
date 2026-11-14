@@ -474,7 +474,6 @@ check server 0 orchbee update s
 check --spec 1 orchbee panel graphics set panel --s
 check --client 1 orchbee panel graphics info panel --c
 check --format 1 orchbee terminal title set title --f
-check --format 1 orchbee agent view set --f
 check --format 1 orchbee plugin action list --f
 check --format 1 orchbee plugin log list --f
 check --format 1 orchbee plugin panel open --f

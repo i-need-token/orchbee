@@ -284,9 +284,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Client { command, format }) => {
                 cli::run_client_control(&command, format, locale)
             }
-            Ok(invocation::Request::AgentView { action, format }) => {
-                cli::agent_view_spec::run(&action, format, locale)
-            }
             Ok(invocation::Request::PanelAgent { command, format }) => {
                 cli::panel_agent::run(&command, format, locale)
             }

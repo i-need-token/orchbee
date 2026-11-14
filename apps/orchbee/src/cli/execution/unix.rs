@@ -47,7 +47,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::ReleaseUpdate
         | Capability::ServerStop
         | Capability::TerminalClear
-        | Capability::AgentViewSpec
         | Capability::ChannelPreference
         | Capability::Events
         | Capability::SchemaPublication

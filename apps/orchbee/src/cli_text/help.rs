@@ -184,37 +184,15 @@ impl super::CliText {
                 "Find, run and interact with AI Agents.",
                 "查找、启动并操作 AI 智能体。",
             ),
-            HelpTopic::Family(Family::AgentView) => (
-                "Choose which Agents appear in the sidebar.",
-                "选择边栏显示的智能体。",
-            ),
-            HelpTopic::Command(CommandPath::AgentViewGet) => {
-                ("Show the Agent view settings.", "显示智能体视图设置。")
-            }
-            HelpTopic::Command(CommandPath::AgentViewSet) => (
-                "Save Agent filters, grouping and sorting.",
-                "保存智能体筛选、分组和排序设置。",
-            ),
-            HelpTopic::Command(CommandPath::AgentViewClear) => {
-                ("Restore the default Agent view.", "恢复默认智能体视图。")
-            }
             HelpTopic::Command(CommandPath::AgentList) => {
                 ("List observed Agents.", "列出已发现的智能体。")
             }
-            HelpTopic::Command(CommandPath::AgentChanges) => (
-                "Read a page of Agent state changes.",
-                "分页读取智能体状态变化。",
-            ),
             HelpTopic::Command(CommandPath::AgentGet) => {
                 ("Show one Agent and its state.", "查看一个智能体及其状态。")
             }
             HelpTopic::Command(CommandPath::AgentFocus) => (
                 "Focus the terminal containing an Agent.",
                 "聚焦智能体所在的终端。",
-            ),
-            HelpTopic::Command(CommandPath::AgentAttention) => (
-                "Show an Agent's seen/unseen state in a client.",
-                "查看客户端对智能体的已读／未读状态。",
             ),
             HelpTopic::Command(CommandPath::AgentRead) => {
                 ("Read an Agent's terminal output.", "读取智能体的终端输出。")

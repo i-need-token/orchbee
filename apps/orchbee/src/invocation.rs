@@ -6,7 +6,6 @@
 //! shares. `argv`, `scan`, and `dispatch` run one parse; feature children own their commands'
 //! operands; the option and `failure` children hold the decoders and failures those parsers share.
 
-mod agent_view_spec;
 pub(crate) mod operation;
 mod panel_agent;
 mod panel_metadata;
@@ -295,10 +294,6 @@ pub(crate) enum TerminalListFilter {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum QueryCommand {
     Status,
-    AgentChanges {
-        limit: u64,
-        cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
-    },
     AgentList {
         client: Option<WorkbenchClientId>,
         include_ended: bool,
@@ -758,10 +753,6 @@ pub(crate) enum Request {
         saved_at: u64,
         format: OutputFormat,
     },
-    AgentView {
-        action: orchbee_workbench_protocol::AgentViewAction,
-        format: OutputFormat,
-    },
     MachineRoute(machine_routing::Route),
     /// `--machine <selector> server stop`: confirmed here, then asked of the machine hub.
     MachineStop(machine_routing::RemoteStop),
@@ -983,7 +974,7 @@ struct Options {
     events: events::Options,
     selection_anchor: Option<String>,
     content_revision: Option<String>,
-    agent_view_spec: Option<String>,
+    spec: Option<String>,
     remote_session: Option<String>,
     plugin_enabled: bool,
     plugin_disabled: bool,

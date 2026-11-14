@@ -69,10 +69,9 @@ pub(super) fn context_topic(words: &[&str]) -> Option<HelpTopic> {
 }
 
 /// Directory presentation must not rename existing machine diagnostic contexts.
-/// These two directory paths previously displayed their first command's help.
+/// This directory path previously displayed its first command's help.
 pub(super) const fn diagnostic_path(topic: HelpTopic) -> &'static str {
     match topic {
-        HelpTopic::Family(Family::AgentView) => CommandPath::AgentViewGet.as_str(),
         HelpTopic::Family(Family::PanelGraphics) => CommandPath::PanelGraphicsSet.as_str(),
         HelpTopic::Family(family) => family.as_str(),
         HelpTopic::Command(command) => command.as_str(),

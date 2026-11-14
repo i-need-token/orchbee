@@ -23,7 +23,6 @@ mod cli_windows_agent_integration;
 mod cli_windows_agent_manifests;
 mod cli_windows_agent_prompt;
 mod cli_windows_agent_runtime_get;
-mod cli_windows_agent_view;
 mod cli_windows_configuration;
 mod cli_windows_configured_commands;
 mod cli_windows_context;

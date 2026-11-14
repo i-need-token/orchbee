@@ -371,16 +371,6 @@ impl super::CliText {
                 "the unchanged cursor returned by the same command and backend"
             }
             (Locale::ZhCn, ExpectedValue::AgentCursor) => "同一命令和后端返回的原样游标",
-            (Locale::EnUs, ExpectedValue::AgentViewSpec) => {
-                "a bounded Agent view JSON specification"
-            }
-            (Locale::ZhCn, ExpectedValue::AgentViewSpec) => "有界的智能体视图 JSON 规格",
-            (Locale::EnUs, ExpectedValue::AgentViewSource) => {
-                "a source of 1–120 ASCII letters, digits or :._-"
-            }
-            (Locale::ZhCn, ExpectedValue::AgentViewSource) => {
-                "1–120 个 ASCII 字母数字或 :._- 字符的来源"
-            }
             (Locale::EnUs, ExpectedValue::AgentWaitUntil) => {
                 "one of the fourteen 'agent wait --until' conditions"
             }

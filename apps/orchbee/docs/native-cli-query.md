@@ -525,8 +525,7 @@ agree with the semantic report revision. Text renders the effective report in th
 `clientView` is always present, null without `--client`; when selected it contains: selected Client/operation/view, report
 revision, nullable sequence/seen/status and outer focus. Only matching full binding and semantic
 sequence under a covering Server report revision corroborate seen. State remains idle/working/blocked/done/error/unknown independently; missing or stale acknowledgement leaves only seen unknown. No canonical Session, turn or
-readiness is invented. `agent attention` routes physical targets through
-the same Client owner and emits the v1 Client control receipt without marking them seen.
+readiness is invented.
 
 ### Physical Agent wait and prompt
 
@@ -968,7 +967,7 @@ Help has three information levels, in both `en-US` and `zh-CN`:
 - Root help introduces Orchbee, shows a small set of common examples, groups each admitted
   top-level command once, and explains global options and how to descend.
 - Family help describes that resource and lists each direct child with its purpose. Nested
-  families such as `agent view` and `panel graphics` have their own directories. A Synopsis
+  families such as `agent integration` and `panel graphics` have their own directories. A Synopsis
   section repeats each direct child command's own usage line, without the leading `orchbee` and
   the shared `--format` choice, so it follows the grammar; full option descriptions stay on the
   child page. `completion` lists its supported shells. Every family and command
@@ -2764,13 +2763,9 @@ Windows `status server` lists the Session's processes and their versions with on
 
 ## Agent navigation
 
-Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint and read-only `agent attention` keep their existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. An unready Client refuses before Agent reads; loss/replacement yields rejection or incomplete navigation, without retargeting. A `stale-view` rejection is settled before anything reaches the Client, and an Agent read that the Workbench outran ends as `changed`; either reads a fresh snapshot and resolves the Client and Agent again under the same deadline, at most three times. A rejected control is submitted again, under a fresh operation identity, only when the Client and intent are identical and `--request-id` did not name the operation; otherwise the last rejection stands. Incomplete, pending and unknown outcomes are never submitted again. `orchbee.client.control` v1 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
+Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint keeps its existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. An unready Client refuses before Agent reads; loss/replacement yields rejection or incomplete navigation, without retargeting. A `stale-view` rejection is settled before anything reaches the Client, and an Agent read that the Workbench outran ends as `changed`; either reads a fresh snapshot and resolves the Client and Agent again under the same deadline, at most three times. A rejected control is submitted again, under a fresh operation identity, only when the Client and intent are identical and `--request-id` did not name the operation; otherwise the last rejection stands. Incomplete, pending and unknown outcomes are never submitted again. `orchbee.client.control` v1 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
 
-## Windows Agent change pages
-
-`agent changes [--cursor <c>] [--limit <n>] [--format text|json]` reads one bounded page under the existing five-second total Agent read deadline. Omit cursor for a current-head checkpoint; use the returned opaque cursor for later reads. Limit is 1–100, default 50. No filtering, subscription, long poll or automatic replay occurs. It admits one Client Connection, closes it before interruption arbitration and emits one result. Ctrl-C preserves the shared cancellation/finalization contract.
-
-The `orchbee.agent.changes` version-1 envelope contains the canonical changes/current/reset-required outcome and the correlated Agent source. Reset-required is a visible loss-of-continuity result; rebuild the baseline. Invalid/foreign-boot cursor, read denial and runtime unavailability use the existing Agent failure family with operation changes. A page cannot exceed the requested limit. JSON retains typed facts and cursors; localized text shows status, revision and continuation. The Server owns retention, authentication and coherent history; CLI grammar/help/completion/schema/Skill expose this boundary. Other platform runtimes remain unavailable for this new command.
+## Windows Agent prompt activity
 
 For canonical session targets, Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v1 separates nullable `matchedChange` and its source from the current observation; Linux remains v1. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
 
@@ -2923,15 +2918,6 @@ The offline catalog lists the current documents and command paths. The Server
 owns cache safety, installation, cancellation and receipt limits.
 
 Five Windows Panel report commands also accept `--presentation <full-id>` for an exact primary or child member of the positional Panel. Omission retains primary targeting with `presentationId:null`; an explicit member fills that same required field. [Agent reports](windows-panel-agent-reports.md#exact-member-targets) and [metadata reports](windows-panel-metadata.md#exact-member-targets) own identity checks, byte preflight and unknown-outcome handling. The catalog lists the current documents and command paths.
-
-## Source-owned Agent view commands
-
-Windows `agent view get`, `agent view set --spec <json>` and
-`agent view clear [--source <name>]` use the selected Session, including `--machine`
-routing. The [source-owned view contract](machines.md#source-owned-agent-views)
-owns normalization, bounded filter/multikey-sort semantics, transient source
-replacement, plugin eligibility, Client attention and TUI projection. The
-`orchbee.agent.view` v1 receipt distinguishes Server failures, exchange failures and unknown mutations; The catalog lists the current documents and command paths.
 
 ## Agent sidebar configuration publication
 

@@ -51,14 +51,9 @@ commands! {
     Status => ["status"], 0, Operand, Portable, true, true, false;
     StatusServer => ["status", "server"], 0, Operand, Portable, true, true, false;
     StatusClient => ["status", "client"], 0, Operand, Portable, true, false, false;
-    AgentViewGet => ["agent", "view", "get"], 0, Operand, Windows, true, true, false;
-    AgentViewSet => ["agent", "view", "set"], 0, Operand, Windows, true, true, false;
-    AgentViewClear => ["agent", "view", "clear"], 0, Operand, Windows, true, true, false;
     AgentList => ["agent", "list"], 0, Operand, Portable, true, true, false;
-    AgentChanges => ["agent", "changes"], 0, Operand, Portable, true, true, false;
     AgentGet => ["agent", "get"], 1, Agent, Portable, true, true, false;
     AgentFocus => ["agent", "focus"], 1, Agent, Portable, true, true, false;
-    AgentAttention => ["agent", "attention"], 1, Operand, Portable, true, true, false;
     AgentRead => ["agent", "read"], 1, Agent, Portable, true, true, false;
     AgentStart => ["agent", "start"], super::super::MAXIMUM_ARGUMENT_BYTES, Operand, Portable, true, true, false;
     AgentPrompt => ["agent", "prompt"], 2, Agent, Portable, true, true, false;

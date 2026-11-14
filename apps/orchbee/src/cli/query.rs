@@ -46,8 +46,8 @@ pub(in crate::cli) fn read_agent_snapshot(
     agent_target::read_snapshot(client, deadline, wake)
 }
 pub(crate) use agent_focus::{
-    agent_attention_target, agent_focus_target, attention_changed_sessions,
-    attention_covers_observation, authenticate_attention,
+    agent_focus_target, attention_changed_sessions, attention_covers_observation,
+    authenticate_attention,
 };
 mod process_info;
 pub(crate) use process_info::panel_process_info;
@@ -2167,18 +2167,6 @@ impl AgentReadExchange for AgentReadRequest {
     }
 }
 
-impl AgentReadExchange for orchbee_agent_observation_protocol::AgentChangesRequest {
-    type Response = orchbee_agent_observation_protocol::AgentChangesResult;
-    fn exchange(
-        self,
-        client: &mut LocalClient,
-        total: Instant,
-        wake: Option<BorrowedFd<'_>>,
-    ) -> Result<Self::Response, AgentExchangeError> {
-        client.submit_agent_changes_before_cancellable(self, total, wake)
-    }
-}
-
 /// One armed Agent read command: after grammar validation and request
 /// identity, the interruption guard arms before the synchronous preamble
 /// and owns SIGINT/SIGTERM for the whole `T0+5s` span; the borrowed wake
@@ -2727,55 +2715,6 @@ pub(super) fn names_command(
 ) -> agent_names::Execution {
     agent_names::execute(command)
 }
-pub(crate) fn agent_changes(
-    limit: u64,
-    cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
-) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    use orchbee_agent_observation_protocol::{
-        AgentChangesOutcome, AgentChangesRejectionReason, AgentChangesRequest, AgentChangesResult,
-    };
-    super::execution::admit(super::execution::Capability::AgentProjection)
-        .map_err(AgentQueryError::Admission)?;
-    let operation = AgentReadOperation::Changes;
-    let (request_id, attempt) = agent_armed_run(operation, |_, request_id, _, _| {
-        Ok(AgentChangesRequest::Read {
-            request_id,
-            cursor,
-            limit: AgentSafeInteger::new(limit),
-        })
-    })?;
-    let AgentChangesResult::Read { result, .. } = classify_attempt(attempt, operation)?;
-    let source = super::results::agent_source(&request_id);
-    match result.outcome {
-        AgentChangesOutcome::Changes { .. }
-        | AgentChangesOutcome::Current { .. }
-        | AgentChangesOutcome::ResetRequired { .. } => {
-            Ok((source, Projection::AgentChanges(result.outcome)))
-        }
-        AgentChangesOutcome::Rejected { reason } => Err(AgentQueryError::Read(
-            Failure::new(if reason == AgentChangesRejectionReason::ReadDenied {
-                FailureKind::Denied
-            } else {
-                FailureKind::Rejected
-            })
-            .details(agent_rejection_details(
-                operation,
-                if reason == AgentChangesRejectionReason::ReadDenied {
-                    "read-denied"
-                } else {
-                    "cursor-invalid"
-                },
-            ))
-            .source(source),
-        )),
-        AgentChangesOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
-            Failure::new(FailureKind::ServiceUnavailable)
-                .details(agent_unavailable_details(operation))
-                .source(source),
-        )),
-    }
-}
-
 pub(in crate::cli) fn workbench_failure(reason: &'static str) -> Failure {
     Failure::new(if reason == "agent-page-invalid" {
         FailureKind::ProtocolInvalid

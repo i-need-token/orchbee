@@ -137,7 +137,7 @@ pub(super) fn parse(
             envelope,
         )
     };
-    let raw = options.agent_view_spec.as_deref();
+    let raw = options.spec.as_deref();
     let action = match verb {
         "set" => {
             let raw = raw.ok_or_else(|| missing_required(context, "--spec", envelope))?;

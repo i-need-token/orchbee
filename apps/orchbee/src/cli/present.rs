@@ -704,7 +704,6 @@ pub(crate) fn render(
         Projection::UnifiedAgentList(doc) | Projection::UnifiedAgentInspection(doc) => {
             doc.render(out, command, locale)
         }
-        Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         Projection::AgentTerminalInspection {
             terminal,
@@ -1610,56 +1609,6 @@ fn doctor_fact(fact: &Value) -> String {
     fact["reason"]
         .as_str()
         .map_or_else(|| state.to_owned(), |reason| format!("{state} ({reason})"))
-}
-
-fn agent_changes(
-    out: &mut Bounded,
-    outcome: &orchbee_agent_observation_protocol::AgentChangesOutcome,
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    use orchbee_agent_observation_protocol::AgentChangesOutcome;
-    let cursor = match outcome {
-        AgentChangesOutcome::Changes {
-            changes,
-            cursor,
-            observed_through_revision,
-            runtime_revision,
-            ..
-        } => {
-            table(
-                out,
-                &CliText::new(locale).cli_agent_change_headers(),
-                changes,
-                |row| {
-                    vec![
-                        row.revision.value().to_string(),
-                        row.session.session_id.as_str().to_owned(),
-                        CliText::new(locale).cli_agent_status(&row.session.status),
-                        CliText::new(locale)
-                            .cli_agent_freshness(row.session.observation.freshness)
-                            .to_owned(),
-                    ]
-                },
-            )?;
-            out.push(&CliText::new(locale).cli_agent_changes_progress(
-                observed_through_revision.value(),
-                runtime_revision.value(),
-            ))?;
-            cursor
-        }
-        AgentChangesOutcome::Current { cursor, revision }
-        | AgentChangesOutcome::ResetRequired { cursor, revision } => {
-            out.push(&CliText::new(locale).cli_agent_changes_checkpoint(
-                revision.value(),
-                matches!(outcome, AgentChangesOutcome::ResetRequired { .. }),
-            ))?;
-            cursor
-        }
-        AgentChangesOutcome::Rejected { .. } | AgentChangesOutcome::Unavailable { .. } => {
-            unreachable!("refusals do not reach successful change projection")
-        }
-    };
-    out.push(&CliText::new(locale).cli_agent_next_cursor(cursor.as_str()))
 }
 
 fn panel_process(

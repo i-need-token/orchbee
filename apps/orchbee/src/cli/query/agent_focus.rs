@@ -12,28 +12,6 @@ use crate::{
 };
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
 
-pub(crate) fn agent_attention_target(
-    client: &mut LocalClient,
-    snapshot: &Snapshot,
-    target: &AgentTarget,
-    deadline: Instant,
-    wake: Option<BorrowedFd<'_>>,
-) -> Result<orchbee_workbench_protocol::ClientViewIntent, Failure> {
-    let resolved = agent_target::resolve_named(client, target, Some(snapshot), deadline, wake)?;
-    Ok(match resolved.target {
-        orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
-            orchbee_workbench_protocol::ClientViewIntent::AgentAttention {
-                session_ids: vec![session_id],
-            }
-        }
-        orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
-            orchbee_workbench_protocol::ClientViewIntent::TerminalAgentAttention {
-                bindings: vec![binding],
-            }
-        }
-    })
-}
-
 /// The Client observation is not a Server-authoritative boot identity. Authenticate
 /// its opaque checkpoint on this admitted Server before publishing seen/unseen.
 pub(crate) fn authenticate_attention(

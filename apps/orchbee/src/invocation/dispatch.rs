@@ -7,9 +7,9 @@ use super::{
     ManifestCommand, MutationCommand, Options, OutputFormat, OutputTarget, PanelQueryTarget,
     ParseFailure, QueryCommand, Request, Resource, RuntimeStatusScope, Target, TerminalListFilter,
     UsageContext, UsageReason, adapter_source_option, agent_after_revision_option,
-    agent_limit_option, agent_name, agent_selector, agent_until_option, agent_view_spec,
-    agent_wait_timeout_option, business_options, check_scope, client_control, close_wait,
-    configured_commands, confirm_option_required, creation, diagnostics, doctor_asset_roots_option,
+    agent_limit_option, agent_name, agent_selector, agent_until_option, agent_wait_timeout_option,
+    business_options, check_scope, client_control, close_wait, configured_commands,
+    confirm_option_required, creation, diagnostics, doctor_asset_roots_option,
     doctor_providers_option, events, grammar, label_option, layouts, machines, missing_command,
     missing_required, mutation, named_sessions, operation, pane_graphics, panel_agent, panel_input,
     panel_metadata, panel_move_destination, panel_relocation, panel_terminal_creation,
@@ -80,7 +80,7 @@ pub(super) fn resolve_words(
         ["machine", ..] => machines::parse(words, options, envelope),
         ["client", ..]
         | ["layout", ..]
-        | ["agent", "focus" | "attention", ..]
+        | ["agent", "focus", ..]
         | ["workspace" | "tab", "focus", ..]
         | [
             "panel",
@@ -124,39 +124,6 @@ pub(super) fn resolve_words(
                 scope,
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
-        }
-        ["agent", "view", verb @ ("get" | "set" | "clear")] => {
-            agent_view_spec::parse(verb, options, envelope)
-        }
-        ["agent", "changes"] => {
-            let context = UsageContext::Path("agent changes");
-            check_scope(options, context, envelope)?;
-            let cursor = options
-                .cursor
-                .as_ref()
-                .map(|value| {
-                    orchbee_agent_observation_protocol::AgentChangesCursor::parse(value).map_err(
-                        |_| {
-                            usage_with(
-                                UsageReason::InvalidValue {
-                                    context,
-                                    option: "--cursor",
-                                    value: value.clone(),
-                                    expected: ExpectedValue::AgentCursor,
-                                },
-                                envelope,
-                            )
-                        },
-                    )
-                })
-                .transpose()?;
-            Ok(query(
-                QueryCommand::AgentChanges {
-                    limit: agent_limit_option(options, context, envelope)?,
-                    cursor,
-                },
-                options,
-            ))
         }
         ["agent", "list"] => {
             check_scope(options, UsageContext::Path("agent list"), envelope)?;
@@ -1316,11 +1283,6 @@ pub(super) fn resolve_words(
             envelope,
         )),
         ["agent"] => Err(missing_command(UsageContext::Path("agent"), envelope)),
-        ["agent", "changes", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent changes"),
-            extra,
-            envelope,
-        )),
         ["agent", "list", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("agent list"),
             extra,

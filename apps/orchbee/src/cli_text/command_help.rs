@@ -1,7 +1,6 @@
 //! Selects localized command details and owns top-level help copy; invocation owns grammar.
 
 use super::Locale;
-use crate::cli_text::CliText;
 
 const HELP_TUI_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee tui [--mouse on|off]",
@@ -280,18 +279,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::LaunchProfileCreate) => super::launch_profile::HELP_LAUNCH_PROFILE_CREATE_ZH,
             (Locale::EnUs, CommandPath::LaunchProfileDelete) => super::launch_profile::HELP_LAUNCH_PROFILE_DELETE_EN,
             (Locale::ZhCn, CommandPath::LaunchProfileDelete) => super::launch_profile::HELP_LAUNCH_PROFILE_DELETE_ZH,
-            (Locale::EnUs, CommandPath::AgentChanges) => crate::cli_text::HelpDetails::new(
-                "orchbee agent changes [--cursor <c>] [--limit <n>] [--format text|json]",
-                "Windows: read one bounded Agent change page (limit 1-100, default 50).\nOmit cursor to establish a current-head checkpoint, then reuse its cursor.\nreset-required means history was lost; rebuild your baseline. A previous\nsession boot or invalid cursor is rejected. No subscription or automatic retry.\nTotal read deadline: 5 seconds. JSON schema: orchbee.agent.changes.",
-            ),
-            (Locale::ZhCn, CommandPath::AgentChanges) => crate::cli_text::HelpDetails::new(
-                "orchbee agent changes [--cursor <c>] [--limit <n>] [--format text|json]",
-                "Windows：读取一页有界智能体变更（limit 1-100，默认 50）。省略 cursor 建立当前头部检查点，再使用其 cursor 继续观察。\nreset-required 表示历史丢失，必须重建基线；先前会话启动实例或无效\ncursor 会被拒绝。不订阅、不自动重试。总读取期限 5 秒。\nJSON schema：orchbee.agent.changes。",
-            ),
-            (
-                locale,
-                CommandPath::AgentViewGet | CommandPath::AgentViewSet | CommandPath::AgentViewClear,
-            ) => CliText::new(locale).agent_view_help(path),
             (Locale::EnUs, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_EN,
             (Locale::ZhCn, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_ZH,
             (Locale::EnUs, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
@@ -312,8 +299,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentSendKeys) => {
                 super::agent::HELP_AGENT_SEND_KEYS_WINDOWS_ZH
             }
-            (Locale::EnUs, CommandPath::AgentAttention) => super::client_control::HELP_AGENT_ATTENTION_EN,
-            (Locale::ZhCn, CommandPath::AgentAttention) => super::client_control::HELP_AGENT_ATTENTION_ZH,
             (Locale::EnUs, CommandPath::AgentFocus) => super::client_control::HELP_AGENT_FOCUS_EN,
             (Locale::ZhCn, CommandPath::AgentFocus) => super::client_control::HELP_AGENT_FOCUS_ZH,
             (Locale::EnUs, CommandPath::AgentGet) => super::agent::HELP_AGENT_GET_EN,

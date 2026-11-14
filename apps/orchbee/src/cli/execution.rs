@@ -37,7 +37,6 @@ pub(super) enum Capability {
     ReleaseUpdate,
     ServerStop,
     TerminalClear,
-    AgentViewSpec,
     ChannelPreference,
     Events,
     SchemaPublication,
@@ -87,7 +86,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::ReleaseUpdate
         | Capability::ServerStop
         | Capability::TerminalClear
-        | Capability::AgentViewSpec
         | Capability::ChannelPreference
         | Capability::Events
         | Capability::SchemaPublication => Failure::new(FailureKind::ServiceUnavailable)

@@ -360,13 +360,6 @@ fn resolve(
             return Ok(None);
         }
         result?
-    } else if let ClientNavigationTarget::AgentAttention(agent) = navigation.target {
-        let result =
-            query::agent_attention_target(client, snapshot, agent, deadline, signals.poll_fd());
-        if interrupted(answer, signals, deadline)? {
-            return Ok(None);
-        }
-        result?
     } else {
         selection::intent(navigation.target, selected, caller.as_ref(), snapshot)?
     };

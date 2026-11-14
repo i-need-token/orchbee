@@ -33,7 +33,6 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     match command {
         QueryCommand::Status => "orchbee.status",
         QueryCommand::AgentList { .. } => "orchbee.agent.list",
-        QueryCommand::AgentChanges { .. } => "orchbee.agent.changes",
         QueryCommand::AgentGet(_) | QueryCommand::AgentClientGet { .. } => "orchbee.agent.get",
         QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
         QueryCommand::AgentWait { .. } => "orchbee.agent.wait",
@@ -1182,7 +1181,6 @@ pub(crate) enum Projection {
     AgentList(AgentListOutcome),
     UnifiedAgentList(Box<dyn OwnedDocument>),
     UnifiedAgentInspection(Box<dyn OwnedDocument>),
-    AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
@@ -1366,7 +1364,6 @@ impl Projection {
             // Preserve source facts while using the same current public row shape.
             Self::AgentList(outcome) => shape::canonical_list(outcome),
             Self::UnifiedAgentList(doc) | Self::UnifiedAgentInspection(doc) => doc.result(),
-            Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentTerminalInspection {
                 binding,
@@ -2478,7 +2475,6 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         QueryCommand::PanelProcessInfo(_)
         | QueryCommand::PanelCurrent(PanelQueryTarget::Current | PanelQueryTarget::Client(_))
         | QueryCommand::AgentList { .. }
-        | QueryCommand::AgentChanges { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentClientGet { .. }
         | QueryCommand::AgentExplain(_)

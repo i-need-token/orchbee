@@ -144,7 +144,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 
 ## Further capabilities
 
-Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload. Some are Windows-only; the installed grammar owns admission and effect details.
+Use help for metadata reporting, attention/acknowledgement, terminal graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload. Some are Windows-only; the installed grammar owns admission and effect details.
 
 `update` installs the newest version of the channel beside the running one; running terminals and Agents keep their version. Its JSON `upToDate` is true when there was nothing newer and nothing changed.
 <!-- unreleased -->

@@ -4899,9 +4899,8 @@ fn worktree_help_paths_resolve() {
     }
 }
 
-const AGENT_PROTOCOL_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
 #[cfg(not(windows))]
-const AGENT_CURSOR: &str = AGENT_PROTOCOL_CURSOR;
+const AGENT_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
 #[cfg(windows)]
 const AGENT_CURSOR: &str = "u1.eyJzaXRlIjoiMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEiLCJ3b3JrYmVuY2giOiIxIiwiY2Fub25pY2FsIjoxLCJyZXBvcnRzIjoiMSIsImluY2x1ZGVFbmRlZCI6ZmFsc2UsImNsaWVudCI6bnVsbCwib2Zmc2V0IjoxLCJmaW5nZXJwcmludCI6IjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifQ";
 
@@ -6992,56 +6991,6 @@ fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() 
                     .contains("--client")
             );
         }
-    }
-}
-
-#[test]
-fn agent_changes_grammar_requires_bounded_explicit_continuation() {
-    #[cfg(windows)]
-    assert!(parse(&["agent", "changes", "--cursor", AGENT_CURSOR]).is_err());
-    assert_eq!(
-        parse(&["agent", "changes"]),
-        Ok(query(
-            QueryCommand::AgentChanges {
-                limit: 50,
-                cursor: None
-            },
-            OutputFormat::Text
-        ))
-    );
-    assert_eq!(
-        parse(&[
-            "agent",
-            "changes",
-            "--cursor",
-            AGENT_PROTOCOL_CURSOR,
-            "--limit=100",
-            "--format=json"
-        ]),
-        Ok(query(
-            QueryCommand::AgentChanges {
-                limit: 100,
-                cursor: Some(
-                    orchbee_agent_observation_protocol::AgentChangesCursor::parse(
-                        AGENT_PROTOCOL_CURSOR
-                    )
-                    .unwrap()
-                )
-            },
-            OutputFormat::Json
-        ))
-    );
-    for arguments in [
-        vec!["agent", "changes", "extra"],
-        vec!["agent", "changes", "--include-ended"],
-        vec!["agent", "changes", "--limit", "0"],
-        vec!["agent", "changes", "--limit", "101"],
-        vec!["agent", "changes", "--limit", "2", "--limit", "2"],
-        vec!["agent", "changes", "--cursor", "bad"],
-        vec!["agent", "changes", "--cursor"],
-        vec!["agent", "changes", "--timeout", "100"],
-    ] {
-        assert!(parse(&arguments).is_err(), "{arguments:?}");
     }
 }
 

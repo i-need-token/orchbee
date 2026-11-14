@@ -56,7 +56,6 @@
 				"schemas": {
 					"type": "object",
 					"required": [
-						"orchbee.agent.changes",
 						"orchbee.agent.doctor",
 						"orchbee.agent.explain",
 						"orchbee.agent.get",
@@ -69,7 +68,6 @@
 						"orchbee.agent.rename",
 						"orchbee.agent.resolve",
 						"orchbee.agent.start",
-						"orchbee.agent.view",
 						"orchbee.agent.wait",
 						"orchbee.api.schema",
 						"orchbee.api.snapshot",
@@ -193,7 +191,6 @@
 	"$defs": {
 		"schemaId": {
 			"enum": [
-				"orchbee.agent.changes",
 				"orchbee.agent.doctor",
 				"orchbee.agent.explain",
 				"orchbee.agent.get",
@@ -206,7 +203,6 @@
 				"orchbee.agent.rename",
 				"orchbee.agent.resolve",
 				"orchbee.agent.start",
-				"orchbee.agent.view",
 				"orchbee.agent.wait",
 				"orchbee.api.schema",
 				"orchbee.api.snapshot",
