@@ -101,8 +101,9 @@ bounded by the original deadline, and separately reported. No hidden compensatin
 - A sibling executable or cohort is verified by identity before it is trusted or launched, per
   [Rust](../RUST.md#local-process-and-ipc-boundaries). A version or cohort mismatch is an
   incompatible outcome.
-- An invocation never starts, activates, repairs, or locks a service unless its verb declares that
-  effect. A verb that declares activation may create the scoped runtime directory, take its locks,
+- An invocation never starts, activates, repairs, or locks a service unless its command declares
+  that effect in the owning guide. A command that declares activation may create the scoped
+  runtime directory, take its locks,
   commit its marker, or spawn the service; it still validates the cohort
   before any runtime-directory work, holds one invocation-owned deadline for the whole attempt,
   reports a half-activated state as a refusal, and never repairs, stops, or deletes runtime state.

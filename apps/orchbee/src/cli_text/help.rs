@@ -671,7 +671,6 @@ impl super::CliText {
 pub(crate) enum HelpText {
     Usage,
     QuickStart,
-    SessionStart,
     Commands,
     Options,
     Arguments,
@@ -715,10 +714,6 @@ impl super::CliText {
             ),
             HelpText::Usage => ("Usage", "用法"),
             HelpText::QuickStart => ("Quick start", "快速开始"),
-            HelpText::SessionStart => (
-                "Start the default background session for CLI commands.",
-                "启动默认后台会话，以使用 CLI 命令。",
-            ),
             HelpText::Commands => ("Commands", "命令"),
             HelpText::Options => ("Options", "选项"),
             HelpText::Arguments => ("Arguments", "参数"),

@@ -328,6 +328,69 @@ pub(super) fn peer_answering(
     answer: fn(&mut LocalStream) -> std::io::Result<()>,
     script: impl FnOnce(LocalStream) + Send + 'static,
 ) -> PeerGuard<'_> {
+    serve(fixture, listener, admission_budget, answer, false, script)
+}
+
+/// A peer for a creating command that declares activation: its start finds this peer already
+/// running, so one admitted probe closes before the command's own connection reaches `script`.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+pub(super) fn activating_peer(
+    fixture: &Fixture,
+    listener: LocalListener,
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> PeerGuard<'_> {
+    serve(
+        fixture,
+        listener,
+        Duration::from_secs(15),
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer,
+        true,
+        script,
+    )
+}
+
+/// Whether `words` name a creating command that declares activation as its first phase.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+fn declares_activation(words: &[&str]) -> bool {
+    matches!(
+        words,
+        ["workspace" | "project", "create", ..] | ["worktree", "create" | "open", ..]
+    )
+}
+
+/// The peer the command `words` needs: [`activating_peer`] for a creating command that declares
+/// activation, [`peer`] for any other.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
+pub(super) fn peer_for<'fixture>(
+    fixture: &'fixture Fixture,
+    listener: LocalListener,
+    words: &[&str],
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> PeerGuard<'fixture> {
+    if declares_activation(words) {
+        activating_peer(fixture, listener, script)
+    } else {
+        peer(fixture, listener, script)
+    }
+}
+
+fn serve(
+    fixture: &Fixture,
+    listener: LocalListener,
+    admission_budget: Duration,
+    answer: fn(&mut LocalStream) -> std::io::Result<()>,
+    probe: bool,
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> PeerGuard<'_> {
     listener.set_nonblocking(true).unwrap();
     let (launched, launch) = mpsc::channel();
     let state = Arc::new(PeerState::default());
@@ -341,58 +404,68 @@ pub(super) fn peer_answering(
         let _cancel_on_failure = CancelOnFailure(Arc::clone(&peer_state));
         // OS process creation is fixture setup, not the CLI admission interval.
         let mut deadline = None;
-        let mut stream = loop {
-            if peer_state.cancelled.load(Ordering::Acquire) {
-                return;
-            }
-            match listener.accept() {
-                Ok((stream, _)) => break stream,
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    if deadline.is_none() {
-                        match launch.try_recv() {
-                            Ok(started) => deadline = Some(started + admission_budget),
-                            Err(mpsc::TryRecvError::Empty) => {}
-                            Err(mpsc::TryRecvError::Disconnected) => {
-                                panic!("CLI launch cancelled before admission");
+        let mut admit = || -> Option<LocalStream> {
+            let mut stream = loop {
+                if peer_state.cancelled.load(Ordering::Acquire) {
+                    return None;
+                }
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        if deadline.is_none() {
+                            match launch.try_recv() {
+                                Ok(started) => deadline = Some(started + admission_budget),
+                                Err(mpsc::TryRecvError::Empty) => {}
+                                Err(mpsc::TryRecvError::Disconnected) => {
+                                    panic!("CLI launch cancelled before admission");
+                                }
                             }
                         }
+                        if deadline.is_some_and(|until| Instant::now() >= until) {
+                            let diagnostic = peer_state
+                                .diagnostic
+                                .lock()
+                                .unwrap()
+                                .clone()
+                                .unwrap_or_else(|| {
+                                    "child output has not been collected; cancelling its Job"
+                                        .to_owned()
+                                });
+                            // Release the diagnostic lock before unwinding the peer.
+                            panic!("CLI admission timeout: {diagnostic}");
+                        }
+                        thread::sleep(Duration::from_millis(5));
                     }
-                    if deadline.is_some_and(|until| Instant::now() >= until) {
-                        let diagnostic = peer_state
-                            .diagnostic
-                            .lock()
-                            .unwrap()
-                            .clone()
-                            .unwrap_or_else(|| {
-                                "child output has not been collected; cancelling its Job".to_owned()
-                            });
-                        // Release the diagnostic lock before unwinding the peer.
-                        panic!("CLI admission timeout: {diagnostic}");
-                    }
-                    thread::sleep(Duration::from_millis(5));
+                    Err(error) => panic!("named-pipe accept: {error}"),
                 }
-                Err(error) => panic!("named-pipe accept: {error}"),
-            }
+            };
+            stream
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            stream
+                .set_write_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            answer(&mut stream).unwrap();
+            assert!(matches!(
+                read_message(&mut stream).unwrap(),
+                LocalClientMessage::ClientHello
+            ));
+            write_message(
+                &mut stream,
+                &LocalClientMessage::ClientAccepted {
+                    generation: std::num::NonZeroU64::new(1).unwrap(),
+                },
+            )
+            .unwrap();
+            Some(stream)
         };
-        stream
-            .set_read_timeout(Some(Duration::from_secs(10)))
-            .unwrap();
-        stream
-            .set_write_timeout(Some(Duration::from_secs(10)))
-            .unwrap();
-        answer(&mut stream).unwrap();
-        assert!(matches!(
-            read_message(&mut stream).unwrap(),
-            LocalClientMessage::ClientHello
-        ));
-        write_message(
-            &mut stream,
-            &LocalClientMessage::ClientAccepted {
-                generation: std::num::NonZeroU64::new(1).unwrap(),
-            },
-        )
-        .unwrap();
-        script(stream);
+        if probe {
+            let Some(mut probe) = admit() else { return };
+            assert_closed_for(&mut probe, "activation probe");
+        }
+        if let Some(stream) = admit() {
+            script(stream);
+        }
     });
     PeerGuard {
         fixture,

@@ -446,6 +446,32 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
     mutation::run(&command, format, locale)
 }
 
+/// Runs a creating command that declares activation as its first phase: `workspace create`,
+/// `project create`, `worktree create` and `worktree open`, after their local parsing. The
+/// selected Session starts first if it is not running, and only then does `run` begin its own
+/// deadline. A start failure answers as `server start`'s, from the local runtime, and the
+/// command's effect is not submitted. The started line leads the command's own stderr; stdout and
+/// machine documents are unchanged. No handler is armed during activation, so a termination
+/// signal ends it by its default disposition, exactly like `server start`.
+pub(crate) fn activating(
+    format: OutputFormat,
+    locale: Locale,
+    run: impl FnOnce() -> Output,
+) -> Output {
+    match server::activate_first(locale) {
+        Err(failure) => failure_output(
+            failure.source(crate::cli_outcome::local_runtime_source()),
+            Some(format),
+            locale,
+        ),
+        Ok(started) => {
+            let mut output = run();
+            output.stderr.insert_str(0, &started);
+            output
+        }
+    }
+}
+
 /// `server start` is neither a query nor a workbench mutation: it runs the
 /// shared connect-or-activate core once and reports the branch it took.
 pub(crate) fn session_start(format: OutputFormat, locale: Locale) -> Output {

@@ -77,10 +77,6 @@ pub(crate) fn root(locale: Locale) -> String {
                     CliText::new(locale).cli_help_text(HelpText::OpenTerminal),
                 ),
                 row(
-                    "orchbee server start",
-                    CliText::new(locale).cli_help_text(HelpText::SessionStart),
-                ),
-                row(
                     "orchbee workspace create",
                     CliText::new(locale).cli_help_text(HelpText::NewWorkspace),
                 ),

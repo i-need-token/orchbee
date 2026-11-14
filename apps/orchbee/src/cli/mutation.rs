@@ -315,6 +315,9 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
     if let Err(failure) = super::execution::admit(super::execution::Capability::WorkbenchMutation) {
         return failure_output(failure, Some(format), locale);
     }
+    if matches!(command, MutationCommand::ProjectCreate { .. }) {
+        return super::activating(format, locale, || workflow::run(command, format, locale));
+    }
     workflow::run(command, format, locale)
 }
 

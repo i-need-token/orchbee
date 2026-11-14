@@ -45,7 +45,7 @@ fn run_extended(
             Err(failure) => return super::parse_failure(failure, locale),
         };
     let launch = command.launch.clone();
-    let output = run_resolved(command, format, locale);
+    let output = super::activating(format, locale, || run_resolved(command, format, locale));
     super::launch_receipt::annotate(output, launch.as_ref().filter(|_| named), format, locale)
 }
 

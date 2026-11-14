@@ -6,7 +6,7 @@ use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_terminal_protocol as t;
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, configuration_reply, peer, validate};
+use support::{Fixture, activating_peer, assert_closed, configuration_reply, peer_for, validate};
 const SCHEMA: &str = include_str!("../src/cli/schemas/orchbee.workspace.creation.json");
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -158,9 +158,10 @@ fn run_in(
     script: impl FnOnce(LocalStream) + Send + 'static,
 ) -> (i32, Value) {
     let rendezvous = fixture.rendezvous();
-    let handler = peer(
+    let handler = peer_for(
         fixture,
         LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+        words,
         script,
     );
     let output = fixture.run_with_caller(words, caller.0, caller.1);
@@ -242,7 +243,7 @@ fn workspace_path_resolution_uses_the_final_process_home_or_current_directory() 
         let target = executor.join("remote");
         let expected_path = target.to_str().unwrap().to_owned();
         let rendezvous = fixture.rendezvous();
-        let handler = peer(
+        let handler = activating_peer(
             &fixture,
             LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
             move |mut stream| {

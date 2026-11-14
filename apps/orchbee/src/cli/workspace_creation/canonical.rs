@@ -75,7 +75,11 @@ pub(super) fn run(
         {
             return crate::cli::unsupported_platform(Some(format), locale);
         }
-        return crate::cli::mutation::create_workspace(&project, &label, format, locale);
+        return crate::cli::activating(format, locale, || {
+            crate::cli::mutation::create_workspace(&project, &label, format, locale)
+        });
     };
-    crate::cli::mutation(mutation, format, locale)
+    crate::cli::activating(format, locale, || {
+        crate::cli::mutation(mutation, format, locale)
+    })
 }

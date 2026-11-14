@@ -21,6 +21,7 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
                 vec!["worktree", "create", "--cwd", path, "--path", path],
                 vec!["worktree", "open", "--cwd", path, "--path", path],
             ] {
+                let activates = words[1] != "list";
                 words.push("--format=json");
                 let output = crate::staged_client::isolated()
                     .args(&words)
@@ -34,11 +35,17 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
                     .output()
                     .unwrap();
                 let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+                // A creating command's start reports the cohort in the `server start` vocabulary.
+                if !activates {
+                    assert_eq!(
+                        document["failure"]["kind"], "check-failed",
+                        "{words:?}: {document}"
+                    );
+                }
                 assert_eq!(
-                    document["failure"]["kind"], "check-failed",
+                    document["failure"]["details"]["stage"], "cohort",
                     "{words:?}: {document}"
                 );
-                assert_eq!(document["failure"]["details"]["stage"], "cohort");
             }
         }
         for (verb, option) in [("list", "--cwd"), ("create", "--path"), ("open", "--path")] {

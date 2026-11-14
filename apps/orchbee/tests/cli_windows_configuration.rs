@@ -4,7 +4,7 @@ use crate::peer_support as support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, configuration_reply, peer, validate};
+use support::{Fixture, activating_peer, assert_closed, configuration_reply, peer_for, validate};
 
 #[test]
 fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
@@ -229,7 +229,8 @@ fn assert_warning_diagnostic(document: &Value, field: &str, reason: &str, dispos
 
 fn assert_creation_reaches_missing_session(fixture: &Fixture) {
     std::fs::create_dir_all(fixture.0.join("runtime")).unwrap();
-    let output = fixture.run(&["workspace", "create", "--cwd=C:/explicit", "--format=json"]);
+    // A creating command that declares activation starts the absent Session; Tab creation does not.
+    let output = fixture.run(&["tab", "create", "--workspace", "Workspace", "--format=json"]);
     assert_eq!(
         output.status.code(),
         Some(4),
@@ -290,7 +291,6 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
         assert_eq!(checked["result"]["checks"][5]["details"], expected);
         // Creation never reads the file: it proceeds to the Session, which is absent here.
         for args in [
-            vec!["workspace", "create", "--format=json"],
             vec!["tab", "create", "--workspace", "Workspace", "--format=json"],
             vec![
                 "panel",
@@ -299,7 +299,6 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
                 "00000000000000000000000000000007",
                 "--format=json",
             ],
-            vec!["worktree", "create", "--cwd=C:/repo", "--format=json"],
         ] {
             let output = fixture.run_with_env(&args, None, None, &environment);
             assert_eq!(
@@ -513,9 +512,10 @@ fn workspace_tab_and_panel_creation_apply_the_session_cwd_and_allow_override() {
         let config = fixture.0.join("config.toml");
         std::fs::write(&config, "[terminal]\nnew_cwd='C:/file-only'").unwrap();
         let rendezvous = fixture.rendezvous();
-        let handler = peer(
+        let handler = peer_for(
             &fixture,
             LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            &args,
             move |mut stream| {
                 snapshot(&mut stream, true);
                 if expected == "C:/configured" {
@@ -568,7 +568,7 @@ fn configured_checkout_query_precedes_setup_and_explicit_path_skips_it() {
         let config = fixture.0.join("config.toml");
         std::fs::write(&config, "[worktrees]\ndirectory='C:/file-only'").unwrap();
         let rendezvous = fixture.rendezvous();
-        let handler = peer(
+        let handler = activating_peer(
             &fixture,
             LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
             move |mut stream| {

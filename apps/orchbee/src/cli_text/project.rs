@@ -27,13 +27,13 @@ pub(super) const HELP_PROJECT_GET_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_PROJECT_CREATE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee project create --label <label> [--format text|json]",
-        "Create one Project with the given label. The command reads one snapshot,\nthen submits exactly one command under a fresh request id. The result\ncarries the committed revision and the Server-allocated project id.\nA new Project has no directory or Workspace, and creating one touches no\nfilesystem path. Labels may repeat across Projects; address the new\nProject by its returned id.",
+        "Create one Project with the given label. The command reads one snapshot,\nthen submits exactly one command under a fresh request id. The result\ncarries the committed revision and the Server-allocated project id.\nA new Project has no directory or Workspace, and creating one touches no\nfilesystem path. Labels may repeat across Projects; address the new\nProject by its returned id. Starts the Session first if it is not running.",
     );
 
 pub(super) const HELP_PROJECT_CREATE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee project create --label <label> [--format text|json]",
-        "以给定 label 创建一个项目。命令先读取一次快照，然后以全新请求 ID\n只提交一个命令。结果携带已提交修订与 Server 分配的 project id。新项目无目录、无工作区，创建不触碰任何文件系统路径。\nlabel 允许跨项目重复；请按返回的 ID 寻址新项目。",
+        "以给定 label 创建一个项目。命令先读取一次快照，然后以全新请求 ID\n只提交一个命令。结果携带已提交修订与 Server 分配的 project id。新项目无目录、无工作区，创建不触碰任何文件系统路径。\nlabel 允许跨项目重复；请按返回的 ID 寻址新项目。会话未运行时会先启动会话。",
     );
 
 pub(super) const HELP_PROJECT_RENAME_EN: crate::cli_text::HelpDetails =

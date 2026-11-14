@@ -527,6 +527,8 @@ fn serve_packet(bytes: &[u8], mut interrupted: impl FnMut() -> io::Result<bool>)
         .args(["--session", &packet.session])
         .args(&packet.arguments)
         .env("LC_ALL", locale_name(packet_locale(&packet.locale)))
+        // The route already made this Session ready; a creating command must not start another.
+        .env(crate::cli::server::ROUTED_COMMAND, "1")
         .env_remove("ORCHBEE_TERMINAL_ID")
         .env_remove("ORCHBEE_WORKER_ID")
         // A far end that a development stand-in starts inherits the hub's askpass pairing, which a

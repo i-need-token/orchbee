@@ -4,7 +4,7 @@ use crate::peer_support as support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
-use support::{Fixture, assert_closed, configuration_reply, peer, validate};
+use support::{Fixture, assert_closed, configuration_reply, peer_for, validate};
 
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -159,9 +159,10 @@ fn run(
 ) -> (i32, Value) {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
-    let handler = peer(
+    let handler = peer_for(
         &fixture,
         LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+        words,
         script,
     );
     let output = fixture.run_with_caller(words, caller.0, caller.1);
@@ -188,9 +189,10 @@ fn explicit_paths_use_the_final_cli_context_in_complete_typed_intents() {
         let source_path = WorkbenchDirectoryPath::parse(source.to_str().unwrap()).unwrap();
         let target_path = WorkbenchDirectoryPath::parse(target.to_str().unwrap()).unwrap();
         let rendezvous = fixture.rendezvous();
-        let handler = peer(
+        let handler = peer_for(
             &fixture,
             LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            &["worktree", verb],
             move |mut stream| {
                 snapshot(&mut stream, false, false, false);
                 if verb == "list" {

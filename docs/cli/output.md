@@ -99,9 +99,10 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 | `130` | Interrupted     | Default `SIGINT` semantics                                                                                                                                                                                      |
 
 - A refused, unavailable, broken-channel, or incompatible outcome on a mutation means nothing was
-  applied. Only unknown outcome admits that an effect may exist. An activation verb follows its
-  own rule: its `rejected` refusal means half-activated runtime state may persist, so the command
-  reports the refusal and never claims nothing was applied.
+  applied. Only unknown outcome admits that an effect may exist. An activation verb, and a command
+  that declares activation as its first phase, follows its own rule: a `rejected` refusal of the
+  activation means half-activated runtime state may persist, so the command reports the refusal and
+  never claims nothing was applied; the command's own effect was not submitted.
 - A stale-base refusal still exits `3` after the
   [stale-base retry](process.md#side-effects-and-request-identity): the retries were spent or a
   target no longer resolved to the same identity. Its document carries the last attempt's request

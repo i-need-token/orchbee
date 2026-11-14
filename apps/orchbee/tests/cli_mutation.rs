@@ -160,6 +160,28 @@ fn spawn_peer_n(
     })
 }
 
+/// A peer for `project create`, which declares activation: its start finds this peer running
+/// and admits one probe that closes before the command's own connection reaches `script`.
+fn spawn_activating_peer(
+    scope: &Path,
+    script: impl Fn(UnixStream) + Send + 'static,
+) -> thread::JoinHandle<()> {
+    let probed = std::sync::atomic::AtomicBool::new(false);
+    spawn_peer_n(scope, 2, move |stream| {
+        if probed.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            script(stream);
+        } else {
+            admit_activation_probe(&stream);
+        }
+    })
+}
+
+/// Admits the probe of a declared activation and waits for it to close unused.
+fn admit_activation_probe(stream: &UnixStream) {
+    admit(stream);
+    expect_peer_retire(stream);
+}
+
 /// Accept the next connection within `PEER_ACCEPT_DEADLINE`; a CLI that never
 /// arrives is a test failure, not an infinite block. The listener must already
 /// be nonblocking.
@@ -449,7 +471,7 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     let scope = stage_scope(&base);
     let submitted = Arc::new(Mutex::new(String::new()));
     let seen = submitted.clone();
-    let peer = spawn_peer(&scope, move |stream| {
+    let peer = spawn_activating_peer(&scope, move |stream| {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         assert_command_base(&command, snapshot_request.as_str());
@@ -1334,7 +1356,7 @@ fn rejected_command_maps_to_exit_three() -> TestResult {
 fn project_create_rejected_maps_to_exit_three() -> TestResult {
     let base = base_dir("project-rejected");
     let scope = stage_scope(&base);
-    let peer = spawn_peer(&scope, |stream| {
+    let peer = spawn_activating_peer(&scope, |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         let WorkbenchAction::ProjectCreate { .. } = &command.action else {
@@ -2024,6 +2046,11 @@ fn project_create_dropped_response_is_unknown_without_replay() -> TestResult {
     let submitted = Arc::new(Mutex::new(String::new()));
     let seen = submitted.clone();
     let peer = thread::spawn(move || {
+        let probe = accept_bounded(&listener);
+        probe
+            .set_read_timeout(Some(PEER_IO_DEADLINE))
+            .expect("probe read timeout");
+        admit_activation_probe(&probe);
         let stream = accept_bounded(&listener);
         stream
             .set_read_timeout(Some(PEER_IO_DEADLINE))
@@ -2083,7 +2110,7 @@ fn project_create_dropped_response_is_unknown_without_replay() -> TestResult {
 fn project_create_wrong_outcome_is_not_success() -> TestResult {
     let base = base_dir("project-wrong-outcome");
     let scope = stage_scope(&base);
-    let peer = spawn_peer(&scope, |stream| {
+    let peer = spawn_activating_peer(&scope, |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         let WorkbenchAction::ProjectCreate { .. } = &command.action else {

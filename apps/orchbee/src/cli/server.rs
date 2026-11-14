@@ -41,18 +41,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
             locale,
         ),
         Ok(started) => {
-            let warning = started
-                .restore_notice
-                .map(|notice| match notice {
-                    orchbee_local_runtime::CheckpointRestoreNotice::Recovered => {
-                        crate::client_view::Notice::CheckpointRecovered
-                    }
-                    orchbee_local_runtime::CheckpointRestoreNotice::Empty => {
-                        crate::client_view::Notice::CheckpointEmpty
-                    }
-                })
-                .map(|notice| format!("{}\n", locale.shell_notice(Some(notice))))
-                .unwrap_or_default();
+            let warning = restore_warning(started.restore_notice, locale);
             let result = json!({
                 "outcome": started.outcome,
                 "restoreNotice": started.restore_notice.map(|notice| match notice {
@@ -111,6 +100,24 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
             }
         }
     }
+}
+
+/// The stderr line a start that restored saved Workspaces adds, or nothing.
+fn restore_warning(
+    notice: Option<orchbee_local_runtime::CheckpointRestoreNotice>,
+    locale: Locale,
+) -> String {
+    notice
+        .map(|notice| match notice {
+            orchbee_local_runtime::CheckpointRestoreNotice::Recovered => {
+                crate::client_view::Notice::CheckpointRecovered
+            }
+            orchbee_local_runtime::CheckpointRestoreNotice::Empty => {
+                crate::client_view::Notice::CheckpointEmpty
+            }
+        })
+        .map(|notice| format!("{}\n", locale.shell_notice(Some(notice))))
+        .unwrap_or_default()
 }
 
 /// The outcome a successful attempt reports: the admitted probe is dropped
@@ -172,6 +179,45 @@ pub(super) fn activate(deadline: std::time::Instant) -> Result<(), Failure> {
         )
     }
 }
+
+/// The first phase of a creating command that declares activation: the selected local Session
+/// starts exactly as `server start` starts it, under the same budget, before the command's own
+/// deadline begins. The answer is the stderr text: `server start`'s started line and restore
+/// notice when this invocation started the Session, otherwise nothing. A command a machine runs
+/// for another machine's route never starts its Session; the route already made it ready.
+pub(super) fn activate_first(locale: Locale) -> Result<String, Failure> {
+    if std::env::var_os(ROUTED_COMMAND).is_some_and(|value| value == "1") {
+        return Ok(String::new());
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    {
+        let started =
+            crate::local_activation::activate_local_session(Instant::now() + START_BUDGET)
+                .map_err(classify)?;
+        Ok(if started.spawned {
+            format!(
+                "{}{}",
+                CliText::new(locale).cli_server_started(),
+                restore_warning(started.restore_notice, locale)
+            )
+        } else {
+            String::new()
+        })
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+    {
+        let _unused = locale;
+        Err(
+            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+                "platform",
+                "unsupported-platform",
+            )),
+        )
+    }
+}
+
+/// The private marker the machine link sets on the command it runs for a routed request.
+pub(crate) const ROUTED_COMMAND: &str = "ORCHBEE_ROUTED_COMMAND";
 
 /// Activates like `server start` but keeps the admitted connection for `server connect`.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]

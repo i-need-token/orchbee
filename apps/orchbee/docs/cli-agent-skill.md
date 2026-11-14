@@ -16,7 +16,7 @@ Pass a pagination cursor unchanged to the same command and backend that returned
 
 ## Select and start a Session
 
-Use `doctor` to check whether Orchbee works here: installation, settings, saved data, runtime folder, Session and Agent integrations, each `pass`, `warning`, `fail` or `not-applicable`, exit `1` only when a check failed. Use `config check` to inspect local configuration and `status` to read the running Session's counts and processes. `doctor` and `config check` do not start a Session; `status` needs a running one. Use `server start` for headless startup.
+Use `doctor` to check whether Orchbee works here: installation, settings, saved data, runtime folder, Session and Agent integrations, each `pass`, `warning`, `fail` or `not-applicable`, exit `1` only when a check failed. Use `config check` to inspect local configuration and `status` to read the running Session's counts and processes. `doctor` and `config check` do not start a Session; `status` needs a running one. Use `server start` for headless startup; `workspace create`, `project create`, `worktree create` and `worktree open` start the selected Session themselves when it is not running and then print `Local session started.` on standard error.
 
 `--session <name>` selects a local named Session and may appear before or after the command. The default is `default`. Use the same selection on subsequent commands and diagnostics. `session list` shows the local inventory; `session attach <name>` enters its TUI. Exiting a TUI leaves the Session running.
 

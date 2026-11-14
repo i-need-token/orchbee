@@ -3,7 +3,7 @@ use super::operation::Probe;
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::cli_text::CliText;
-use crate::invocation::WorktreeCommand;
+use crate::invocation::{WorktreeCommand, WorktreeStartKind};
 use crate::{
     invocation::{OutputFormat, ParsedWorktreeCommand},
     localization::Locale,
@@ -159,6 +159,16 @@ pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: 
             Ok(command) => command,
             Err(failure) => return super::parse_failure(failure, locale),
         };
+    if let WorktreeCommand::Start(start) = &command
+        && matches!(
+            start.kind,
+            WorktreeStartKind::Create { .. } | WorktreeStartKind::Open { .. }
+        )
+    {
+        return super::activating(format, locale, || {
+            probe(&command, format, locale).into_output()
+        });
+    }
     probe(&command, format, locale).into_output()
 }
 

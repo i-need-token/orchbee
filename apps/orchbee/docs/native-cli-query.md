@@ -115,9 +115,12 @@ Navigation has global `directories` and `workspaces` arrays; `projects` contain 
 Status: current implementation and correctness contract for the native `orchbee`
 command line, covering queries, Workbench mutations, terminal observation and input,
 Agent names, and local provider onboarding. Queries observe an existing Session; Workbench
-mutations follow the mutation contract below. Only explicit `server start` and the TUI
-startup path may activate a Session. Agent state comes from the Server's canonical model,
-never terminal-text inference; the Server owns names, while `agent integration` manages
+mutations follow the mutation contract below. Only `server start`, `server connect`, the
+`agent integration` jobs, the TUI startup path, and `workspace create`, `project create`,
+`worktree create` and `worktree open` may activate a Session; those four creating commands start
+the selected Session first when it is not running, exactly as `server start` would. Agent state
+comes from the Server's canonical model, never terminal-text inference; the Server owns names,
+while `agent integration` manages
 only the invoking user's local provider configuration. Each command's effects, budgets,
 and release boundaries are specified in its section. CLI commands need no TTY; the
 interactive TUI has separate terminal admission requirements. The native CLI remains
@@ -2300,15 +2303,24 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - Failure envelopes never invent `source`: sessionId/revision appear only from a validated snapshot.
 - Ambiguous never guesses: it reports bounded candidates plus the true count.
 - `api schema`, help, and completion enumerate exactly the commands delivered in the same build.
-- `server start` is the single activation surface and the one command that creates local-runtime
-  state: it may create the runtime directory, hold activation/lifetime locks, commit the marker,
-  and spawn the Server — only a grammar failure guarantees zero effect. Its absolute 20-second deadline
+- `server start` is the activation verb, and the commands listed above that declare activation
+  share its start and failure vocabulary. A start may create the runtime directory, hold
+  activation/lifetime locks, commit the marker, and spawn the Server — only a grammar failure guarantees zero effect. Its absolute 20-second deadline
   is never reset per stage; a returned `recovery-required` refusal is never retried or force-cleaned;
   Windows cold recovery rechecks the separately documented proof guards before a fresh generation.
   A timeout never claims no Server started. `doctor` is the observation
   surface and performs no effect at all beyond its bounded lifetime-lock probe and the Session
   check's handshake `query`: no connect,
   no create, no lock acquisition, no repair, and no liveness or restart claim.
+- `workspace create`, `project create`, `worktree create` and `worktree open` run that start as
+  their first phase, after local parsing and before their own deadline begins. When the invocation
+  started the Session, standard error carries `server start`'s started line and restore notice;
+  nothing is printed when the Session was already running, and stdout and JSON documents are
+  unchanged. A start failure is `server start`'s failure in the generic `orchbee.cli.failure`
+  document with the local-runtime source, and the command's effect is not submitted. A mistyped
+  `--session` name creates that Session, as `server start` does. A command a machine runs for a
+  [`--machine` route](machines.md#command-routing-contract) never starts a Session. Every other
+  command keeps the unavailable failure when no Session runs.
 - The CLI-owned 5-second budgets are checked deadlines; a construction failure is
   `internal-failure`, while transport-internal `RequestNotSubmitted` stays `transport-loss`.
 

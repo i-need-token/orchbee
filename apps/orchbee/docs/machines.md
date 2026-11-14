@@ -394,7 +394,9 @@ side as written, the far business process resolves it against the far home, and 
 cannot be used fails as that command's usage failure, naming the variable and never its value,
 and writes nothing to the far profile.
 Caller terminal/worker context is cleared; explicit targets or remote Client
-selection determine the destination. Output bytes, diagnostics and exit status
+selection determine the destination. The routed command runs with the private
+`ORCHBEE_ROUTED_COMMAND=1`, so a creating command that would start its Session on first use does
+not start one there. Output bytes, diagnostics and exit status
 are returned in a bounded reply, never reconstructed from SSH diagnostics.
 
 Local input has a 60-second bound, and reaching `online` 90 seconds: a hub start, then the hub's

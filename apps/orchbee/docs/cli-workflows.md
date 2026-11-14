@@ -3,7 +3,6 @@
 ## Windows: create a usable Workspace first
 
 ```powershell
-orchbee server start
 orchbee workspace create
 orchbee workspace create --cwd C:/code/demo --label main --format json
 orchbee project create --label demo
@@ -11,7 +10,7 @@ orchbee workspace set-project <workspace> --project demo
 orchbee project dissolve demo
 ```
 
-After starting the background service, the two Workspace creation commands each launch a Workspace and default shell in one request, with no required Project/label or automatic AI program. Placement defaults to ungrouped; only explicit `--project` selects an existing Project. Read `workspace.result` in `orchbee.workspace.creation` v1, including required-nullable `projectId`. Existing exec/profile/env/geometry and optional focus controls remain available. The last four commands change organization metadata while preserving stable IDs, directories, PTYs and global order. Projects may organize multiple repositories; ordinary and worktree Workspaces are peers.
+The first command starts the background Session when it is not running and says so on standard error. The two Workspace creation commands each launch a Workspace and default shell in one request, with no required Project/label or automatic AI program. Placement defaults to ungrouped; only explicit `--project` selects an existing Project. Read `workspace.result` in `orchbee.workspace.creation` v1, including required-nullable `projectId`. Existing exec/profile/env/geometry and optional focus controls remain available. The last four commands change organization metadata while preserving stable IDs, directories, PTYs and global order. Projects may organize multiple repositories; ordinary and worktree Workspaces are peers.
 
 ```powershell
 orchbee workspace close <workspace> --confirm
@@ -42,7 +41,6 @@ function Invoke-OrchbeeJson([string[]]$Words) {
     if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
     ($output -join "`n") | ConvertFrom-Json
 }
-Invoke-OrchbeeJson -Words @('server', 'start')
 $project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
 $created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
     '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
@@ -93,9 +91,10 @@ are available; see [runtime status and doctor](native-runtime-status.md#doctor),
 - Role split: `config check` and `api schema` are purely local (no connection, lock, or Session
   effect), and `doctor` adds only the Session check's handshake `query`;
   `help`, `completion`, and `--version` print fixed text without touching
-  runtime state; `server start` and the `agent integration` family declare
-  activation; every other command — and the bare/`tui` entry's
-  connect-or-activate — talks to the local Session.
+  runtime state; `server start`, `agent integration explain|enable|disable`,
+  and the creating commands `workspace create`, `project create`, `worktree create` and
+  `worktree open` declare activation and start the Session when it is not running; every other
+  command — and the bare/`tui` entry's connect-or-activate — talks to the local Session.
 - Agent rows appear only when the running Session observes sessions from a
   supported Agent integration that is already enabled. Provider onboarding
   is the `agent integration` family in section 6 — bounded and run by the
