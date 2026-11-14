@@ -1,11 +1,7 @@
-// The only switch between the "no release yet" and "released" install content. When a public
-// pre-release exists, replace `release` with its version and the address of its Windows installer:
-//
-//   export const release: Release = {
-//   	published: true,
-//   	version: '0.1.0-beta.1',
-//   	installerUrl: 'https://github.com/i-need-token/orchbee/releases/download/v0.1.0-beta.1/<installer>.exe',
-//   };
+// The only switch between the "no release yet" and "released" install content. After a release is
+// published, `pnpm website:release <version>` sets `release` to its version and Windows installer,
+// together with the update feed under public/update/, so the download button and the update channel
+// always name the same version. Keep the block's shape: the command rewrites it.
 //
 // Every section that offers Orchbee reads this value; nothing else changes.
 

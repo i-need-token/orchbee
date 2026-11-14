@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 
 import { fileURLToPath } from 'node:url';
 
@@ -91,6 +92,22 @@ await writeFile(
 	`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${['/', '/zh-CN/'].map((path) => `<url><loc>${origin}${path}</loc><xhtml:link rel="alternate" hreflang="en-US" href="${origin}/"/><xhtml:link rel="alternate" hreflang="zh-CN" href="${origin}/zh-CN/"/><xhtml:link rel="alternate" hreflang="x-default" href="${origin}/"/></url>`).join('')}</urlset>\n`,
 );
+// The update feed is tracked as feed.json.signed, a name the formatter leaves alone, because its
+// signature covers the exact bytes; it is served as feed.json. A rename keeps every byte.
+const update = new URL('update/', output);
+if (existsSync(update)) {
+	for (const channel of await readdir(update)) {
+		for (const platform of await readdir(new URL(`${channel}/`, update))) {
+			const folder = new URL(`${channel}/${platform}/`, update);
+			const names = (await readdir(folder)).toSorted().join(',');
+			if (names !== 'feed.json.sig,feed.json.signed')
+				throw new Error(
+					`public/update/${channel}/${platform}/ must hold exactly feed.json.signed and feed.json.sig, not ${names}`,
+				);
+			await rename(new URL('feed.json.signed', folder), new URL('feed.json', folder));
+		}
+	}
+}
 // Build-time React code is not part of the published static artifact.
 await rm(new URL('.prerender/', output), { recursive: true });
 console.log(

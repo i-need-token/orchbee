@@ -7,3 +7,7 @@
 
 /static/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The signed update feed: revalidated on every request, so a channel move is seen at once.
+/update/*
+  Cache-Control: no-cache

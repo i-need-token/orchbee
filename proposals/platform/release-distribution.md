@@ -299,6 +299,28 @@ check` and `release-publish.mjs github` admit it only when it verifies under the
   directory, and the draft step refuses a feed without its signature. Both files are ordinary
   assets of the draft.
 
+### Website and the order of a release
+
+- The served pair is a tracked file pair of the website,
+  `apps/website/public/update/<channel>/<platform>/feed.json.signed` and `feed.json.sig`; the build
+  renames the first to `feed.json` byte for byte, and the Worker stays assets-only. Today only
+  `/update/stable/windows-x86_64/` will exist; a channel or platform without files answers 404,
+  which `update` reports as `download`. `/update/*` is served with `Cache-Control: no-cache`, so a
+  channel move or a withdrawal is seen at once.
+- Order: the tag run drafts the release with all assets; the owner presses Publish release, and
+  only then are the assets public, because a draft's assets answer 404 to an anonymous request; the
+  owner runs `pnpm website:release <version>`, commits, builds, and deploys the website. The
+  channel has moved when the deploy finishes.
+- `scripts/website-release.mjs` fetches the feed pair and the archive anonymously with the system
+  curl, never with `gh`, verifies the signature with `RELEASE_KEYS` before reading the feed, checks
+  the feed's version and the archive's size and SHA-256, confirms the installer is public, and
+  only then writes the pair and the version and installer address in
+  `apps/website/src/website/release.ts`. The first failed check writes nothing. So the channel
+  never points at an archive that is not public, and the download button and the update channel
+  always name the same version.
+- Withdrawing a version: the same command with the last good version, then a deploy. Clients
+  already above it see a lower feed and report up to date; the fix is the next version.
+
 ### What is frozen
 
 | Frozen from the first update-capable version                                                                          | How it can still change                                                                                                                                                                                                                     |

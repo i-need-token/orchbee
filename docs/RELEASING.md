@@ -52,7 +52,14 @@ repository>`. Print each public half with the command in
    `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
    `orchbee` under the dist-tag `next`. Open the draft, write the notes, and press Publish release.
    The npm packages are public as soon as the job ends, before the draft is published.
-6. Move `main` to the next version in a new commit, for example
+6. Move the website to the release once it is published: on `main`, run
+   `pnpm website:release 0.1.0-beta.1`, commit the update feed pair under
+   `apps/website/public/update/` and `apps/website/src/website/release.ts` it wrote, then build and
+   deploy the website as [its README](../apps/website/README.md#static-delivery) says. The command
+   needs no credentials; it refuses, writing nothing, while the release is a draft or lacks a file,
+   and when the feed signature or the archive does not check out. The update channel has moved
+   when the deploy finishes, and the download button names the same version.
+7. Move `main` to the next version in a new commit, for example
    `node scripts/release-version.mjs set 0.1.0-beta.2`.
 
 ## When a step fails
@@ -72,6 +79,13 @@ repository>`. Print each public half with the command in
   for each package that was published, and release the next version.
 - An npm refusal to publish over an existing version just after a failed attempt can come from the
   registry's cache: wait five minutes and re-run the failed job.
+- A published version that must not be offered any more: run
+  `pnpm website:release <last good version>`, commit, build and deploy the website. The update
+  channel and the download button move back at once; installations already above that version see
+  a lower feed and stay as they are, so the fix is the next version. A published release is never changed or signed again.
+- `pnpm website:release` refusing a published release whose signature or archive does not check
+  out means the channel must not move to it: leave the website as it is and release the next
+  version.
 
 ## Moving npm to trusted publishing
 
