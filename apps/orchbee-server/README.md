@@ -224,7 +224,7 @@ with the leaf's parent Split collapsed into the sibling subtree; a Tab's only le
 aggregate Close. Known Host disposal and exact Worker/Server cleanup precede
 canonical removal; Client exit does not cancel accepted Close. The owner retries a failed step
 within each attempt and renews an expired attempt twice itself, so a Close reports a parked status
-only once the Server has given up; Resume restarts it from there. Linux carrier/process checks cover
+only once the Server has given up; Resume or a fresh confirmed Close restarts it from there. Linux carrier/process checks cover
 thirty-two live Client connections, idle control-slot release and same-connection reuse while an
 unrelated shell survives. The [Close contract](docs/terminal-tab-close.md) owns the bounds and
 separately evidenced native TUI integration and remaining production recovery and release obligations.
@@ -978,7 +978,7 @@ Ordinary `workspace.close` removes only the selected Workspace and its terminal 
 
 ## Retained Tab set Close
 
-`workbench.tab-set-close` closes several Tabs of one terminal context, in their current order, as one retained operation. Admission freezes each member's bound Presentations; an `if-idle` Start reads every member's terminals once and retains nothing when any member asks. One owner thread submits each member's own Tab Close in turn and records it; a gone Tab counts as done, and the first member that cannot close stops the set while its own Close stays retained for that Tab's Resume. Windows Session stop joins this owner before Close maintenance freezes. The [Tab set close contract](docs/terminal-tab-close.md#tab-set-close) defines admission, limits and failure.
+`workbench.tab-set-close` closes several Tabs of one terminal context, in their current order, as one retained operation. Admission freezes each member's bound Presentations; an `if-idle` Start reads every member's terminals once and retains nothing when any member asks. One owner thread submits each member's own Tab Close in turn and records it; a gone Tab counts as done, and the first member that cannot close stops the set while its own Close stays retained for that Tab's Resume or a fresh confirmed Close. Windows Session stop joins this owner before Close maintenance freezes. The [Tab set close contract](docs/terminal-tab-close.md#tab-set-close) defines admission, limits and failure.
 
 ## Retained Tab duplication
 

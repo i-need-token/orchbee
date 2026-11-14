@@ -290,7 +290,12 @@ impl SessionCoordinator {
             WorkbenchTabCloseBegin::Ready(result) => return Some(result),
             WorkbenchTabCloseBegin::Admitted(admission) => admission,
         };
-        let admission = match admission.resolve_after_composition() {
+        let resolution = if conditional {
+            admission.resolve_after_composition()
+        } else {
+            admission.resolve_after_confirmation(now, owner_available)
+        };
+        let admission = match resolution {
             WorkbenchTabCloseResolution::Ready(result) => return Some(result),
             WorkbenchTabCloseResolution::Primary(admission) => admission,
         };
@@ -408,7 +413,7 @@ impl SessionCoordinator {
         let admission = match if conditional {
             admission.resolve_after_composition()
         } else {
-            admission.resolve_after_confirmation(now)
+            admission.resolve_after_confirmation(now, owner_available)
         } {
             WorkbenchTabCloseResolution::Ready(result) => return Some(result),
             WorkbenchTabCloseResolution::Primary(admission) => admission,

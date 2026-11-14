@@ -42,7 +42,7 @@ revision increment. Admission, aliases and exact replay do not advance revision 
 cleanup. Closed tombstones and immutable acknowledgments survive later context changes. Failed
 or unknown disposal cannot publish removal; known disposal with blocked cleanup remains retained,
 renewed by the Server within its [automatic allowance](#automatic-renewal) and then by explicit
-Resume. This extension adds no persistence, remote execution,
+Resume or a fresh confirmed Close of its target. This extension adds no persistence, remote execution,
 cross-context transfer or recovery of unestablished runtime identity.
 
 `Ctrl+B x` closes the selected canonical Workspace Tab after localized confirmation of what it
@@ -80,7 +80,9 @@ member Close, an admitted-but-uncommitted structural write, or another scope Clo
 covering the context refuses `terminal-busy`; the retained record then fences
 later member closes and structural writes on that context until publication or a
 terminal status. A same-scope fresh command joins the operation with its own fixed
-ledger acknowledgment; an identical retained fingerprint replays it.
+ledger acknowledgment, renewing it once when it is ordinary and the operation is parked
+resumable, as [a member Close join](#close-command-and-retained-status) does; an identical
+retained fingerprint replays it.
 
 Acceptance returns `workspace-close-accepted {closeRequestId,
 workspaceId, terminalContextId, acceptedRevision}`: the primary command request ID
@@ -135,9 +137,12 @@ gate and from then on is the ordinary Close of its scope, as an accepted Tab or 
 terminates live members, because the Server's own evidence already decided, escalates to Force
 after grace, and disposes ended ones. A Host refusal is retried within the attempt, and a park
 after it reports `HostRefused`, including partial member results. A fresh explicitly confirmed
-ordinary `workspace.close` may upgrade a resumable conditional record, retaining its canonical Close ID and all receipts while
-advancing the attempt once; outstanding or unknown signals cannot be upgraded. Exact request replay
-never grants another attempt, and changing the same request ID's action still conflicts.
+ordinary `workspace.close` renews a resumable record of its scope, conditional or ordinary, as
+[a joining Close](#close-command-and-retained-status) does, retaining its canonical Close ID and all
+receipts; a conditional record then carries that confirmation. A fresh `workspace.close-if-idle`
+over such a record is answered `confirmation-required`. Outstanding or unknown signals cannot be
+renewed. Exact request replay never grants another attempt, and changing the same request ID's
+action still conflicts.
 
 `project.dissolve-if-idle {projectId}` requires navigation authority and freezes all addressed
 Project member Contexts under that same gate. Its borrowed admission first applies ordinary
@@ -186,6 +191,8 @@ tabId, panelId}` are distinct fingerprints answered by the ordinary `tab-close-a
 lifecycle grant, replay/conflict, capacity, Session/revision and scope checks, and resolve scope
 like the ordinary actions: a Tab's last layout leaf closes its Tab. A request for a Tab or Panel
 whose Close is already open joins it whichever form opened it; any other overlapping Close is busy.
+A conditional request for a Close the Server has given up on, parked resumable, is answered
+`confirmation-required` instead, so only the person's confirmed ordinary Close renews it.
 
 The Server, not a Client, decides whether such a Close asks first. Under the registry → Session
 gates the service captures the exact member runtimes and reserves nothing; a runtime it cannot
@@ -265,8 +272,13 @@ Primary acknowledgments require equality with the admitted base. Every canonical
 have `acceptedRevision < u64::MAX`: primary acceptance reserves a removal revision under
 `r + c + 1 <= M`. An alias admitted at `u64::MAX` may still acknowledge an older accepted revision.
 A fresh current-base Close of the same visible closing target joins the primary operation with
-its own fixed ledger acknowledgment, but never resumes it or reserves a second lifetime owner or
-revision credit. A fresh Close of an already removed target returns `TabUnavailable`; retained
+its own fixed ledger acknowledgment and never reserves a second lifetime owner or revision credit.
+When that operation is parked resumable, a fresh ordinary Close renews it once after its alias
+commits, as an accepted Resume does (generation, deadline and restored
+[automatic allowance](#automatic-renewal)), only while the maintenance owner is available; a
+progressing, unknown or nonresumable operation, or an unavailable owner, leaves the join
+effect-free. A fresh conditional Close over a parked resumable operation is answered
+`confirmation-required`, and exact replay never renews. A fresh Close of an already removed target returns `TabUnavailable`; retained
 replay/status still describe the old operation. Existing typed Denied/Rejected/Unavailable apply;
 the precise added pre-effect Unavailable reasons are `terminal-busy` and `terminal-runtime-unavailable`.
 
@@ -305,7 +317,8 @@ Do not serialize arbitrary errors. A correlated Host typed failure maps conserva
 host-refused/cleanup-incomplete, not a claimed no-effect rejection. Native status polling retains
 the addressable target after blocked/unknown results and offers status Refresh. Retry Close needs
 a displayed resumable status and fresh confirmation. Lost acceptance is recovered by status or
-original command replay; aliases, reads and command replays never resume work.
+original command replay; reads and command replays never resume work, and only a fresh ordinary
+alias of a parked resumable operation renews it.
 
 The read result has exactly `kind`, `protocolVersion`, `requestId`, and `outcome`; only Available
 contains the target fields above. A Read or Resume Session mismatch is Denied before target lookup.
@@ -364,7 +377,7 @@ settlement, local cleanup failure, publication preparation and publication failu
 the same owner step when it is now resumable and its in-memory allowance is above zero: the
 checked generation increment, checked deadline preparation and running state of a Resume commit,
 with no receipt, ledger entry, revision credit or confirmation. A person-started Close holds two
-renewals: admission sets the allowance and every accepted Resume restores it. A record with an
+renewals: admission sets the allowance, and every accepted Resume and renewing join restores it. A record with an
 unknown member, an outstanding step or only nonresumable parks is never renewed, and generation
 exhaustion parks it as above. The status stays `closing` across a renewal, so the first parked
 status a reader sees comes after the allowance is spent. A Resume prepared against the generation a
@@ -790,8 +803,10 @@ counts as done. A member whose bound Presentations differ from the frozen ones s
 Otherwise the set submits the member's own `tab.close`, or for an `if-idle` set its own
 `tab.close-if-idle` after a fresh one-second read of that member, under an internal token: the
 claimed set, the exact member index, every earlier member done and the member unchanged. No wire
-action carries a bypass. A child joins a Close of that Tab that is already open. A child that asks
-stops the set with `child-busy`; any other refusal with `child-admission`. The set reads the child
+action carries a bypass. A child joins a Close of that Tab that is already open, and an ordinary
+child renews one the Server has given up on, as any fresh ordinary Close does; an `if-idle` child
+of such a Close asks. A child that asks stops the set with `child-busy`; any other refusal with
+`child-admission`. The set reads the child
 every 50 ms and publishes its request ID, attempt generation and status. A Closed child moves the
 set on; an unknown outcome stops it with `outcome-unknown`, and a blocked child or one awaiting a
 resumable publication with `child-blocked`.
@@ -799,7 +814,7 @@ resumable publication with `child-blocked`.
 A child's step retries and automatic renewals keep it `closing`, so the set keeps waiting within
 its time limit; a blocked child is one the Server has given up on. Earlier members stay closed and
 later ones are never submitted. The failed member's own Close stays retained and continues only
-through its own Tab Close Resume; a set has no Resume. An ended set
+through its own Tab Close Resume or a fresh confirmed Close of its Tab; a set has no Resume. An ended set
 releases the members it never submitted. After Start no Client cancels a set, and a Client that
 exits ends only its own observation. Windows managed stop stops this owner after the group Close
 owner and before Close maintenance freezes; every set it reaches fails `session-stopping`.

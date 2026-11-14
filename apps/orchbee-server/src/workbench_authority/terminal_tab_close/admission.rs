@@ -106,6 +106,21 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
 
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
+        self.resolve(None)
+    }
+
+    /// A fresh ordinary Close that joins a parked resumable Close renews it once, as a Resume
+    /// does, while the maintenance owner is available; otherwise its join stays effect-free.
+    #[must_use]
+    pub fn resolve_after_confirmation(
+        self,
+        now: Instant,
+        owner_available: bool,
+    ) -> WorkbenchTabCloseResolution<'a> {
+        self.resolve(owner_available.then_some(now))
+    }
+
+    fn resolve(self, renew_at: Option<Instant>) -> WorkbenchTabCloseResolution<'a> {
         let tab = self
             .authority
             .snapshot()
@@ -185,6 +200,22 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                 && record.panel_id() == self.panel_id.as_ref()
                 && record.matches_members(&members)
             {
+                let conditional = matches!(
+                    self.command.action,
+                    WorkbenchAction::TabCloseIfIdle { .. }
+                        | WorkbenchAction::PanelCloseIfIdle { .. }
+                );
+                if conditional && record.is_resumable() {
+                    // Only a person's confirmed Close renews a Close the Server gave up on.
+                    return WorkbenchTabCloseResolution::Ready(self.authority.retain_rejection(
+                        self.command,
+                        WorkbenchRejectionReason::ConfirmationRequired,
+                    ));
+                }
+                let renewal = renew_at
+                    .filter(|_| !conditional)
+                    .and_then(|now| record.prepare_join_renewal(now));
+                let close_id = record.command.request_id.clone();
                 // Joining retained facts is effect-free even when the runtime is now unavailable.
                 let plan = CommitPlan {
                     projection: None,
@@ -194,7 +225,13 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                 };
                 return WorkbenchTabCloseResolution::Ready(
                     match self.authority.prepare_command_commit(self.command, plan) {
-                        Ok(prepared) => prepared.commit(),
+                        Ok(prepared) => {
+                            let result = prepared.commit();
+                            if let Some(renewal) = renewal {
+                                commit_join_renewal(self.authority, &close_id, renewal);
+                            }
+                            result
+                        }
                         Err(response) => *response,
                     },
                 );
@@ -216,11 +253,16 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
 }
 
 impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
-    /// Explicit ordinary Close may resume a parked conditional operation with
-    /// confirmation authority, preserving its canonical identity and receipts.
+    /// Explicit ordinary Close that joins a parked resumable operation of its scope renews it
+    /// once while the maintenance owner is available, preserving its canonical identity and
+    /// receipts; a conditional operation then carries the confirmation.
     #[must_use]
-    pub fn resolve_after_confirmation(self, now: Instant) -> WorkbenchTabCloseResolution<'a> {
-        self.resolve_workspace_scope(Some(now))
+    pub fn resolve_after_confirmation(
+        self,
+        now: Instant,
+        owner_available: bool,
+    ) -> WorkbenchTabCloseResolution<'a> {
+        self.resolve_workspace_scope(Some(now), owner_available)
     }
     #[must_use]
     pub fn terminal_membership(&self) -> &WorkbenchTerminalMembership {
@@ -238,12 +280,13 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
     /// create/split owing this Context a member refuses busy.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
-        self.resolve_workspace_scope(None)
+        self.resolve_workspace_scope(None, false)
     }
 
     fn resolve_workspace_scope(
         self,
         confirmed_at: Option<Instant>,
+        owner_available: bool,
     ) -> WorkbenchTabCloseResolution<'a> {
         let workspace_id = match &self.command.action {
             WorkbenchAction::WorkspaceClose { workspace_id }
@@ -280,25 +323,32 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
                     unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
                 ));
             }
+            let conditional = matches!(
+                self.command.action,
+                WorkbenchAction::WorkspaceCloseIfIdle { .. }
+            );
+            if conditional && record.is_resumable() {
+                // Only a person's confirmed Close renews a Close the Server gave up on.
+                return WorkbenchTabCloseResolution::Ready(self.authority.retain_rejection(
+                    self.command,
+                    WorkbenchRejectionReason::ConfirmationRequired,
+                ));
+            }
             let same_action = std::mem::discriminant(&record.command.action)
                 == std::mem::discriminant(&self.command.action);
-            let upgrade = confirmed_at
-                .filter(|_| {
-                    matches!(self.command.action, WorkbenchAction::WorkspaceClose { .. })
-                        && matches!(
-                            record.command.action,
-                            WorkbenchAction::WorkspaceCloseIfIdle { .. }
-                        )
-                        && record.is_resumable()
-                })
-                .and_then(|now| {
-                    Some((
-                        record.generation.checked_next()?,
-                        record.prepare_resumes(now).ok()?,
-                    ))
-                });
-            if same_action || upgrade.is_some() {
-                // Plain joins are effect-free. Explicit confirmation resumes
+            // A confirmed ordinary Close joins a conditional one the Server gave up on.
+            let upgrade = confirmed_at.is_some()
+                && !conditional
+                && matches!(
+                    record.command.action,
+                    WorkbenchAction::WorkspaceCloseIfIdle { .. }
+                )
+                && record.is_resumable();
+            let renewal = confirmed_at
+                .filter(|_| !conditional && owner_available && (same_action || upgrade))
+                .and_then(|now| record.prepare_join_renewal(now));
+            if same_action || upgrade {
+                // Plain joins are effect-free. Explicit confirmation renews
                 // only this retained operation after the alias commit succeeds.
                 let plan = CommitPlan {
                     projection: None,
@@ -310,19 +360,8 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
                     match self.authority.prepare_command_commit(self.command, plan) {
                         Ok(prepared) => {
                             let result = prepared.commit();
-                            if let Some((generation, resumes)) = upgrade {
-                                // The same Authority gate spans lookup and alias
-                                // insertion; committing an alias never removes its primary.
-                                let Some(RetainedRequest::TabClose(record)) =
-                                    self.authority.ledger.get_mut(&close_id)
-                                else {
-                                    unreachable!("confirmed alias retains its primary Close");
-                                };
-                                record.commit_resumes(resumes);
-                                record.generation = generation;
-                                for continuation in &mut record.continuations {
-                                    continuation.confirmed();
-                                }
+                            if let Some(renewal) = renewal {
+                                commit_join_renewal(self.authority, &close_id, renewal);
                             }
                             // Only a confirmed explicit Close ends a failed removal's
                             // hold; its publication budget restarts from that sample.
@@ -876,6 +915,19 @@ impl WorkbenchAuthority {
             membership,
         }))
     }
+}
+
+/// Commits the renewal a fresh ordinary Close prepared for the retained Close it joined. The same
+/// Authority gate spans lookup and alias insertion; committing an alias never removes its primary.
+fn commit_join_renewal(
+    authority: &mut WorkbenchAuthority,
+    close_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+    renewal: super::PreparedJoinRenewal,
+) {
+    let Some(RetainedRequest::TabClose(record)) = authority.ledger.get_mut(close_id) else {
+        unreachable!("a committed alias retains its primary Close");
+    };
+    record.commit_join_renewal(renewal);
 }
 
 /// Whether a request joins an open Close of the same Tab or Panel. A conditional request joins

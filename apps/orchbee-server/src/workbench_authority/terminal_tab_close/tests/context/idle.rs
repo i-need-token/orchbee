@@ -166,7 +166,7 @@ fn confirmed_close_resumes_a_stopped_conditional_close_but_never_an_unknown_sign
             panic!("confirmed admission");
         };
         let WorkbenchTabCloseResolution::Ready(result) =
-            admission.resolve_after_confirmation(parked)
+            admission.resolve_after_confirmation(parked, true)
         else {
             panic!("retained operation");
         };

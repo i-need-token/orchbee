@@ -162,7 +162,7 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
                     panic!("manual admission");
                 };
                 assert!(matches!(
-                    admission.resolve_after_confirmation(released),
+                    admission.resolve_after_confirmation(released, true),
                     WorkbenchTabCloseResolution::Ready(WorkbenchCommandResult {
                         outcome: WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. },
                         ..

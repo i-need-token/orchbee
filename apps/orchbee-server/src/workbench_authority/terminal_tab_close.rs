@@ -52,6 +52,13 @@ pub use publication::{PreparedWorkbenchTabClosePublication, WorkbenchTabClosePub
 /// up and leaves the parked status for that person.
 const AUTOMATIC_RENEWALS: u8 = 2;
 
+/// The renewal a fresh ordinary Close grants the parked record it joins, prepared before its
+/// alias commits.
+struct PreparedJoinRenewal {
+    generation: WorkbenchTabCloseAttemptGeneration,
+    resumes: Vec<(usize, PreparedCloseContinuationResume)>,
+}
+
 /// Exact retained runtime association supplied by the Session/Terminal owner under its gate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorkbenchTabCloseRuntimeTarget {
@@ -584,6 +591,36 @@ impl CloseRecord {
     /// A person renewed this close; the Server may again renew it by itself.
     fn restore_automatic_renewals(&mut self) {
         self.automatic_renewals = AUTOMATIC_RENEWALS;
+    }
+
+    /// Prepares the renewal a person's fresh ordinary Close grants this record when it joins it
+    /// while the record is parked resumable.
+    fn prepare_join_renewal(&self, now: Instant) -> Option<PreparedJoinRenewal> {
+        if self.is_finished() || !self.is_resumable() {
+            return None;
+        }
+        Some(PreparedJoinRenewal {
+            generation: self.generation.checked_next()?,
+            resumes: self.prepare_resumes(now).ok()?,
+        })
+    }
+
+    /// Commits a person's renewal after its alias commits. It restores the automatic allowance,
+    /// and a conditional record now carries the person's confirmation.
+    fn commit_join_renewal(&mut self, prepared: PreparedJoinRenewal) {
+        self.commit_resumes(prepared.resumes);
+        self.generation = prepared.generation;
+        self.restore_automatic_renewals();
+        if matches!(
+            self.command.action,
+            WorkbenchAction::TabCloseIfIdle { .. }
+                | WorkbenchAction::PanelCloseIfIdle { .. }
+                | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+        ) {
+            for continuation in &mut self.continuations {
+                continuation.confirmed();
+            }
+        }
     }
 
     fn generation_exhausted(&mut self) {

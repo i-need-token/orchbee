@@ -301,3 +301,113 @@ fn resume_authorization_operation_and_generation_precedence_are_effect_free() {
     assert_eq!(status(&authority, &grant, &close), before);
     assert_eq!(authority.ledger_bytes, bytes);
 }
+
+fn ordinary_join(
+    authority: &mut WorkbenchAuthority,
+    grant: &WorkbenchGrant,
+    command: WorkbenchCommand,
+    now: Instant,
+    owner_available: bool,
+) -> WorkbenchCommandResult {
+    match authority.begin_terminal_tab_close(Some(grant), command) {
+        WorkbenchTabCloseBegin::Ready(result) => result,
+        WorkbenchTabCloseBegin::Admitted(admission) => {
+            match admission.resolve_after_confirmation(now, owner_available) {
+                WorkbenchTabCloseResolution::Ready(result) => result,
+                WorkbenchTabCloseResolution::Primary(_) => panic!("join of the retained Close"),
+            }
+        }
+    }
+}
+
+/// A fresh ordinary Close that joins a parked resumable Close renews it once while the owner is
+/// available; an exact replay, a conditional request or a join without the owner does not.
+#[test]
+fn fresh_ordinary_join_renews_a_parked_close_once_but_replay_and_conditional_requests_do_not() {
+    let (mut authority, grant) = fixture(1);
+    let now = Instant::now();
+    let close = close_command(&authority, 10000, 0);
+    let accepted = accept(&mut authority, &grant, close.clone(), now);
+    spend_automatic_renewals(&mut authority, &close.request_id);
+    let parked = now + Duration::from_secs(30);
+    assert_eq!(
+        authority
+            .next_terminal_tab_close_step(&close.request_id, parked)
+            .unwrap(),
+        CloseContinuationNext::Parked
+    );
+    let generation = |authority: &WorkbenchAuthority| {
+        authority
+            .terminal_tab_close_generation(&close.request_id)
+            .unwrap()
+            .value()
+    };
+
+    let mut conditional = close_command(&authority, 10001, 0);
+    let WorkbenchAction::TabClose {
+        terminal_context_id,
+        tab_id,
+    } = conditional.action.clone()
+    else {
+        panic!()
+    };
+    conditional.action = WorkbenchAction::TabCloseIfIdle {
+        terminal_context_id,
+        tab_id,
+    };
+    let WorkbenchTabCloseBegin::Admitted(admission) =
+        authority.begin_terminal_tab_close(Some(&grant), conditional)
+    else {
+        panic!()
+    };
+    let WorkbenchTabCloseResolution::Ready(asked) = admission.resolve_after_composition() else {
+        panic!()
+    };
+    assert!(matches!(
+        asked.outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: orchbee_workbench_protocol::WorkbenchRejectionReason::ConfirmationRequired,
+            ..
+        }
+    ));
+    assert_eq!(generation(&authority), 1);
+
+    let ownerless = close_command(&authority, 10002, 0);
+    assert_eq!(
+        ordinary_join(&mut authority, &grant, ownerless, parked, false).outcome,
+        accepted.outcome
+    );
+    assert_eq!(generation(&authority), 1);
+
+    let fresh = close_command(&authority, 10003, 0);
+    let joined = ordinary_join(&mut authority, &grant, fresh.clone(), parked, true);
+    assert_eq!(joined.outcome, accepted.outcome);
+    assert_eq!(generation(&authority), 2);
+    assert_eq!(
+        authority
+            .close_record(&close.request_id)
+            .unwrap()
+            .automatic_renewals,
+        super::super::AUTOMATIC_RENEWALS
+    );
+    assert!(matches!(
+        authority
+            .next_terminal_tab_close_step(&close.request_id, parked)
+            .unwrap(),
+        CloseContinuationNext::Lifecycle { .. }
+    ));
+
+    spend_automatic_renewals(&mut authority, &close.request_id);
+    let later = parked + Duration::from_secs(30);
+    assert_eq!(
+        authority
+            .next_terminal_tab_close_step(&close.request_id, later)
+            .unwrap(),
+        CloseContinuationNext::Parked
+    );
+    assert_eq!(
+        ordinary_join(&mut authority, &grant, fresh, later, true),
+        joined
+    );
+    assert_eq!(generation(&authority), 2);
+}
