@@ -32,10 +32,14 @@ const CHORDS: usize = 4;
 /// Divider drags per run, three per round trip of the divider.
 const DRAGS: usize = 12;
 /// The notice of a release that other commits kept outpacing until its bounded resubmissions ran
-/// out. The renames here outpace a debug build's reads often enough that a run may show it.
-const CONTENDED: &str = "Resize not applied; the Workbench kept changing";
+/// out. The renames here outpace a debug build's reads often enough that a run may show it. The
+/// sentence also reports a refused or failed resize; which cause produced it is proven by the
+/// Client's divider tests, so here every showing counts against the contention bound.
+const CONTENDED: &str = "Couldn't resize the Panel.";
 /// Drags that may end under that notice per run; without resubmission most of them would.
 const CONTENDED_DRAGS: usize = DRAGS / 4;
+/// The notice of a resize whose outcome the Client could not learn; it is always a failure here.
+const UNKNOWN: &str = "Not sure it finished.";
 /// Client-relative reads per query; about one in four was refused before the fix.
 const QUERIES: usize = 20;
 /// How long a pointer button stays down after its press has been written.
@@ -379,7 +383,7 @@ fn landing(fixture: &Fixture, tui: &Tui, to: usize) -> (usize, Option<String>) {
 fn notice(lines: &[String]) -> Option<String> {
     lines
         .iter()
-        .find(|line| line.contains("Resize"))
+        .find(|line| line.contains(CONTENDED) || line.contains(UNKNOWN))
         .map(|line| line.trim().to_owned())
 }
 
