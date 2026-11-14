@@ -160,8 +160,9 @@ fn spawn_peer_n(
     })
 }
 
-/// A peer for `project create`, which declares activation: its start finds this peer running
-/// and admits one probe that closes before the command's own connection reaches `script`.
+/// A peer for `project create` and `workspace create`, which declare activation: their start
+/// finds this peer running and admits one probe that closes before the command's own connection
+/// reaches `script`.
 fn spawn_activating_peer(
     scope: &Path,
     script: impl Fn(UnixStream) + Send + 'static,
@@ -535,7 +536,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     let scope = stage_scope(&base);
     let submitted = Arc::new(Mutex::new(String::new()));
     let seen = submitted.clone();
-    let peer = spawn_peer(&scope, move |stream| {
+    let peer = spawn_activating_peer(&scope, move |stream| {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         assert_command_base(&command, snapshot_request.as_str());
