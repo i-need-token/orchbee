@@ -16,6 +16,7 @@ mod environment;
 mod machine_login;
 pub(crate) use machine_login::LoginLabel;
 mod machine_remember;
+mod machine_status;
 pub use machine_login::MachineQuestion;
 pub(crate) use machine_remember::RememberText;
 mod machine_waiting;

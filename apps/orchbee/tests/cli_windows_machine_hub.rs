@@ -396,13 +396,14 @@ fn the_catalog_of_two_machines_serves_events_requests_and_a_reload() {
     );
     assert_eq!(client.machine_state(WAIT, SECOND), MachineState::Disabled);
 
-    let connect = |id: &str, draft: bool| {
+    // `draft` names the remote Session of a draft, which a saved id must match.
+    let connect = |id: &str, draft: Option<&str>| {
         Request::Connect(Connect {
             machine: machine(id),
             origin: Origin::Command { answers: false },
-            draft: draft.then(|| Draft {
+            draft: draft.map(|session| Draft {
                 target: Target::new("user@host.invalid".to_owned()).unwrap(),
-                session: SessionName::new("default".to_owned()).unwrap(),
+                session: SessionName::new(session.to_owned()).unwrap(),
             }),
         })
     };
@@ -414,17 +415,20 @@ fn the_catalog_of_two_machines_serves_events_requests_and_a_reload() {
     };
     for (request, expected) in [
         (
-            connect(ABSENT, false),
+            connect(ABSENT, None),
             not_online(ConnectFailure::NotFound, None),
         ),
         (
-            connect(SECOND, false),
+            connect(FIRST, Some("other")),
+            not_online(ConnectFailure::InvalidDraft, None),
+        ),
+        (
+            connect(SECOND, None),
             not_online(
                 ConnectFailure::DisabledMachine,
                 Some(MachineStateName::Disabled),
             ),
         ),
-        (connect(ABSENT, true), Answer::Unsupported),
         (
             Request::Disconnect {
                 machine: machine(ABSENT),
@@ -713,6 +717,181 @@ fn connect_carries_one_child_that_reconnects_and_ends_with_disconnect_and_the_hu
     assert_eq!(disconnected.code, Some(0), "{disconnected}");
     assert_eq!(disconnected.document["result"]["remote"], "not-contacted");
     assert!(!orchbee_local_ipc::endpoint_exists(&endpoint).unwrap());
+}
+
+#[test]
+fn a_draft_is_its_owners_alone_until_saved_and_saving_it_keeps_its_link() {
+    let carried = Carried::new("mm1-draft-", false);
+    let draft = |id: &str| {
+        Request::Connect(Connect {
+            machine: machine(id),
+            origin: Origin::Command { answers: false },
+            draft: Some(Draft {
+                target: Target::new("user@host.invalid".to_owned()).unwrap(),
+                session: SessionName::new("far".to_owned()).unwrap(),
+            }),
+        })
+    };
+    // `machine add` connects a draft and saves the record once it is online; the link it made
+    // outlives the command, which holds no presence, so nothing reconnected it silently.
+    let added = carried.run(&[
+        "machine",
+        "add",
+        "user@host.invalid",
+        "--label=Added",
+        "--remote-session=far",
+    ]);
+    assert_eq!(added.code, Some(0), "{added}");
+    assert_eq!(added.document["result"]["committed"], true, "{added}");
+    assert_eq!(added.document["result"]["remote"], "ready", "{added}");
+    let added_id = added.document["result"]["profileId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let endpoint = carried.endpoint();
+    let hub = Hub::observe(query_pid(&endpoint));
+    let state = carried.state();
+    assert!(
+        state
+            .machines
+            .contains(&(added_id.clone(), "online".to_owned())),
+        "{:?}",
+        state.machines
+    );
+    let kept = one_child(&hub, None);
+
+    // A draft is seen by its owner alone, and a disconnect drops it with its link.
+    let mut owner = Client::connect(&endpoint);
+    owner.attach(false, true);
+    let mut other = Client::connect(&endpoint);
+    other.attach(false, true);
+    let request = owner.send(draft(SECOND));
+    assert!(
+        matches!(
+            owner.answer(WAIT, request),
+            Answer::Reply(Reply::Connect(hub::ConnectResult {
+                outcome: ConnectOutcome::Online { .. },
+                ..
+            }))
+        ),
+        "the draft did not come online"
+    );
+    let seen = owner.until(WAIT, "a draft event", |client| {
+        client.take(|delivery| match delivery {
+            Delivery::Message(Message::Event {
+                event: Event::Machine(event),
+                ..
+            }) if event.machine.as_str() == SECOND => Some(event.draft),
+            _ => None,
+        })
+    });
+    assert!(seen, "the owner read the draft as an ordinary Machine");
+    let id = other.send(Request::Disconnect {
+        machine: machine(SECOND),
+    });
+    assert_eq!(
+        other.answer(WAIT, id),
+        Answer::Reply(Reply::Disconnect(hub::DisconnectOutcome::NotFound))
+    );
+    let drafted = another_child(&hub, &[kept.pid]);
+    let id = owner.send(Request::Disconnect {
+        machine: machine(SECOND),
+    });
+    assert_eq!(
+        owner.answer(WAIT, id),
+        Answer::Reply(Reply::Disconnect(hub::DisconnectOutcome::Disconnected))
+    );
+    assert!(
+        drafted.exited(WAIT).is_some(),
+        "the dropped draft kept its link"
+    );
+
+    // The owner leaving drops its draft; a catalog holding a draft's id as drafted keeps it.
+    let request = owner.send(draft(SECOND));
+    assert!(matches!(
+        owner.answer(WAIT, request),
+        Answer::Reply(Reply::Connect(hub::ConnectResult {
+            outcome: ConnectOutcome::Online { .. },
+            ..
+        }))
+    ));
+    let saved = another_child(&hub, &[kept.pid]);
+    let mut document: Value =
+        serde_json::from_slice(&fs::read(carried.root.state().join("machines.json")).unwrap())
+            .unwrap();
+    document["revision"] = json!(document["revision"].as_u64().unwrap() + 1);
+    document["profiles"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id": SECOND, "label": "Second",
+        "connection": {"kind": "ssh", "target": "user@host.invalid"},
+        "session": "far", "enabled": true, "remoteInstall": "manual"}));
+    PrivateCache::acquire(&carried.root.state(), "machines")
+        .unwrap()
+        .replace("machines.json", &serde_json::to_vec(&document).unwrap())
+        .unwrap();
+    let reload = other.send(Request::Reload);
+    assert!(matches!(
+        other.answer(WAIT, reload),
+        Answer::Reply(Reply::Reload(ReloadOutcome::Reloaded { .. }))
+    ));
+    assert_eq!(other.machine_state(WAIT, SECOND), MachineState::Online);
+    drop(owner);
+    thread::sleep(Duration::from_millis(500));
+    assert!(
+        saved.exited(Duration::ZERO).is_none(),
+        "the saved draft lost its link"
+    );
+    assert!(
+        kept.exited(Duration::ZERO).is_none(),
+        "the added Machine lost its link"
+    );
+    drop(other);
+
+    // Remove and stop: the far Session stops first, then the record goes; Orchbee stays there.
+    let stopped = carried.run(&[
+        "machine",
+        "remove",
+        &added_id,
+        "--stop-session",
+        "--confirm",
+    ]);
+    assert_eq!(stopped.code, Some(0), "{stopped}");
+    assert_eq!(stopped.document["result"]["committed"], true, "{stopped}");
+    assert!(
+        kept.exited(WAIT).is_some(),
+        "the removed Machine kept its carrier"
+    );
+    exit_hub(&endpoint);
+    hub.wait_exit(WAIT);
+}
+
+#[test]
+fn remove_and_stop_keeps_the_record_when_the_session_cannot_be_stopped() {
+    let scratch = Scratch::new("mm1-nostop-", None);
+    scratch.write_catalog(1, true);
+    // The stand-in exits at once, so the Machine never comes online and its Session never stops.
+    let output = scratch
+        .client("machine")
+        .args([
+            "remove",
+            FIRST,
+            "--stop-session",
+            "--confirm",
+            "--format=json",
+        ])
+        .output()
+        .unwrap();
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_ne!(output.status.code(), Some(0), "{document}");
+    assert_eq!(document["result"]["committed"], false, "{document}");
+    let listed = scratch
+        .client("machine")
+        .args(["list", "--format=json"])
+        .output()
+        .unwrap();
+    let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(listed["result"]["profiles"][0]["id"], FIRST, "{listed}");
 }
 
 #[test]
@@ -1304,6 +1483,26 @@ fn one_child(hub: &Hub, old: Option<u32>) -> Hub {
         assert!(
             Instant::now() < deadline,
             "the hub has {} live children",
+            live.len()
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// The one live child of `hub` that is not among `known`, once it has exactly one.
+fn another_child(hub: &Hub, known: &[u32]) -> Hub {
+    let deadline = Instant::now() + WAIT;
+    loop {
+        let mut live: Vec<Hub> = children(hub)
+            .into_iter()
+            .filter(|child| !known.contains(&child.pid))
+            .collect();
+        if live.len() == 1 {
+            return live.remove(0);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the hub has {} new live children",
             live.len()
         );
         thread::sleep(Duration::from_millis(100));

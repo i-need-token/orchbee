@@ -356,6 +356,10 @@ impl super::CliText {
             }
             (Locale::EnUs, "remote-install-failed") => "Installing Orchbee on the machine failed.",
             (Locale::ZhCn, "remote-install-failed") => "在这台机器上安装 Orchbee 失败。",
+            (Locale::EnUs, "session-stop-failed") => {
+                "The remote Session did not stop, so the machine was kept."
+            }
+            (Locale::ZhCn, "session-stop-failed") => "远端会话没有停止，所以保留了这台机器。",
             (Locale::EnUs, "connected") => "Machine online:",
             (Locale::ZhCn, "connected") => "机器已上线：",
             (Locale::EnUs, "disconnected") => "Machine disconnected:",

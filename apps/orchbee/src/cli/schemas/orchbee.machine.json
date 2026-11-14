@@ -154,6 +154,7 @@
 						"capacity",
 						"revision-exhausted",
 						"not-yet-available",
+						"session-stop-failed",
 						"disabled-machine",
 						"unsupported-machine",
 						"hub-unavailable",

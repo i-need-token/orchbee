@@ -24,7 +24,10 @@ use crate::{
 };
 use orchbee_machine_protocol::{
     Id,
-    hub::{AnswerEndpoint, ConnectFailure, MachineState, MachineStateName},
+    hub::{
+        AnswerEndpoint, ConnectFailure, Draft, MachineState, MachineStateName, Remote,
+        StopSessionOutcome,
+    },
 };
 use std::{
     collections::HashMap,
@@ -69,6 +72,38 @@ pub(super) enum Ask {
     Failed(Option<ConnectFailure>),
 }
 
+/// How an add's draft `connect` settled.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Settled {
+    Pending,
+    #[cfg_attr(
+        not(windows),
+        expect(dead_code, reason = "only the Windows holder connects")
+    )]
+    Online,
+    /// Not online, with the failure the reply named and the state it reported, when it did.
+    #[cfg_attr(
+        not(windows),
+        expect(dead_code, reason = "only the Windows holder connects")
+    )]
+    Failed(Option<ConnectFailure>, Option<MachineStateName>),
+}
+
+/// A `stop-session` discovery asked for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Stop {
+    Pending(u64),
+    /// The hub's outcome; `None` when no answer came, so the outcome is unknown.
+    Done(Option<StopSessionOutcome>),
+}
+
+/// The facts the hub reported with a Machine's state besides the state itself.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct Reported {
+    pub(super) last_attempt: Option<u64>,
+    pub(super) remote: Option<Remote>,
+}
+
 /// What the holder last learned, as discovery copies it.
 #[derive(Clone, Debug, Default)]
 pub(super) struct View {
@@ -80,16 +115,39 @@ pub(super) struct View {
     /// The revision of the hub's last `catalog` event.
     pub(super) catalog: Option<u64>,
     pub(super) asks: HashMap<String, Ask>,
+    /// The state of this TUI's draft Machine by id, until the hub reports it as a catalog Machine.
+    pub(super) drafts: HashMap<String, MachineState>,
+    /// The other facts of each Machine and draft the hub reported, by id.
+    pub(super) reported: HashMap<String, Reported>,
+    /// The add's draft `connect`: the Machine, the ask's number and how it settled.
+    pub(super) added: Option<(String, u64, Settled)>,
+    pub(super) stops: HashMap<String, Stop>,
 }
 
 impl View {
+    /// The hub's state of the catalog Machine `machine`; a draft has none.
     pub(super) fn state(&self, machine: &ProfileId) -> Option<MachineStateName> {
         self.states.get(machine.as_str()).map(MachineState::name)
     }
 
-    /// The hub's state of `machine` with the facts it carries.
+    /// The hub's state of `machine` with the facts it carries; a draft that was just saved reads
+    /// its draft state until the hub reports it from the catalog.
     pub(super) fn facts(&self, machine: &ProfileId) -> Option<&MachineState> {
-        self.states.get(machine.as_str())
+        self.states
+            .get(machine.as_str())
+            .or_else(|| self.drafts.get(machine.as_str()))
+    }
+
+    /// Forgets every state, as leaving an attachment does.
+    #[cfg_attr(
+        not(windows),
+        expect(dead_code, reason = "only the Windows holder attaches")
+    )]
+    pub(super) fn forget(&mut self) {
+        self.states.clear();
+        self.drafts.clear();
+        self.reported.clear();
+        self.catalog = None;
     }
 }
 
@@ -170,8 +228,7 @@ impl Shared {
         }
         self.update(|state| {
             if reach != Reach::Attached {
-                state.view.states.clear();
-                state.view.catalog = None;
+                state.view.forget();
                 if state.view.reach == Reach::Attached {
                     state.logins.push(Notice::Lost);
                 }
@@ -296,6 +353,10 @@ impl Holder {
     /// Asks the hub to bring `machine` online, waiting for a hub first, and returns the ask
     /// discovery waits on. A selection is a person's act: it may start a hub.
     pub(super) fn connect(&self, machine: &ProfileId) -> Ask {
+        self.ask(machine, false)
+    }
+
+    fn ask(&self, machine: &ProfileId, reconnect: bool) -> Ask {
         let mut ask = Ask::Failed(None);
         self.shared.update(|state| {
             let number = state.next_ask;
@@ -304,9 +365,66 @@ impl Holder {
             state.view.asks.insert(machine.as_str().to_owned(), ask);
         });
         if let Ask::Pending(number) = ask {
-            platform::connect(&self.shared, machine.as_str().to_owned(), number);
+            platform::connect(&self.shared, machine.as_str().to_owned(), number, reconnect);
         }
         ask
+    }
+
+    /// Connects the add's draft Machine `machine`, which `draft` describes, as the person's act,
+    /// waiting for a hub first; the view's `added` says how it settled.
+    pub(super) fn add(&self, machine: &ProfileId, draft: Draft) {
+        let mut number = 0;
+        self.shared.update(|state| {
+            number = state.next_ask;
+            state.next_ask = number.wrapping_add(1);
+            state.view.added = Some((machine.as_str().to_owned(), number, Settled::Pending));
+        });
+        platform::add(&self.shared, machine.as_str().to_owned(), draft, number);
+    }
+
+    /// Ends the add: its draft is dropped with its link and its remembered answers.
+    pub(super) fn discard(&self, machine: &ProfileId) {
+        self.shared.update(|state| {
+            state.view.added = None;
+            state.view.drafts.remove(machine.as_str());
+        });
+        platform::disconnect(&self.shared, machine.as_str().to_owned());
+    }
+
+    /// The add was saved: the hub keeps its link once it rereads the catalog.
+    pub(super) fn settle_add(&self) {
+        self.shared.update(|state| state.view.added = None);
+    }
+
+    /// Ends `machine`'s link and login without waiting; the hub's events report the result.
+    pub(super) fn disconnect(&self, machine: &ProfileId) {
+        platform::disconnect(&self.shared, machine.as_str().to_owned());
+    }
+
+    /// Ends `machine`'s link and connects it again as the person's act; the ask discovery waits on.
+    pub(super) fn reconnect(&self, machine: &ProfileId) -> Ask {
+        self.ask(machine, true)
+    }
+
+    /// Asks the hub to stop `machine`'s remote Session; the view's `stops` holds the outcome.
+    pub(super) fn stop_session(&self, machine: &ProfileId) {
+        let mut number = 0;
+        self.shared.update(|state| {
+            number = state.next_ask;
+            state.next_ask = number.wrapping_add(1);
+            state
+                .view
+                .stops
+                .insert(machine.as_str().to_owned(), Stop::Pending(number));
+        });
+        platform::stop_session(&self.shared, machine.as_str().to_owned(), number);
+    }
+
+    /// Forgets the outcome of `machine`'s stop once it was read.
+    pub(super) fn forget_stop(&self, machine: &ProfileId) {
+        self.shared.update(|state| {
+            state.view.stops.remove(machine.as_str());
+        });
     }
 
     /// The login notices that came since the last call, in order.

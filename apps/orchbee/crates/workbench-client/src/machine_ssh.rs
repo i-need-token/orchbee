@@ -1,10 +1,9 @@
-//! Shared Windows SSH command policy, the OpenSSH release remembered answers need, and
-//! installed-Client admission, without catalog or UI ownership.
-//! Admission compares no product version, protocol, or cohort across machines: the remote Session
-//! judges this Client through the handshake a hub Session stream carries.
+//! Shared Windows SSH command policy, the remote launch line, and the OpenSSH release remembered
+//! answers need, without catalog or UI ownership. Nothing here compares a product version, protocol,
+//! or cohort across machines: the remote Session judges this Client through the handshake a hub
+//! Session stream carries.
 use crate::machine_credentials::{Remembering, Store};
 use base64::Engine as _;
-use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -103,107 +102,20 @@ pub fn remembering(store: &Store) -> Remembering {
         kept => kept,
     }
 }
-/// Why a remote Client status document was not admitted.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AdmissionError {
-    /// The document is malformed or names an executable this rule cannot run.
-    Protocol,
-    /// The remote is not Windows on x64 or ARM64.
-    Unsupported,
-    /// The remote Client reports no available installation to run.
-    NotInstalled,
-    /// The remote Client belongs to another environment kind than this build.
-    OtherEnvironment,
-}
-/// An admitted remote installed Client.
-pub struct Client {
-    pub executable: String,
-    /// The remote product version, shown to the user and never compared.
-    pub version: String,
-}
-/// Admits a remote `orchbee.status.client` document. The remote must run Windows on x64 or ARM64
-/// from an available installation of the same environment kind as this build: release admits only
-/// `orchbee.exe`, and a development or test build admits any valid development or test name.
-pub fn client(value: &Value) -> Result<Client, AdmissionError> {
-    client_of_kind(value, orchbee_local_runtime::is_release())
-}
-fn client_of_kind(value: &Value, release: bool) -> Result<Client, AdmissionError> {
-    if value["schema"] != "orchbee.status.client" || value["version"] != 1 {
-        return Err(AdmissionError::Protocol);
-    }
-    let r = &value["result"];
-    if r["platform"] != "windows"
-        || !matches!(r["architecture"].as_str(), Some("x86_64" | "aarch64"))
-    {
-        return Err(AdmissionError::Unsupported);
-    }
-    let executable = r["executable"]["path"]
-        .as_str()
-        .filter(|s| {
-            s.len() <= 4096
-                && !s.chars().any(char::is_control)
-                && s.as_bytes().get(1) == Some(&b':')
-                && s.as_bytes()[0].is_ascii_alphabetic()
-                && s.as_bytes()
-                    .get(2)
-                    .is_some_and(|b| matches!(b, b'/' | b'\\'))
-        })
-        .ok_or(AdmissionError::Protocol)?;
-    let stem = executable
-        .rsplit(['/', '\\'])
-        .next()
-        .map(str::to_ascii_lowercase)
-        .and_then(|name| name.strip_suffix(".exe").map(str::to_owned))
-        .filter(|stem| orchbee_local_runtime::valid_environment_stem(stem))
-        .ok_or(AdmissionError::Protocol)?;
-    if !same_environment_kind(&stem, release) {
-        return Err(AdmissionError::OtherEnvironment);
-    }
-    let version = r["version"]
-        .as_str()
-        .filter(|version| orchbee_connection_handshake::ProductVersion::new(*version).is_ok())
-        .ok_or(AdmissionError::Protocol)?;
-    if r["cohort"]["state"] != "available" {
-        return Err(AdmissionError::NotInstalled);
-    }
-    Ok(Client {
-        executable: executable.to_owned(),
-        version: version.to_owned(),
-    })
-}
-/// Release admits only release; any development or test stem admits any other, because the
-/// handshake through a hub Session stream compares the exact environment.
-fn same_environment_kind(stem: &str, release: bool) -> bool {
-    (stem == orchbee_connection_handshake::RELEASE_ENVIRONMENT) == release
-}
 pub fn literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
-/// The remote command that runs `action` through the given executable or, without one, through the
-/// active version a remote store's pointer names. An unreadable pointer names none, and nothing is
-/// inferred from `Path`.
-pub fn program(executable: Option<&str>, session: &str, action: &str) -> String {
-    let args = if action == "start" {
-        "'server' 'start'".to_owned()
-    } else {
-        format!("'status' {}", literal(action))
-    };
-    launch(
-        executable,
-        &format!("'--session' {} {args} '--format' 'json'", literal(session)),
-    )
-}
 /// The remote command the machine hub's carrier runs: the remote link helper of the active version
-/// a remote store's pointer names, resolved as [`program`] resolves it, with exit 125 when there is
-/// none.
+/// a remote store's pointer names, with exit 125 when there is none. An unreadable pointer names
+/// none, and nothing is inferred from `Path`.
 pub fn link_program() -> String {
-    launch(None, "'--machine-link-v1'")
+    launch("'--machine-link-v1'")
 }
 /// The encoded PowerShell command that resolves the program and runs it with `arguments`, already
 /// quoted.
-fn launch(executable: Option<&str>, arguments: &str) -> String {
-    let resolve = executable.map_or_else(
-        || {
+fn launch(arguments: &str) -> String {
+    let resolve = {
+        {
             let (roots, names) = probe_names();
             let list = |items: Vec<String>| {
                 items
@@ -224,9 +136,8 @@ fn launch(executable: Option<&str>, arguments: &str) -> String {
                 list(roots),
                 list(names)
             )
-        },
-        |path| format!("$program={}", literal(path)),
-    );
+        }
+    };
     let script = format!(
         "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';\
         [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
@@ -257,23 +168,10 @@ fn probe_names() -> (Vec<String>, Vec<String>) {
         )
     }
 }
-/// The `ssh` of `machine add`'s preparation: batch mode, strict host keys that `ssh` never
-/// rewrites in `known_hosts` by itself, no forwarding, no multiplexing and no askpass.
-pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {
-    let mut command = with_options(
-        ssh,
-        target,
-        remote,
-        ["BatchMode=yes", "StrictHostKeyChecking=yes"],
-    );
-    command
-        .env_remove("SSH_ASKPASS")
-        .env("SSH_ASKPASS_REQUIRE", "never");
-    command
-}
-/// The machine hub's carrier `ssh`: as [`command`], but without batch mode and with
-/// `StrictHostKeyChecking=ask`, so `ssh` puts every login question to the askpass program the hub
-/// sets and refuses a changed host key without asking.
+/// The machine hub's carrier `ssh`: without batch mode and with `StrictHostKeyChecking=ask`, so
+/// `ssh` puts every login question to the askpass program the hub sets and refuses a changed host
+/// key without asking; it never rewrites `known_hosts` by itself, and forwards and multiplexes
+/// nothing.
 pub fn carrier_command(ssh: &Path, target: &str, remote: &str) -> Command {
     with_options(
         ssh,

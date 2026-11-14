@@ -18,7 +18,13 @@ pub(crate) enum MachineCommand {
         machine: String,
         label: String,
     },
-    Remove(String),
+    /// With `stop_session`, the remote Session stops first and the record goes only if it did.
+    Remove {
+        machine: String,
+        stop_session: bool,
+        /// Whether `--confirm` was given; a release Windows build refuses it at admission.
+        confirm: bool,
+    },
     Enable {
         machine: String,
         enabled: bool,
@@ -41,7 +47,7 @@ impl MachineCommand {
             Self::List => "list",
             Self::Add(_) => "add",
             Self::Rename { .. } => "rename",
-            Self::Remove(_) => "remove",
+            Self::Remove { .. } => "remove",
             Self::Enable { enabled: true, .. } => "enable",
             Self::Enable { enabled: false, .. } => "disable",
             Self::Connect { .. } => "connect",
@@ -151,8 +157,23 @@ pub(super) fn parse(
         let machine = (*arg).to_owned();
         match verb {
             "rename" => MachineCommand::Rename { machine, label },
-            "remove" if seen("--stop-session") => MachineCommand::NotYetAvailable("remove"),
-            "remove" => MachineCommand::Remove(machine),
+            "remove" => {
+                let stop_session = seen("--stop-session");
+                // Stopping the remote Session ends its terminals: it is confirmed as `server stop`
+                // is, and `--confirm` confirms nothing else.
+                if options.confirm && !stop_session {
+                    return Err(missing_required(context, "'--stop-session'", envelope));
+                }
+                if stop_session && !options.confirm && super::server_stop::confirm_option_required()
+                {
+                    return Err(missing_required(context, "'--confirm'", envelope));
+                }
+                MachineCommand::Remove {
+                    stop_session,
+                    confirm: options.confirm,
+                    machine,
+                }
+            }
             "enable" | "disable" => MachineCommand::Enable {
                 machine,
                 enabled: verb == "enable",

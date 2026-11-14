@@ -16,6 +16,8 @@ pub struct Overview {
     pub(crate) projects: usize,
     pub(crate) workspaces: usize,
     pub(crate) tabs: usize,
+    /// The terminals the Session holds: one per Panel of every Tab.
+    pub(crate) terminals: usize,
     pub(crate) labels: Vec<String>,
     pub(crate) contexts: std::sync::Arc<[Context]>,
 }
@@ -67,9 +69,24 @@ impl Overview {
                 .iter()
                 .map(|c| c.tabs.len())
                 .sum(),
+            terminals: snapshot
+                .terminal_contexts
+                .iter()
+                .flat_map(|c| &c.tabs)
+                .map(|tab| panels(&tab.root))
+                .sum(),
             labels,
             contexts: contexts.into(),
         })
+    }
+}
+/// The Panels of one Tab's layout tree.
+fn panels(node: &orchbee_workbench_protocol::PanelNode) -> usize {
+    match node {
+        orchbee_workbench_protocol::PanelNode::Panel { .. } => 1,
+        orchbee_workbench_protocol::PanelNode::Split { children, .. } => {
+            children.iter().map(|child| panels(&child.node)).sum()
+        }
     }
 }
 pub fn display_label(value: &str) -> String {
@@ -173,6 +190,13 @@ pub(crate) enum Tone {
     Error,
 }
 impl Observation {
+    /// The observation of a Machine the hub reports in `state` without an overview, for the
+    /// Machine whose ssh target is `target`.
+    pub(crate) fn reported(state: &MachineState, target: &str) -> Self {
+        LoginState::of(state, &crate::machines::known_hosts_name(target))
+            .map_or(Self::State(state.name()), Self::Login)
+    }
+
     /// The picker message of the row's word.
     pub(crate) fn key(&self) -> &'static str {
         match self {

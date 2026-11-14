@@ -22,6 +22,7 @@ mod independent_popup;
 mod local_activation;
 mod local_client;
 mod localization;
+mod machine_add;
 mod machine_agents;
 mod machine_carrier;
 mod machine_credentials;
@@ -36,6 +37,8 @@ mod machine_refusal;
 mod machine_retry;
 mod machine_spaces;
 mod machine_ssh;
+mod machine_ssh_config;
+mod machine_status;
 mod machines;
 mod native_settings;
 mod notifications;
@@ -248,6 +251,10 @@ pub mod application {
         pub use crate::localization::{Locale, MachineQuestion, locale_source, select_locale};
     }
 
+    pub mod machine_add {
+        pub use crate::machine_add::{Proposal, Stage};
+    }
+
     pub mod machine_agents {
         pub use crate::machine_agents::{
             Collector, StateCheckpoint, Target, confirm, read, read_states_at, verify,
@@ -303,10 +310,13 @@ pub mod application {
         pub use crate::machine_spaces::{Collector, read_git_of, read_metadata, read_with_git};
     }
 
+    pub mod machine_status {
+        pub use crate::machine_status::{Action, Explanation, Facts, Line, Unreachable};
+    }
     pub mod machine_ssh {
         pub use crate::machine_ssh::{
-            AdmissionError, Client, PROGRAM_NOT_FOUND, STAND_IN, Version, carrier_command, client,
-            command, executable, execute, link_program, literal, program, remembering, version,
+            PROGRAM_NOT_FOUND, STAND_IN, Version, carrier_command, executable, link_program,
+            remembering, version,
         };
     }
 

@@ -220,8 +220,8 @@ impl Locale {
         }
     }
 
-    /// The selected row's explanation of a login state: what happened and what the person can
-    /// do. Each line fits the 70-column picker.
+    /// The selected row's explanation of a login state: what happened; the action offered beside
+    /// it says what the person can do. Each line fits the 70-column picker.
     pub(crate) fn machine_login_detail(self, state: &LoginState) -> Vec<String> {
         let key = |key: &HostKey| {
             let algorithm = escape(&key.algorithm.as_str().to_ascii_uppercase());
@@ -230,14 +230,6 @@ impl Locale {
                 Self::EnUs => format!("{algorithm} key {fingerprint}"),
                 Self::ZhCn => format!("{algorithm} 密钥 {fingerprint}"),
             }
-        };
-        let again = match self {
-            Self::EnUs => "Choose this machine to log in again.",
-            Self::ZhCn => "选择这台机器即可重新登录。",
-        };
-        let log_in = match self {
-            Self::EnUs => "Choose this machine to log in.",
-            Self::ZhCn => "选择这台机器即可登录。",
         };
         let lines: Vec<String> = match (self, state) {
             (_, LoginState::NeedsLogin(cause)) => {
@@ -261,7 +253,7 @@ impl Locale {
                         "登录需要密码或其他回答。"
                     }
                 };
-                vec![what.to_owned(), log_in.to_owned()]
+                vec![what.to_owned()]
             }
             (_, LoginState::LoginFailed(cause)) => {
                 let what = match (self, cause) {
@@ -276,18 +268,15 @@ impl Locale {
                     (Self::EnUs, None) => "SSH did not accept the login.",
                     (Self::ZhCn, None) => "SSH 未接受登录。",
                 };
-                vec![what.to_owned(), again.to_owned()]
+                vec![what.to_owned()]
             }
             (Self::EnUs, LoginState::Untrusted(host_key)) => vec![
                 "SSH has not seen this host before.".to_owned(),
                 key(host_key),
-                "Choose this machine to check and trust it.".to_owned(),
             ],
-            (Self::ZhCn, LoginState::Untrusted(host_key)) => vec![
-                "SSH 没有见过这台主机。".to_owned(),
-                key(host_key),
-                "选择这台机器即可查看并信任。".to_owned(),
-            ],
+            (Self::ZhCn, LoginState::Untrusted(host_key)) => {
+                vec!["SSH 没有见过这台主机。".to_owned(), key(host_key)]
+            }
             (_, LoginState::KeyChanged { host_key, host }) => {
                 let mut lines = vec![
                     match self {

@@ -23,6 +23,17 @@ fn machine_grammar_is_complete_before_any_effect() {
     }
     assert!(parse(&["machine", "rename", id, "--label", "renamed"]).is_ok());
     assert!(matches!(
+        parse(&["machine", "remove", id, "--stop-session", "--confirm"]).unwrap(),
+        Request::Machine {
+            command: MachineCommand::Remove {
+                stop_session: true,
+                confirm: true,
+                ..
+            },
+            ..
+        }
+    ));
+    assert!(matches!(
         parse(&["machine", "--help"]).unwrap(),
         Request::Help(HelpTopic::Family(Family::Machine))
     ));
@@ -71,6 +82,9 @@ fn machine_grammar_is_complete_before_any_effect() {
             "y",
         ],
         vec!["machine", "enable", id, "--json"],
+        // Stopping the remote Session is confirmed, and `--confirm` confirms nothing else.
+        vec!["machine", "remove", id, "--stop-session"],
+        vec!["machine", "remove", id, "--confirm"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
     }

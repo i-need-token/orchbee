@@ -5,11 +5,20 @@
 //! committed catalog edit also asks a running hub to take the catalog, starting none. A routed
 //! command and a remote stop have the hub take the catalog the same way and bring their Machine
 //! `online` through the same steps only when the hub answers that it is not.
+//!
+//! `machine add` runs the shared add pipeline through the same attachment: the new Machine is a
+//! hub draft until it reads `online`, and only then is the record saved and the hub asked to take
+//! the catalog, which keeps the draft's link. `machine remove --stop-session` stops the remote
+//! Session the way a remote stop does before the record goes, and keeps the record when it does
+//! not stop.
 
 #[cfg(not(windows))]
 use super::{Context, Error, Report};
 #[cfg(not(windows))]
-use crate::{localization::Locale, machines::Store};
+use crate::{
+    localization::Locale,
+    machines::{Draft, Store},
+};
 
 #[cfg(windows)]
 mod asking;
@@ -18,7 +27,8 @@ mod remember;
 
 #[cfg(windows)]
 pub(super) use windows::{
-    ask, ask_connect, ask_reload, close, connect, disconnect, open, reload_running,
+    add, ask, ask_connect, ask_reload, close, connect, disconnect, open, reload_running,
+    stop_session,
 };
 
 /// No hub runs where it is not built, so an edit has nothing to tell.
@@ -32,6 +42,28 @@ pub(super) fn connect(
     _store: &Store,
     _selector: &str,
     _remember: bool,
+    _context: &mut Context,
+    _report: &mut Report,
+    _locale: Locale,
+) -> Result<(), Error> {
+    Err(Error::Internal)
+}
+
+#[cfg(not(windows))]
+pub(super) fn add(
+    _store: &Store,
+    _draft: &Draft,
+    _context: &mut Context,
+    _report: &mut Report,
+    _locale: Locale,
+) -> Result<(), Error> {
+    Err(Error::Internal)
+}
+
+#[cfg(not(windows))]
+pub(super) fn stop_session(
+    _store: &Store,
+    _selector: &str,
     _context: &mut Context,
     _report: &mut Report,
     _locale: Locale,
@@ -59,28 +91,177 @@ mod windows {
     use crate::{
         cli_text::CliText,
         localization::Locale,
-        machines::{Connection, Error as CatalogError, Store},
+        machines::{Connection, Draft, Error as CatalogError, Store},
     };
     use orchbee_machine_protocol::{
         MachineId,
         hub::{
             Connect, ConnectFailure, ConnectOutcome, ConnectResult, DisconnectOutcome, Origin,
-            ReloadOutcome, Reply, Request,
+            ReloadOutcome, Reply, Request, StopSessionOutcome,
         },
     };
-    use orchbee_workbench_client::application::machine_hub::{
-        AttachFailure, Attachment, EndFailure, HubClient, RequestFailure, data_root, running,
+    use orchbee_workbench_client::application::{
+        machine_add::Proposal,
+        machine_hub::{
+            AttachFailure, Attachment, EndFailure, HubClient, RequestFailure, data_root, running,
+        },
     };
     use std::{
         sync::{Arc, mpsc},
         thread,
-        time::Duration,
+        time::{Duration, Instant},
     };
 
     /// How often a wait looks for an interrupt.
     const POLL: Duration = Duration::from_millis(50);
     /// Requests per command: the first, and one through the hub that replaces a closing one.
     const ROUNDS: usize = 2;
+    /// How long the hub may take to start, take the catalog and bring a Machine `online`.
+    const CONNECT: Duration = Duration::from_secs(90);
+
+    /// Adds the machine `draft` describes: the hub connects it as a draft, asking the login
+    /// questions on the console when there is one, and the record is saved once it is `online`.
+    /// The hub then takes the catalog before this attachment closes, so the link stays; a draft
+    /// that never came `online` is dropped as the attachment closes, and nothing was saved.
+    pub(in super::super) fn add(
+        store: &Store,
+        draft: &Draft,
+        context: &mut Context,
+        report: &mut Report,
+        locale: Locale,
+    ) -> Result<(), Error> {
+        let catalog = store.read().map_err(Error::Catalog)?;
+        let proposal = Proposal::new(draft.clone(), &catalog).map_err(Error::Catalog)?;
+        report.id = Some(proposal.id.clone());
+        let console = draft
+            .ssh_target()
+            .and_then(|target| Console::detect(target.to_owned(), locale, None));
+        let waiting = CliText::new(locale).cli_machine_waiting(&draft.label);
+        context.check()?;
+        let client = open(context)?;
+        let result = add_through(
+            &client,
+            store,
+            &proposal,
+            console.as_ref(),
+            &waiting,
+            context,
+            report,
+        );
+        close(client);
+        result
+    }
+
+    fn add_through(
+        client: &Arc<HubClient>,
+        store: &Store,
+        proposal: &Proposal,
+        console: Option<&Console>,
+        waiting: &str,
+        context: &mut Context,
+        report: &mut Report,
+    ) -> Result<(), Error> {
+        let machine = proposal.machine().ok_or(Error::Internal)?;
+        let mut waiting = asking::Waited::new(waiting);
+        for round in 1..=ROUNDS {
+            let request = proposal
+                .request(Origin::Command {
+                    answers: console.is_some(),
+                })
+                .ok_or(Error::Internal)?;
+            report.remote = Remote::PossiblyStarted;
+            let answered = asking::converse(
+                client,
+                request,
+                &machine,
+                console,
+                &mut waiting,
+                context,
+                &mut report.remote,
+            )?;
+            match answered {
+                Ok(Reply::Connect(ConnectResult {
+                    outcome: ConnectOutcome::Online { remote_version },
+                    ..
+                })) => {
+                    report.remote = Remote::Ready;
+                    report.remote_version = Some(remote_version.as_str().to_owned());
+                    let (catalog, changed) = proposal.save(store).map_err(Error::Catalog)?;
+                    report.catalog = Some(catalog);
+                    report.changed = changed;
+                    report.committed = changed;
+                    // The hub keeps the link once it holds the record; the record stands anyway.
+                    return match reload(client, context) {
+                        Err(Error::Cancelled) => Err(Error::Cancelled),
+                        _ => Ok(()),
+                    };
+                }
+                Ok(Reply::Connect(ConnectResult {
+                    outcome: ConnectOutcome::NotOnline(ConnectFailure::Stopping),
+                    ..
+                }))
+                | Err(RequestFailure::Lost)
+                    if round < ROUNDS => {}
+                Ok(Reply::Connect(ConnectResult {
+                    outcome: ConnectOutcome::NotOnline(failure),
+                    ..
+                })) => {
+                    report.remote = remote_after(failure);
+                    return Err(connect_error(failure));
+                }
+                Ok(_) => return Err(Error::Internal),
+                Err(failure) => {
+                    if !matches!(failure, RequestFailure::Lost | RequestFailure::Timeout) {
+                        report.remote = Remote::NotContacted;
+                    }
+                    return Err(request_error(failure));
+                }
+            }
+        }
+        Err(Error::HubUnavailable)
+    }
+
+    /// Stops the remote Session of the Machine `selector` names, before its record is removed. A
+    /// Machine the hub does not carry `online` is brought `online` under the `machine connect`
+    /// rules and asked once more. Only `stopped` and `not-running` let the removal go on.
+    pub(in super::super) fn stop_session(
+        store: &Store,
+        selector: &str,
+        context: &mut Context,
+        report: &mut Report,
+        locale: Locale,
+    ) -> Result<(), Error> {
+        let machine = resolve(store, selector, report)?;
+        let waiting = CliText::new(locale).cli_machine_waiting(&label(report));
+        context.deadline = Instant::now() + CONNECT;
+        context.check()?;
+        let client = open(context)?;
+        let result = stop_through(&client, &machine, &waiting, context);
+        close(client);
+        result
+    }
+
+    /// The `machine remove --stop-session` reading of the routed stop's outcome: only `stopped`
+    /// and `not-running` let the removal go on.
+    fn stop_through(
+        client: &Arc<HubClient>,
+        machine: &MachineId,
+        waiting: &str,
+        context: &mut Context,
+    ) -> Result<(), Error> {
+        let stopped = super::super::routing::stop::hub::carry(client, machine, waiting, context)?;
+        match stopped.outcome {
+            _ if stopped.interrupted => Err(Error::Cancelled),
+            StopSessionOutcome::Stopped | StopSessionOutcome::NotRunning => Ok(()),
+            // The Machine came `online` and went before the second ask.
+            StopSessionOutcome::NotOnline => Err(Error::HostUnreachable),
+            StopSessionOutcome::Stopping => Err(Error::HubUnavailable),
+            StopSessionOutcome::NotFound => Err(Error::Catalog(CatalogError::NotFound)),
+            StopSessionOutcome::Failed => Err(Error::SessionStopFailed),
+            // The request may have reached the Session: only an answer settles it.
+            StopSessionOutcome::Unknown => Err(Error::PhysicalUnknown),
+        }
+    }
 
     /// Connects the Machine `selector` names and returns once the hub reports it `online` or the
     /// reason it is not. With standard input and standard error both consoles, the command asks

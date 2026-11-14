@@ -8,10 +8,10 @@ pub(crate) mod link;
 pub(crate) mod routing;
 #[cfg(windows)]
 mod shared_carrier;
-mod ssh;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish},
+    destructive_request::{RemoteTarget, admit_remove_stop},
     failure_output, output,
 };
 use crate::{
@@ -66,6 +66,8 @@ enum Error {
     AttemptEnded,
     Timeout,
     PhysicalUnknown,
+    /// The remote Session did not stop, so the record stays.
+    SessionStopFailed,
     /// A verb or option this release parses but does not perform yet.
     NotYetAvailable,
     Internal,
@@ -103,6 +105,7 @@ impl Error {
             Self::Cancelled | Self::AttemptEnded => "cancelled",
             Self::Timeout => "timeout",
             Self::PhysicalUnknown => "physical-unknown",
+            Self::SessionStopFailed => "session-stop-failed",
             Self::NotYetAvailable => "not-yet-available",
             Self::Internal => "internal",
         }
@@ -137,7 +140,7 @@ impl Error {
             Self::Cancelled => 130,
             Self::Timeout | Self::AttemptEnded => 7,
             Self::PhysicalUnknown => 8,
-            Self::RemoteInstallFailed => 9,
+            Self::RemoteInstallFailed | Self::SessionStopFailed => 9,
             _ => 1,
         }
     }
@@ -161,6 +164,13 @@ impl Context {
     }
 }
 #[derive(Clone, Copy)]
+#[cfg_attr(
+    not(windows),
+    expect(
+        dead_code,
+        reason = "only the machine hub, which runs on Windows, contacts a remote"
+    )
+)]
 enum Remote {
     NotContacted,
     Unchanged,
@@ -195,6 +205,16 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
     {
         return super::unsupported_platform(Some(format), locale);
     }
+    // Stopping the remote Session ends its terminals: confirmed before the hub is asked anything.
+    if let MachineCommand::Remove {
+        machine,
+        stop_session: true,
+        confirm,
+    } = command
+        && let Some(refusal) = admit_stop(machine, *confirm, format, locale)
+    {
+        return refusal;
+    }
     let signals = match ArmedSignals::arm_interrupts() {
         Ok(s) => s,
         Err(_) => {
@@ -209,9 +229,8 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         signals,
         deadline: Instant::now()
             + Duration::from_secs(match command {
-                MachineCommand::Add(_) => 60,
-                // A hub start, then the hub's own 60-second attempt.
-                MachineCommand::Connect { .. } => 90,
+                // A hub start, then the hub's own 60-second attempt; a remote stop sets its own.
+                MachineCommand::Add(_) | MachineCommand::Connect { .. } => 90,
                 MachineCommand::Disconnect(_) => 15,
                 _ => 5,
             }),
@@ -249,6 +268,27 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
     result.finalization = finalization;
     result
 }
+/// The release confirmation of `machine remove --stop-session` for the saved Machine `selector`
+/// names, as a remote `server stop` asks it; a catalog or selection failure is left to the command,
+/// which then fails before it stops anything.
+fn admit_stop(
+    selector: &str,
+    confirm: bool,
+    format: OutputFormat,
+    locale: Locale,
+) -> Option<Output> {
+    let catalog = Store::configured().and_then(|store| store.read()).ok()?;
+    let profile = catalog.resolve(selector).ok()?;
+    let target = RemoteTarget {
+        selector,
+        id: profile.id.as_str(),
+        label: &profile.draft.label,
+        session: profile.draft.session.as_str(),
+    };
+    admit_remove_stop(confirm, &target, format, locale)
+        .err()
+        .map(|refusal| *refusal)
+}
 fn execute(
     command: &MachineCommand,
     context: &mut Context,
@@ -260,57 +300,45 @@ fn execute(
         return Err(Error::NotYetAvailable);
     }
     let store = Store::configured().map_err(Error::Catalog)?;
-    let edit = match command {
-        MachineCommand::NotYetAvailable(_) => return Err(Error::NotYetAvailable),
+    match command {
+        MachineCommand::NotYetAvailable(_) => Err(Error::NotYetAvailable),
         MachineCommand::List => {
             report.catalog = Some(store.read().map_err(Error::Catalog)?);
-            return context.check();
+            context.check()
         }
-        MachineCommand::Add(draft) => {
-            let id = ProfileId::generate().map_err(Error::Catalog)?;
-            let edit = Edit::Add {
-                id: id.clone(),
-                draft: draft.clone(),
-            };
-            store
-                .read()
-                .map_err(Error::Catalog)?
-                .edit(&edit)
-                .map_err(Error::Catalog)?;
-            report.id = Some(id);
-            report.remote_version = Some(ssh::prepare(draft, context, &mut report.remote)?);
-            edit
-        }
+        MachineCommand::Add(draft) => connect::add(&store, draft, context, report, locale),
         MachineCommand::Rename { machine, label } => {
-            return commit_selected(&store, machine, context, report, |id| Edit::Rename {
+            commit_selected(&store, machine, context, report, |id| Edit::Rename {
                 id,
                 label: label.clone(),
-            });
+            })
         }
-        MachineCommand::Remove(machine) => {
+        MachineCommand::Remove {
+            machine,
+            stop_session,
+            ..
+        } => {
+            // The remote Session stops first; a stop that fails keeps the record.
+            if *stop_session {
+                connect::stop_session(&store, machine, context, report, locale)?;
+            }
             commit_selected(&store, machine, context, report, Edit::Remove)?;
             report.unforgotten = !forget_removed(report);
-            return Ok(());
+            Ok(())
         }
         MachineCommand::Enable { machine, enabled } => {
-            return commit_selected(&store, machine, context, report, |id| Edit::Enable {
+            commit_selected(&store, machine, context, report, |id| Edit::Enable {
                 id,
                 enabled: *enabled,
-            });
+            })
         }
         MachineCommand::Connect { machine, remember } => {
-            return connect::connect(&store, machine, *remember, context, report, locale);
+            connect::connect(&store, machine, *remember, context, report, locale)
         }
         MachineCommand::Disconnect(machine) => {
-            return connect::disconnect(&store, machine, context, report);
+            connect::disconnect(&store, machine, context, report)
         }
-    };
-    context.check()?;
-    let (catalog, changed) = store.commit(&edit).map_err(Error::Catalog)?;
-    report.catalog = Some(catalog);
-    report.changed = changed;
-    report.committed = changed;
-    committed(context, report)
+    }
 }
 /// Applies an edit to the machine an `<id|label>` operand names when the catalog is committed.
 fn commit_selected(

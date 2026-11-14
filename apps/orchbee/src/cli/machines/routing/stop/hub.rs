@@ -1,7 +1,8 @@
 //! The near side of a remote stop: the hub of this data root takes the current catalog, then is
 //! asked for `stop-session`. A Machine the hub does not carry `online`, or a hub that is closing,
 //! is brought `online` under the `machine connect` rules and asked once more, as a routed command
-//! is. Once a request may have been sent, only the hub's answer settles the outcome.
+//! is. Once a request may have been sent, only the hub's answer settles the outcome. `machine
+//! remove --stop-session` stops the Session the same way.
 
 use super::{
     super::{
@@ -36,19 +37,22 @@ pub(super) fn stop(
     let machine = MachineId::new(machine).map_err(|_| mapped(Error::Internal))?;
     context.deadline = Instant::now() + CONNECT;
     let client = connect::open(context).map_err(mapped)?;
-    let result = carry(&client, &machine, waiting, context);
+    let result = carry(&client, &machine, waiting, context).map_err(mapped);
     connect::close(client);
     result
 }
 
-fn carry(
+/// Stops the remote Session of `machine` through `client`, an open hub connection whose deadline
+/// `context` holds: the error is a failure before `stop-session` was sent, or of bringing the
+/// Machine `online`.
+pub(in crate::cli::machines) fn carry(
     client: &Arc<HubClient>,
     machine: &MachineId,
     waiting: &str,
     context: &mut Context,
-) -> Result<Stopped, Refusal> {
+) -> Result<Stopped, Error> {
     // The hub learns a machine saved after it started; taking the catalog restarts nothing.
-    connect::ask_reload(client, context).map_err(mapped)?;
+    connect::ask_reload(client, context)?;
     match ask(client, machine, context)? {
         // Nothing was asked of the Session: the Machine is not `online`, or the hub was closing.
         Stopped {
@@ -67,7 +71,7 @@ fn carry(
         remote_version: None,
         unforgotten: false,
     };
-    connect::ask_connect(client, machine, waiting, context, &mut report).map_err(mapped)?;
+    connect::ask_connect(client, machine, waiting, context, &mut report)?;
     ask(client, machine, context)
 }
 
@@ -77,9 +81,9 @@ fn ask(
     client: &Arc<HubClient>,
     machine: &MachineId,
     context: &mut Context,
-) -> Result<Stopped, Refusal> {
+) -> Result<Stopped, Error> {
     context.deadline = Instant::now() + ANSWER;
-    context.check().map_err(mapped)?;
+    context.check()?;
     let unknown = |interrupted| Stopped {
         outcome: StopSessionOutcome::Unknown,
         interrupted,
@@ -93,9 +97,7 @@ fn ask(
             interrupted: false,
         }),
         // The hub never received the request.
-        Ok(Err(RequestFailure::Unsendable | RequestFailure::Unsupported)) => {
-            Err(mapped(Error::Internal))
-        }
+        Ok(Err(RequestFailure::Unsendable | RequestFailure::Unsupported)) => Err(Error::Internal),
         Err(Error::Cancelled) => Ok(unknown(true)),
         // A lost connection, an ended owner, an elapsed wait, another reply or a wait that could
         // not finish leaves the request possibly acted on.

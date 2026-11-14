@@ -10,17 +10,19 @@ mod tests;
 mod worker;
 use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
+use crate::machine_add::{Proposal, Stage};
 use crate::machine_login::Notice as LoginNotice;
 use crate::machine_login::{Act, Effect, Ending, Logins, Offered, Presented, Token};
 use crate::machine_refusal::Refusal;
+use crate::machine_status::{Explanation, Facts};
 use crate::machines::{Connection as MachineConnection, Profile, ProfileId};
 use crate::ui_wakeup::UiWakeup;
 use credentials::Credentials;
 pub(crate) use credentials::Forgotten;
-use hub::{Ask, Holder, Reach, View};
+use hub::{Ask, Holder, Reach, Settled, View};
 use orchbee_machine_protocol::{
     Id,
-    hub::{ConnectFailure, MachineStateName},
+    hub::{ConnectFailure, MachineState, MachineStateName, StopSessionOutcome},
 };
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
@@ -124,15 +126,44 @@ const fn refused(refusal: Refusal) -> MachineStateName {
         Refusal::SessionTooOld | Refusal::DevelopmentBuildMismatch => MachineStateName::NeedsUpdate,
     }
 }
-/// The `ssh` target of the Machine the catalog names `machine`.
-fn ssh_target(entries: &[Entry], machine: &str) -> Option<String> {
+/// The `ssh` target of the Machine the catalog names `machine`, or of the add in progress.
+fn ssh_target(entries: &[Entry], adding: Option<&Proposal>, machine: &str) -> Option<String> {
     entries
         .iter()
-        .find(|entry| entry.profile.id.as_str() == machine)
-        .and_then(|entry| match &entry.profile.draft.connection {
+        .map(|entry| (&entry.profile.id, &entry.profile.draft))
+        .chain(adding.map(|proposal| (&proposal.id, &proposal.draft)))
+        .find(|(id, _)| id.as_str() == machine)
+        .and_then(|(_, draft)| match &draft.connection {
             MachineConnection::Ssh { target } => Some(target.clone()),
             MachineConnection::Unsupported(_) => None,
         })
+}
+
+/// How the add in progress stands.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Adding {
+    /// The check running now.
+    Checking(Stage),
+    /// Every check passed: the record may be saved, and the hub keeps the link once it is.
+    Passed,
+    /// The add ended at `stage`, or before any check when `None`; `word` and `explanation` say
+    /// what the draft read then.
+    Failed {
+        stage: Option<Stage>,
+        word: Option<&'static str>,
+        explanation: Explanation,
+    },
+}
+
+/// How a stop of a remote Session asked from this interface ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionStop {
+    /// The Session stopped, or was not running.
+    Stopped,
+    /// The Machine was not `online`, so nothing was asked of its Session.
+    NotOnline,
+    /// The stop failed, or no answer said how it ended.
+    Failed,
 }
 pub fn same_endpoint(a: &Profile, b: &Profile) -> bool {
     a.id == b.id && a.draft.connection == b.draft.connection && a.draft.session == b.draft.session
@@ -154,6 +185,8 @@ pub struct Discovery {
     logins: Logins,
     /// The credential store remembered answers are written to and forgotten from.
     credentials: Credentials,
+    /// The machine being added, checked as the hub's draft until it is saved or given up.
+    adding: Option<Proposal>,
 }
 impl Discovery {
     /// A discovery that holds the hub once the catalog holds a Machine it can observe, and wakes
@@ -170,6 +203,7 @@ impl Discovery {
             seen: 0,
             logins: Logins::default(),
             credentials: Credentials::new(),
+            adding: None,
         }
     }
     /// Reconciles the enabled profiles of the catalog of `revision`; `None` for an unreadable
@@ -206,14 +240,20 @@ impl Discovery {
             }
         }
         // The first observable Machine starts the one holder, kept until the TUI exits.
-        if self.holds && self.holder.is_none() && !self.entries.is_empty() {
+        if !self.entries.is_empty() {
+            self.hold();
+        }
+        if let Some(holder) = &self.holder {
+            holder.want(revision);
+        }
+    }
+    /// Starts the one holder unless it runs, or this discovery never holds a hub.
+    fn hold(&mut self) {
+        if self.holds && self.holder.is_none() {
             match Holder::start(self.wakeup.clone()) {
                 Ok(holder) => self.holder = Some(holder),
                 Err(_) => self.hub.reach = Reach::Unavailable,
             }
-        }
-        if let Some(holder) = &self.holder {
-            holder.want(revision);
         }
     }
     pub fn tick(&mut self, now: Instant) {
@@ -230,15 +270,16 @@ impl Discovery {
             {
                 self.remembering();
             }
-            let entries = &self.entries;
+            let (entries, adding) = (&self.entries, self.adding.as_ref());
             let effects = self
                 .logins
-                .notice(notice, |machine| ssh_target(entries, machine));
+                .notice(notice, |machine| ssh_target(entries, adding, machine));
             self.carry(effects);
         }
         // An offer that arrived before the catalog named its Machine shows once it does.
-        let entries = &self.entries;
-        self.logins.resolve(|machine| ssh_target(entries, machine));
+        let (entries, adding) = (&self.entries, self.adding.as_ref());
+        self.logins
+            .resolve(|machine| ssh_target(entries, adding, machine));
         // The probe answered after the question arrived: the box shows now.
         if self.credentials.probing() {
             self.remembering();
@@ -334,19 +375,18 @@ impl Discovery {
         if let Some(status) = self.hub_status() {
             return Observation::Hub(status);
         }
-        let Some(state) = self.hub.state(&entry.profile.id) else {
+        // A Machine this TUI just saved reads its draft's state until the hub rereads the catalog.
+        let Some(state) = self.hub.facts(&entry.profile.id).map(MachineState::name) else {
             return Observation::Hub(HubStatus::Unknown);
         };
         if state != MachineStateName::Online {
-            let host = match &entry.profile.draft.connection {
-                MachineConnection::Ssh { target } => crate::machines::known_hosts_name(target),
-                MachineConnection::Unsupported(_) => String::new(),
-            };
+            let target = entry.profile.draft.ssh_target().unwrap_or_default();
             return self
                 .hub
                 .facts(&entry.profile.id)
-                .and_then(|facts| LoginState::of(facts, &host))
-                .map_or(Observation::State(state), Observation::Login);
+                .map_or(Observation::State(state), |facts| {
+                    Observation::reported(facts, target)
+                });
         }
         if let Some(refusal) = entry.refusal {
             return Observation::State(refused(refusal));
@@ -365,6 +405,165 @@ impl Discovery {
             .iter()
             .map(|e| (e.profile.id.clone(), self.observation(e, now)))
             .collect()
+    }
+    /// The facts the hub last reported with `machine`'s state.
+    fn facts(&self, machine: &ProfileId) -> Facts {
+        let reported = self.hub.reported.get(machine.as_str());
+        Facts {
+            state: self.hub.facts(machine).cloned(),
+            last_attempt: reported.and_then(|reported| reported.last_attempt),
+            remote: reported.and_then(|reported| reported.remote.clone()),
+        }
+    }
+    /// One explanation per Machine: why it reads its word, and the action that helps.
+    pub fn explanations(&self, now: Instant) -> Vec<(ProfileId, Explanation)> {
+        self.entries
+            .iter()
+            .map(|entry| {
+                let observation = self.observation(entry, now);
+                let host = entry.profile.draft.ssh_target().unwrap_or_default();
+                let facts = self.facts(&entry.profile.id);
+                (
+                    entry.profile.id.clone(),
+                    Explanation::of(&observation, &facts, host),
+                )
+            })
+            .collect()
+    }
+    /// Starts adding `proposal`: the hub connects it as this TUI's draft, starting a hub when none
+    /// is held yet, and its login asks this TUI. An add in progress is given up first.
+    pub fn add(&mut self, proposal: Proposal) {
+        self.discard_add();
+        self.hold();
+        if let (Some(holder), Some(draft)) = (&self.holder, proposal.hub_draft()) {
+            holder.add(&proposal.id, draft);
+        }
+        self.adding = Some(proposal);
+    }
+    /// How the add in progress stands; `None` when nothing is being added.
+    pub fn adding(&self) -> Option<Adding> {
+        let proposal = self.adding.as_ref()?;
+        let failed = |stage: Option<MachineStateName>, failure: Option<ConnectFailure>| {
+            let facts = self.facts(&proposal.id);
+            let host = proposal.draft.ssh_target().unwrap_or_default();
+            let observation = facts
+                .state
+                .as_ref()
+                .map(|state| Observation::reported(state, host));
+            let explanation = observation
+                .as_ref()
+                .map(|observation| Explanation::of(observation, &facts, host))
+                .unwrap_or_default();
+            let word = observation.as_ref().map(Observation::key);
+            let stage = failure.and_then(|failure| Stage::failed(failure, stage));
+            Adding::Failed {
+                stage,
+                word,
+                explanation,
+            }
+        };
+        if self.holder.is_none() {
+            return Some(failed(None, None));
+        }
+        let settled = self
+            .hub
+            .added
+            .as_ref()
+            .filter(|(machine, _, _)| machine == proposal.id.as_str())
+            .map(|(_, _, settled)| *settled);
+        Some(match settled {
+            Some(Settled::Online) => Adding::Passed,
+            Some(Settled::Failed(failure, state)) => failed(state, failure),
+            // The holder has not copied the add's start yet, or no state was reported yet.
+            Some(Settled::Pending) | None => Adding::Checking(
+                self.hub
+                    .facts(&proposal.id)
+                    .map_or(Stage::Ssh, Stage::running),
+            ),
+        })
+    }
+    /// The machine being added, while it is.
+    pub const fn proposal(&self) -> Option<&Proposal> {
+        self.adding.as_ref()
+    }
+    /// Gives up the add in progress: its draft, link, login and remembered answers go.
+    pub fn discard_add(&mut self) {
+        if let Some(proposal) = self.adding.take() {
+            let effects = self.logins.abandon(proposal.id.as_str());
+            self.carry(effects);
+            if let Some(holder) = &self.holder {
+                holder.discard(&proposal.id);
+            }
+            self.hub.drafts.remove(proposal.id.as_str());
+            self.hub.added = None;
+        }
+    }
+    /// The add in progress was saved: the hub keeps its link once it rereads the catalog, which
+    /// the next reconcile asks for.
+    pub fn add_saved(&mut self) {
+        if self.adding.take().is_some()
+            && let Some(holder) = &self.holder
+        {
+            holder.settle_add();
+        }
+    }
+    /// Ends `machine`'s link and login, without a confirmation; its record stays.
+    pub fn disconnect(&mut self, machine: &ProfileId) {
+        let effects = self.logins.abandon(machine.as_str());
+        self.carry(effects);
+        if let Some(holder) = &self.holder {
+            holder.disconnect(machine);
+        }
+    }
+    /// Whether `machine` reads `online`, so its remote Session can be stopped.
+    pub fn online(&self, machine: &ProfileId) -> bool {
+        self.hub.state(machine) == Some(MachineStateName::Online)
+    }
+    /// Asks the hub to stop `machine`'s remote Session; [`Self::stopped`] says how it ended.
+    pub fn stop_session(&mut self, machine: &ProfileId) {
+        match &self.holder {
+            Some(holder) => {
+                holder.stop_session(machine);
+                self.hub
+                    .stops
+                    .insert(machine.as_str().to_owned(), hub::Stop::Pending(0));
+            }
+            None => {
+                self.hub.stops.insert(
+                    machine.as_str().to_owned(),
+                    hub::Stop::Done(Some(StopSessionOutcome::NotOnline)),
+                );
+            }
+        }
+    }
+    /// How the stop of `machine`'s Session ended, once it has; read once.
+    pub fn stopped(&mut self, machine: &ProfileId) -> Option<SessionStop> {
+        let hub::Stop::Done(outcome) = *self.hub.stops.get(machine.as_str())? else {
+            return None;
+        };
+        self.hub.stops.remove(machine.as_str());
+        if let Some(holder) = &self.holder {
+            holder.forget_stop(machine);
+        }
+        Some(match outcome {
+            Some(StopSessionOutcome::Stopped | StopSessionOutcome::NotRunning) => {
+                SessionStop::Stopped
+            }
+            Some(StopSessionOutcome::NotOnline) => SessionStop::NotOnline,
+            _ => SessionStop::Failed,
+        })
+    }
+    /// Settles the stop of `machine`'s Session as the hub would have, for a test without a hub.
+    #[cfg(test)]
+    pub(crate) fn settle_stop(&mut self, machine: &ProfileId, outcome: Option<StopSessionOutcome>) {
+        self.hub
+            .stops
+            .insert(machine.as_str().to_owned(), hub::Stop::Done(outcome));
+    }
+    /// A removed Machine's remembered answers go with it, as `machine remove` deletes them. No one
+    /// waits for the outcome: answers the store keeps under the removed id are never read again.
+    pub fn forget_removed(&self, machine: &ProfileId) {
+        self.credentials.forget_quietly(machine.as_str());
     }
     pub fn connection(&self, profile: &Profile, now: Instant) -> Option<Connection> {
         self.entries
@@ -506,6 +705,12 @@ impl Discovery {
     /// The Machine whose selection the person waits on now, if any. Only its login may ask; a
     /// Machine no longer waited on has its login abandoned.
     pub fn wait_for(&mut self, machine: Option<&ProfileId>) {
+        // The add form holds the picker: its login asks before any selection's.
+        let machine = self
+            .adding
+            .as_ref()
+            .map(|proposal| &proposal.id)
+            .or(machine);
         let effects = self.logins.wait_for(machine.map(ProfileId::as_str));
         self.carry(effects);
     }
@@ -546,12 +751,20 @@ impl Discovery {
         let Some(holder) = &self.holder else {
             return;
         };
-        if self.hub.state(id) == Some(MachineStateName::Online) {
-            holder.forget(id);
-            self.hub.asks.remove(id.as_str());
-        } else {
-            let ask = holder.connect(id);
-            self.hub.asks.insert(id.as_str().to_owned(), ask);
+        match self.hub.state(id) {
+            Some(MachineStateName::Online) => {
+                holder.forget(id);
+                self.hub.asks.remove(id.as_str());
+            }
+            // The hub waits on a link that does not answer: end it and connect again.
+            Some(MachineStateName::Unresponsive) => {
+                let ask = holder.reconnect(id);
+                self.hub.asks.insert(id.as_str().to_owned(), ask);
+            }
+            _ => {
+                let ask = holder.connect(id);
+                self.hub.asks.insert(id.as_str().to_owned(), ask);
+            }
         }
     }
 }
@@ -605,6 +818,7 @@ pub struct OverviewFixture {
     pub projects: usize,
     pub workspaces: usize,
     pub tabs: usize,
+    pub terminals: usize,
     pub labels: Vec<String>,
     pub contexts: std::sync::Arc<[Context]>,
 }
@@ -618,6 +832,7 @@ impl From<OverviewFixture> for Overview {
             projects,
             workspaces,
             tabs,
+            terminals,
             labels,
             contexts,
         } = fixture;
@@ -627,6 +842,7 @@ impl From<OverviewFixture> for Overview {
             projects,
             workspaces,
             tabs,
+            terminals,
             labels,
             contexts,
         }

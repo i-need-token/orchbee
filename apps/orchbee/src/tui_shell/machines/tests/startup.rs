@@ -230,6 +230,7 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
                         projects: 1,
                         workspaces: 1,
                         tabs: usize::from(!empty),
+                        terminals: usize::from(!empty),
                         labels: Vec::new(),
                         contexts: vec![Context {
                             target: target.clone(),

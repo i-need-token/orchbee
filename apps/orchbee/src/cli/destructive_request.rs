@@ -52,9 +52,13 @@ enum Wording<'a> {
     Session(DestructiveCommand),
     /// `uninstall`: `listing`, what goes and what stays, precedes the prompt.
     Uninstall { listing: &'a str },
-    /// A remote stop: the prompt names the Machine `label`, and `hand` is the command to run by
-    /// hand.
-    Remote { label: &'a str, hand: &'a str },
+    /// A remote stop: the prompt names the Machine `label`, `hand` is the command to run by hand,
+    /// and `words` name it in the request log.
+    Remote {
+        label: &'a str,
+        hand: &'a str,
+        words: &'static str,
+    },
 }
 
 impl Wording<'_> {
@@ -62,7 +66,7 @@ impl Wording<'_> {
         match self {
             Self::Session(command) => command.words(),
             Self::Uninstall { .. } => "uninstall",
-            Self::Remote { .. } => "machine server stop",
+            Self::Remote { words, .. } => words,
         }
     }
 
@@ -268,10 +272,54 @@ pub(super) fn admit_remote_stop(
     remote_stop_with(&mut Platform, confirm, target, format, locale)
 }
 
+/// Admits `machine remove <selector> --stop-session` under the same rule and prompt as a remote
+/// `server stop`: it ends the remote Session and every terminal in it before the record goes.
+pub(super) fn admit_remove_stop(
+    confirm: bool,
+    target: &RemoteTarget<'_>,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<(), Box<Output>> {
+    remote_with(
+        &mut Platform,
+        confirm,
+        target,
+        (
+            |selector| format!("orchbee machine remove {selector} --stop-session"),
+            "machine remove --stop-session",
+        ),
+        format,
+        locale,
+    )
+}
+
 fn remote_stop_with(
     host: &mut impl Host,
     confirm: bool,
     target: &RemoteTarget<'_>,
+    format: OutputFormat,
+    locale: Locale,
+) -> Result<(), Box<Output>> {
+    remote_with(
+        host,
+        confirm,
+        target,
+        (
+            |selector| format!("orchbee --machine {selector} server stop"),
+            "machine server stop",
+        ),
+        format,
+        locale,
+    )
+}
+
+/// A remote stop's admission; `command` gives the command to run by hand for a selector and its
+/// words in the request log.
+fn remote_with(
+    host: &mut impl Host,
+    confirm: bool,
+    target: &RemoteTarget<'_>,
+    command: (fn(&str) -> String, &'static str),
     format: OutputFormat,
     locale: Locale,
 ) -> Result<(), Box<Output>> {
@@ -285,12 +333,14 @@ fn remote_stop_with(
     } else {
         target.id
     };
-    let hand = format!("orchbee --machine {selector} server stop");
+    let (by_hand, words) = command;
+    let hand = by_hand(selector);
     admit_with(
         host,
         &Wording::Remote {
             label: target.label,
             hand: &hand,
+            words,
         },
         confirm,
         Some(target.session),

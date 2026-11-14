@@ -172,6 +172,21 @@ impl Credentials {
         started.is_ok()
     }
 
+    /// Deletes both of `machine`'s remembered answers on a thread of its own, beside any forget in
+    /// flight, and reports nothing: the Machine is gone, so no one reads the outcome.
+    pub(super) fn forget_quietly(&self, machine: &str) {
+        let Ok(machine) = MachineId::new(machine.to_owned()) else {
+            return;
+        };
+        let store = self.store;
+        // A thread that cannot start leaves the answers under an id nothing reads again.
+        let _started = thread::Builder::new()
+            .name("orchbee-machine-forget-removed".into())
+            .spawn(move || {
+                let _outcome = store.forget(&machine);
+            });
+    }
+
     /// How the forget in flight ended, once it has.
     pub(super) fn forgotten(&mut self) -> Option<Forgotten> {
         let outcome = match self.forgetting.as_ref()?.try_recv() {

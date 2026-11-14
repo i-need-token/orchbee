@@ -52,8 +52,9 @@ credential, password, port, key path, or the remote platform. Duplicate target/s
 have distinct IDs. At most 128 KiB is admitted.
 
 `machine add` saves `remoteInstall: "manual"`: this release only adds a machine whose Orchbee is
-already installed. Without `--label`, the label is the target's host name, so
-`luna@10.0.0.8` saves as `10.0.0.8` and `ssh://u@[2001:db8::1]:22` as `2001:db8::1`.
+already installed, and saves it only once it is `online` ([adding a machine](#adding-a-machine)).
+Without `--label`, the label is the target's host name, so `luna@10.0.0.8` saves as `10.0.0.8` and
+`ssh://u@[2001:db8::1]:22` as `2001:db8::1`.
 
 Every command that names a saved machine takes `<id|label>` and resolves it with the one rule
 that `--machine` uses: an exact ID first, otherwise the only machine with that exact,
@@ -70,10 +71,10 @@ changes the receipt, to `cancelled` with `committed` true.
 | Event          | Guard and transition                                                                                         | Effects                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | List           | Missing catalog is empty; invalid data fails                                                                 | Read only; no directory creation                                                                       |
-| Add            | Validate and check capacity; prepare remote; reload latest catalog under lock; append enabled `manual` entry | Remote Session may start before local commit                                                           |
+| Add            | Validate and check capacity; connect the draft; once `online`, reload latest catalog under lock; append enabled `manual` entry | Remote Session may start before local commit; nothing is saved for a draft that does not come `online` |
 | Rename         | Operand resolves; valid label                                                                                | Replace label; same value is unchanged                                                                 |
 | Enable/disable | Operand resolves                                                                                             | Set flag; same value is unchanged                                                                      |
-| Remove         | Operand resolves                                                                                             | Remove machine and forget its [remembered answers](#remembered-answers); never stop its remote Session |
+| Remove         | Operand resolves; with `--stop-session`, the remote Session stopped or was not running                      | Remove machine and forget its [remembered answers](#remembered-answers); stop its remote Session only with `--stop-session` |
 
 Writers use the existing Windows private-cache lock and atomic replacement. Reads reject unknown
 members outside `extensions`, a malformed connection, an unknown `remoteInstall`, invalid
@@ -83,14 +84,30 @@ Corruption never becomes an empty catalog and its bytes are preserved. A failed 
 not roll back a remotely started Session. Cancellation after commit preserves the committed
 receipt.
 
+## SSH host suggestions
+
+A form that adds a machine may offer the host aliases of the person's OpenSSH client
+configuration as address suggestions. They come from `.ssh/config` below the home folder
+(`USERPROFILE` on Windows, `HOME` elsewhere) and the files it includes, read as ssh_config(5)
+reads them: case-insensitive keywords, a keyword separated from its arguments by whitespace or one
+`=`, `#` comments, and quoted arguments. Every `Host` alias is kept in first-seen order, once
+whatever its letter case, at most 32, except a pattern with `*` or `?`, a `!` negation, and
+anything the `ssh` target rule rejects. `Include` follows each argument wherever it appears, even
+inside a `Match` or `Host` block: `~/` starts at the home folder, a relative path at `.ssh/`, and
+`*` and `?` components expand to the matching files sorted by path. A missing file is skipped.
+Nothing else is read and nothing but the aliases is kept. A file over 256 KiB, more than 1 MiB or
+64 files in all, more than 4096 directory entries listed for globs, an include deeper than 16, or a
+file that includes itself through its own chain leaves no suggestions at all. The suggestions never
+change how `ssh` connects.
+
 ## Commands not available yet
 
-`machine add --no-install` and `machine remove --stop-session` belong to later slices of
-remote-machine support. Help and completion leave them out while they do nothing, but their
-whole grammar is validated, so a malformed invocation is still a usage failure with exit 2. A
-well-formed one is refused before it reads the catalog, contacts any machine, or changes anything:
-the `orchbee.machine` receipt names the operation (`add` or `remove`), reports
-`error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`, and the command exits 4.
+`machine add --no-install` belongs to a later slice of remote-machine support. Help and completion
+leave it out while it does nothing, but its whole grammar is validated, so a malformed invocation is
+still a usage failure with exit 2. A well-formed one is refused before it reads the catalog,
+contacts any machine, or changes anything: the `orchbee.machine` receipt names the operation `add`,
+reports `error: "not-yet-available"`, `remote: "not-contacted"`, `profileId: null`, and the command
+exits 4.
 
 ## Connect and disconnect
 
@@ -196,8 +213,8 @@ as remote-machine support lands; a reader treats a value it does not know as `un
 | `internal`                                       | 1    | Unexpected local failure                                                        |
 | `not-found`, `ambiguous-machine`                 | 3    | `<id\|label>` resolution                                                        |
 | `disabled-machine`                               | 3    | Connect to a disabled machine                                                   |
-| `auth-failed`, `host-key-changed`                | 3    | Connect: OpenSSH refused the answers or the key; the host key changed           |
-| `host-untrusted`                                 | 3    | Connect without a terminal to ask: the host key is not trusted yet              |
+| `auth-failed`, `host-key-changed`                | 3    | Connect or add: OpenSSH refused the answers or the key; the host key changed    |
+| `host-untrusted`                                 | 3    | Connect or add without a terminal to ask: the host key is not trusted yet       |
 | `busy`, `capacity`, `revision-exhausted`         | 4    | Another writer, 64 machines or 128 KiB, revision bound                          |
 | `not-yet-available`                              | 4    | [Commands not available yet](#commands-not-available-yet)                       |
 | `unsupported-machine`                            | 4    | Connect to a machine whose connection kind this build does not know             |
@@ -205,73 +222,110 @@ as remote-machine support lands; a reader treats a value it does not know as `un
 | `ssh-unavailable`                                | 4    | The system OpenSSH client is missing                                            |
 | `remote-not-installed`                           | 4    | The remote launch line finds no Orchbee, or no usable install                   |
 | `remote-not-ready`                               | 4    | The remote Session did not report ready                                         |
-| `host-unreachable`                               | 4    | Connect: the host did not resolve, refused, timed out, or had no route          |
-| `auth-required`                                  | 4    | Connect: signing in needs a person and nobody answered here                     |
+| `host-unreachable`                               | 4    | Connect or add: the host did not resolve, refused, timed out, or had no route   |
+| `auth-required`                                  | 4    | Connect or add: signing in needs a person and nobody answered here              |
 | `ssh-failed`, `remote-protocol`                  | 5    | Any other OpenSSH failure; a malformed remote document or link                  |
 | `remote-unsupported`, `remote-other-environment` | 6    | Remote system or architecture; another environment kind                         |
-| `version-incompatible`                           | 6    | Connect: either side too old for the other, or another build's hub runs         |
+| `version-incompatible`                           | 6    | Connect or add: either side too old for the other, or another build's hub runs  |
 | `timeout`                                        | 7    | Deadline                                                                        |
-| `cancelled`                                      | 7    | Connect: a `disconnect` or a changed record ended the attempt                   |
+| `cancelled`                                      | 7    | Connect or add: a `disconnect` or a changed record ended the attempt            |
 | `physical-unknown`                               | 8    | SSH process cleanup unconfirmed                                                 |
+| `session-stop-failed`                            | 9    | [Remove `--stop-session`](#removing-a-machine): the Session did not stop        |
 | `remote-install-failed`                          | 9    | Not yet                                                                         |
 | `cancelled`                                      | 130  | Interrupt                                                                       |
 
-## Remote preparation
+## Adding a machine
 
-The app-private `machine_ssh` owner exposes executable discovery, the `ssh` command line and
-bounded process execution to the two places that start `ssh`: the hub's
-[carrier child](#the-carrier-child) and `machine add`'s preparation below, the one start outside
-the hub until adding moves onto it. Each retains its own readiness and submission facts. Windows
-ports keep the system OpenSSH and process owner; Unix ports return `SavedMachines` unsupported
-before executable lookup or process creation.
+`machine add <ssh-target>` and the TUI's add form run one staged pipeline, `machine_add` in the
+workbench Client crate, apart from any drawing, so each check passes or fails the same way in both
+and another interface reuses it. The new machine gets its random ID first and is connected through
+the [machine hub](#machine-hub) as a [draft](#draft-machines) under that ID: `connect` carries
+`draft` with the target and the remote Session name, and the hub carries it as it carries a saved
+Machine, so every check after the first runs on one connection with one login. The record is saved
+only once the draft reads `online`, under the writer lock against the latest catalog; the hub that
+then rereads the catalog finds the ID with the same connection and Session and keeps the draft's
+link as the saved Machine's. A draft that never comes `online` is dropped with its link, its login
+and any answer remembered for it, and nothing was saved.
 
-Add uses the OS OpenSSH executable and a 60-second total deadline. Batch mode,
-strict host-key checking, no forwarding, bounded output, and an owned process
-Job apply. Password prompts and new host trust must first be handled through
-OpenSSH. SSH diagnostics are not copied into machine JSON or product errors.
+| Check                          | It fails as                                                                                                       | State                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1. This computer has OpenSSH   | `ssh-unavailable`                                                                                                 | `offline`, cause `ssh-unavailable`                        |
+| 2. The host answers            | `host-unreachable`: it timed out, refused, did not resolve, or had no route; `ssh-failed` for any other `ssh` end | `offline` with the cause                                  |
+| 3. The host key is trusted     | `host-untrusted`, or `host-key-changed`, which offers no way on                                                   | `untrusted`, `key-changed`                                |
+| 4. The login succeeds          | `auth-required`, `auth-failed`                                                                                    | `needs-login`, `login-failed`                             |
+| 5. The remote system runs it   | `remote-unsupported`                                                                                              | `unsupported`                                             |
+| 6. The remote has Orchbee      | `remote-not-installed`; installing it arrives with remote installation                                            | `not-installed`                                           |
+| 7. The two builds work together | `version-incompatible`, `remote-other-environment`                                                               | `needs-update`, `local-needs-update`, `incompatible`      |
+| 8. The remote Session is ready | `remote-not-ready`, `remote-protocol`                                                                             | `offline`, cause `remote-not-ready` or `remote-protocol`  |
 
-`ssh` never changes the person's files by itself. `machine_ssh::command`, which builds every `ssh`
-Orchbee starts, sets `UpdateHostKeys=no`: since OpenSSH 8.5 the default otherwise lets `ssh` add
-and remove a host's keys in `known_hosts` after a login, which a background hub would repeat at
-every connection.
-The Windows remote command is an encoded PowerShell program with literal data.
+An interface names the check running from the draft's state: `connecting` while probing is check 2,
+`authenticating` and a login state check 4 (a host-key state check 3), `copying` check 6 and
+`starting` check 8. A failed add names its check from the `connect-result` failure; a `timeout`
+names it from the state the reply carries. Time a person spends answering a login question does not
+count: the hub's attempt clock stops while a question is open, as for any `connect`.
 
-Preparation reads the remote installed Client's status document and applies the SSH admission
-rule before starting the selected Session:
+- **The command.** `machine add` asks the login questions on its terminal, or waits for an interface
+  that asks, exactly as [`machine connect`](#connect-and-disconnect) does, within the same 90-second
+  deadline. From submission its receipt reports `remote: "possibly-started"`; `online` makes it
+  `ready` with `remoteVersion`, then the save reports `committed`, and the command asks the hub to
+  `reload` before it closes its attachment. The record stands whatever the reload answers; an
+  interrupt during it reads `cancelled` with `committed` true. A failure reports its
+  [error](#machine-receipt) with `remote` `unchanged` when the remote answered at a check that
+  leaves it as it was, `not-contacted` when no `ssh` was asked, and `possibly-started` after
+  `remote-not-ready`, `timeout` or `cancelled`.
+- **The TUI.** The form sends `connect` with `origin` `user` through the TUI's
+  [holder](#the-tui-as-a-hub-client), starting it, and a hub, when no saved Machine started one yet,
+  so its login asks in the TUI's [login overlay](#login-questions) and the draft's events reach this
+  TUI alone. Once every check passed it saves the record and rereads the catalog at once, so the new
+  row is there and selected when the form closes. Escape during the checks gives the add up: the
+  holder's `disconnect` drops the draft.
 
-| Check            | Rule                                                                                                                           | Refusal                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| Platform         | `windows` on `x86_64` or `aarch64`                                                                                             | `remote-unsupported`, exit 6          |
-| Executable       | An absolute drive path whose file name, ignoring ASCII case, is a valid environment stem plus `.exe`                           | `remote-protocol`, exit 5             |
-| Environment kind | A release build admits only `orchbee.exe`; a development or test build admits any `ob-dev-<16 hex>` or `ob-test-<16 hex>` name | `remote-other-environment`, exit 6    |
-| Product version  | Any version the status document grammar admits; it is reported as `remoteVersion` and never compared                           | `remote-protocol` only when malformed |
-| Installation     | The cohort state is `available`                                                                                                | `remote-not-installed`, exit 4        |
+`ssh` never changes the person's files by itself. The `ssh` command line Orchbee builds sets
+`UpdateHostKeys=no`: since OpenSSH 8.5 the default otherwise lets `ssh` add and remove a host's keys
+in `known_hosts` after a login, which a background hub would repeat at every connection. The Windows
+remote command is an encoded PowerShell program with literal data.
 
-The remote launch line exits 125 when it resolves no Orchbee program or cannot start it; that
-status reads as `remote-not-installed` rather than an OpenSSH failure.
+The launch line resolves the remote program through the remote store's `active.json`, never
+through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
+`%LOCALAPPDATA%\Programs`) it reads the active version and runs `versions\<version>\<name>.exe`, and
+exits 125, read as `remote-not-installed`, when it resolves no program or cannot start it. A release
+build reads the `Orchbee` store and looks for `orchbee.exe`; a development or test build reads its
+own `<stem>` store and then the `Orchbee` store, looking for `<stem>.exe` and then `orchbee.exe` in
+each, so a remote with only the release installation reads as another environment rather than a
+missing one. See [Windows release installation](windows-cli-configuration.md#windows-release-installation).
+No protocol version, product version, or cohort is compared across machines beyond what the link's
+offer and the remote Session's handshake admit.
 
-No protocol version, product version, or cohort is compared across machines: the remote Session
-admits each later Client connection, carried by a hub Session stream, through the handshake, and
-the routed command runs the remote Client under its own grammar. The probe resolves the remote program through the remote store's
-`active.json`, never through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
-`%LOCALAPPDATA%\Programs`) it reads the active version and runs `versions\<version>\<name>.exe`. A
-missing or unreadable pointer names no installation. A release build reads the `Orchbee` store
-and looks for `orchbee.exe`; a development or test build reads its own `<stem>` store and then the
-`Orchbee` store, looking for `<stem>.exe` and then `orchbee.exe` in each, so a remote with only
-the release installation reads as another environment rather than a missing one. See
-[Windows release installation](windows-cli-configuration.md#windows-release-installation).
+An enabled profile is not evidence of a live connection. No remote Session is stopped by rename,
+enable, disable, or a remove without `--stop-session`.
 
-A second SSH invocation, after the first has ended, requires the remote Client's
-`orchbee.status.server` document to report the Session running with a ready Server process. Only
-then can the profile be committed. The receipt distinguishes `not-contacted`, `unchanged`,
-`possibly-started`, and `ready` remote state, independently of the local catalog commit, and an
-admitted add reports the remote product version. Unknown process settlement is reported, never
-retried as a successful add.
+## Removing a machine
 
-Missing, unsupported, or other-environment remote installations fail without saving. Automated
-remote installation and interactive authentication remain outside the implemented
-boundary; an enabled profile is not evidence of a live connection. No remote
-session is stopped by rename, enable, disable, or remove.
+`machine remove <id|label>` removes the record at once and forgets its
+[remembered answers](#remembered-answers). Nothing on the remote is deleted: its Orchbee, its files
+and its Session stay, and the Session keeps running.
+
+`machine remove <id|label> --stop-session` stops the remote Session first, ending every terminal in
+it, and removes the record only once it stopped or was not running. It is destructive, so it takes
+the confirmation a [remote Session stop](#remote-session-stop) takes: development and test builds
+require `--confirm`, which is a usage failure without `--stop-session`, and a release build prompts
+for the remote Session's name and refuses `--confirm`. It then stops the Session exactly as the
+remote Session stop does: the hub takes the catalog and is asked for `stop-session`, a Machine not
+`online` is brought `online` under the `machine connect` rules and errors and asked once more, and
+each answer may take 120 seconds.
+
+| Stop outcome              | The record | `error`                     |
+| ------------------------- | ---------- | --------------------------- |
+| `stopped`, `not-running`  | Removed    | None                        |
+| `failed`                  | Kept       | `session-stop-failed`, exit 9 |
+| `not-online` after `online` | Kept     | `host-unreachable`          |
+| `stopping`                | Kept       | `hub-unavailable`           |
+| `not-found`               | Kept       | `not-found`                 |
+| `unknown`, or no answer   | Kept       | `physical-unknown`, exit 8  |
+
+An interrupt ends the command with `cancelled` and the record kept; once `stop-session` may have
+been sent, the stop itself goes on. The TUI's "Remove and stop remote Session" asks its
+own confirmation and is offered only while the Machine is `online`.
 
 ## Evidence and lifecycle
 
@@ -645,7 +699,7 @@ through their Jobs.
 
 ### Carrying a Machine
 
-The hub owns one record per catalog Machine: its reported state, its retry history, at most one
+The hub owns one record per catalog Machine, and per [draft](#draft-machines): its reported state, its retry history, at most one
 carrier, and the `connect` requests waiting on it. A carrier is one child process whose standard
 input and output are the Machine's [`machine-link`](../../../schemas/machine/README.md#link-records)
 connection, with the hub as initiator. The record is a state machine that takes the time and each
@@ -713,9 +767,9 @@ itself.
 
 | Rule           | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe`, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off; `machine add`'s preparation keeps `machine_ssh::command`, with batch mode and strict host keys                                                                                                                                                                   |
+| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe`, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off                                                                                                                                                                   |
 | Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                                                                        |
-| Launch line    | The encoded PowerShell program that resolves the remote store's active version, as the probe does, and runs it with `--machine-link-v1`; it exits 125 when it finds none                                                                                                                                                                                                                                                                                                                                                                                    |
+| Launch line    | The encoded PowerShell program that resolves the remote store's active version, as [adding a machine](#adding-a-machine) describes, and runs it with `--machine-link-v1`; it exits 125 when it finds none                                                                                                                                                                                                                                                                                                                                                                                    |
 | Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. A local far end runs inside the carrier's Job, so a Session it starts ends with the carrier, where a remote Session over `ssh` runs outside it |
 | Process        | No console window (`CREATE_NO_WINDOW`), the system folder as working directory, standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                                                              |
 | Job            | Each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started                                                                                                                                                                                                                                                                                                  |
@@ -1013,12 +1067,13 @@ application calls no store.
   item on a thread of its own and never tries it again in that attempt. With a claimant the next
   question carries `remembered: rejected`, which the TUI and the console show as "The saved
   password no longer works."; without one the attempt ends `needs-login` `remembered-rejected`.
-- **Forgetting.** The picker's "Forget password" on a selected remote Machine, offered while the
-  store can be used, deletes both of its items without reading them; the key is taken only while
-  the selected row can forget, so elsewhere it goes on to the picker's other bindings. Every
-  forget tries both kinds, even when one fails, then reports. `machine remove` deletes them after
-  the catalog commit; the removal succeeds either way, and standard error carries one line when
-  they could not be deleted. `uninstall --delete-data` deletes the items of every Machine the
+- **Forgetting.** "Forget password" in a remote row's [actions](#managing-machines-in-the-tui), or
+  its key, offered while the store can be used, deletes both of its items without reading them; the
+  key is taken only while the selected row can forget, so elsewhere it goes on to the picker's
+  other bindings. Every forget tries both kinds, even when one fails, then reports. `machine remove`
+  deletes them after the catalog commit; the removal succeeds either way, and standard error
+  carries one line when they could not be deleted. The TUI's Remove deletes them on a thread of its
+  own and reports nothing, since nothing reads the items of a removed Machine. `uninstall --delete-data` deletes the items of every Machine the
   catalog still names before it removes the data; the default uninstall keeps them, as it keeps the
   catalog. As a current limit it cannot delete an item whose Machine the catalog no longer names,
   or every item when the catalog cannot be read: such an item, left by a removal while the store
@@ -1164,8 +1219,8 @@ does for Session endpoints. The `OBHS` frame must arrive within 2 seconds of the
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `attach`                       | `attached` with the state; turning `watch` on sends `catalog`, then one `machine` per id; gaining `presence` starts a silent attempt for every `idle` Machine                                                                                                                                      |
 | `reload`                       | Rereads `machines.json`: `reloaded`, or `invalid-catalog` or `storage` keeping the catalog; a change sends `catalog` and every changed `machine` to each watcher, and a changed record is reconciled as above; while `presence` holds, a new, changed or enabled SSH Machine is attempted silently |
-| `connect`                      | `not-found` for an id outside the catalog; otherwise [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once; a `draft` is `unsupported`                                                                                                                |
-| `disconnect`                   | `not-found` for an id outside the catalog, otherwise the Machine is disconnected and the answer is `disconnected`                                                                                                                                                                                  |
+| `connect`                      | With a `draft`, this connection's [draft Machine](#draft-machines); otherwise `not-found` for an id outside the catalog, or [carried](#carrying-a-machine), which answers `disabled-machine` and `unsupported-machine` at once                                                                      |
+| `disconnect`                   | `not-found` for an id outside the catalog that is not this connection's draft; otherwise the Machine is disconnected, a draft dropped, and the answer is `disconnected`                                                                                                                             |
 | `stop-session`                 | `not-found` for an id outside the catalog, `not-online` for a Machine that is not `online`, otherwise a run that [stops the Session](#stopping-a-session), or joins the Machine's run                                                                                                              |
 | `claim`, `dismiss`             | As the [login episode](#login-episode) states                                                                                                                                                                                                                                                      |
 | `open` of `session` or `route` | [Relayed](#channels) for an `online` Machine; otherwise `reset` `not-found` for an id outside the catalog or `not-online`                                                                                                                                                                          |
@@ -1174,6 +1229,27 @@ A disabled record reads `disabled`, a connection kind this build does not know `
 cause `connection-kind`, and any other Machine starts `offline` without a cause or a next attempt.
 A catalog that cannot be read when the hub starts serves as empty with revision 0 until a `reload`
 succeeds.
+
+### Draft Machines
+
+A draft is a Machine a connection asks the hub to carry before the catalog holds it, so
+[adding a machine](#adding-a-machine) checks it on the connection it keeps once saved. It is carried
+as a catalog Machine is, by the same state machine and carrier, with these differences.
+
+- **Admission.** `connect` with a `draft` whose ID the catalog does not hold makes, or reuses, this
+  connection's draft of that target and Session. `invalid-draft` answers a target the record's rule
+  rejects, an ID the catalog holds with another connection or Session, and another connection's
+  draft. A draft the catalog already holds as it is goes on as that record.
+- **The owner alone.** Only the owning connection sees the draft: its `machine` events carry
+  `draft: true` and go to the owner alone, while it watches; `catalog` never lists it; another
+  connection's `connect` and `disconnect` find no such Machine, and `stop-session` and a channel
+  `open` find none for anyone until it is saved. Its login episode asks only the owner, and
+  `presence` never starts an attempt for it.
+- **Saved.** A reread catalog that holds the ID with the same connection and Session makes it an
+  ordinary Machine that keeps its carrier, and every watcher gets its `machine` event.
+- **Dropped.** The owner's `disconnect`, the owner's leaving, and a reread catalog that holds the ID
+  otherwise drop it: its carrier ends, its waiters are replied `cancelled`, and the hub forgets it.
+  An answer remembered for it is forgotten with it.
 
 ### Ownership and bounds
 
@@ -1521,7 +1597,7 @@ terminals, Workspace switches, Agents mode and every `orchbee --machine` command
 
 | Rule            | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Presence        | The first catalog read that holds an enabled Machine of a known connection kind starts one background holder. It attaches with `presence` and `watch`, starting a hub when none runs, and keeps that attachment, across the owner's re-attachments, until the TUI exits or its hub is asked to stop. The hub's countdown begins only when its last holder leaves, so a TUI opened again within the expiry finds each Machine as the hub kept it: `online` at once, on the same carrier child. A TUI whose catalog never holds such a Machine starts no hub                                                                                                                                                                                                                                               |
+| Presence        | The first catalog read that holds an enabled Machine of a known connection kind, or the first [add](#adding-a-machine), starts one background holder. It attaches with `presence` and `watch`, starting a hub when none runs, and keeps that attachment, across the owner's re-attachments, until the TUI exits or its hub is asked to stop. The hub's countdown begins only when its last holder leaves, so a TUI opened again within the expiry finds each Machine as the hub kept it: `online` at once, on the same carrier child. A TUI whose catalog never holds such a Machine starts no hub                                                                                                                                                                                                                                               |
 | Questions       | The holder attaches with `asks` true and a selection sends `connect` with `origin` `user`, so the hub puts that login's questions to this TUI, as [login questions](#login-questions) shows them. The hub also offers this TUI every `command` episode, which it shows as a [notice](#login-questions) and claims when the person accepts it; the claim, a dismissal and a release ride on the holder's own requests, off the frame                                                                                                                                                                                                                                                                                                                                                                      |
 | Off the frame   | Attaching, the hub's events, every request and every channel run on background threads that publish into one shared view and wake the UI loop. A frame reads that view and never waits for the hub                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Row words       | A row shows the hub's state of the Machine only while the holder's owner holds a live connection and the hub has not said it is closing. Otherwise it reads what the holder knows of the hub: Unknown while it attaches or re-attaches, or while the hub has not reported the Machine; Stopped; or Unavailable. No row reads Online without a live attachment, and the holder notices a lost connection within 100 ms                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -1531,6 +1607,26 @@ terminals, Workspace switches, Agents mode and every `orchbee --machine` command
 | Exit            | Quitting asks the holder to stop and does not wait for it, so the terminal is restored at once. An attachment in progress ends at once and starts no hub; the holder's thread writes nothing to the terminal, holds nothing that keeps the process alive, and ends with the process                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Catalog         | The TUI rereads `machines.json` every second. When the revision it read differs from the hub's last `catalog` revision, the holder asks the hub to `reload`, once per revision, so a Machine saved, changed or removed while the TUI runs reaches the hub                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Re-attachment   | After `reattached` the view forgets every Machine state until the new hub reports it again; the rows read Unknown meanwhile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+
+### Managing machines in the TUI
+
+The picker's Machines list ends with a fixed "Add machine…" row, and while Local is the only
+machine a line under the list says what a remote one offers. A remote row shows its name, its
+address in the secondary color and its state word; the selected row adds its
+[details and action](#states-and-details) and two buttons, its action on Enter and Actions on F2.
+The picker carries what the person asks to [discovery](#the-tui-as-a-hub-client) and the machines
+store once per frame tick and never waits for the hub; a commit's catalog refreshes the list at once.
+
+| Item            | Contract                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add form        | Enter or a click on "Add machine…", which Down from the last row also reaches, turns the picker into the form in the same frame; Escape or the close control goes back. Address offers the [SSH host suggestions](#ssh-host-suggestions), read once as the form opens; Name, left blank, takes the host name. Enter runs the [checks](#adding-a-machine), naming the one running out of eight, and a login question opens the [login overlay](#login-questions) over the form. A failure names its check, its state's details and the action Enter then takes; a changed host key and a system Orchbee does not run on offer none until the address changes. Once every check passed the record is saved and the list shows the new row selected. Escape while the checks run gives the add up |
+| Actions         | F2 or the Actions button on a remote row opens its menu: Rename, Disable or Enable, Disconnect, Forget password, Remove, and Remove and stop remote Session. An unavailable item is dimmed, with its reason under the menu                                                                                                                                                                                       |
+| Rename          | Edits the name in place: Enter saves it, Escape keeps the old one                                                                                                                                                                                                                                                                                                                                                 |
+| Disable, Enable | Disable disconnects the Machine and saves it disabled, so nothing connects it again; Enable, or Enter on a disabled row, saves it enabled                                                                                                                                                                                                                                                                       |
+| Disconnect      | Ends the link without asking; the record and the remote Session stay                                                                                                                                                                                                                                                                                                                                              |
+| Forget password | Forgets the Machine's [remembered answers](#remembered-answers), as Ctrl+G does                                                                                                                                                                                                                                                                                                                                  |
+| Remove          | Removes the record at once and forgets its remembered answers; the notice says "Removed devbox · remote Session keeps running"                                                                                                                                                                                                                                                                                   |
+| Remove and stop | Asks first: the title, the Machine, how many terminals end (every terminal, before the Session's contents are known), and that Orchbee and the files on the remote stay. Escape cancels; Enter asks the hub for `stop-session` and removes the record once the Session stopped. A stop that fails or finds the Machine gone keeps the record and says so. Offered only while the Machine is `online`; otherwise dimmed with "Can't reach devbox, so its Session can't be stopped." |
 
 ### Login questions
 
@@ -1545,7 +1641,7 @@ threads of their own.
 | One overlay    | A question of the episode this TUI claimed opens the login overlay over everything, the picker included: the Machine and its target, `ssh`'s prompt, Orchbee's line for the kind, one field, Cancel and the primary action. The rest of the interface keeps running under it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Notice         | A `command` episode the hub offers shows first as a notice, never as the field, since the person may be typing in a Panel: the Machine and its target, how many commands wait to log in to it, that they fail without a login, and `Esc` Not now and `Enter` Log in. It is a capturing overlay, the one place where a background request takes the keyboard, so every other key and a paste are discarded rather than reaching a Panel or a field; `Enter`, `Esc` and its buttons act only once frames have shown the whole notice for one second in which no key or paste was discarded: every discarded key or paste, and a resize, starts that second again, so a person who is typing, for a Panel or for the question they expect, never accepts or declines it. `Enter` claims the login, and the login overlay opens with the question the hub then puts; `Esc` dismisses it, which fails every waiting command, closes the notice in every interface and mutes the Machine's command logins until the person selects it or every asking interface has closed. The count follows the hub's `waiters` |
 | Queue          | One notice or login overlay at a time: the lowest login first, and a notice waits while a login overlay is open. A notice nobody here touched closes by itself when another interface claims or dismisses its login or the login ends, its last command having left; one this TUI claimed stays and completes even when every command left. Once the person pressed `Enter` on the notice a frame showed, only the person closes it, even when the hub's news of another claim arrived meanwhile: a login another interface claimed first, that the hub ended, or whose link was lost before its question opened turns the notice into an ended one that says why in a few words, still discards every key and paste, and closes on `Enter` or `Esc` under the same one-second rule. An offer for a Machine this TUI has not read yet is kept unseen and looked up again on every tick: it shows as soon as the catalog names the Machine, and goes only when another interface claims or dismisses the login or it ends                                                                                    |
-| Deferred       | While another overlay, the picker, a menu, a mode, copy mode, a native capture or the armed prefix holds the keyboard, the notice is not shown and takes no key: the status line, the picker's own bottom row while it is open, or the Settings page's status row while no Settings notice leads, says "devbox needs login" instead, and the notice opens once the keyboard is free. An open action menu, and the indicator of navigation or the prefix, still take that row without the sign                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Deferred       | While another overlay, the picker, a menu, a mode, copy mode, a native capture or the armed prefix holds the keyboard, the notice is not shown and takes no key: the status line, the picker's own bottom row while it is open, or the Settings page's status row while no Settings notice leads, says "devbox needs login" instead, and the notice opens once the keyboard is free. The indicator of navigation or the prefix keeps the sign after its name while the row has room, and an open action menu leaves it on the status line; only the single row of a window below the shell's minimum size shows the input mode alone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Kinds          | A password, a key passphrase and `other` ask for a secret. A new host shows its algorithm and fingerprint and asks for a typed `yes` before Trust and continue, and Orchbee then answers `yes` itself. The client reads the kind again against the Machine's target, so a question naming another host is `other` and a changed host key never offers trust                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Again and next | A refused answer comes back as the next question with `repeated`: the overlay says so and asks again with an empty field. Several questions of one login follow each other in the same overlay. An answer `ssh` could not take is asked again at once; one that reached no endpoint dismisses the login, and its overlay and the selection say so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Remember       | A password or key passphrase question shows a "Remember password" box under the field, unticked, which Tab reaches and Shift+Tab leaves, Space or a click toggles; while it has the keyboard, typed characters do not reach the field. A ticked box keeps a copy of the answer until the login ends and saves it after `succeeded`, as [remembered answers](#remembered-answers) say; the privacy line then says where the answer goes. Where no store can be used one secondary line says so in place of the box. A question marked `remembered: rejected` says "The saved password no longer works."                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -1554,7 +1650,7 @@ threads of their own.
 | Ending alone   | A login that ends without the person keeps its overlay: the hub ended it, the link was lost, the answer reached no endpoint, or its selection ended. The field is wiped and gone, the overlay says how the login ended in the words the picker uses for that end, and it keeps every key and press, discarding all but Escape and Enter, which close it onto the state that end left. Only a login that comes online after the person's own answer closes at once: keys read after that Enter and before the close reach nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | On screen      | An answer can be given only once a frame has shown the whole question: Orchbee's asking sentence, `ssh`'s asking line for a question only `ssh` words, a new host's whole fingerprint, the field and the buttons. `ssh`'s lines are kept from the last one up, a `ssh: …` line marking the cut; a fingerprint wraps on lines of its own, never shortened, and widens the overlay where the terminal allows. A window that cannot hold all that shows the size notice instead: the overlay keeps every key, takes only Escape, and keeps the typed field, which shows again once the window grows. A resize counts the question unshown until the next frame shows it                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Clock          | While a login is claimed the selection's 60 seconds stop, as the hub's attempt clock does. A selection that ends without `online` because of its login says how: login failed, the host key changed, the login was not completed, or the answer did not reach `ssh`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Picker states  | `needs-login`, `login-failed`, `untrusted` and `key-changed` rows explain themselves in the selected row's details: why, the offered key where there is one, and what to do; a changed key names `ssh-keygen -R` with the host, as `"[host]:port"` for a port other than 22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Picker states  | `needs-login`, `login-failed`, `untrusted` and `key-changed` rows explain themselves in the selected row's details: why, and the offered key where there is one, with the [action](#states-and-details) beside them; a changed key names `ssh-keygen -R` with the host, as `"[host]:port"` for a port other than 22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Lost link      | When the current remote Machine's hub state needs a login again, its pane carries "connection lost · Enter to log in again", and Enter starts the same selection, which connects again even where the surface would otherwise be reused                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | The secret     | Typed and pasted characters go straight into the field's fixed buffer, which never grows and is shared, not copied, by every copy of the view. The overlay paints one mask glyph per character, except that a new host's field shows what was typed while it begins `yes`, ignoring case, and the field's debug form shows nothing. Enter moves the buffer to the delivery thread; Escape, the login's end, a dismissal and dropping it wipe it, and a resize or a lost focus keeps it. Enter on an empty password or passphrase sends nothing; another question may be answered empty. Keys that arrive after Enter do not join the answer. What else is wiped, and what is not, is in the [answer path](#answer-path)                                                                                                                                                                                                                                                                                                                                                                                     |
 
@@ -1651,7 +1747,7 @@ software.
 ### State words
 
 A remote row shows one word, the hub's state of the Machine; every Orchbee interface uses the same
-words. Details and actions per state come with the machine status screens.
+words, and the selected row adds its [details and action](#states-and-details).
 
 | Hub state                              | Word (en-US / zh-CN)        | Tone        |
 | -------------------------------------- | --------------------------- | ----------- |
@@ -1684,6 +1780,34 @@ the row reads the holder's knowledge instead:
 A disabled record reads Disabled / 已停用 from the catalog, and a connection kind this build does
 not know reads Unsupported / 不支持, without asking the hub; the CLI uses the same words. Installing
 arrives with remote installation. The former Waiting, Needs attention and Stale words are retired.
+
+### States and details
+
+Beside its word, the selected row shows why the Machine is in its state and the one action that
+helps; Enter or a click performs the action. `machine_status` in the workbench Client crate chooses
+them from the hub's state and the facts its `machine` event carries, apart from drawing, and its
+localization words them, so every interface says the same.
+
+| State                                                     | Detail                                                                                                                                                                                                                                                                                       | Action                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `online`                                                  | The remote's Orchbee version, what its Session holds, and up to three Project or Workspace names                                                                                                                                                                                             | Open                                    |
+| `connecting`                                              | None                                                                                                                                                                                                                                                                                         | None                                    |
+| `reconnecting`                                            | The cause, worded as for `offline`, or the lost link, and the time of the next attempt                                                                                                                                                                                                      | Retry now                               |
+| `offline`                                                 | The cause: the host as the record names it could not be reached (timed out, refused, did not resolve, or no route), this computer has no OpenSSH and how to install it, `ssh` failed, the remote broke the protocol, or the remote Orchbee did not start; then when the last attempt ended | Retry, except without OpenSSH           |
+| `unresponsive`                                            | The link is up but the remote does not answer                                                                                                                                                                                                                                                | Reconnect: end the link and connect     |
+| `disabled`                                                | None                                                                                                                                                                                                                                                                                         | Enable                                  |
+| `needs-login`, `login-failed`, `untrusted`, `key-changed` | As [login questions](#login-questions) explain them                                                                                                                                                                                                                                          | Log in, Log in again, Review and trust; none for a changed key |
+| `not-installed`                                           | Orchbee is not on the remote                                                                                                                                                                                                                                                                 | None until remote installation          |
+| `unsupported`                                             | The remote's system and processor where known, and the systems Orchbee runs on; nothing for a connection kind                                                                                                                                                                               | None                                    |
+| `needs-update`                                            | The remote's Orchbee, with its version, or its running Session is too old, and how to update it there                                                                                                                                                                                       | None                                    |
+| `local-needs-update`                                      | This computer's Orchbee is too old for the remote, and to update it here                                                                                                                                                                                                                     | None                                    |
+| `incompatible`                                            | The remote is an Orchbee of another environment                                                                                                                                                                                                                                              | None                                    |
+| A holder status                                           | Why no state of the hub's holds now                                                                                                                                                                                                                                                          | None                                    |
+
+The host shows a port only when the target names one, since the `ssh` configuration may name
+another. Times are local hours and minutes; a system without a local clock shows none. While Orchbee
+is being copied, `connecting` and `reconnecting` say so without a byte count, which no `machine`
+event carries.
 
 ### Observers
 

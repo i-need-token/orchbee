@@ -1,6 +1,6 @@
 //! The Windows holder thread and its request threads. A request thread holds the owner only for
 //! its request, and never the shared lock while it waits.
-use super::{Ask, Hub, Reach, Shared};
+use super::{Ask, Hub, Reach, Reported, Settled, Shared, State, Stop};
 use crate::{
     background_thread::BackgroundThread,
     machine_discovery::overview::Blocked,
@@ -15,7 +15,8 @@ use orchbee_machine_protocol::{
     Id, MachineId,
     hub::{
         AnswerEndpoint, ClaimOutcome, Claimant, Connect, ConnectFailure, ConnectOutcome,
-        ConnectResult, Event, HubState, LoginEvent, LoginPhase, Origin, Reply, Request,
+        ConnectResult, Draft, Event, HubState, LoginEvent, LoginPhase, MachineStateName, Origin,
+        Reply, Request,
     },
 };
 use std::{
@@ -48,8 +49,11 @@ const CONNECT: Duration = Duration::from_secs(60);
 /// How long the `connect` itself may wait for its reply: the hub bounds the attempt, and the time
 /// a person takes to answer stops its clock.
 const REQUEST: Duration = Duration::from_secs(60 * 60);
-/// How long a `dismiss` may take.
+/// How long a `dismiss` or a `disconnect` may take.
 const DISMISS: Duration = Duration::from_secs(3);
+/// How long the hub may take to answer `stop-session`: its run watches the Session for 65
+/// seconds, and the exchange in progress then takes at most 30 more.
+const STOP: Duration = Duration::from_secs(120);
 
 /// The holder's attachments, as selections waiting for a hub read them.
 #[derive(Default)]
@@ -264,8 +268,7 @@ fn attach(
         state.link = Some(client.clone());
         state.view.reach = Reach::Attached;
         state.view.epoch = state.view.epoch.wrapping_add(1);
-        state.view.states.clear();
-        state.view.catalog = None;
+        state.view.forget();
         state.reloading = None;
         state.attempts.asked = false;
         state.attempts.settled = state.attempts.begun;
@@ -274,8 +277,7 @@ fn attach(
     shared.update(|state| {
         state.link = None;
         state.view.reach = Reach::Attaching;
-        state.view.states.clear();
-        state.view.catalog = None;
+        state.view.forget();
     });
     // A carrier or request thread may still hold the owner; the last of them closes it.
     drop(client);
@@ -340,6 +342,11 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                     let listed: Vec<String> =
                         catalog.machines().iter().map(ToString::to_string).collect();
                     state.view.states.retain(|id, _| listed.contains(id));
+                    let drafts = &state.view.drafts;
+                    state
+                        .view
+                        .reported
+                        .retain(|id, _| listed.contains(id) || drafts.contains_key(id));
                 });
                 if let Some(client) = shared.reload_due() {
                     reload(client);
@@ -349,13 +356,24 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                 closing = true;
                 shared.reach(Reach::Closing);
             }
-            // A draft Machine is another client's; a catalog Machine's state replaces the last.
-            Some(Notice::Event(Event::Machine(event))) if !event.draft && live && !closing => {
+            // A draft Machine's events reach its owner alone: this TUI's add. A Machine's state
+            // replaces the last; a saved draft reads from the catalog from its first event there.
+            Some(Notice::Event(Event::Machine(event))) if live && !closing => {
                 shared.update(|state| {
-                    state
-                        .view
-                        .states
-                        .insert(event.machine.to_string(), event.state);
+                    let id = event.machine.to_string();
+                    state.view.reported.insert(
+                        id.clone(),
+                        Reported {
+                            last_attempt: event.last_attempt.map(u64::from),
+                            remote: event.remote,
+                        },
+                    );
+                    if event.draft {
+                        state.view.drafts.insert(id, event.state);
+                    } else {
+                        state.view.drafts.remove(&id);
+                        state.view.states.insert(id, event.state);
+                    }
                 });
             }
             // The episodes this TUI claimed are its own; a command episode is offered to every
@@ -395,8 +413,7 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                 closing = false;
                 shared.update(|state| {
                     state.view.reach = Reach::Attached;
-                    state.view.states.clear();
-                    state.view.catalog = None;
+                    state.view.forget();
                     state.reloading = None;
                     state.attempts.asked = false;
                     state.logins.push(machine_login::Notice::Lost);
@@ -426,15 +443,19 @@ pub(super) fn reload(client: Hub) {
 }
 
 /// Asks the hub to bring `machine` online, joining its attempt or starting one, and settles ask
-/// `number` unless a later ask replaced it.
-pub(super) fn connect(shared: &Arc<Shared>, machine: String, number: u64) {
+/// `number` unless a later ask replaced it. With `reconnect`, the link that stopped answering ends
+/// first.
+pub(super) fn connect(shared: &Arc<Shared>, machine: String, number: u64, reconnect: bool) {
     let key = machine.clone();
     let shared_for_thread = shared.clone();
     let started = thread::Builder::new()
         .name("orchbee-machine-connect".into())
         .spawn(move || {
             let shared = shared_for_thread;
-            let outcome = request_connect(&shared, &machine, number);
+            let current =
+                |state: &State| state.view.asks.get(&machine) == Some(&Ask::Pending(number));
+            let outcome = request_connect(&shared, &machine, None, reconnect, current)
+                .map_err(|(failure, _)| failure);
             shared.update(|state| {
                 if state.view.asks.get(&machine) == Some(&Ask::Pending(number)) {
                     match outcome {
@@ -451,6 +472,101 @@ pub(super) fn connect(shared: &Arc<Shared>, machine: String, number: u64) {
     if started.is_err() {
         shared.update(|state| {
             state.view.asks.insert(key, Ask::Failed(None));
+        });
+    }
+}
+
+/// Connects the add's draft `machine`, which `draft` describes, and settles the add of `number`
+/// unless it was discarded or replaced meanwhile.
+pub(super) fn add(shared: &Arc<Shared>, machine: String, draft: Draft, number: u64) {
+    let shared_for_thread = shared.clone();
+    let key = machine.clone();
+    let settle = move |state: &mut State, settled| {
+        if state
+            .view
+            .added
+            .as_ref()
+            .is_some_and(|(added, asked, _)| *added == key && *asked == number)
+        {
+            state.view.added = Some((key.clone(), number, settled));
+        }
+    };
+    let settle_here = settle.clone();
+    let started = thread::Builder::new()
+        .name("orchbee-machine-add".into())
+        .spawn(move || {
+            let shared = shared_for_thread;
+            let current = |state: &State| {
+                state
+                    .view
+                    .added
+                    .as_ref()
+                    .is_some_and(|(added, asked, _)| *added == machine && *asked == number)
+            };
+            let settled = match request_connect(&shared, &machine, Some(draft), false, current) {
+                Ok(()) => Settled::Online,
+                Err((failure, state)) => Settled::Failed(failure, state),
+            };
+            shared.update(|state| settle(state, settled));
+        });
+    if started.is_err() {
+        shared.update(|state| settle_here(state, Settled::Failed(None, None)));
+    }
+}
+
+/// Asks the hub to end `machine`'s link, or to drop this TUI's draft of it; its events report the
+/// result, so nobody waits for the reply.
+pub(super) fn disconnect(shared: &Arc<Shared>, machine: String) {
+    let Some(client) = shared.lock().link.clone() else {
+        return;
+    };
+    let Ok(machine) = MachineId::new(&machine) else {
+        return;
+    };
+    let _started = thread::Builder::new()
+        .name("orchbee-machine-disconnect".into())
+        .spawn(move || {
+            let _reply = client.request(Request::Disconnect { machine }, Instant::now() + DISMISS);
+        });
+}
+
+/// Asks the hub to stop `machine`'s remote Session and records the outcome of stop `number`.
+pub(super) fn stop_session(shared: &Arc<Shared>, machine: String, number: u64) {
+    let link = shared.lock().link.clone();
+    let shared_for_thread = shared.clone();
+    let key = machine.clone();
+    let settle = move |state: &mut State, outcome| {
+        if state.view.stops.get(&key) == Some(&Stop::Pending(number)) {
+            state.view.stops.insert(key.clone(), Stop::Done(outcome));
+        }
+    };
+    let (Some(client), Ok(id)) = (link, MachineId::new(&machine)) else {
+        // No hub carries the Machine now, so nothing was asked of its Session.
+        shared.update(|state| {
+            settle(
+                state,
+                Some(orchbee_machine_protocol::hub::StopSessionOutcome::NotOnline),
+            )
+        });
+        return;
+    };
+    let settle_here = settle.clone();
+    let started = thread::Builder::new()
+        .name("orchbee-machine-stop".into())
+        .spawn(move || {
+            let outcome =
+                match client.request(Request::StopSession { machine: id }, Instant::now() + STOP) {
+                    Ok(Reply::StopSession(outcome)) => Some(outcome),
+                    _ => None,
+                };
+            shared_for_thread.update(|state| settle(state, outcome));
+        });
+    if started.is_err() {
+        shared.update(|state| {
+            settle_here(
+                state,
+                Some(orchbee_machine_protocol::hub::StopSessionOutcome::NotOnline),
+            )
         });
     }
 }
@@ -522,29 +638,32 @@ pub(super) fn deliver(
 }
 
 /// Waits for a live hub, asking the holder for one, and sends `connect` on it as the person's own
-/// act, so the hub asks this TUI the login's questions. An attachment that begins after the ask
-/// and fails answers the selection; so does the deadline. A reply without `online` names its
-/// failure.
+/// act, so the hub asks this TUI the login's questions; `draft` describes an add's Machine, and
+/// `reconnect` ends the Machine's link first. An attachment that begins after the ask and fails
+/// answers the selection; so does the deadline, and `current` turning false. A reply without
+/// `online` names its failure and the state it reported.
 fn request_connect(
     shared: &Shared,
     machine: &str,
-    number: u64,
-) -> Result<(), Option<ConnectFailure>> {
+    draft: Option<Draft>,
+    mut reconnect: bool,
+    current: impl Fn(&State) -> bool,
+) -> Result<(), (Option<ConnectFailure>, Option<MachineStateName>)> {
     let Ok(id) = MachineId::new(machine) else {
-        return Err(None);
+        return Err((None, None));
     };
     let deadline = Instant::now() + CONNECT;
     // The attachments begun when the selection asked for a hub.
     let mut asked_at: Option<u64> = None;
     loop {
         if shared.stopping() || Instant::now() >= deadline {
-            return Err(None);
+            return Err((None, None));
         }
         let (client, failed) = {
             let mut state = shared.lock();
-            if state.view.asks.get(machine) != Some(&Ask::Pending(number)) {
+            if !current(&state) {
                 // A later ask replaced this one.
-                return Err(None);
+                return Err((None, None));
             }
             let client = state
                 .link
@@ -564,7 +683,7 @@ fn request_connect(
             (client, failed)
         };
         if failed {
-            return Err(None);
+            return Err((None, None));
         }
         let Some(client) = client else {
             thread::sleep(POLL);
@@ -574,10 +693,18 @@ fn request_connect(
         if let Some(stale) = shared.reload_due() {
             let _reply = stale.request(Request::Reload, Instant::now() + RELOAD);
         }
+        if std::mem::take(&mut reconnect) {
+            let _reply = client.request(
+                Request::Disconnect {
+                    machine: id.clone(),
+                },
+                Instant::now() + DISMISS,
+            );
+        }
         let request = Request::Connect(Connect {
             machine: id.clone(),
             origin: Origin::User,
-            draft: None,
+            draft: draft.clone(),
         });
         let failure = match client.request(request, Instant::now() + REQUEST) {
             Ok(Reply::Connect(ConnectResult {
@@ -586,9 +713,9 @@ fn request_connect(
             })) => return Ok(()),
             Ok(Reply::Connect(ConnectResult {
                 outcome: ConnectOutcome::NotOnline(failure),
-                ..
-            })) => Some(failure),
-            _ => None,
+                state,
+            })) => (Some(failure), state),
+            _ => (None, None),
         };
         // The hub went away or began closing meanwhile: wait for the next one.
         if shared.lock().view.reach == Reach::Attached {

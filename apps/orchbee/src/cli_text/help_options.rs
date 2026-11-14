@@ -50,6 +50,16 @@ impl super::CliText {
                 "Machine name; default: the target's host name.",
                 "机器名称；默认使用目标的主机名。",
             ),
+            (CommandPath::MachineRemove, "--confirm") => (
+                "",
+                "Confirm stopping the remote Session with --stop-session. The Windows release build refuses it and asks a person to type the remote Session's name instead.",
+                "确认用 --stop-session 停止远端会话。Windows 正式版不接受此选项，改为由人输入远端会话名称。",
+            ),
+            (CommandPath::MachineRemove, "--stop-session") => (
+                "",
+                "Stop the remote Session first, ending its terminals; the machine stays if it does not stop.",
+                "先停止远端会话，结束其中的终端；没能停止时保留这台机器。",
+            ),
             (CommandPath::MachineConnect, "--remember") => (
                 "",
                 "After a sign-in that succeeds, remember a password or key passphrase typed here in the system credential store. Windows only for now.",

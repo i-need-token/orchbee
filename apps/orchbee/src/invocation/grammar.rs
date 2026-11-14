@@ -39,7 +39,6 @@ const CREATION_GEOMETRY: &[CommandPath] = &[
 /// help option tables, usage advice and completion leave them out.
 const UNLISTED_OPTIONS: &[(&str, Unlisted)] = &[
     ("--no-install", Unlisted::Everywhere),
-    ("--stop-session", Unlisted::Everywhere),
     ("--cols", Unlisted::On(CREATION_GEOMETRY)),
     ("--rows", Unlisted::On(CREATION_GEOMETRY)),
     ("--cell-width", Unlisted::Everywhere),

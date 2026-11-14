@@ -135,8 +135,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             Ok(())
         },
     },
-    // `--no-install` and `--stop-session` are parsed in full and refused as not yet available until
-    // the slices that implement them land; discovery leaves them out meanwhile.
+    // `--no-install` is parsed in full and refused as not yet available until the slice that
+    // implements it lands; discovery leaves it out meanwhile.
     OptionSpec {
         spelling: "--no-install",
         values: &[],
@@ -1418,6 +1418,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             CommandPath::WorktreeRemove,
             CommandPath::WorktreeResume,
             CommandPath::Uninstall,
+            CommandPath::MachineRemove,
         ],
         role: OptionRole::Business,
         value: None,

@@ -223,6 +223,8 @@ fn kind(error: Error) -> FailureKind {
             FailureKind::Incompatible
         }
         Error::Timeout => FailureKind::Timeout,
+        // Only `machine remove --stop-session` stops a Session; a routed command never does.
+        Error::SessionStopFailed => FailureKind::InternalFailure,
         Error::PhysicalUnknown => FailureKind::OutcomeUnknown,
         Error::Cancelled => FailureKind::Cancelled,
         Error::Internal => FailureKind::InternalFailure,

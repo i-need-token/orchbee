@@ -23,7 +23,7 @@ use std::time::Instant;
 
 #[cfg(windows)]
 #[path = "stop/hub.rs"]
-mod hub;
+pub(in crate::cli::machines) mod hub;
 /// No machine hub runs where it is not built.
 #[cfg(not(windows))]
 mod hub {
@@ -43,10 +43,10 @@ pub(super) const SCHEMA: &str = "orchbee.machine.server-stop";
 
 /// The hub's answer, as far as this command learned it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct Stopped {
-    pub(super) outcome: StopSessionOutcome,
+pub(in crate::cli::machines) struct Stopped {
+    pub(in crate::cli::machines) outcome: StopSessionOutcome,
     /// An interrupt ended the wait once the request may have been sent; the outcome is `unknown`.
-    pub(super) interrupted: bool,
+    pub(in crate::cli::machines) interrupted: bool,
 }
 
 /// The saved Machine a result names.
