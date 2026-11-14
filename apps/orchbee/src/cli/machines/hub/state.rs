@@ -20,8 +20,14 @@ use orchbee_machine_protocol::{
     Connection, MachineId,
     hub::{self, ConnectOutcome, Event, Reply},
 };
-use orchbee_workbench_client::application::machine_credentials::{SecretKind, Store};
-use std::{collections::BTreeMap, net::Shutdown, sync::Arc, thread, time::Duration};
+use orchbee_workbench_client::application::machine_credentials::{Item, SecretKind, Store};
+use std::{
+    collections::BTreeMap,
+    net::Shutdown,
+    sync::{Arc, Weak},
+    thread,
+    time::Duration,
+};
 
 /// The hub state under its lock, and the signal that wakes the supervisor and closing.
 pub(super) type Shared = super::super::shared_carrier::Shared<Hub>;
@@ -67,6 +73,8 @@ pub(super) struct Hub {
     /// The order catalog reads started in, so an older read never replaces a newer one.
     reload_started: u64,
     reload_applied: u64,
+    /// The lock and signal this state lives under, for a deletion that reports its failure later.
+    this: Weak<Shared>,
 }
 
 /// One attached connection as the hub state knows it.
@@ -96,6 +104,7 @@ impl Hub {
         lifetime: Lifetime,
         machines: Machines,
         question: Duration,
+        this: Weak<Shared>,
     ) -> Self {
         Self {
             root,
@@ -117,6 +126,7 @@ impl Hub {
             reloads: 0,
             reload_started: 0,
             reload_applied: 0,
+            this,
         }
     }
 
@@ -359,7 +369,7 @@ impl Hub {
                     self.recalls.insert(carrier, recall(&machine, kind));
                 }
             }
-            Effect::Forget { machine, kind } => forget(machine, kind),
+            Effect::Forget { machine, kind } => self.forget(machine, kind),
             Effect::Reply { waiters, result } => {
                 // A `connect` that ends `online` starts the expiry countdown again.
                 if matches!(result.outcome, ConnectOutcome::Online { .. })
@@ -385,15 +395,28 @@ impl Hub {
     }
 }
 
-/// Deletes the Machine's remembered answer of `kind` off the hub's lock. Deleting reads nothing:
-/// the hub never holds the answer. A failed deletion leaves the item, which `ssh` will refuse again.
-fn forget(machine: MachineId, kind: SecretKind) {
-    let _started = thread::Builder::new()
-        .name("orchbee-hub-forget".into())
-        .spawn(move || {
-            let item = orchbee_workbench_client::application::machine_credentials::Item::new(
-                machine, kind,
-            );
-            let _deleted = Store::select().delete(&item);
-        });
+impl Hub {
+    /// Deletes the Machine's remembered answer of `kind` off the hub's lock. Deleting reads
+    /// nothing: the hub never holds the answer. A deletion that fails, or cannot start, leaves the
+    /// item, so the Machine is told and recalls that kind no more until a person logs in.
+    fn forget(&mut self, machine: MachineId, kind: SecretKind) {
+        let this = self.this.clone();
+        let failed = machine.clone();
+        let started = thread::Builder::new()
+            .name("orchbee-hub-forget".into())
+            .spawn(move || {
+                let deleted = Store::select().delete(&Item::new(machine.clone(), kind));
+                if deleted.is_err()
+                    && let Some(shared) = this.upgrade()
+                {
+                    shared
+                        .lock()
+                        .machine(&machine, |machine, _| machine.undeleted(kind));
+                    shared.wake();
+                }
+            });
+        if started.is_err() {
+            self.machine(&failed, |machine, _| machine.undeleted(kind));
+        }
+    }
 }

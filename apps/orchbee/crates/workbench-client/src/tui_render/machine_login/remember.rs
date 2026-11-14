@@ -1,5 +1,5 @@
 //! The login overlay's remember row: the `[ ] Remember password` box under the field, or, when no
-//! store can be used in this login, one secondary line in its place. The box's target is its
+//! store can be used in this login or the local `ssh` is too old, one secondary line in its place. The box's target is its
 //! marker and its whole label, and it shows keyboard focus while Tab put it there.
 
 use super::super::controls::{
@@ -29,7 +29,7 @@ fn label(login: &LoginOverlay, locale: Locale) -> Option<&'static str> {
             until_restart: true,
             ..
         } => Some(locale.machine_remember_text(RememberText::RememberUntilRestart)),
-        RememberBox::Absent | RememberBox::Unavailable => None,
+        RememberBox::Absent | RememberBox::Unavailable | RememberBox::NeedsNewerSsh => None,
     }
 }
 
@@ -42,14 +42,15 @@ pub(super) fn row(login: &LoginOverlay, locale: Locale) -> Option<DialogRow<'sta
             Role::TextPrimary,
         ));
     }
-    (login.presented.remember == RememberBox::Unavailable).then(|| {
-        DialogRow::Item(
-            locale
-                .machine_remember_text(RememberText::Unavailable)
-                .into(),
-            Role::TextSecondary,
-        )
-    })
+    let reason = match login.presented.remember {
+        RememberBox::Unavailable => RememberText::Unavailable,
+        RememberBox::NeedsNewerSsh => RememberText::NeedsNewerSsh,
+        RememberBox::Absent | RememberBox::Offered { .. } => return None,
+    };
+    Some(DialogRow::Item(
+        locale.machine_remember_text(reason).into(),
+        Role::TextSecondary,
+    ))
 }
 
 /// Paints the box over its row `area` as a boolean control; the marker's cell when it holds the

@@ -91,7 +91,9 @@ pub(super) fn serve() -> u8 {
         return CANNOT_SERVE;
     };
     let question = environment.question().unwrap_or(machine::QUESTION);
-    let shared = Arc::new(Shared::new(Hub::new(root, lifetime, machines, question)));
+    let shared = Arc::new_cyclic(|this| {
+        Shared::new(Hub::new(root, lifetime, machines, question, this.clone()))
+    });
     let profile = Arc::new(acceptor_profile(ConnectionKind::MachineHub));
     let stop = Arc::new(AtomicBool::new(false));
     let listening = {
@@ -104,10 +106,10 @@ pub(super) fn serve() -> u8 {
         return CANNOT_SERVE;
     };
     let answering = {
-        let (shared, stop) = (shared.clone(), stop.clone());
+        let (shared, launch, stop) = (shared.clone(), launch.clone(), stop.clone());
         thread::Builder::new()
             .name("orchbee-hub-askpass-listener".into())
-            .spawn(move || askpass::listen(&shared, &questions, &stop))
+            .spawn(move || askpass::listen(&shared, &launch, &questions, &stop))
     };
     let Ok(answering) = answering else {
         stop.store(true, Ordering::Release);

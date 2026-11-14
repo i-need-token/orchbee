@@ -12,6 +12,8 @@ pub(crate) enum RememberText {
     RememberUntilRestart,
     /// The line in the box's place when no store can be used in this login.
     Unavailable,
+    /// The line in the box's place when the local `ssh` is older than OpenSSH 8.5.
+    NeedsNewerSsh,
     /// Where the answer goes while the box is ticked.
     Privacy,
     /// `ssh` refused the remembered answer, which was deleted.
@@ -36,6 +38,12 @@ impl Locale {
                 "Passwords can't be remembered in this kind of login."
             }
             (Self::ZhCn, RememberText::Unavailable) => "在这种登录方式下不能记住密码。",
+            (Self::EnUs, RememberText::NeedsNewerSsh) => {
+                "Passwords can be remembered with OpenSSH 8.5 or later."
+            }
+            (Self::ZhCn, RememberText::NeedsNewerSsh) => {
+                "需要 OpenSSH 8.5 或更高版本才能记住密码。"
+            }
             (Self::EnUs, RememberText::Privacy) => {
                 "Goes to ssh, then to the system password store once logged in."
             }

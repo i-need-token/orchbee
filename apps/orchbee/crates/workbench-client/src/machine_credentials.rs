@@ -101,7 +101,7 @@ pub fn readable_label(machine_label: &str) -> String {
     label
 }
 
-/// How long this platform's store keeps an answer, or that it cannot keep one here.
+/// How long this platform's store keeps an answer, or why none is remembered here.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Remembering {
     /// Until the person forgets it or removes the Machine.
@@ -110,6 +110,10 @@ pub enum Remembering {
     UntilRestart,
     /// No store can be used in this login, such as a process in an SSH logon.
     Unavailable,
+    /// The store can be used, but the `ssh` the machine hub runs is older than OpenSSH 8.5 or names
+    /// no release, so no answer is remembered or recalled; saved ones can still be forgotten. The
+    /// store itself never answers this; `machine_ssh::remembering` does.
+    NeedsNewerSsh,
 }
 
 /// Why a store call failed. It never carries the store's own error.
@@ -205,6 +209,12 @@ impl Store {
         Self { adapter: None }
     }
 
+    /// Whether this platform has a store at all, so something may have been saved in it; one that
+    /// exists may still be out of reach in this login.
+    pub const fn exists(&self) -> bool {
+        self.adapter.is_some()
+    }
+
     /// How long this store keeps an answer in this login. It reads one name in this build's
     /// environment that no item has; a store that cannot be reached answers unavailable.
     pub fn remembering(&self) -> Remembering {
@@ -236,15 +246,21 @@ impl Store {
         self.adapter.ok_or(Failure::Unavailable)?.delete(item)
     }
 
-    /// Deletes both kinds of `machine`'s remembered answers; `Removed` when either was there.
+    /// Deletes both kinds of `machine`'s remembered answers, each tried even when the other
+    /// fails; `Removed` when either was there, or the first failure.
     pub fn forget(&self, machine: &MachineId) -> Result<Deleted, Failure> {
         let mut found = Deleted::Absent;
+        let mut failed = None;
         for kind in SecretKind::ALL {
-            if self.delete(&Item::new(machine.clone(), kind))? == Deleted::Removed {
-                found = Deleted::Removed;
+            match self.delete(&Item::new(machine.clone(), kind)) {
+                Ok(Deleted::Removed) => found = Deleted::Removed,
+                Ok(Deleted::Absent) => {}
+                Err(failure) => {
+                    failed.get_or_insert(failure);
+                }
             }
         }
-        Ok(found)
+        failed.map_or(Ok(found), Err)
     }
 }
 

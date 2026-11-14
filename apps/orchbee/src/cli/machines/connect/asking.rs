@@ -12,7 +12,7 @@ use super::super::{Context, Error, Remote};
 use super::remember::{Kept, Remember};
 use crate::{
     cli::machines::askpass::question::attributed,
-    cli_text::{CliText, MachineQuestion},
+    cli_text::{CliText, MachineQuestion, RememberedLine},
     localization::Locale,
 };
 use orchbee_machine_protocol::{
@@ -189,10 +189,12 @@ pub(super) fn converse(
                 if login == Some(question.login) && asking.is_none() =>
             {
                 if question.remembered_rejected {
-                    say(console.text.cli_machine_remembered(true));
+                    say(console
+                        .text
+                        .cli_machine_remembered(RememberedLine::Rejected));
                 }
-                if kept.asked(&question.kind) {
-                    say(console.text.cli_machine_remembered(false));
+                if let Some(line) = kept.asked(&question.kind) {
+                    say(console.text.cli_machine_remembered(line));
                 }
                 match Asking::start(console, question) {
                     Some(open) => asking = Some(open),

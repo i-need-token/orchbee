@@ -449,6 +449,8 @@ impl Locale {
                 Refusal::SessionTooOld => "无法切换 · 远端会话版本过旧",
                 Refusal::DevelopmentBuildMismatch => "无法切换 · 远端运行的是另一个开发构建",
             },
+            (Self::EnUs, Some(Notice::PasswordNotSaved)) => "Password not saved",
+            (Self::ZhCn, Some(Notice::PasswordNotSaved)) => "密码未保存",
             (Self::EnUs, Some(Notice::NoNotificationTarget)) => "No Agent notification",
             (Self::ZhCn, Some(Notice::NoNotificationTarget)) => "没有智能体通知",
             (Self::EnUs, Some(Notice::PointerInputDropped)) => {
@@ -610,6 +612,7 @@ impl Locale {
             )
             | Notice::WorkspaceNavigationUnavailable
             | Notice::MachineRefused(_)
+            | Notice::PasswordNotSaved
             | Notice::NoNotificationTarget
             | Notice::NavigatorChanged
             | Notice::ResizeBusy

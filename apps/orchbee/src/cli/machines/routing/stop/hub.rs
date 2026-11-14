@@ -59,6 +59,7 @@ fn carry(
         committed: false,
         remote: Remote::NotContacted,
         remote_version: None,
+        unforgotten: false,
     };
     connect::ask_connect(client, machine, context, &mut report).map_err(mapped)?;
     ask(client, machine, context)

@@ -338,6 +338,11 @@ impl Manager {
         change.redraw |= view.machines.exchange_login(&mut self.discovery);
         // "Forget password" on a selected remote Machine, and how the last one ended.
         change.redraw |= view.machines.exchange_forget(&mut self.discovery);
+        // A ticked answer of a login that succeeded, which the store did not keep.
+        if self.discovery.unsaved() {
+            view.password_not_saved();
+            change.redraw = true;
+        }
         // The current remote Machine needs a login again: its pane offers Enter to log in.
         let lost_link = self
             .current

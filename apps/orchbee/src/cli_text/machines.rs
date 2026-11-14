@@ -18,6 +18,18 @@ use orchbee_workbench_client::application::machine_question::{
 #[cfg(all(test, windows))]
 mod tests;
 
+/// What `machine connect` says about a remembered answer.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RememberedLine {
+    /// `ssh` refused the remembered answer, which is deleted.
+    Rejected,
+    /// `--remember` cannot be honored: no store can be used in this login.
+    Unavailable,
+    /// `--remember` cannot be honored: the local `ssh` is older than OpenSSH 8.5.
+    NeedsNewerSsh,
+}
+
 impl super::CliText {
     /// What `machine connect` writes on standard error before it reads an answer for the machine
     /// whose `ssh` target is `target`: each line of `ssh`'s own `prompt`, escaped and bounded, then
@@ -44,15 +56,23 @@ impl super::CliText {
         format!("{shown}{asked}")
     }
 
-    /// The line `machine connect` writes about a remembered answer: `rejected` when `ssh` refused
-    /// the one the store held, which is deleted; otherwise `--remember` cannot be honored here.
+    /// The line `machine connect` writes about a remembered answer: `ssh` refused the one the
+    /// store held, which is deleted, or `--remember` cannot be honored here and why.
     #[cfg(windows)]
-    pub(crate) fn cli_machine_remembered(self, rejected: bool) -> &'static str {
-        match (self.locale, rejected) {
-            (Locale::EnUs, true) => "The saved password no longer works.\n",
-            (Locale::ZhCn, true) => "保存的密码已失效。\n",
-            (Locale::EnUs, false) => "Passwords can't be remembered in this kind of login.\n",
-            (Locale::ZhCn, false) => "在这种登录方式下不能记住密码。\n",
+    pub(crate) fn cli_machine_remembered(self, line: RememberedLine) -> &'static str {
+        match (self.locale, line) {
+            (Locale::EnUs, RememberedLine::Rejected) => "The saved password no longer works.\n",
+            (Locale::ZhCn, RememberedLine::Rejected) => "保存的密码已失效。\n",
+            (Locale::EnUs, RememberedLine::Unavailable) => {
+                "Passwords can't be remembered in this kind of login.\n"
+            }
+            (Locale::ZhCn, RememberedLine::Unavailable) => "在这种登录方式下不能记住密码。\n",
+            (Locale::EnUs, RememberedLine::NeedsNewerSsh) => {
+                "Passwords can be remembered with OpenSSH 8.5 or later.\n"
+            }
+            (Locale::ZhCn, RememberedLine::NeedsNewerSsh) => {
+                "需要 OpenSSH 8.5 或更高版本才能记住密码。\n"
+            }
         }
     }
 
@@ -194,6 +214,10 @@ impl super::CliText {
                 "The remote session may be running; this command does not roll it back."
             }
             (Locale::ZhCn, "remote-retained") => "远端会话可能仍在运行；本命令不会回滚它。",
+            (Locale::EnUs, "password-kept") => {
+                "Couldn't delete the machine's saved password, if any."
+            }
+            (Locale::ZhCn, "password-kept") => "未能删除这台机器保存的密码（如果有）。",
             (Locale::EnUs, "configuration") => {
                 "The Orchbee data folder is unavailable; check USERPROFILE or ORCHBEE_HOME."
             }

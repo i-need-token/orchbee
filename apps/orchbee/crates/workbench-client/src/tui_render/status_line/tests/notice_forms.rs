@@ -343,6 +343,7 @@ fn every_client_notice() -> Vec<Notice> {
         Notice::NavigationInputHeld,
         Notice::UnknownPrefix,
         Notice::PointerInputDropped,
+        Notice::PasswordNotSaved,
     ];
     all.extend(
         [
@@ -437,7 +438,8 @@ fn every_client_notice() -> Vec<Notice> {
             | Notice::TerminalInputUnavailable
             | Notice::NavigationInputHeld
             | Notice::UnknownPrefix
-            | Notice::PointerInputDropped => {}
+            | Notice::PointerInputDropped
+            | Notice::PasswordNotSaved => {}
         }
     }
     all

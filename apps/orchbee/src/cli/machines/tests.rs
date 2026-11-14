@@ -13,6 +13,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         committed: true,
         remote: Remote::Ready,
         remote_version: Some("0.0.0-remote".into()),
+        unforgotten: false,
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let output = emit(
@@ -47,6 +48,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         committed: false,
         remote: Remote::NotContacted,
         remote_version: None,
+        unforgotten: false,
     };
     for error in [
         Error::Catalog(CatalogError::NotFound),

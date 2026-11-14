@@ -1027,6 +1027,10 @@ impl ClientView {
     pub fn machine_refused(&mut self, refusal: crate::machine_refusal::Refusal) {
         self.notice = Some(Notice::MachineRefused(refusal));
     }
+    /// A remembered answer the person asked for was not saved.
+    pub fn password_not_saved(&mut self) {
+        self.notice = Some(Notice::PasswordNotSaved);
+    }
     pub fn clear_workspace_navigation_notice(&mut self) {
         if matches!(
             self.notice,

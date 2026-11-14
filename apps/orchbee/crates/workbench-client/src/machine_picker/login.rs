@@ -78,9 +78,15 @@ impl LoginOverlay {
         self.presented.sending || self.act.is_some()
     }
 
-    /// Whether typing reaches the field: a question on screen that waits for its answer.
+    /// Whether the person can act on the question: one on screen that waits for its answer.
     const fn editable(&self) -> bool {
         self.drawn && !self.ended() && !self.settled()
+    }
+
+    /// Whether a key or a paste may change the field: the question waits and the field, not the
+    /// remember box, holds the keyboard.
+    const fn typing(&self) -> bool {
+        self.editable() && !self.remember_focused()
     }
 
     fn submit(&mut self) {
@@ -100,7 +106,7 @@ impl LoginOverlay {
     }
 
     fn push(&mut self, character: char) {
-        if self.editable() && self.presented.field.push(character) {
+        if self.typing() && self.presented.field.push(character) {
             self.type_yes = false;
         }
     }
@@ -127,12 +133,10 @@ impl LoginOverlay {
         match (code, mods) {
             _ if escape => self.act(Act::Cancel),
             _ if enter => self.submit(),
-            (KeyCode::Backspace, Modifiers::NONE) if self.editable() => {
+            (KeyCode::Backspace, Modifiers::NONE) if self.typing() => {
                 self.presented.field.pop();
             }
-            (KeyCode::Char('u'), mods)
-                if mods == Modifiers::NONE.with_ctrl() && self.editable() =>
-            {
+            (KeyCode::Char('u'), mods) if mods == Modifiers::NONE.with_ctrl() && self.typing() => {
                 self.presented.field.clear();
             }
             (KeyCode::Char(character), mods) if mods == Modifiers::NONE || mods == shift => {
@@ -146,7 +150,8 @@ impl LoginOverlay {
         }
     }
 
-    /// Takes a pasted run into the field and wipes the run's own bytes after.
+    /// Takes a pasted run into the field while it holds the keyboard, and wipes the run's own
+    /// bytes after either way.
     fn paste(&mut self, text: String) {
         self.edits = self.edits.wrapping_add(1);
         let mut bytes = text.into_bytes();

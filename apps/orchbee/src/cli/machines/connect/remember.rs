@@ -1,16 +1,18 @@
 //! `machine connect --remember`: the password or passphrase typed at the console is kept, in a
 //! buffer wiped when dropped, until the login ends; only a login that ended `succeeded` writes it
 //! to the credential store. `ssh` asking the same kind again refused the kept answer, which goes.
-//! When no store can be used here the command says so once and asks as without `--remember`.
-//! `docs/machines.md#remembered-answers` owns the rules.
+//! When no store can be used here, or the local `ssh` is older than OpenSSH 8.5, the command says
+//! why once and asks as without `--remember`. `docs/machines.md#remembered-answers` owns the rules.
 
+use crate::cli_text::RememberedLine;
 use orchbee_machine_protocol::{
     MachineId,
     hub::{LoginEnd, QuestionKind},
     wipe,
 };
-use orchbee_workbench_client::application::machine_credentials::{
-    Item, Remembering, SecretKind, Store, readable_label,
+use orchbee_workbench_client::application::{
+    machine_credentials::{Item, Remembering, SecretKind, Store, readable_label},
+    machine_ssh,
 };
 
 /// The Machine whose answers `--remember` keeps, and the store they go to.
@@ -18,19 +20,29 @@ pub(super) struct Remember {
     store: Store,
     machine: MachineId,
     label: String,
-    usable: bool,
+    /// Why nothing can be remembered here; none when answers can be.
+    unusable: Option<RememberedLine>,
 }
 
 impl Remember {
-    /// Remembering for `machine`, saved as `label`; the store is asked now whether it can be used.
+    /// Remembering for `machine`, saved as `label`; the store and the local `ssh` are asked now
+    /// whether answers can be remembered.
     pub(super) fn new(machine: MachineId, label: &str) -> Self {
         let store = Store::select();
         Self {
-            usable: store.remembering() != Remembering::Unavailable,
+            unusable: match machine_ssh::remembering(&store) {
+                Remembering::Lasting | Remembering::UntilRestart => None,
+                Remembering::Unavailable => Some(RememberedLine::Unavailable),
+                Remembering::NeedsNewerSsh => Some(RememberedLine::NeedsNewerSsh),
+            },
             store,
             machine,
             label: readable_label(label),
         }
+    }
+
+    const fn usable(&self) -> bool {
+        self.unusable.is_none()
     }
 }
 
@@ -60,24 +72,24 @@ impl<'a> Kept<'a> {
         }
     }
 
-    /// A question of `kind` was asked: a kept answer of that kind was refused. True once, at the
-    /// first question that could be remembered, when no store can be used here.
-    pub(super) fn asked(&mut self, kind: &QuestionKind) -> bool {
-        let Some(kind) = SecretKind::of(kind) else {
-            return false;
-        };
+    /// A question of `kind` was asked: a kept answer of that kind was refused. Once, at the first
+    /// question that could be remembered, why nothing can be remembered here, if so.
+    pub(super) fn asked(&mut self, kind: &QuestionKind) -> Option<RememberedLine> {
+        let kind = SecretKind::of(kind)?;
         self.answers.retain(|(kept, _)| *kept != kind);
-        let unusable = self.remember.is_some_and(|remember| !remember.usable);
-        let tell = unusable && !self.told;
-        self.told |= tell;
-        tell
+        let line = self.remember.and_then(|remember| remember.unusable)?;
+        if self.told {
+            return None;
+        }
+        self.told = true;
+        Some(line)
     }
 
     /// `answer` went to a question of `kind`: it is kept while remembering is asked for and usable.
     pub(super) fn delivered(&mut self, kind: &QuestionKind, answer: &[u8]) {
         let (Some(kind), Some(_)) = (
             SecretKind::of(kind),
-            self.remember.filter(|remember| remember.usable),
+            self.remember.filter(|remember| remember.usable()),
         ) else {
             return;
         };

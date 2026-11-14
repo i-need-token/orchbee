@@ -4,13 +4,14 @@
 //! itself, whether it found one. No answer ever reaches this endpoint.
 //! `docs/machines.md#askpass-helper` owns the pairing.
 
-use super::{machine::Raised, state::Shared};
+use super::{carrier::Launch, machine::Raised, state::Shared};
 use crate::cli::machines::askpass::{
     Asked, RAISE_HEADER_BYTES, REMEMBERED, Raise, TAKEN, TICKET_BYTES, UNREMEMBERED, hex, question,
     unhex,
 };
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_machine_protocol::{AnswerToken, PathText, hub::AnswerEndpoint, hub::QuestionKind};
+use orchbee_workbench_client::application::machine_credentials::SecretKind;
 use std::{
     io::{Read, Write},
     net::Shutdown,
@@ -47,7 +48,12 @@ pub(super) fn bind() -> Option<(String, LocalListener)> {
 
 /// Accepts helpers until `stop`; each proves its user before a byte is read and is read on its own
 /// thread, at most 16 at once.
-pub(super) fn listen(shared: &Arc<Shared>, listener: &LocalListener, stop: &AtomicBool) {
+pub(super) fn listen(
+    shared: &Arc<Shared>,
+    launch: &Arc<Launch>,
+    listener: &LocalListener,
+    stop: &AtomicBool,
+) {
     while !stop.load(Ordering::Acquire) {
         let Ok((stream, ())) = listener.accept() else {
             thread::sleep(ACCEPT_PAUSE);
@@ -61,10 +67,10 @@ pub(super) fn listen(shared: &Arc<Shared>, listener: &LocalListener, stop: &Atom
             hub.helpers += 1;
         }
         let started = {
-            let shared = shared.clone();
+            let (shared, launch) = (shared.clone(), launch.clone());
             thread::Builder::new()
                 .name("orchbee-hub-askpass".into())
-                .spawn(move || serve(&shared, &stream))
+                .spawn(move || serve(&shared, &launch, &stream))
         };
         if started.is_err() {
             shared.lock().helpers -= 1;
@@ -72,8 +78,8 @@ pub(super) fn listen(shared: &Arc<Shared>, listener: &LocalListener, stop: &Atom
     }
 }
 
-fn serve(shared: &Shared, stream: &LocalStream) {
-    if let Some((carrier, serial)) = admit(shared, stream) {
+fn serve(shared: &Shared, launch: &Launch, stream: &LocalStream) {
+    if let Some((carrier, serial)) = admit(shared, launch, stream) {
         follow(shared, stream, carrier, serial);
     }
     let _closed = stream.shutdown(Shutdown::Both);
@@ -84,11 +90,16 @@ fn serve(shared: &Shared, stream: &LocalStream) {
 /// Reads the helper's record and hands its question to the Machine whose carrier its ticket names;
 /// that carrier and the helper's registration, or `None` to close it. A helper the hub cannot ask
 /// for a carrier it knows ends that carrier first, so `ssh` never reads the empty answer a refused
-/// helper would leave; a record without a known ticket names no carrier to end.
-fn admit(shared: &Shared, stream: &LocalStream) -> Option<(u64, u64)> {
+/// helper would leave; a record without a known ticket names no carrier to end. Whether `ssh` may be
+/// given a remembered answer is read, once in the hub's life, before the lock is taken.
+fn admit(shared: &Shared, launch: &Launch, stream: &LocalStream) -> Option<(u64, u64)> {
     let raise = read(stream)?;
     let ticket = unhex(&raise.ticket).filter(|ticket| *ticket != [0; TICKET_BYTES])?;
     let raised = raise.question.and_then(raised);
+    let recallable = raised
+        .as_ref()
+        .is_some_and(|raised| SecretKind::of(&raised.kind).is_some())
+        && launch.recalls();
     let mut hub = shared.lock();
     let carrier = hub
         .carriers
@@ -100,7 +111,9 @@ fn admit(shared: &Shared, stream: &LocalStream) -> Option<(u64, u64)> {
         raised.and_then(|raised| Some((raised, hub.admit_asker(carrier, stream.clone())?)));
     let serial = match admitted {
         Some((raised, serial)) => {
-            hub.machine_of(carrier, |machine, cx| machine.question(carrier, raised, cx));
+            hub.machine_of(carrier, |machine, cx| {
+                machine.question(carrier, raised, recallable, cx)
+            });
             Some(serial)
         }
         None => {

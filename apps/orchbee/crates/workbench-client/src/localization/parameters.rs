@@ -44,6 +44,9 @@ pub enum Notice {
     WorkspaceNavigationUnavailable,
     /// A selected saved machine refused this Client until one side changes; nothing switched.
     MachineRefused(crate::machine_refusal::Refusal),
+    /// A login succeeded with the remember box ticked, but the credential store did not keep the
+    /// answer.
+    PasswordNotSaved,
     /// Open notification target found no current Agent card; nothing moved.
     NoNotificationTarget,
     NavigatorChanged,

@@ -129,10 +129,11 @@ false, with the resolved `profileId` and the catalog it was read from.
 - **`--remember`.** A password or key passphrase typed at the console is kept, in a buffer wiped
   when dropped, until the login ends; a login that ends `succeeded`, or a reply `online`, writes it
   to the [credential store](#remembered-answers), and any other end wipes it. `ssh` asking the
-  same kind again refused the kept answer, which goes. Where no store can be used the command
-  says once, at the first password or passphrase question, that passwords cannot be remembered in
-  this kind of login, and asks as without the option. Without a console nothing is typed, so
-  nothing is remembered. Whatever the option, a question marked `remembered: rejected` is preceded
+  same kind again refused the kept answer, which goes. Where no store can be used, or the local
+  `ssh` is older than OpenSSH 8.5 or names no release, the command says why once, at the first
+  password or passphrase question: that passwords cannot be remembered in this kind of login, or
+  that they can be with OpenSSH 8.5 or later; it then asks as without the option. Without a
+  console nothing is typed, so nothing is remembered. Whatever the option, a question marked `remembered: rejected` is preceded
   by a line saying that the saved password no longer works.
 - **Agents in a Panel.** An Orchbee Panel gives a command a console on both streams, so an Agent
   that runs `machine connect` there is asked and waits for a person. An Agent that cannot answer
@@ -701,16 +702,16 @@ itself.
 
 #### The carrier child
 
-| Rule           | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe`, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off; `machine add`'s preparation keeps `machine_ssh::command`, with batch mode and strict host keys                                                                                                                         |
-| Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                              |
-| Launch line    | The encoded PowerShell program that resolves the remote store's active version, as the probe does, and runs it with `--machine-link-v1`; it exits 125 when it finds none                                                                                                                                                                                                                                                                                                                                          |
-| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. A local far end runs inside the carrier's Job, so a Session it starts ends with the carrier, where a remote Session over `ssh` runs outside it |
-| Process        | No console window (`CREATE_NO_WINDOW`), the system folder as working directory, standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                    |
-| Job            | Each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started                                                                                                                                                                                                                                                        |
-| Standard error | The last 4 KiB are kept only to classify an end and are never copied into a record, an event, a log or product copy                                                                                                                                                                                                                                                                                                                                                                                               |
-| Reaping        | Each carrier has one owner thread, its only reaper: it starts the child, waits for the root process, then terminates whatever is left in the Job, takes the exit status, and reports the end once the carrier's reader, writer and standard-error threads have ended. Ending a carrier stops its writer, which closes the child's input, and terminates the root process; the owner does the rest                                                                                                                 |
+| Rule           | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe`, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off; `machine add`'s preparation keeps `machine_ssh::command`, with batch mode and strict host keys                                                                                                                                                                   |
+| Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                                                                        |
+| Launch line    | The encoded PowerShell program that resolves the remote store's active version, as the probe does, and runs it with `--machine-link-v1`; it exits 125 when it finds none                                                                                                                                                                                                                                                                                                                                                                                    |
+| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. A local far end runs inside the carrier's Job, so a Session it starts ends with the carrier, where a remote Session over `ssh` runs outside it |
+| Process        | No console window (`CREATE_NO_WINDOW`), the system folder as working directory, standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                                                              |
+| Job            | Each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started                                                                                                                                                                                                                                                                                                  |
+| Standard error | The last 4 KiB are kept only to classify an end and are never copied into a record, an event, a log or product copy                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Reaping        | Each carrier has one owner thread, its only reaper: it starts the child, waits for the root process, then terminates whatever is left in the Job, takes the exit status, and reports the end once the carrier's reader, writer and standard-error threads have ended. Ending a carrier stops its writer, which closes the child's input, and terminates the root process; the owner does the rest                                                                                                                                                           |
 
 The link client writes its `OBHS` offer the moment the child starts, since the helper counts its
 2-second candidate deadline from its own start, then reads the answer and the frames that follow.
@@ -769,8 +770,8 @@ events to the claimant, closing the open question's helper, ending the carrier, 
 
 - **Remembered first.** Before any of the rows above, the first password and the first key
   passphrase question of each attempt is held while its helper reads the
-  [remembered answer](#remembered-answers); only when none is usable does the question go on as
-  the table says.
+  [remembered answer](#remembered-answers), when the local `ssh` is OpenSSH 8.5 or later and no
+  hold keeps that kind back; only when none is usable does the question go on as the table says.
 - **No retry of the hub's own.** Wrong answers lead wherever `ssh` goes: its next question, whose
   `repeated` says the last one was refused, or its end, which the table above reads. The hub never
   asks again by itself and never starts another attempt for a person.
@@ -826,8 +827,8 @@ digits.
    its endpoint, writes the ticket alone. A record holds at most 32 KiB, which any 4,096-byte
    prompt fits. The hub reads it within 5 seconds and matches the ticket to a carrier it is
    running.
-5. For the first password or key passphrase question of an attempt, the hub writes a recall
-   record: `R`, the kind byte, `p` or `k`, and the Machine's 32-digit id. The helper reads that
+5. For the first password or key passphrase question of an attempt that the
+   [remembered-answer rules](#remembered-answers) let it recall, the hub writes a recall record: `R`, the kind byte, `p` or `k`, and the Machine's 32-digit id. The helper reads that
    Machine's item of that kind from the [credential store](#remembered-answers) of this build's
    environment. A usable answer, nonempty, at most 1,024 bytes and holding nothing `ssh` cannot
    take, goes as step 7 says after the helper wrote `M`; otherwise the helper writes `N` and the
@@ -921,21 +922,50 @@ application calls no store.
   the design, which gives them the login Keychain and the Secret Service, otherwise the kernel's
   per-user keyring, as adapters of the same port that change no caller. A store that cannot be
   reached, such as Credential Manager in an SSH logon, also answers unavailable: the TUI shows
-  "Passwords can't be remembered in this kind of login." in place of the box.
+  "Passwords can't be remembered in this kind of login." in place of the box. The TUI asks the
+  store, and the `ssh` release below, on a thread of its own when the first password or passphrase
+  question arrives or a remote row is first selected, and shows the box once they answered. A
+  ticked answer the store does not take after a login that succeeded shows "Password not saved" in
+  the status line.
+- **The `ssh` release.** Only an `ssh` of OpenSSH 8.5 or later is given a remembered answer: an
+  older one may pass a server's keyboard-interactive prompt without the `(user@host) ` prefix, so
+  a server or a jump host could ask in `ssh`'s own words for the Machine's password or passphrase.
+  The hub runs `ssh -V`, or the stand-in with `-V`, once in its life for the program it carries
+  with, which contacts nothing, and reads the first line of its standard error, or of its standard
+  output when that is empty: `OpenSSH_<major>.<minor>`, with `for_Windows_` after the underscore in
+  Microsoft's builds. A release below 8.5, or a line that names none, sends no recall. The TUI and
+  `machine connect --remember` read the same line for the program the hub would run and treat the
+  store as unable to remember: no box, and in its place, as for `--remember`, "Passwords can be
+  remembered with OpenSSH 8.5 or later."; "Forget password" is still offered. Typed answers work as
+  they do without remembering.
 - **Reading.** The helper reads the item for the first password and the first key passphrase
   question of every attempt, the silent ones too: one a kept Machine starts when an interface
   attaches, and one after a lost link. It is tried once per kind per attempt.
-- **A refusal.** `ssh` asking the same kind again after the remembered answer, or ending with
-  `Permission denied` after it, refused it: the hub deletes the item on a thread of its own and
-  never tries it again in that attempt. With a claimant the next question carries
-  `remembered: rejected`, which the TUI and the console show as "The saved password no longer
-  works."; without one the attempt ends `needs-login` `remembered-rejected`.
+- **Held back.** An attempt that handed a kind's remembered answer to `ssh`, or let the helper read
+  it, and then ended before the link handshake, whatever ended it, holds that kind back: a server
+  that closes the connection after too many tries is no refusal, and the hub's own retries would
+  otherwise send the same answer again. No later attempt recalls a held kind until the Machine has
+  been `online`, a person asks for the connection with origin `user`, or a person's answer is taken.
+  A refused answer whose deletion fails, or whose deletion thread cannot start, is held back until
+  a person logs in with answers of their own. The hub keeps only these marks, never an answer.
+- **A refusal.** `ssh` asking for a password again after the remembered one, or ending with
+  `Permission denied` after it, refused it. A remembered key passphrase is refused only by the next
+  passphrase question in exactly the words it was given for; another key's question is asked as any
+  question and deletes nothing, and an end with `Permission denied` after it deletes nothing either,
+  since the server may have refused the key rather than the passphrase. The hub deletes a refused
+  item on a thread of its own and never tries it again in that attempt. With a claimant the next
+  question carries `remembered: rejected`, which the TUI and the console show as "The saved
+  password no longer works."; without one the attempt ends `needs-login` `remembered-rejected`.
 - **Forgetting.** The picker's "Forget password" on a selected remote Machine, offered while the
-  store can be used, deletes both of its items without reading them. `machine remove` deletes them
-  after the catalog commit. `uninstall --delete-data` deletes the items of every Machine the
+  store can be used, deletes both of its items without reading them; the key is taken only while
+  the selected row can forget, so elsewhere it goes on to the picker's other bindings. Every
+  forget tries both kinds, even when one fails, then reports. `machine remove` deletes them after
+  the catalog commit; the removal succeeds either way, and standard error carries one line when
+  they could not be deleted. `uninstall --delete-data` deletes the items of every Machine the
   catalog still names before it removes the data; the default uninstall keeps them, as it keeps the
-  catalog. An item left by a removal while the store could not be reached is not found again,
-  since the store is never listed.
+  catalog. As a current limit it cannot delete an item whose Machine the catalog no longer names,
+  or every item when the catalog cannot be read: such an item, left by a removal while the store
+  could not be reached, stays, since the store is never listed and never searched by prefix.
 
 ### Channels
 
@@ -1239,6 +1269,12 @@ connection, so nothing changed for the link.
 - **A remembered answer's deletion runs on.** The hub deletes a refused remembered answer on a
   thread of its own; an attempt the person starts at once may still read it, and is refused once
   more.
+- **Holds last one hub life.** The marks that [hold back](#remembered-answers) a remembered answer
+  live in the hub's memory, since keeping them would need a new record; a hub that starts again
+  may recall a held answer once more in its first attempt.
+- **The same key through a jump host.** With `ProxyJump` each hop's `ssh` asks for the key's
+  passphrase in the same words, so the second hop's question reads as a refusal of the remembered
+  passphrase: it is deleted and the person is told the saved password no longer works.
 - **A question's prompt is `ssh`'s.** A one-time code's prompt comes from the server and is shown
   as `ssh` passed it, its control characters stripped; it may name an account or a host.
 - **A remote surface stays disconnected after the TUI's owner ended.** A Session carrier serves the

@@ -210,7 +210,8 @@ impl Discovery {
         }
         let notices = self.holder.as_ref().map(Holder::take_logins);
         for notice in notices.into_iter().flatten() {
-            // The store is asked once, when the first question that may be remembered arrives.
+            // The store and `ssh` are asked once, off this thread, when the first question that
+            // may be remembered arrives; the box shows once they answered.
             if let LoginNotice::Question(question) = &notice
                 && crate::machine_credentials::SecretKind::of(&question.kind).is_some()
             {
@@ -227,6 +228,10 @@ impl Discovery {
                     })
             });
             self.carry(effects);
+        }
+        // The probe answered after the question arrived: the box shows now.
+        if self.credentials.probing() {
+            self.remembering();
         }
         self.retired.retain(|w| !w.finished());
         for entry in &mut self.entries {
@@ -420,7 +425,8 @@ impl Discovery {
                         .iter()
                         .find(|entry| entry.profile.id.as_str() == machine)
                         .map_or(machine.as_str(), |entry| entry.profile.draft.label.as_str());
-                    self.credentials.remember(&machine, kind, answer, label);
+                    self.credentials
+                        .remember(&machine, kind, answer, label, self.wakeup.clone());
                 }
             }
         }
@@ -434,14 +440,19 @@ impl Discovery {
         self.credentials
             .forget(machine.as_str(), self.wakeup.clone())
     }
-    /// How long this platform's store keeps an answer in this login; the store is asked once.
-    pub(crate) fn remembering(&mut self) -> crate::machine_credentials::Remembering {
+    /// Whether answers can be remembered here, and for how long, once known; the first call asks
+    /// the store and `ssh` on another thread, which wakes the interface when they answered.
+    pub(crate) fn remembering(&mut self) -> Option<crate::machine_credentials::Remembering> {
         if let Some(remembering) = self.logins.remembering() {
-            return remembering;
+            return Some(remembering);
         }
-        let remembering = self.credentials.remembering();
+        let remembering = self.credentials.remembering(self.wakeup.as_ref())?;
         self.logins.set_remembering(remembering);
-        remembering
+        Some(remembering)
+    }
+    /// Whether writing a remembered answer failed since the last call.
+    pub fn unsaved(&self) -> bool {
+        self.credentials.unsaved()
     }
     /// How the forget in flight ended, once it has.
     pub(crate) fn forgotten(&mut self) -> Option<Forgotten> {

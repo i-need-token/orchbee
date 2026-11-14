@@ -1,9 +1,12 @@
-// A stand-in for OpenSSH in the machine hub's process tests only; it is never shipped. It asks the
-// plan's questions through SSH_ASKPASS in OpenSSH 9.5's words, one at a time, compares each answer
-// by its SHA-256 digest so no test answer is written anywhere, records only what happened, and
-// then runs the Client under test as the far end. It ends as OpenSSH does: exit 255 with OpenSSH's
-// refusal on standard error when an answer is wrong too often, the askpass program fails, or the
-// plan names a changed host key, which OpenSSH refuses without asking.
+// A stand-in for OpenSSH in the machine hub's process tests only; it is never shipped. Run with
+// `-V` alone it prints the plan's release line, by default Windows OpenSSH 9.5's, on standard error
+// as OpenSSH does, and records nothing. Otherwise it asks the plan's questions through SSH_ASKPASS in
+// OpenSSH 9.5's words, one at a time, compares each answer by its SHA-256 digest so no test answer
+// is written anywhere, records only what happened, and then runs the Client under test as the far
+// end. It ends as OpenSSH does: exit 255 with OpenSSH's refusal on standard error when an answer is
+// wrong too often, the askpass program fails, or the plan names a changed host key, which OpenSSH
+// refuses without asking; a step marked `drop` ends after its first answer, right or wrong, the
+// way a server that closes the connection after too many tries makes OpenSSH end.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, readFileSync, writeSync } from 'node:fs';
@@ -18,7 +21,14 @@ const refuse = (text) => {
 const DENIED =
 	'user@host.invalid: Permission denied (publickey,password,keyboard-interactive).\r\n';
 const UNVERIFIED = 'Host key verification failed.\r\n';
+const DISCONNECTED =
+	'Received disconnect from 192.0.2.1 port 22:2: Too many authentication failures\r\n' +
+	'Disconnected from 192.0.2.1 port 22\r\n';
 
+if (process.argv.length === 3 && process.argv[2] === '-V') {
+	writeSync(2, `${plan.version ?? 'OpenSSH_for_Windows_9.5p1, LibreSSL 3.8.2'}\r\n`);
+	process.exit(0);
+}
 note('started');
 if (plan.changed) {
 	note('changed');
@@ -55,11 +65,14 @@ for (const step of plan.questions) {
 		}
 		const answer = helper.stdout.toString('utf8').replace(/\r?\n$/, '');
 		helper.stdout.fill(0);
-		if (digest(answer) === step.accept) {
-			note(`right ${asked}`);
+		const right = digest(answer) === step.accept;
+		note(`${right ? 'right' : 'wrong'} ${asked}`);
+		if (step.drop) {
+			refuse(DISCONNECTED);
+		}
+		if (right) {
 			break;
 		}
-		note(`wrong ${asked}`);
 		tries -= 1;
 		if (tries === 0) {
 			refuse(refusal);

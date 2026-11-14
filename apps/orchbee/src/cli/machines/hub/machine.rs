@@ -26,7 +26,7 @@ use orchbee_machine_protocol::{
 };
 use orchbee_workbench_client::application::machine_credentials::SecretKind;
 use orchbee_workbench_client::application::machine_retry::Backoff;
-use remembered::{Remembered, Use};
+use remembered::{Holds, Remembered, Use};
 use std::time::{Duration, Instant};
 
 /// An attempt that has not reached `online` by then is ended.
@@ -162,8 +162,9 @@ struct Attempt {
     cause: Option<ReconnectCause>,
     /// The login episode once `ssh` asked a person.
     episode: Option<Episode>,
-    /// What the attempt did with the Machine's remembered answers.
-    remembered: Remembered,
+    /// What the attempt did with the Machine's remembered answers; boxed, as it holds a parked
+    /// question and a prompt.
+    remembered: Box<Remembered>,
 }
 
 impl Attempt {
@@ -196,6 +197,8 @@ pub(super) struct Machine {
     /// `online` since the last `disconnect`, permanent failure or change: the hub keeps it.
     proven: bool,
     waiters: Vec<Waiter>,
+    /// The remembered answers no attempt recalls now; kept through a change of the record.
+    holds: Holds,
 }
 
 impl Machine {
@@ -213,6 +216,7 @@ impl Machine {
             backoff: Backoff::new(),
             proven: false,
             waiters: Vec::new(),
+            holds: Holds::default(),
         }
     }
 
@@ -311,6 +315,10 @@ impl Machine {
         if let Some(outcome) = known {
             return vec![self.reply(vec![waiter], outcome)];
         }
+        // A person asked: an answer held back from automatic attempts may be tried once more.
+        if waiter.answers == Answers::User {
+            self.holds.release();
+        }
         self.waiters.push(waiter);
         match &self.phase {
             Phase::Idle => self.start(false, None, cx),
@@ -401,6 +409,13 @@ impl Machine {
             return Vec::new();
         }
         attempt.answered = Some(version.clone());
+        if attempt
+            .episode
+            .as_ref()
+            .is_some_and(Episode::answered_secret)
+        {
+            self.holds.logged_in();
+        }
         self.version = Some(version);
         self.state = attempting(attempt.retry, attempt.cause, Some(Stage::Starting));
         self.close_episode(LoginEnd::Succeeded)
@@ -469,6 +484,7 @@ impl Machine {
         });
         self.backoff.online(cx.now.at);
         self.proven = true;
+        self.holds.release();
         self.state = MachineState::Online;
         self.last_attempt = Some(time(cx.now.wall));
         self.reply_all(ConnectOutcome::Online {
@@ -542,7 +558,8 @@ impl Machine {
     }
 
     /// The carrier ended and was reaped. A refusal after the claimant delivered a secret is a
-    /// refusal of those answers.
+    /// refusal of those answers; one after the remembered password is a refusal of that password.
+    /// A remembered passphrase is never refused by the end: its key may be the one refused.
     pub(super) fn ended(&mut self, carrier: u64, end: &End, cx: &mut Context<'_>) -> Vec<Effect> {
         match &self.phase {
             Phase::Attempting(attempt) if attempt.carrier == carrier => {
@@ -558,26 +575,18 @@ impl Machine {
                     {
                         Failure::LoginFailed(LoginFailedCause::PasswordRejected)
                     }
-                    // `ssh` gave up after the remembered answer, which it refused.
+                    // `ssh` gave up after the remembered password, which it refused.
                     Failure::NeedsLogin | Failure::LoginFailed(_)
-                        if attempt.remembered.given().next().is_some() =>
+                        if attempt.remembered.get(SecretKind::Password) == Use::Given =>
                     {
                         Failure::RememberedRejected
                     }
                     failure => failure,
                 };
-                let forgotten: Vec<Effect> = if failure == Failure::RememberedRejected {
-                    attempt
-                        .remembered
-                        .given()
-                        .map(|kind| Effect::Forget {
-                            machine: self.id.clone(),
-                            kind,
-                        })
-                        .collect()
-                } else {
-                    Vec::new()
-                };
+                let forgotten = (failure == Failure::RememberedRejected).then(|| Effect::Forget {
+                    machine: self.id.clone(),
+                    kind: SecretKind::Password,
+                });
                 let mut effects = self.fail(carrier, failure, cx);
                 effects.extend(forgotten);
                 effects
@@ -589,15 +598,18 @@ impl Machine {
 
     /// `ssh` asked `raised` through the askpass helper of `carrier`, which the hub admitted as the
     /// carrier's only open helper. The kind is the one the prompt reads as for this Machine's
-    /// target, so another host's password or new host is `other`. The attempt's first question of
-    /// a kind that may be remembered is held while the helper reads the remembered answer; a
-    /// second one after that answer went to `ssh` means `ssh` refused it, which is then deleted and
-    /// never tried again in this attempt. Otherwise the question is [posed](Self::pose). A helper
-    /// that comes while the attempt cannot ask is [refused](Self::refuse).
+    /// target, so another host's password or new host is `other`. While `recall` says the local
+    /// `ssh` is known to be 8.5 or later, the attempt's first question of a kind that may be
+    /// remembered, and that no hold keeps back, is held while the helper reads the remembered
+    /// answer. A password question after that answer went to `ssh`, or a passphrase question in
+    /// the same words, means `ssh` refused it, which is then deleted and never tried again in this
+    /// attempt. Otherwise the question is [posed](Self::pose). A helper that comes while the
+    /// attempt cannot ask is [refused](Self::refuse).
     pub(super) fn question(
         &mut self,
         carrier: u64,
         raised: Raised,
+        recall: bool,
         cx: &mut Context<'_>,
     ) -> Vec<Effect> {
         let Raised {
@@ -621,26 +633,27 @@ impl Machine {
             return self.refuse(carrier, cx);
         }
         if let Some(kind) = SecretKind::of(&raised.kind) {
-            match attempt.remembered.get(kind) {
-                Use::Untried if attempt.remembered.parked.is_none() => {
-                    attempt.remembered.set(kind, Use::Reading);
-                    attempt.remembered.parked = Some(raised);
-                    return vec![Effect::Recall {
-                        carrier,
-                        machine: self.id.clone(),
-                        kind,
-                    }];
-                }
-                Use::Given => {
-                    attempt.remembered.set(kind, Use::Spent);
-                    let mut effects = vec![Effect::Forget {
-                        machine: self.id.clone(),
-                        kind,
-                    }];
-                    effects.extend(self.pose(carrier, raised, true, cx));
-                    return effects;
-                }
-                Use::Untried | Use::Reading | Use::Spent => {}
+            if attempt.remembered.refuses(kind, &raised.prompt) {
+                attempt.remembered.set(kind, Use::Refused);
+                let mut effects = vec![Effect::Forget {
+                    machine: self.id.clone(),
+                    kind,
+                }];
+                effects.extend(self.pose(carrier, raised, true, cx));
+                return effects;
+            }
+            if recall
+                && self.holds.recallable(kind)
+                && attempt.remembered.get(kind) == Use::Untried
+                && attempt.remembered.parked.is_none()
+            {
+                attempt.remembered.set(kind, Use::Reading);
+                attempt.remembered.parked = Some(raised);
+                return vec![Effect::Recall {
+                    carrier,
+                    machine: self.id.clone(),
+                    kind,
+                }];
             }
         }
         self.pose(carrier, raised, false, cx)
@@ -654,8 +667,15 @@ impl Machine {
             && let Some(raised) = attempt.remembered.parked.take()
             && let Some(kind) = SecretKind::of(&raised.kind)
         {
-            attempt.remembered.set(kind, Use::Given);
+            attempt.remembered.given(&raised, kind);
         }
+        Vec::new()
+    }
+
+    /// The deletion of the remembered answer of `kind`, which `ssh` refused, failed or could not
+    /// start: no attempt recalls that kind again until a person logs in themselves.
+    pub(super) fn undeleted(&mut self, kind: SecretKind) -> Vec<Effect> {
+        self.holds.undeleted(kind);
         Vec::new()
     }
 
@@ -776,7 +796,8 @@ impl Machine {
     }
 
     /// The askpass helper of `carrier` took the answer to the open question: the question closes
-    /// and the attempt's clock runs again.
+    /// and the attempt's clock runs again. A person answered, so an answer held back from
+    /// automatic attempts may be tried once more.
     pub(super) fn taken(&mut self, carrier: u64, cx: &Context<'_>) -> Vec<Effect> {
         if let Phase::Attempting(attempt) = &mut self.phase
             && attempt.carrier == carrier
@@ -784,6 +805,7 @@ impl Machine {
             && let Some(since) = episode.take()
         {
             attempt.deadline += cx.now.at.saturating_duration_since(since);
+            self.holds.release();
         }
         Vec::new()
     }
@@ -865,6 +887,7 @@ impl Machine {
     /// SSH Machine reads `offline` without a cause until something asks for it again, or
     /// `needs-login` with cause `disconnected` when it ended a login episode.
     pub(super) fn disconnect(&mut self) -> Vec<Effect> {
+        self.hold_handed();
         let login = self.episode().is_some();
         let mut effects: Vec<Effect> = self
             .carrier()
@@ -893,6 +916,7 @@ impl Machine {
         if kind == self.kind {
             return Vec::new();
         }
+        self.hold_handed();
         let mut effects: Vec<Effect> = self
             .carrier()
             .map(|carrier| Effect::End { carrier })
@@ -905,7 +929,10 @@ impl Machine {
             Kind::Ssh(_) => ConnectFailure::Cancelled,
         };
         let waiters = std::mem::take(&mut self.waiters);
+        let holds = self.holds;
         *self = Self::new(self.id.clone(), kind);
+        // The store's items are the Machine id's, whatever the record now says.
+        self.holds = holds;
         if !waiters.is_empty() {
             effects.push(self.reply(waiters, not_online(outcome)));
         }
@@ -986,7 +1013,7 @@ impl Machine {
             retry,
             cause,
             episode: None,
-            remembered: Remembered::default(),
+            remembered: Box::default(),
         });
         self.state = attempting(retry, cause, None);
         vec![Effect::Start { carrier, route }]
@@ -1013,6 +1040,7 @@ impl Machine {
         outcome: Option<ConnectFailure>,
         cx: &Context<'_>,
     ) -> Vec<Effect> {
+        self.hold_handed();
         let mut effects = vec![Effect::End { carrier }];
         effects.extend(self.close_episode(end));
         self.last_attempt = Some(time(cx.now.wall));
@@ -1041,6 +1069,21 @@ impl Machine {
         }
         effects.extend(self.reply_all(not_online(outcome)));
         effects
+    }
+
+    /// The running attempt ends before the link handshake: each kind of remembered answer it
+    /// handed to `ssh` is held back from later attempts, so an end that is no refusal, such as a
+    /// server that drops the connection after too many tries, never sends it again by itself.
+    fn hold_handed(&mut self) {
+        let Phase::Attempting(attempt) = &self.phase else {
+            return;
+        };
+        if attempt.answered.is_some() {
+            return;
+        }
+        for kind in attempt.remembered.handed() {
+            self.holds.withhold(kind);
+        }
     }
 
     /// Ends the running episode, if any, with `end`: an open question's helper is closed and the

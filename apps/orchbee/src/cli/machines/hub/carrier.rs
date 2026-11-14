@@ -31,7 +31,7 @@ use std::{
     io::{self, PipeReader, PipeWriter, Read, Write},
     path::PathBuf,
     process::Command,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     thread,
     time::Duration,
 };
@@ -51,7 +51,8 @@ const WRITE_BATCH_BYTES: usize = 64 * 1024;
 const ROOT_WAIT: Duration = Duration::from_secs(3600);
 /// The exit status the hub gives a carrier it ends.
 const ENDED_BY_HUB: u32 = 1;
-/// The `DISPLAY` an `ssh` older than 8.4 needs before it runs an askpass program.
+/// The `DISPLAY` an `ssh` older than 8.4 needs before it runs an askpass program. Such an `ssh`
+/// still carries typed answers; it is never given a remembered one, see [`Launch::recalls`].
 const DISPLAY: &str = "orchbee:0";
 
 /// One link's state under its own lock, and the signal that wakes its writer.
@@ -156,6 +157,8 @@ pub(super) struct Launch {
     endpoint: String,
     folder: Option<PathBuf>,
     offer: Vec<u8>,
+    /// Whether the program is known to be OpenSSH 8.5 or later, once read.
+    recalls: OnceLock<bool>,
 }
 
 impl Launch {
@@ -177,6 +180,32 @@ impl Launch {
             folder: winsafe::GetSystemDirectory().ok().map(PathBuf::from),
             offer: encode_initiator_frame(&InitiatorMessage::Offer(offer))
                 .expect("this build's offer fits one frame"),
+            recalls: OnceLock::new(),
+        })
+    }
+
+    /// Whether a remembered answer may be recalled: the program carriers run, `ssh` or its
+    /// stand-in, is known to be OpenSSH 8.5 or later. Before 8.5 a keyboard-interactive prompt
+    /// arrives without its `(user@host)` prefix, so a remote could word it as `ssh`'s own password
+    /// or passphrase sentence. The program is run once with `-V` alone, in the child environment;
+    /// it contacts nothing, and a version it does not print reads as too old.
+    pub(super) fn recalls(&self) -> bool {
+        *self.recalls.get_or_init(|| {
+            let program = match &self.stand_in {
+                StandIn::Program(program) => program.clone(),
+                StandIn::Unusable => return false,
+                StandIn::None => match machine_ssh::executable() {
+                    Ok(ssh) => ssh,
+                    Err(_) => return false,
+                },
+            };
+            let mut command = Command::new(program);
+            command.env_clear();
+            command.envs(self.environment.iter().map(|(name, value)| (name, value)));
+            if let Some(folder) = &self.folder {
+                command.current_dir(folder);
+            }
+            machine_ssh::version(command).is_some_and(machine_ssh::Version::remembers)
         })
     }
 

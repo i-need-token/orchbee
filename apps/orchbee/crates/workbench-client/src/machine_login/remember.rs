@@ -11,10 +11,13 @@ use orchbee_machine_protocol::hub::QuestionKind;
 /// What the overlay shows beside the field.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RememberBox {
-    /// The question's answer is never remembered: no box.
+    /// No box: the question's answer is never remembered, or whether it can be is not known yet.
     Absent,
     /// No store can be used in this login: one line says so instead of the box.
     Unavailable,
+    /// The local `ssh` is older than OpenSSH 8.5: one line says what remembering needs instead of
+    /// the box.
+    NeedsNewerSsh,
     /// The box, ticked or not; `until_restart` when the store keeps answers only until this
     /// computer restarts.
     Offered { ticked: bool, until_restart: bool },
@@ -32,7 +35,8 @@ impl Remember {
         self.ticked = ticked;
     }
 
-    /// The box for a question of `kind`, while the store keeps answers as `remembering` says.
+    /// The box for a question of `kind`, while answers can be remembered as `remembering` says;
+    /// nothing while that is not known yet.
     pub(super) fn shown(
         &self,
         kind: &QuestionKind,
@@ -50,7 +54,9 @@ impl Remember {
                 ticked: self.ticked,
                 until_restart: true,
             },
-            Some(Remembering::Unavailable) | None => RememberBox::Unavailable,
+            Some(Remembering::Unavailable) => RememberBox::Unavailable,
+            Some(Remembering::NeedsNewerSsh) => RememberBox::NeedsNewerSsh,
+            None => RememberBox::Absent,
         }
     }
 

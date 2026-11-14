@@ -1,12 +1,108 @@
-//! Shared Windows SSH command policy and installed-Client admission, without catalog or UI ownership.
+//! Shared Windows SSH command policy, the OpenSSH release remembered answers need, and
+//! installed-Client admission, without catalog or UI ownership.
 //! Admission compares no product version, protocol, or cohort across machines: the remote Session
 //! judges this Client through the handshake a hub Session stream carries.
+use crate::machine_credentials::{Remembering, Store};
 use base64::Engine as _;
 use serde_json::Value;
-use std::{path::Path, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+    time::{Duration, Instant},
+};
 
 /// The exit status of the remote launch line when it finds no Orchbee to run or cannot start it.
 pub const PROGRAM_NOT_FOUND: i32 = 125;
+/// The development and test program that replaces `ssh` and its launch line in the machine hub.
+pub const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
+/// How long `ssh -V` may take.
+const VERSION_DEADLINE: Duration = Duration::from_secs(5);
+
+/// An OpenSSH release, as `ssh -V` names it.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+}
+
+impl Version {
+    /// The first release whose keyboard-interactive prompts carry a `(user@host)` prefix, so a
+    /// prompt a server sends cannot read as `ssh`'s own password or passphrase sentence. Remembered
+    /// answers are recalled only for this release or a later one.
+    pub const REMEMBERING: Self = Self { major: 8, minor: 5 };
+
+    /// The release the first line of `ssh -V`'s output names: `OpenSSH_<major>.<minor>`, with
+    /// `for_Windows_` after the underscore in Microsoft's builds, and anything after the minor
+    /// number. Anything else names none.
+    pub fn parse(text: &str) -> Option<Self> {
+        let line = text.trim_start().lines().next()?;
+        let rest = line.strip_prefix("OpenSSH_")?;
+        let rest = rest.strip_prefix("for_Windows_").unwrap_or(rest);
+        let (major, rest) = leading_number(rest)?;
+        let (minor, _) = leading_number(rest.strip_prefix('.')?)?;
+        Some(Self { major, minor })
+    }
+
+    /// Whether a remembered answer may be given to this release.
+    pub fn remembers(self) -> bool {
+        self >= Self::REMEMBERING
+    }
+}
+
+/// The decimal number `text` begins with, and what follows it.
+fn leading_number(text: &str) -> Option<(u32, &str)> {
+    let end = text
+        .find(|character: char| !character.is_ascii_digit())
+        .unwrap_or(text.len());
+    let (digits, rest) = text.split_at_checked(end)?;
+    Some((digits.parse().ok()?, rest))
+}
+
+/// The release `command`, an `ssh` without arguments, names when run with `-V` alone; none when it
+/// cannot be run, fails, or prints no release. It contacts nothing. OpenSSH prints the line on
+/// standard error.
+pub fn version(mut command: Command) -> Option<Version> {
+    command.arg("-V");
+    let output = execute(command, Some(Instant::now() + VERSION_DEADLINE), || {
+        Ok(false)
+    })
+    .ok()?;
+    if output.failure.is_some() {
+        return None;
+    }
+    Version::parse(&String::from_utf8_lossy(&output.stderr))
+        .or_else(|| Version::parse(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// The program the machine hub runs as `ssh`, as this process's environment names it: in a
+/// development or test build the stand-in when one is named, otherwise the system `ssh`. None when
+/// that program cannot be run.
+pub fn hub_program() -> Option<PathBuf> {
+    if !orchbee_local_runtime::is_release()
+        && let Some(stand_in) = std::env::var_os(STAND_IN)
+    {
+        let stand_in = PathBuf::from(stand_in);
+        return stand_in.is_absolute().then_some(stand_in);
+    }
+    executable().ok()
+}
+
+/// Whether answers can be remembered here: the store's own answer, unless the `ssh` the machine
+/// hub runs is older than [`Version::REMEMBERING`] or names no release. It reads the store and runs
+/// `ssh -V`, so it never runs on an interface thread.
+pub fn remembering(store: &Store) -> Remembering {
+    match store.remembering() {
+        Remembering::Unavailable => Remembering::Unavailable,
+        _ if !hub_program()
+            .map(Command::new)
+            .and_then(version)
+            .is_some_and(Version::remembers) =>
+        {
+            Remembering::NeedsNewerSsh
+        }
+        kept => kept,
+    }
+}
 /// Why a remote Client status document was not admitted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AdmissionError {

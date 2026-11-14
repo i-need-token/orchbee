@@ -185,6 +185,8 @@ struct Report {
     remote: Remote,
     /// The remote product version an add admitted; shown, never compared.
     remote_version: Option<String>,
+    /// A removed Machine's remembered answers could not all be deleted.
+    unforgotten: bool,
 }
 pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale) -> Output {
     if crate::tui_capabilities::Capability::SavedMachines
@@ -221,6 +223,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         committed: false,
         remote: Remote::NotContacted,
         remote_version: None,
+        unforgotten: false,
     };
     let mut error = execute(command, &mut context, &mut report, locale).err();
     let mut finalization = None;
@@ -286,7 +289,7 @@ fn execute(
         }
         MachineCommand::Remove(machine) => {
             commit_selected(&store, machine, context, report, Edit::Remove)?;
-            forget_removed(report);
+            report.unforgotten = !forget_removed(report);
             return Ok(());
         }
         MachineCommand::Enable { machine, enabled } => {
@@ -327,20 +330,21 @@ fn commit_selected(
     report.committed = changed;
     committed(context, report)
 }
-/// A removed Machine's remembered answers go with it. A store that cannot be reached keeps them
-/// under the removed id, where nothing reads them; uninstall's data removal clears what it finds.
-fn forget_removed(report: &Report) {
+/// A removed Machine's remembered answers go with it; false when they could not all be deleted.
+/// The removal stands either way: a store that cannot be reached or refuses keeps them under the
+/// removed id, where nothing reads them, and the person is told. A platform without a store saved
+/// nothing.
+fn forget_removed(report: &Report) -> bool {
     use orchbee_workbench_client::application::machine_credentials::Store;
     if !report.committed {
-        return;
+        return true;
     }
-    if let Some(machine) = report
+    let store = Store::select();
+    report
         .id
         .as_ref()
         .and_then(|id| orchbee_machine_protocol::MachineId::new(id.as_str()).ok())
-    {
-        let _forgotten = Store::select().forget(&machine);
-    }
+        .is_none_or(|machine| !store.exists() || store.forget(&machine).is_ok())
 }
 /// A committed edit reaches a running machine hub, which would otherwise carry the record as it
 /// was; an unchanged catalog has nothing to tell.
@@ -450,6 +454,10 @@ fn emit(
                     stderr.push_str(CliText::new(locale).cli_machine_message("remote-retained"));
                     stderr.push('\n');
                 }
+            }
+            if report.unforgotten {
+                stderr.push_str(CliText::new(locale).cli_machine_message("password-kept"));
+                stderr.push('\n');
             }
             Output {
                 status,

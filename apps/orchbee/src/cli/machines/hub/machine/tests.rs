@@ -54,7 +54,7 @@ fn question(
     raised: Raised,
     cx: &mut Context<'_>,
 ) -> Vec<Effect> {
-    let effects = machine.question(carrier, raised, cx);
+    let effects = machine.question(carrier, raised, true, cx);
     if matches!(effects[..], [Effect::Recall { .. }]) {
         return machine.unrecalled(carrier, cx);
     }

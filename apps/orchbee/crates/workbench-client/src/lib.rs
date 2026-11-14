@@ -306,8 +306,8 @@ pub mod application {
 
     pub mod machine_ssh {
         pub use crate::machine_ssh::{
-            AdmissionError, Client, PROGRAM_NOT_FOUND, carrier_command, client, command,
-            executable, execute, link_program, literal, program,
+            AdmissionError, Client, PROGRAM_NOT_FOUND, STAND_IN, Version, carrier_command, client,
+            command, executable, execute, link_program, literal, program, remembering, version,
         };
     }
 

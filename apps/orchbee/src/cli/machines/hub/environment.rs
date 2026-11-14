@@ -2,6 +2,7 @@
 //! view, and every carrier child receives the view less Orchbee's and the terminal's variables.
 //! `docs/machines.md#environment` owns the rule.
 
+use orchbee_workbench_client::application::machine_ssh::STAND_IN;
 use std::{ffi::OsString, path::PathBuf, time::Duration};
 
 const PREFIX: &str = "ORCHBEE_";
@@ -13,8 +14,6 @@ const RUNTIME_BASE: &str = "ORCHBEE_RUNTIME_BASE";
 const EXPIRY_OVERRIDE: &str = "ORCHBEE_MACHINE_HUB_EXPIRY_MS";
 /// The development and test override of a question's bound, in milliseconds.
 const QUESTION_OVERRIDE: &str = "ORCHBEE_MACHINE_HUB_QUESTION_MS";
-/// The development and test program that replaces `ssh` and its launch line.
-const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
 /// Describe the terminal the client ran in, which a carrier child does not run in.
 const TERMINAL: [&str; 6] = [
     "TERM",

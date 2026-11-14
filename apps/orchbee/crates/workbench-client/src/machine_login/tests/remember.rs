@@ -1,6 +1,6 @@
-//! The remember box's rules: offered only for a password or passphrase while a store can be used,
-//! and a ticked answer leaves for the store only after the login succeeded, as the answer that
-//! worked.
+//! The remember box's rules: offered only for a password or passphrase while a store can be used
+//! and the local `ssh` is recent enough, and a ticked answer leaves for the store only after the
+//! login succeeded, as the answer that worked.
 
 use super::*;
 
@@ -50,6 +50,12 @@ fn the_box_is_offered_only_where_an_answer_can_be_remembered() {
     assert_eq!(
         run.logins.presented().unwrap().remember,
         RememberBox::Unavailable
+    );
+    let run = asked(Remembering::NeedsNewerSsh);
+    assert_eq!(
+        run.logins.presented().unwrap().remember,
+        RememberBox::NeedsNewerSsh,
+        "no box for an ssh older than 8.5"
     );
     let mut run = Run::new();
     run.logins.set_remembering(Remembering::Lasting);
@@ -109,11 +115,16 @@ fn the_answer_remembered_is_the_one_that_worked() {
 }
 
 #[test]
-fn nothing_is_kept_when_no_store_can_be_used() {
-    let mut run = asked(Remembering::Unavailable);
-    tick(&mut run, true);
-    answer(&mut run, WORD);
-    assert!(run.step(Step::Ended(1, LoginEnd::Succeeded)).is_empty());
+fn nothing_is_kept_when_no_store_can_be_used_or_ssh_is_too_old() {
+    for remembering in [Remembering::Unavailable, Remembering::NeedsNewerSsh] {
+        let mut run = asked(remembering);
+        tick(&mut run, true);
+        answer(&mut run, WORD);
+        assert!(
+            run.step(Step::Ended(1, LoginEnd::Succeeded)).is_empty(),
+            "{remembering:?}"
+        );
+    }
 }
 
 #[test]
