@@ -154,7 +154,18 @@ fn copy_search_is_literal_unicode_smart_case_and_requires_complete_glyph_boundar
             ("b", 1),
         ],
     )];
-    let read = |q| search(&rows, 14, q, CopySearchDirection::Forward, p(0, 13), None).unwrap();
+    let read = |q| {
+        search(
+            &rows,
+            14,
+            q,
+            CopySearchCase::Smart,
+            CopySearchDirection::Forward,
+            p(0, 13),
+            None,
+        )
+        .unwrap()
+    };
     assert_eq!(read("café").matches, vec![range(p(0, 0), p(0, 3))]);
     assert_eq!(read("Café").total, 0);
     assert_eq!(read("中").matches, vec![range(p(0, 5), p(0, 6))]);
@@ -169,6 +180,7 @@ fn copy_search_is_literal_unicode_smart_case_and_requires_complete_glyph_boundar
             &graphics,
             3,
             query,
+            CopySearchCase::Smart,
             CopySearchDirection::Forward,
             p(0, 0),
             None,
@@ -183,6 +195,26 @@ fn copy_search_is_literal_unicode_smart_case_and_requires_complete_glyph_boundar
     );
 }
 #[test]
+fn an_explicit_case_choice_replaces_smart_case() {
+    let rows = vec![r(0, "Error error")];
+    let total = |query, case| {
+        search(
+            &rows,
+            11,
+            query,
+            case,
+            CopySearchDirection::Forward,
+            p(0, 0),
+            None,
+        )
+        .unwrap()
+        .total
+    };
+    assert_eq!(total("Error", CopySearchCase::Smart), 1);
+    assert_eq!(total("Error", CopySearchCase::Insensitive), 2);
+    assert_eq!(total("error", CopySearchCase::Sensitive), 1);
+}
+#[test]
 fn copy_search_joins_verified_wraps_keeps_inner_spaces_and_skips_wide_spacers() {
     let mut rows = vec![
         r(0, "abcd"),
@@ -191,7 +223,16 @@ fn copy_search_joins_verified_wraps_keeps_inner_spaces_and_skips_wide_spacers() 
     rows[0].wrap = true;
     rows[1].wrap_continuation = true;
     let read = |rows: &[TerminalTextWindowRow], q| {
-        search(rows, 5, q, CopySearchDirection::Forward, p(0, 0), None).unwrap()
+        search(
+            rows,
+            5,
+            q,
+            CopySearchCase::Smart,
+            CopySearchDirection::Forward,
+            p(0, 0),
+            None,
+        )
+        .unwrap()
     };
     assert_eq!(read(&rows, "d界").matches, vec![range(p(0, 3), p(1, 1))]);
     rows[0] = r(0, "ab");
@@ -207,8 +248,18 @@ fn copy_search_joins_verified_wraps_keeps_inner_spaces_and_skips_wide_spacers() 
 #[test]
 fn copy_search_direction_previous_and_wrap_keep_strict_inclusive_origins() {
     let rows = vec![r(0, "x x x")];
-    let read =
-        |direction, cursor, previous| search(&rows, 8, "x", direction, cursor, previous).unwrap();
+    let read = |direction, cursor, previous| {
+        search(
+            &rows,
+            8,
+            "x",
+            CopySearchCase::Smart,
+            direction,
+            cursor,
+            previous,
+        )
+        .unwrap()
+    };
     let a = read(CopySearchDirection::Forward, p(0, 0), None);
     assert_eq!(
         (a.total, a.current, a.current_global),
@@ -252,6 +303,7 @@ fn copy_search_bounds_the_window_around_current_without_losing_exact_global_tota
         &rows,
         1,
         "x",
+        CopySearchCase::Smart,
         CopySearchDirection::Forward,
         p(1499, 0),
         None,
@@ -264,7 +316,16 @@ fn copy_search_bounds_the_window_around_current_without_losing_exact_global_tota
     assert_eq!(result.matches.len(), 1024);
     assert_eq!(result.matches[0].start, p(988, 0));
     assert_eq!(result.matches[1023].start, p(2011, 0));
-    let empty = search(&rows, 1, "z", CopySearchDirection::Forward, p(0, 0), None).unwrap();
+    let empty = search(
+        &rows,
+        1,
+        "z",
+        CopySearchCase::Smart,
+        CopySearchDirection::Forward,
+        p(0, 0),
+        None,
+    )
+    .unwrap();
     assert!(empty.matches.is_empty());
     assert_eq!(empty.current, None);
     assert_eq!(empty.current_global, None);
@@ -281,6 +342,7 @@ fn copy_search_bounds_implicit_blank_expansion_before_large_logical_allocation()
             &rows,
             4096,
             "x",
+            CopySearchCase::Smart,
             CopySearchDirection::Forward,
             p(0, 0),
             None

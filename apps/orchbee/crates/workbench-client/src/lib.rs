@@ -326,8 +326,8 @@ pub mod application {
 
     pub mod terminal_copy {
         pub use crate::terminal_copy::{
-            CopyError, CopyMotion, CopySearchDirection, CopySearchResult, TerminalTextPoint,
-            TerminalTextRange, read_motion_with, search,
+            CopyError, CopyMotion, CopySearchCase, CopySearchDirection, CopySearchResult,
+            TerminalTextPoint, TerminalTextRange, read_motion_with, search,
         };
     }
 

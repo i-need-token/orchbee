@@ -351,6 +351,7 @@ fn evaluate(
         Action::Search {
             cursor,
             query,
+            case,
             direction,
             previous,
         } => {
@@ -371,6 +372,7 @@ fn evaluate(
                 &rows,
                 reader.columns(),
                 query,
+                *case,
                 *direction,
                 *cursor,
                 *previous,

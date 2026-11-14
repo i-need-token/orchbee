@@ -30,6 +30,7 @@ fn oversized_query_is_refused_before_a_lane_or_connection_exists() {
             action: Action::Search {
                 cursor: TerminalTextPoint { row: 0, col: 0 },
                 query: "x".repeat(4097).into_boxed_str(),
+                case: crate::terminal_copy::CopySearchCase::Smart,
                 direction: CopySearchDirection::Forward,
                 previous: None,
             },

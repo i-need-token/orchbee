@@ -73,6 +73,26 @@ impl CopySearchDirection {
     }
 }
 
+/// How a literal search compares letter case. Keyboard copy keeps smart case; Find in terminal
+/// passes the person's Match case choice.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CopySearchCase {
+    /// Case-sensitive only when the query holds an uppercase letter.
+    Smart,
+    Insensitive,
+    Sensitive,
+}
+
+impl CopySearchCase {
+    pub(crate) fn insensitive_for(self, query: &str) -> bool {
+        match self {
+            Self::Smart => !query.chars().any(char::is_uppercase),
+            Self::Insensitive => true,
+            Self::Sensitive => false,
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct CopySearchResult {
     pub matches: Vec<TerminalTextRange>,

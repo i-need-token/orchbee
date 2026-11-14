@@ -62,6 +62,7 @@ pub(crate) fn run(command: &TerminalCopyCommand, format: OutputFormat, locale: L
                         &rows,
                         reader.frame.geometry.columns,
                         query,
+                        terminal_copy::CopySearchCase::Smart,
                         *direction,
                         cursor,
                         *previous,

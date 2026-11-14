@@ -3,7 +3,8 @@
 use crate::{
     terminal_content::ContentSource,
     terminal_copy::{
-        CopyMotion, CopySearchDirection, CopySearchResult, TerminalTextPoint, TerminalTextRange,
+        CopyMotion, CopySearchCase, CopySearchDirection, CopySearchResult, TerminalTextPoint,
+        TerminalTextRange,
     },
     terminal_copy_mode::{EpisodeId, QueryId},
 };
@@ -34,6 +35,7 @@ pub(crate) enum Action {
     Search {
         cursor: TerminalTextPoint,
         query: Box<str>,
+        case: CopySearchCase,
         direction: CopySearchDirection,
         previous: Option<TerminalTextRange>,
     },

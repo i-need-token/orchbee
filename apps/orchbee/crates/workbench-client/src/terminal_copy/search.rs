@@ -1,7 +1,8 @@
-//! Literal smart-case search keeps complete glyph boundaries, exact totals and a bounded window.
+//! Literal search keeps complete glyph boundaries, exact totals and a bounded window; the caller
+//! chooses smart, insensitive or sensitive case.
 use super::{
-    CopyError, CopySearchDirection, CopySearchResult, MAXIMUM_LOGICAL_BYTES, Segment,
-    TerminalTextPoint, TerminalTextRange, TerminalTextWindowRow, segments,
+    CopyError, CopySearchCase, CopySearchDirection, CopySearchResult, MAXIMUM_LOGICAL_BYTES,
+    Segment, TerminalTextPoint, TerminalTextRange, TerminalTextWindowRow, segments,
 };
 use regex::RegexBuilder;
 struct Span {
@@ -134,6 +135,7 @@ pub fn search(
     rows: &[TerminalTextWindowRow],
     columns: u16,
     query: &str,
+    case: CopySearchCase,
     direction: CopySearchDirection,
     cursor: TerminalTextPoint,
     previous: Option<TerminalTextRange>,
@@ -147,7 +149,7 @@ pub fn search(
         });
     }
     let regex = RegexBuilder::new(&regex::escape(query))
-        .case_insensitive(!query.chars().any(char::is_uppercase))
+        .case_insensitive(case.insensitive_for(query))
         .size_limit(4 * 1024 * 1024)
         .build()
         .map_err(|_| CopyError::PatternTooComplex)?;

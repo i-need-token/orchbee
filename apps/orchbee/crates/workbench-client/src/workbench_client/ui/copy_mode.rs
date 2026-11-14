@@ -1020,6 +1020,7 @@ impl WorkbenchClientUi {
                         QueryAction::Search {
                             cursor,
                             query,
+                            case: crate::terminal_copy::CopySearchCase::Smart,
                             direction,
                             previous,
                         },
