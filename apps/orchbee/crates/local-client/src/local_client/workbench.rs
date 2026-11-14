@@ -12,7 +12,6 @@ mod configured_command;
 pub(crate) mod creation;
 mod current_directory;
 mod events;
-mod layout_history;
 pub(crate) mod metadata_exchange;
 pub(crate) mod notification;
 mod pane_graphics;

@@ -745,13 +745,6 @@ pub(crate) enum Request {
         target: Target,
         format: OutputFormat,
     },
-    LayoutHistory {
-        format: OutputFormat,
-    },
-    LayoutReopen {
-        saved_at: u64,
-        format: OutputFormat,
-    },
     MachineRoute(machine_routing::Route),
     /// `--machine <selector> server stop`: confirmed here, then asked of the machine hub.
     MachineStop(machine_routing::RemoteStop),

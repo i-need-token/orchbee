@@ -48,8 +48,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::LayoutSetSplitRatio => &["--current", "--path", "root", "--ratio", "0.5"],
         CommandPath::LayoutExport => &["--current"],
         CommandPath::LayoutApply => &["--file", "layout.json", "--workspace", "work"],
-        CommandPath::LayoutHistory => &[],
-        CommandPath::LayoutReopen => &["1762480800000"],
         CommandPath::PanelMaximize => &["--current", "--toggle"],
         CommandPath::PanelLayout => &["--current"],
         CommandPath::PanelNeighbor => &["--current", "--direction", "right"],

@@ -142,14 +142,6 @@ impl super::CliText {
                 "Export a reusable terminal layout.",
                 "导出可复用的终端布局。",
             ),
-            HelpTopic::Command(CommandPath::LayoutHistory) => (
-                "List earlier layouts you can reopen.",
-                "列出可重新打开的早先布局。",
-            ),
-            HelpTopic::Command(CommandPath::LayoutReopen) => (
-                "Reopen the closed part of an earlier layout.",
-                "重新打开早先布局中已关闭的部分。",
-            ),
             HelpTopic::Command(CommandPath::LayoutApply) => {
                 ("Apply a saved terminal layout.", "应用已保存的终端布局。")
             }

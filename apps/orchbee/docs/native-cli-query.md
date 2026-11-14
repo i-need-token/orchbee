@@ -2879,7 +2879,7 @@ The offline catalog lists the current documents and command paths.
 
 ## Reusable layout export
 
-Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are listed in the current catalog. Windows `layout history` and `layout reopen` list and reopen earlier layouts (`orchbee.layout.history` v1, `orchbee.layout.reopen` v1); the [layout contract](windows-layouts.md#earlier-layouts) owns their outcomes and exit codes.
+Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are listed in the current catalog.
 
 ## Programmatic semantic keys
 

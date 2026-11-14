@@ -194,10 +194,6 @@ impl super::CliText {
             (Locale::ZhCn, ExpectedValue::PanelLabel) => "最多 512 个 Unicode 字符；空文本清除标题",
             (Locale::EnUs, ExpectedValue::Label) => "a nonempty label of at most 512 characters",
             (Locale::ZhCn, ExpectedValue::Label) => "1–512 个字符的非空标签",
-            (Locale::EnUs, ExpectedValue::LayoutSavedAt) => {
-                "a save time listed by orchbee layout history"
-            }
-            (Locale::ZhCn, ExpectedValue::LayoutSavedAt) => "orchbee layout history 列出的保存时间",
             (Locale::EnUs, ExpectedValue::Dimension) => "a decimal integer from 0 to 65535",
             (Locale::ZhCn, ExpectedValue::Dimension) => "0–65535 的十进制整数",
             (Locale::EnUs, ExpectedValue::WorkspaceInsertIndex) => {

@@ -13,7 +13,6 @@ mod data_versions;
 pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
 mod environment;
-mod layout_history;
 mod machine_login;
 pub(crate) use machine_login::LoginLabel;
 mod machine_remember;

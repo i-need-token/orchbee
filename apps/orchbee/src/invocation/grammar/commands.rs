@@ -41,8 +41,6 @@ commands! {
     LayoutSetSplitRatio => ["layout", "set-split-ratio"], 0, Operand, Portable, true, true, false;
     LayoutExport => ["layout", "export"], 0, Operand, Windows, true, false, false;
     LayoutApply => ["layout", "apply"], 0, Operand, Windows, true, false, false;
-    LayoutHistory => ["layout", "history"], 0, Operand, Windows, true, true, false;
-    LayoutReopen => ["layout", "reopen"], 1, Operand, Windows, true, true, false;
     PanelMaximize => ["panel", "maximize"], 1, Panel, Portable, true, true, false;
     PanelLayout => ["panel", "layout"], 1, Panel, Portable, true, true, false;
     PanelNeighbor => ["panel", "neighbor"], 1, Panel, Portable, true, true, false;

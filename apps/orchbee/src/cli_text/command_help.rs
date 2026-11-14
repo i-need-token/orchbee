@@ -248,10 +248,6 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::TerminalObserve) => super::terminal::HELP_TERMINAL_OBSERVE_ZH,
             (Locale::EnUs, CommandPath::TerminalRead) => super::terminal::HELP_TERMINAL_READ_EN,
             (Locale::ZhCn, CommandPath::TerminalRead) => super::terminal::HELP_TERMINAL_READ_ZH,
-            (Locale::EnUs, CommandPath::LayoutHistory) => super::layouts::HISTORY_EN,
-            (Locale::ZhCn, CommandPath::LayoutHistory) => super::layouts::HISTORY_ZH,
-            (Locale::EnUs, CommandPath::LayoutReopen) => super::layouts::REOPEN_EN,
-            (Locale::ZhCn, CommandPath::LayoutReopen) => super::layouts::REOPEN_ZH,
             (Locale::EnUs, CommandPath::TerminalClear) => super::terminal_clear::HELP_EN,
             (Locale::ZhCn, CommandPath::TerminalClear) => super::terminal_clear::HELP_ZH,
 

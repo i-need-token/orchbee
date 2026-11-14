@@ -86,24 +86,6 @@ The catalog describes both output versions and the unchanged layout-apply failur
 Headless v1 records null source Client identity and retains each shared ratio CAS effect separately. Text diagnostics
 remain localized. Group/pin roundtrip and complete saved-focus restoration remain separate work.
 
-## Earlier layouts
-
-`layout history [--format text|json]` lists the earlier layouts the Session keeps, newest first,
-and emits `orchbee.layout.history` v1. Each text row shows the save time in Unix milliseconds, a
-relative time with the local clock, and how many Workspaces and Tabs of that layout are not open
-now. It is a read and exits 0 with an empty list when nothing is kept yet.
-
-`layout reopen <saved-at> [--format text|json]` reopens from that entry only what is not open now
-and emits `orchbee.layout.reopen` v1. It needs no `--yes`: it never closes, moves or renames
-anything, and it does not move focus. A save
-time no longer kept exits 3 (`not-found`), as do `rejected` and `denied`; `unavailable` exits 4.
-The request is submitted once: an outcome lost after handoff is an `unknown` observation with exit
-8, never replayed; `layout history` then shows what is open. A reopen that did land counts as
-open, so reopening that entry again answers nothing to reopen. Both commands are Windows-only and
-use the Layout capability. The
-[Server checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md#earlier-layouts)
-owns what is kept, when, and what reopening restores.
-
 ## Ownership and evidence
 
 The pure template/projector owns shape, bounds, member intent and identity-free reconstruction.
