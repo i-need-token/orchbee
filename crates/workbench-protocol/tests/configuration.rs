@@ -30,7 +30,6 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
                 revision: WorkbenchRevision::new(1),
                 diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: format!("[keys]\n#{}", "x".repeat(20_000)),
-                manifest_check: true,
                 focus_new_panel: true,
                 worktrees_directory: Some("C:/trees".into()),
                 new_cwd: "C:/项目".into(),
@@ -87,7 +86,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
 #[test]
 fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
     // Keep malformed Unicode outside the corpus container: serde_json rejects it before DTO admission.
-    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"windowTitle":"\ud800"}}}"#;
+    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","windowTitle":"\ud800"}}}"#;
     assert!(parse_workbench_response(invalid).is_err());
     let request = request();
     let mut value = serde_json::to_value(&request).unwrap();
@@ -112,7 +111,6 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
             notification_profile: "[ui.toast]".into(),
             agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
             spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
-            manifest_check: false,
             focus_new_panel: true,
             worktrees_directory: None,
             new_cwd: "follow".into(),
@@ -226,7 +224,6 @@ fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
                 notification_profile,
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
-                manifest_check: true,
                 focus_new_panel: true,
                 worktrees_directory: None,
                 new_cwd: "follow".into(),
@@ -260,7 +257,6 @@ fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_befo
                 agent_sidebar_profile: agent,
                 spaces_sidebar_profile: space,
                 window_title: String::new(),
-                manifest_check: true,
                 focus_new_panel: true,
                 worktrees_directory: None,
                 new_cwd: "follow".into(),

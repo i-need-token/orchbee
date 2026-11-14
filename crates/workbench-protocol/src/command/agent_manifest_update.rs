@@ -161,17 +161,9 @@ fn present_automatic<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Option<AgentManifestAutomatic>, D::Error> {
     AgentManifestAutomatic::deserialize(d).map(Some)
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum AgentManifestCheckSource {
-    Default,
-    File,
-}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentManifestAutomatic {
-    pub manifest_check: bool,
-    pub manifest_check_source: AgentManifestCheckSource,
     pub background_enabled: bool,
     pub release_build: bool,
     pub update_available: bool,
@@ -181,13 +173,7 @@ pub struct AgentManifestAutomatic {
 }
 impl AgentManifestAutomatic {
     pub fn validate(&self) -> Result<(), crate::ContractError> {
-        if self.enabled
-            != (self.manifest_check
-                && self.background_enabled
-                && self.release_build
-                && self.update_available)
-            || (!self.manifest_check
-                && self.manifest_check_source == AgentManifestCheckSource::Default)
+        if self.enabled != (self.background_enabled && self.release_build && self.update_available)
             || matches!(
                 self.last_operation.as_deref(),
                 Some(crate::AgentManifestsOperation::Applied { .. })

@@ -11,7 +11,6 @@ use orchbee_workbench_protocol::{
 use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
 mod scheduling;
 mod worker;
-use orchbee_local_runtime::UserSettings;
 use scheduling::Schedule;
 use std::time::Instant;
 pub(super) use worker::Worker;
@@ -64,26 +63,6 @@ impl Registry {
             state.as_ref().is_some_and(|state| state.schedule.is_some()),
         )
     }
-    pub(super) fn apply_configuration(&self, settings: &UserSettings) -> bool {
-        // Configuration publication already owns the coordinator. Manifest activation owns
-        // this registry before installing into that coordinator, so waiting here would invert
-        // the lock order. A busy maintenance transition refuses this reload atomically.
-        let Ok(mut lock) = self.0.try_lock() else {
-            return false;
-        };
-        let Some(state) = lock.as_mut() else {
-            return false;
-        };
-        if state.stopped || state.active.is_some() {
-            return false;
-        }
-        let Some(schedule) = state.schedule.as_mut() else {
-            return false;
-        };
-        schedule.apply(settings, Instant::now());
-        true
-    }
-
     #[cfg(all(test, windows))]
     pub(super) fn initialize(
         &self,
@@ -93,10 +72,9 @@ impl Registry {
         self.initialize_source(root, detector, Ok(None))
     }
     /// `root` is the data root that holds `agent-detection/` and the rule cache.
-    pub(super) fn initialize_settings(
+    pub(super) fn initialize_scheduled(
         &self,
         root: Option<PathBuf>,
-        settings: &UserSettings,
         detector: &ScreenDetector,
         source: updating::Source,
         background: bool,
@@ -109,7 +87,7 @@ impl Registry {
             .map_err(|_| std::io::Error::other("Manifest registry poisoned"))?
             .as_mut()
         {
-            state.schedule = Some(Schedule::new(settings, background, release, Instant::now()));
+            state.schedule = Some(Schedule::new(background, release, Instant::now()));
         }
         Ok(())
     }

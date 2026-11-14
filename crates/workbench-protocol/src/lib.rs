@@ -274,9 +274,9 @@ pub use command::agent_manifests::{
 };
 
 pub use command::agent_manifest_update::{
-    AgentManifestAutomatic, AgentManifestCheckSource, AgentManifestMaintenance,
-    AgentManifestProviderUpdate, AgentManifestUpdateDisposition, AgentManifestUpdateFailure,
-    AgentManifestUpdateReport, valid_agent_manifest_catalog_url,
+    AgentManifestAutomatic, AgentManifestMaintenance, AgentManifestProviderUpdate,
+    AgentManifestUpdateDisposition, AgentManifestUpdateFailure, AgentManifestUpdateReport,
+    valid_agent_manifest_catalog_url,
 };
 
 pub use command::configuration::{

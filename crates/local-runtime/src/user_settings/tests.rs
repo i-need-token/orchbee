@@ -33,20 +33,15 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
 }
 
 #[test]
-fn update_channel_is_strict_and_independent_of_manifest_checks() {
+fn update_channel_is_strict() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
-    for text in ["", "[agent_detection]\nauto_update=false"] {
-        let settings = read(text);
-        assert_eq!(settings.update_channel, UpdateChannel::Stable);
-        assert_eq!(settings.update_channel_source, "default");
-    }
+    let settings = read("");
+    assert_eq!(settings.update_channel, UpdateChannel::Stable);
+    assert_eq!(settings.update_channel_source, "default");
     for channel in ["stable", "preview"] {
-        let settings = read(&format!(
-            "[update]\nchannel='{channel}'\n[agent_detection]\nauto_update=false"
-        ));
+        let settings = read(&format!("[update]\nchannel='{channel}'"));
         assert_eq!(settings.update_channel.as_str(), channel);
         assert_eq!(settings.update_channel_source, "file");
-        assert!(!settings.manifest_check);
     }
     for (value, reason) in [
         ("true", "wrong-type"),
@@ -63,9 +58,6 @@ fn update_channel_is_strict_and_independent_of_manifest_checks() {
     let unknown = read("[update]\nchannel='preview'\nunknown=true");
     assert_eq!(unknown.update_channel, UpdateChannel::Preview);
     assert_eq!(unknown.diagnostics.items()[0].field, "update.unknown");
-    let invalid = read("[update]\nchannel='preview'\n[agent_detection]\nauto_update='true'");
-    assert_eq!(invalid.update_channel, UpdateChannel::Preview);
-    assert!(invalid.manifest_check);
 }
 
 #[test]
@@ -318,26 +310,16 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
 }
 
 #[test]
-fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
+fn reload_keeps_the_frozen_location() {
     let fixture = Fixture::new();
-    std::fs::write(fixture.file(), "[agent_detection]\nauto_update=false\n").unwrap();
+    std::fs::write(fixture.file(), "[update]\nchannel='preview'\n").unwrap();
     let initial = fixture.read().unwrap();
-    assert!(!initial.manifest_check);
-    assert_eq!(initial.manifest_check_source, "file");
+    assert_eq!(initial.update_channel, UpdateChannel::Preview);
     assert!(initial.explicit);
-    std::fs::write(fixture.file(), "[agent_detection]\nauto_update=true\n").unwrap();
+    std::fs::write(fixture.file(), "[update]\nchannel='stable'\n").unwrap();
     let next = read_user_settings_at(initial.path.as_deref(), initial.explicit, |_| None).unwrap();
-    assert!(next.manifest_check);
-    assert_eq!(next.manifest_check_source, "file");
-    for text in [
-        "[agent_detection]\nauto_update='false'",
-        "[agent_detection]\nunknown=true",
-    ] {
-        std::fs::write(fixture.file(), text).unwrap();
-        let admitted = fixture.read().unwrap();
-        assert!(admitted.manifest_check);
-        assert!(!admitted.diagnostics.is_empty());
-    }
+    assert_eq!(next.update_channel, UpdateChannel::Stable);
+    assert_eq!(next.update_channel_source, "file");
     std::fs::remove_file(fixture.file()).unwrap();
     assert_eq!(
         read_user_settings_at(initial.path.as_deref(), true, |_| None)
@@ -346,8 +328,7 @@ fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
         "missing"
     );
     let default = read_user_settings_at(initial.path.as_deref(), false, |_| None).unwrap();
-    assert!(default.manifest_check);
-    assert_eq!(default.manifest_check_source, "default");
+    assert_eq!(default.update_channel_source, "default");
 }
 
 #[test]
@@ -358,12 +339,11 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
     );
     for title in ["", "{workspace}/{tab}"] {
         let settings = parse(
-            &format!("[appearance]\nwindow_title='{title}'\n[agent_detection]\nauto_update=false"),
+            &format!("[appearance]\nwindow_title='{title}'"),
             Path::new(r"C:\config.toml"),
             &|_| None,
         );
         assert_eq!(settings.window_title, title);
-        assert!(!settings.manifest_check);
     }
     let invalid = parse(
         "[appearance]\nwindow_title='{unknown}'",
@@ -578,7 +558,6 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     assert_eq!(admitted.space_sidebar, defaults.space_sidebar);
     assert_eq!(admitted.window_title, defaults.window_title);
     assert_eq!(admitted.update_channel, defaults.update_channel);
-    assert_eq!(admitted.manifest_check, defaults.manifest_check);
     assert_eq!(admitted.cwd, None);
     assert_eq!(admitted.worktree_root, None);
     assert_eq!(admitted.path, Some(PathBuf::from(r"C:\config.toml")));

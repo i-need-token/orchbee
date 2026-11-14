@@ -626,8 +626,6 @@
 			"type": "object",
 			"additionalProperties": false,
 			"required": [
-				"manifestCheck",
-				"manifestCheckSource",
 				"backgroundEnabled",
 				"releaseBuild",
 				"updateAvailable",
@@ -635,9 +633,6 @@
 				"lastOperation"
 			],
 			"properties": {
-				"manifestCheck": {
-					"type": "boolean"
-				},
 				"backgroundEnabled": {
 					"type": "boolean"
 				},
@@ -649,9 +644,6 @@
 				},
 				"enabled": {
 					"type": "boolean"
-				},
-				"manifestCheckSource": {
-					"enum": ["default", "file"]
 				},
 				"lastOperation": {
 					"anyOf": [

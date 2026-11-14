@@ -109,20 +109,13 @@ export const AgentManifestsOperationSchema = z.discriminatedUnion('kind', [
 ]);
 const AgentManifestAutomaticSchema = z
 	.strictObject({
-		manifestCheck: z.boolean(),
-		manifestCheckSource: z.enum(['default', 'file']),
 		backgroundEnabled: z.boolean(),
 		releaseBuild: z.boolean(),
 		updateAvailable: z.boolean(),
 		enabled: z.boolean(),
 		lastOperation: AgentManifestsOperationSchema.refine((o) => o.kind !== 'applied').nullable(),
 	})
-	.refine(
-		(a) =>
-			a.enabled ===
-				(a.manifestCheck && a.backgroundEnabled && a.releaseBuild && a.updateAvailable) &&
-			(a.manifestCheck || a.manifestCheckSource !== 'default'),
-	)
+	.refine((a) => a.enabled === (a.backgroundEnabled && a.releaseBuild && a.updateAvailable))
 	.readonly();
 export const AgentManifestMaintenanceSchema = z
 	.strictObject({

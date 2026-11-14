@@ -23,8 +23,7 @@ fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
     assert_eq!(doc["result"]["exists"], false);
     assert!(!config.parent().unwrap().exists());
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let bytes =
-        b"# retained comment\n[update]\nchannel='preview'\n[agent_detection]\nauto_update=false\n";
+    let bytes = b"# retained comment\n[update]\nchannel='preview'\n[terminal]\nnew_cwd='home'\n";
     std::fs::write(&config, bytes).unwrap();
     let output = run();
     assert!(output.status.success());
@@ -437,14 +436,12 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     validate(&doc, schema);
     let check = &doc["result"]["checks"][5];
-    assert_eq!(check["details"]["manifestCheck"], true);
-    assert_eq!(check["details"]["manifestCheckSource"], "default");
     assert_eq!(check["details"]["exists"], false);
     assert!(!config.exists());
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'\n[agent_detection]\nauto_update=false",
+        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -452,8 +449,6 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let check = &doc["result"]["checks"][5];
     assert_eq!(check["status"], "pass");
     assert_eq!(check["details"]["newCwd"], "home");
-    assert_eq!(check["details"]["manifestCheck"], false);
-    assert_eq!(check["details"]["manifestCheckSource"], "file");
     assert_eq!(
         std::path::Path::new(check["details"]["worktreeDirectory"].as_str().unwrap()),
         fixture.0.join(r"appdata\trees")

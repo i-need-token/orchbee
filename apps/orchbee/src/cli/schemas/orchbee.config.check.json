@@ -197,8 +197,6 @@
 							"exists",
 							"newCwd",
 							"worktreeDirectory",
-							"manifestCheck",
-							"manifestCheckSource",
 							"keyPrefix",
 							"keyOverrides",
 							"windowTitle",
@@ -233,12 +231,6 @@
 								"type": ["string", "null"],
 								"minLength": 1,
 								"maxLength": 4096
-							},
-							"manifestCheck": {
-								"type": "boolean"
-							},
-							"manifestCheckSource": {
-								"enum": ["default", "file"]
 							},
 							"keyPrefix": {
 								"type": "string",

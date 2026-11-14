@@ -53,9 +53,7 @@ pub(super) fn request(action: Action) -> ConfigurationRequest {
     }
 }
 pub(super) fn current(registry: &Registry) -> ConfigurationSnapshot {
-    let Outcome::Current { snapshot } =
-        registry.execute(&request(Action::Current), |_| panic!("read cannot apply"))
-    else {
+    let Outcome::Current { snapshot } = registry.execute(&request(Action::Current)) else {
         panic!("current publication");
     };
     snapshot
@@ -134,9 +132,7 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     let error = startup.initialize_load(&candidate).unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
     assert!(matches!(
-        startup.execute(&request(Action::Current), |_| panic!(
-            "uninitialized startup"
-        )),
+        startup.execute(&request(Action::Current)),
         Outcome::Failed {
             reason: Failure::Unavailable,
             ..
@@ -146,15 +142,7 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
     let registry = Registry::default();
     registry.initialize(&UserSettings::default()).unwrap();
     let retained = current(&registry);
-    let mut applied = false;
-    let outcome = registry.execute_with(
-        &request(Action::Reload),
-        move |_, _| Ok(candidate),
-        |_| {
-            applied = true;
-            true
-        },
-    );
+    let outcome = registry.execute_with(&request(Action::Reload), move |_, _| Ok(candidate));
     assert!(matches!(
         outcome,
         Outcome::Failed {
@@ -162,7 +150,6 @@ fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_overs
             ..
         }
     ));
-    assert!(!applied);
     assert_eq!(current(&registry), retained);
 }
 
@@ -172,8 +159,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     fixture.write("[keys]\nprefix='ctrl+a'\n[appearance.sidebar.workspaces]\nrows=[['workspace','$summary']]\nrow_gap=3");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload)) else {
         panic!()
     };
     assert_eq!(
@@ -190,7 +176,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     let Outcome::Reloaded {
         snapshot: spaces_warning,
         changed: true,
-    } = registry.execute(&request(Action::Reload), |_| true)
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!("field warning remains an admitted publication")
     };
@@ -201,8 +187,7 @@ fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() 
     );
     assert_eq!(current(&registry), spaces_warning);
     fixture.write("[keys]\nprefix='ctrl+x'\n[appearance.sidebar.workspaces]\nrows=[]\nrow_gap=2");
-    let Outcome::Reloaded { snapshot: next, .. } =
-        registry.execute(&request(Action::Reload), |_| true)
+    let Outcome::Reloaded { snapshot: next, .. } = registry.execute(&request(Action::Reload))
     else {
         panic!()
     };
@@ -257,7 +242,7 @@ fn managed_startup_publishes_its_single_read_as_revision_zero() {
 }
 
 #[test]
-fn real_session_sampler_publishes_edits_and_failed_apply_retains_the_snapshot() {
+fn real_session_sampler_publishes_edits() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
     use std::{
         sync::{Arc, Mutex},
@@ -301,67 +286,44 @@ fn real_session_sampler_publishes_edits_and_failed_apply_retains_the_snapshot() 
     // observation may publish its own revision before the edit.
     assert!(snapshot.revision.value() >= 1);
     assert!(matches!(
-        owner.0.execute_configuration(reload.clone()).outcome,
+        owner.0.execute_configuration(reload).outcome,
         Outcome::Reloaded { snapshot: ref explicit, changed: false } if *explicit == snapshot
     ));
-    owner
-        .0
-        .stop_process_observer_before(Instant::now() + Duration::from_secs(3))
-        .unwrap();
-    fixture.write("[keys]\nprefix='ctrl+x'");
-    assert!(matches!(
-        owner.0.execute_configuration(reload).outcome,
-        Outcome::Failed { .. }
-    ));
-    assert_eq!(current(&owner.0.configuration), snapshot);
 }
 
 #[test]
-fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply_failure() {
+fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_failure() {
     let fixture = Fixture::new();
     fixture.write("[keys]\nprefix='ctrl+a'");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).revision.value(), 0);
-    fixture.write("[keys]\nprefix='ctrl+d'\n[agent_detection]\nauto_update=false");
+    fixture.write("[keys]\nprefix='ctrl+d'");
     let Outcome::Reloaded {
         snapshot,
         changed: true,
-    } = registry.execute(&request(Action::Reload), |settings| {
-        !settings.manifest_check
-    })
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!("reload");
     };
     assert_eq!(snapshot.revision.value(), 1);
     assert!(snapshot.keys_profile.contains("ctrl+d"));
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| true),
+        registry.execute(&request(Action::Reload)),
         Outcome::Reloaded { changed: false, .. }
     ));
-    fixture.write("[keys]\nprefix='ctrl+x'");
-    assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| false),
-        Outcome::Failed {
-            reason: Failure::Unavailable,
-            ..
-        }
-    ));
-    assert_eq!(current(&registry), snapshot);
     fixture.write("[keys]\nhelp='ctrl+c'");
     let Outcome::Reloaded {
         snapshot: warning,
         changed: true,
-    } = registry.execute(&request(Action::Reload), |_| true)
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!("invalid action override disables that action")
     };
     assert_eq!(warning.diagnostics.items[0].field, "keys.help");
     fixture.write("[keys");
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!(
-            "fatal parse cannot apply"
-        )),
+        registry.execute(&request(Action::Reload)),
         Outcome::Failed {
             reason: Failure::LoadFailed,
             ..
@@ -370,9 +332,7 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
     assert_eq!(current(&registry), warning);
     std::fs::remove_file(fixture.file()).unwrap();
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!(
-            "missing explicit cannot apply"
-        )),
+        registry.execute(&request(Action::Reload)),
         Outcome::Failed {
             reason: Failure::LoadFailed,
             ..
@@ -382,10 +342,10 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
 }
 
 #[test]
-fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
+fn busy_exhaustion_and_uninitialized_owner_refuse_reloads() {
     let registry = Registry::default();
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!()),
+        registry.execute(&request(Action::Reload)),
         Outcome::Failed {
             reason: Failure::Unavailable,
             ..
@@ -397,7 +357,7 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
     {
         let mut lock = registry.state.lock().unwrap();
         assert!(matches!(
-            registry.execute(&request(Action::Reload), |_| panic!()),
+            registry.execute(&request(Action::Reload)),
             Outcome::Failed {
                 reason: Failure::Busy,
                 ..
@@ -405,9 +365,9 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
         ));
         lock.as_mut().unwrap().snapshot.revision = WorkbenchRevision::new(u64::MAX);
     }
-    fixture.write("[agent_detection]\nauto_update=false");
+    fixture.write("[keys]\nprefix='ctrl+d'");
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!()),
+        registry.execute(&request(Action::Reload)),
         Outcome::Failed {
             reason: Failure::RevisionExhausted,
             ..
@@ -426,23 +386,19 @@ fn reload_releases_committed_state_while_loading_the_configuration_file() {
         syntax: None,
         unreadable: None,
     };
-    let outcome = registry.execute_with(
-        &request(Action::Reload),
-        |_, _| {
-            let state = registry
-                .state
-                .try_lock()
-                .expect("configuration file loading must not own committed state");
-            assert!(state.as_ref().unwrap().reloading);
-            drop(state);
-            assert!(matches!(
-                registry.execute(&request(Action::Current), |_| panic!()),
-                Outcome::Current { .. }
-            ));
-            Ok(candidate)
-        },
-        |_| true,
-    );
+    let outcome = registry.execute_with(&request(Action::Reload), |_, _| {
+        let state = registry
+            .state
+            .try_lock()
+            .expect("configuration file loading must not own committed state");
+        assert!(state.as_ref().unwrap().reloading);
+        drop(state);
+        assert!(matches!(
+            registry.execute(&request(Action::Current)),
+            Outcome::Current { .. }
+        ));
+        Ok(candidate)
+    });
     assert!(matches!(outcome, Outcome::Reloaded { .. }));
     assert!(!registry.state.lock().unwrap().as_ref().unwrap().reloading);
 }
@@ -455,15 +411,13 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).window_title, "{workspace}");
     fixture.write("[appearance]\nwindow_title='{tab}/{panel}'");
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload)) else {
         panic!()
     };
     assert_eq!(snapshot.window_title, "{tab}/{panel}");
     assert!(snapshot.diagnostics.items.is_empty());
     fixture.write("[appearance]\nwindow_title='{unknown}'");
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload)) else {
         panic!()
     };
     assert_eq!(
@@ -475,15 +429,13 @@ fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
         "appearance.window_title"
     );
     fixture.write("[appearance]\nwindow_title=''");
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload)) else {
         panic!()
     };
     assert!(snapshot.window_title.is_empty());
     assert!(snapshot.diagnostics.items.is_empty());
     fixture.write("[appearance]\nwindow_title=2");
-    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
-    else {
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload)) else {
         panic!()
     };
     assert_eq!(
@@ -507,9 +459,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
         fixture.write(&format!(
             "[notifications]\ncli_delivery='{delivery}'\nagent_reminder='when-hidden'\nsound=true\ndelay_seconds=7\nposition='top-left'\n[notifications.sound_by_agent]\ncodex='off'"
         ));
-        let Outcome::Reloaded { snapshot, .. } =
-            registry.execute(&request(Action::Reload), |_| true)
-        else {
+        let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload)) else {
             panic!()
         };
         let parsed = orchbee_local_runtime::NotificationSettings::from_profile(
@@ -536,7 +486,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     let Outcome::Reloaded {
         snapshot: delivery_warning,
         ..
-    } = registry.execute(&request(Action::Reload), |_| true)
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!()
     };
@@ -555,7 +505,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     let Outcome::Reloaded {
         snapshot: sound_warning,
         ..
-    } = registry.execute(&request(Action::Reload), |_| true)
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!()
     };
@@ -576,7 +526,7 @@ fn warning_record_changes_advance_revision_when_effective_settings_are_equal() {
     let Outcome::Reloaded {
         snapshot: warning,
         changed: true,
-    } = registry.execute(&request(Action::Reload), |_| true)
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!()
     };
@@ -586,7 +536,7 @@ fn warning_record_changes_advance_revision_when_effective_settings_are_equal() {
     let Outcome::Reloaded {
         snapshot: clean,
         changed: true,
-    } = registry.execute(&request(Action::Reload), |_| true)
+    } = registry.execute(&request(Action::Reload))
     else {
         panic!()
     };
@@ -666,7 +616,6 @@ fn an_edit_against_an_unparsable_file_writes_nothing_and_answers_its_position() 
         )],
         edit_in(&fixture),
         sampled,
-        |_| panic!("nothing was written"),
     );
     assert!(!output_off);
     assert_eq!(
@@ -698,7 +647,6 @@ fn a_refused_edit_publishes_nothing() {
         )],
         edit_in(&fixture),
         sampled,
-        |_| panic!("nothing was written"),
     );
     assert!(matches!(
         outcome,
@@ -732,7 +680,6 @@ fn one_committed_edit_publishes_exactly_one_snapshot_with_a_higher_revision() {
         )],
         edit_in(&fixture),
         sampled,
-        |_| true,
     );
     let SettingsOutcome::Edited {
         snapshot,
@@ -751,9 +698,7 @@ fn one_committed_edit_publishes_exactly_one_snapshot_with_a_higher_revision() {
     assert_eq!(signal.revision(), 1);
     // The sampler then finds the file it would publish already published.
     let mut sampler = Sampler::default();
-    registry.sample(&mut sampler, Instant::now(), sampled, |_| {
-        panic!("equal candidate")
-    });
+    registry.sample(&mut sampler, Instant::now(), sampled);
     assert_eq!(signal.revision(), 1);
     assert_eq!(settings(&registry), *snapshot);
 }
@@ -767,14 +712,11 @@ fn an_external_edit_is_observed_and_published() {
     let signal = watched(&registry);
     let mut sampler = Sampler::default();
     let at = |samples: u32| Instant::now() + SAMPLE_INTERVAL * samples;
-    registry.sample(&mut sampler, at(0), sampled, |_| panic!("equal candidate"));
+    registry.sample(&mut sampler, at(0), sampled);
     assert_eq!(signal.revision(), 0);
     // Lengths differ so coarse modification times cannot hide an edit.
     fixture.write("[keys]\nprefix='ctrl+d'\n[appearance]\nmode='dark'\n");
-    // Refused application, such as busy manifest maintenance, retries the same file.
-    registry.sample(&mut sampler, at(1), sampled, |_| false);
-    assert_eq!(signal.revision(), 0);
-    registry.sample(&mut sampler, at(2), sampled, |_| true);
+    registry.sample(&mut sampler, at(1), sampled);
     assert_eq!(signal.revision(), 1);
     let configuration = current(&registry);
     let published = settings(&registry);
@@ -799,12 +741,10 @@ fn the_last_valid_values_are_served_during_a_syntax_error() {
     let configuration = current(&registry);
     let mut sampler = Sampler::default();
     let at = |samples: u32| Instant::now() + SAMPLE_INTERVAL * samples;
-    registry.sample(&mut sampler, at(0), sampled, |_| panic!("equal candidate"));
+    registry.sample(&mut sampler, at(0), sampled);
     fixture.write("[appearance\nmode = 'light'\n");
     let syntax = fixture.load(true).syntax.unwrap();
-    registry.sample(&mut sampler, at(1), sampled, |_| {
-        panic!("a file that does not parse is never applied")
-    });
+    registry.sample(&mut sampler, at(1), sampled);
     assert_eq!(signal.revision(), 1);
     let broken = settings(&registry);
     assert_eq!(
@@ -829,7 +769,7 @@ fn the_last_valid_values_are_served_during_a_syntax_error() {
     );
     assert_eq!(current(&registry), configuration);
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!("not applied")),
+        registry.execute(&request(Action::Reload)),
         Outcome::Failed {
             reason: Failure::LoadFailed,
             ..

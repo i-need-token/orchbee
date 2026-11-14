@@ -68,7 +68,6 @@ const ConfigurationSnapshotSchema = z.strictObject({
 	notificationProfile: bounded(MAXIMUM_NOTIFICATION_PROFILE_BYTES),
 	agentSidebarProfile: bounded(32768),
 	spacesSidebarProfile: bounded(32768),
-	manifestCheck: z.boolean(),
 	focusNewPanel: z.boolean(),
 	worktreesDirectory: configuredPath.nullable(),
 	newCwd: z.union([z.enum(['follow', 'home', 'current', 'workspace']), configuredPath]),

@@ -626,17 +626,6 @@ export const SETTING_KEY_TABLE = {
 			page: true,
 		},
 		{
-			path: 'agent_detection.auto_update',
-			type: 'boolean',
-			default: true,
-			scope: 'server',
-			clients: 'both',
-			effect: 'immediate',
-			category: 'agents',
-			group: 'updates',
-			page: false,
-		},
-		{
 			path: 'update.channel',
 			type: 'choice',
 			choices: ['stable', 'preview'],

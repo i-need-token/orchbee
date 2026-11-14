@@ -263,7 +263,7 @@ Read/status use read policy; Reload/Update use navigation-management policy. CLI
 submits once, and retains the operation ID with pending/unknown results after lost acknowledgement
 or interruption. Status recovery never resubmits a mutation. Receipts end with the Session generation;
 this is not durable replay across Server restart. Explicit remote Update and its separate cache/activation outcomes are specified below.
-Automatic scheduling follows the configuration and ownership rules below.
+Automatic scheduling follows the ownership rules below.
 
 ## Live Agent self-test
 
@@ -364,28 +364,23 @@ An executing update remains pending until its actual cache report and child clea
 never installed after Stop. Worker panic yields an unknown effect receipt and disables subsequent
 Update admission for this Session. CLI Update submits once, then reads status within its single budget;
 late cancellation or missing confirmation preserves the ID without resubmitting the mutation.
-Native v1/v2 remain closed; automatic policy metadata uses v3. Scheduling and configuration
-ownership are specified below.
+Native v1/v2 remain closed; automatic policy metadata uses v3. Scheduling is specified below.
 
-## Automatic checks and configuration snapshots
+## Automatic checks
 
-Windows `agent_detection.auto_update` is a strict boolean, default true; it takes effect only with a
-configured catalog. Only persistent managed Sessions in
-release, non-test builds allow background checks. Standalone, debug and test execution do not
-schedule network work. An enabled owner schedules once at startup, then every thirty minutes by
-monotonic time. Busy maintenance defers the due check until the shared slot is free. Automatic work
+Automatic checks have no setting; they run only with a configured catalog. Only persistent managed
+Sessions in release, non-test builds allow background checks. Standalone, debug and test execution
+do not schedule network work. An enabled owner schedules once at startup, then every thirty minutes
+by monotonic time. Busy maintenance defers the due check until the shared slot is free. Automatic work
 uses the same downloader, cache, activation and Stop lifecycle as explicit Update. It has a distinct
 owner and one retained latest result; it never consumes or evicts the manual operation ledger.
 
-Client activation passes only the admitted configuration path and explicit-location status. The
-Server reads that file once at startup; the check value and provenance come from that read, and the
-observer never rereads configuration. Only a committed configuration publication (`config
-reload`) changes the manifest-check setting. Explicit rule Reload never reads `config.toml`:
-it loads the detector and status from the startup configuration parent, and a failed installation
-retains the old detector. Disabling clears the next check; re-enabling schedules immediately. This
-is rule-maintenance reload, not a general settings or keybinding reload. An active Update owns the slot
-until settled. Current metadata exposes check/provenance, background/build gates, effective enabled
-state and the latest automatic operation; native v3 retains closed v1/v2. Automatic panic disables
+The observer never reads configuration, and a configuration publication never changes rule checks.
+Explicit rule Reload never reads `config.toml`: it loads the detector and status from the startup
+configuration parent, and a failed installation retains the old detector. This is rule-maintenance
+reload, not a general settings or keybinding reload. An active Update owns the slot until settled.
+Current metadata exposes the background/build gates, catalog availability, effective enabled state
+and the latest automatic operation; native v3 retains closed v1/v2. Automatic panic disables
 future updates for that Session; known failures retain the next interval. Stop cancels and joins the
 same owned worker before the observer returns. Source/cohort rollback preserves user configuration
 and cache files; older strict settings readers require removal of the newly admitted update section.

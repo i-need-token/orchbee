@@ -580,8 +580,6 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         "exists": false,
         "newCwd": "follow",
         "worktreeDirectory": null,
-        "manifestCheck": true,
-        "manifestCheckSource": "default",
         "keyPrefix": "Ctrl+B",
         "keyOverrides": 0,
         "windowTitle": "{hostname}: {workspace}",
@@ -688,7 +686,7 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
     for (field, reason) in [
         ("keys", "invalid-binding"),
         ("notifications", "wrong-type"),
-        ("agent_detection.auto_update", "wrong-type"),
+        ("update.channel", "wrong-type"),
         ("file", "invalid-boolean"),
         ("terminal.new_cwd", "invalid-path"),
         ("worktrees.directory", "invalid-path"),
@@ -699,11 +697,6 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
             !full_validator.is_valid(&fatal),
             "field-local or mismatched fatal pair admitted: {field}: {reason}"
         );
-    }
-    for field in ["manifestCheck", "manifestCheckSource"] {
-        let mut missing = pass.clone();
-        missing["details"].as_object_mut().unwrap().remove(field);
-        assert!(!validator.is_valid(&missing), "missing {field}");
     }
 }
 

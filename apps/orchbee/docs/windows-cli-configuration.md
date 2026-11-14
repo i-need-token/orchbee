@@ -14,9 +14,6 @@ directory = "~/Projects/worktrees"
 
 [update]
 channel = "stable"
-
-[agent_detection]
-auto_update = true
 ```
 
 Only registered keys affect Orchbee; the [settings key table](../../../crates/local-runtime/README.md#user-settings) lists every table and key. Unknown sections, fields and actions warn and are ignored, and the retired `[ui]` names are simply unknown: nothing migrates or aliases them; loading configuration never enables a plugin, installs a provider or runs a configured command.
@@ -66,12 +63,10 @@ The shared Windows settings reader owns bounded file inspection, deterministic f
 
 ## Rule update policy
 
-`[update] channel` accepts exactly `stable` (default) or `preview`, independently of `agent_detection.auto_update`. `orchbee channel show [--format text|json]`, which a release build [withholds](#windows-release-installation), reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
+`[update] channel` accepts exactly `stable` (default) or `preview`. `orchbee channel show [--format text|json]`, which a release build [withholds](#windows-release-installation), reads the complete shared configuration without creating files, activating a Session or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v1 and configuration failure v1 admit `update.channel` diagnostics.
 
-`[agent_detection] auto_update` is a TOML boolean, default true, with `default`/`file` provenance.
-It allows automatic detection-rule checks only when the Server has a catalog from
+Automatic detection-rule checks have no setting. They run only when the Server has a catalog from
 `ORCHBEE_AGENT_DETECTION_CATALOG_URL`; Orchbee ships no default catalog.
-Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
 Client activation admits the location and passes only its configuration path/explicit-file flag. The
 managed Server reads the complete authoritative revision-0 candidate at that frozen location once,
 before any process or durable effect, through `read_startup_settings_at`; direct startup resolves the
@@ -80,18 +75,15 @@ read stops on the file itself. Cohorts must match.
 `read_user_settings_at` supports bounded explicit reload at the frozen location, retaining
 missing-default versus missing-explicit semantics. It does not create configuration files.
 
-Persistent managed release Sessions check rules at startup and every thirty minutes. Debug/test builds
-and standalone endpoints disable automatic network work. `server agent-manifests` exposes effective
-policy and latest automatic results. `server reload-agent-manifests` reloads rules only and never
-reads `config.toml`; `config reload` publishes the rule-check switch with the rest of the
-configuration. A fatal file/TOML error retains the previous switch; field warnings apply the admitted
-fallback settings.
-Turning checks off removes scheduling; turning them back on schedules an immediate check. An
-active update returns busy for reload. Other running settings and keybindings are not hot-reloaded
-by this command. Explicit updates remain available when automatic checks are disabled. See the
-[screen model](../../orchbee-server/docs/agent-screen-model.md#automatic-checks-and-configuration-snapshots).
-Release acceptance fixtures must explicitly disable checks when public network access is outside
-the test's purpose. A reader predating the current key names ignores the renamed tables with warnings;
+Persistent managed release Sessions with a catalog check rules at startup and every thirty minutes.
+Debug/test builds and standalone endpoints disable automatic network work. `server agent-manifests`
+exposes effective policy and latest automatic results. `server reload-agent-manifests` reloads rules
+only and never reads `config.toml`, and `config reload` never changes rule checks. An active update
+returns busy for rule reload. Explicit updates
+remain available whether or not automatic checks run. See the
+[screen model](../../orchbee-server/docs/agent-screen-model.md#automatic-checks).
+Release acceptance fixtures leave `ORCHBEE_AGENT_DETECTION_CATALOG_URL` unset when public network
+access is outside the test's purpose. A reader predating the current key names ignores the renamed tables with warnings;
 user overrides and already committed rule caches are retained.
 
 ## Automatic Windows shell

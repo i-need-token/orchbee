@@ -96,7 +96,6 @@ pub struct ConfigurationSnapshot {
     /// Canonical presentation-only JSON admitted by the Windows settings owner.
     pub agent_sidebar_profile: String,
     pub spaces_sidebar_profile: String,
-    pub manifest_check: bool,
     /// `terminal.focus_new_panel`: whether a split moves focus to its new Panel.
     pub focus_new_panel: bool,
     /// `worktrees.directory` as an admitted absolute path; null selects the sibling checkout.

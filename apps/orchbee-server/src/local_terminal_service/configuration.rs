@@ -40,8 +40,6 @@ struct State {
     current: UserSettings,
     snapshot: ConfigurationSnapshot,
     settings: SettingsSnapshot,
-    /// Whether a process observer applies committed settings to live policy.
-    applies: bool,
     reloading: bool,
 }
 impl State {
@@ -172,13 +170,9 @@ impl Registry {
     }
     #[cfg(all(test, windows))]
     pub(super) fn initialize_load(&self, current: &UserSettingsLoad) -> std::io::Result<()> {
-        self.install_initial(Self::prepare_initial(current, true)?)
+        self.install_initial(Self::prepare_initial(current)?)
     }
-    /// `applies` says whether a process observer applies committed settings to live policy.
-    pub(super) fn prepare_initial(
-        current: &UserSettingsLoad,
-        applies: bool,
-    ) -> std::io::Result<PreparedInitial> {
+    pub(super) fn prepare_initial(current: &UserSettingsLoad) -> std::io::Result<PreparedInitial> {
         let diagnostics = protocol_diagnostics(&current.diagnostics).ok_or_else(|| {
             std::io::Error::other("Configuration diagnostics exceed protocol bounds")
         })?;
@@ -199,7 +193,6 @@ impl Registry {
             current: current.settings.clone(),
             snapshot: initial,
             settings,
-            applies,
             reloading: false,
         }))
     }
@@ -227,12 +220,8 @@ impl Registry {
         slot.as_ref().map(|state| read(&state.current.values))
     }
     #[cfg(all(test, windows))]
-    fn execute(
-        &self,
-        request: &ConfigurationRequest,
-        apply: impl FnOnce(&UserSettings) -> bool,
-    ) -> Outcome {
-        self.respond(request, read_frozen, apply).0
+    fn execute(&self, request: &ConfigurationRequest) -> Outcome {
+        self.respond(request, read_frozen).0
     }
 
     #[cfg(all(test, windows))]
@@ -240,9 +229,8 @@ impl Registry {
         &self,
         request: &ConfigurationRequest,
         load: impl FnOnce(Option<&Path>, bool) -> Result<UserSettingsLoad, SettingsError>,
-        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Outcome {
-        self.respond(request, load, apply).0
+        self.respond(request, load).0
     }
 
     /// Answers one configuration request, and whether its commit turned kept output off.
@@ -250,7 +238,6 @@ impl Registry {
         &self,
         request: &ConfigurationRequest,
         load: impl FnOnce(Option<&Path>, bool) -> Result<UserSettingsLoad, SettingsError>,
-        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> (Outcome, bool) {
         if request.action == Action::Current {
             // Reloads read the file outside the lock, so a current read only waits for a commit.
@@ -266,7 +253,7 @@ impl Registry {
                 });
             return (outcome, false);
         }
-        match self.reload_with(Publication::Explicit, load, apply) {
+        match self.reload_with(Publication::Explicit, load) {
             Ok(committed) => (
                 Outcome::Reloaded {
                     snapshot: committed.configuration,
@@ -336,12 +323,11 @@ impl Registry {
         &self,
         publication: Publication,
         load: impl FnOnce(Option<&Path>, bool) -> Result<UserSettingsLoad, SettingsError>,
-        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Result<Committed, Rejection> {
         let (frozen, admission) = self.admit()?;
         // File I/O and TOML preparation run without the committed-state mutex.
         let loaded = load(frozen.current.path.as_deref(), frozen.current.explicit);
-        self.commit(admission, frozen, publication, loaded, apply)
+        self.commit(admission, frozen, publication, loaded)
     }
 
     /// Prepares `loaded` against `frozen` and commits it under `admission`. A file that is not
@@ -354,7 +340,6 @@ impl Registry {
         frozen: FrozenState,
         publication: Publication,
         loaded: Result<UserSettingsLoad, SettingsError>,
-        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> Result<Committed, Rejection> {
         let (valid, mut settings) = match loaded {
             Ok(load) => match load.syntax {
@@ -429,7 +414,7 @@ impl Registry {
         if settings_changed {
             settings.revision = WorkbenchRevision::new(revision);
         }
-        // Prepare the exact bounded outbound representation before changing the live scheduler.
+        // Prepare the exact bounded outbound representation before committing.
         if orchbee_local_runtime::KeySettings::from_profile(&configuration.keys_profile).is_err()
             || configuration.keys_profile.len() > 64 * 1024
             || orchbee_local_runtime::SpaceSidebarSettings::from_profile(
@@ -461,12 +446,6 @@ impl Registry {
         if !state.reloading || state.revision() != frozen.revision {
             return Err(Failure::Busy.into());
         }
-        if let Some(load) = &valid
-            && state.applies
-            && !apply(&load.settings)
-        {
-            return Err(Failure::Unavailable.into());
-        }
         let output_off = valid.as_ref().is_some_and(|load| {
             state.current.values.restore_terminal_output
                 && !load.settings.values.restore_terminal_output
@@ -497,7 +476,6 @@ impl Registry {
         changes: &[SettingChange],
         edit: impl FnOnce(Option<&Path>, &SettingChanges) -> Result<bool, SettingsEditError>,
         load: impl FnOnce(Option<&Path>, bool) -> Result<UserSettingsLoad, SettingsError>,
-        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> (SettingsOutcome, bool) {
         let (Some(first), Some(batch)) = (changes.first(), setting_changes(changes)) else {
             return (
@@ -521,7 +499,7 @@ impl Registry {
         };
         let previous = frozen.settings.clone();
         let loaded = load(frozen.current.path.as_deref(), frozen.current.explicit);
-        match self.commit(admission, frozen, Publication::Edited, loaded, apply) {
+        match self.commit(admission, frozen, Publication::Edited, loaded) {
             Ok(committed) => {
                 if committed.published {
                     self.changes.notify();
@@ -534,7 +512,7 @@ impl Registry {
                     committed.output_off,
                 )
             }
-            // The file is written; the sampler publishes it once live policy admits it.
+            // The file is written; the sampler publishes it on a later observation.
             Err(_) => (
                 SettingsOutcome::Edited {
                     snapshot: Box::new(previous),
@@ -560,7 +538,6 @@ impl Registry {
         sampler: &mut Sampler,
         now: Instant,
         load: impl FnOnce(Option<&Path>, bool) -> Result<UserSettingsLoad, SettingsError>,
-        apply: impl FnOnce(&UserSettings) -> bool,
     ) -> bool {
         if sampler.due.is_some_and(|due| now < due) {
             return false;
@@ -575,8 +552,8 @@ impl Registry {
         }
         // The first observation also reloads: an edit between the startup read and this sample
         // would otherwise be missed. An unchanged candidate publishes nothing.
-        match self.reload_with(Publication::Sampled, load, apply) {
-            // Another reload or busy manifest maintenance; observe the same file again next time.
+        match self.reload_with(Publication::Sampled, load) {
+            // Another reload, or an owner not yet installed; observe the same file again next time.
             Err(Rejection {
                 reason: Failure::Busy | Failure::Unavailable,
                 ..
@@ -667,7 +644,6 @@ fn snapshot(
         notification_profile: current.notifications.profile(),
         agent_sidebar_profile: orchbee_local_runtime::AGENT_SIDEBAR_PROFILE.into(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
-        manifest_check: current.manifest_check,
         focus_new_panel: current.focus_new_panel,
         worktrees_directory: current.worktree_root.clone(),
         new_cwd: match &current.cwd {
@@ -724,27 +700,19 @@ impl super::LocalTerminalService {
             .map_or_else(String::new, |state| state.current.window_title.clone()))
     }
 
-    /// No fallible effect follows scheduler admission.
-    pub(super) fn apply_configuration(&self, settings: &UserSettings) -> bool {
-        self.process_observer.apply_configuration(settings)
-    }
     /// Installs the startup configuration where no process observer runs: the Session serves and
-    /// edits its settings, and committed settings have no live policy to apply.
+    /// edits its settings.
     pub(crate) fn install_configuration(
         &self,
         configuration: &UserSettingsLoad,
     ) -> std::io::Result<()> {
         self.configuration
-            .install_initial(Registry::prepare_initial(configuration, false)?)
+            .install_initial(Registry::prepare_initial(configuration)?)
     }
     /// Samples the frozen `config.toml` location and publishes a changed file: a file that cannot
     /// be read or parsed publishes its state and keeps the last valid settings until it changes.
     pub(super) fn sample_configuration(&self, sampler: &mut Sampler, now: Instant) {
-        let output_off = self
-            .configuration
-            .sample(sampler, now, read_frozen, |settings| {
-                self.apply_configuration(settings)
-            });
+        let output_off = self.configuration.sample(sampler, now, read_frozen);
         self.after_configuration_commit(output_off);
     }
     pub(crate) fn watch_configuration(
@@ -761,11 +729,7 @@ impl super::LocalTerminalService {
             None => Outcome::failed(Failure::Unavailable),
             Some(false) => Outcome::failed(Failure::SessionMismatch),
             Some(true) => {
-                let (outcome, output_off) =
-                    self.configuration
-                        .respond(&request, read_frozen, |settings| {
-                            self.apply_configuration(settings)
-                        });
+                let (outcome, output_off) = self.configuration.respond(&request, read_frozen);
                 self.after_configuration_commit(output_off);
                 outcome
             }
@@ -789,9 +753,7 @@ impl super::LocalTerminalService {
             orchbee_workbench_protocol::SettingsOperation::Edit { changes } => {
                 let (outcome, output_off) =
                     self.configuration
-                        .edit_with(changes, edit_frozen, read_frozen, |settings| {
-                            self.apply_configuration(settings)
-                        });
+                        .edit_with(changes, edit_frozen, read_frozen);
                 self.after_configuration_commit(output_off);
                 outcome
             }

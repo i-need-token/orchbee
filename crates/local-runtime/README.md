@@ -915,7 +915,7 @@ takes input (`general.language`, `appearance.*`, the terminal font, padding, opa
 selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
 Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
 `focus_new_panel`, `scrollback_bytes`, `restore_output`, the launch profiles and default profile,
-`worktrees.directory`, `agents.resume_on_restore`, `agent_detection.auto_update`, `update.channel`)
+`worktrees.directory`, `agents.resume_on_restore`, `update.channel`)
 and are read from the attached Server's file. With a local Server both are the same file.
 
 ### Compatibility
@@ -939,7 +939,7 @@ repository formatter's layout, so commit it as written.
 
 Each top-level table names the page category whose keys it mainly holds: `[general]`,
 `[appearance]`, `[terminal]`, `[notifications]`, `[keys]` (Keyboard) and `[agents]`;
-`[worktrees]`, `[agent_detection]` and `[update]` hold one key each. The page category is metadata,
+`[worktrees]` and `[update]` hold one key each. The page category is metadata,
 so a key can appear under another category's group, as the table below shows. Themes is the one
 category without a table of its own: its two keys keep their `[appearance]` paths, the single
 exception to a table naming its category. `<platform>` stands for `windows`, `macos` or `linux`,
@@ -979,7 +979,6 @@ every key's purpose, allowed values and default.
 | `keys.<action>`                                                                             | the action's built-in keys       | Keyboard (TUI)                       |
 | `[[keys.command]]` `command`, `type`, `key`, `description`, `width`, `height`               | no commands                      | file only                            |
 | `agents.resume_on_restore`                                                                  | `true`                           | Agents / Restore                     |
-| `agent_detection.auto_update`                                                               | `true`                           | file only                            |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
 
 The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The keys
@@ -1133,7 +1132,7 @@ Applications own what each record holds; this adapter alone implements no update
 
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
 
-Settings also admit `[agent_detection] auto_update` (default true) and retain default/file provenance plus explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
+Settings retain explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
 
 ## Keybinding configuration repair
 

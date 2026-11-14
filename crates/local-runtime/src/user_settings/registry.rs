@@ -778,14 +778,6 @@ pub const SETTING_KEYS: &[SettingKey] = &[
     .page()
     .effect(SettingEffect::Restart),
     key(
-        "agent_detection.auto_update",
-        V::Boolean,
-        D::Boolean(true),
-        (C::Agents, G::Updates),
-        SERVER,
-        "Check the Agent detection-rule catalog that ORCHBEE_AGENT_DETECTION_CATALOG_URL names; nothing is checked without one.",
-    ),
-    key(
         "update.channel",
         V::Choice(&["stable", "preview"]),
         D::Text("stable"),

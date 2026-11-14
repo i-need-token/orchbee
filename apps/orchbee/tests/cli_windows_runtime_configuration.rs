@@ -58,7 +58,6 @@ fn reload_rejections_and_lost_reply_have_closed_typed_receipts_without_replay() 
                     "{hostname}: {workspace}"
                 }
                 .into(),
-                manifest_check: false,
                 focus_new_panel: true,
                 worktrees_directory: None,
                 new_cwd: "follow".into(),
@@ -151,12 +150,6 @@ fn reload_rejections_and_lost_reply_have_closed_typed_receipts_without_replay() 
                 include_str!("../src/cli/schemas/orchbee.server.configuration.json"),
             );
             assert_eq!(document["version"], 1);
-            if matches!(case, "reload" | "warning") {
-                assert_eq!(
-                    document["result"]["reply"]["outcome"]["snapshot"]["manifestCheck"],
-                    false
-                );
-            }
             if case == "warning" {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"][0]["field"],
@@ -205,7 +198,7 @@ fn public_configuration_requires_complete_current_snapshots() {
         "schema":"orchbee.server.configuration","version":1,"source":{"kind":"local-runtime"},
         "result":{"action":"current","interrupted":false,"cleanupFailed":false,
             "reply":{"protocolVersion":1,"requestId":"00000000000000000000000000000001","sessionId":"00000000000000000000000000000002",
-                "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,
+                "outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]",
                     "windowTitle":"{tab}","notificationProfile":"[notifications]",
                     "agentSidebarProfile":"{}","spacesSidebarProfile":"{}",
                     "focusNewPanel":true,"worktreesDirectory":null,"newCwd":"follow",

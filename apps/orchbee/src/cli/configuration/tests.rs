@@ -24,11 +24,8 @@ fn shared_path_budget_matches_wire_and_cli_failure_preserves_field() {
         orchbee_local_runtime::USER_PATH_LIMIT,
         orchbee_workbench_protocol::MAXIMUM_DIRECTORY_PATH_BYTES
     );
-    let error = Error::from(SettingsError::new(
-        "agent_detection.auto_update",
-        "wrong-type",
-    ));
-    assert_eq!(error.field, "agent_detection.auto_update");
+    let error = Error::from(SettingsError::new("update.channel", "wrong-type"));
+    assert_eq!(error.field, "update.channel");
     assert_eq!(error.reason, "wrong-type");
 }
 

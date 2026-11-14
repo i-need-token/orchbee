@@ -15,7 +15,6 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
         spaces_sidebar_profile: orchbee_local_runtime::SpaceSidebarSettings::default().profile(),
         window_title: "{hostname}: {workspace}".into(),
-        manifest_check: true,
         focus_new_panel: true,
         worktrees_directory: None,
         new_cwd: "follow".into(),

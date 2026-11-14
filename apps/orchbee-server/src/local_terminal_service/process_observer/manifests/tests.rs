@@ -3,63 +3,6 @@ mod automatic;
 mod update;
 
 use super::*;
-#[test]
-fn configuration_apply_changes_live_schedule_but_refuses_active_or_stopped_maintenance() {
-    let registry = Registry::default();
-    let startup = UserSettings::default();
-    registry
-        .initialize_settings(
-            None,
-            &startup,
-            &ScreenDetector::bundled().unwrap(),
-            Ok(None),
-            true,
-            true,
-        )
-        .unwrap();
-    let disabled = UserSettings {
-        manifest_check: false,
-        manifest_check_source: "file",
-        ..startup.clone()
-    };
-    assert!(registry.apply_configuration(&disabled));
-    {
-        let mut slot = registry.0.lock().unwrap();
-        let state = slot.as_mut().unwrap();
-        assert!(!state.schedule.as_ref().unwrap().project(true).enabled);
-        state.active = Some(Owner::Automatic);
-    }
-    assert!(!registry.apply_configuration(&startup));
-    {
-        let mut slot = registry.0.lock().unwrap();
-        let state = slot.as_mut().unwrap();
-        assert!(!state.schedule.as_ref().unwrap().project(true).enabled);
-        state.active = None;
-    }
-    assert!(registry.apply_configuration(&startup));
-    assert!(
-        registry
-            .0
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .schedule
-            .as_ref()
-            .unwrap()
-            .project(true)
-            .enabled
-    );
-    {
-        let _maintenance = registry.0.lock().unwrap();
-        assert!(
-            !registry.apply_configuration(&disabled),
-            "configuration admission must not wait behind manifest maintenance"
-        );
-    }
-    registry.cancel();
-    assert!(!registry.apply_configuration(&disabled));
-}
 fn id(n: u64) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
 }

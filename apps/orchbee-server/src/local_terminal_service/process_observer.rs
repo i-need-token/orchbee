@@ -66,12 +66,6 @@ pub(super) struct ProcessObserver {
     handle: Mutex<Option<JoinHandle<()>>>,
 }
 impl ProcessObserver {
-    pub(super) fn apply_configuration(
-        &self,
-        settings: &orchbee_local_runtime::UserSettings,
-    ) -> bool {
-        self.wake.manifests.apply_configuration(settings)
-    }
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
         self.wake.cancel_reads();
@@ -96,7 +90,6 @@ impl ProcessObserver {
         if handle.is_some() {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
-        let settings = &current.settings;
         // Detection rules live in the data root, whichever settings file the Session reads.
         let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
             .ok()
@@ -111,21 +104,15 @@ impl ProcessObserver {
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
         // can become visible. Installation remains after manifest initialization so a later
         // manifest failure cannot leave the configuration owner half-started.
-        let configuration = super::configuration::Registry::prepare_initial(&current, true)?;
-        self.wake.manifests.initialize_settings(
+        let configuration = super::configuration::Registry::prepare_initial(&current)?;
+        self.wake.manifests.initialize_scheduled(
             root,
-            settings,
             &detector,
             source,
             background,
             !cfg!(debug_assertions) && !cfg!(test),
         )?;
         service.configuration.install_initial(configuration)?;
-        if !service.apply_configuration(settings) {
-            return Err(io::Error::other(
-                "Configuration launch policy is unavailable",
-            ));
-        }
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
         let spawned = thread::Builder::new()

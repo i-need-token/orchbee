@@ -20,8 +20,6 @@ pub(super) struct Settings {
     pub(super) exists: bool,
     cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
     worktree_root: Option<WorkbenchDirectoryPath>,
-    manifest_check: bool,
-    manifest_check_source: &'static str,
     pub(super) diagnostics: SettingsDiagnostics,
 }
 
@@ -162,8 +160,6 @@ fn project(load: UserSettingsLoad) -> Result<Settings, Error> {
             .worktree_root
             .map(|value| path(value, "worktrees.directory"))
             .transpose()?,
-        manifest_check: raw.manifest_check,
-        manifest_check_source: raw.manifest_check_source,
         diagnostics,
     })
 }
@@ -220,11 +216,6 @@ impl Settings {
                 let bindings = crate::client_view::Bindings::configured(&self.keys);
                 crate::client_view::format_configuration_binding(&bindings.prefix).into()
             }),
-            ("manifestCheck".into(), self.manifest_check.into()),
-            (
-                "manifestCheckSource".into(),
-                self.manifest_check_source.into(),
-            ),
             (
                 "path".into(),
                 serde_json::json!(self.path.as_ref().and_then(|path| path.to_str())),

@@ -87,8 +87,6 @@ pub struct UserSettings {
     pub explicit: bool,
     pub update_channel: UpdateChannel,
     pub update_channel_source: &'static str,
-    pub manifest_check: bool,
-    pub manifest_check_source: &'static str,
     pub cwd: Option<(DirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
     /// The common values both Clients present, as the file gives them.
@@ -203,8 +201,6 @@ impl Default for UserSettings {
             explicit: false,
             update_channel: UpdateChannel::Stable,
             update_channel_source: "default",
-            manifest_check: true,
-            manifest_check_source: "default",
             cwd: None,
             worktree_root: None,
             values: UserSettingsValues::default(),
@@ -479,10 +475,6 @@ fn parse(text: &str, path: &Path, env: &impl Fn(&str) -> Option<OsString>) -> Us
             Some(_) => fields.push("update.channel", "invalid-channel"),
             None => fields.push("update.channel", "wrong-type"),
         }
-    }
-    if let Some(value) = fields.boolean("agent_detection.auto_update") {
-        settings.manifest_check = value;
-        settings.manifest_check_source = "file";
     }
     let launch_profiles = launch_profiles::parse(&mut fields);
     let lookup = std::cell::RefCell::new(&mut fields);

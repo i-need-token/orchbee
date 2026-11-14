@@ -82,7 +82,6 @@
 				"revision",
 				"diagnostics",
 				"keysProfile",
-				"manifestCheck",
 				"windowTitle",
 				"notificationProfile",
 				"agentSidebarProfile",
@@ -106,9 +105,6 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 65536
-				},
-				"manifestCheck": {
-					"type": "boolean"
 				},
 				"windowTitle": {
 					"type": "string",

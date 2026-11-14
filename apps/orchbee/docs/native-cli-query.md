@@ -2815,9 +2815,8 @@ from `ORCHBEE_AGENT_DETECTION_CATALOG_URL`; there is no default. Without it, or 
 invalid value, Update is unavailable, no check runs, the remote cache is ignored and the catalog reads
 `not configured` or reports the source error, while bundled and local rules remain usable. The source
 is frozen at Session startup. With a catalog, managed release Sessions automatically check at startup and
-every thirty minutes when `agent_detection.auto_update` is true (default). Debug/test and standalone
-execution do not schedule checks. Only configuration publication (the Session's sampler or
-`config reload`) changes this switch; rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
+every thirty minutes; no setting turns this off. Debug/test and standalone
+execution do not schedule checks. Rule Reload never reads `config.toml`, and a failed rule installation preserves the previous detector. Automatic results use
 a separate latest-result slot without consuming manual receipts.
 `server status <operation-id>` reads either retained receipt without resubmitting.
 These commands require an already running Session and do not focus a Client or send terminal input.
@@ -2834,8 +2833,8 @@ cross-kind reuse fails. One Reload/Update is active at a time, with 1,024 retain
 Session generation and no eviction. Restart ends receipt scope; the last cache report remains on disk.
 
 `orchbee.server.agent-manifests` v1 includes Update, maintenance
-metadata, update reports and unknown-effect receipts. v1 adds automatic policy gates, settings
-provenance and the latest automatic operation. Reports show attempted/cached versions and
+metadata, update reports and unknown-effect receipts. v1 adds automatic policy gates and the
+latest automatic operation. Reports show attempted/cached versions and
 per-provider failures separately from activation revision/failure. Text is localized and escaped.
 The offline catalog lists the current documents and command paths. The Server
 [installed-manifest maintenance contract](../../orchbee-server/docs/agent-screen-model.md#installed-manifest-maintenance)
