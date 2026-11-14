@@ -579,6 +579,30 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resize'],
 		description: 'Action that opens keyboard resizing for the active Workbench panel.',
 	},
+	panelResizeDown: {
+		id: 'workbench.panels.actions.resizeDown',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resizeDown'],
+		description:
+			'Action that moves the divider beside the active Workbench panel down by one 5% step, as the TUI does.',
+	},
+	panelResizeLeft: {
+		id: 'workbench.panels.actions.resizeLeft',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resizeLeft'],
+		description:
+			'Action that moves the divider beside the active Workbench panel left by one 5% step, as the TUI does.',
+	},
+	panelResizeRight: {
+		id: 'workbench.panels.actions.resizeRight',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resizeRight'],
+		description:
+			'Action that moves the divider beside the active Workbench panel right by one 5% step, as the TUI does.',
+	},
+	panelResizeUp: {
+		id: 'workbench.panels.actions.resizeUp',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resizeUp'],
+		description:
+			'Action that moves the divider beside the active Workbench panel up by one 5% step, as the TUI does.',
+	},
 	panelResizeDescription: {
 		id: 'workbench.panels.resize.description',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.description'],
@@ -646,6 +670,12 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.panels.unavailable.multipleRequired',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.multipleRequired'],
 		description: 'Reason a Workbench Panel action is disabled: the active Tab has only one Panel.',
+	},
+	panelUnavailableNoDivider: {
+		id: 'workbench.panels.unavailable.noDivider',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.noDivider'],
+		description:
+			'Reason a Workbench Panel divider action is disabled: no divider beside the focused Panel runs across that direction.',
 	},
 	panelUnavailableNoneAbove: {
 		id: 'workbench.panels.unavailable.noneAbove',

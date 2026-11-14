@@ -63,6 +63,10 @@ export const WORKBENCH_ACTION_IDS = {
 	removeProject: 'workbench.project.dissolve',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 	resizeActivePanel: 'workbench.panel.active.resize',
+	resizeActivePanelDown: 'workbench.panel.active.resize-down',
+	resizeActivePanelLeft: 'workbench.panel.active.resize-left',
+	resizeActivePanelRight: 'workbench.panel.active.resize-right',
+	resizeActivePanelUp: 'workbench.panel.active.resize-up',
 	renameProject: 'workbench.project.rename',
 	reorderProject: 'workbench.project.reorder',
 	reorderWorkspace: 'workbench.workspace.reorder',
@@ -320,6 +324,10 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanel]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelDown]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelRight]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderProject]: ActionSignature<WorkbenchProjectReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;

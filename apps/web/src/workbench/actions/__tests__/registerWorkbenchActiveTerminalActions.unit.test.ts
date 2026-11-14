@@ -21,10 +21,12 @@ import {
 import {
 	PANEL_ACTION_IDS,
 	panelCloseInput,
+	panelResizeInput,
 	panelSwapInput,
 	panelTargetInput,
 	panelVisualSelectionInput,
 	type PanelCloseInput,
+	type PanelResizeInput,
 	type PanelSwapInput,
 	type PanelTargetInput,
 	type PanelVisualSelectionInput,
@@ -129,6 +131,48 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 			kind: 'completed',
 		});
 		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: fixturePanelId(1) });
+	});
+
+	it('moves the divider beside the active Panel the way the arrow points', async () => {
+		const harness = createHarness(2);
+		const lowerExecute = vi.fn<(input: PanelResizeInput) => void>();
+		const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
+		harness.runtime.register(
+			panelScope,
+			defineAction({
+				category: { id: 'panels', title: { defaultMessage: 'Panels' } },
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: (input) => input.panelId,
+					mode: 'foreground',
+				},
+				getAvailability: () => ({ kind: 'enabled' }),
+				handler: {
+					execute: (context, input) => {
+						lowerExecute(input);
+						context.markCommitted();
+						return { kind: 'completed' };
+					},
+				},
+				id: PANEL_ACTION_IDS.resize,
+				input: panelResizeInput,
+				title: { defaultMessage: 'Resize panel' },
+			}),
+		);
+
+		// The focused Panel is the right one, so its divider sits on its left side.
+		await harness.execute(WORKBENCH_ACTION_IDS.resizeActivePanelLeft);
+		await harness.execute(WORKBENCH_ACTION_IDS.resizeActivePanelRight);
+		expect(lowerExecute.mock.calls.map(([input]) => input.adjustment)).toEqual([
+			'wider',
+			'narrower',
+		]);
+		expect(
+			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.resizeActivePanelUp, undefined, {
+				scope: harness.scope,
+				source: 'keyboard',
+			}),
+		).toMatchObject({ availability: { kind: 'disabled' } });
 	});
 
 	it('routes equalization to the exact active Panel and preserves an unchanged result', async () => {

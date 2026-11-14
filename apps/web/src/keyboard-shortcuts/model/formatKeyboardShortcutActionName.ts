@@ -114,6 +114,14 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.resetTerminalFontSize);
 		case 'resize-panel':
 			return intl.formatMessage(keyboardShortcutMessages.resizePanel);
+		case 'resize-panel-down':
+			return intl.formatMessage(keyboardShortcutMessages.resizePanelDown);
+		case 'resize-panel-left':
+			return intl.formatMessage(keyboardShortcutMessages.resizePanelLeft);
+		case 'resize-panel-right':
+			return intl.formatMessage(keyboardShortcutMessages.resizePanelRight);
+		case 'resize-panel-up':
+			return intl.formatMessage(keyboardShortcutMessages.resizePanelUp);
 		case 'swap-panel-visible':
 			return intl.formatMessage(keyboardShortcutMessages.swapPanelVisible);
 		case 'select-tab':

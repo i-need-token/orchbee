@@ -346,6 +346,70 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-resize',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('resize-down'),
+				handler: { execute: execute('resize-down') },
+				id: WORKBENCH_ACTION_IDS.resizeActivePanelDown,
+				input: noActionInput,
+				title: workbenchMessages.panelResizeDown,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-resize',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('resize-left'),
+				handler: { execute: execute('resize-left') },
+				id: WORKBENCH_ACTION_IDS.resizeActivePanelLeft,
+				input: noActionInput,
+				title: workbenchMessages.panelResizeLeft,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-resize',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('resize-right'),
+				handler: { execute: execute('resize-right') },
+				id: WORKBENCH_ACTION_IDS.resizeActivePanelRight,
+				input: noActionInput,
+				title: workbenchMessages.panelResizeRight,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-resize',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('resize-up'),
+				handler: { execute: execute('resize-up') },
+				id: WORKBENCH_ACTION_IDS.resizeActivePanelUp,
+				input: noActionInput,
+				title: workbenchMessages.panelResizeUp,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-focus-down',
 					mode: 'foreground',
 				},
@@ -505,6 +569,8 @@ function activeTerminalUnavailableReason(
 			return workbenchMessages.panelUnavailableFocusedPanelRequired;
 		case 'directional-neighbor-unavailable':
 			return NO_PANEL_MESSAGE_BY_DIRECTION[resolution.direction];
+		case 'divider-unavailable':
+			return workbenchMessages.panelUnavailableNoDivider;
 		case 'panel-maximized':
 			return workbenchMessages.panelUnavailableMaximized;
 		case 'requires-multiple-panels':

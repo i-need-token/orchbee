@@ -41,6 +41,10 @@ those surfaces owns another binding copy.
 | `workbench.panel.active.equalize`             | Active panel                      | `Ctrl+Cmd+=`             | `Ctrl+Alt+=`           |
 | `workbench.panel.active.maximization.toggle`  | Active panel                      | `Cmd+Shift+Enter`        | `Ctrl+Shift+Enter`     |
 | `workbench.panel.active.resize`               | Active panel                      | `Cmd+R`                  | `Ctrl+Shift+R`         |
+| `workbench.panel.active.resize-left`          | Active panel                      | `Ctrl+Cmd+Left`          | `Alt+Shift+Left`       |
+| `workbench.panel.active.resize-right`         | Active panel                      | `Ctrl+Cmd+Right`         | `Alt+Shift+Right`      |
+| `workbench.panel.active.resize-up`            | Active panel                      | `Ctrl+Cmd+Up`            | `Alt+Shift+Up`         |
+| `workbench.panel.active.resize-down`          | Active panel                      | `Ctrl+Cmd+Down`          | `Alt+Shift+Down`       |
 | `workbench.panel.active.split-right`          | Active panel                      | `Cmd+D`                  | `Ctrl+Shift+D`         |
 | `workbench.panel.active.split-below`          | Active panel                      | `Cmd+Shift+D`            | `Ctrl+Shift+E`         |
 | `workbench.search.all.open`                   | Workbench                         | `Cmd+Shift+F`            | `Ctrl+Shift+K`         |
@@ -87,6 +91,8 @@ Last Panel uses `Ctrl+Shift+;` on both platforms, the TUI's `Ctrl+B ;` with the 
 Visible Panel focus and swap use `Ctrl+Shift+F7` and `Ctrl+Shift+F8`. Two Panels select the other Panel immediately; larger layouts use a source-excluding alphanumeric selector. Workbench owns order, multi-character labels, stale cancellation and Action delegation. Rename Tab uses Apple `Shift+Cmd+I` and Standard `Ctrl+Shift+Alt+T`, sharing one semantic Action with the Tab menu's Rename row and Action search.
 
 Resize Panel uses Apple `Cmd+R` and Standard `Ctrl+Shift+R`. The modal uses `W` wider, `N` narrower, `T` taller, `S` shorter, `R` reset and Escape exit. Steps are five percentage points, doubled by Control, retaining at least five percent per branch; reset gives every split equal child weights.
+
+Move Panel Divider Left, Right, Up and Down use Standard `Alt+Shift+Arrow`, Windows Terminal's pane-resize chord, and Apple `Ctrl+Cmd+Arrow`, because `Option+Shift+Arrow` extends a text selection by word there. Each press moves the divider nearest the focused Panel on that axis one five-point step in the arrow's direction, whichever side of it the Panel is on, as the TUI's resize actions do; a held chord repeats. With no divider on that axis, or while a Panel is maximized, the chord falls through.
 
 Equalize Panels uses Apple `Control+Command+=` and Standard `Ctrl+Alt+=`. Same-axis nested Panels receive equal normalized extents; a perpendicular subtree counts as one parent-axis unit and is recursively equalized on its own axis. This differs from resize mode's `R`, which gives each binary split equal child weights.
 
@@ -368,6 +374,11 @@ Action search and the current configurable shortcut open the same mode; the pane
 resizing to them and to dragging a divider, as the TUI's pane menu does. Electron keeps native Reload and Force Reload menu commands clickable but does not register
 their accelerators, allowing the renderer-owned current binding to resolve first.
 
+A divider move resolves the nearest split on the arrow's axis that holds the exact focused Panel and
+prepares the lower `workbench.panel.resize` Action with the matching size change. The Server keeps
+every child at least ten percent; a move that would pass that limit is an available `unchanged`
+result that still consumes the key, so a held chord stops at the limit without reaching the shell.
+
 ## Shortcut settings discovery model
 
 - **Problem and inputs:** The Settings catalog contains enough shortcuts that scanning every row is
@@ -506,6 +517,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host conne
 | Directional movement swaps exact neighboring leaves and retains source focus                                  | Model, bounded exploration, Action, shortcut, and Settings tests                            |
 | Equalization assigns proportional same-axis Panel extents without identity changes                            | Model, generated layouts, Action, menu, shortcut, and Settings tests                        |
 | Keyboard resize targets the nearest matching split and revalidates captured identity                          | Resolver, state, Action, React, Settings, and menu tests                                    |
+| Divider moves follow the arrow on the nearest same-axis split and fall through without one                    | Resolver and prepared Action tests                                                          |
 | Positional selection follows canonical Tab order and falls through out of range                               | Grouped and pinned Action integration plus shortcut dispatch tests                          |
 | Adjacent selection follows canonical Tab order and wraps only with multiple Tabs                              | Pure resolver, prepared Action integration, and shortcut fallthrough tests                  |
 | Active-Tab movement wraps within its pin partition through one lower Action                                   | Pure resolver, prepared Action integration, and shortcut/settings tests                     |

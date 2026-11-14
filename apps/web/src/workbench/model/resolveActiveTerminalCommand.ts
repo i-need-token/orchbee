@@ -1,6 +1,7 @@
 import {
 	PANEL_ACTION_IDS,
 	type PanelCloseInput,
+	type PanelResizeInput,
 	type PanelSplitInput,
 	type PanelSwapInput,
 	type PanelTargetInput,
@@ -21,6 +22,10 @@ import {
 	type PanelFocusCycleDirection,
 } from '../components/workbench-panel-workspace/model/resolveCyclicPanelFocus';
 import {
+	panelResizeAdjustmentToward,
+	type PanelResizeDirection,
+} from '../components/workbench-panel-workspace/model/panelResizeAdjustmentToward';
+import {
 	startPanelVisualSelection,
 	type PanelVisualSelectionMode,
 	type PanelVisualSelectionStartResult,
@@ -40,6 +45,10 @@ export type ActiveTerminalCommand =
 	| 'move-left'
 	| 'move-right'
 	| 'move-up'
+	| 'resize-down'
+	| 'resize-left'
+	| 'resize-right'
+	| 'resize-up'
 	| 'start-resize'
 	| 'split-above'
 	| 'split-below'
@@ -73,6 +82,15 @@ const PANEL_MOVE_DIRECTION_BY_COMMAND = {
 	'move-up': 'up',
 } as const satisfies Readonly<
 	Record<Extract<ActiveTerminalCommand, `move-${string}`>, PanelFocusDirection>
+>;
+
+const PANEL_RESIZE_DIRECTION_BY_COMMAND = {
+	'resize-down': 'down',
+	'resize-left': 'left',
+	'resize-right': 'right',
+	'resize-up': 'up',
+} as const satisfies Readonly<
+	Record<Extract<ActiveTerminalCommand, `resize-${string}`>, PanelResizeDirection>
 >;
 
 const PANEL_FOCUS_CYCLE_DIRECTION_BY_COMMAND = {
@@ -125,6 +143,12 @@ export type ActiveTerminalCommandResolution =
 			readonly panelId: string;
 	  }
 	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.resize;
+			readonly input: PanelResizeInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
+	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.startResize;
 			readonly input: PanelTargetInput;
 			readonly kind: 'ready';
@@ -158,6 +182,7 @@ export type ActiveTerminalCommandResolution =
 			readonly kind: 'unavailable';
 			readonly reason:
 				| 'active-tab-unavailable'
+				| 'divider-unavailable'
 				| 'panel-maximized'
 				| 'panel-unavailable'
 				| 'requires-multiple-panels';
@@ -212,6 +237,28 @@ export function resolveActiveTerminalCommand({
 						kind: 'ready',
 						panelId,
 					};
+		case 'resize-down':
+		case 'resize-left':
+		case 'resize-right':
+		case 'resize-up': {
+			if (activeTab.maximizedPanelId !== null) {
+				return { kind: 'unavailable', reason: 'panel-maximized' };
+			}
+			// With no divider on that axis the chord stays free; at a size limit it still applies and settles.
+			const adjustment = panelResizeAdjustmentToward(
+				activeTab.root,
+				panelId,
+				PANEL_RESIZE_DIRECTION_BY_COMMAND[command],
+			);
+			return adjustment === null
+				? { kind: 'unavailable', reason: 'divider-unavailable' }
+				: {
+						actionId: PANEL_ACTION_IDS.resize,
+						input: { adjustment, multiplier: 1, panelId },
+						kind: 'ready',
+						panelId,
+					};
+		}
 		case 'start-resize':
 			return {
 				actionId: PANEL_ACTION_IDS.startResize,

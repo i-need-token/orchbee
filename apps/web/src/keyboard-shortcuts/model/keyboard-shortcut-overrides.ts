@@ -147,6 +147,18 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.resizeActivePanelDown.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.resizeActivePanelDown.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.resizeActivePanelLeft.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.resizeActivePanelLeft.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.resizeActivePanelRight.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.resizeActivePanelRight.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.resizeActivePanelUp.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.resizeActivePanelUp.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.selectNextTab.shortcutId,
 		),

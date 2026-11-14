@@ -46,6 +46,10 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.openAgentStart
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.resizeActivePanel
+		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelDown
+		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelLeft
+		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelRight
+		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.selectNextTab
 		| typeof WORKBENCH_ACTION_IDS.selectPreviousTab
 		| typeof WORKBENCH_ACTION_IDS.selectTabByPosition
@@ -354,6 +358,44 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanel,
 	},
+	// Windows Terminal's pane-resize chord; macOS takes Control+Command because Option+Shift+Arrow
+	// extends a text selection by word there.
+	resizeActivePanelDown: {
+		defaults: {
+			apple: chord('ArrowDown', ['control', 'mod']),
+			standard: chord('ArrowDown', ['alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.resizeActivePanelDown,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanelDown,
+	},
+	resizeActivePanelLeft: {
+		defaults: {
+			apple: chord('ArrowLeft', ['control', 'mod']),
+			standard: chord('ArrowLeft', ['alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.resizeActivePanelLeft,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanelLeft,
+	},
+	resizeActivePanelRight: {
+		defaults: {
+			apple: chord('ArrowRight', ['control', 'mod']),
+			standard: chord('ArrowRight', ['alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.resizeActivePanelRight,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanelRight,
+	},
+	resizeActivePanelUp: {
+		defaults: {
+			apple: chord('ArrowUp', ['control', 'mod']),
+			standard: chord('ArrowUp', ['alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.resizeActivePanelUp,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanelUp,
+	},
 	selectNextTab: {
 		defaults: {
 			apple: chord('BracketRight', ['mod', 'shift']),
@@ -490,6 +532,10 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'search',
 	'resetTerminalFontSize',
 	'resizeActivePanel',
+	'resizeActivePanelDown',
+	'resizeActivePanelLeft',
+	'resizeActivePanelRight',
+	'resizeActivePanelUp',
 	'selectNextTab',
 	'selectPreviousTab',
 	'selectTab1',
@@ -617,6 +663,14 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('resetTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resizeActivePanel:
 			return formatWorkbenchShortcut('resizeActivePanel', platform, bindings);
+		case WORKBENCH_ACTION_IDS.resizeActivePanelDown:
+			return formatWorkbenchShortcut('resizeActivePanelDown', platform, bindings);
+		case WORKBENCH_ACTION_IDS.resizeActivePanelLeft:
+			return formatWorkbenchShortcut('resizeActivePanelLeft', platform, bindings);
+		case WORKBENCH_ACTION_IDS.resizeActivePanelRight:
+			return formatWorkbenchShortcut('resizeActivePanelRight', platform, bindings);
+		case WORKBENCH_ACTION_IDS.resizeActivePanelUp:
+			return formatWorkbenchShortcut('resizeActivePanelUp', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSearch:
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
@@ -746,6 +800,14 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId]:
 			WORKBENCH_SHORTCUTS.resizeActivePanel.defaults[platform],
+		[WORKBENCH_SHORTCUTS.resizeActivePanelDown.shortcutId]:
+			WORKBENCH_SHORTCUTS.resizeActivePanelDown.defaults[platform],
+		[WORKBENCH_SHORTCUTS.resizeActivePanelLeft.shortcutId]:
+			WORKBENCH_SHORTCUTS.resizeActivePanelLeft.defaults[platform],
+		[WORKBENCH_SHORTCUTS.resizeActivePanelRight.shortcutId]:
+			WORKBENCH_SHORTCUTS.resizeActivePanelRight.defaults[platform],
+		[WORKBENCH_SHORTCUTS.resizeActivePanelUp.shortcutId]:
+			WORKBENCH_SHORTCUTS.resizeActivePanelUp.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]:
 			WORKBENCH_SHORTCUTS.selectNextTab.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId]:

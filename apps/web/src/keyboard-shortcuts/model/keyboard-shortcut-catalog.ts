@@ -91,6 +91,10 @@ type KeyboardShortcutName =
 	| 'previous-tab'
 	| 'reset-terminal-font-size'
 	| 'resize-panel'
+	| 'resize-panel-down'
+	| 'resize-panel-left'
+	| 'resize-panel-right'
+	| 'resize-panel-up'
 	| 'scroll-line-down'
 	| 'scroll-line-up'
 	| 'scroll-page-down'
@@ -515,6 +519,46 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'resize-panel',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.resizeActivePanelLeft.id,
+		actionInput: WORKBENCH_SHORTCUTS.resizeActivePanelLeft.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.resizeActivePanelLeft.defaults,
+		feature: 'workbench',
+		name: 'resize-panel-left',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.resizeActivePanelLeft.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.resizeActivePanelRight.id,
+		actionInput: WORKBENCH_SHORTCUTS.resizeActivePanelRight.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.resizeActivePanelRight.defaults,
+		feature: 'workbench',
+		name: 'resize-panel-right',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.resizeActivePanelRight.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.resizeActivePanelUp.id,
+		actionInput: WORKBENCH_SHORTCUTS.resizeActivePanelUp.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.resizeActivePanelUp.defaults,
+		feature: 'workbench',
+		name: 'resize-panel-up',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.resizeActivePanelUp.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.resizeActivePanelDown.id,
+		actionInput: WORKBENCH_SHORTCUTS.resizeActivePanelDown.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.resizeActivePanelDown.defaults,
+		feature: 'workbench',
+		name: 'resize-panel-down',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.resizeActivePanelDown.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.splitActivePanelRight.id,
