@@ -126,8 +126,9 @@ fn session_start_cold_then_warm_reports_the_actual_branch() -> TestResult {
 fn creating_command_starts_the_absent_session_unless_routed() -> TestResult {
     let _guard = process_witness_guard();
     let fixture = Fixture::new();
-    let cwd = fixture.base.to_str().expect("fixture base is UTF-8");
-    let create = ["workspace", "create", "--cwd", cwd, "--format", "json"];
+    // Unix admits `workspace create` only into an existing Project, so the first creating command
+    // a fresh Session can take here is `project create`.
+    let create = |label: &'static str| ["project", "create", "--label", label, "--format", "json"];
 
     // A routed command runs where the route already made a Session ready: it never starts one.
     let routed = crate::support::orchbee_command(
@@ -135,7 +136,7 @@ fn creating_command_starts_the_absent_session_unless_routed() -> TestResult {
             .cohort
             .join(crate::support::staged_artifact_name("orchbee")),
     )
-    .args(create)
+    .args(create("routed"))
     .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
     .env("ORCHBEE_ROUTED_COMMAND", "1")
     .env("LANG", "en_US.UTF-8")
@@ -149,21 +150,21 @@ fn creating_command_starts_the_absent_session_unless_routed() -> TestResult {
     assert!(fixture.processes("orchbee-server").is_empty());
 
     // The first creating command starts the Session and says so on standard error only.
-    let (output, document) = run_json(&fixture, &create);
+    let (output, document) = run_json(&fixture, &create("first"));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.starts_with("Local session started.\n"), "{stderr}");
-    assert_eq!(document["schema"], "orchbee.workspace.creation", "{stderr}");
+    assert_eq!(document["schema"], "orchbee.mutation.result", "{stderr}");
     assert_server_running(&fixture);
     let server_pid = fixture.processes("orchbee-server")[0];
 
     // A running Session is used as it is: no second Server and no line.
-    let (output, document) = run_json(&fixture, &create);
+    let (output, document) = run_json(&fixture, &create("second"));
     assert!(
         !String::from_utf8_lossy(&output.stderr).contains("Local session started."),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(document["schema"], "orchbee.workspace.creation");
+    assert_eq!(document["schema"], "orchbee.mutation.result");
     assert_eq!(fixture.processes("orchbee-server"), vec![server_pid]);
     let output = run_cli(&fixture, &["status"]);
     assert_eq!(output.status.code(), Some(0));
