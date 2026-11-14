@@ -35,7 +35,7 @@ jobs:
           ORCHBEE_ZIG_SHA256: 70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
           ORCHBEE_ZIG_URL: https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
         run: |
-          curl --fail --location --silent --show-error "$ORCHBEE_ZIG_URL" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$ORCHBEE_ZIG_URL" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
           echo "$ORCHBEE_ZIG_SHA256  $RUNNER_TEMP/orchbee-zig.tar.xz" | sha256sum --check --strict
           mkdir -p "$RUNNER_TEMP/orchbee-zig"
           tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
@@ -127,7 +127,7 @@ jobs:
           $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
           $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
           $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
-          curl.exe --fail --location --silent --show-error $zigUrl --output $archive
+          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors $zigUrl --output $archive
           $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
           if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
           Expand-Archive -Path $archive -DestinationPath $destination
@@ -144,7 +144,7 @@ jobs:
         working-directory: apps/terminal-host
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
-          curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
+          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
           $hash = zig fetch $archive
           if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
 
@@ -194,7 +194,7 @@ jobs:
               exit 1
               ;;
           esac
-          curl --fail --location --silent --show-error "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
           echo "$zig_sha256  $RUNNER_TEMP/orchbee-zig.tar.xz" | shasum -a 256 -c
           mkdir -p "$RUNNER_TEMP/orchbee-zig"
           tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
@@ -209,7 +209,7 @@ jobs:
           $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
           $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
           $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
-          curl.exe --fail --location --silent --show-error $zigUrl --output $archive
+          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors $zigUrl --output $archive
           $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
           if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
           Expand-Archive -Path $archive -DestinationPath $destination
@@ -227,7 +227,7 @@ jobs:
         working-directory: apps/terminal-host
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'arocc.tar.gz'
-          curl.exe --fail --location --silent --show-error 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
+          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors 'https://github.com/vancluever/arocc/archive/ecbc5c799574e0da2758a961b12efa586007f03c.tar.gz' --output $archive
           $hash = zig fetch $archive
           if ($hash -ne 'aro-0.0.0-JSD1Qk8rOQDnuVcD4jAwMpHitA6pADRKzQ7M7hKRwxvD') { throw "Unexpected arocc package hash: $hash" }
 
