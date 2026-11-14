@@ -95,10 +95,7 @@ describe('projected terminal shortcuts', () => {
 		expect(previous.preventDefault).toHaveBeenCalledOnce();
 		expect(next.preventDefault).toHaveBeenCalledOnce();
 
-		harness.keyDown(
-			{ ...baseEvent, code: 'ArrowUp', metaKey: true },
-			harness.findNode,
-		);
+		harness.keyDown({ ...baseEvent, code: 'ArrowUp', metaKey: true }, harness.findNode);
 		expect(harness.invoke).toHaveBeenCalledTimes(2);
 	});
 
