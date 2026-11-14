@@ -9,16 +9,6 @@ struct Conflict {
 
 const CONFLICTS: &[Conflict] = &[
     Conflict {
-        commands: &[CommandPath::MachineList],
-        flags: &["--json"],
-        incompatible: &["--format"],
-    },
-    Conflict {
-        commands: &[CommandPath::MachineList],
-        flags: &["--format"],
-        incompatible: &["--json"],
-    },
-    Conflict {
         commands: &[CommandPath::PluginLink],
         flags: &["--enabled"],
         incompatible: &["--disabled"],

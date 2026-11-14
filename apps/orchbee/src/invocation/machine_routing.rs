@@ -52,15 +52,9 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             });
         }
     }
-    let Some(first) = tokens.first() else {
-        return scan(tokens);
-    };
-    let (selector, skip) = if first == "--machine" {
-        (tokens.get(1).cloned().unwrap_or_default(), 2)
-    } else if let Some(value) = first.strip_prefix("--machine=") {
-        (value.to_owned(), 1)
-    } else {
-        return scan(tokens);
+    let mut arguments = tokens;
+    let Some(selector) = take_machine(&mut arguments)? else {
+        return scan(arguments);
     };
     if !super::machines::valid_selector(&selector) {
         return Err(usage_with(
@@ -70,7 +64,6 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             FailureEnvelope::Text,
         ));
     }
-    let arguments = tokens.into_iter().skip(skip).collect::<Vec<_>>();
     if arguments.len() > 1024 {
         return Err(usage_with(
             UsageReason::ArgumentEnvelope,
@@ -160,6 +153,50 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             input,
         }),
     })
+}
+
+/// Takes `--machine <selector>` or `--machine=<selector>` from anywhere before `--`, as `--session`
+/// is accepted anywhere, with the option scan's value ownership so an option's value is never read
+/// as the prefix. Removes it and returns the selector, or leaves every token in place when no
+/// `--machine` is given; a second one is a usage failure.
+fn take_machine(tokens: &mut Vec<String>) -> Result<Option<String>, ParseFailure> {
+    let mut found: Option<(usize, usize)> = None;
+    let mut index = 0;
+    while let Some(token) = tokens.get(index) {
+        let token = token.as_str();
+        if token == "--" {
+            break;
+        }
+        let width = if token == "--machine" {
+            2
+        } else if token.starts_with("--machine=") {
+            1
+        } else {
+            index += if scan::owns_value(token) { 2 } else { 1 };
+            continue;
+        };
+        if found.is_some() {
+            return Err(usage_with(
+                UsageReason::DuplicateOption {
+                    option: "--machine",
+                },
+                selection_envelope(format_envelope(tokens)?),
+            ));
+        }
+        found = Some((index, width));
+        index += width;
+    }
+    let Some((start, width)) = found else {
+        return Ok(None);
+    };
+    let end = (start + width).min(tokens.len());
+    let mut taken = tokens.drain(start..end);
+    let flag = taken.next().unwrap_or_default();
+    let selector = match flag.strip_prefix("--machine=") {
+        Some(value) => value.to_owned(),
+        None => taken.next().unwrap_or_default(),
+    };
+    Ok(Some(selector))
 }
 
 /// Whether the parsed arguments spelled `option`, alone or with `=`, before any `--` terminator.

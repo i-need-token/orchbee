@@ -7,7 +7,7 @@ fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
 #[test]
 fn machine_grammar_is_complete_before_any_effect() {
     assert!(matches!(
-        parse(&["machine", "list", "--json"]).unwrap(),
+        parse(&["machine", "list", "--format=json"]).unwrap(),
         Request::Machine {
             command: MachineCommand::List,
             format: OutputFormat::Json
@@ -37,9 +37,7 @@ fn machine_grammar_is_complete_before_any_effect() {
         vec!["machine"],
         vec!["machine", "list", "extra"],
         vec!["machine", "list", "--label", "x"],
-        vec!["machine", "list", "--json", "--format=json"],
-        vec!["machine", "list", "--json", "--json"],
-        vec!["status", "--json"],
+        vec!["machine", "list", "--json"],
         vec!["machine", "add", "host", "--label", " "],
         vec!["machine", "add", "host;calc", "--label", "x"],
         vec![

@@ -999,7 +999,6 @@ struct Options {
     content_revision: Option<String>,
     agent_view_spec: Option<String>,
     remote_session: Option<String>,
-    machine_json: bool,
     plugin_enabled: bool,
     plugin_disabled: bool,
     plugin_id: Option<String>,

@@ -18,7 +18,7 @@ fn document(output: std::process::Output, status: i32) -> Value {
 fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     let fixture = Fixture::new();
     let root = fixture.data_root().state();
-    let list = document(fixture.run(&["machine", "list", "--json"]), 0);
+    let list = document(fixture.run(&["machine", "list", "--format=json"]), 0);
     assert_eq!(list["result"]["profiles"], json!([]));
     assert!(!root.exists());
     let mut cache = PrivateCache::acquire(&root, "machines").unwrap();
@@ -51,7 +51,7 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     let missing = document(fixture.run(&["machine", "remove", ID, "--format=json"]), 3);
     assert_eq!(missing["result"]["error"], "not-found");
     assert_eq!(
-        document(fixture.run(&["machine", "list", "--json"]), 0)["result"]["profiles"],
+        document(fixture.run(&["machine", "list", "--format=json"]), 0)["result"]["profiles"],
         json!([])
     );
     assert!(!fixture.0.join("runtime").exists());
@@ -88,7 +88,7 @@ fn invalid_catalog_and_invalid_grammar_refuse_add_before_ssh_and_preserve_bytes(
             "--label=x",
             "--remote-session=../work",
         ],
-        vec!["machine", "list", "--json", "--format=json"],
+        vec!["machine", "list", "--json"],
     ] {
         assert_eq!(fixture.run(&args).status.code(), Some(2));
     }

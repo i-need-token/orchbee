@@ -473,11 +473,6 @@ impl super::CliText {
                     "Destination tab for the moved panel.",
                     "面板移入的目标标签页。",
                 ),
-                "--json" => (
-                    "",
-                    "Use JSON output; alias for --format json.",
-                    "使用 JSON 输出；等同于 --format json。",
-                ),
                 "--key" => (
                     "<key>",
                     "Semantic key to send; repeatable.",

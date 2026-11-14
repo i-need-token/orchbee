@@ -178,22 +178,6 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         apply: |_, _, _| Ok(()),
     },
     OptionSpec {
-        spelling: "--json",
-        values: &[],
-        closed_values: false,
-        string_rule: None,
-        commands: &[CommandPath::MachineList],
-        role: OptionRole::Business,
-        value: None,
-        repeatable: false,
-        joined: true,
-        help: None,
-        apply: |options, _, _| {
-            options.machine_json = true;
-            Ok(())
-        },
-    },
-    OptionSpec {
         spelling: "--yes",
         values: &[],
         closed_values: false,

@@ -148,7 +148,7 @@ impl super::CliText {
         use crate::invocation::CommandPath as C;
         let (usage, english, chinese) = match path {
             C::MachineList => (
-                "orchbee machine list [--json | --format text|json]",
+                "orchbee machine list [--format text|json]",
                 "Read the saved machine catalog without contacting any machine or creating directories. Enabled is a saved preference, not a live connection observation. A machine a later version saved with a connection kind this version does not know is listed as unsupported.",
                 "读取已保存的机器目录，不连接任何机器，也不创建目录。启用状态是已保存的偏好，不代表实时连接。更新版本保存的、使用此版本不认识的连接方式的机器显示为不支持。",
             ),

@@ -286,9 +286,9 @@ test and released after the last consumer.
 `orchbee --machine <id-or-exact-label> <command>` selects an enabled saved
 machine by the [`<id|label>` rule](#catalog-and-transitions). Selection refuses `not-found`,
 `ambiguous-machine`, and `disabled-machine` with exit 3, and `unsupported-machine`, a connection
-kind this build does not know, with exit 4. The selector
-is a prefix, accepts `--machine=value`, cannot combine with `--session`, and never
-changes the catalog. Help is local. Remote execution admits CLI commands
+kind this build does not know, with exit 4. Like `--session`, the
+option may stand anywhere before `--`, accepts `--machine=value`, may appear once, cannot combine
+with `--session`, and never changes the catalog. An option's value is never read as it. Help is local. Remote execution admits CLI commands
 for workspace, tab, panel, Client queries/control, terminal queries/send, Agent operations, worktrees,
 notifications, runtime configuration, manifests, `server status <id>`, and supported plugin
 operations. Local management, installation, TUI, and terminal interactive streams are refused.

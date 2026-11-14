@@ -838,10 +838,7 @@ impl super::CliText {
                 "Select a local Orchbee session; default: default.",
                 "选择本地 Orchbee 会话；默认 default。",
             ),
-            HelpText::Machine => (
-                "Select a saved SSH machine; place this option first, before the command.",
-                "选择已保存的 SSH 机器；此选项必须放在命令之前的第一个位置。",
-            ),
+            HelpText::Machine => ("Select a saved SSH machine.", "选择已保存的 SSH 机器。"),
             HelpText::Descend => (
                 "Use orchbee <command> -h or orchbee help <command> for details.",
                 "使用 orchbee <command> -h 或 orchbee help <command> 查看详情。",

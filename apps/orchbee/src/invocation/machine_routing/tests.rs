@@ -41,6 +41,8 @@ fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
         vec!["--machine=中文", "workspace", "list"],
         vec!["--machine=work", "client", "list"],
         vec!["--machine=work", "panel", "focus", "@panel:0x22"],
+        vec!["workspace", "list", "--machine=work"],
+        vec!["workspace", "--machine", "work", "list"],
     ] {
         assert!(matches!(
             parse_request(args.into_iter().map(Into::into)).unwrap(),
@@ -55,7 +57,7 @@ fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
         vec!["--machine=work", "tui"],
         vec!["--machine=work", "update"],
         vec!["--machine=work", "--machine=x", "status"],
-        vec!["status", "--machine=work"],
+        vec!["workspace", "list", "--machine=work", "--machine", "x"],
         vec!["--machine=work", "agent", "doctor"],
         vec!["--machine=work", "terminal", "attach", "@terminal:0x22"],
     ] {

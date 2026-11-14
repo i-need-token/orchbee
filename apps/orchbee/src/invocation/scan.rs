@@ -50,6 +50,11 @@ fn command_context(tokens: &[String]) -> UsageContext {
 }
 
 /// The words before `--`, with option values skipped.
+/// Whether this argv token owns the next token as its value in the option scan.
+pub(super) fn owns_value(token: &str) -> bool {
+    token == "--format" || VALUE_FLAGS.contains(&token)
+}
+
 fn leading_words(tokens: &[String]) -> Vec<&str> {
     let mut words = Vec::new();
     let mut index = 0;
@@ -100,12 +105,6 @@ pub(super) fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>,
         let token = tokens[index].as_str();
         match token {
             "--" => break,
-            "--json" => {
-                if format.replace(OutputFormat::Json).is_some() {
-                    return Err(duplicate());
-                }
-                index += 1;
-            }
             "--format" => {
                 let Some(value) = tokens.get(index + 1).filter(|value| value.as_str() != "--")
                 else {

@@ -22,7 +22,6 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         ("orchbee --machine work --se", "--session", false),
         ("orchbee --machine work status c", "client", false),
         ("orchbee --machine work status s", "server", true),
-        ("orchbee workspace --ma", "--machine", false),
         ("orchbee --machine work terminal a", "attach", false),
         (
             "orchbee --machine work --session local workspace l",

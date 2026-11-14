@@ -117,7 +117,7 @@ Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，�
 
 ## 已保存机器
 
-`machine list/add/rename/enable/disable/remove` 管理已保存的远程机器；rename、remove、enable 和 disable 用 `<id|label>` 指定机器，多台机器同名时须改用 ID。`machine connect <id|label>` 通过后台连接进程连接机器，机器上线后返回，或返回未能上线的原因；命令结束后连接仍保持。登录需要回答而有 Orchbee TUI 在运行时，命令（包括转发的命令）会在标准错误写一行提示，并最多等待 120 秒，由用户在 TUI 中登录；用户选择暂不登录时，命令以 `auth-required` 结束，此后该机器的命令立即结束，直到有人登录这台机器。没有 TUI 在运行时，标准输入和标准错误都是控制台的命令会在控制台提出每个登录问题；其他命令（例如将标准输入重定向自空设备的 Agent）立即以 `auth-required` 结束（请先配置密钥登录）。`machine disconnect <id|label>` 断开连接，不停止远端 Session。路由选项必须位于第一个位置：`orchbee --machine <name-or-id> <command>`。它与本地 `--session` 冲突；TUI 和终端流不转发。远端 cwd 指向远端路径，文件与 stdin 输入在本地读取。删除机器不会停止远端 Session。
+`machine list/add/rename/enable/disable/remove` 管理已保存的远程机器；rename、remove、enable 和 disable 用 `<id|label>` 指定机器，多台机器同名时须改用 ID。`machine connect <id|label>` 通过后台连接进程连接机器，机器上线后返回，或返回未能上线的原因；命令结束后连接仍保持。登录需要回答而有 Orchbee TUI 在运行时，命令（包括转发的命令）会在标准错误写一行提示，并最多等待 120 秒，由用户在 TUI 中登录；用户选择暂不登录时，命令以 `auth-required` 结束，此后该机器的命令立即结束，直到有人登录这台机器。没有 TUI 在运行时，标准输入和标准错误都是控制台的命令会在控制台提出每个登录问题；其他命令（例如将标准输入重定向自空设备的 Agent）立即以 `auth-required` 结束（请先配置密钥登录）。`machine disconnect <id|label>` 断开连接，不停止远端 Session。使用 `--machine <name-or-id>` 转发命令；它与 `--session` 一样，可放在 `--` 之前的任意位置。它与本地 `--session` 冲突；TUI 和终端流不转发。远端 cwd 指向远端路径，文件与 stdin 输入在本地读取。删除机器不会停止远端 Session。
 
 ## 关闭、停止与恢复
 

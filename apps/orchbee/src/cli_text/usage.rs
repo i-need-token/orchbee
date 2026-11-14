@@ -488,8 +488,6 @@ impl super::CliText {
             ),
             UsageReason::UnknownOption { context, option } => (
                 match self.locale {
-                    Locale::EnUs if (option == "--machine" || option.starts_with("--machine=")) => "The --machine routing option must be first: orchbee --machine <target> <command>.".to_owned(),
-                    Locale::ZhCn if (option == "--machine" || option.starts_with("--machine=")) => "--machine 路由选项必须放在第一个位置：orchbee --machine <target> <command>。".to_owned(),
                     Locale::EnUs => format!("Unknown option {}.", echo(option)),
                     Locale::ZhCn => format!("未知选项 {}。", echo(option)),
                 },
