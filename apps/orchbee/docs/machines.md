@@ -856,7 +856,9 @@ event counts the `command` requests waiting, the claimant's own excluded. The Ma
   seconds, so a late claim can meet a connection the server already dropped. `ssh` then ends on
   its own words for a closed connection, which read `ssh-failed`: the episode ends `unavailable`,
   the interface says the connection failed and to try again, and nothing reads as a refused
-  answer, so no remembered answer is deleted and no answer typed is saved.
+  answer, so no remembered answer is deleted and no answer typed is saved. An `ssh` that ends
+  while the question is still open reads as its helper leaving, `auth-required`, or as its own
+  end when the hub sees that first; the episode ends `unavailable` either way.
 
 #### Askpass helper
 

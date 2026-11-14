@@ -277,8 +277,9 @@ fn a_connection_the_server_closed_at_an_open_question_ends_the_login_as_no_refus
         let login = offered(&mut person, 1).login;
         assert_eq!(claim(&mut person, login), ClaimOutcome::Claimed);
         question(&mut person);
-        // The server closed the connection, as after its `LoginGraceTime`, while the person had
-        // the question: the login ended, and nothing reads as a refused answer.
+        // `ssh` ended on a connection the server closed while the person had the question: the
+        // login ended, and nothing reads as a refused answer. The hub ends the carrier's job, so it
+        // may see the helper leave before `ssh`'s own end; both read as no refusal.
         phase(
             &mut person,
             login,
@@ -287,7 +288,8 @@ fn a_connection_the_server_closed_at_an_open_question_ends_the_login_as_no_refus
             },
         );
         let ran = finished(ran.join().unwrap());
-        assert_eq!(ran.document["result"]["error"], "ssh-failed", "{ran}");
+        let error = ran.document["result"]["error"].as_str().unwrap_or_default();
+        assert!(matches!(error, "auth-required" | "ssh-failed"), "{ran}");
         search(&carried, &[ran.stderr.as_bytes()]);
     });
     assert_eq!(fake.transcript(), "started\nasked 1\nvanished 1\n");
