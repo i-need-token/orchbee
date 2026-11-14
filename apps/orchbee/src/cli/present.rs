@@ -416,7 +416,7 @@ pub(crate) fn render(
     let text = CliText::new(locale).cli_labels();
     match projection {
         Projection::WorkbenchQuery(doc) => doc.render(out, command, locale),
-        Projection::Status(doc) => status(out, doc, text),
+        Projection::Status(doc) => status(out, doc, text, locale),
         Projection::ProjectList(rows) => table(out, &text.project_headers, rows, |row| {
             vec![
                 row.handle.clone(),
@@ -980,7 +980,18 @@ fn status_field(
     ))
 }
 
-fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), TooLarge> {
+fn status(
+    out: &mut Bounded,
+    doc: &StatusDoc,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    // Each process is one line named by its role, as `status server` prints it.
+    let processes = doc
+        .server
+        .as_ref()
+        .map(|server| super::runtime_status::process_lines(server, locale))
+        .unwrap_or_default();
     let label_width = [
         text.status_session,
         text.status_session_name,
@@ -992,6 +1003,7 @@ fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), To
         text.bound_terminals_word,
     ]
     .into_iter()
+    .chain(processes.iter().map(|(label, _)| *label))
     .map(display_width)
     .max()
     .unwrap_or(0);
@@ -1013,6 +1025,9 @@ fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), To
         &doc.client_version,
         label_width,
     )?;
+    for (label, value) in &processes {
+        status_field(out, 0, label, value, label_width)?;
+    }
     out.write(format_args!("  {}\n", text.counts))?;
     status_field(
         out,

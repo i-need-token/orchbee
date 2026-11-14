@@ -17,7 +17,7 @@
 		},
 		"result": {
 			"type": "object",
-			"required": ["session", "counts", "worker"],
+			"required": ["session", "counts", "worker", "server"],
 			"additionalProperties": false,
 			"properties": {
 				"session": {
@@ -76,11 +76,78 @@
 							"const": "not-in-workbench-snapshot"
 						}
 					}
+				},
+				"server": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["restartKeepsTerminals", "processes"],
+							"additionalProperties": false,
+							"properties": {
+								"restartKeepsTerminals": {
+									"type": ["boolean", "null"]
+								},
+								"processes": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 258,
+									"items": {
+										"$ref": "#/$defs/process"
+									}
+								}
+							}
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
 				}
 			}
 		}
 	},
 	"$defs": {
+		"version": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"pattern": "^[!-~]+$"
+		},
+		"process": {
+			"type": "object",
+			"required": ["role", "version", "processId", "state", "terminals"],
+			"additionalProperties": false,
+			"properties": {
+				"role": {
+					"enum": ["server", "worker", "terminal-host", "unknown"]
+				},
+				"version": {
+					"$ref": "#/$defs/version"
+				},
+				"processId": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"state": {
+					"enum": ["ready", "draining", "stopping", "unknown"]
+				},
+				"terminals": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				}
+			}
+		},
+		"unsupported": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "unsupported"
+				}
+			},
+			"required": ["kind"],
+			"additionalProperties": false
+		},
 		"id": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$"

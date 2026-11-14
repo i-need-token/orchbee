@@ -171,8 +171,14 @@ The operation identity is a request correlation, not a retained idempotent recei
 
 Bare `status` reads one Workbench snapshot and reports reachability and resource counts. Text
 includes the selected Session name only when `--session` was explicit. It always includes the
-executing Client's package version. On Windows, `status server` reports each Session process's
-version.
+executing Client's package version. On Windows it then sends the Session one handshake `query`
+under the same deadline and lists each process (Server, Worker, each Terminal Host) with version,
+PID, state and terminal count, and whether Restart Session keeps terminals: text prints one line
+per process after the Client version, and JSON carries `result.server`
+(`restartKeepsTerminals`, `processes`). A failed query fails the command; no partial document is
+written. Where the Session cannot be asked for its processes, `result.server` is
+`{"kind":"unsupported"}` and text has no process lines. See
+[runtime status](native-runtime-status.md).
 
 ## Workbench topology queries
 

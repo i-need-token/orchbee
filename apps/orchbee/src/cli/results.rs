@@ -110,6 +110,8 @@ pub(crate) struct StatusDoc {
     pub(crate) tabs: usize,
     pub(crate) panels: usize,
     pub(crate) bound_terminals: usize,
+    /// The Session's processes from its handshake `query`; none where the platform cannot ask.
+    pub(crate) server: Option<orchbee_connection_handshake::QueryResult>,
 }
 
 #[derive(Clone, Debug)]
@@ -1453,6 +1455,10 @@ impl Projection {
                     "status": "unknown",
                     "reason": "not-in-workbench-snapshot",
                 },
+                "server": doc.server.as_ref().map_or_else(
+                    || json!({"kind": "unsupported"}),
+                    super::runtime_status::processes_document,
+                ),
             }),
             Self::ProjectList(rows) => json!({
                 "projects": rows
@@ -2224,7 +2230,6 @@ pub(super) fn resolve_project<'a>(
 pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Projection, Failure> {
     let index = ContextIndex::new(snapshot);
     match command {
-        QueryCommand::Status => Ok(Projection::Status(status(snapshot))),
         QueryCommand::ProjectList => {
             let mut rows: Vec<_> = snapshot
                 .navigation
@@ -2472,7 +2477,9 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // `launch-profile list`/`get` ride their own typed catalog read.
         #[cfg(test)]
         QueryCommand::TerminalRead { .. } => Err(Failure::new(FailureKind::InternalFailure)),
-        QueryCommand::PanelProcessInfo(_)
+        // `status` pairs the snapshot with the Session's process query; see `status`.
+        QueryCommand::Status
+        | QueryCommand::PanelProcessInfo(_)
         | QueryCommand::PanelCurrent(PanelQueryTarget::Current | PanelQueryTarget::Client(_))
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
@@ -2491,7 +2498,11 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
     }
 }
 
-fn status(snapshot: &Snapshot) -> StatusDoc {
+/// `status`: the snapshot's identity and counts with the Session's processes.
+pub(crate) fn status(
+    snapshot: &Snapshot,
+    server: Option<orchbee_connection_handshake::QueryResult>,
+) -> Projection {
     let mut tabs = 0_usize;
     let mut panels = 0_usize;
     let mut bound_terminals = 0_usize;
@@ -2516,7 +2527,7 @@ fn status(snapshot: &Snapshot) -> StatusDoc {
             });
         }
     }
-    StatusDoc {
+    Projection::Status(StatusDoc {
         session_id: snapshot.session_id.as_str().to_owned(),
         revision: snapshot.revision.to_string(),
         session_name: crate::local_activation::selected_session_name().map(str::to_owned),
@@ -2526,7 +2537,8 @@ fn status(snapshot: &Snapshot) -> StatusDoc {
         tabs,
         panels,
         bound_terminals,
-    }
+        server,
+    })
 }
 
 fn project_directories<'a>(

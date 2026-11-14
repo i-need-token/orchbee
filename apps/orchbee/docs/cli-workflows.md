@@ -108,7 +108,7 @@ does not establish Agent readiness. Managed enable/disable and `agent start`/`pr
 ```sh
 orchbee config check   # local inputs only; exits 1 on any failed check
 orchbee server start     # one 20-second budget; "started" or "already-running"
-orchbee status         # the running Session's Workbench snapshot
+orchbee status         # the running Session's Workbench counts and processes
 ```
 
 `server start` runs the same connect-or-activate sequence the TUI uses. An

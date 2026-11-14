@@ -102,7 +102,7 @@ fn collect(
                 {
                     Server::Absent(Absence::Endpoint)
                 }
-                Err(error) => return Err(classify(error)),
+                Err(error) => return Err(super::classify_query(error)),
             };
             (
                 session.runtime_directory().to_owned(),
@@ -147,25 +147,5 @@ fn cohort_issue(kind: io::ErrorKind) -> CohortIssue {
         io::ErrorKind::PermissionDenied => CohortIssue::Denied,
         io::ErrorKind::TimedOut => CohortIssue::TimedOut,
         _ => CohortIssue::Io,
-    }
-}
-
-fn classify(error: ConnectClientError) -> Failure {
-    match error {
-        ConnectClientError::ConnectFailed(ref io) | ConnectClientError::Io(ref io)
-            if io.kind() == io::ErrorKind::TimedOut =>
-        {
-            Failure::new(FailureKind::Timeout)
-        }
-        ConnectClientError::ConnectFailed(ref io) | ConnectClientError::Io(ref io)
-            if io.kind() == io::ErrorKind::PermissionDenied =>
-        {
-            Failure::new(FailureKind::Denied)
-        }
-        // A Session that predates the handshake, or belongs to another environment, is
-        // incompatible rather than absent.
-        other => query::classify_connect(crate::local_client::LocalClientConnectError::Admission(
-            other,
-        )),
     }
 }

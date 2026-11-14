@@ -129,6 +129,28 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     Ok(snapshot)
 }
 
+/// `status`: the snapshot, then the Session's processes through one handshake `query` under the
+/// same deadline. A failed query fails the command; there is no partial answer. A platform whose
+/// Session cannot be asked for its processes answers none.
+pub(crate) fn status_read()
+-> Result<(Snapshot, Option<orchbee_connection_handshake::QueryResult>), Failure> {
+    super::execution::admit(super::execution::Capability::CanonicalWorkbenchRead)?;
+    let (cohort, session) = session_preamble(deadline_after(COHORT_BUDGET)?, || Ok(()))?;
+    let (client, deadline, snapshot) = admit_snapshot(
+        &cohort,
+        &session,
+        deadline_after(NETWORK_BUDGET)?,
+        || Ok(()),
+    )?;
+    drop(client);
+    if super::execution::admit(super::execution::Capability::RuntimeStatus).is_err() {
+        return Ok((snapshot, None));
+    }
+    let processes = super::server_query::read(session.client_socket_path(), deadline, None)
+        .map_err(super::runtime_status::classify_query)?;
+    Ok((snapshot, Some(processes)))
+}
+
 /// `terminal get`: the shared snapshot path admits the transport; the caller
 /// supplies the exact typed target id. The answer is the Server's own join under
 /// the coordinator lock: the current binding, the committed revision, and the

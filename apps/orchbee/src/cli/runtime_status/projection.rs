@@ -159,6 +159,40 @@ fn process(entry: &ProcessEntry, with_role: bool) -> Value {
     }
     value
 }
+/// The `server` member of `status`: whether Restart Session keeps terminals, then each process.
+pub(in crate::cli) fn processes_document(result: &QueryResult) -> Value {
+    json!({"restartKeepsTerminals":result.restart_keeps_terminals(),
+        "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()})
+}
+/// The labelled text lines `status` prints for the Session's processes: one per process named by
+/// its role, then whether Restart Session keeps terminals, each as `status server` prints it.
+pub(in crate::cli) fn process_lines(
+    result: &QueryResult,
+    locale: Locale,
+) -> Vec<(&'static str, String)> {
+    let text = CliText::new(locale);
+    let mut lines = result
+        .processes()
+        .iter()
+        .map(|entry| {
+            (
+                text.cli_runtime_status_label(role_label(entry.role)),
+                display("process", &process(entry, false), locale),
+            )
+        })
+        .collect::<Vec<_>>();
+    if !lines.is_empty() {
+        lines.push((
+            text.cli_runtime_status_label("restartKeepsTerminals"),
+            display(
+                "restartKeepsTerminals",
+                &json!(result.restart_keeps_terminals()),
+                locale,
+            ),
+        ));
+    }
+    lines
+}
 /// The text label naming a process role.
 fn role_label(role: ProcessRole) -> &'static str {
     match role {

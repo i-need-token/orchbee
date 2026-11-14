@@ -10,6 +10,15 @@ marker, attach a terminal, change focus or create a Client Connection. Its succe
 lists the processes the responding same-user Server reports, not values copied from the querying
 Client or inferred from a pipe name.
 
+Bare `status` sends the same `query` after its Workbench snapshot, under the snapshot's network
+deadline, and lists the same processes after the Client version: one text line per process,
+labelled by role, then whether Restart Session keeps terminals, and `result.server` in
+`orchbee.status` with the `restartKeepsTerminals` and `processes` members described below. Unlike
+`status server` it needs a running Session: none is the usual unavailable failure (exit 4), and a
+query that fails after the snapshot fails the command with that failure, never a partial document.
+Where the platform cannot ask a Session for its processes, `result.server` is
+`{"kind":"unsupported"}`.
+
 ## Observation model
 
 | Field      | Contract                                                                                                                                                                                                               |

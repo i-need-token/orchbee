@@ -294,6 +294,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
                 tabs: 4,
                 panels: 5,
                 bound_terminals: 6,
+                server: None,
             }),
             json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"999"}),
             &QueryCommand::Status,
@@ -354,6 +355,7 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
             tabs: 0,
             panels: 0,
             bound_terminals: 0,
+            server: None,
         }),
         json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"999"}),
         &QueryCommand::Status,
@@ -363,6 +365,70 @@ fn status_text_reports_selected_session_identity_client_version_and_counts() {
     let unnamed_text = String::from_utf8(unnamed_output.stdout).unwrap();
     assert!(!unnamed_text.contains("Session name"));
     assert!(!unnamed_text.contains("default"));
+}
+
+/// The Session's two processes as its handshake `query` reports them.
+fn processes() -> orchbee_connection_handshake::QueryResult {
+    use orchbee_connection_handshake::{
+        Build, Extensions, ProcessEntry, ProcessRole, ProcessState, ProductVersion, QueryResult,
+    };
+    let entry = |role, pid| ProcessEntry {
+        role,
+        product_version: ProductVersion::new("9.8.7-test").unwrap(),
+        build: Build::default(),
+        environment: orchbee_local_runtime::environment_name(),
+        pid: std::num::NonZeroU32::new(pid).unwrap(),
+        state: ProcessState::Ready,
+        terminals: 3,
+        connections: Vec::new(),
+    };
+    QueryResult::new(
+        vec![
+            entry(ProcessRole::Server, 4312),
+            entry(ProcessRole::Worker, 4313),
+        ],
+        Some(true),
+        Extensions::new(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn status_text_lists_each_session_process_on_its_own_line() {
+    for (locale, server, worker, restart) in [
+        (
+            Locale::EnUs,
+            "Server process",
+            "Worker process",
+            "Restart keeps terminals",
+        ),
+        (Locale::ZhCn, "Server 进程", "Worker 进程", "重启保留终端"),
+    ] {
+        let output = success_output(
+            Projection::Status(StatusDoc {
+                session_id: ID.to_owned(),
+                revision: "1".to_owned(),
+                session_name: None,
+                client_version: env!("CARGO_PKG_VERSION").to_owned(),
+                projects: 0,
+                workspaces: 0,
+                tabs: 0,
+                panels: 0,
+                bound_terminals: 0,
+                server: Some(processes()),
+            }),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
+            &QueryCommand::Status,
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        for (label, pid) in [(server, "4312"), (worker, "4313")] {
+            let line = text.lines().find(|line| line.starts_with(label)).unwrap();
+            assert!(line.contains("9.8.7-test") && line.contains(pid), "{text}");
+        }
+        assert!(text.lines().any(|line| line.starts_with(restart)), "{text}");
+    }
 }
 
 #[test]
@@ -486,6 +552,7 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         tabs: 3,
         panels: 4,
         bound_terminals: 5,
+        server: Some(processes()),
     };
     let status_output = success_output(
         Projection::Status(status.clone()),
@@ -510,6 +577,10 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
                     "boundTerminals":status.bound_terminals,
                 },
                 "worker":{"status":"unknown","reason":"not-in-workbench-snapshot"},
+                "server":{"restartKeepsTerminals":true,"processes":[
+                    {"role":"server","version":"9.8.7-test","processId":4312,"state":"ready","terminals":3},
+                    {"role":"worker","version":"9.8.7-test","processId":4313,"state":"ready","terminals":3},
+                ]},
             },
         }))
     );

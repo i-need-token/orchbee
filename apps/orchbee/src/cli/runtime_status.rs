@@ -5,15 +5,38 @@ use crate::{
     invocation::{OutputFormat, RuntimeStatusScope},
     localization::Locale,
 };
+use orchbee_local_client_protocol::ConnectClientError;
 
 mod projection;
 mod workflow;
+
+pub(in crate::cli) use projection::{process_lines, processes_document};
 
 pub(crate) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Locale) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::RuntimeStatus) {
         return failure_output(failure, Some(format), locale);
     }
     workflow::run(scope, format, locale)
+}
+
+/// Classifies a failed handshake `query`: a Session that predates the handshake, or belongs to
+/// another environment, is incompatible rather than absent.
+pub(in crate::cli) fn classify_query(error: ConnectClientError) -> Failure {
+    match error {
+        ConnectClientError::ConnectFailed(ref io) | ConnectClientError::Io(ref io)
+            if io.kind() == std::io::ErrorKind::TimedOut =>
+        {
+            Failure::new(FailureKind::Timeout)
+        }
+        ConnectClientError::ConnectFailed(ref io) | ConnectClientError::Io(ref io)
+            if io.kind() == std::io::ErrorKind::PermissionDenied =>
+        {
+            Failure::new(FailureKind::Denied)
+        }
+        other => super::query::classify_connect(
+            crate::local_client::LocalClientConnectError::Admission(other),
+        ),
+    }
 }
 
 fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output {

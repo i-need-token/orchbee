@@ -14,12 +14,12 @@ const HELP_TUI_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::
 
 const HELP_STATUS_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee status [--format text|json]",
-    "Read the running session's reachability and resource counts. This command does not create or start a session. Use status server for service compatibility details, or status client to inspect this executable offline.",
+    "Read the running session's reachability, resource counts and processes: the Server, its Worker and each Terminal Host with version, PID, state and terminal count, and whether Restart Session keeps terminals. This command does not create or start a session. Use status client to inspect this executable offline.",
 );
 
 const HELP_STATUS_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee status [--format text|json]",
-    "读取正在运行的会话的可达性和资源数量。本命令不创建或启动会话。使用 status server 查看服务兼容性，或使用 status client 离线检查当前程序。",
+    "读取正在运行的会话的可达性、资源数量和进程：Server、其 Worker 及每个 Terminal Host 的版本、PID、状态和终端数，以及重启会话是否保留终端。本命令不创建或启动会话。使用 status client 离线检查当前程序。",
 );
 
 const HELP_API_SNAPSHOT_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(

@@ -261,6 +261,13 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
         "server",
     );
     assert_eq!(server["result"]["server"]["reason"], "endpoint-absent");
+    // `status` lists the processes of a running Session only: with none it fails unavailable.
+    let status = document(
+        fixture.run(&["status", "--format=json"]),
+        4,
+        "orchbee.cli.failure",
+    );
+    assert_eq!(status["failure"]["kind"], "service-unavailable");
     assert!(
         fs::read_dir(session.runtime_directory())
             .unwrap()

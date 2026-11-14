@@ -16,7 +16,7 @@ Pass a pagination cursor unchanged to the same command and backend that returned
 
 ## Select and start a Session
 
-Use `config check` to inspect local configuration, `status client` to inspect this executable, and `status server` to inspect the selected Server. These commands do not start a Session. Use `server diagnose` for read-only runtime facts and `server start` for headless startup.
+Use `config check` to inspect local configuration, `status` to read the running Session's counts and processes, `status client` to inspect this executable, and `status server` to inspect the selected Server even when it is not running. These commands do not start a Session. Use `server diagnose` for read-only runtime facts and `server start` for headless startup.
 
 `--session <name>` selects a local named Session and may appear before or after the command. The default is `default`. Use the same selection on subsequent commands and diagnostics. `session list` shows the local inventory; `session attach <name>` enters its TUI. Exiting a TUI leaves the Session running.
 

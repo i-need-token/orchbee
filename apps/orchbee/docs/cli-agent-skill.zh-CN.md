@@ -16,7 +16,7 @@ PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
 ## 选择并启动 Session
 
-用 `config check` 检查本地配置，`status client` 检查本可执行文件，`status server` 检查所选 Server。这些命令不启动 Session。`server diagnose` 提供只读运行时事实，`server start` 执行无界面启动。
+用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程，`status client` 检查本可执行文件，`status server` 检查所选 Server（未运行时同样可用）。这些命令不启动 Session。`server diagnose` 提供只读运行时事实，`server start` 执行无界面启动。
 
 `--session <name>` 选择本地命名 Session，可位于命令之前或之后，默认值为 `default`。后续操作与诊断应保持相同选择。`session list` 显示本地清单；`session attach <name>` 进入其 TUI。退出 TUI 不会停止 Session。
 
