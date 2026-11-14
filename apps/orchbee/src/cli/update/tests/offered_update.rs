@@ -278,6 +278,63 @@ fn update_installs_one_verified_archive_and_leaves_only_the_lock() {
     assert_eq!(names(&folder), ["download.lock"]);
 }
 
+/// Cleanup is the updater's one destructive step: a junction left at `.download\unpacked` is removed
+/// as a link, and the folder it points at keeps its files.
+#[test]
+fn cleanup_removes_a_junction_in_the_download_folder_without_following_it() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    let root = fixture.0.join("install");
+    let (older, _) = release(&fixture, "older", "0.1.0", "test");
+    let (newer, newer_manifest) = release(&fixture, "newer", "0.2.0", "test");
+    install(&fixture, &older, false);
+
+    let outside = fixture.0.join("outside");
+    fs::create_dir(&outside).unwrap();
+    fs::write(outside.join("keep.txt"), b"not the updater's").unwrap();
+    let folder = root.join(archive::FOLDER);
+    fs::create_dir_all(&folder).unwrap();
+    let link = folder.join("unpacked");
+    let powershell = Path::new(&std::env::var_os("SystemRoot").unwrap())
+        .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    let made = std::process::Command::new(powershell)
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "New-Item -ItemType Junction -Path $env:UPDATE_TEST_LINK -Target $env:UPDATE_TEST_TARGET -ErrorAction Stop | Out-Null",
+        ])
+        .env("UPDATE_TEST_LINK", &link)
+        .env("UPDATE_TEST_TARGET", &outside)
+        .creation_flags(0x0800_0000)
+        .output()
+        .unwrap();
+    assert!(
+        made.status.success(),
+        "{}",
+        String::from_utf8_lossy(&made.stderr)
+    );
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+
+    let archive = b"the archive bytes the feed signs";
+    offer(&fixture, "0.2.0", &newer_manifest, archive, |_| {});
+    serve(&fixture, archive);
+    let calls = Cell::new(0);
+    let updated = update(&fixture, None, &copying(&newer, &calls));
+    assert_eq!(updated.code(), "complete", "{}", updated.rendered);
+    assert_eq!(names(&outside), ["keep.txt"]);
+    assert_eq!(
+        fs::read(outside.join("keep.txt")).unwrap(),
+        b"not the updater's"
+    );
+    assert_eq!(names(&folder), ["download.lock"]);
+}
+
 #[test]
 fn a_refused_archive_changes_no_version_and_leaves_only_the_lock() {
     let fixture = Fixture::new();
