@@ -162,10 +162,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::WorkspaceRename,
     },
     PrefixGroup {
-        members: &[member(shift_key('r'), ClientAction::RequestProjectRename)],
-        desc: PrefixDesc::ProjectRename,
-    },
-    PrefixGroup {
         members: &[member(
             key(KeyCode::Char(',')),
             ClientAction::RequestRenameTab,

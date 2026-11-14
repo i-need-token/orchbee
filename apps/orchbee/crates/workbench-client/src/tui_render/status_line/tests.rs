@@ -578,44 +578,40 @@ fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() 
     let width = 60;
     let view = ClientView::new(width);
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (target, action) in [
-            (Target::Workspace, ClientAction::RequestWorkspaceRename),
-            (Target::Project, ClientAction::RequestProjectRename),
-        ] {
-            let fact = locale.setup_status(SetupStatus::LocationLabel {
-                target,
-                status: Status::Stale,
-            });
-            let (terminal, paint) = paint_at_tier_with_locale(
+        let (target, action) = (Target::Workspace, ClientAction::RequestWorkspaceRename);
+        let fact = locale.setup_status(SetupStatus::LocationLabel {
+            target,
+            status: Status::Stale,
+        });
+        let (terminal, paint) = paint_at_tier_with_locale(
+            &view,
+            width,
+            facts(fact),
+            ViewportTier::Compact,
+            locale,
+            &theme,
+        );
+        assert!(row(&terminal, width).trim().starts_with(fact), "{fact}");
+        assert!(paint.primary.is_some(), "{fact}");
+        let hint = super::action_hint(
+            &view,
+            super::StatusAction::RetryRename(target),
+            locale,
+            KeyLabelGlyphs::Unicode,
+        )
+        .unwrap();
+        assert_eq!(hint.label, locale.status().retry_rename);
+        assert_eq!(
+            hint.key,
+            super::effective_hint(
                 &view,
-                width,
-                facts(fact),
-                ViewportTier::Compact,
-                locale,
-                &theme,
-            );
-            assert!(row(&terminal, width).trim().starts_with(fact), "{fact}");
-            assert!(paint.primary.is_some(), "{fact}");
-            let hint = super::action_hint(
-                &view,
-                super::StatusAction::RetryRename(target),
-                locale,
-                KeyLabelGlyphs::Unicode,
+                PrefixAction::Client(action),
+                "",
+                KeyLabelGlyphs::Unicode
             )
-            .unwrap();
-            assert_eq!(hint.label, locale.status().retry_rename);
-            assert_eq!(
-                hint.key,
-                super::effective_hint(
-                    &view,
-                    PrefixAction::Client(action),
-                    "",
-                    KeyLabelGlyphs::Unicode
-                )
-                .unwrap()
-                .key
-            );
-        }
+            .unwrap()
+            .key
+        );
     }
 }
 

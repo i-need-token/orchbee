@@ -535,38 +535,34 @@ fn quick_workspace_tab_remains_inert_in_the_project_name_prompt() {
 
 #[test]
 fn location_rename_prefill_requires_first_draw_and_submits_exact_unicode_paste_once() {
-    for (stage, key) in [
-        (SetupStage::WorkspaceRename, b'r'),
-        (SetupStage::ProjectRename, b'R'),
-    ] {
-        let now = Instant::now();
-        let mut port = SetupPort::new(stage);
-        port.text = "原名".to_owned();
-        port.active = false;
-        let mut dispatcher = InputDispatcher::default();
-        dispatch(&mut dispatcher, &mut port, &[2, key, b'\r'], now);
-        assert_eq!(port.text, "原名");
-        assert!(port.submissions.is_empty());
-        assert!(port.forwarded.is_empty());
-        port.shown = true;
-        dispatch(
-            &mut dispatcher,
-            &mut port,
-            "\x15\x1b[200~新名😀".as_bytes(),
-            now,
-        );
-        assert!(port.text.is_empty());
-        dispatch(
-            &mut dispatcher,
-            &mut port,
-            b"\x1b[201~\r\x02rignored\r",
-            now,
-        );
-        assert_eq!(port.text, "新名😀");
-        assert_eq!(port.submissions, [stage]);
-        assert!(port.forwarded.is_empty());
-        assert!(!port.active);
-    }
+    let (stage, key) = (SetupStage::WorkspaceRename, b'r');
+    let now = Instant::now();
+    let mut port = SetupPort::new(stage);
+    port.text = "原名".to_owned();
+    port.active = false;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, &[2, key, b'\r'], now);
+    assert_eq!(port.text, "原名");
+    assert!(port.submissions.is_empty());
+    assert!(port.forwarded.is_empty());
+    port.shown = true;
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        "\x15\x1b[200~新名😀".as_bytes(),
+        now,
+    );
+    assert!(port.text.is_empty());
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"\x1b[201~\r\x02rignored\r",
+        now,
+    );
+    assert_eq!(port.text, "新名😀");
+    assert_eq!(port.submissions, [stage]);
+    assert!(port.forwarded.is_empty());
+    assert!(!port.active);
 }
 
 #[test]

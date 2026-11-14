@@ -1433,7 +1433,6 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
         (b'a', ClientAction::RequestWorkspaceCreate),
         (b'e', ClientAction::RequestWorkspaceDirectory),
         (b'r', ClientAction::RequestWorkspaceRename),
-        (b'R', ClientAction::RequestProjectRename),
     ] {
         let calls = Rc::new(RefCell::new(Vec::new()));
         let mut port = UnavailablePort(Rc::clone(&calls));

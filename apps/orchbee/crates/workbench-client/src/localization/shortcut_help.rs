@@ -30,7 +30,6 @@ pub(crate) enum ShortcutLabel {
     NewWorktree,
     OpenWorktree,
     RenameWorkspace,
-    RenameProject,
     RenameTab,
     NewTab,
     CloseTab,
@@ -271,11 +270,6 @@ impl Locale {
             ShortcutLabel::RenameWorkspace => match self {
                 Self::EnUs => "Rename Workspace",
                 Self::ZhCn => "重命名工作区",
-            }
-            .to_owned(),
-            ShortcutLabel::RenameProject => match self {
-                Self::EnUs => "Rename Project",
-                Self::ZhCn => "重命名项目",
             }
             .to_owned(),
             ShortcutLabel::RenameTab => match self {

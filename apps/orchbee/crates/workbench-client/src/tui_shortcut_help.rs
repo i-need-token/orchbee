@@ -133,7 +133,6 @@ fn shortcut_action_title(
         binding.action,
         PrefixAction::Client(
             ClientAction::RequestWorkspaceRename
-                | ClientAction::RequestProjectRename
                 | ClientAction::RequestRenameTab
                 | ClientAction::ClosePanel
                 | ClientAction::ToggleZoom
@@ -353,7 +352,6 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
         PrefixAction::Client(A::RequestWorktreeCreate) => ShortcutLabel::NewWorktree,
         PrefixAction::Client(A::RequestWorktreeOpen) => ShortcutLabel::OpenWorktree,
         PrefixAction::Client(A::RequestWorkspaceRename) => ShortcutLabel::RenameWorkspace,
-        PrefixAction::Client(A::RequestProjectRename) => ShortcutLabel::RenameProject,
         PrefixAction::Client(A::RequestRenameTab) => ShortcutLabel::RenameTab,
         PrefixAction::Client(A::CreateTab) => ShortcutLabel::NewTab,
         PrefixAction::Client(A::RequestCloseTab) => ShortcutLabel::CloseTab,
@@ -643,17 +641,6 @@ mod tests {
                     .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b r"))
             })
             .expect("Workspace rename keeps its owning binding");
-        let rename_project = entries
-            .iter()
-            .find(|entry| {
-                entry
-                    .key
-                    .contains(&crate::terminal_events::keys::tests::host_label(
-                        "Ctrl+b Shift+R",
-                    ))
-            })
-            .expect("Project rename keeps its owning binding");
-        assert_ne!(rename_workspace.identity, rename_project.identity);
         let rename_workspace_zh = entries_zh
             .iter()
             .find(|entry| {
@@ -662,34 +649,15 @@ mod tests {
                     .contains(&crate::terminal_events::keys::tests::host_label("Ctrl+b r"))
             })
             .expect("localized Workspace rename keeps its owning binding");
-        let rename_project_zh = entries_zh
-            .iter()
-            .find(|entry| {
-                entry
-                    .key
-                    .contains(&crate::terminal_events::keys::tests::host_label(
-                        "Ctrl+b Shift+R",
-                    ))
-            })
-            .expect("localized Project rename keeps its owning binding");
         assert_eq!(rename_workspace.identity, rename_workspace_zh.identity);
-        assert_eq!(rename_project.identity, rename_project_zh.identity);
         {
             assert_eq!(
                 rename_workspace.title,
                 Locale::EnUs.menu_action(&crate::action_menu::MenuAction::RenameWorkspace)
             );
             assert_eq!(
-                rename_project.title,
-                Locale::EnUs.menu_action(&crate::action_menu::MenuAction::RenameProject)
-            );
-            assert_eq!(
                 rename_workspace_zh.title,
                 Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::RenameWorkspace)
-            );
-            assert_eq!(
-                rename_project_zh.title,
-                Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::RenameProject)
             );
         }
 

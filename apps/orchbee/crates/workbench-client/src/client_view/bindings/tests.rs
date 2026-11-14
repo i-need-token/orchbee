@@ -28,17 +28,6 @@ fn every_existing_prefix_key_resolves_to_its_action() {
         let member = match_prefix(press(KeyCode::Char(c))).unwrap_or_else(|| panic!("{c}"));
         assert_eq!(member.action, PrefixAction::Client(action));
     }
-    let member = match_prefix(press_mods(KeyCode::Char('r'), Modifiers::NONE.with_shift()))
-        .expect("shift+r");
-    assert_eq!(
-        member.action,
-        PrefixAction::Client(ClientAction::RequestProjectRename)
-    );
-    let member = match_prefix(press(KeyCode::Char('R'))).expect("uppercase R");
-    assert_eq!(
-        member.action,
-        PrefixAction::Client(ClientAction::RequestProjectRename)
-    );
 }
 #[test]
 fn worktree_prefixes_resolve_through_the_same_registry_as_help() {
