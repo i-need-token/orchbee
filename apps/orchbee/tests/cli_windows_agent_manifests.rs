@@ -173,6 +173,14 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 &document,
                 include_str!("../src/cli/schemas/orchbee.server.agent-manifests.json"),
             );
+            if case == "reload" {
+                // The Server keeps the reload by its operation ID, so the printed request ID must be
+                // that ID for `operation status` to find it.
+                assert_eq!(
+                    document["result"]["requestId"],
+                    document["result"]["action"]["operationId"]
+                );
+            }
             if matches!(case, "lost" | "wrong-operation") {
                 assert_eq!(document["result"]["observation"]["kind"], "unknown");
                 assert_eq!(

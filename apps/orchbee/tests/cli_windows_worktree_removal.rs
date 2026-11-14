@@ -49,8 +49,9 @@ fn removals_held_past_the_close_budget_resume_and_close_without_close_resume() {
             && status["resumable"] == false,
         "{refused}"
     );
-    // The request ID alone finds the Worktree operation; an ID that no store keeps is a miss.
-    let found = fixture.run(&["operation", "status", &kept.operation]);
+    // The request ID the removal printed alone finds the Worktree operation; an ID that no store
+    // keeps is a miss.
+    let found = fixture.run(&["operation", "status", &kept.request]);
     assert!(
         found.document["schema"] == "orchbee.worktree.operation"
             && found.document["result"]["observation"]["reply"]["operationId"] == kept.operation
@@ -161,6 +162,8 @@ struct Fixture(PathBuf);
 /// A Worktree whose removal failed on its held directory.
 struct Removal {
     operation: String,
+    /// The request ID the removal printed.
+    request: String,
     attempt: u64,
     workspace: String,
     /// The Workspace Close the failed removal holds, when it names one.
@@ -400,6 +403,7 @@ impl Fixture {
         let reply = &removed.document["result"]["observation"]["reply"];
         Removal {
             operation: reply["operationId"].as_str().unwrap().to_owned(),
+            request: reply["requestId"].as_str().unwrap().to_owned(),
             attempt: reply["outcome"]["attempt"].as_u64().unwrap(),
             workspace,
             close,

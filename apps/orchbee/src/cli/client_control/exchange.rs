@@ -243,9 +243,18 @@ pub(in crate::cli) fn exchange(
     deadline: Instant,
     signals: &impl SignalWatch,
 ) -> Result<WorkbenchClientViewResult, Failure> {
+    // Every exchange about a control carries its operation ID, so each request ID printed for it
+    // finds the control again.
+    let request_id = match &action {
+        ClientViewAction::Submit { command } => command.operation_id.clone(),
+        ClientViewAction::Read { operation_id } => operation_id.clone(),
+        ClientViewAction::Synchronize { .. }
+        | ClientViewAction::List {}
+        | ClientViewAction::Get { .. } => query::request_id()?,
+    };
     let request = WorkbenchClientViewRequest {
         protocol_version: ProtocolVersion,
-        request_id: query::request_id()?,
+        request_id,
         session_id: session_id.clone(),
         action,
     };

@@ -15,8 +15,10 @@ Both take `--format text|json`.
 
 The identity comes from the receipt: `closeRequestId` for a Workspace, Tab or Panel close,
 `operationId` for a Project close-all, a Worktree operation, a Client control or an Agent detection
-rule operation, and `requestId` for a Session stop. For multi-stage receipts, use the identity of
-the particular stage. Status reads never resume, relaunch or acquire focus. `operation status` is
+rule operation, and `requestId` for a Session stop. The command line sends every exchange about a
+Project close-all, a Worktree operation, a Client control or an Agent detection rule operation
+under its `operationId`, so each `requestId` such a receipt prints is that same identity. For
+multi-stage receipts, use the identity of the particular stage. Status reads never resume, relaunch or acquire focus. `operation status` is
 an observation command and, like `operation resume`, may be routed with `--machine`.
 
 ## Lookup

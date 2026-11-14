@@ -76,9 +76,17 @@ fn submit(
             operation_id: operation_id.clone(),
         },
     };
+    // Every exchange about an operation carries its operation ID, so each request ID printed for
+    // it finds the receipt again.
+    let request_id = match &action {
+        AgentManifestsAction::Current {} => query::request_id()?,
+        AgentManifestsAction::Reload { operation_id }
+        | AgentManifestsAction::Update { operation_id }
+        | AgentManifestsAction::Operation { operation_id } => operation_id.clone(),
+    };
     let mut request = AgentManifestsRequest {
         protocol_version: snapshot.protocol_version,
-        request_id: query::request_id()?,
+        request_id,
         session_id: snapshot.session_id,
         action: action.clone(),
     };
@@ -125,11 +133,6 @@ fn submit(
         else {
             break;
         };
-        let Ok(id) = query::request_id() else {
-            answer.cleanup_failed = true;
-            break;
-        };
-        request.request_id = id;
         request.action = AgentManifestsAction::Operation {
             operation_id: operation_id.clone(),
         };
@@ -143,7 +146,6 @@ fn submit(
                 if !reply.answers(&expected) {
                     break;
                 }
-                answer.request_id = request.request_id.clone();
                 answer.observation = Observation::Server(Box::new(reply));
             }
             Err(_) => break, // The pending receipt remains true even when its status cannot be refreshed.

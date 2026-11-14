@@ -186,9 +186,11 @@ fn observe(
             expected_attempt: *expected_attempt,
         },
     };
+    // Every exchange about the operation carries its operation ID, so each request ID printed for
+    // it finds the operation again.
     let request = WorkbenchWorktreeRequest {
         protocol_version: snapshot.protocol_version,
-        request_id: query::request_id()?,
+        request_id: answer.operation_id.clone(),
         session_id: snapshot.session_id.clone(),
         action,
     };
@@ -234,7 +236,7 @@ fn observe(
         }
         let request = WorkbenchWorktreeRequest {
             protocol_version: snapshot.protocol_version,
-            request_id: query::request_id()?,
+            request_id: answer.operation_id.clone(),
             session_id: snapshot.session_id.clone(),
             action: WorkbenchWorktreeAction::Read {
                 operation_id: answer.operation_id.clone(),
