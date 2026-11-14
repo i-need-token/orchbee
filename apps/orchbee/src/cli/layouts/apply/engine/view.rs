@@ -165,7 +165,6 @@ impl Engine<'_> {
                 identity.clone(),
                 previous,
                 split.ratio,
-                None,
                 self.deadline,
                 self.signals.poll_fd(),
             )?;

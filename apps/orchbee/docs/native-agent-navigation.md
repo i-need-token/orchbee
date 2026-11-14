@@ -5,7 +5,7 @@
 Windows `agent focus` resolves a canonical or physical Agent to one navigable primary Panel and routes an
 acknowledged focus request to one existing TUI Client. It accepts one positional native Agent
 target, `--agent-session`, `--name` or `--panel`, with the existing precedence and mutual exclusions.
-`--client`, `--request-id`, `--detach`, `--timeout` and `--format text|json` use the existing
+`--client`, `--timeout` and `--format text|json` use the existing
 Client control contract. The default total timeout is 30000 ms. Help, completion and parsing
 remain offline. There is no new macOS or Linux runtime.
 
@@ -96,8 +96,8 @@ Windows acceptance; they do not by themselves prove multi-Client or authenticate
 A `stale-view` rejection and an Agent read that the Workbench outran, reported as `changed`, both
 prove that nothing happened. The CLI then reads a fresh snapshot and selects the Client and resolves
 the Agent target again under the original deadline, at most three times. It submits again, under a
-fresh operation identity, only when the Client and the `agent-focus` intent are identical and
-`--request-id` did not name the operation; otherwise the last rejection is reported. A `changed`
+fresh operation identity, only when the Client and the `agent-focus` intent are identical;
+otherwise the last rejection is reported. A `changed`
 failure that outlasts the retries points to the current Agent list, not to Server health.
 Incomplete, pending and unknown outcomes are never submitted again.
 

@@ -194,32 +194,17 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
             panic!("Agent navigation");
         };
         assert_eq!(timeout_ms, 30_000);
-        words.extend([
-            "--client",
-            id,
-            "--request-id",
-            id,
-            "--detach",
-            "--timeout=1",
-            "--format=json",
-        ]);
+        words.extend(["--client", id, "--timeout=1", "--format=json"]);
         let Request::Client {
-            command:
-                ClientCommand::Navigate {
-                    client,
-                    operation_id,
-                    detach,
-                    timeout_ms,
-                    ..
-                },
+            command: ClientCommand::Navigate {
+                client, timeout_ms, ..
+            },
             format,
         } = parse(&words).unwrap()
         else {
             panic!("navigation");
         };
         assert_eq!(client.unwrap().as_str(), id);
-        assert_eq!(operation_id.unwrap().as_str(), id);
-        assert!(detach);
         assert_eq!(timeout_ms, 1);
         assert_eq!(format, OutputFormat::Json);
     }
@@ -337,8 +322,6 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
             ClientCommand::Navigate {
                 target,
                 client,
-                operation_id,
-                detach,
                 timeout_ms,
             },
         format,
@@ -349,9 +332,6 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         "--toggle",
         "--client",
         id,
-        "--request-id",
-        id,
-        "--detach",
         "--timeout=1",
         "--format=json",
     ])
@@ -367,8 +347,6 @@ fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
         }
     );
     assert_eq!(client.unwrap().as_str(), id);
-    assert_eq!(operation_id.unwrap().as_str(), id);
-    assert!(detach);
     assert_eq!(timeout_ms, 1);
     assert_eq!(format, OutputFormat::Json);
     for words in [

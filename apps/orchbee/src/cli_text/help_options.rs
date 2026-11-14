@@ -129,18 +129,6 @@ impl super::CliText {
                 "Success always emits JSON; select json for JSON errors too.",
                 "成功时始终输出 JSON；选择 json 也以 JSON 输出错误。",
             ),
-            (
-                CommandPath::WorkspaceCreate
-                | CommandPath::PanelSplit
-                | CommandPath::TabCreate
-                | CommandPath::WorktreeCreate
-                | CommandPath::WorktreeOpen,
-                "--rows",
-            ) => (
-                "<n>",
-                "Terminal height in rows; give it with --cols, --cell-width and --cell-height.",
-                "终端行数；须与 --cols、--cell-width 和 --cell-height 一起提供。",
-            ),
             (CommandPath::PanelSplit, "--direction") => (
                 "<direction>",
                 "Side of the selected panel where the new panel opens.",
@@ -285,16 +273,6 @@ impl super::CliText {
                 ),
                 "--body" => ("<text>", "Notification body text.", "通知正文。"),
                 "--branch" => ("<name>", "Git branch name.", "Git 分支名称。"),
-                "--cell-height" => (
-                    "<pixels>",
-                    "Pixel height of a terminal cell.",
-                    "终端单元格的像素高度。",
-                ),
-                "--cell-width" => (
-                    "<pixels>",
-                    "Pixel width of a terminal cell.",
-                    "终端单元格的像素宽度。",
-                ),
                 "--child" => (
                     "",
                     "Create a child terminal in the panel.",
@@ -598,11 +576,6 @@ impl super::CliText {
                     "<name>",
                     "Remote session name; default: default.",
                     "远端会话名称；默认 default。",
-                ),
-                "--request" => (
-                    "<id>",
-                    "Retained operation ID to inspect or resume.",
-                    "要查看或继续的操作 ID。",
                 ),
                 "--request-id" => (
                     "<id>",

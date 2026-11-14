@@ -108,8 +108,8 @@ pub(crate) use target_syntax::label_requires_id;
 use target_syntax::{ZERO_IDENTITY, target, valid_typed_id};
 use wait_options::{close_wait, wait_matcher_option, wait_timeout_option};
 use workbench_options::{
-    close_generation_option, directory_option, geometry_option, label_option,
-    manifest_operation_id, panel_direction, panel_move_destination, path_option, tab_move_command,
+    close_generation_option, directory_option, geometry_option, label_option, panel_direction,
+    panel_move_destination, path_option, tab_move_command,
 };
 pub(crate) use worktree::WorktreeCommand;
 pub(crate) use worktree::WorktreeQueryCommand;
@@ -697,15 +697,9 @@ pub(crate) enum AgentNamesCommand {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ManifestCommand {
     Current,
-    Update {
-        operation_id: Option<WorkbenchRequestId>,
-    },
-    Reload {
-        operation_id: Option<WorkbenchRequestId>,
-    },
-    Status {
-        operation_id: WorkbenchRequestId,
-    },
+    Update,
+    Reload,
+    Status { operation_id: WorkbenchRequestId },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ServerStopCommand {

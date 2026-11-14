@@ -1,11 +1,11 @@
 //! Formats terminal-creation receipts and retained cleanup facts without allocating terminals.
 use super::Locale;
 pub(super) const HELP_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
-    "orchbee panel create-terminal [<panel>|--current] [--client <id>] [--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>] [--cwd <path|follow|home|current|workspace>] [--env NAME=VALUE] [--cols <n>] [--rows <n>] [--cell-width <n>] [--cell-height <n>] [--timeout <ms>] [--format text|json]",
+    "orchbee panel create-terminal [<panel>|--current] [--client <id>] [--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>] [--cwd <path|follow|home|current|workspace>] [--env NAME=VALUE] [--timeout <ms>] [--format text|json]",
     "Start an empty primary terminal slot, bind an exact empty member with --presentation,\nor append a new child with --child (at most 16). --label names only a new child.\nExplicit Panel targets work without a TUI. Omitted targets use the validated caller\nor one Ready Client; --client selects that Client. Client focus is unchanged.\n--exec accepts an absolute path or resolves a program name on the final CLI PATH. Arguments and environment values remain literal. Default total timeout: 30000 ms.\nPending means accepted, not yet started. Uncertain requests are never retried;\nuse JSON receipts to retain exact request and member identities. Windows only.",
 );
 pub(super) const HELP_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
-    "orchbee panel create-terminal [<panel>|--current] [--client <id>] [--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>] [--cwd <path|follow|home|current|workspace>] [--env NAME=VALUE] [--cols <n>] [--rows <n>] [--cell-width <n>] [--cell-height <n>] [--timeout <ms>] [--format text|json]",
+    "orchbee panel create-terminal [<panel>|--current] [--client <id>] [--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>] [--cwd <path|follow|home|current|workspace>] [--env NAME=VALUE] [--timeout <ms>] [--format text|json]",
     "启动空主终端位；--presentation 绑定精确空成员；--child 追加新子终端（最多 16 个）。\n--label 仅命名新子项。显式面板目标无需 TUI，省略目标使用经过验证的调用者或唯一 Ready 客户端；--client 指定该客户端。不改变客户端焦点。--exec 接受绝对路径或在最终 CLI 的 PATH 中解析程序名。参数和环境变量保持字面值，总超时默认 30000 ms。Pending 表示已接受，尚未确认启动。不确定请求不会重试；JSON 回执保留精确请求及成员身份。仅支持 Windows。",
 );
 impl super::CliText {

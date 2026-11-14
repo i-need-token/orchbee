@@ -77,8 +77,6 @@ pub(crate) enum ClientCommand {
     Navigate {
         target: ClientNavigationTarget,
         client: Option<WorkbenchClientId>,
-        operation_id: Option<WorkbenchRequestId>,
-        detach: bool,
         timeout_ms: u32,
     },
 }
@@ -401,26 +399,9 @@ fn navigation(
     envelope: FailureEnvelope,
 ) -> Result<ClientCommand, ParseFailure> {
     let client = client_id(options, context, envelope)?;
-    let operation_id = options
-        .request_id
-        .as_deref()
-        .map(|value| {
-            WorkbenchRequestId::parse(value).map_err(|_| {
-                invalid(
-                    value,
-                    "--request-id",
-                    ExpectedValue::ClientOperationId,
-                    context,
-                    envelope,
-                )
-            })
-        })
-        .transpose()?;
     Ok(ClientCommand::Navigate {
         target,
         client,
-        operation_id,
-        detach: options.detach,
         timeout_ms: wait_timeout_option(options, context, envelope)?,
     })
 }

@@ -62,18 +62,12 @@ fn submit(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     let action = match command {
-        ManifestCommand::Update { operation_id } => AgentManifestsAction::Update {
-            operation_id: match operation_id {
-                Some(id) => id.clone(),
-                None => query::request_id()?,
-            },
+        ManifestCommand::Update => AgentManifestsAction::Update {
+            operation_id: query::request_id()?,
         },
         ManifestCommand::Current => AgentManifestsAction::Current {},
-        ManifestCommand::Reload { operation_id } => AgentManifestsAction::Reload {
-            operation_id: match operation_id {
-                Some(id) => id.clone(),
-                None => query::request_id()?,
-            },
+        ManifestCommand::Reload => AgentManifestsAction::Reload {
+            operation_id: query::request_id()?,
         },
         ManifestCommand::Status { operation_id } => AgentManifestsAction::Operation {
             operation_id: operation_id.clone(),

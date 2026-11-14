@@ -532,7 +532,6 @@ fn ambiguous_or_unready_clients_fail_before_agent_resolution() {
 #[test]
 fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() {
     let fixture = FocusFixture::new();
-    let operation = id(90);
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let (sent, received) = std::sync::mpsc::channel();
@@ -543,18 +542,15 @@ fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() 
         get_reply(&mut stream, detail(&[108]));
         sent.send(submitted(&mut stream).1).unwrap();
     });
-    let output = fixture.run(&[
-        "agent",
-        "focus",
-        "alpha",
-        "--request-id",
-        &operation,
-        "--format=json",
-    ]);
+    let output = fixture.run(&["agent", "focus", "alpha", "--format=json"]);
     server.join().unwrap();
     let command = received.recv().unwrap();
     let document = document(&output);
     receipt(&document);
+    let operation = document["result"]["operationId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     assert!(!output.status.success());
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -610,11 +606,10 @@ mod attention;
 
 /// A focus refused as `stale-view` applied nothing, so the CLI resolves the Client and Agent again
 /// on a fresh read and submits the same intent under a fresh operation identity against the
-/// Client's new view revision, at most three times; a changed target, or a caller-named
-/// operation identity, keeps the refusal (ORC-413).
+/// Client's new view revision, at most three times; a changed target keeps the refusal (ORC-413).
 #[test]
 fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_times() {
-    for case in ["same", "moved", "persistent", "named"] {
+    for case in ["same", "moved", "persistent"] {
         let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -659,7 +654,7 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
                     &request,
                     json!({"kind":"operation","operation":{"command":command,"status":{"kind":"rejected","reason":"stale-view"}}}),
                 );
-                if case == "named" || attempt == 3 {
+                if attempt == 3 {
                     break;
                 }
                 snapshot_reply(&mut stream);
@@ -667,13 +662,13 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
             assert_closed(&mut stream);
             sent.send(operations).unwrap();
         });
-        let named = id(90);
-        let mut args = vec!["agent", "focus", "--agent-session", "sess-alpha"];
-        if case == "named" {
-            args.extend(["--request-id", &named]);
-        }
-        args.push("--format=json");
-        let output = fixture.run(&args);
+        let output = fixture.run(&[
+            "agent",
+            "focus",
+            "--agent-session",
+            "sess-alpha",
+            "--format=json",
+        ]);
         server.join().unwrap();
         let operations = received.recv().unwrap();
         let document = document(&output);
@@ -685,7 +680,7 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
         );
         let attempts = match case {
             "same" => 2,
-            "moved" | "named" => 1,
+            "moved" => 1,
             _ => 4,
         };
         assert_eq!(operations.len(), attempts, "{case}");
@@ -697,9 +692,6 @@ fn a_stale_view_focus_is_resubmitted_only_to_the_same_target_and_at_most_three_t
                 document["result"]["observation"]["reply"]["outcome"]["operation"]["status"]["reason"],
                 "stale-view"
             );
-        }
-        if case == "named" {
-            assert_eq!(document["result"]["operationId"], named.as_str());
         }
     }
 }

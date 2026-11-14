@@ -145,12 +145,7 @@ TAB=$(orchbee tab create --workspace "$WS" --label shell \
   --format json | jq -er .result.tabId)
 ```
 
-The four geometry flags are an all-or-none group: with all four absent the
-command requests an 80x24 logical grid with unknown cell pixels (0,0) — a
-request policy, not a measured display fact; supplying any of
-`--cols`/`--rows`/`--cell-width`/`--cell-height` requires all four, e.g.
-`--cols 80 --rows 24 --cell-width 8 --cell-height 16` to override the
-default. Add `--exec /abs/path [--arg v]...`
+Add `--exec /abs/path [--arg v]...`
 to replace the default shell for that one request — repeat `--arg` once
 per verbatim argument, with no shell splitting; this is also how an
 installed provider executable is launched, with whatever arguments that

@@ -5,8 +5,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     ClientSplitIdentity, ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand,
-    WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitRatio, WorkbenchTabId,
-    WorkbenchTerminalContextId,
+    WorkbenchRevision, WorkbenchSplitRatio, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 use serde_json::{Value, json};
 use std::time::Instant;
@@ -20,11 +19,10 @@ pub(in crate::cli) fn submit(
     split: ClientSplitIdentity,
     previous_ratio: WorkbenchSplitRatio,
     ratio: WorkbenchSplitRatio,
-    request_id: Option<WorkbenchRequestId>,
     deadline: Instant,
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<(Value, Result<WorkbenchRevision, Failure>), Failure> {
-    let request_id = request_id.map(Ok).unwrap_or_else(query::request_id)?;
+    let request_id = query::request_id()?;
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),

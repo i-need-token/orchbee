@@ -511,12 +511,12 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
     (
         "orchbee agent focus --panel '@panel:0x12' --r",
         "--request-id",
-        true,
+        false,
     ),
     (
         "orchbee agent focus --agent-session sess --d",
         "--detach",
-        true,
+        false,
     ),
     ("orchbee agent focus alpha --d", "--direction", false),
     ("orchbee agent focus alpha --u", "--until", false),
@@ -1059,8 +1059,8 @@ pub(crate) const CASES: &[(&str, &str, bool)] = &[
         false,
     ),
     (
-        "orchbee workspace create --cwd C:\\code --cell-",
-        "--cell-width",
+        "orchbee workspace create --cwd C:\\code --la",
+        "--label",
         true,
     ),
     ("orchbee panel ", "current", true),

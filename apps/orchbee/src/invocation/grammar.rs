@@ -16,13 +16,45 @@ pub(crate) use release::{Withheld, offered, withheld, withholds_unreleased};
 
 pub(crate) const CARDINAL_DIRECTIONS: &[&str] = &["left", "right", "up", "down"];
 
-/// Options that stay accepted where the grammar admits them but that discovery never names: help
-/// option tables, usage advice and completion leave them out.
-const UNLISTED_OPTIONS: &[&str] = &["--no-install", "--stop-session"];
+/// Where discovery leaves an admitted option out.
+enum Unlisted {
+    /// On every command that admits it.
+    Everywhere,
+    /// On these commands; the others name it.
+    On(&'static [CommandPath]),
+}
 
-/// Whether discovery names this admitted option.
-pub(crate) fn option_listed(spelling: &str) -> bool {
-    !UNLISTED_OPTIONS.contains(&spelling)
+/// Creation commands whose terminal grid the Client sizes; a harness may still pin it.
+const CREATION_GEOMETRY: &[CommandPath] = &[
+    CommandPath::PluginPaneOpen,
+    CommandPath::WorkspaceCreate,
+    CommandPath::TabCreate,
+    CommandPath::PanelCreateTerminal,
+    CommandPath::PanelSplit,
+    CommandPath::WorktreeCreate,
+    CommandPath::WorktreeOpen,
+];
+
+/// Options that stay accepted where the grammar admits them but that discovery never names there:
+/// help option tables, usage advice and completion leave them out.
+const UNLISTED_OPTIONS: &[(&str, Unlisted)] = &[
+    ("--no-install", Unlisted::Everywhere),
+    ("--stop-session", Unlisted::Everywhere),
+    ("--cols", Unlisted::On(CREATION_GEOMETRY)),
+    ("--rows", Unlisted::On(CREATION_GEOMETRY)),
+    ("--cell-width", Unlisted::Everywhere),
+    ("--cell-height", Unlisted::Everywhere),
+];
+
+/// Whether discovery names this option on this command.
+pub(crate) fn option_listed(command: CommandPath, spelling: &str) -> bool {
+    !UNLISTED_OPTIONS.iter().any(|(unlisted, place)| {
+        *unlisted == spelling
+            && match place {
+                Unlisted::Everywhere => true,
+                Unlisted::On(commands) => commands.contains(&command),
+            }
+    })
 }
 
 /// Commands that stay callable, `--help` included, but that help directories, usage advice and
@@ -172,7 +204,7 @@ impl CommandSpec {
         self.flags()
             .iter()
             .copied()
-            .filter(|flag| option_listed(flag))
+            .filter(|flag| option_listed(self.id, flag))
             .collect()
     }
 

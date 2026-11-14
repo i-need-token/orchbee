@@ -20,9 +20,11 @@ to agree with it. A command that exists in the binary but not in help, completio
 reference is a defect, and so is the reverse, unless the grammar authority marks it unlisted.
 
 The grammar authority may mark a command path or option unlisted when the owning application
-guide names it: plumbing that another program runs, or an option that is parsed but does nothing
-yet. An unlisted surface stays accepted, and an unlisted command still answers its own `--help`,
-but help directories, usage advice, and completion never name it.
+guide names it: plumbing that another program runs, an option that is parsed but does nothing
+yet, or an option a test harness pins where people leave the choice to the product. An option may
+be unlisted on some commands and listed on others. An unlisted surface stays accepted, and an
+unlisted command still answers its own `--help`, but help directories, usage advice, and
+completion never name it there.
 
 A release build may withhold the command surface of a feature that is not yet polished, when the
 owning application guide names it. The grammar authority marks the withheld paths and values; a

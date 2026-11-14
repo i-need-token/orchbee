@@ -80,7 +80,6 @@ pub(crate) enum ExpectedValue {
     PanelLabel,
     OutputFilePath,
     ClientId,
-    ClientOperationId,
     WorktreeReference,
     WorktreeOperationId,
     WorktreeAttempt,
@@ -112,7 +111,6 @@ pub(crate) enum ExpectedValue {
     AgentStartProvider,
     AgentStartArgument,
     ServerStopRequestId,
-    ManifestOperationId,
     SendText,
     SendKey,
     /// The repeatable `--key` sequence bound: at most 64 values per request.

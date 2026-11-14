@@ -166,8 +166,8 @@ and `panel swap <panel> --with <other-panel>` without `--client`. The shared rec
 canonical identities and outcomes; they make no viewport or focus claim. `layout apply --file
 layout.json --workspace <workspace>` also runs headlessly; explicit Workspace and confirmed Tab destinations
 are supported. Add `--client` for Client geometry/observations, or `--focus` when applying to a
-Client. Directional neighbors, resize and `panel maximize` require Client geometry. Read commands do not
-accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.
+Client. Directional neighbors, resize and `panel maximize` require Client geometry. Only stop, close
+and worktree commands accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.
 
 ## Consistent command vocabulary
 

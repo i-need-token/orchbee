@@ -31,19 +31,11 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     if let ClientCommand::Navigate {
         target,
         client: None,
-        operation_id,
         timeout_ms,
-        ..
     } = command
         && crate::cli::layout_topology::explicit(target)
     {
-        return crate::cli::layout_topology::run(
-            target,
-            operation_id.as_ref(),
-            *timeout_ms,
-            format,
-            locale,
-        );
+        return crate::cli::layout_topology::run(target, *timeout_ms, format, locale);
     }
     if let ClientCommand::Swap(command) = command {
         return super::swap::run(command, format, locale);
@@ -62,11 +54,7 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
         None
     };
     let operation_id = match command {
-        ClientCommand::Navigate { operation_id, .. } => match operation_id
-            .clone()
-            .map(Ok)
-            .unwrap_or_else(query::request_id)
-        {
+        ClientCommand::Navigate { .. } => match query::request_id() {
             Ok(id) => Some(id),
             Err(error) => return failure_output(error, Some(format), locale),
         },
@@ -161,18 +149,14 @@ fn observe(
         ClientCommand::Navigate {
             target,
             client: explicit,
-            operation_id,
-            detach,
             ..
         } => {
             let navigation = Navigation {
                 target,
                 explicit: explicit.as_ref(),
                 caller: caller.as_ref(),
-                wait: !detach,
             };
-            // A caller-named operation identity is the caller's handle; it is never replaced.
-            let retry = StaleRetry::new(operation_id.is_none());
+            let retry = StaleRetry::new(true);
             return navigate(
                 &mut client,
                 snapshot,
@@ -203,7 +187,6 @@ struct Navigation<'a> {
     target: &'a ClientNavigationTarget,
     explicit: Option<&'a WorkbenchClientId>,
     caller: Option<&'a PanelTarget>,
-    wait: bool,
 }
 
 /// The exact Client control one attempt resolved: the Client, the view revision it fences and the
@@ -293,7 +276,7 @@ fn navigate(
             client,
             &snapshot.session_id,
             action,
-            navigation.wait,
+            true,
             deadline,
             signals,
             answer,

@@ -92,7 +92,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         (
             "orchbee server reload-agent-manifests --r",
             "--request-id",
-            true,
+            false,
         ),
         ("orchbee server agent-manifests --r", "--request-id", false),
         ("orchbee server status abc --f", "--format", true),

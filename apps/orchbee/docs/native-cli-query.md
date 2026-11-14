@@ -70,7 +70,16 @@ Agent List uses rows with separate canonical, terminal, placement and Client fac
 Unlisted surfaces stay accepted, but help directories, usage advice and completion never name them:
 `server connect` (the byte relay Client shells run) and `install` are unlisted commands whose own
 `--help` still answers, and `machine add --no-install` and `machine remove --stop-session` are
-unlisted options while they do nothing.
+unlisted options while they do nothing. The terminal geometry group `--cols`, `--rows`,
+`--cell-width` and `--cell-height` is unlisted on the creation commands (`workspace create`,
+`tab create`, `panel split`, `panel create-terminal`, `worktree create|open`, `plugin panel open`):
+the Client sizes new terminals, and a test harness may still pin the grid. `--cols` and `--rows`
+stay listed on `terminal session observe|control`.
+
+`--request-id`, `--retry`, `--detach` and `--generation` belong to stop, close and worktree
+operations and their `status|resume` recovery. Focus, resize, `panel maximize`,
+`layout set-split-ratio` and the Agent manifests commands refuse them as unknown options; they
+always generate the operation ID they report.
 
 Completion keeps local `--session` selection separate from Agent session selectors. Get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. In PowerShell, start an alias with a quote (for example, `'@agent:c`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax. POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
 
@@ -744,7 +753,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
 - `--direction left|right|up|down` is the cardinal vocabulary. `tab move` uses
   `--order previous|next|first|last`, exclusive with `--insert-index`. Unknown values fail
   before runtime access.
-- `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>`: the terminal
+- `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>` (unlisted): the terminal
   geometry group on `tab create` and `panel split`, each taking one decimal `u16`. The
   group is all-or-none: with all four absent the command requests the documented default
   (80x24 logical grid, paired-zero unknown cell pixels); supplying any of the four requires
@@ -895,13 +904,13 @@ orchbee workspace status <close-request-id>
 orchbee workspace resume <close-request-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
 orchbee tab list [--workspace <target>] | tab get <target>
-orchbee tab create [--workspace <target>] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
+orchbee tab create [--workspace <target>] [--label <label>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> (--order previous|next|first|last | --insert-index N)
 orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
-orchbee panel split [<target> | --current] --direction left|right|up|down [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
+orchbee panel split [<target> | --current] --direction left|right|up|down [--label <label>] [--ratio <number>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --into-tab <target> [--target-panel <target>] --direction left|right|up|down
 orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
@@ -1017,10 +1026,6 @@ portable gate and must be run with `ORCHBEE_TEST_ELVISH` pointing to an interpre
 fails that requested test. It supplies a registration namespace to exercise the unmodified script
 without an editor. Windows ConPTY evidence separately checks real interactive registration and
 loading. This proves static completion, not runtime target discovery or other operating systems.
-
-`[<geometry>]` stands for the optional all-or-none group `--cols <n> --rows <n>
---cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24
-grid with unknown cell pixels (0,0).
 
 `help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `config default` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
@@ -2880,9 +2885,9 @@ Launch selections additionally cap worst-case JSON string-content bytes at 30 Ki
 Windows `server agent-manifests` reads the running Session's installed rules, revision, engine version,
 configuration root and each provider's actual source/version/path/cache/warnings. It also reports the
 frozen update catalog, source errors, last update facts and persisted-status errors.
-`server reload-agent-manifests [--request-id <operation-id>]` reloads the startup configuration root
+`server reload-agent-manifests` reloads the startup configuration root
 and existing status, resets screen stabilization and switches sampling and Explain together.
-`server update-agent-manifests [--request-id <operation-id>]` downloads validated rules through the
+`server update-agent-manifests` downloads validated rules through the
 Server's owned Windows curl worker, commits eligible cache versions and then activates the current
 local/cache/bundled selection. Local overrides continue to take precedence. The catalog comes only
 from `ORCHBEE_AGENT_DETECTION_CATALOG_URL`; there is no default. Without it, or with an

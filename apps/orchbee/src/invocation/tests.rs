@@ -7335,15 +7335,7 @@ fn manifest_commands_accept_only_their_owned_options() {
             ..
         })
     ));
-    assert!(
-        parse(&[
-            "server",
-            "reload-agent-manifests",
-            "--request-id",
-            "11111111111111111111111111111111"
-        ])
-        .is_ok()
-    );
+    assert!(parse(&["server", "reload-agent-manifests"]).is_ok());
     assert!(parse(&["server", "status", "11111111111111111111111111111111"]).is_ok());
     for args in [
         vec!["server", "status"],

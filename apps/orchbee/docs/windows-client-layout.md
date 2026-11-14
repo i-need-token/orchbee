@@ -45,7 +45,7 @@ Directional focus uses this projection before navigation, as specified in [Clien
 `panel resize` adjusts the nearest eligible split around an exact or current source Panel. It requires a cardinal direction; the finite amount defaults to `0.05`, becomes absolute and is capped at `0.5`. `layout set-split-ratio` accepts exclusive `--tab`, `--panel` or `--current` targeting, a binary split path (`root` or dot-separated `0`/`1`, at most 16 steps), and a finite ratio clamped to `0.1`–`0.9`. `panel resize` uses the existing exact Client route, operation identity and deadline.
 Explicit `layout set-split-ratio --tab/--panel` without `--client` uses the Server CAS directly,
 returning `orchbee.layout.ratio` v1 with shared scope and retained request/result. It requires no
-Client and preserves unknown mutation outcomes; `--request-id` is optional, `--detach` is rejected.
+Client and preserves unknown mutation outcomes; it accepts neither `--request-id` nor `--detach`.
 Implicit/current targets or explicit `--client` retain the Client route and draw acknowledgment. Parsing precedes connection or effects. Missing paths and hidden resize sources fail explicitly. Setting a ratio may target a hidden split without inventing focus.
 
 Server owns each split's nominal ratio in the canonical Workbench tree. Every Client projects the same ratio at its own viewport size; focus, the maximized state and terminal control remain local. New splits default to `0.5`; retained subtrees keep their ratios. See the [shared ratio contract](../../orchbee-server/docs/shared-split-ratios.md) for atomic mutation and current version 1 checkpoint/catalog admission.

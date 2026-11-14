@@ -34,6 +34,10 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 ));
                 return;
             }
+            let reloaded = match &request.action {
+                AgentManifestsAction::Reload { operation_id } => Some(operation_id.clone()),
+                _ => None,
+            };
             let outcome = match &request.action {
                 AgentManifestsAction::Current {} => {
                     let corpus: Value = serde_json::from_str(include_str!("../../../schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json")).unwrap();
@@ -54,7 +58,9 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 AgentManifestsAction::Reload { operation_id }
                 | AgentManifestsAction::Update { operation_id }
                 | AgentManifestsAction::Operation { operation_id } => {
-                    assert_eq!(operation_id.as_str(), "11111111111111111111111111111111");
+                    if case == "status" {
+                        assert_eq!(operation_id.as_str(), "11111111111111111111111111111111");
+                    }
                     if case == "denied" {
                         AgentManifestsOutcome::Failed {
                             reason: AgentManifestsFailure::Denied,
@@ -97,7 +103,10 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 let AgentManifestsAction::Operation { operation_id } = request.action else {
                     panic!("never reload twice")
                 };
-                assert_eq!(operation_id.as_str(), "11111111111111111111111111111111");
+                assert_eq!(
+                    Some(operation_id.as_str()),
+                    reloaded.as_ref().map(|id| id.as_str())
+                );
                 write_workbench_response(
                     &mut stream,
                     &WorkbenchResponse::AgentManifests(AgentManifestsResult {
@@ -121,11 +130,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
         match case {
             "current" | "automatic" | "en" | "zh" => args.push("agent-manifests"),
             "status" => args.extend(["status", "11111111111111111111111111111111"]),
-            _ => args.extend([
-                "reload-agent-manifests",
-                "--request-id",
-                "11111111111111111111111111111111",
-            ]),
+            _ => args.push("reload-agent-manifests"),
         }
         args.extend(["--format", if text { "text" } else { "json" }]);
         let output = fixture.run_with_env(
@@ -176,8 +181,10 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
             if matches!(case, "lost" | "wrong-operation") {
                 assert_eq!(document["result"]["observation"]["kind"], "unknown");
                 assert_eq!(
-                    document["result"]["action"]["operationId"],
-                    "11111111111111111111111111111111"
+                    document["result"]["action"]["operationId"]
+                        .as_str()
+                        .map(str::len),
+                    Some(32)
                 );
             }
         }
@@ -262,14 +269,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
             assert_closed(&mut stream);
         });
         let output = fixture.run_with_env(
-            &[
-                "server",
-                "update-agent-manifests",
-                "--request-id",
-                "11111111111111111111111111111111",
-                "--format",
-                "json",
-            ],
+            &["server", "update-agent-manifests", "--format", "json"],
             None,
             None,
             &[],

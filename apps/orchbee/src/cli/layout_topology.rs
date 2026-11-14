@@ -13,7 +13,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     ClientSplitIdentity, ClientSplitPath, PanelNode, Snapshot, Tab, TerminalContext,
-    WorkbenchPanelId, WorkbenchRequestId, WorkbenchSplitRatio,
+    WorkbenchPanelId, WorkbenchSplitRatio,
 };
 pub(in crate::cli) use ratio::submit as submit_ratio;
 use serde_json::{Map, Value, json};
@@ -126,7 +126,6 @@ pub(in crate::cli) fn explicit(target: &ClientNavigationTarget) -> bool {
 
 pub(in crate::cli) fn run(
     target: &ClientNavigationTarget,
-    operation_id: Option<&WorkbenchRequestId>,
     timeout_ms: u32,
     format: OutputFormat,
     locale: Locale,
@@ -147,7 +146,7 @@ pub(in crate::cli) fn run(
             );
         }
     };
-    let mut result = execute(target, operation_id, deadline, &mut signals);
+    let mut result = execute(target, deadline, &mut signals);
     let mut finalization = None;
     match signals.finish() {
         Ok(Finish::Clear) => {}
@@ -203,7 +202,6 @@ pub(in crate::cli) fn run(
 
 fn execute(
     target: &ClientNavigationTarget,
-    operation_id: Option<&WorkbenchRequestId>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(Value, u8), Failure> {
@@ -242,7 +240,6 @@ fn execute(
                 identity,
                 previous,
                 *ratio,
-                operation_id.cloned(),
                 deadline,
                 signals.poll_fd(),
             )?;

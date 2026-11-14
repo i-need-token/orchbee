@@ -162,12 +162,6 @@ impl super::CliText {
                 "a nonzero 32-character lowercase hexadecimal Client ID"
             }
             (Locale::ZhCn, ExpectedValue::ClientId) => "非零的 32 位小写十六进制客户端标识",
-            (Locale::EnUs, ExpectedValue::ClientOperationId) => {
-                "a nonzero 32-character lowercase hexadecimal Client control operation ID"
-            }
-            (Locale::ZhCn, ExpectedValue::ClientOperationId) => {
-                "非零的 32 位小写十六进制客户端控制操作标识"
-            }
             (Locale::EnUs, ExpectedValue::WorktreeReference) => {
                 "a nonempty Git reference of at most 1024 UTF-8 bytes without a leading dash or control characters"
             }
@@ -319,10 +313,6 @@ impl super::CliText {
                 "a nonzero 32-character lowercase hexadecimal directory ID"
             }
             (Locale::ZhCn, ExpectedValue::DirectoryId) => "非零的 32 位小写十六进制目录 ID",
-            (Locale::EnUs, ExpectedValue::ManifestOperationId) => {
-                "a nonzero 32-character lowercase hexadecimal operation ID"
-            }
-            (Locale::ZhCn, ExpectedValue::ManifestOperationId) => "非零的 32 位小写十六进制操作 ID",
             (Locale::EnUs, ExpectedValue::CloseRequestId) => {
                 "the close operation's own nonzero 32-character lowercase hexadecimal request ID"
             }

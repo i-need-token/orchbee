@@ -197,8 +197,7 @@ substitute each `<…>` placeholder with the real id or provider:
 orchbee server start                        # activate the local Session once (no TTY)
 orchbee status                            # is the Workbench reachable?
 orchbee project create --label demo       # then workspace create / accept-directory
-orchbee tab create --workspace <ws> --label shell \
-  --cols 80 --rows 24 --cell-width 8 --cell-height 16
+orchbee tab create --workspace <ws> --label shell
 orchbee terminal send <terminal-id> --text 'make test' --enter
 orchbee terminal wait-output <terminal-id> --match 'PASS'
 orchbee agent integration enable --provider <id>   # one-time local onboarding

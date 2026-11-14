@@ -7,8 +7,8 @@ use super::{
 };
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry,
 };
 
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
@@ -167,25 +167,6 @@ pub(super) fn geometry_option(
                 rows,
                 cell_width,
                 cell_height,
-            },
-            envelope,
-        )
-    })
-}
-
-pub(super) fn manifest_operation_id(
-    value: &str,
-    context: UsageContext,
-    option: &'static str,
-    envelope: FailureEnvelope,
-) -> Result<WorkbenchRequestId, ParseFailure> {
-    WorkbenchRequestId::parse(value).map_err(|_| {
-        usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option,
-                value: value.into(),
-                expected: ExpectedValue::ManifestOperationId,
             },
             envelope,
         )

@@ -91,7 +91,7 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
             flags
                 .iter()
                 .copied()
-                .filter(|flag| authority::option_listed(flag))
+                .filter(|flag| authority::option_listed(command.id, flag))
                 .collect(),
         );
         insert(
