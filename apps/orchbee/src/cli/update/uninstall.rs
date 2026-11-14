@@ -5,7 +5,8 @@
 //!    Agents, then confirm;
 //! b. stop every Session of the environment, including one another installed version runs, then
 //!    end the machine hub of its data root;
-//! c. disable every Agent integration through the writer's own disable path;
+//! c. disable every Agent integration this environment may have enabled, through the writer's own
+//!    disable path;
 //! d. remove the user `Path` entry the PATH step wrote and the installer entries;
 //! e. remove from the data root what the data-root contract lists, or the whole root with
 //!    `--delete-data`;
@@ -276,7 +277,9 @@ fn inventory(report: &mut Report, delete_data: bool, caller: Caller) -> Option<I
         Ok(false) => Outcome::Absent,
         _ => Outcome::NotReached,
     };
-    if background(report, &data, deadline).is_err() || integrations(report, deadline).is_err() {
+    if background(report, &data, deadline).is_err()
+        || integrations(report, &data, deadline).is_err()
+    {
         report.stop(Stop::Inventory, "", "");
         return None;
     }
@@ -425,26 +428,35 @@ fn running_agents(session: &Rendezvous, cohort: &Cohort, deadline: Instant) -> O
     u32::try_from(checkpoint.rows.len()).ok()
 }
 
-/// Every provider, marked when its files show an entry of this environment or only its own
-/// program can tell; another environment's entry, which disable leaves, marks nothing. This
-/// starts no Agent program.
-fn integrations(report: &mut Report, deadline: Instant) -> Result<(), ()> {
+/// Every provider, with the evidence that this environment enabled it, read without starting any
+/// Agent program. Its files show this environment's entry; or, for a provider whose program is on
+/// `PATH` and alone reports its state, this environment has enabled some integration, since only an
+/// enable installs a Capsule in the data root and no Agent entry can name this environment without
+/// one. Another environment's entry, which disable leaves, is no evidence. Step c runs the writer's
+/// disable where there is evidence, and otherwise only where it starts no Agent program and an
+/// entry of this environment can exist at all.
+fn integrations(report: &mut Report, data: &DataRoot, deadline: Instant) -> Result<(), ()> {
     let context =
         orchbee_agent_integration_writer::context_before(None, None, deadline).map_err(|_| ())?;
-    let rows = orchbee_agent_integration_writer::list_owned(&context);
-    report.integrations = IntegrationId::ALL
-        .iter()
-        .map(|id| IntegrationLine {
-            provider: id.provider(),
-            listed: rows.iter().any(|(item, own)| {
-                item.integration_id == *id
-                    && match own {
-                        State::Enabled | State::UpdateRequired | State::Conflict => true,
-                        State::Unknown => item.availability == Availability::Available,
-                        State::Disabled | State::NotInstalled => false,
-                    }
-            }),
-            outcome: IntegrationOutcome::NotReached,
+    // An unreadable folder counts as present.
+    let enabled_here = !matches!(data.agent_observation_capsules().try_exists(), Ok(false));
+    report.integrations = orchbee_agent_integration_writer::list_owned(&context)
+        .into_iter()
+        .map(|(item, own)| {
+            let id = item.integration_id;
+            let program_told =
+                id.read_by_starting_agent() && item.availability == Availability::Available;
+            let listed = match own {
+                State::Enabled | State::UpdateRequired | State::Conflict => true,
+                State::Unknown => program_told && enabled_here,
+                State::Disabled | State::NotInstalled => false,
+            };
+            IntegrationLine {
+                provider: id.provider(),
+                listed,
+                disable: listed || (enabled_here && !program_told),
+                outcome: IntegrationOutcome::NotReached,
+            }
         })
         .collect();
     Ok(())
@@ -621,11 +633,17 @@ fn still_running(inventory: &Inventory) -> Option<platform::StoreProcess> {
         .next()
 }
 
-/// Step c: the writer's disable for every provider, whether or not anything shows it enabled; the
-/// writer leaves every other part of an Agent's configuration as it was.
+/// Step c: the writer's disable for every provider the inventory chose; the writer leaves every
+/// other part of an Agent's configuration as it was. Any other provider holds no entry of this
+/// environment and its program does not start. A refusal stops the run only where there was
+/// evidence of this environment's entry; elsewhere the provider is not checked and the run goes on.
 fn disable_integrations(report: &mut Report, signals: &mut ArmedSignals) -> Result<(), ()> {
     for index in 0..report.integrations.len() {
         check(report, signals)?;
+        if !report.integrations[index].disable {
+            report.integrations[index].outcome = IntegrationOutcome::NotEnabled;
+            continue;
+        }
         let Some(id) = IntegrationId::parse_provider(report.integrations[index].provider) else {
             continue;
         };
@@ -654,6 +672,11 @@ fn disable_integrations(report: &mut Report, signals: &mut ArmedSignals) -> Resu
             Verdict::Refused(Refusal::ManualActionRequired) => (IntegrationOutcome::NotManaged, ""),
             Verdict::Refused(Refusal::InspectionFailed) if program_missing => {
                 (IntegrationOutcome::ProgramNotFound, "")
+            }
+            Verdict::Refused(refusal)
+                if !report.integrations[index].listed && !mutation.effect_begun =>
+            {
+                (IntegrationOutcome::NotChecked(refusal.as_str()), "")
             }
             Verdict::Refused(refusal) => (IntegrationOutcome::Failed, refusal.as_str()),
             Verdict::Failed(code) => (IntegrationOutcome::Failed, code.as_str()),

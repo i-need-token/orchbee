@@ -790,7 +790,10 @@ fn inspect_with(id: IntegrationId, context: &ProviderContext, reads: AgentReads)
 }
 
 /// The row state and what disable acts on for a provider left unread: `unknown`, except that
-/// Orchbee's own Hermes entry files alone prove a conflict, or another environment's plugin.
+/// Orchbee's own Hermes entry files alone prove a conflict, or another environment's plugin. Those
+/// files are what loads Orchbee into Hermes, so they alone also decide what disable acts on: none
+/// leaves nothing of this environment's, and this environment's files are its entry. The row stays
+/// `unknown` either way, since only Hermes reports whether it activated the plugin.
 fn unread_state(
     id: IntegrationId,
     context: &ProviderContext,
@@ -799,14 +802,21 @@ fn unread_state(
     #[cfg(windows)]
     if id == IntegrationId::Hermes
         && let Some(local) = super::hermes_windows::local(context.home, options)
-        && local.state == State::Conflict
     {
-        let own = if local.elsewhere {
-            State::NotInstalled
-        } else {
-            State::Conflict
-        };
-        return (State::Conflict, own);
+        match local.state {
+            State::Conflict => {
+                let own = if local.elsewhere {
+                    State::NotInstalled
+                } else {
+                    State::Conflict
+                };
+                return (State::Conflict, own);
+            }
+            State::NotInstalled | State::Enabled | State::UpdateRequired => {
+                return (State::Unknown, local.state);
+            }
+            State::Disabled | State::Unknown => {}
+        }
     }
     let _ = (id, context, options);
     (State::Unknown, State::Unknown)

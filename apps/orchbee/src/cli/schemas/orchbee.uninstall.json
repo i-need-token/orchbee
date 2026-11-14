@@ -93,6 +93,7 @@
 									"not-enabled",
 									"not-managed",
 									"program-not-found",
+									"not-checked",
 									"failed"
 								]
 							}

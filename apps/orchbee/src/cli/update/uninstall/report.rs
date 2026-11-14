@@ -58,13 +58,19 @@ pub(super) enum IntegrationOutcome {
     NotManaged,
     /// The provider's program is not on `PATH`, so only that program could report an entry.
     ProgramNotFound,
+    /// Nothing showed this environment's entry and the writer refused, for this reason token, to
+    /// say more; the run went on.
+    NotChecked(&'static str),
     Failed,
 }
 
 pub(super) struct IntegrationLine {
     pub(super) provider: &'static str,
-    /// Listed before confirming as enabled, or possibly enabled.
+    /// Evidence that this environment enabled it, listed before confirming as enabled or possibly
+    /// enabled.
     pub(super) listed: bool,
+    /// Whether step c runs the writer's disable for it.
+    pub(super) disable: bool,
     pub(super) outcome: IntegrationOutcome,
 }
 
@@ -235,6 +241,7 @@ impl Report {
                         IntegrationOutcome::NotEnabled => "not-enabled",
                         IntegrationOutcome::NotManaged => "not-managed",
                         IntegrationOutcome::ProgramNotFound => "program-not-found",
+                        IntegrationOutcome::NotChecked(_) => "not-checked",
                         IntegrationOutcome::Failed => "failed",
                     },
                 })).collect::<Vec<_>>(),
@@ -382,6 +389,17 @@ impl Report {
             if !providers.is_empty() {
                 lines.push(format!("{}{}", phrase(key), providers.join(separator)));
             }
+        }
+        let unchecked: Vec<(&str, &str)> = self
+            .integrations
+            .iter()
+            .filter_map(|line| match line.outcome {
+                IntegrationOutcome::NotChecked(reason) => Some((line.provider, reason)),
+                _ => None,
+            })
+            .collect();
+        if !unchecked.is_empty() {
+            lines.push(text.cli_uninstall_not_checked(&unchecked));
         }
         if self.path_entry == Outcome::Removed {
             lines.push(phrase("new-terminal").to_owned());

@@ -83,6 +83,168 @@ fn installer_uninstall_passes_the_uninstaller_waiting_for_it_and_stops_for_anoth
     }
 }
 
+/// An Agent whose state cannot be read stops the uninstall only when something shows this
+/// environment enabled its integration. Here an integration was enabled once (the Capsule folder
+/// exists), but neither Hermes's entry files nor the other Agent's file show this environment's
+/// entry: Hermes's program never starts, the unreadable file is not checked, and the run finishes.
+#[test]
+fn an_agent_without_this_environments_entry_never_stops_the_uninstall() {
+    let scratch = Scratch::new();
+    let started = scratch.stub("hermes");
+    // Antigravity's state is in its file; with its program on `PATH` an unreadable file is the
+    // only thing that keeps it from being checked.
+    scratch.stub("agy");
+    let agent_file = scratch.root.join(r"home\.gemini\config\hooks.json");
+    fs::create_dir_all(agent_file.parent().unwrap()).unwrap();
+    fs::write(&agent_file, b"{not json").unwrap();
+    let (output, document) = scratch.uninstall();
+    assert_eq!(output.status.code(), Some(0), "{}", describe(&output));
+    let schema: Value =
+        serde_json::from_str(include_str!("../src/cli/schemas/orchbee.uninstall.json")).unwrap();
+    assert!(
+        jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&document),
+        "{document}"
+    );
+    let line = |provider: &str| integration(&document, provider);
+    assert_eq!(line("hermes")["result"], "not-enabled", "{document}");
+    assert_eq!(line("hermes")["listed"], false, "{document}");
+    assert!(!started.exists(), "uninstall started Hermes");
+    assert_eq!(line("antigravity")["result"], "not-checked", "{document}");
+    assert_eq!(fs::read(&agent_file).unwrap(), b"{not json");
+}
+
+/// Where something does show this environment enabled an integration and its Agent cannot be
+/// read, the uninstall still stops before anything changes, naming that Agent.
+#[test]
+fn an_agent_that_may_hold_this_environments_entry_still_stops_the_uninstall() {
+    let scratch = Scratch::new();
+    let started = scratch.stub("claude");
+    let (output, document) = scratch.uninstall();
+    assert_eq!(output.status.code(), Some(9), "{}", describe(&output));
+    assert_eq!(document["result"]["error"], "integrations", "{document}");
+    assert_eq!(
+        integration(&document, "claude-code")["result"],
+        "failed",
+        "{document}"
+    );
+    assert!(
+        started.exists(),
+        "uninstall read Claude Code through its program"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("claude-code") && stderr.contains("Nothing was changed."),
+        "{stderr}"
+    );
+    assert!(scratch.data().join(r"internal\integrations").is_dir());
+}
+
+/// A plain test build's uninstall in a scratch profile: no store, a data root whose Capsule folder
+/// shows an integration was enabled, and a `PATH` holding only the stub Agent programs and the
+/// system folder.
+struct Scratch {
+    root: PathBuf,
+    key: String,
+}
+
+impl Scratch {
+    fn new() -> Self {
+        let mut nonce = [0; 8];
+        getrandom::fill(&mut nonce).unwrap();
+        let nonce = format!("{:016x}", u64::from_le_bytes(nonce));
+        let root = std::env::temp_dir().join(format!("ob-uninstall-agents-{nonce}"));
+        for folder in ["home", "local", "roaming", "tmp", "bin"] {
+            fs::create_dir_all(root.join(folder)).unwrap();
+        }
+        let scratch = Self {
+            root,
+            key: format!(r"Software\ob-test-scratch\uninstall-agents-{nonce}"),
+        };
+        fs::create_dir_all(
+            scratch
+                .data()
+                .join(r"internal\integrations\agent-observation"),
+        )
+        .unwrap();
+        fs::write(
+            scratch.data().join(r"internal\version.json"),
+            br#"{"layout":1}"#,
+        )
+        .unwrap();
+        scratch
+    }
+
+    fn data(&self) -> PathBuf {
+        self.root.join("data")
+    }
+
+    /// A stub Agent program that fails and leaves the returned marker whenever it starts.
+    fn stub(&self, program: &str) -> PathBuf {
+        let marker = self.root.join(format!("{program}-started"));
+        fs::write(
+            self.root.join(format!(r"bin\{program}.cmd")),
+            format!("@echo.>\"{}\"\r\n@exit /b 1\r\n", marker.display()),
+        )
+        .unwrap();
+        marker
+    }
+
+    fn uninstall(&self) -> (Output, Value) {
+        let mut command =
+            crate::inherited_environment::orchbee_command(env!("CARGO_BIN_EXE_orchbee"));
+        command
+            .args(["uninstall", "--confirm", "--format", "json"])
+            .env(
+                "PATH",
+                format!(
+                    "{};{}",
+                    self.root.join("bin").display(),
+                    system_folder().display()
+                ),
+            )
+            .env("USERPROFILE", self.root.join("home"))
+            .env("HOME", self.root.join("home"))
+            .env("APPDATA", self.root.join("roaming"))
+            .env("LOCALAPPDATA", self.root.join("local"))
+            .env("TEMP", self.root.join("tmp"))
+            .env("TMP", self.root.join("tmp"))
+            .env("ORCHBEE_HOME", self.data())
+            .env("ORCHBEE_INSTALL_DIR", self.root.join("store"))
+            .env("ORCHBEE_TEST_REGISTRY_KEY", &self.key)
+            .env("LC_ALL", "en-US")
+            .env_remove("HERMES_HOME")
+            .env_remove("HERMES_DATA_DIR_SUFFIX")
+            .current_dir(&self.root)
+            .stdin(Stdio::null());
+        let output = command.output().unwrap();
+        let document = serde_json::from_slice(&output.stdout).unwrap_or(Value::Null);
+        (output, document)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = Command::new(system_folder().join("reg.exe"))
+            .args(["delete", &format!(r"HKCU\{}", self.key), "/f"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+fn integration<'a>(document: &'a Value, provider: &str) -> &'a Value {
+    document["result"]["integrations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|line| line["provider"] == provider)
+        .unwrap()
+}
+
 struct Profile {
     root: PathBuf,
     client: PathBuf,

@@ -284,7 +284,8 @@ mod imp {
 
     /// Every provider's files-only `list` row beside the state this environment's disable acts on,
     /// which reads another environment's whole-file entry as `not-installed` where the row reads
-    /// `conflict`. `uninstall` names from it the integrations it changes.
+    /// `conflict`, and Windows Hermes by its entry files alone. `uninstall` decides from it which
+    /// integrations show this environment's entry, and which Agent programs it need not start.
     pub fn list_owned(context: &IntegrationContext) -> Vec<(SnapshotItem, State)> {
         let provider_context = context.provider_context();
         IntegrationId::ALL

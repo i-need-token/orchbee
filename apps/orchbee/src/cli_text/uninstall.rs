@@ -146,6 +146,29 @@ impl super::CliText {
         }
     }
 
+    /// The final message's line for the providers whose state could not be read and that showed no
+    /// entry of this environment, each with the writer's reason token, and what to do about one the
+    /// person did enable.
+    pub(crate) fn cli_uninstall_not_checked(self, providers: &[(&str, &str)]) -> String {
+        let (separator, open, close) = match self.locale {
+            Locale::EnUs => (", ", " (", ")"),
+            Locale::ZhCn => ("、", "（", "）"),
+        };
+        let named = providers
+            .iter()
+            .map(|(provider, reason)| format!("{provider}{open}{reason}{close}"))
+            .collect::<Vec<_>>()
+            .join(separator);
+        match self.locale {
+            Locale::EnUs => format!(
+                "Not checked: {named}. If you enabled Orchbee's integration in one of them, remove Orchbee's entry from that Agent's configuration."
+            ),
+            Locale::ZhCn => format!(
+                "未检查：{named}。如果你曾为其中某个智能体启用 Orchbee 集成，请从该智能体的配置中移除 Orchbee 的条目。"
+            ),
+        }
+    }
+
     /// How to continue after a stop; `program` is the full path to run once `orchbee` may no longer
     /// be on `Path`, already rendered for display.
     pub(crate) fn cli_uninstall_again(self, program: Option<&str>) -> String {
@@ -218,8 +241,10 @@ impl super::CliText {
             (Locale::ZhCn, "still-running") => format!("{subject}（进程 {detail}）仍在从程序文件夹运行，它结束前无法移除程序文件夹。"),
             (Locale::EnUs, "sessions") => format!("Session {subject} did not stop ({detail})."),
             (Locale::ZhCn, "sessions") => format!("会话 {subject} 未能停止（{detail}）。"),
-            (Locale::EnUs, "integrations") => format!("The Agent integration {subject} could not be disabled ({detail})."),
-            (Locale::ZhCn, "integrations") => format!("无法停用智能体集成 {subject}（{detail}）。"),
+            (Locale::EnUs, "integrations") if matches!(detail, "inspection-failed" | "timed-out") => format!("The Agent integration {subject} may still be enabled, and its state could not be read ({detail}). Make sure that Agent's program starts, or remove Orchbee's entry from its configuration."),
+            (Locale::ZhCn, "integrations") if matches!(detail, "inspection-failed" | "timed-out") => format!("智能体集成 {subject} 可能仍处于启用状态，但无法读取其状态（{detail}）。请确认该智能体的程序能够启动，或从其配置中移除 Orchbee 的条目。"),
+            (Locale::EnUs, "integrations") => format!("The Agent integration {subject} could not be disabled ({detail}). Remove Orchbee's entry from its configuration."),
+            (Locale::ZhCn, "integrations") => format!("无法停用智能体集成 {subject}（{detail}）。请从其配置中移除 Orchbee 的条目。"),
             (Locale::EnUs, "path-entry") => format!("The user Path entry in {subject} could not be removed."),
             (Locale::ZhCn, "path-entry") => format!("无法移除 {subject} 中的用户 Path 条目。"),
             (Locale::EnUs, "installer-entries") => format!("{subject} could not be removed."),
