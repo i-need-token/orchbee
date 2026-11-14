@@ -319,6 +319,12 @@ impl Holder {
         platform::dismiss(&self.shared, login);
     }
 
+    /// Asks the hub to make offered episode `login` this TUI's without waiting; its `claimed`
+    /// event follows, or a login notice that it was taken.
+    pub(super) fn claim(&self, login: Id) {
+        platform::claim(&self.shared, login);
+    }
+
     /// Delivers `answer` to `endpoint` off the interface thread and reports the outcome as a
     /// login notice; the answer is wiped once the endpoint took it or the bound passed.
     pub(super) fn deliver(&self, token: Token, endpoint: AnswerEndpoint, answer: Answer) {

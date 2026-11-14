@@ -1,18 +1,22 @@
 //! One login episode as the client that claimed it sees it: the questions the hub puts to it, the
 //! person's answer in one fixed buffer, the answer's delivery to the question's endpoint, and the
-//! end. Pure and interface-neutral: the holder brings notices and carries out effects, and an
-//! overlay shows [`Presented`]. `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns the
-//! rules.
+//! end; and the command logins the hub offers to every interface that asks, until the person
+//! accepts one. Pure and interface-neutral: the holder brings notices and carries out effects, an
+//! overlay shows [`Presented`] and a notice [`Offered`].
+//! `apps/orchbee/docs/machines.md#the-tui-as-a-hub-client` owns the rules.
 
+mod offers;
 mod remember;
 mod secret;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use offers::Offered;
 pub(crate) use remember::RememberBox;
 pub(crate) use secret::{Answer, SecretField};
 
 use crate::machine_credentials::{Remembering, SecretKind};
+use offers::Offers;
 use remember::Remember;
 
 use crate::machine_question::attributed;
@@ -39,7 +43,18 @@ pub struct Token {
     expect(dead_code, reason = "only the Windows holder reaches a hub")
 )]
 pub(crate) enum Notice {
-    /// This client claimed episode `login` of `machine`.
+    /// The hub offers command episode `login` of `machine` to every client that asks, with
+    /// `waiters` commands waiting on it; again when it counts them again.
+    Offered {
+        login: Id,
+        machine: String,
+        waiters: u64,
+    },
+    /// Another client claimed episode `login`, or this client's claim did not take it.
+    Taken {
+        login: Id,
+    },
+    /// This client claimed episode `login` of `machine`; again when the hub counts its waiters.
     Claimed {
         login: Id,
         machine: String,
@@ -104,6 +119,8 @@ pub(crate) enum Effect {
         kind: SecretKind,
         answer: Answer,
     },
+    /// Ask the hub to make the offered episode this client's.
+    Claim(Id),
 }
 
 /// How the last episode of a Machine ended, as its selection reads it.
@@ -201,17 +218,20 @@ struct Concluded {
     field: SecretField,
 }
 
-/// The client's login episodes: at most one, claimed for the selection the person waits on, the
-/// overlay of one that ended without them, and how the last one of each Machine ended.
+/// The client's login episodes: at most one, claimed for the selection the person waits on or
+/// accepted from its notice, the overlay of one that ended without them, how the last one of each
+/// Machine ended, and the command logins offered here.
 #[derive(Default)]
 pub(crate) struct Logins {
-    /// The Machine whose selection the person waits on; only its login may ask.
+    /// The Machine whose selection the person waits on; only its login, and one the person
+    /// accepted from its notice, may ask.
     waiting: Option<String>,
     episode: Option<Episode>,
     concluded: Option<Concluded>,
     endings: Vec<(String, Ending)>,
     /// How long this platform's store keeps an answer, once the holder looked.
     remembering: Option<Remembering>,
+    offers: Offers,
 }
 
 impl Logins {
@@ -222,10 +242,32 @@ impl Logins {
         target: impl Fn(&str) -> Option<String>,
     ) -> Vec<Effect> {
         match notice {
+            Notice::Offered {
+                login,
+                machine,
+                waiters,
+            } => {
+                // A Machine this client cannot name is not offered here.
+                if let Some(target) = target(&machine).filter(|_| !self.holds(login)) {
+                    self.offers.offer(login, machine, target, waiters);
+                }
+                Vec::new()
+            }
+            Notice::Taken { login } => {
+                self.offers.withdraw(login);
+                Vec::new()
+            }
+            // The hub counted the waiters again: the episode is already this client's.
+            Notice::Claimed { login, .. } if self.holds(login) => Vec::new(),
             Notice::Claimed { login, machine } => {
-                // Only the selection the person waits on may ask, and a shown overlay is never
-                // replaced: any other login is let go before it asks anything here.
-                let admitted = self.waiting.as_deref() == Some(machine.as_str())
+                // Only the selection the person waits on, or a login the person accepted from its
+                // notice, may ask, and a shown overlay is never replaced: any other login is let
+                // go before it asks anything here.
+                let accepted = self.offers.accepted(login);
+                if !accepted {
+                    self.offers.withdraw(login);
+                }
+                let admitted = (accepted || self.waiting.as_deref() == Some(machine.as_str()))
                     && self.concluded.is_none()
                     && self
                         .episode
@@ -233,6 +275,7 @@ impl Logins {
                         .is_none_or(|episode| episode.open.is_none());
                 // A Machine this client cannot name is not shown as anyone's: let it go too.
                 let Some(target) = target(&machine).filter(|_| admitted) else {
+                    self.offers.withdraw(login);
                     return vec![Effect::Dismiss(login)];
                 };
                 let mut effects = Vec::new();
@@ -257,6 +300,8 @@ impl Logins {
                 else {
                     return Vec::new();
                 };
+                // An accepted login's notice gives way to its question.
+                self.offers.withdraw(question.login);
                 // The client reads the kind again: only `ssh`'s own sentence naming the Machine's
                 // host is a password or a new host; anything else is asked as `other`.
                 let kind = attributed(question.kind, question.prompt.as_str(), &episode.target);
@@ -282,6 +327,7 @@ impl Logins {
                 Vec::new()
             }
             Notice::Ended { login, end } => {
+                self.offers.withdraw(login);
                 let Some(mut episode) = self.episode.take_if(|episode| episode.login == login)
                 else {
                     return Vec::new();
@@ -327,6 +373,7 @@ impl Logins {
                 }
             }
             Notice::Lost => {
+                self.offers.clear();
                 if let Some(episode) = self.episode.take() {
                     self.conclude(episode, Ending::Lost);
                 }
@@ -484,6 +531,53 @@ impl Logins {
             field: open.field.clone(),
             remember: episode.remember.shown(&open.kind, self.remembering),
         })
+    }
+
+    /// The notice of a command login offered here, while no question or ended login's overlay is
+    /// shown and no other login is this client's: the accepted login until its question opens,
+    /// otherwise the lowest one offered.
+    pub(crate) fn offered(&self) -> Option<Offered> {
+        if self.concluded.is_some() {
+            return None;
+        }
+        match &self.episode {
+            Some(episode) if episode.open.is_some() => None,
+            Some(episode) => self
+                .offers
+                .get(episode.login)
+                .filter(|offer| offer.accepted)
+                .cloned(),
+            None => self.offers.first().cloned(),
+        }
+    }
+
+    /// The person accepts the notice of `login`: this client claims it, and its question follows.
+    pub(crate) fn accept(&mut self, login: Id) -> Vec<Effect> {
+        if self.offered().is_some_and(|offer| offer.login == login) && self.offers.accept(login) {
+            vec![Effect::Claim(login)]
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// The person declines the notice of `login`: the hub ends it for every client, fails its
+    /// commands and stops offering that Machine's command logins.
+    pub(crate) fn decline(&mut self, login: Id) -> Vec<Effect> {
+        if self.offered().is_none_or(|offer| offer.login != login) {
+            return Vec::new();
+        }
+        self.offers.withdraw(login);
+        if self.holds(login) {
+            return self.dismiss();
+        }
+        vec![Effect::Dismiss(login)]
+    }
+
+    /// Whether episode `login` is this client's.
+    fn holds(&self, login: Id) -> bool {
+        self.episode
+            .as_ref()
+            .is_some_and(|episode| episode.login == login)
     }
 
     /// Whether an episode of `machine` is claimed here: its selection waits for the person.

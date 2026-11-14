@@ -14,8 +14,8 @@ use crate::{
 use orchbee_machine_protocol::{
     Id, MachineId,
     hub::{
-        AnswerEndpoint, Claimant, Connect, ConnectFailure, ConnectOutcome, ConnectResult, Event,
-        HubState, LoginEvent, LoginPhase, Origin, Reply, Request,
+        AnswerEndpoint, ClaimOutcome, Claimant, Connect, ConnectFailure, ConnectOutcome,
+        ConnectResult, Event, HubState, LoginEvent, LoginPhase, Origin, Reply, Request,
     },
 };
 use std::{
@@ -358,12 +358,13 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                         .insert(event.machine.to_string(), event.state);
                 });
             }
-            // Only the episodes this TUI claimed are its own; offers and other clients' claims
-            // wait for login notices of their own.
+            // The episodes this TUI claimed are its own; a command episode is offered to every
+            // client that asks until one claims it.
             Some(Notice::Event(Event::Login(LoginEvent {
                 login,
                 machine,
                 phase,
+                waiters,
                 ..
             }))) => match phase {
                 LoginPhase::Claimed {
@@ -372,10 +373,17 @@ fn follow(shared: &Arc<Shared>, client: &HubClient) -> Left {
                     login,
                     machine: machine.to_string(),
                 }),
+                LoginPhase::Offered => shared.login(machine_login::Notice::Offered {
+                    login,
+                    machine: machine.to_string(),
+                    waiters: waiters.get(),
+                }),
+                LoginPhase::Claimed {
+                    claim: Claimant::Other,
+                } => shared.login(machine_login::Notice::Taken { login }),
                 LoginPhase::Ended { end } => {
                     shared.login(machine_login::Notice::Ended { login, end });
                 }
-                LoginPhase::Offered | LoginPhase::Claimed { .. } => {}
             },
             Some(Notice::Event(Event::Question(question))) => {
                 shared.login(machine_login::Notice::Question(question));
@@ -459,6 +467,27 @@ pub(super) fn dismiss(shared: &Arc<Shared>, login: Id) {
         .spawn(move || {
             let _reply = client.request(Request::Dismiss { login }, Instant::now() + DISMISS);
         });
+}
+
+/// Asks the hub to make offered episode `login` this TUI's. A claim that does not take it lets its
+/// notice go; the hub's `claimed` event and the question follow one that does.
+pub(super) fn claim(shared: &Arc<Shared>, login: Id) {
+    let Some(client) = shared.lock().link.clone() else {
+        shared.login(machine_login::Notice::Taken { login });
+        return;
+    };
+    let shared_for_thread = shared.clone();
+    let started = thread::Builder::new()
+        .name("orchbee-machine-claim".into())
+        .spawn(move || {
+            let reply = client.request(Request::Claim { login }, Instant::now() + DISMISS);
+            if !matches!(reply, Ok(Reply::Claim(ClaimOutcome::Claimed))) {
+                shared_for_thread.login(machine_login::Notice::Taken { login });
+            }
+        });
+    if started.is_err() {
+        shared.login(machine_login::Notice::Taken { login });
+    }
 }
 
 /// Writes `answer` to the question's endpoint, which takes up to 5 seconds, and reports how it

@@ -11,14 +11,17 @@ mod worker;
 use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
 use crate::machine_login::Notice as LoginNotice;
-use crate::machine_login::{Act, Effect, Ending, Logins, Presented, Token};
+use crate::machine_login::{Act, Effect, Ending, Logins, Offered, Presented, Token};
 use crate::machine_refusal::Refusal;
 use crate::machines::{Connection as MachineConnection, Profile, ProfileId};
 use crate::ui_wakeup::UiWakeup;
 use credentials::Credentials;
 pub(crate) use credentials::Forgotten;
 use hub::{Ask, Holder, Reach, View};
-use orchbee_machine_protocol::hub::{ConnectFailure, MachineStateName};
+use orchbee_machine_protocol::{
+    Id,
+    hub::{ConnectFailure, MachineStateName},
+};
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
 use policy::{Phase, Policy};
@@ -411,7 +414,8 @@ impl Discovery {
                     Some(holder),
                 ) => holder.deliver(token, endpoint, answer),
                 (Effect::Dismiss(login), Some(holder)) => holder.dismiss(login),
-                (Effect::Deliver { .. } | Effect::Dismiss(_), None) => {}
+                (Effect::Claim(login), Some(holder)) => holder.claim(login),
+                (Effect::Deliver { .. } | Effect::Dismiss(_) | Effect::Claim(_), None) => {}
                 (
                     Effect::Remember {
                         machine,
@@ -464,6 +468,19 @@ impl Discovery {
     }
     pub(crate) fn login_presented(&self) -> Option<Presented> {
         self.logins.presented()
+    }
+    /// The notice of a command login offered to this TUI, while no login question is shown.
+    pub(crate) fn login_offered(&self) -> Option<Offered> {
+        self.logins.offered()
+    }
+    /// The person accepts the notice of `login` (`true`) or declines it.
+    pub(crate) fn login_offer_act(&mut self, login: Id, accept: bool) {
+        let effects = if accept {
+            self.logins.accept(login)
+        } else {
+            self.logins.decline(login)
+        };
+        self.carry(effects);
     }
     /// The episodes, for a test that plays the hub's login notices without a hub.
     #[cfg(test)]

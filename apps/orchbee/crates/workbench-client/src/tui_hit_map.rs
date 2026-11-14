@@ -164,6 +164,11 @@ pub enum HitTarget {
         token: crate::machine_login::Token,
         control: crate::machine_picker::LoginControl,
     },
+    /// A control of the notice painted for one offered login.
+    MachineWaiting {
+        login: orchbee_machine_protocol::Id,
+        control: crate::machine_picker::WaitingControl,
+    },
     /// A control actually painted by the Workspace setup owner.
     Setup {
         token: crate::workbench_state::workspace_setup::SetupToken,

@@ -167,7 +167,7 @@ impl LoginOverlay {
 impl Picker {
     /// Whether the picker or its login overlay owns input now.
     pub fn captures(&self) -> bool {
-        self.open || self.login.is_some()
+        self.open || self.login.is_some() || self.waiting.is_some()
     }
 
     pub(crate) const fn login(&self) -> Option<&LoginOverlay> {

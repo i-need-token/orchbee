@@ -18,6 +18,7 @@ mod navigation;
 mod pointer;
 mod sidebar;
 mod spaces;
+mod waiting;
 mod workspace_query;
 pub use agents::Control;
 use agents::Navigation;
@@ -33,6 +34,7 @@ pub(crate) use navigation::{
 pub(crate) use spaces::SPACE_HOLD_BOUND;
 pub(crate) use spaces::TabAgent;
 pub(crate) use spaces::{most_urgent, urgency};
+pub(crate) use waiting::{WaitingControl, WaitingNotice};
 
 pub use crate::machines::Choice;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -328,6 +330,10 @@ pub struct Picker {
     wheel_capacity: Option<usize>,
     /// The login question shown over everything else while one waits for the person.
     login: Option<LoginOverlay>,
+    /// The notice of a command login offered to this TUI, while nothing else holds the keyboard.
+    waiting: Option<WaitingNotice>,
+    /// The Machine whose notice waits for the keyboard.
+    waiting_deferred: Option<String>,
     /// The current remote Machine's link was lost: its pane offers Enter to log in again.
     pub lost_link: bool,
 }
@@ -394,6 +400,8 @@ impl Default for Picker {
             top: 0,
             wheel_capacity: None,
             login: None,
+            waiting: None,
+            waiting_deferred: None,
             lost_link: false,
         }
     }
@@ -787,7 +795,7 @@ impl Picker {
         }
     }
     pub(crate) fn key(&mut self, key: KeyEvent) {
-        if self.login_key(key) || key.kind == KeyKind::Release {
+        if self.login_key(key) || self.waiting_key(key) || key.kind == KeyKind::Release {
             return;
         }
         self.pending_navigation = None;

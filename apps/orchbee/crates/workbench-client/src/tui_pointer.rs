@@ -2144,6 +2144,7 @@ impl PointerState {
                 | HitTarget::Setup { .. }
                 | HitTarget::WorkspaceClose { .. }
                 | HitTarget::MachineLogin { .. }
+                | HitTarget::MachineWaiting { .. }
                 | HitTarget::TabClose { .. }
                 | HitTarget::PanelClose { .. }
                 | HitTarget::Rename { .. }

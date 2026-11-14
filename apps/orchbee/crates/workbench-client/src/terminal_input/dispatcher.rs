@@ -865,7 +865,7 @@ impl InputDispatcher {
 
         if owner == CaptureOwner::Machine {
             let mut regions_changed = false;
-            let login = view.machines.login().is_some();
+            let login = view.machines.login().is_some() || view.machines.waiting_shown();
             match item.kind {
                 DecodedKind::Key(key) => {
                     // Keyboard input settles at most one exposed wheel chunk
@@ -876,7 +876,12 @@ impl InputDispatcher {
                 }
                 DecodedKind::Paste { text, .. } => {
                     // A login field takes the run into its buffer and wipes the run.
-                    if let Some(text) = view.machines.login_paste(text) {
+                    // A login notice takes no paste.
+                    if let Some(text) = view
+                        .machines
+                        .login_paste(text)
+                        .and_then(|text| view.machines.waiting_paste(text))
+                    {
                         view.machines.paste_workspace_query(&text);
                     }
                     regions_changed = true;

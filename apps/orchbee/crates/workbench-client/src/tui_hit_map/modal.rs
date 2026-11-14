@@ -36,6 +36,10 @@ pub(crate) enum ControlTarget {
         crate::machine_login::Token,
         crate::machine_picker::LoginControl,
     ),
+    Waiting(
+        orchbee_machine_protocol::Id,
+        crate::machine_picker::WaitingControl,
+    ),
 }
 
 impl ControlTarget {
@@ -51,6 +55,7 @@ impl ControlTarget {
             HitTarget::Worktree { token, control } => Self::Worktree(*token, *control),
             HitTarget::WorkspaceClose { token, confirm } => Self::Close(*token, *confirm),
             HitTarget::MachineLogin { token, control } => Self::Login(*token, *control),
+            HitTarget::MachineWaiting { login, control } => Self::Waiting(*login, *control),
             _ => return None,
         })
     }
@@ -79,7 +84,10 @@ pub(crate) fn accepts_resize(target: &ControlTarget) -> bool {
 }
 
 pub(crate) fn accepts_login(target: &ControlTarget) -> bool {
-    matches!(target, ControlTarget::Login(..))
+    matches!(
+        target,
+        ControlTarget::Login(..) | ControlTarget::Waiting(..)
+    )
 }
 
 pub(crate) fn accepts_confirmation(target: &ControlTarget) -> bool {

@@ -343,6 +343,12 @@ impl Manager {
             view.password_not_saved();
             change.redraw = true;
         }
+        // A command's login offered to every interface that asks: its notice opens once nothing
+        // else holds the keyboard.
+        let held = view.login_notice_held(surface.active());
+        change.redraw |= view
+            .machines
+            .exchange_waiting(&mut self.discovery, held, now);
         // The current remote Machine needs a login again: its pane offers Enter to log in.
         let lost_link = self
             .current
@@ -994,8 +1000,9 @@ impl Manager {
 
         next.view.resize(dimensions.columns);
         let mut old_view = std::mem::replace(view, next.view);
-        // Only the presented view holds the login overlay.
+        // Only the presented view holds the login overlay and notice.
         old_view.machines.forget_login();
+        old_view.machines.forget_waiting();
         view.settle_pointer_released(old_view.pointer_released());
         view.machines = picker;
         let old = Cached {

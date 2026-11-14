@@ -94,6 +94,7 @@ mod held_restore;
 mod help;
 mod machine_login;
 mod machine_picker;
+mod machine_waiting;
 mod modal;
 pub(crate) use modal::{OverlayFrame, overlay_surface, titled_overlay};
 use modal::{overlay_block, overlay_heading, overlay_title};
@@ -357,6 +358,14 @@ pub fn render_terminal_shell_with_resize<'a>(
                         .map(|reminder| vec![locale.command_completion_reminder(reminder)])
                 })
                 .unwrap_or_default();
+            // A command's login notice waits while something else holds the keyboard.
+            if secondary_notice.is_empty()
+                && let Some(label) = view.machines.waiting_deferred()
+            {
+                secondary_notice = vec![locale.machine_waiting_deferred(
+                    &crate::terminal_text::sanitize_terminal_text(label),
+                )];
+            }
             sidebar_status = phase_status.to_owned();
             if native.phase() == DisplayPhase::Ready
                 && native

@@ -20,6 +20,9 @@ pub(super) fn connect(_shared: &Arc<Shared>, _machine: String, _number: u64) {}
 /// No episode is claimed without a hub.
 pub(super) fn dismiss(_shared: &Arc<Shared>, _login: Id) {}
 
+/// No episode is offered without a hub.
+pub(super) fn claim(_shared: &Arc<Shared>, _login: Id) {}
+
 /// No question is asked without a hub; the answer is wiped as it drops.
 pub(super) fn deliver(
     _shared: &Arc<Shared>,

@@ -1,5 +1,6 @@
-//! The client-side rules of one login episode, as data: each case drives notices and the person's
-//! acts and checks what is shown, what the holder is asked to do, and how the episode ended.
+//! The client-side rules of one login episode and of the command logins offered to every client
+//! that asks, as data: each case drives notices and the person's acts and checks what is shown,
+//! what the holder is asked to do, and how the episode ended.
 
 use super::*;
 use orchbee_machine_protocol::{AnswerToken, PathText};
@@ -74,6 +75,12 @@ enum Step {
     Delivered(Delivery),
     Ended(u32, LoginEnd),
     Lost,
+    /// The hub offers command episode `login` of a Machine, with `waiters` commands waiting.
+    Offer(u32, &'static str, u64),
+    /// Another client claimed episode `login`, or this client's claim did not take it.
+    Taken(u32),
+    /// The person accepts the notice of `login` (`true`) or declines it.
+    Choose(u32, bool),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -81,6 +88,7 @@ enum Did {
     Deliver(Vec<u8>),
     Dismiss(u32),
     Remember(SecretKind, Vec<u8>),
+    Claim(u32),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -209,6 +217,19 @@ impl Run {
                 target,
             ),
             Step::Lost => self.logins.notice(Notice::Lost, target),
+            Step::Offer(login, machine, waiters) => self.logins.notice(
+                Notice::Offered {
+                    login: id(login),
+                    machine: machine.into(),
+                    waiters,
+                },
+                target,
+            ),
+            Step::Taken(login) => self
+                .logins
+                .notice(Notice::Taken { login: id(login) }, target),
+            Step::Choose(login, true) => self.logins.accept(id(login)),
+            Step::Choose(login, false) => self.logins.decline(id(login)),
         };
         if let Some(presented) = self.logins.presented() {
             self.token = Some(presented.token);
@@ -221,8 +242,16 @@ impl Run {
                 Effect::Remember { kind, answer, .. } => {
                     Did::Remember(kind, answer.as_bytes().to_vec())
                 }
+                Effect::Claim(login) => Did::Claim(login.get()),
             })
             .collect()
+    }
+
+    /// The notice shown: its login, how many commands wait, and whether it was accepted here.
+    fn offered(&self) -> Option<(u32, u64, bool)> {
+        self.logins
+            .offered()
+            .map(|offered| (offered.login.get(), offered.waiters, offered.accepted))
     }
 
     fn seen(&self) -> Option<Seen> {
@@ -743,6 +772,120 @@ fn the_episode_follows_its_rules() {
                 &run.seen(),
                 seen,
                 "{name}: shown after step {index} {step:?}"
+            );
+        }
+        assert_eq!(run.logins.take_ending(MACHINE), *ending, "{name}: ending");
+    }
+}
+
+/// One step, what the holder is asked to do, the notice shown after it, and whether a question
+/// is shown.
+type Offering = (Step, Vec<Did>, Option<(u32, u64, bool)>, bool);
+
+#[test]
+fn offered_logins_follow_their_rules() {
+    use Step::{Choose, Claim, Ended, Lost, Offer, Taken, Wait};
+    const UNKNOWN: &str = "00000000000000000000000000000000";
+    let cases: Vec<(&str, Vec<Offering>, Option<Ending>)> = vec![
+        (
+            "offers wait lowest first, follow the hub's count and close when taken or ended",
+            vec![
+                (Wait(None), vec![], None, false),
+                (
+                    Offer(5, OTHER_MACHINE, 1),
+                    vec![],
+                    Some((5, 1, false)),
+                    false,
+                ),
+                (Offer(3, MACHINE, 2), vec![], Some((3, 2, false)), false),
+                (Offer(3, MACHINE, 3), vec![], Some((3, 3, false)), false),
+                (Taken(3), vec![], Some((5, 1, false)), false),
+                (Ended(5, LoginEnd::Abandoned), vec![], None, false),
+                (Offer(7, UNKNOWN, 1), vec![], None, false),
+            ],
+            None,
+        ),
+        (
+            "an accepted login is claimed once, keeps its notice until its question, and a recount \
+             of a shown question changes nothing",
+            vec![
+                (Wait(None), vec![], None, false),
+                (Offer(1, MACHINE, 2), vec![], Some((1, 2, false)), false),
+                (
+                    Choose(1, true),
+                    vec![Did::Claim(1)],
+                    Some((1, 2, true)),
+                    false,
+                ),
+                (Choose(1, true), vec![], Some((1, 2, true)), false),
+                (Claim(1), vec![], Some((1, 2, true)), false),
+                (password(1, false), vec![], None, true),
+                (Claim(1), vec![], None, true),
+                (Offer(2, OTHER_MACHINE, 1), vec![], None, true),
+                (Ended(1, LoginEnd::Failed), vec![], None, true),
+                (Step::Act(Act::Close), vec![], Some((2, 1, false)), false),
+            ],
+            Some(Ending::Hub(LoginEnd::Failed)),
+        ),
+        (
+            "declining a notice dismisses its login, accepted or not",
+            vec![
+                (Wait(None), vec![], None, false),
+                (Offer(1, MACHINE, 1), vec![], Some((1, 1, false)), false),
+                (Choose(1, false), vec![Did::Dismiss(1)], None, false),
+                (Offer(2, MACHINE, 1), vec![], Some((2, 1, false)), false),
+                (
+                    Choose(2, true),
+                    vec![Did::Claim(2)],
+                    Some((2, 1, true)),
+                    false,
+                ),
+                (Claim(2), vec![], Some((2, 1, true)), false),
+                (Choose(2, false), vec![Did::Dismiss(2)], None, false),
+            ],
+            Some(Ending::Dismissed),
+        ),
+        (
+            "a claim that loses closes the notice, and a claim nobody here accepted is let go",
+            vec![
+                (Wait(None), vec![], None, false),
+                (Offer(1, MACHINE, 1), vec![], Some((1, 1, false)), false),
+                (
+                    Choose(1, true),
+                    vec![Did::Claim(1)],
+                    Some((1, 1, true)),
+                    false,
+                ),
+                (Taken(1), vec![], None, false),
+                (Offer(2, MACHINE, 1), vec![], Some((2, 1, false)), false),
+                (Claim(2), vec![Did::Dismiss(2)], None, false),
+            ],
+            None,
+        ),
+        (
+            "the person's own selection claims an offered login, and offers wait while it is theirs",
+            vec![
+                (Offer(1, MACHINE, 1), vec![], Some((1, 1, false)), false),
+                (Claim(1), vec![], None, false),
+                (Offer(2, OTHER_MACHINE, 1), vec![], None, false),
+                (Lost, vec![], None, false),
+            ],
+            Some(Ending::Lost),
+        ),
+    ];
+    for (name, steps, ending) in &cases {
+        let mut run = Run::new();
+        for (index, (step, did, offered, asked)) in steps.iter().enumerate() {
+            assert_eq!(
+                &run.step(*step),
+                did,
+                "{name}: effects of step {index} {step:?}"
+            );
+            assert_eq!(&run.offered(), offered, "{name}: notice after step {index}");
+            assert_eq!(
+                run.logins.presented().is_some(),
+                *asked,
+                "{name}: question after step {index}"
             );
         }
         assert_eq!(run.logins.take_ending(MACHINE), *ending, "{name}: ending");

@@ -1381,8 +1381,9 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     if changed {
         {
             view.machines.cancel_sidebar_scroll();
-            // A login question is off screen until a frame of this size shows it whole.
+            // A login question or notice is off screen until a frame of this size shows it whole.
             view.machines.login_undrawn();
+            view.machines.waiting_undrawn();
         }
         terminal_input.observe_terminal(TerminalObservation::DisplayInvalidated);
         terminal.backend_mut().set_window_dimensions(next);

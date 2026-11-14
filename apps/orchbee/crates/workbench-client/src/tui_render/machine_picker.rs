@@ -33,6 +33,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::Modifier,
+    text::{Line, Span},
     widgets::{Block, Clear, Paragraph},
 };
 /// The effective key that opens the Agent search query, formatted for the host.
@@ -173,19 +174,40 @@ impl Picker {
             ]
         };
         let full_width = measure_key_hints(&hints, theme);
-        let label_width = u16::try_from(display_width(label)).unwrap_or(u16::MAX);
-        let show_label = full_width.is_some_and(|width| {
-            usize::from(label_width)
-                .saturating_add(1)
-                .saturating_add(width)
-                <= usize::from(status.width)
+        let bold = theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD);
+        // The picker owns this row, so a login notice waiting behind it is named here, as the
+        // status line names it under other surfaces: beside the mode, or in its place if narrow.
+        let deferred = self
+            .waiting_deferred()
+            .map(|machine| locale.machine_waiting_deferred(&sanitize_terminal_text(machine)));
+        let warning = theme.style(Role::StatusWarning);
+        let mut forms = Vec::new();
+        if let Some(deferred) = &deferred {
+            forms.push(Line::from(vec![
+                Span::styled(label, bold),
+                Span::raw("  "),
+                Span::styled(deferred.as_str(), warning),
+            ]));
+            forms.push(Line::from(Span::styled(deferred.as_str(), warning)));
+        }
+        forms.push(Line::from(Span::styled(label, bold)));
+        let measure = |form: &Line<'_>| -> usize {
+            form.spans
+                .iter()
+                .map(|span| display_width(&span.content))
+                .sum()
+        };
+        let shown = full_width.and_then(|width| {
+            forms.into_iter().find(|form| {
+                measure(form).saturating_add(1).saturating_add(width) <= usize::from(status.width)
+            })
         });
-        let hint_area = if show_label {
+        let hint_area = if let Some(form) = shown {
             let width = u16::try_from(full_width.unwrap_or(0)).unwrap_or(status.width);
+            let form_width = u16::try_from(measure(&form)).unwrap_or(u16::MAX);
             frame.render_widget(
-                Paragraph::new(label)
-                    .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
-                Rect::new(status.x, status.y, label_width.min(status.width), 1),
+                Paragraph::new(form),
+                Rect::new(status.x, status.y, form_width.min(status.width), 1),
             );
             Rect::new(status.right().saturating_sub(width), status.y, width, 1)
         } else {
@@ -209,6 +231,15 @@ impl Picker {
                 super::machine_login::render(frame, login, label, locale, theme, hits)
             };
             self.set_login_drawn(drawn);
+            return;
+        }
+        // A command's login notice, while no question is shown.
+        if let Some(notice) = self.waiting() {
+            let drawn = ViewportTier::from_area(frame.area()) != ViewportTier::TooSmall && {
+                let label = self.machine_label(&notice.offered.machine);
+                super::machine_waiting::render(frame, notice, label, locale, theme, hits)
+            };
+            self.set_waiting_drawn(drawn);
             return;
         }
         let Some(source) = self.picker_source() else {

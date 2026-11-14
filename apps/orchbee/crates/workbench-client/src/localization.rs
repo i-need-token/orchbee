@@ -20,6 +20,8 @@ pub(crate) use machine_login::LoginLabel;
 mod machine_remember;
 pub use machine_login::MachineQuestion;
 pub(crate) use machine_remember::RememberText;
+mod machine_waiting;
+pub(crate) use machine_waiting::WaitingLabel;
 mod machines;
 pub(crate) use machines::SidebarActionLabel;
 pub(crate) use machines::{MachineControlLabel, SidebarPlacementLabel};
