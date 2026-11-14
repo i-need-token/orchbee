@@ -32,6 +32,7 @@ export const MatchResults: Story = {
 		controller: completedController,
 		onNext: () => undefined,
 		onPrevious: () => undefined,
+		platform: 'standard',
 		restoreFocus: () => undefined,
 	},
 };

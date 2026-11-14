@@ -20,7 +20,7 @@ Host-provided text pages rather than a local VT buffer.
 | Empty input       | An empty query cancels row reads, terminates the active scan, clears decorations, and returns to the idle state.                                                                                        |
 
 The application find surface owns shortcut focus, seeding from selection, mode controls,
-result-count presentation, query history, and localized accessible labels. `@orchbee/terminal`
+result-count presentation, and localized accessible labels. `@orchbee/terminal`
 owns bounded matching, navigation, decoration state, result events, cancellation, and debounce.
 
 ## Data flow and authority

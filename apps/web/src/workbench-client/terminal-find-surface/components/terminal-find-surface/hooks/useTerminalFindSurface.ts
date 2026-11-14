@@ -1,4 +1,10 @@
 import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import {
+	formatKeyboardShortcutChord,
+	matchesKeyboardShortcutChord,
+	type KeyboardShortcutChord,
+	type KeyboardShortcutPlatform,
+} from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
 import type {
@@ -7,14 +13,40 @@ import type {
 	TerminalFindSnapshot,
 } from '../../../TerminalFindController';
 
+type TerminalFindOption = 'caseSensitive' | 'regex' | 'wholeWord';
+
+/**
+ * Fixed keys of the Find surface, like Enter and Escape. Apple adds Command because Option with a
+ * letter types a character there.
+ */
+const OPTION_KEYS: Readonly<
+	Record<TerminalFindOption, Readonly<Record<KeyboardShortcutPlatform, KeyboardShortcutChord>>>
+> = {
+	caseSensitive: {
+		apple: { code: 'KeyC', modifiers: ['alt', 'mod'] },
+		standard: { code: 'KeyC', modifiers: ['alt'] },
+	},
+	regex: {
+		apple: { code: 'KeyR', modifiers: ['alt', 'mod'] },
+		standard: { code: 'KeyR', modifiers: ['alt'] },
+	},
+	wholeWord: {
+		apple: { code: 'KeyW', modifiers: ['alt', 'mod'] },
+		standard: { code: 'KeyW', modifiers: ['alt'] },
+	},
+};
+const OPTIONS: readonly TerminalFindOption[] = ['caseSensitive', 'wholeWord', 'regex'];
+
 interface UseTerminalFindSurfaceOptions {
 	readonly controller: TerminalFindController;
 	readonly onNext: () => void;
 	readonly onPrevious: () => void;
+	readonly platform: KeyboardShortcutPlatform;
 	readonly restoreFocus: () => void;
 }
 
 interface TerminalFindSurfaceView {
+	readonly caseSensitiveKeyLabel: string;
 	readonly caseSensitiveLabel: string;
 	readonly closeLabel: string;
 	readonly compactStatusText: string | null;
@@ -34,10 +66,12 @@ interface TerminalFindSurfaceView {
 	readonly onWholeWordChange: (pressed: boolean, event: Event) => void;
 	readonly placeholder: string;
 	readonly previousLabel: string;
+	readonly regexKeyLabel: string;
 	readonly regexLabel: string;
 	readonly snapshot: TerminalFindSnapshot;
 	readonly statusId: string;
 	readonly statusText: string;
+	readonly wholeWordKeyLabel: string;
 	readonly wholeWordLabel: string;
 }
 
@@ -45,6 +79,7 @@ export function useTerminalFindSurface({
 	controller,
 	onNext,
 	onPrevious,
+	platform,
 	restoreFocus,
 }: UseTerminalFindSurfaceOptions): TerminalFindSurfaceView {
 	const intl = useOrchbeeIntl();
@@ -67,13 +102,19 @@ export function useTerminalFindSurface({
 		wasOpen.current = snapshot.isOpen;
 	}, [restoreFocus, snapshot.focusRequest, snapshot.isOpen]);
 
-	const invokeNext = (): void => {
-		controller.recordCurrentQuery();
-		onNext();
-	};
-	const invokePrevious = (): void => {
-		controller.recordCurrentQuery();
-		onPrevious();
+	const toggleOption = (option: TerminalFindOption): void => {
+		const current = controller.getSnapshot();
+		switch (option) {
+			case 'caseSensitive':
+				controller.setCaseSensitive(!current.caseSensitive);
+				return;
+			case 'regex':
+				controller.setRegex(!current.regex);
+				return;
+			case 'wholeWord':
+				controller.setWholeWord(!current.wholeWord);
+				return;
+		}
 	};
 	const updateOption = (
 		update: (pressed: boolean) => void,
@@ -156,6 +197,10 @@ export function useTerminalFindSurface({
 			: null;
 
 	return {
+		caseSensitiveKeyLabel: formatKeyboardShortcutChord(
+			OPTION_KEYS.caseSensitive[platform],
+			platform,
+		),
 		caseSensitiveLabel: intl.formatMessage(projectedTerminalMessages.matchCase),
 		closeLabel: intl.formatMessage(projectedTerminalMessages.closeFind),
 		compactStatusText,
@@ -173,19 +218,19 @@ export function useTerminalFindSurface({
 			if (event.key === 'Enter') {
 				event.preventDefault();
 				event.stopPropagation();
-				if (event.shiftKey) invokePrevious();
-				else invokeNext();
+				if (event.shiftKey) onPrevious();
+				else onNext();
 				return;
 			}
 			if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-			if (event.key === 'ArrowUp' && controller.moveInQueryHistory(-1)) {
-				event.preventDefault();
-			}
-			if (event.key === 'ArrowDown' && controller.moveInQueryHistory(1)) {
-				event.preventDefault();
-			}
+			if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+			// Up and Down follow the two arrow buttons, as Shift+Enter and Enter do.
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.key === 'ArrowUp') onPrevious();
+			else onNext();
 		},
-		onNext: invokeNext,
+		onNext,
 		onOptionControlsKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
 			if (
 				event.nativeEvent.isComposing ||
@@ -207,23 +252,45 @@ export function useTerminalFindSurface({
 			event.stopPropagation();
 			options[nextIndex]?.focus({ preventScroll: true });
 		},
-		onPrevious: invokePrevious,
+		onPrevious,
 		onRegexChange: (pressed: boolean, event: Event) =>
 			updateOption((value) => controller.setRegex(value), pressed, event),
 		onSurfaceKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
-			if (event.nativeEvent.isComposing || event.key !== 'Escape') return;
+			if (event.nativeEvent.isComposing) return;
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				event.stopPropagation();
+				controller.close();
+				return;
+			}
+			// A held key stays claimed, so it reaches nothing else, but toggles once.
+			const chordEvent = {
+				altKey: event.altKey,
+				code: event.code,
+				ctrlKey: event.ctrlKey,
+				isComposing: false,
+				metaKey: event.metaKey,
+				repeat: false,
+				shiftKey: event.shiftKey,
+			};
+			const option = OPTIONS.find((candidate) =>
+				matchesKeyboardShortcutChord(chordEvent, OPTION_KEYS[candidate][platform], platform),
+			);
+			if (option === undefined) return;
 			event.preventDefault();
 			event.stopPropagation();
-			controller.close();
+			if (!event.repeat) toggleOption(option);
 		},
 		onWholeWordChange: (pressed: boolean, event: Event) =>
 			updateOption((value) => controller.setWholeWord(value), pressed, event),
 		placeholder: intl.formatMessage(projectedTerminalMessages.findPlaceholder),
 		previousLabel: intl.formatMessage(projectedTerminalMessages.previousMatch),
+		regexKeyLabel: formatKeyboardShortcutChord(OPTION_KEYS.regex[platform], platform),
 		regexLabel: intl.formatMessage(projectedTerminalMessages.useRegex),
 		snapshot,
 		statusId,
 		statusText,
+		wholeWordKeyLabel: formatKeyboardShortcutChord(OPTION_KEYS.wholeWord[platform], platform),
 		wholeWordLabel: intl.formatMessage(projectedTerminalMessages.wholeWord),
 	};
 }

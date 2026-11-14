@@ -8,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from '@orchbee/ui/components';
+import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type * as React from 'react';
 
 import { useTerminalFindSurface } from './hooks/useTerminalFindSurface';
@@ -18,6 +19,7 @@ export interface TerminalFindSurfaceProps {
 	readonly controller: TerminalFindController;
 	readonly onNext: () => void;
 	readonly onPrevious: () => void;
+	readonly platform: KeyboardShortcutPlatform;
 	readonly restoreFocus: () => void;
 }
 
@@ -63,7 +65,10 @@ export function TerminalFindSurface(props: TerminalFindSurfaceProps): React.Reac
 						>
 							Aa
 						</TooltipTrigger>
-						<TooltipContent side='bottom'>{view.caseSensitiveLabel}</TooltipContent>
+						<TooltipContent side='bottom'>
+							{view.caseSensitiveLabel}
+							<Kbd>{view.caseSensitiveKeyLabel}</Kbd>
+						</TooltipContent>
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger
@@ -82,7 +87,10 @@ export function TerminalFindSurface(props: TerminalFindSurfaceProps): React.Reac
 						>
 							W
 						</TooltipTrigger>
-						<TooltipContent side='bottom'>{view.wholeWordLabel}</TooltipContent>
+						<TooltipContent side='bottom'>
+							{view.wholeWordLabel}
+							<Kbd>{view.wholeWordKeyLabel}</Kbd>
+						</TooltipContent>
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger
@@ -99,7 +107,10 @@ export function TerminalFindSurface(props: TerminalFindSurfaceProps): React.Reac
 						>
 							.*
 						</TooltipTrigger>
-						<TooltipContent side='bottom'>{view.regexLabel}</TooltipContent>
+						<TooltipContent side='bottom'>
+							{view.regexLabel}
+							<Kbd>{view.regexKeyLabel}</Kbd>
+						</TooltipContent>
 					</Tooltip>
 				</div>
 			</div>

@@ -30,24 +30,6 @@ describe('TerminalFindController', () => {
 		});
 	});
 
-	it('bounds in-memory query history to the latest twenty entries', () => {
-		const controller = new TerminalFindController({
-			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
-			updateSearch: vi.fn<TerminalSearchDriver['updateSearch']>(),
-		});
-		for (let index = 1; index <= 21; index++) {
-			controller.setQuery(`query-${index}`);
-			controller.recordCurrentQuery();
-		}
-		controller.setQuery('draft');
-
-		for (let index = 0; index < 20; index++) {
-			expect(controller.moveInQueryHistory(-1)).toBe(true);
-		}
-		expect(controller.getSnapshot().query).toBe('query-2');
-		expect(controller.moveInQueryHistory(-1)).toBe(false);
-	});
-
 	it('restarts a retained query when the find surface reopens', () => {
 		const clearSearch = vi.fn<TerminalSearchDriver['clearSearch']>();
 		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();

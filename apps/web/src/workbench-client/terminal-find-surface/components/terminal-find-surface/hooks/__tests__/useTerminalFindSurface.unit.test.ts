@@ -27,6 +27,7 @@ function StatusProbe({ controller }: { readonly controller: TerminalFindControll
 		controller,
 		onNext: vi.fn<() => void>(),
 		onPrevious: vi.fn<() => void>(),
+		platform: 'standard',
 		restoreFocus: vi.fn<() => void>(),
 	});
 	return view.statusText;

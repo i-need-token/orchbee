@@ -1,8 +1,6 @@
 import type { ProjectedTerminalSearchEvent, TerminalSearchOptions } from '@orchbee/terminal';
 import type { HistoryChanged, SelectionChanged } from '@orchbee/terminal-protocol';
 
-const MAX_QUERY_HISTORY = 20;
-
 export type TerminalFindNotice =
 	| { readonly kind: 'history-evicted' }
 	| { readonly kind: 'history-unavailable' }
@@ -35,10 +33,7 @@ export interface TerminalSearchDriver {
 export class TerminalFindController {
 	readonly #driver: TerminalSearchDriver;
 	readonly #listeners = new Set<() => void>();
-	readonly #queryHistory: string[] = [];
 	#disposed = false;
-	#historyCursor: number | null = null;
-	#historyDraft = '';
 	#searchRevision = 0;
 	#snapshot: TerminalFindSnapshot;
 
@@ -77,10 +72,6 @@ export class TerminalFindController {
 		const shouldSearch = queryChanged || (!wasOpen && query.length > 0);
 		// Refocusing the same query must preserve search work admitted by an enclosing transition.
 		const revision = shouldSearch ? ++this.#searchRevision : this.#searchRevision;
-		if (selectionPreview) {
-			this.#historyCursor = null;
-			this.#historyDraft = selectionPreview;
-		}
 		const snapshot = queryChanged ? this.#snapshotWithQuery(query) : this.#snapshot;
 		this.#update({
 			...snapshot,
@@ -93,8 +84,6 @@ export class TerminalFindController {
 	close(): void {
 		if (this.#disposed || !this.#snapshot.isOpen) return;
 		const revision = ++this.#searchRevision;
-		this.recordCurrentQuery();
-		this.#historyCursor = null;
 		this.#update({
 			...this.#snapshot,
 			activeIndex: -1,
@@ -110,9 +99,9 @@ export class TerminalFindController {
 
 	setQuery(query: string): void {
 		if (this.#disposed || query === this.#snapshot.query) return;
-		this.#historyCursor = null;
-		this.#historyDraft = query;
-		this.#applyQuery(query);
+		const revision = ++this.#searchRevision;
+		this.#update(this.#snapshotWithQuery(query));
+		this.#search(revision);
 	}
 
 	setCaseSensitive(caseSensitive: boolean): void {
@@ -134,30 +123,6 @@ export class TerminalFindController {
 		const revision = ++this.#searchRevision;
 		this.#update({ ...this.#snapshot, notice: null, regex });
 		this.#search(revision);
-	}
-
-	moveInQueryHistory(direction: -1 | 1): boolean {
-		if (this.#disposed || this.#queryHistory.length === 0) return false;
-		if (this.#historyCursor === null) {
-			this.#historyDraft = this.#snapshot.query;
-			this.#historyCursor = this.#queryHistory.length;
-		}
-		const next = Math.max(0, Math.min(this.#queryHistory.length, this.#historyCursor + direction));
-		if (next === this.#historyCursor) return false;
-		this.#historyCursor = next;
-		this.#applyQuery(
-			next === this.#queryHistory.length ? this.#historyDraft : (this.#queryHistory[next] ?? ''),
-		);
-		return true;
-	}
-
-	recordCurrentQuery(): void {
-		const query = this.#snapshot.query.trim();
-		if (!query) return;
-		const previous = this.#queryHistory.indexOf(query);
-		if (previous >= 0) this.#queryHistory.splice(previous, 1);
-		this.#queryHistory.push(query);
-		if (this.#queryHistory.length > MAX_QUERY_HISTORY) this.#queryHistory.shift();
 	}
 
 	applySearchEvent(event: ProjectedTerminalSearchEvent): void {
@@ -198,13 +163,6 @@ export class TerminalFindController {
 		this.#disposed = true;
 		this.#driver.clearSearch();
 		this.#listeners.clear();
-		this.#queryHistory.length = 0;
-	}
-
-	#applyQuery(query: string): void {
-		const revision = ++this.#searchRevision;
-		this.#update(this.#snapshotWithQuery(query));
-		this.#search(revision);
 	}
 
 	#snapshotWithQuery(query: string): TerminalFindSnapshot {

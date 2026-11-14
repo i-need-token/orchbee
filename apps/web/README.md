@@ -170,9 +170,13 @@ query with the bounded preview of the current active Host selection when one is 
 one, it preserves the current query. Search-owned active ranges remain authoritative Host selections
 rather than a second application selection model. Each such invocation focuses and selects the
 complete query, while Escape from any find control closes the surface and restores terminal focus.
-Match options live inside the query field, ordinary search progress uses an
-inline localized count, Left and Right Arrow move between option toggles, and pointer option changes
-return focus to the query. Only actionable failures, timeouts, or retained-history notices expand the
+In the query field Up and Down go to the previous and next match, as Shift+Enter and Enter do, and
+the surface keeps no query history. Match options live inside the query field, ordinary search
+progress uses an inline localized count, Left and Right Arrow move between option toggles, and
+pointer option changes return focus to the query. While Find has focus, `Alt+C`, `Alt+W` and `Alt+R`
+on Standard and `Option+Cmd+C`, `Option+Cmd+W` and `Option+Cmd+R` on Apple toggle Match case, Match
+whole word and Use regular expression; they are fixed keys of the surface, as Enter and Escape are,
+and each toggle's tooltip shows its key. Only actionable failures, timeouts, or retained-history notices expand the
 toolbar with complete localized feedback.
 
 The Find controller publishes selection-seeded opening as one complete snapshot. Query, option,

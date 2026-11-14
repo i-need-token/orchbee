@@ -117,6 +117,49 @@ describe('TerminalFindSurface', () => {
 		await mounted.dispose();
 	});
 
+	it('goes to the previous and next match with Up and Down and toggles each option by its key', async () => {
+		const controller = createController();
+		const onNext = vi.fn<() => void>();
+		const onPrevious = vi.fn<() => void>();
+		controller.open();
+		controller.setQuery('agent');
+		const mounted = await renderSurface(controller, vi.fn<() => void>(), { onNext, onPrevious });
+		const input = mounted.container.querySelector('input');
+		if (!(input instanceof HTMLInputElement)) {
+			throw new Error('Find input did not render.');
+		}
+		const press = async (init: KeyboardEventInit): Promise<boolean> => {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			await act(async () => {
+				input.dispatchEvent(event);
+				await Promise.resolve();
+			});
+			return event.defaultPrevented;
+		};
+
+		expect(await press({ key: 'ArrowUp' })).toBe(true);
+		expect(onPrevious).toHaveBeenCalledOnce();
+		expect(onNext).not.toHaveBeenCalled();
+		expect(await press({ key: 'ArrowDown' })).toBe(true);
+		expect(onNext).toHaveBeenCalledOnce();
+		expect(controller.getSnapshot().query).toBe('agent');
+
+		expect(await press({ altKey: true, code: 'KeyC', key: 'c' })).toBe(true);
+		expect(await press({ altKey: true, code: 'KeyW', key: 'w' })).toBe(true);
+		expect(await press({ altKey: true, code: 'KeyR', key: 'r' })).toBe(true);
+		expect(controller.getSnapshot()).toMatchObject({
+			caseSensitive: true,
+			regex: true,
+			wholeWord: true,
+		});
+		expect(await press({ altKey: true, code: 'KeyC', key: 'c' })).toBe(true);
+		expect(controller.getSnapshot().caseSensitive).toBe(false);
+		expect(await press({ altKey: true, code: 'KeyC', ctrlKey: true, key: 'c' })).toBe(false);
+		expect(controller.getSnapshot().caseSensitive).toBe(false);
+		expect(document.activeElement).toBe(input);
+		await mounted.dispose();
+	});
+
 	it('keeps ordinary result progress compact and expands only actionable search failures', async () => {
 		const controller = createController();
 		controller.open();
@@ -192,6 +235,10 @@ function createController(): TerminalFindController {
 async function renderSurface(
 	controller: TerminalFindController,
 	restoreFocus: () => void,
+	navigation: { readonly onNext: () => void; readonly onPrevious: () => void } = {
+		onNext: vi.fn<() => void>(),
+		onPrevious: vi.fn<() => void>(),
+	},
 ): Promise<{ readonly container: HTMLElement; dispose(): Promise<void> }> {
 	const container = document.createElement('div');
 	document.body.appendChild(container);
@@ -206,8 +253,9 @@ async function renderSurface(
 					undefined,
 					createElement(TerminalFindSurface, {
 						controller,
-						onNext: vi.fn<() => void>(),
-						onPrevious: vi.fn<() => void>(),
+						onNext: navigation.onNext,
+						onPrevious: navigation.onPrevious,
+						platform: 'standard',
 						restoreFocus,
 					}),
 				),

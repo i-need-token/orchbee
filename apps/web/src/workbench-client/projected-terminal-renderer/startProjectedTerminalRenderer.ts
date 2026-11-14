@@ -1475,6 +1475,7 @@ export async function startProjectedTerminalRenderer(
 					'button',
 				).completion;
 			},
+			platform: shortcutPlatform,
 			restoreFocus: () => terminal.focus(),
 			root: findRoot,
 		});

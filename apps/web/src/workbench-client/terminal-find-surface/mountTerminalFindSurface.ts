@@ -1,4 +1,5 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
+import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -14,6 +15,7 @@ export interface MountTerminalFindSurfaceOptions {
 	readonly locale: OrchbeeLocale;
 	readonly onNext: () => void;
 	readonly onPrevious: () => void;
+	readonly platform: KeyboardShortcutPlatform;
 	readonly restoreFocus: () => void;
 	readonly root: HTMLElement;
 }
@@ -28,6 +30,7 @@ export function mountTerminalFindSurface({
 	locale,
 	onNext,
 	onPrevious,
+	platform,
 	restoreFocus,
 	root,
 }: MountTerminalFindSurfaceOptions): TerminalFindSurfaceMount {
@@ -39,6 +42,7 @@ export function mountTerminalFindSurface({
 			controller,
 			onNext,
 			onPrevious,
+			platform,
 			restoreFocus,
 		}),
 	);

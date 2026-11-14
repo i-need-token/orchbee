@@ -18,7 +18,7 @@
 			"id": "applications-web-projected-terminal-find-surface--match-results",
 			"states": [
 				"Inspect deterministic compact result, searching, and expanded invalid-expression states with localized status output.",
-				"Use the selection-seeded query field, embedded option toggles, match navigation controls, repeated-open selection, and Escape focus restoration entirely by keyboard."
+				"Use the selection-seeded query field, embedded option toggles and their keys, Up and Down match navigation, match navigation controls, repeated-open selection, and Escape focus restoration entirely by keyboard."
 			]
 		},
 		{
@@ -41,7 +41,9 @@
 		"Ordinary progress stays in the compact toolbar while actionable errors and retained-history notices remain fully visible.",
 		"Every open or repeated open replaces any query with the current active selection's bounded preview; without one, it preserves the query, then focuses and selects the complete query.",
 		"Left and Right Arrow move among embedded option toggles, while pointer option changes restore query focus.",
-		"Closing the surface restores terminal focus and discards no more than twenty in-memory query-history entries."
+		"Up and Down in the query field go to the previous and next match exactly as Shift+Enter and Enter do; the surface keeps no query history.",
+		"While the surface has focus, Alt+C, Alt+W, and Alt+R on Standard and Option+Cmd+C, Option+Cmd+W, and Option+Cmd+R on Apple toggle Match case, Match whole word, and Use regular expression without moving focus, and each toggle's tooltip shows its key.",
+		"Closing the surface restores terminal focus."
 	],
 	"references": ["apps/web/README.md"]
 }
