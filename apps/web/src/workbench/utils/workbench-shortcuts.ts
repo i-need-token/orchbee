@@ -45,7 +45,6 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.openShortcuts
 		| typeof WORKBENCH_ACTION_IDS.openAgentStart
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
-		| typeof WORKBENCH_ACTION_IDS.resizeActivePanel
 		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelLeft
 		| typeof WORKBENCH_ACTION_IDS.resizeActivePanelRight
@@ -349,15 +348,6 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.resetTerminalFontSize,
 	},
-	resizeActivePanel: {
-		defaults: {
-			apple: chord('KeyR', ['mod']),
-			standard: chord('KeyR', ['mod', 'shift']),
-		},
-		id: WORKBENCH_ACTION_IDS.resizeActivePanel,
-		input: undefined,
-		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanel,
-	},
 	// Windows Terminal's pane-resize chord; macOS takes Control+Command because Option+Shift+Arrow
 	// extends a text selection by word there.
 	resizeActivePanelDown: {
@@ -531,7 +521,6 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'newWorkspace',
 	'search',
 	'resetTerminalFontSize',
-	'resizeActivePanel',
 	'resizeActivePanelDown',
 	'resizeActivePanelLeft',
 	'resizeActivePanelRight',
@@ -661,8 +650,6 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('decreaseTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resetTerminalFontSize:
 			return formatWorkbenchShortcut('resetTerminalFontSize', platform, bindings);
-		case WORKBENCH_ACTION_IDS.resizeActivePanel:
-			return formatWorkbenchShortcut('resizeActivePanel', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resizeActivePanelDown:
 			return formatWorkbenchShortcut('resizeActivePanelDown', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resizeActivePanelLeft:
@@ -798,8 +785,6 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults[platform],
-		[WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId]:
-			WORKBENCH_SHORTCUTS.resizeActivePanel.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resizeActivePanelDown.shortcutId]:
 			WORKBENCH_SHORTCUTS.resizeActivePanelDown.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resizeActivePanelLeft.shortcutId]:

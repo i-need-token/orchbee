@@ -1,7 +1,6 @@
 import type { PanelLayoutNode, PanelSplit } from './panel-layout-types';
 
-export type PanelResizeAdjustment = 'narrower' | 'reset' | 'shorter' | 'taller' | 'wider';
-export type PanelResizeMultiplier = 1 | 2;
+export type PanelResizeAdjustment = 'narrower' | 'shorter' | 'taller' | 'wider';
 
 type PanelResizeResolution =
 	| {
@@ -10,12 +9,12 @@ type PanelResizeResolution =
 	  }
 	| {
 			readonly kind: 'unchanged';
-			readonly reason: 'already-reset' | 'axis-unavailable' | 'boundary';
+			readonly reason: 'axis-unavailable' | 'boundary';
 			readonly root: PanelLayoutNode;
 	  }
 	| {
 			readonly kind: 'rejected';
-			readonly reason: 'invalid-multiplier' | 'panel-not-found';
+			readonly reason: 'panel-not-found';
 			readonly root: PanelLayoutNode;
 	  };
 
@@ -32,20 +31,10 @@ export function resolvePanelResize(
 	root: PanelLayoutNode,
 	panelId: string,
 	adjustment: PanelResizeAdjustment,
-	multiplier: PanelResizeMultiplier,
 	minimumBranchPercent: number = MINIMUM_VISIBLE_BRANCH_PERCENT,
 ): PanelResizeResolution {
-	if (multiplier !== 1 && multiplier !== 2) {
-		return { kind: 'rejected', reason: 'invalid-multiplier', root };
-	}
 	if (!containsPanel(root, panelId)) {
 		return { kind: 'rejected', reason: 'panel-not-found', root };
-	}
-	if (adjustment === 'reset') {
-		const resetRoot = resetSplitWeights(root);
-		return resetRoot === root
-			? { kind: 'unchanged', reason: 'already-reset', root }
-			: { kind: 'applied', root: resetRoot };
 	}
 
 	const orientation =
@@ -55,7 +44,7 @@ export function resolvePanelResize(
 		root,
 		panelId,
 		orientation,
-		(increase ? 1 : -1) * KEYBOARD_RESIZE_STEP_PERCENT * multiplier,
+		(increase ? 1 : -1) * KEYBOARD_RESIZE_STEP_PERCENT,
 		minimumBranchPercent,
 	);
 	if (!traversal.handledAxis) {
@@ -71,21 +60,6 @@ function containsPanel(node: PanelLayoutNode, panelId: string): boolean {
 		(node.kind === 'panel' && node.id === panelId) ||
 		(node.kind === 'split' && node.children.some((child) => containsPanel(child.node, panelId)))
 	);
-}
-
-function resetSplitWeights(node: PanelLayoutNode): PanelLayoutNode {
-	if (node.kind === 'panel') return node;
-	const equalWeight = 100 / node.children.length;
-	let changed = false;
-	const children = node.children.map((child) => {
-		const resetNode = resetSplitWeights(child.node);
-		if (resetNode !== child.node || Math.abs(child.weight - equalWeight) > Number.EPSILON) {
-			changed = true;
-			return { ...child, node: resetNode, weight: equalWeight };
-		}
-		return child;
-	});
-	return changed ? { ...node, children } : node;
 }
 
 function resizeNearestAncestor(

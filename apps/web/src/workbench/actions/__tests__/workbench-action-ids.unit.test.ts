@@ -73,7 +73,6 @@ describe('workbench action contracts', () => {
 			setTabTitle: 'workbench.tab.title.set',
 			renamePanel: 'workbench.panel.rename',
 			resetTerminalFontSize: 'workbench.terminal.font-size.reset',
-			resizeActivePanel: 'workbench.panel.active.resize',
 			resizeActivePanelDown: 'workbench.panel.active.resize-down',
 			resizeActivePanelLeft: 'workbench.panel.active.resize-left',
 			resizeActivePanelRight: 'workbench.panel.active.resize-right',

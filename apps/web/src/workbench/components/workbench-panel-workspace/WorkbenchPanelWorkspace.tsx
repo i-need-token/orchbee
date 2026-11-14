@@ -10,7 +10,6 @@ import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-su
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
 import { WorkbenchPanelLayout } from './components/workbench-panel-layout/WorkbenchPanelLayout';
-import { WorkbenchPanelResizeDialog } from './components/workbench-panel-resize-dialog/WorkbenchPanelResizeDialog';
 import { useWorkbenchPanelWorkspace } from './hooks/useWorkbenchPanelWorkspace';
 import { useTerminalHandoffKeystrokes } from './hooks/useTerminalHandoffKeystrokes';
 import { useTerminalTabPresentationHandoff } from './hooks/useTerminalTabPresentationHandoff';
@@ -135,7 +134,6 @@ export function WorkbenchPanelWorkspace({
 			})}
 			{view.panelDrag.ghost !== null && <WorkbenchPanelDragGhost ghost={view.panelDrag.ghost} />}
 			<WorkbenchPanelCloseDialog view={view} />
-			<WorkbenchPanelResizeDialog view={view} />
 		</div>
 	);
 }

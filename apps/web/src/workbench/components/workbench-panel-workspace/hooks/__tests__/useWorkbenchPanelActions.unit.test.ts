@@ -100,7 +100,6 @@ function Harness({
 			activateChildTerminal: () => appliedTransition,
 			focusPanel,
 			showPrimaryTerminal: () => appliedTransition,
-			startPanelResize: () => true,
 			startPanelVisualSelection,
 			togglePanelMaximization: () => appliedTransition,
 		},
@@ -384,7 +383,6 @@ describe('useWorkbenchPanelActions', () => {
 							},
 							[PANEL_ACTION_IDS.resize]: {
 								adjustment: 'wider',
-								multiplier: 1,
 								panelId: 'panel-1',
 							},
 							[PANEL_ACTION_IDS.showPrimaryTerminal]: { panelId: 'panel-1' },
@@ -392,7 +390,6 @@ describe('useWorkbenchPanelActions', () => {
 								direction: 'right',
 								panelId: 'panel-1',
 							},
-							[PANEL_ACTION_IDS.startResize]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.startVisualSelection]: {
 								mode: 'focus',
 								panelId: 'panel-1',

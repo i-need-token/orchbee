@@ -50,13 +50,6 @@ describe('useKeyboardShortcutSettingsView', () => {
 			scope: 'Window',
 		});
 		expect(
-			allRows.result.current.rows.find((row) => row.actionName === 'Resize active panel'),
-		).toMatchObject({
-			availability: 'When an active terminal panel is available',
-			chord: 'Ctrl+Shift+R',
-			scope: 'Active panel',
-		});
-		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Equalize panels'),
 		).toMatchObject({
 			availability: 'When the active tab has multiple panels',

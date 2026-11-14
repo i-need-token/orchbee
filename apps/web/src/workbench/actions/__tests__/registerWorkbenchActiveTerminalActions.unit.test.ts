@@ -118,21 +118,6 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		).toMatchObject({ availability: { kind: 'disabled' } });
 	});
 
-	it('executes the prepared resize-mode Action for the active panel', async () => {
-		const harness = createHarness();
-		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
-		registerPanelTargetAction(harness, PANEL_ACTION_IDS.startResize, (context, input) => {
-			lowerExecute(input);
-			context.markCommitted();
-			return { kind: 'completed' };
-		});
-
-		await expect(harness.execute(WORKBENCH_ACTION_IDS.resizeActivePanel)).resolves.toEqual({
-			kind: 'completed',
-		});
-		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: fixturePanelId(1) });
-	});
-
 	it('moves the divider beside the active Panel the way the arrow points', async () => {
 		const harness = createHarness(2);
 		const lowerExecute = vi.fn<(input: PanelResizeInput) => void>();
@@ -600,10 +585,7 @@ function registerPanelVisualSelection(
 
 function registerPanelTargetAction(
 	harness: Harness,
-	actionId:
-		| typeof PANEL_ACTION_IDS.equalize
-		| typeof PANEL_ACTION_IDS.focus
-		| typeof PANEL_ACTION_IDS.startResize,
+	actionId: typeof PANEL_ACTION_IDS.equalize | typeof PANEL_ACTION_IDS.focus,
 	execute: (
 		context: ActionExecutionContext,
 		input: PanelTargetInput,

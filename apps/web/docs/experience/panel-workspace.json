@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Panel Workspace",
-	"description": "Renders deterministic terminal panel layouts, directional, cyclic, positional, and visible focus or swap selection, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
+	"description": "Renders deterministic terminal panel layouts, directional, cyclic, positional, and visible focus or swap selection, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, directional divider moves, split, drag, and close behavior.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -36,7 +36,6 @@
 				"Drag a primary panel header across directional targets and inspect reversible projection and cancellation.",
 				"Split four Panels into a nested layout, then move the active Panel with Shift plus the directional-focus chord and inspect exact leaf exchange without topology or terminal-identity changes.",
 				"Split three Panels along one axis, resize them unevenly, then invoke Equalize Panels and inspect proportional thirds without topology, focus, or terminal-identity changes.",
-				"Split the active terminal, press Command+R, then use W, N, T, S, Control-modified steps, and R reset in keyboard resize mode.",
 				"Split the active terminal both ways, hold Alt+Shift+Arrow (Control+Command+Arrow on macOS) and watch the divider beside the focused Panel follow the arrow until the size limit, while the terminal receives no input."
 			]
 		},
@@ -75,7 +74,6 @@
 		"Dragging changes only reversible projection state until a valid directional drop commits the move.",
 		"Directional keyboard movement swaps complete neighboring Panel leaves while preserving split topology, weights, slot identities, terminal identities, and focus on the moved source Panel.",
 		"Panel equalization recursively assigns same-axis child weights by descendant Panel units while preserving topology, order, identities, membership, and focus.",
-		"Keyboard resize mode captures one exact Tab and Panel, mutates the nearest matching split axis, preserves a visible branch floor, and closes when its target becomes stale.",
 		"A divider move changes only the nearest split on the arrow's axis that holds the focused Panel, toward the arrow, and falls through when no such split exists.",
 		"A Panel's Close ends its primary and every child terminal, whichever one it shows, and closing a Tab's last Panel closes that Tab, as in the TUI.",
 		"Closing a terminal that may still run a program, or a Presentation with no terminal, requires localized confirmation before the Server is asked.",

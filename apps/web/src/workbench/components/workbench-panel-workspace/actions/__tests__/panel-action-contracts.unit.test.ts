@@ -24,7 +24,6 @@ describe('panel action contracts', () => {
 			resize: 'workbench.panel.resize',
 			showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 			split: 'workbench.panel.split',
-			startResize: 'workbench.panel.resize.start',
 			startVisualSelection: 'workbench.panel.visual-selection.start',
 			swap: 'workbench.panel.swap',
 			toggleMaximization: 'workbench.panel.maximization.toggle',
@@ -59,10 +58,8 @@ describe('panel action contracts', () => {
 				targetPanelId: 'panel-2',
 			}),
 		).toMatchObject({ success: true });
-		expect(
-			panelResizeInput.parse({ adjustment: 'wider', multiplier: 2, panelId: 'panel-1' }),
-		).toEqual({
-			data: { adjustment: 'wider', multiplier: 2, panelId: 'panel-1' },
+		expect(panelResizeInput.parse({ adjustment: 'wider', panelId: 'panel-1' })).toEqual({
+			data: { adjustment: 'wider', panelId: 'panel-1' },
 			success: true,
 		});
 		expect(panelSwapInput.parse({ panelId: 'panel-1', targetPanelId: 'panel-2' })).toEqual({
@@ -78,9 +75,9 @@ describe('panel action contracts', () => {
 	it('rejects stale shapes and unsupported directions', () => {
 		expect(panelTargetInput.parse(null)).toMatchObject({ success: false });
 		expect(panelCloseInput.parse({ panelId: 'panel-1' })).toMatchObject({ success: false });
-		expect(
-			panelResizeInput.parse({ adjustment: 'wider', multiplier: 3, panelId: 'panel-1' }),
-		).toMatchObject({ success: false });
+		expect(panelResizeInput.parse({ adjustment: 'reset', panelId: 'panel-1' })).toMatchObject({
+			success: false,
+		});
 		expect(panelChildTerminalInput.parse({ panelId: 'panel-1' })).toMatchObject({
 			success: false,
 		});

@@ -7,7 +7,7 @@ describe('resolvePanelResize', () => {
 	it('adjusts the nearest split ancestor on the requested axis', () => {
 		const root = nestedLayout();
 
-		const wider = resolvePanelResize(root, 'panel-3', 'wider', 1);
+		const wider = resolvePanelResize(root, 'panel-3', 'wider');
 		expect(wider).toMatchObject({ kind: 'applied' });
 		expect(requireSplit(wider.root).children.map((child) => child.weight)).toEqual([45, 55]);
 		expect(
@@ -16,7 +16,7 @@ describe('resolvePanelResize', () => {
 			),
 		).toEqual([50, 50]);
 
-		const taller = resolvePanelResize(root, 'panel-3', 'taller', 1);
+		const taller = resolvePanelResize(root, 'panel-3', 'taller');
 		expect(taller).toMatchObject({ kind: 'applied' });
 		expect(requireSplit(taller.root).children.map((child) => child.weight)).toEqual([50, 50]);
 		expect(
@@ -26,43 +26,43 @@ describe('resolvePanelResize', () => {
 		).toEqual([45, 55]);
 	});
 
-	it('applies normal and doubled steps symmetrically for either child', () => {
+	it('applies steps symmetrically for either child', () => {
 		const root = horizontalLayout(40, 60);
 
-		expect(weights(resolvePanelResize(root, 'panel-1', 'wider', 1).root)).toEqual([45, 55]);
-		expect(weights(resolvePanelResize(root, 'panel-1', 'narrower', 2).root)).toEqual([30, 70]);
-		expect(weights(resolvePanelResize(root, 'panel-2', 'wider', 2).root)).toEqual([30, 70]);
-		expect(weights(resolvePanelResize(root, 'panel-2', 'narrower', 1).root)).toEqual([45, 55]);
+		expect(weights(resolvePanelResize(root, 'panel-1', 'wider').root)).toEqual([45, 55]);
+		expect(weights(twoSteps(root, 'panel-1', 'narrower'))).toEqual([30, 70]);
+		expect(weights(twoSteps(root, 'panel-2', 'wider'))).toEqual([30, 70]);
+		expect(weights(resolvePanelResize(root, 'panel-2', 'narrower').root)).toEqual([45, 55]);
 	});
 
 	it('retains a visible branch and reports an intentional boundary no-op', () => {
 		const root = horizontalLayout(5, 95);
 
-		const blocked = resolvePanelResize(root, 'panel-1', 'narrower', 2);
+		const blocked = resolvePanelResize(root, 'panel-1', 'narrower');
 		expect(blocked).toMatchObject({ kind: 'unchanged', reason: 'boundary' });
 		expect(blocked.root).toBe(root);
 
-		const admitted = resolvePanelResize(root, 'panel-1', 'wider', 2);
+		const admitted = resolvePanelResize(root, 'panel-1', 'wider');
 		expect(admitted).toMatchObject({ kind: 'applied' });
-		expect(weights(admitted.root)).toEqual([15, 85]);
+		expect(weights(twoSteps(root, 'panel-1', 'wider'))).toEqual([15, 85]);
 	});
 
 	it('never reverses direction when an imported layout is already beyond the boundary', () => {
 		const narrowLeading = horizontalLayout(2, 98);
 		const narrowTrailing = horizontalLayout(98, 2);
 
-		expect(resolvePanelResize(narrowLeading, 'panel-1', 'narrower', 1)).toMatchObject({
+		expect(resolvePanelResize(narrowLeading, 'panel-1', 'narrower')).toMatchObject({
 			kind: 'unchanged',
 			reason: 'boundary',
 			root: narrowLeading,
 		});
-		expect(weights(resolvePanelResize(narrowLeading, 'panel-1', 'wider', 1).root)).toEqual([7, 93]);
-		expect(resolvePanelResize(narrowTrailing, 'panel-1', 'wider', 1)).toMatchObject({
+		expect(weights(resolvePanelResize(narrowLeading, 'panel-1', 'wider').root)).toEqual([7, 93]);
+		expect(resolvePanelResize(narrowTrailing, 'panel-1', 'wider')).toMatchObject({
 			kind: 'unchanged',
 			reason: 'boundary',
 			root: narrowTrailing,
 		});
-		expect(weights(resolvePanelResize(narrowTrailing, 'panel-1', 'narrower', 1).root)).toEqual([
+		expect(weights(resolvePanelResize(narrowTrailing, 'panel-1', 'narrower').root)).toEqual([
 			93, 7,
 		]);
 	});
@@ -70,45 +70,32 @@ describe('resolvePanelResize', () => {
 	it('leaves an unavailable axis unchanged without falling back to another split', () => {
 		const root = verticalLayout(50, 50);
 
-		expect(resolvePanelResize(root, 'panel-1', 'wider', 1)).toMatchObject({
+		expect(resolvePanelResize(root, 'panel-1', 'wider')).toMatchObject({
 			kind: 'unchanged',
 			reason: 'axis-unavailable',
 			root,
 		});
 	});
 
-	it('resets every split in the target Tab while preserving topology and identities', () => {
-		const root = nestedLayout(25, 75, 20, 80);
-
-		const reset = resolvePanelResize(root, 'panel-3', 'reset', 1);
-		expect(reset).toMatchObject({ kind: 'applied' });
-		const resetRoot = requireSplit(reset.root);
-		expect(resetRoot.id).toBe('split-root');
-		expect(resetRoot.children.map((child) => child.weight)).toEqual([50, 50]);
-		const resetNested = requireSplit(resetRoot.children[1]?.node);
-		expect(resetNested.id).toBe('split-nested');
-		expect(resetNested.children.map((child) => child.weight)).toEqual([50, 50]);
-
-		const alreadyReset = resolvePanelResize(reset.root, 'panel-3', 'reset', 2);
-		expect(alreadyReset).toMatchObject({ kind: 'unchanged', reason: 'already-reset' });
-		expect(alreadyReset.root).toBe(reset.root);
-	});
-
-	it('rejects stale targets and invalid multipliers without producing a layout', () => {
+	it('rejects stale targets without producing a layout', () => {
 		const root = horizontalLayout(50, 50);
 
-		expect(resolvePanelResize(root, 'missing-panel', 'wider', 1)).toEqual({
+		expect(resolvePanelResize(root, 'missing-panel', 'wider')).toEqual({
 			kind: 'rejected',
 			reason: 'panel-not-found',
 			root,
 		});
-		expect(resolvePanelResize(root, 'panel-1', 'wider', 3 as 1)).toEqual({
-			kind: 'rejected',
-			reason: 'invalid-multiplier',
-			root,
-		});
 	});
 });
+
+function twoSteps(
+	root: PanelLayoutNode,
+	panelId: string,
+	adjustment: Parameters<typeof resolvePanelResize>[2],
+): PanelLayoutNode {
+	return resolvePanelResize(resolvePanelResize(root, panelId, adjustment).root, panelId, adjustment)
+		.root;
+}
 
 function panel(id: string): Extract<PanelLayoutNode, { readonly kind: 'panel' }> {
 	return {

@@ -12,7 +12,7 @@ export function panelResizeAdjustmentToward(
 	root: PanelLayoutNode,
 	panelId: string,
 	direction: PanelResizeDirection,
-): Exclude<PanelResizeAdjustment, 'reset'> | null {
+): PanelResizeAdjustment | null {
 	const horizontal = direction === 'left' || direction === 'right';
 	const side = nearestSplitSide(root, panelId, horizontal ? 'horizontal' : 'vertical');
 	if (side === 'absent' || side === 'no-split') return null;

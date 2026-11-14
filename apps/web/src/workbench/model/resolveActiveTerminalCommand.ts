@@ -49,7 +49,6 @@ export type ActiveTerminalCommand =
 	| 'resize-left'
 	| 'resize-right'
 	| 'resize-up'
-	| 'start-resize'
 	| 'split-above'
 	| 'split-below'
 	| 'split-left'
@@ -145,12 +144,6 @@ export type ActiveTerminalCommandResolution =
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.resize;
 			readonly input: PanelResizeInput;
-			readonly kind: 'ready';
-			readonly panelId: string;
-	  }
-	| {
-			readonly actionId: typeof PANEL_ACTION_IDS.startResize;
-			readonly input: PanelTargetInput;
 			readonly kind: 'ready';
 			readonly panelId: string;
 	  }
@@ -254,18 +247,11 @@ export function resolveActiveTerminalCommand({
 				? { kind: 'unavailable', reason: 'divider-unavailable' }
 				: {
 						actionId: PANEL_ACTION_IDS.resize,
-						input: { adjustment, multiplier: 1, panelId },
+						input: { adjustment, panelId },
 						kind: 'ready',
 						panelId,
 					};
 		}
-		case 'start-resize':
-			return {
-				actionId: PANEL_ACTION_IDS.startResize,
-				input: { panelId },
-				kind: 'ready',
-				panelId,
-			};
 		case 'toggle-maximization':
 			return collectPanelLeaves(activeTab.root).length < 2
 				? { kind: 'unavailable', reason: 'requires-multiple-panels' }

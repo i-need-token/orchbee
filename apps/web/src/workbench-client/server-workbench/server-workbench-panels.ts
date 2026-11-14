@@ -146,15 +146,14 @@ function adjustedStep(
 	root: WorkbenchPanelNode,
 	change: Extract<WorkbenchAuthoritySplitRatioChange, { type: 'panel-size-adjusted' }>,
 ): RatioStep {
-	const { adjustment, multiplier, panelId } = change;
+	const { adjustment, panelId } = change;
 	const nearest = nearestSplit(
 		root,
 		panelId,
 		adjustment === 'narrower' || adjustment === 'wider' ? 'horizontal' : 'vertical',
 	);
 	if (nearest === null) return { kind: 'settled' };
-	const growth =
-		(adjustment === 'taller' || adjustment === 'wider' ? 1 : -1) * RATIO_STEP * multiplier;
+	const growth = (adjustment === 'taller' || adjustment === 'wider' ? 1 : -1) * RATIO_STEP;
 	const previous = ratioOf(nearest.split);
 	return moveTo(nearest.split, nearest.holdsPanelFirst ? previous + growth : previous - growth);
 }
@@ -168,9 +167,7 @@ function nextRatioStep(change: WorkbenchAuthoritySplitRatioChange, tab: ServerTa
 				: moveTo(split, change.leadingWeight / 100);
 		}
 		case 'panel-size-adjusted':
-			return change.adjustment === 'reset'
-				? firstUneven(tab.root, () => EVEN_RATIO)
-				: adjustedStep(tab.root, change);
+			return adjustedStep(tab.root, change);
 		case 'panels-equalized':
 			return firstUneven(tab.root, equalRatio);
 	}
@@ -272,10 +269,7 @@ async function commitNextRatio(
 }
 
 function changesOneSplit(change: WorkbenchAuthoritySplitRatioChange): boolean {
-	return (
-		change.type === 'split-ratio-set' ||
-		(change.type === 'panel-size-adjusted' && change.adjustment !== 'reset')
-	);
+	return change.type === 'split-ratio-set' || change.type === 'panel-size-adjusted';
 }
 
 /**

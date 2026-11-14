@@ -91,24 +91,6 @@ describe('resolveActiveTerminalCommand', () => {
 		});
 	});
 
-	it('opens resize mode for the exact active or explicit panel target', () => {
-		expect(resolve(initialState(), 'start-resize')).toEqual({
-			actionId: PANEL_ACTION_IDS.startResize,
-			input: { panelId: PANEL_1 },
-			kind: 'ready',
-			panelId: PANEL_1,
-		});
-		const split = twoPanels();
-		expect(
-			resolveActiveTerminalCommand({
-				activeTabId: TAB_ID,
-				command: 'start-resize',
-				state: split,
-				targetPanelId: PANEL_1,
-			}),
-		).toMatchObject({ input: { panelId: PANEL_1 }, panelId: PANEL_1 });
-	});
-
 	it('resolves whole-Tab equalization through one exact live Panel target', () => {
 		const single = initialState();
 		expect(resolve(single, 'equalize')).toEqual({

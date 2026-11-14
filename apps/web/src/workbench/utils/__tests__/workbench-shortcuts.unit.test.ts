@@ -94,7 +94,6 @@ describe('Workbench shortcuts', () => {
 			shortcutId: 'workbench.tab.title.set',
 		});
 		expect(WORKBENCH_SHORTCUTS.resetTerminalFontSize.id).toBe('workbench.terminal.font-size.reset');
-		expect(WORKBENCH_SHORTCUTS.resizeActivePanel.id).toBe('workbench.panel.active.resize');
 		expect(WORKBENCH_SHORTCUTS.selectNextTab).toMatchObject({
 			id: 'workbench.tab.select-next',
 			input: undefined,
@@ -148,8 +147,6 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('newTerminalInCurrentDirectory', 'apple')).toBe('⌥⌘Enter');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'apple')).toBe('⌘0');
-		expect(formatWorkbenchShortcut('resizeActivePanel', 'apple')).toBe('⌘R');
-		expect(formatWorkbenchShortcut('resizeActivePanel', 'standard')).toBe('Ctrl+Shift+R');
 		expect(formatWorkbenchShortcut('selectNextTab', 'apple')).toBe('⇧⌘]');
 		expect(formatWorkbenchShortcut('selectPreviousTab', 'apple')).toBe('⇧⌘[');
 		expect(formatWorkbenchShortcut('selectTab1', 'apple')).toBe('⌘1');

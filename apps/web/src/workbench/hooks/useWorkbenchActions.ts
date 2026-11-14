@@ -684,7 +684,6 @@ export function useWorkbenchActions({
 				case 'selectNextTab':
 				case 'selectPreviousTab':
 				case 'resetTerminalFontSize':
-				case 'resizeActivePanel':
 				case 'resizeActivePanelDown':
 				case 'resizeActivePanelLeft':
 				case 'resizeActivePanelRight':

@@ -112,8 +112,6 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.selectAll);
 		case 'reset-terminal-font-size':
 			return intl.formatMessage(keyboardShortcutMessages.resetTerminalFontSize);
-		case 'resize-panel':
-			return intl.formatMessage(keyboardShortcutMessages.resizePanel);
 		case 'resize-panel-down':
 			return intl.formatMessage(keyboardShortcutMessages.resizePanelDown);
 		case 'resize-panel-left':

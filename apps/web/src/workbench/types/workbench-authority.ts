@@ -62,11 +62,10 @@ export type WorkbenchAuthoritySplitRatioChange = WorkbenchAuthorityTabTarget &
 				readonly leadingWeight: number;
 				readonly splitId: string;
 		  }
-		/** Grows or shrinks the Panel's side of its nearest split on that axis. `reset` evens all of them. */
+		/** Grows or shrinks the Panel's side of its nearest split on that axis by one step. */
 		| {
 				readonly type: 'panel-size-adjusted';
-				readonly adjustment: 'narrower' | 'reset' | 'shorter' | 'taller' | 'wider';
-				readonly multiplier: 1 | 2;
+				readonly adjustment: 'narrower' | 'shorter' | 'taller' | 'wider';
 				readonly panelId: string;
 		  }
 		/** Gives every Panel the same share along each axis, as far as the authority's limit allows. */

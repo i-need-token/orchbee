@@ -45,6 +45,7 @@ import {
 	type TabPanelWorkspace,
 	type TerminalPresentation,
 } from '../model/panel-workspace-state';
+import { resolvePanelResize } from '../model/resolvePanelResize';
 
 interface PanelActionOperations {
 	readonly activateChildTerminal: (
@@ -53,7 +54,6 @@ interface PanelActionOperations {
 	) => PanelWorkspaceTransition | null;
 	readonly focusPanel: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly showPrimaryTerminal: (panelId: string) => PanelWorkspaceTransition | null;
-	readonly startPanelResize: (panelId: string) => boolean;
 	readonly startPanelVisualSelection: (
 		panelId: string,
 		mode: PanelVisualSelectionInput['mode'],
@@ -282,16 +282,26 @@ export function useWorkbenchPanelActions({
 					getAvailability: (_context, input) =>
 						layoutBlocker(1) ?? targetAvailability(input.panelId),
 					handler: {
-						execute: (context, input) =>
-							sharedTabTarget === null
-								? { code: 'active-tab-unavailable', kind: 'blocked' }
-								: authority.change(context, {
+						execute: (context, input) => {
+							if (sharedTabTarget === null || activeTab === null) {
+								return { code: 'active-tab-unavailable', kind: 'blocked' };
+							}
+							// A divider already at its limit settles here, so a held chord stops asking.
+							const resize = resolvePanelResize(
+								activeTab.root,
+								input.panelId,
+								input.adjustment,
+								authority.minimumSplitPercent,
+							);
+							return resize.kind === 'applied'
+								? authority.change(context, {
 										...sharedTabTarget,
 										adjustment: input.adjustment,
-										multiplier: input.multiplier,
 										panelId: input.panelId,
 										type: 'panel-size-adjusted',
-									}),
+									})
+								: { kind: 'unchanged' };
+						},
 					},
 					id: PANEL_ACTION_IDS.resize,
 					input: panelResizeInput,
@@ -352,23 +362,6 @@ export function useWorkbenchPanelActions({
 					id: PANEL_ACTION_IDS.closeConfirmed,
 					input: panelCloseInput,
 					title: workbenchMessages.panelClose,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution,
-					getAvailability: (_context, input) => targetAvailability(input.panelId),
-					handler: {
-						execute: (_context, input) =>
-							operations.startPanelResize(input.panelId)
-								? { kind: 'completed' }
-								: { code: 'stale-target', kind: 'blocked' },
-					},
-					id: PANEL_ACTION_IDS.startResize,
-					input: panelTargetInput,
-					title: workbenchMessages.panelResize,
 				}),
 			),
 			typedRuntime.register(

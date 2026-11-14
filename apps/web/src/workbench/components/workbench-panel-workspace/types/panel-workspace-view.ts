@@ -9,7 +9,6 @@ import type {
 	PanelWorkspaceState,
 	TabPanelWorkspace,
 } from '../model/panel-workspace-state';
-import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
 import type { PanelVisualSelectionSession } from '../model/panel-visual-selection';
 import type {
 	KeyboardEvent as ReactKeyboardEvent,
@@ -47,15 +46,6 @@ export interface PanelWorkspaceMessages {
 	readonly more: string;
 	readonly restore: string;
 	readonly returnToPrimary: string;
-	readonly resizeDescription: string;
-	readonly resizeDone: string;
-	readonly resizeNarrower: string;
-	readonly resizeReset: string;
-	readonly resizeShorter: string;
-	readonly resizeTaller: string;
-	readonly resizeTitle: string;
-	readonly resizeUnavailable: string;
-	readonly resizeWider: string;
 	readonly splitBelow: string;
 	readonly splitRight: string;
 	readonly visualSelectionFocusLabel: string;
@@ -73,11 +63,6 @@ export interface PendingPanelClose {
 	readonly tabTitle: string;
 	/** The name the Panel's header shows. */
 	readonly target: string;
-}
-
-export interface PendingPanelResize {
-	readonly panelId: string;
-	readonly tabId: string;
 }
 
 /** A divider whose position every Client shares: nothing leaves this Client until it is released. */
@@ -100,12 +85,6 @@ export interface WorkbenchPanelWorkspaceView {
 	) => void;
 	readonly activeTab: TabPanelWorkspace | null;
 	readonly cancelPanelVisualSelection: (restoreSourceFocus: boolean) => void;
-	readonly cancelPanelResize: () => void;
-	readonly canResizePanel: (
-		panelId: string,
-		adjustment: PanelResizeAdjustment,
-		multiplier?: PanelResizeMultiplier,
-	) => boolean;
 	readonly cancelClose: () => void;
 	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly renamePanel: (panelId: string, source?: ActionInvocationSource) => void;
@@ -136,19 +115,11 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly panelVisualSelection: PanelVisualSelectionSession | null;
 	readonly panelVisualSelectionLabel: string | undefined;
 	readonly pendingClose: PendingPanelClose | null;
-	readonly pendingResize: PendingPanelResize | null;
 	/** Each reported Agent's status view by Presentation ID; a Panel header draws its displayed terminal's. */
 	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	/** Stops showing a released drop once no layer of its revision remains. */
 	readonly releasePanelDragHold: (sourceRevision: string) => void;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
-	/** Settles true when the size changed. */
-	readonly resizePanel: (
-		panelId: string,
-		adjustment: PanelResizeAdjustment,
-		multiplier: PanelResizeMultiplier,
-		source?: ActionInvocationSource,
-	) => Promise<boolean>;
 	readonly sharedSplitResize: SharedSplitResize;
 	readonly showPrimaryTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;

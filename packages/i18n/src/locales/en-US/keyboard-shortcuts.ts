@@ -39,7 +39,6 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.previousTab': 'Select previous tab',
 	'keyboard.shortcuts.actions.reset': 'Restore default',
 	'keyboard.shortcuts.actions.resetTerminalFontSize': 'Reset terminal font size',
-	'keyboard.shortcuts.actions.resizePanel': 'Resize active panel',
 	'keyboard.shortcuts.actions.resizePanelDown': 'Move panel divider down',
 	'keyboard.shortcuts.actions.resizePanelLeft': 'Move panel divider left',
 	'keyboard.shortcuts.actions.resizePanelRight': 'Move panel divider right',

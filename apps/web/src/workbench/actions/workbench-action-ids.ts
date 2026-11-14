@@ -62,7 +62,6 @@ export const WORKBENCH_ACTION_IDS = {
 	openShortcuts: 'workbench.shortcuts.open',
 	removeProject: 'workbench.project.dissolve',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
-	resizeActivePanel: 'workbench.panel.active.resize',
 	resizeActivePanelDown: 'workbench.panel.active.resize-down',
 	resizeActivePanelLeft: 'workbench.panel.active.resize-left',
 	resizeActivePanelRight: 'workbench.panel.active.resize-right',
@@ -323,7 +322,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.openShortcuts]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.resizeActivePanel]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanelRight]: ActionSignature<void>;

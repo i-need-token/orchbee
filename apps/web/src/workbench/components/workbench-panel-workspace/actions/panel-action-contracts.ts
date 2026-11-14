@@ -8,7 +8,7 @@ import {
 
 import type { PanelSplitDirection } from '../model/panel-workspace-state';
 import type { PanelVisualSelectionMode } from '../model/panel-visual-selection';
-import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
+import type { PanelResizeAdjustment } from '../model/resolvePanelResize';
 
 export const PANEL_ACTION_IDS = {
 	activateChildTerminal: 'workbench.panel.child-terminal.activate',
@@ -20,7 +20,6 @@ export const PANEL_ACTION_IDS = {
 	resize: 'workbench.panel.resize',
 	showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 	split: 'workbench.panel.split',
-	startResize: 'workbench.panel.resize.start',
 	startVisualSelection: 'workbench.panel.visual-selection.start',
 	swap: 'workbench.panel.swap',
 	toggleMaximization: 'workbench.panel.maximization.toggle',
@@ -51,7 +50,6 @@ export interface PanelMoveInput extends PanelTargetInput {
 
 export interface PanelResizeInput extends PanelTargetInput {
 	readonly adjustment: PanelResizeAdjustment;
-	readonly multiplier: PanelResizeMultiplier;
 }
 
 export interface PanelSwapInput extends PanelTargetInput {
@@ -72,7 +70,6 @@ export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.resize]: ActionSignature<PanelResizeInput>;
 	readonly [PANEL_ACTION_IDS.showPrimaryTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.split]: ActionSignature<PanelSplitInput, string>;
-	readonly [PANEL_ACTION_IDS.startResize]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.startVisualSelection]: ActionSignature<PanelVisualSelectionInput>;
 	readonly [PANEL_ACTION_IDS.swap]: ActionSignature<PanelSwapInput>;
 	readonly [PANEL_ACTION_IDS.toggleMaximization]: ActionSignature<PanelTargetInput>;
@@ -87,13 +84,7 @@ function isDirection(input: unknown): input is PanelSplitDirection {
 }
 
 function isResizeAdjustment(input: unknown): input is PanelResizeAdjustment {
-	return (
-		input === 'narrower' ||
-		input === 'reset' ||
-		input === 'shorter' ||
-		input === 'taller' ||
-		input === 'wider'
-	);
+	return input === 'narrower' || input === 'shorter' || input === 'taller' || input === 'wider';
 }
 
 export const panelTargetInput: ActionInputValidation<PanelTargetInput> = {
@@ -188,12 +179,10 @@ export const panelResizeInput: ActionInputValidation<PanelResizeInput> = {
 	parse: (input) =>
 		isRecord(input) &&
 		typeof input['panelId'] === 'string' &&
-		isResizeAdjustment(input['adjustment']) &&
-		(input['multiplier'] === 1 || input['multiplier'] === 2)
+		isResizeAdjustment(input['adjustment'])
 			? {
 					data: {
 						adjustment: input['adjustment'],
-						multiplier: input['multiplier'],
 						panelId: input['panelId'],
 					},
 					success: true,

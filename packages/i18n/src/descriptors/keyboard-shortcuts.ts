@@ -52,7 +52,6 @@ export const keyboardShortcutMessages = defineMessages({
 	previousTab: message('keyboard.shortcuts.actions.previousTab'),
 	reset: message('keyboard.shortcuts.actions.reset'),
 	resetTerminalFontSize: message('keyboard.shortcuts.actions.resetTerminalFontSize'),
-	resizePanel: message('keyboard.shortcuts.actions.resizePanel'),
 	resizePanelDown: message('keyboard.shortcuts.actions.resizePanelDown'),
 	resizePanelLeft: message('keyboard.shortcuts.actions.resizePanelLeft'),
 	resizePanelRight: message('keyboard.shortcuts.actions.resizePanelRight'),

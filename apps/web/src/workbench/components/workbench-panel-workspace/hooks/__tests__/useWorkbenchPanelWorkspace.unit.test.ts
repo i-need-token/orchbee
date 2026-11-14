@@ -227,43 +227,32 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(releasePointerCapture).toHaveBeenCalledWith(7);
 	});
 
-	it('captures one resize target, commits through the authority, and closes on a Tab change', async () => {
+	it('commits one resize step through the authority', async () => {
 		const change = vi.fn<WorkbenchAuthority['change']>(() =>
 			Promise.resolve({ kind: 'completed' }),
 		);
-		const { actionRuntime, context, view } = renderWorkspace(
+		const { actionRuntime, view } = renderWorkspace(
 			[snapshotTab(1, TWO_PANEL_ROOT), snapshotTab(3)],
 			inertWorkbenchAuthority({ change }),
 		);
 		const resizePanelId = fixturePanelId(2);
 		const panelScope = view().actionScope;
+		let resized: Promise<unknown> | undefined;
 		act(() => {
-			actionRuntime.execute(
-				PANEL_ACTION_IDS.startResize,
-				{ panelId: resizePanelId },
+			resized = actionRuntime.execute(
+				PANEL_ACTION_IDS.resize,
+				{ adjustment: 'wider', panelId: resizePanelId },
 				{ scope: panelScope, source: 'programmatic', target: { id: resizePanelId, type: 'panel' } },
-			);
+			).completion;
 		});
-		expect(view().pendingResize).toEqual({ panelId: resizePanelId, tabId: fixtureTabId(1) });
-		expect(view().canResizePanel(resizePanelId, 'wider')).toBe(true);
-
-		let resized: Promise<boolean> | undefined;
-		act(() => {
-			resized = view().resizePanel(resizePanelId, 'wider', 1);
-		});
-		await expect(resized).resolves.toBe(true);
+		await expect(resized).resolves.toEqual({ kind: 'completed' });
 		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
 			adjustment: 'wider',
-			multiplier: 1,
 			panelId: resizePanelId,
 			tabId: fixtureTabId(1),
 			terminalContextId: 'terminal-context-1',
 			type: 'panel-size-adjusted',
 		});
-
-		act(() => context.tabModel.selectTab(fixtureTabId(3)));
-		expect(view().pendingResize).toBeNull();
-		await expect(view().resizePanel(resizePanelId, 'wider', 1)).resolves.toBe(false);
 	});
 
 	it('shares one terminal bell admission ledger across the panel workspace lifetime', () => {

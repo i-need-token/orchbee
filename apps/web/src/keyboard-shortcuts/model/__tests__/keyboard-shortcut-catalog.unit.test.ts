@@ -94,12 +94,6 @@ describe('keyboard shortcut catalog', () => {
 			name: 'swap-panel-visible',
 			scope: 'active-panel',
 		});
-		expect(keyboardShortcutDeclaration('workbench.panel.active.resize')).toMatchObject({
-			actionId: 'workbench.panel.active.resize',
-			availability: 'active-panel',
-			name: 'resize-panel',
-			scope: 'active-panel',
-		});
 		expect(keyboardShortcutDeclaration('workbench.panel.active.equalize')).toMatchObject({
 			actionId: 'workbench.panel.active.equalize',
 			availability: 'multiple-panels',
