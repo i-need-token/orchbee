@@ -22,10 +22,16 @@ except, per Client until it exits, the last query and Match case.
 | `Ctrl+b f`                                 | Opens the bar on the focused Panel                                       |
 | `[keys] find`                              | Replaces or disables that entry; a safe direct chord uses the same route |
 | `/` in an Entering or Viewing history view | Opens the same bar; nothing reaches the shell                            |
+| Panel menu row "Find in terminal"          | Focuses that Panel, then opens the bar on it                             |
+| Global menu (`Ctrl+b F2`) row, Panel group | Opens the bar on the focused Panel                                       |
 
-Shortcut help names the action "Find in terminal" / "在终端中查找". Opening while the bar is open
-keeps the bar and its query. Opening while keyboard copy mode is active keeps copy mode. A Panel
-without a connected frame refuses with the notice "Terminal disconnected" and sends nothing.
+Shortcut help and both menu rows name the action "Find in terminal" / "在终端中查找"; the rows sit
+between Copy selection and Clear terminal in the Panel menu and before copy mode in the global
+menu, show the effective shortcut, and are found by find, search / 查找, 搜索. Opening while the bar
+is open keeps the bar and its query. Opening while keyboard copy mode is active keeps copy mode. A
+Panel without a connected frame refuses with the notice "Terminal disconnected" and sends nothing;
+both menu rows are disabled by the same rule with that reason. A Panel narrower than 20 columns or
+shorter than 2 rows refuses with the notice "Panel too small" / "面板太小".
 
 The bar opens with the remembered query selected, so typing replaces it, and searches it at once.
 Opening never changes the Panel's selection or scroll position: a live Panel stays live and keeps
@@ -34,10 +40,15 @@ painting.
 ## The bar
 
 The bar covers the first row of the Panel's content, right-aligned, `surface-overlay`, width
-`min(48, Panel width - 2)`. It never resizes the terminal. From the start: the label `Find:` /
-`查找:`, the draft holding the terminal cursor, the counter, then `Aa`, previous `[^]`, next `[v]`
-and close `[x]`. When the full bar does not fit, the label, the draft and the counter remain. The
-controls are drawn without pointer routing; their keys act.
+`min(48, Panel width - 2)`; in a Panel under 40 columns it spans the whole row. It never resizes
+the terminal. From the start: the label `Find:` / `查找:`, the draft holding the terminal cursor,
+the counter, then `Aa`, previous `[^]`, next `[v]` and close `[x]`. A Panel under 40 columns drops
+`Aa`, and one under 28 columns also drops `[^] [v]`; the label, the draft and the counter always
+remain. A Panel that shrinks while the bar is open keeps it open at the narrower tier.
+
+A plain left release on a control acts as its key: `Aa` toggles Match case, `[^]` and `[v]` step,
+`[x]` closes. Controls take the shared hover and pressed states; disabled previous and next take
+neither. The bar shows no tooltips, like the other mode bars of the native Client.
 
 | State      | Counter cell | Other                                                                                           |
 | ---------- | ------------ | ----------------------------------------------------------------------------------------------- |
@@ -83,8 +94,19 @@ again. New output does not search again; the counter refreshes on the next searc
 
 The bar is an exclusive keyboard capture: nothing typed reaches the program in the Panel, which
 keeps running and painting. Keys match through the standard bindings, so Enter delivered as CR
-counts as Enter, and a host that sends Shift+Enter as plain Enter steps to the next match. Pointer
-input over the bar and the Panel is swallowed while the bar is open.
+counts as Enter, and a host that sends Shift+Enter as plain Enter steps to the next match.
+
+## Pointer
+
+| Input while the bar is open                    | Result                                                     |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| Plain left release on a control                | The control acts                                           |
+| Press on the bar off its controls              | Nothing; the bar stays                                     |
+| Wheel over the Panel or the bar                | Scrolls the history three rows; the bar and the query stay |
+| Plain press on the Panel's content             | Closes the bar; the press and its release reach no program |
+| Press on another Panel, the Tab strip, sidebar | Acts as it always does; the bar closes if focus moves      |
+
+A modified press on the Panel's content reaches no program and keeps the bar open.
 
 ## Closing
 
@@ -101,5 +123,5 @@ when its Panel loses focus, its context changes or the Client retires.
 | Whole word and regular expression       | Literal search with Match case only             | One row of cells holds one toggle                           |
 | Ten-second search limit                 | Five-second job budget                          | The shared copy query lane owns the budget                  |
 | Error row inside the bar                | Status notice with the same sentence            | The bar is one row                                          |
-| Clicks on the bar controls              | Keys only                                       | Pointer routing for the bar is not admitted yet             |
-| Bar stays open while content is clicked | Pointer input is swallowed while open           | One keyboard owner, always indicated                        |
+| Bar stays open while content is clicked | A press on the content closes the bar           | One keyboard owner, always indicated                        |
+| Control tooltips                        | None                                            | Native mode bars show no tooltips                           |

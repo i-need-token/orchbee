@@ -703,6 +703,10 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
             PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Right)),
         ),
         (
+            MenuAction::FindInTerminal,
+            PrefixAction::Client(ClientAction::FindInTerminal),
+        ),
+        (
             MenuAction::Copy,
             PrefixAction::Client(ClientAction::EnterCopyMode),
         ),

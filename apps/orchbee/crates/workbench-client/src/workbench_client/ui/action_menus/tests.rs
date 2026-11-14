@@ -699,10 +699,12 @@ fn a_parked_focus_disables_the_terminal_rows_that_need_its_attachment() {
             [
                 MenuAction::ClearTerminal,
                 MenuAction::Copy,
+                MenuAction::FindInTerminal,
                 MenuAction::RenamePanel,
             ]
         ),
         [
+            Some(MenuUnavailable::TerminalDisconnected),
             Some(MenuUnavailable::TerminalDisconnected),
             Some(MenuUnavailable::TerminalDisconnected),
             None,
@@ -711,6 +713,8 @@ fn a_parked_focus_disables_the_terminal_rows_that_need_its_attachment() {
     // Their execution refuses by the same rule before anything reaches the Server.
     let _ = ui.apply_client_action(ClientAction::ClearTerminal);
     let _ = ui.apply_client_action(ClientAction::EnterCopyMode);
+    let _ = ui.apply_client_action(ClientAction::FindInTerminal);
+    assert!(!ui.find_bar_active(), "a parked focus opens no Find bar");
     while let Some(lease) = mailbox.try_recv().unwrap() {
         assert!(
             !matches!(lease.record(), QueuedCommand::ClearTerminal(_)),

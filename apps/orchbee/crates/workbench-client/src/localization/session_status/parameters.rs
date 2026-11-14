@@ -87,6 +87,7 @@ pub(crate) enum WorkbenchClientNotice {
     CopyModeSearchLimit,
     CopyModeNoSelection,
     FindUnavailable,
+    PanelTooSmall,
     FindStopped,
     FindFailed,
     SelectionEvicted,

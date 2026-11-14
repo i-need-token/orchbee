@@ -103,6 +103,9 @@ struct RowFacts {
     /// so Clear terminal and Copy mode, which need its attachment, refuse. A launch failure is
     /// left out: Copy mode then shows the failure, and the status line names it instead.
     disconnected: bool,
+    /// Find in terminal would open on the addressed Panel: the same terminal rule its shortcut
+    /// applies.
+    find_ready: bool,
 }
 
 impl RowFacts {
@@ -111,6 +114,7 @@ impl RowFacts {
         copy: CopyReadiness::Hidden,
         last_panel: None,
         disconnected: false,
+        find_ready: false,
     };
 }
 
@@ -259,6 +263,9 @@ fn action_availability(
         return ActionAvailability::from_disabled_reason(
             (facts.last_panel == Some(false)).then_some(MenuUnavailable::NoEarlierPanel),
         );
+    }
+    if action == MenuAction::FindInTerminal && !facts.find_ready {
+        return ActionAvailability::Disabled(MenuUnavailable::TerminalDisconnected);
     }
     if matches!(action, MenuAction::ClearTerminal | MenuAction::Copy) && facts.disconnected {
         return ActionAvailability::Disabled(MenuUnavailable::TerminalDisconnected);
@@ -1375,6 +1382,15 @@ impl WorkbenchClientUi {
                 .then(|| self.last_panel_available())
                 .flatten(),
             disconnected,
+            find_ready: match target {
+                Target::Global => self
+                    .state
+                    .as_ref()
+                    .and_then(|state| state.focus_pane_ref())
+                    .is_some_and(|key| self.find_pane_ready(&key)),
+                Target::Pane { pane, .. } => self.find_pane_ready(pane),
+                _ => false,
+            },
         }
     }
 

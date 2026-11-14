@@ -476,6 +476,8 @@ impl Locale {
             (Self::ZhCn, A::Resize) => "调整大小",
             (Self::EnUs, A::Copy) => "copy",
             (Self::ZhCn, A::Copy) => "复制",
+            (Self::EnUs, A::Find) => "find search",
+            (Self::ZhCn, A::Find) => "查找 搜索",
             (Self::EnUs, A::Close) => "close",
             (Self::ZhCn, A::Close) => "关闭",
             (Self::EnUs, A::Rename) => "rename",

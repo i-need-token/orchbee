@@ -974,7 +974,11 @@ impl InputDispatcher {
                         if after_layout(view, port)? {
                             self.pointer.invalidate_map_with_port(port);
                         }
-                        let decision = self.pointer.copy_event(view, port, *event);
+                        let decision = if port.find_bar_active() {
+                            self.pointer.find_event(port, *event)
+                        } else {
+                            self.pointer.copy_event(view, port, *event)
+                        };
                         self.capture_modal_release(*event);
                         if event.action == super::MouseAction::Press
                             && matches!(
@@ -1697,7 +1701,12 @@ impl InputDispatcher {
                 mode,
             );
         }
-        if let Some(owner) = projected {
+        // The open Find bar owns only its own cells and its Panel's content; other reports keep
+        // their ordinary route, and the bar closes when its Panel loses focus.
+        let find_passes = projected == Some(CaptureOwner::Copy)
+            && port.find_bar_active()
+            && matches!(&item.kind, DecodedKind::Mouse(event) if !self.pointer.find_owns(*event));
+        if let Some(owner) = projected.filter(|_| !find_passes) {
             if client_chrome_overlay_allowed(Some(owner))
                 && let DecodedKind::Mouse(event) = &item.kind
                 && self.capture_help_mouse(view, port, *event)

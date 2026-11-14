@@ -103,6 +103,7 @@ pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 /// Client holds the size.
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
     MenuAction::CopySelection,
+    MenuAction::FindInTerminal,
     MenuAction::ClearTerminal,
     MenuAction::RenamePanel,
     MenuAction::SplitPanel(PanelDirection::Right),
@@ -164,6 +165,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::MovePanel(PanelDirection::Down),
     MenuAction::MovePanel(PanelDirection::Left),
     MenuAction::MovePanel(PanelDirection::Right),
+    MenuAction::FindInTerminal,
     MenuAction::Copy,
     MenuAction::Resize,
     MenuAction::NewWorkspace,
@@ -217,6 +219,8 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
         (T::Global, M::RenamePanel) => PrefixAction::Client(A::RequestRenamePanel),
         (T::Global, M::ClearTerminal) => PrefixAction::Client(A::ClearTerminal),
+        // The Panel menu focuses its Panel first, so the key acts on the same Panel.
+        (T::Global | T::Pane(_), M::FindInTerminal) => PrefixAction::Client(A::FindInTerminal),
         (T::Global, M::LastPanel) => PrefixAction::Client(A::FocusLastPanel),
         (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
         (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
@@ -466,7 +470,9 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::ClosePane
         | MenuAction::MovePanel(_)
         | MenuAction::RenamePanel => GlobalMenuGroup::Panel,
-        MenuAction::ClearTerminal | MenuAction::LastPanel => GlobalMenuGroup::Panel,
+        MenuAction::FindInTerminal | MenuAction::ClearTerminal | MenuAction::LastPanel => {
+            GlobalMenuGroup::Panel
+        }
         MenuAction::NewWorkspace
         | MenuAction::WorkspaceAtDirectory
         | MenuAction::NewWorktree

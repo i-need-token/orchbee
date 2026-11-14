@@ -771,6 +771,9 @@ pub(crate) enum ClientNotice {
     CopyModeNoSelection,
     /// The Find bar could not open: the focused Panel has no connected terminal frame.
     FindUnavailable,
+    /// The Find bar could not open: the focused Panel is narrower than 20 columns or shorter
+    /// than 2 rows.
+    PanelTooSmall,
     /// A Find search reached its time limit.
     FindStopped,
     /// A Find search could not read the retained output.

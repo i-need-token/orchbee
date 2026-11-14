@@ -837,6 +837,7 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::CopyModeSearchLimit => WorkbenchClientNotice::CopyModeSearchLimit,
             ClientNotice::CopyModeNoSelection => WorkbenchClientNotice::CopyModeNoSelection,
             ClientNotice::FindUnavailable => WorkbenchClientNotice::FindUnavailable,
+            ClientNotice::PanelTooSmall => WorkbenchClientNotice::PanelTooSmall,
             ClientNotice::FindStopped => WorkbenchClientNotice::FindStopped,
             ClientNotice::FindFailed => WorkbenchClientNotice::FindFailed,
             ClientNotice::SelectionEvicted => WorkbenchClientNotice::SelectionEvicted,
@@ -1339,10 +1340,20 @@ impl<'a> WorkbenchClientView<'a> {
             .and_then(super::copy_episode::CopyModeEpisodes::crop)
     }
 
-    /// The open Find bar and the pane it searches.
-    pub(crate) fn find_bar(&self) -> Option<(&'a PaneRef, &'a crate::terminal_find::FindBar)> {
+    /// The open Find bar, the pane it searches and the token its painted targets carry.
+    pub(crate) fn find_bar(
+        &self,
+    ) -> Option<(
+        &'a PaneRef,
+        &'a crate::terminal_find::FindBar,
+        crate::terminal_find::FindToken,
+    )> {
         let episodes = self.copy_mode?;
-        Some((episodes.key()?, episodes.find()?))
+        Some((
+            episodes.key()?,
+            episodes.find()?,
+            crate::terminal_find::FindToken(episodes.id()?),
+        ))
     }
 }
 

@@ -119,6 +119,7 @@ pub enum SurfaceAction<'a> {
     Settings(SettingsAction),
     ActionMenu(MenuAction<'a>),
     CopyMode(CopyAction),
+    Find(FindAction),
     AgentBoard(BoardAction<'a>),
     Close(CloseDecision),
     Rename(RenameAction),
@@ -178,6 +179,22 @@ pub enum CopyAction {
     },
     /// Leaves copy mode; the owner reports whether an episode ended.
     Exit,
+}
+
+/// Committed gestures on the Find bar and the Panel it searches.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FindAction {
+    Control {
+        token: crate::terminal_find::FindToken,
+        control: crate::terminal_find::FindControl,
+    },
+    /// One wheel notch over the searched Panel scrolls its history; the bar stays.
+    Scroll {
+        token: crate::terminal_find::FindToken,
+        up: bool,
+    },
+    /// A press on the searched Panel's content closes the bar.
+    Close(crate::terminal_find::FindToken),
 }
 
 /// Committed Agent board gestures.

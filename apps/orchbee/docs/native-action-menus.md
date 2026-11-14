@@ -88,7 +88,7 @@ catalog, or no current Workspace — the section is absent and the profiles stan
 menu, because a click already creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
-Clear terminal, Rename, Split right and Split down, Toggle panel maximization only beside another panel and Take control only while another Client
+Find in terminal, Clear terminal, Rename, Split right and Split down, Toggle panel maximization only beside another panel and Take control only while another Client
 holds that panel's size, then the red Close; dragging a divider resizes, and keyboard resize and copy
 mode keep their keys and global menu rows. The global menu also exposes the new-Tab submenu for keyboard
 users.
@@ -101,6 +101,12 @@ selection is settled and idle. While a gesture or export is pending it is disabl
 selection it stays visible and disabled with the reason `Select text in this panel first.`. A panel that is
 not focused or has no frame omits the row, because the copy acts only on the focused panel's selection.
 Keyboard copy mode keeps its own entry and keys.
+
+Find in terminal sits in the pane menu between Copy selection and Clear terminal and in the global
+Panel group before copy mode, both showing the Find shortcut. Choosing the pane row focuses that
+panel, then opens the [Find bar](native-terminal-find.md) on it. Both rows share the shortcut's
+rule: they are disabled with Terminal disconnected exactly when the shortcut would refuse with that
+notice. A panel too small for the bar keeps the row enabled; choosing it shows the bar's notice.
 
 The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
 query directly; Backspace removes the previous grapheme, Ctrl+u clears it from the end, and the
@@ -357,8 +363,8 @@ right, to the start or to the end, Select all Tabs, Keep only current Tab select
 Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
 Close Tab… is the current-Tab close request that `Ctrl+b x` makes, with that key and its confirmation
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
-includes Back to last focused panel, directional split and move, close, maximize, keyboard resize
-and copy mode. Workspace includes
+includes Back to last focused panel, directional split and move, close, maximize, keyboard resize,
+Find in terminal and copy mode. Workspace includes
 creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing
 ClientAction. Pane and Tab actions require a focused pane and show the localized

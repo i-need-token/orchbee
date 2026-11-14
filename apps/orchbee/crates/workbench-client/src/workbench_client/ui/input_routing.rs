@@ -6,9 +6,9 @@ use super::WorkbenchClientUi;
 use crate::client_view::ClientActionDisposition;
 use crate::tui_hit_map::ListScrollTarget;
 use crate::workbench_client::input::{
-    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, PaneAdmission, PaneInput,
-    RenameAction, SettingsAction, SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry,
-    WorktreeAction,
+    BoardAction, CloseDecision, CopyAction, FindAction, LayoutAction, MenuAction, PaneAdmission,
+    PaneInput, RenameAction, SettingsAction, SetupAction, SurfaceAction, SurfaceInput, TabAction,
+    TextEntry, WorktreeAction,
 };
 
 impl WorkbenchClientUi {
@@ -167,6 +167,14 @@ impl WorkbenchClientUi {
                 None
             }
             SurfaceAction::CopyMode(CopyAction::Exit) => accepted(self.cancel_copy_mode()),
+            SurfaceAction::Find(FindAction::Control { token, control }) => {
+                self.click_find_control(token, control);
+                None
+            }
+            SurfaceAction::Find(FindAction::Scroll { token, up }) => {
+                accepted(self.scroll_find(token, up))
+            }
+            SurfaceAction::Find(FindAction::Close(token)) => accepted(self.close_find_at(token)),
             SurfaceAction::AgentBoard(BoardAction::Control(target)) => {
                 accepted(self.click_agent_board_control(target))
             }

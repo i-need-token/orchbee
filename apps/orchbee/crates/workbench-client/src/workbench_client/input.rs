@@ -16,8 +16,8 @@ pub(crate) use capture::{
 pub(crate) use drag_sources::TabDragTab;
 pub use drag_sources::{SidebarReorderSource, TabDragSource};
 pub use surface::{
-    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, RenameAction, SettingsAction,
-    SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry, WorktreeAction,
+    BoardAction, CloseDecision, CopyAction, FindAction, LayoutAction, MenuAction, RenameAction,
+    SettingsAction, SetupAction, SurfaceAction, SurfaceInput, TabAction, TextEntry, WorktreeAction,
 };
 
 use crate::client_view::{ClientAction, ClientActionDisposition};

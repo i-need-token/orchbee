@@ -151,6 +151,20 @@ pub(crate) enum FindRefusal {
     IdentityExhausted,
 }
 
+/// One control painted on the bar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FindControl {
+    MatchCase,
+    Previous,
+    Next,
+    Close,
+}
+
+/// The bar a painted control or content region belongs to; the owner refuses a token from an
+/// earlier bar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FindToken(pub(crate) crate::terminal_copy_mode::EpisodeId);
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct FindBarView<'a> {
     pub(crate) draft: &'a str,

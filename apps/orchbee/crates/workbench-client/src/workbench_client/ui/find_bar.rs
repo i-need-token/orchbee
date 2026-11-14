@@ -15,11 +15,11 @@ use crate::terminal_copy_query::{
     Value as QueryValue, lane::JOB_BUDGET,
 };
 use crate::terminal_events::keys::Binding;
-use crate::terminal_find::{FindBar, FindOutcome, FindRead, FindStep};
+use crate::terminal_find::{FindBar, FindControl, FindOutcome, FindRead, FindStep, FindToken};
 use crate::terminal_text::line_editor::LineKey;
 use crate::terminal_viewport::ViewportNav;
 use crate::workbench_client::copy_episode::{EntryOrigin, PendingQuery};
-use crate::workbench_state::ClientNotice;
+use crate::workbench_state::{ClientNotice, PaneRef};
 use std::{sync::Arc, time::Duration};
 
 /// While a read runs, the bar checks for its outcome at this pace.
@@ -37,6 +37,9 @@ const PREVIOUS: [Binding; 2] = [
 const MATCH_CASE: Binding = Binding::new(KeyCode::Char('c'), Modifiers::NONE.with_alt());
 const PAGE_OLDER: Binding = Binding::new(KeyCode::PageUp, Modifiers::NONE);
 const PAGE_NEWER: Binding = Binding::new(KeyCode::PageDown, Modifiers::NONE);
+/// A Panel narrower or shorter than this refuses the bar.
+const MINIMUM_COLUMNS: u16 = 20;
+const MINIMUM_ROWS: u16 = 2;
 
 impl WorkbenchClientUi {
     /// Whether the Find bar owns the copy capture slot.
@@ -50,31 +53,29 @@ impl WorkbenchClientUi {
         if self.copy_mode.active() {
             return ClientActionDisposition::DismissNavigator;
         }
-        if self.retirement_failure.is_some() || self.modal_owns_input() {
+        if self.modal_owns_input() {
             self.find_notice(ClientNotice::FindUnavailable);
             return ClientActionDisposition::KeepNavigator;
         }
-        let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
+        let Some(key) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_pane_ref())
+            .filter(|key| self.find_pane_ready(key))
+        else {
             self.find_notice(ClientNotice::FindUnavailable);
             return ClientActionDisposition::KeepNavigator;
         };
-        if self.state.as_ref().is_none_or(|state| {
-            state.ready().is_none() || state.close_suppresses_attachment(key.pane().anchor())
-        }) {
-            self.find_notice(ClientNotice::FindUnavailable);
-            return ClientActionDisposition::KeepNavigator;
-        }
-        let readable = self
-            .projections
-            .iter()
-            .find(|projection| projection.key == key)
-            .filter(|projection| projection.status == ClientProjectionStatus::FrameAvailable)
-            .and_then(|projection| projection.value.frame())
-            .is_some_and(|frame| {
-                frame.geometry.columns > 0 && frame.geometry.rows > 0 && !frame.rows.is_empty()
+        let fits = self
+            .state
+            .as_ref()
+            .and_then(|state| state.pane_by_panel(key.pane().panel()))
+            .is_some_and(|record| {
+                let geometry = record.observed_geometry();
+                geometry.columns() >= MINIMUM_COLUMNS && geometry.rows() >= MINIMUM_ROWS
             });
-        if !readable {
-            self.find_notice(ClientNotice::FindUnavailable);
+        if !fits {
+            self.find_notice(ClientNotice::PanelTooSmall);
             return ClientActionDisposition::KeepNavigator;
         }
         let now = self.clock.now();
@@ -85,6 +86,25 @@ impl WorkbenchClientUi {
         self.copy_query.cancel();
         self.drive_find();
         ClientActionDisposition::DismissNavigator
+    }
+
+    /// Whether the bar can open on `key` as far as its terminal goes: the Client is ready, the
+    /// pane is not closing and its frame has cells to read. The shortcut and the menu rows share
+    /// this rule, so a disabled row means the shortcut refuses too.
+    pub(super) fn find_pane_ready(&self, key: &PaneRef) -> bool {
+        self.retirement_failure.is_none()
+            && self.state.as_ref().is_some_and(|state| {
+                state.ready().is_some() && !state.close_suppresses_attachment(key.pane().anchor())
+            })
+            && self
+                .projections
+                .iter()
+                .find(|projection| &projection.key == key)
+                .filter(|projection| projection.status == ClientProjectionStatus::FrameAvailable)
+                .and_then(|projection| projection.value.frame())
+                .is_some_and(|frame| {
+                    frame.geometry.columns > 0 && frame.geometry.rows > 0 && !frame.rows.is_empty()
+                })
     }
 
     /// Closes the bar, keeping the view where Find left it.
@@ -107,7 +127,6 @@ impl WorkbenchClientUi {
             self.close_find();
             return;
         }
-        let now = self.clock.now();
         if NEXT.iter().any(|binding| binding.matches(event)) {
             self.step_find(true);
             return;
@@ -117,11 +136,7 @@ impl WorkbenchClientUi {
             return;
         }
         if MATCH_CASE.matches(event) {
-            if let Some(bar) = self.copy_mode.find_mut() {
-                bar.toggle_match_case(now);
-            }
-            self.supersede_find_read();
-            self.drive_find();
+            self.toggle_find_case();
             return;
         }
         if PAGE_OLDER.matches(event) || PAGE_NEWER.matches(event) {
@@ -157,6 +172,53 @@ impl WorkbenchClientUi {
             let mut encoded = [0; 4];
             self.edit_find(SearchEdit::Insert(character.encode_utf8(&mut encoded)));
         }
+    }
+
+    /// The token the open bar's painted targets carry.
+    fn find_token(&self) -> Option<FindToken> {
+        if !self.find_bar_active() {
+            return None;
+        }
+        self.copy_mode.id().map(FindToken)
+    }
+
+    /// A released control of the bar acts as its key does; a control of an earlier bar does
+    /// nothing.
+    pub(super) fn click_find_control(&mut self, token: FindToken, control: FindControl) {
+        if self.find_token() != Some(token) {
+            return;
+        }
+        match control {
+            FindControl::MatchCase => self.toggle_find_case(),
+            FindControl::Previous => self.step_find(false),
+            FindControl::Next => self.step_find(true),
+            FindControl::Close => {
+                self.close_find();
+            }
+        }
+    }
+
+    /// One wheel notch over the searched Panel scrolls its history three rows; the bar and its
+    /// query stay.
+    pub(super) fn scroll_find(&mut self, token: FindToken, up: bool) -> bool {
+        if self.find_token() != Some(token) {
+            return false;
+        }
+        self.scroll_find_rows(Some(3), up)
+    }
+
+    /// A press on the searched Panel's content closes the bar.
+    pub(super) fn close_find_at(&mut self, token: FindToken) -> bool {
+        self.find_token() == Some(token) && self.close_find()
+    }
+
+    fn toggle_find_case(&mut self) {
+        let now = self.clock.now();
+        if let Some(bar) = self.copy_mode.find_mut() {
+            bar.toggle_match_case(now);
+        }
+        self.supersede_find_read();
+        self.drive_find();
     }
 
     /// A paste edits the query atomically; a refused paste keeps the draft.
@@ -204,20 +266,26 @@ impl WorkbenchClientUi {
 
     /// PageUp and PageDown read the history under the bar; the query stays.
     fn page_find(&mut self, older: bool) {
+        self.scroll_find_rows(None, older);
+    }
+
+    /// Moves the history under the bar by `rows`, or by one page when `None`; a live pane enters
+    /// its history only when moving older. Reports whether the pane moved.
+    fn scroll_find_rows(&mut self, rows: Option<u32>, older: bool) -> bool {
         let Some(key) = self.copy_mode.key().cloned() else {
-            return;
+            return false;
         };
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
-            return;
+            return false;
         };
         let Some(index) = self.projections.iter().position(|p| p.key == key) else {
-            return;
+            return false;
         };
         if let Some(viewport) = self.projections[index].viewport.as_mut() {
             if viewport.recovery_pending() {
-                return;
+                return false;
             }
-            let rows = i64::from(viewport.geometry().1);
+            let rows = rows.map_or_else(|| i64::from(viewport.geometry().1), i64::from);
             let nav = if older {
                 ViewportNav::Lines(rows)
             } else {
@@ -226,8 +294,12 @@ impl WorkbenchClientUi {
             let effect = viewport.nav(nav);
             self.settle_viewport_effect(&mailbox, &key, effect);
             self.admit_viewport_steps(&mailbox, &key);
+            true
         } else if older {
-            self.enter_pane_history_rows(&key, None);
+            self.enter_pane_history_rows(&key, rows);
+            true
+        } else {
+            false
         }
     }
 

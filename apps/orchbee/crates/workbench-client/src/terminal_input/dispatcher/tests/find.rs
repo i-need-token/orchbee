@@ -1,6 +1,11 @@
 use super::*;
 use crate::client_view::{KeyCode, KeyEvent};
+use crate::terminal_copy_mode::EpisodeId;
+use crate::terminal_find::{FindControl, FindToken};
+use crate::tui_hit_map::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability};
 use orchbee_local_runtime::{KeyChord, KeyOverride, KeySettings, KeyTrigger};
+use ratatui::layout::Rect;
+use std::num::NonZeroU64;
 
 /// A port whose copy slot holds the Find bar once Find in terminal runs.
 #[derive(Default)]
@@ -9,9 +14,32 @@ struct FindPort {
     forwarded: Vec<u8>,
     keys: Vec<KeyEvent>,
     actions: Vec<ClientAction>,
+    pointer: Vec<crate::workbench_client::input::FindAction>,
 }
 
 impl TerminalInputPort for FindPort {
+    fn surface_action(
+        &mut self,
+        action: crate::terminal_input::SurfaceAction<'_>,
+    ) -> Option<ClientActionDisposition> {
+        use crate::workbench_client::input::FindAction;
+        let crate::terminal_input::SurfaceAction::Find(action) = action else {
+            return None;
+        };
+        self.pointer.push(action);
+        if matches!(
+            action,
+            FindAction::Close(_)
+                | FindAction::Control {
+                    control: FindControl::Close,
+                    ..
+                }
+        ) {
+            self.open = false;
+        }
+        Some(ClientActionDisposition::KeepNavigator)
+    }
+
     fn surface_input(&mut self, input: crate::terminal_input::SurfaceInput<'_>) -> bool {
         use crate::terminal_input::{SurfaceInput, TextEntry};
         match input {
@@ -133,4 +161,64 @@ fn a_configured_direct_chord_opens_find_through_the_same_route() {
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"x");
     assert_eq!(typed(&port), "x");
     assert!(port.forwarded.is_empty());
+}
+
+#[test]
+fn a_release_on_close_closes_the_bar_and_a_press_on_the_content_reaches_no_pane() {
+    use crate::workbench_client::input::FindAction;
+    let token = FindToken(EpisodeId::new(NonZeroU64::new(1).unwrap()));
+    let close = Rect::new(30, 1, 3, 1);
+    let content = Rect::new(0, 1, 40, 10);
+    for on_content in [false, true] {
+        let mut port = FindPort::default();
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"f");
+        assert!(port.open);
+        let mut hits = HitMapBuilder::new();
+        hits.record_modal_control(
+            HitLayer::Chrome,
+            close,
+            HitTarget::FindControl {
+                token,
+                control: FindControl::Close,
+            },
+            InteractionAvailability::Enabled,
+        );
+        hits.record(
+            HitLayer::Chrome,
+            Rect::new(8, 1, 28, 1),
+            HitTarget::FindSurface(token),
+        );
+        hits.record(
+            HitLayer::ChromeSurface,
+            content,
+            HitTarget::FindContent(token),
+        );
+        dispatcher.publish_hit_map(hits.finish());
+
+        let (column, row) = if on_content { (5, 6) } else { (31, 1) };
+        let at = |end: char| format!("[<0;{};{}{end}", column + 1, row + 1);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, at('M').as_bytes());
+        assert_eq!(
+            port.open, !on_content,
+            "a control acts on its release, content on press"
+        );
+        dispatch_all(&mut dispatcher, &mut view, &mut port, at('m').as_bytes());
+        assert!(!port.open);
+        let expected = if on_content {
+            FindAction::Close(token)
+        } else {
+            FindAction::Control {
+                token,
+                control: FindControl::Close,
+            }
+        };
+        assert_eq!(port.pointer, [expected]);
+        assert!(
+            port.forwarded.is_empty(),
+            "the program sees neither press nor release"
+        );
+    }
 }

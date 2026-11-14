@@ -1765,13 +1765,14 @@ fn render_native_workbench(
             if input_enabled {
                 paint_find(
                     frame,
-                    content_area,
+                    (content_area, content_area),
                     find_origin,
                     native.focus_panel_id(),
                     native,
                     locale,
                     theme,
                     pane_cursor,
+                    hits,
                 );
             }
             if let Some(pane) = active_tab
@@ -1856,13 +1857,14 @@ fn render_native_workbench(
                 let first_column = if tail.is_some() { 0 } else { crop.column };
                 paint_find(
                     frame,
-                    painted,
+                    (painted, content_area),
                     Some((origin, first_column)),
                     native.focus_panel_id(),
                     native,
                     locale,
                     theme,
                     pane_cursor,
+                    hits,
                 );
             }
             // Only the tab strip stays above the terminal. Every content cell
@@ -2328,13 +2330,14 @@ fn render_leaf(
         if active && input_enabled {
             paint_find(
                 frame,
-                content,
+                (content, content),
                 find_origin,
                 panel.map(|panel| panel.panel_id()),
                 native,
                 locale,
                 theme,
                 pane_cursor,
+                hits,
             );
         }
     } else if let Some(terminal) = terminal {
@@ -2390,13 +2393,14 @@ fn render_leaf(
             let first_column = if tail.is_some() { 0 } else { crop.column };
             paint_find(
                 frame,
-                painted,
+                (painted, content),
                 Some((origin, first_column)),
                 panel.map(|panel| panel.panel_id()),
                 native,
                 locale,
                 theme,
                 pane_cursor,
+                hits,
             );
         }
     } else if let Some(held) = panel.and_then(|panel| native.held_restore(panel)) {
@@ -2446,20 +2450,21 @@ fn window_origin(surface: crate::workbench_client::ViewportSurface<'_>) -> Optio
 }
 
 /// Paints the open Find bar and its highlights over the Panel it searches; the draft then holds
-/// the terminal cursor. `origin` is the absolute row and first column the view paints from, when
-/// it paints retained rows.
+/// the terminal cursor. `area` is the painted view inside the Panel's `content`; `origin` is the
+/// absolute row and first column the view paints from, when it paints retained rows.
 #[allow(clippy::too_many_arguments)]
 fn paint_find(
     frame: &mut Frame<'_>,
-    area: Rect,
+    (area, content): (Rect, Rect),
     origin: Option<(u64, u16)>,
     panel: Option<&orchbee_workbench_protocol::WorkbenchPanelId>,
     native: &WorkbenchClientView<'_>,
     locale: Locale,
     theme: &Theme,
     pane_cursor: &mut Option<Position>,
+    hits: &mut HitMapBuilder,
 ) {
-    let Some((key, bar)) = native.find_bar() else {
+    let Some((key, bar, token)) = native.find_bar() else {
         return;
     };
     if panel
@@ -2472,7 +2477,7 @@ fn paint_find(
     if let Some((origin, first_column)) = origin {
         find_bar::paint_highlights(frame, area, origin, first_column, bar, theme);
     }
-    *pane_cursor = find_bar::render(frame, area, bar, locale, theme);
+    *pane_cursor = find_bar::render(frame, area, content, bar, token, locale, theme, hits);
 }
 
 /// Paints shared dividers; the caller records their targets after the titles drawn over them.

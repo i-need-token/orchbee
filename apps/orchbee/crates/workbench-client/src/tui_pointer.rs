@@ -36,9 +36,9 @@ use crate::terminal_events::{
     encode_cursor_arrows, encode_pane_report, route_pane_pointer,
 };
 use crate::workbench_client::input::{
-    BoardAction, CloseDecision, CopyAction, LayoutAction, MenuAction, PaneAdmission, PaneInput,
-    PointerFrameFacts, PointerProbe, PointerSelectionCell, PointerSelectionIntent, RenameAction,
-    SetupAction, SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
+    BoardAction, CloseDecision, CopyAction, FindAction, LayoutAction, MenuAction, PaneAdmission,
+    PaneInput, PointerFrameFacts, PointerProbe, PointerSelectionCell, PointerSelectionIntent,
+    RenameAction, SetupAction, SurfaceAction, SurfaceInput, TerminalInputPort, WorktreeAction,
 };
 use crate::workbench_state::PaneRef;
 
@@ -52,6 +52,7 @@ use crate::tui_hit_map::{
 
 mod chrome;
 mod copy_mode;
+mod find;
 mod interaction;
 pub use interaction::MotionObservability;
 pub(crate) use interaction::ReleaseOwnership;
@@ -2082,6 +2083,9 @@ impl PointerState {
                 | HitTarget::Resize(_)
                 | HitTarget::CopyControl { .. }
                 | HitTarget::CopySurface { .. }
+                | HitTarget::FindControl { .. }
+                | HitTarget::FindSurface(_)
+                | HitTarget::FindContent(_)
                 | HitTarget::Presentation(_)
                 | HitTarget::HeldRestore(_),
             ) => PointerOutcome::Ignored,

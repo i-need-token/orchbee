@@ -129,6 +129,15 @@ pub enum HitTarget {
         area: Rect,
         origin: crate::terminal_copy_mode::CopyModeCursor,
     },
+    /// One control of the Find bar.
+    FindControl {
+        token: crate::terminal_find::FindToken,
+        control: crate::terminal_find::FindControl,
+    },
+    /// The Find bar's body off its controls: presses stay with the bar.
+    FindSurface(crate::terminal_find::FindToken),
+    /// The content of the Panel the Find bar searches: a press closes the bar, the wheel scrolls.
+    FindContent(crate::terminal_find::FindToken),
     Resize(ResizeControl),
     Help {
         page: usize,

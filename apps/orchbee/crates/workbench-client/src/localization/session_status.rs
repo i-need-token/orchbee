@@ -319,6 +319,7 @@ impl Locale {
             | N::CopyModeNoMatch
             | N::CopyModeNoSelection
             | N::FindUnavailable
+            | N::PanelTooSmall
             | N::SelectionEvicted
             | N::CopyFailed
             | N::CopyUnknown
@@ -613,6 +614,10 @@ impl Locale {
             WorkbenchClientNotice::FindUnavailable => match self {
                 Self::EnUs => "Terminal disconnected".into(),
                 Self::ZhCn => "终端已断连".into(),
+            },
+            WorkbenchClientNotice::PanelTooSmall => match self {
+                Self::EnUs => "Panel too small".into(),
+                Self::ZhCn => "面板太小".into(),
             },
             WorkbenchClientNotice::FindStopped => match self {
                 Self::EnUs => "Search stopped after reaching the time limit".into(),
