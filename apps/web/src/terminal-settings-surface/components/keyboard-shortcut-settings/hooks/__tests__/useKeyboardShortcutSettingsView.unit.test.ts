@@ -87,27 +87,10 @@ describe('useKeyboardShortcutSettingsView', () => {
 			scope: 'Active terminal',
 		});
 		expect(
-			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),
-		).toHaveLength(15);
-		expect(
-			allRows.result.current.rows.find((row) => row.actionName === 'Show last command output'),
-		).toMatchObject({
-			availability: 'When a terminal is focused',
-			chord: 'Ctrl+Shift+G',
-			scope: 'Focused terminal',
-		});
-		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Show terminal hints'),
 		).toMatchObject({
 			availability: 'When a terminal is focused',
 			chord: 'Ctrl+Shift+O',
-			scope: 'Focused terminal',
-		});
-		expect(
-			allRows.result.current.rows.find((row) => row.actionName === 'Show scrollback'),
-		).toMatchObject({
-			availability: 'When a terminal is focused',
-			chord: 'Ctrl+Shift+H',
 			scope: 'Focused terminal',
 		});
 		expect(

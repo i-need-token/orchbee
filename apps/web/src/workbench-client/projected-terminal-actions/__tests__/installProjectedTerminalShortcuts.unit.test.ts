@@ -102,26 +102,6 @@ describe('projected terminal shortcuts', () => {
 		expect(harness.invoke).toHaveBeenCalledTimes(2);
 	});
 
-	it('opens the last command output only from terminal focus', () => {
-		const harness = shortcutHarness('apple');
-		const accepted = harness.keyDown(
-			{ ...baseEvent, code: 'KeyG', ctrlKey: true, shiftKey: true },
-			harness.terminalNode,
-		);
-		expect(harness.invoke).toHaveBeenCalledWith(
-			'terminal.output.show-last',
-			undefined,
-			harness.terminalScope,
-		);
-		expect(accepted.preventDefault).toHaveBeenCalledOnce();
-
-		harness.keyDown(
-			{ ...baseEvent, code: 'KeyG', ctrlKey: true, shiftKey: true },
-			harness.outputNode,
-		);
-		expect(harness.invoke).toHaveBeenCalledOnce();
-	});
-
 	it('routes history scrolling and leaves unavailable bindings unconsumed', () => {
 		const harness = shortcutHarness('standard');
 		const shortcuts = [
@@ -275,7 +255,6 @@ interface ShortcutHarness {
 			) => boolean
 		>
 	>;
-	readonly outputNode: TestNode;
 	readonly terminalNode: TestNode;
 	readonly terminalScope: ActionScope;
 	keyDown(
@@ -305,7 +284,6 @@ function shortcutHarness(
 	} as unknown as Document;
 	const ownerDocument = { defaultView: { Node: TestNode } };
 	const findNode = new TestNode();
-	const outputNode = new TestNode();
 	const terminalNode = new TestNode();
 	const findRoot = {
 		contains: (node: Node) => node === findNode,
@@ -313,10 +291,6 @@ function shortcutHarness(
 	} as unknown as HTMLElement;
 	const terminalRoot = {
 		contains: (node: Node) => node === terminalNode,
-		ownerDocument,
-	} as unknown as HTMLElement;
-	const textViewerRoot = {
-		contains: (node: Node) => node === outputNode,
 		ownerDocument,
 	} as unknown as HTMLElement;
 	const runtime = new ActionRuntime();
@@ -335,7 +309,6 @@ function shortcutHarness(
 		findRoot,
 		findScope,
 		invoke,
-		textViewerRoot,
 		platform,
 		...(currentBindings === undefined
 			? {}
@@ -361,7 +334,6 @@ function shortcutHarness(
 			} as unknown as KeyboardEvent);
 			return { preventDefault, stopPropagation };
 		},
-		outputNode,
 		terminalNode,
 		terminalScope,
 	};

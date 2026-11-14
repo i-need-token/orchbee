@@ -13,8 +13,6 @@ export const PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS = Object.freeze({
 	copySelection: 'terminal.selection.copy',
 	findOpen: 'terminal.search.open',
 	hintsOpen: 'terminal.hints.open',
-	historyShow: 'terminal.history.show',
-	outputShowLast: 'terminal.output.show-last',
 	paste: 'terminal.clipboard.paste',
 	promptNext: 'terminal.history.prompt-next',
 	promptPrevious: 'terminal.history.prompt-previous',
@@ -28,7 +26,7 @@ export const PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS = Object.freeze({
 } as const);
 
 export type ProjectedTerminalShortcutPlatform = KeyboardShortcutPlatform;
-export type ProjectedTerminalShortcutFocus = 'find' | 'outside' | 'terminal' | 'viewer';
+export type ProjectedTerminalShortcutFocus = 'find' | 'outside' | 'terminal';
 
 const chord = (
 	code: string,
@@ -71,24 +69,6 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 		},
 		focus: 'terminal',
 		shortcutId: 'terminal.hints.open',
-	},
-	historyShow: {
-		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.historyShow,
-		defaults: {
-			apple: chord('KeyH', ['control', 'shift']),
-			standard: chord('KeyH', ['control', 'shift']),
-		},
-		focus: 'terminal',
-		shortcutId: 'terminal.history.show',
-	},
-	outputShowLast: {
-		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.outputShowLast,
-		defaults: {
-			apple: chord('KeyG', ['control', 'shift']),
-			standard: chord('KeyG', ['control', 'shift']),
-		},
-		focus: 'terminal',
-		shortcutId: 'terminal.output.show-last',
 	},
 	paste: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.paste,
@@ -207,8 +187,6 @@ const PROJECTED_TERMINAL_SHORTCUT_ACTIONS = Object.freeze([
 	'copySelection',
 	'findOpen',
 	'hintsOpen',
-	'historyShow',
-	'outputShowLast',
 	'paste',
 	'promptPrevious',
 	'promptNext',
@@ -240,7 +218,7 @@ export function resolveProjectedTerminalShortcut(
 	focus: ProjectedTerminalShortcutFocus,
 	bindings: ProjectedTerminalShortcutBindings = defaultProjectedTerminalShortcutBindings(platform),
 ): ProjectedTerminalShortcutBinding | null {
-	if (focus === 'viewer' || focus === 'outside') return null;
+	if (focus === 'outside') return null;
 	for (const action of PROJECTED_TERMINAL_SHORTCUT_ACTIONS) {
 		const definition = PROJECTED_TERMINAL_SHORTCUTS[action];
 		if (focus === 'find' && definition.focus !== 'terminal-or-find') continue;
@@ -274,10 +252,6 @@ function defaultBindingsFor(
 			PROJECTED_TERMINAL_SHORTCUTS.findOpen.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.defaults[platform],
-		[PROJECTED_TERMINAL_SHORTCUTS.historyShow.shortcutId]:
-			PROJECTED_TERMINAL_SHORTCUTS.historyShow.defaults[platform],
-		[PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.shortcutId]:
-			PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.paste.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.promptNext.shortcutId]:

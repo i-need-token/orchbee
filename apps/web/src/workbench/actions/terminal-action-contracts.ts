@@ -8,11 +8,7 @@ export const TERMINAL_ACTION_IDS = {
 	findOpen: 'terminal.search.open',
 	findPrevious: 'terminal.search.previous',
 	hintsOpen: 'terminal.hints.open',
-	historyCopy: 'terminal.history.copy',
-	historyShow: 'terminal.history.show',
 	openLink: 'terminal.link.open',
-	outputCopy: 'terminal.output.copy',
-	outputShowLast: 'terminal.output.show-last',
 	paste: 'terminal.clipboard.paste',
 	promptNext: 'terminal.history.prompt-next',
 	promptPrevious: 'terminal.history.prompt-previous',
@@ -59,8 +55,6 @@ export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.control.take': ActionSignature<void>;
 	readonly 'terminal.history.prompt-next': ActionSignature<void>;
 	readonly 'terminal.history.prompt-previous': ActionSignature<void>;
-	readonly 'terminal.history.copy': ActionSignature<void>;
-	readonly 'terminal.history.show': ActionSignature<void>;
 	readonly 'terminal.history.scroll-line-down': ActionSignature<void>;
 	readonly 'terminal.history.scroll-line-up': ActionSignature<void>;
 	readonly 'terminal.history.scroll-page-down': ActionSignature<void>;
@@ -69,8 +63,6 @@ export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.history.scroll-top': ActionSignature<void>;
 	readonly 'terminal.hints.open': ActionSignature<void>;
 	readonly 'terminal.link.open': ActionSignature<WorkbenchTerminalLinkActionInput>;
-	readonly 'terminal.output.copy': ActionSignature<void>;
-	readonly 'terminal.output.show-last': ActionSignature<void>;
 	readonly 'terminal.reset': ActionSignature<void>;
 	readonly 'terminal.search.next': ActionSignature<void>;
 	readonly 'terminal.search.open': ActionSignature<void>;

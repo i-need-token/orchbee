@@ -74,11 +74,6 @@ describe('startProjectedTerminalRenderer', () => {
 			dataset: {},
 			remove: vi.fn<ChildNode['remove']>(),
 		};
-		const textViewerRoot = {
-			contains: vi.fn<HTMLElement['contains']>(() => false),
-			dataset: {},
-			remove: vi.fn<ChildNode['remove']>(),
-		};
 		const progressIndicator = {
 			setAttribute: vi.fn<Element['setAttribute']>(),
 		};
@@ -104,18 +99,12 @@ describe('startProjectedTerminalRenderer', () => {
 					.fn<
 						(
 							tagName: string,
-						) =>
-							| typeof status
-							| typeof progress
-							| typeof progressIndicator
-							| typeof findRoot
-							| typeof textViewerRoot
+						) => typeof status | typeof progress | typeof progressIndicator | typeof findRoot
 					>()
 					.mockReturnValueOnce(status)
 					.mockReturnValueOnce(progress)
 					.mockReturnValueOnce(progressIndicator)
-					.mockReturnValueOnce(findRoot)
-					.mockReturnValueOnce(textViewerRoot),
+					.mockReturnValueOnce(findRoot),
 				hasFocus: vi.fn<() => boolean>(() => false),
 			},
 			style: {},
@@ -205,8 +194,6 @@ describe('startProjectedTerminalRenderer', () => {
 						canControlTerminal: true,
 						canNavigatePrompts: true,
 						canScrollHistory: true,
-						canShowCommandOutput: true,
-						canShowScrollback: true,
 						canShowHints: true,
 						capturePresentationSnapshot: () => nextOptions.presentationSnapshot ?? null,
 						captureActionContext,
@@ -306,12 +293,6 @@ describe('startProjectedTerminalRenderer', () => {
 							.mockResolvedValue({ kind: 'completed' }),
 						open: openTerminal,
 						paste: pasteTerminal,
-						readLastCommandOutput: vi
-							.fn<ProjectedTerminal['readLastCommandOutput']>()
-							.mockResolvedValue({ kind: 'empty', reason: 'no-output' }),
-						readScrollback: vi
-							.fn<ProjectedTerminal['readScrollback']>()
-							.mockResolvedValue({ kind: 'empty', reason: 'no-scrollback' }),
 						reset: vi.fn<ProjectedTerminal['reset']>(),
 						scrollLines: vi.fn<ProjectedTerminal['scrollLines']>(() => true),
 						scrollPages: vi.fn<ProjectedTerminal['scrollPages']>(() => true),
@@ -345,9 +326,6 @@ describe('startProjectedTerminalRenderer', () => {
 				vi.fn<() => void>(),
 			),
 			mountFindSurface: vi.fn<ProjectedTerminalRendererDependencies['mountFindSurface']>(() => ({
-				dispose: vi.fn<() => void>(),
-			})),
-			mountTextViewer: vi.fn<ProjectedTerminalRendererDependencies['mountTextViewer']>(() => ({
 				dispose: vi.fn<() => void>(),
 			})),
 		};

@@ -34,10 +34,6 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.startAgent);
 		case 'next-prompt':
 			return intl.formatMessage(keyboardShortcutMessages.nextPrompt);
-		case 'show-last-command-output':
-			return intl.formatMessage(keyboardShortcutMessages.outputShowLast);
-		case 'show-scrollback':
-			return intl.formatMessage(keyboardShortcutMessages.scrollbackShow);
 		case 'previous-prompt':
 			return intl.formatMessage(keyboardShortcutMessages.previousPrompt);
 		case 'previous-tab':

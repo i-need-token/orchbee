@@ -32,10 +32,6 @@ import {
 	type MountTerminalFindSurfaceOptions,
 } from '../../terminal-find-surface';
 import {
-	mountTerminalTextViewer,
-	type MountTerminalTextViewerOptions,
-} from '../../terminal-text-viewer';
-import {
 	installProjectedTerminalShortcuts,
 	PROJECTED_TERMINAL_ACTION_IDS,
 } from '../../projected-terminal-actions';
@@ -89,10 +85,6 @@ const minimalActionIds = [
 	PROJECTED_TERMINAL_ACTION_IDS.findOpen,
 	PROJECTED_TERMINAL_ACTION_IDS.findNext,
 	PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
-	PROJECTED_TERMINAL_ACTION_IDS.outputShowLast,
-	PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
-	PROJECTED_TERMINAL_ACTION_IDS.historyShow,
-	PROJECTED_TERMINAL_ACTION_IDS.historyCopy,
 	PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
 	PROJECTED_TERMINAL_ACTION_IDS.promptNext,
 	PROJECTED_TERMINAL_ACTION_IDS.scrollLineUp,
@@ -124,7 +116,6 @@ const workbenchScope = actionRuntime.createScope('workbench.fixture.terminal');
 const commands: ProjectedTerminalCommand[] = [];
 let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
 let externalOpenCount = 0;
-let outputClipboardWriteCount = 0;
 let terminal: ProjectedTerminal | undefined;
 let transportListener: (value: unknown) => void = () => undefined;
 let suppressRowResponses = false;
@@ -136,7 +127,6 @@ const dependencies: ProjectedTerminalRendererDependencies = {
 	},
 	installShortcuts: installProjectedTerminalShortcuts,
 	mountFindSurface: (options: MountTerminalFindSurfaceOptions) => mountTerminalFindSurface(options),
-	mountTextViewer: (options: MountTerminalTextViewerOptions) => mountTerminalTextViewer(options),
 };
 const transport: ProjectedTerminalTransport = {
 	close: () => undefined,
@@ -145,16 +135,6 @@ const transport: ProjectedTerminalTransport = {
 		commands.push(command);
 		root.dataset['witnessKeyInputCount'] = String(
 			commands.filter((candidate) => candidate.kind === 'key-input').length,
-		);
-		root.dataset['witnessOutputShortcutKeyInputCount'] = String(
-			commands.filter(
-				(candidate) => candidate.kind === 'key-input' && candidate.payload.key === 'KeyG',
-			).length,
-		);
-		root.dataset['witnessScrollbackShortcutKeyInputCount'] = String(
-			commands.filter(
-				(candidate) => candidate.kind === 'key-input' && candidate.payload.key === 'KeyH',
-			).length,
 		);
 		if (command.kind !== 'read-rows' || suppressRowResponses) return;
 		const scrollbackRows = projectedScrollbackRows;
@@ -196,14 +176,7 @@ async function runWitness(): Promise<void> {
 					return { kind: 'completed' };
 				},
 				readClipboardText: () => ({ kind: 'completed', text: 'fixture clipboard text' }),
-				writeClipboardText: (text) => {
-					outputClipboardWriteCount += 1;
-					root.dataset['witnessOutputClipboardWriteCount'] = String(outputClipboardWriteCount);
-					root.dataset['witnessOutputCopiedText'] = text;
-					root.dataset['witnessScrollbackClipboardWriteCount'] = String(outputClipboardWriteCount);
-					root.dataset['witnessScrollbackCopiedText'] = text;
-					return { kind: 'completed' };
-				},
+				writeClipboardText: () => ({ kind: 'completed' }),
 			},
 			undefined,
 			undefined,
@@ -431,8 +404,6 @@ async function runWitness(): Promise<void> {
 			}`,
 		].join(',');
 		root.dataset['witnessReady'] = 'true';
-		root.dataset['witnessOutputReady'] = 'true';
-		root.dataset['witnessScrollbackReady'] = 'true';
 	} catch (error) {
 		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
 	}

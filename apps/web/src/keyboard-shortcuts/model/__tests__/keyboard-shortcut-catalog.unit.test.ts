@@ -176,18 +176,6 @@ describe('keyboard shortcut catalog', () => {
 			name: 'hints',
 			scope: 'focused-terminal',
 		});
-		expect(keyboardShortcutDeclaration('terminal.output.show-last')).toMatchObject({
-			actionId: 'terminal.output.show-last',
-			availability: 'focused-terminal',
-			name: 'show-last-command-output',
-			scope: 'focused-terminal',
-		});
-		expect(keyboardShortcutDeclaration('terminal.history.show')).toMatchObject({
-			actionId: 'terminal.history.show',
-			availability: 'focused-terminal',
-			name: 'show-scrollback',
-			scope: 'focused-terminal',
-		});
 		expect(keyboardShortcutDeclaration('terminal.history.prompt-previous')).toMatchObject({
 			actionId: 'terminal.history.prompt-previous',
 			availability: 'focused-terminal',
@@ -262,8 +250,6 @@ describe('keyboard shortcut catalog', () => {
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
 		expect(formatKeyboardShortcutChord(apple['terminal.hints.open'], 'apple')).toBe('⇧⌘O');
-		expect(formatKeyboardShortcutChord(apple['terminal.output.show-last'], 'apple')).toBe('⌃⇧G');
-		expect(formatKeyboardShortcutChord(apple['terminal.history.show'], 'apple')).toBe('⌃⇧H');
 		expect(
 			formatKeyboardShortcutChord(apple['workbench.terminal.font-size.increase'], 'apple'),
 		).toBe('⌘=');

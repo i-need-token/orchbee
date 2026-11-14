@@ -10,7 +10,6 @@ import {
 } from '@orchbee/actions';
 
 import type { TerminalFindController } from '../terminal-find-surface';
-import { TerminalTextViewerController } from '../terminal-text-viewer';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
@@ -56,7 +55,6 @@ interface ProjectedTerminalActionCompositionOptions {
 	readonly conditions?: ProjectedTerminalActionConditions | undefined;
 	/** Present only where another Client can hold the terminal's input and size. */
 	readonly control?: ProjectedTerminalControlTarget | undefined;
-	readonly textViewerController?: TerminalTextViewerController | undefined;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects | undefined;
 	readonly reportResult?: ((event: ProjectedTerminalActionResultEvent) => void) | undefined;
 	readonly runtime: ActionRuntime;
@@ -72,7 +70,6 @@ export function createProjectedTerminalActionComposition(
 	const {
 		conditions,
 		control,
-		textViewerController = new TerminalTextViewerController(),
 		platformEffects = {},
 		reportResult,
 		runtime,
@@ -88,7 +85,6 @@ export function createProjectedTerminalActionComposition(
 			clipboardActionCoordinator,
 			...(conditions === undefined ? {} : { conditions }),
 			findController,
-			textViewerController,
 			platformEffects,
 			scope: terminalScope,
 			terminal,
@@ -105,7 +101,6 @@ export function createProjectedTerminalActionComposition(
 			disposed = true;
 			for (const execution of activeExecutions) execution.cancel();
 			for (const registration of registrations) registration.dispose();
-			textViewerController.dispose();
 		},
 		execute: (actionId, input, scope, source) => {
 			const execution = typedRuntime.execute(actionId, input, { scope, source });

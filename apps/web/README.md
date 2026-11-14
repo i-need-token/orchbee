@@ -146,10 +146,9 @@ drawn epochs on the same surface. They distinguish independently ordered font pr
 single local commit and completed current repaint without creating another attachment lifecycle.
 
 Mounting a projected renderer never moves DOM focus. Workbench retains the active product control;
-pointer activation, an explicit terminal focus request, and closing the Find or terminal-text viewer
-surface are the only adapter paths that move focus into the hidden terminal input. The projected
-root contains that input and both surfaces, so moving among them does not publish a terminal focus
-transition.
+pointer activation, an explicit terminal focus request, and closing the Find surface are the only
+adapter paths that move focus into the hidden terminal input. The projected root contains that
+input and the Find surface, so moving between them does not publish a terminal focus transition.
 
 ### Coarse-pointer terminal interaction
 
@@ -183,30 +182,11 @@ same-query refocusing preserve pending search admission. The
 [controller tests](src/workbench-client/terminal-find-surface/__tests__/TerminalFindController.unit.test.ts)
 cover replacement, close, disposal, reentrant reopening, and those admission-preserving updates.
 
-`Ctrl+Shift+G` opens the last shell-marked command output in an application-owned modal viewer. One
-replace-latest Action prepares an exact generation-and-revision plain-text document through the
-bounded general-buffer lane; stale, evicted, alternate-screen, unavailable, or over-limit reads
-never publish partial output. The prepared document remains immutable while literal
-case-insensitive search, Enter/Shift+Enter navigation, native text selection, and the separate
-`terminal.output.copy` Action operate locally. The viewer traps focus, restores terminal focus on
-close, and deliberately does not launch an external pager or re-render ANSI styling. See the
-[behavior contract](../../packages/terminal/docs/command-output-viewer.md)
-and the `projected-terminal.text-viewer` experience component.
-
-`Ctrl+Shift+H` opens the complete retained primary-screen history through that same private viewer.
-The exact snapshot projector joins soft wraps, preserves hard row boundaries, records the captured
-visible-top offset, and publishes either one complete document or a typed empty/unavailable result.
-Command-output and scrollback preparation replace each other before publication; their immutable
-documents retain source-specific copy Actions. See the
-[scrollback-viewer contract](../../packages/terminal/docs/scrollback-viewer.md).
-
-Prompt navigation and text-viewer preparation each own a replace-latest coordinator for one Action
-registration lifetime. Ownership changes before cancellation invokes observers, so a replacement
+Prompt navigation owns a replace-latest coordinator for one Action registration lifetime. Ownership changes before cancellation invokes observers, so a replacement
 started by an abort listener remains current and cancellable. Disposal closes admission before
 aborting current work; an already-cancelled caller cannot displace an active request. The controlled
-[navigation](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalPromptNavigationCoordinator.unit.test.ts)
-and [preparation](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalTextViewerPreparationCoordinator.unit.test.ts)
-tests cover reentrant replacement, disposal, and cancelled admission.
+[navigation tests](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalPromptNavigationCoordinator.unit.test.ts)
+cover reentrant replacement, disposal, and cancelled admission.
 
 After a projected frame commits, the renderer forwards its complete nullable title and
 current-directory metadata with the exact `TerminalPresentationId`. The shared client runtime
@@ -237,8 +217,7 @@ Terminal Host rejects a mode change before encoding or queue admission.
 
 Each projected surface registers the Workbench-owned minimal terminal Action catalog into the
 viewport's application runtime and scope: Copy, Paste, Select All, Find, Find Next, Find Previous,
-Show Last Command Output, Copy Command Output, Show Scrollback, Copy Scrollback, Scroll to Bottom,
-Clear, and Reset, plus Take control where the transport offers it and another Client holds the
+Scroll to Bottom, Clear, and Reset, plus Take control where the transport offers it and another Client holds the
 terminal. Availability is
 synchronous and remains authoritative when a prepared invocation executes. Context-menu and custom-shortcut Paste read text only through an
 injected client capability. An idle platform-default paste chord preserves native DOM delivery so
@@ -306,7 +285,7 @@ inputs, while explicit locale wins. Confirmed changes update mounted product cop
 
 While the settings file has a syntax error or cannot be read, the main window also shows a persistent notice. Activating it opens Settings, which names the file and the error's position; the notice clears when a snapshot reports a usable file.
 
-The common Settings action opens an application-owned full page in place of the Workbench sidebar and content rather than navigating to another route; Back and Escape return where the user was. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Every setting the page shows is a key of the settings file, `config.toml` on the Session's machine: each change is one edit, a refused edit keeps the file's value and shows its reason under the row, and an edit whose outcome is unknown is never replayed. The page edits the terminal's font family and size; the file also holds its weights, ligatures, padding and opacity. On macOS Desktop, `terminal.macos_option_as_alt` selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Sixty-seven frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, keyboard Panel resize mode, circular active-Tab movement within its pinned or unpinned section, visible terminal Hints, Show Last Command Output, and Show Scrollback, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Desktop additionally injects a semantic shell-profile control over the settings file's launch-profile keys. Its list editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm a restore; every accepted change affects only terminals created after the shared catalog commits. The Notifications category owns a separate default-off completion-reminder policy whose notifications never include command text; reminders need OSC 133 command boundaries, which the Terminal Host's PowerShell integration supplies on Windows, while Zsh, Bash, and Fish emit them only through the user's own configuration. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
+The common Settings action opens an application-owned full page in place of the Workbench sidebar and content rather than navigating to another route; Back and Escape return where the user was. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Every setting the page shows is a key of the settings file, `config.toml` on the Session's machine: each change is one edit, a refused edit keeps the file's value and shows its reason under the row, and an edit whose outcome is unknown is never replayed. The page edits the terminal's font family and size; the file also holds its weights, ligatures, padding and opacity. On macOS Desktop, `terminal.macos_option_as_alt` selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Sixty-seven frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, keyboard Panel resize mode, circular active-Tab movement within its pinned or unpinned section, and visible terminal Hints, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Desktop additionally injects a semantic shell-profile control over the settings file's launch-profile keys. Its list editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm a restore; every accepted change affects only terminals created after the shared catalog commits. The Notifications category owns a separate default-off completion-reminder policy whose notifications never include command text; reminders need OSC 133 command boundaries, which the Terminal Host's PowerShell integration supplies on Windows, while Zsh, Bash, and Fish emit them only through the user's own configuration. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
 
 The exact headed `terminal-parity/SU-09-theme` witness holds a prepared Host result and its
 revision-tagged frame before one release, then observes the terminal defaults, palette, cursor,
@@ -376,20 +355,6 @@ targets; label keys never reach terminal input, selecting the hash inserts its e
 the URL reaches the captured Browser opener, and Escape removes the overlay without an effect. The
 witness does not claim off-screen discovery, filesystem/editor activation, custom matchers, or
 operating-system URL delivery.
-
-The headed Canvas 2D witness `terminal-parity/FS-08-command-output-viewer` uses the production
-surface with synthetic OSC 133 prompt rows. `Ctrl+Shift+G` opens the exact retained command output;
-search and visible match navigation stay inside the immutable document, Copy reaches one captured
-plain-text writer with the same content, and Escape restores terminal input focus. The witness does
-not claim external-pager execution, ANSI preservation, complete scrollback, or operating-system
-clipboard mutation.
-
-The headed Canvas 2D witness `terminal-parity/FS-09-scrollback-viewer` uses the production surface
-with a bounded synthetic retained-history snapshot. `Ctrl+Shift+H` opens all retained primary-screen
-text at the captured visible top; search, match navigation, source-specific Copy, Escape focus
-restoration, and unchanged attachment identity use the production viewer and Actions. The witness
-does not claim history beyond Host retention, ANSI preservation, an external pager, or operating-
-system clipboard mutation.
 
 The headed Canvas 2D witness `terminal-parity/LC-05-lan-capability` composes the production
 projected surface, Workbench Copy Action, Host-selection-content path, and Browser effect. On the

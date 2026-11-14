@@ -24,10 +24,6 @@ import {
 	mountTerminalFindSurface,
 	type MountTerminalFindSurfaceOptions,
 } from '../../terminal-find-surface';
-import {
-	mountTerminalTextViewer,
-	type MountTerminalTextViewerOptions,
-} from '../../terminal-text-viewer';
 import { installProjectedTerminalShortcuts } from '../../projected-terminal-actions';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import {
@@ -77,7 +73,6 @@ const dependencies: ProjectedTerminalRendererDependencies = {
 	},
 	installShortcuts: installProjectedTerminalShortcuts,
 	mountFindSurface: (options: MountTerminalFindSurfaceOptions) => mountTerminalFindSurface(options),
-	mountTextViewer: (options: MountTerminalTextViewerOptions) => mountTerminalTextViewer(options),
 };
 const transport: ProjectedTerminalTransport = {
 	close: () => {

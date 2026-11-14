@@ -50,8 +50,6 @@ those surfaces owns another binding copy.
 | `workbench.sidebar.toggle`                    | Workbench                         | `Cmd+B`                  | `Ctrl+Shift+B`         |
 | `terminal.search.open`                        | Focused terminal or Find          | `Cmd+F`                  | `Ctrl+Shift+F`         |
 | `terminal.hints.open`                         | Focused terminal                  | `Cmd+Shift+O`            | `Ctrl+Shift+O`         |
-| `terminal.output.show-last`                   | Focused terminal                  | `Ctrl+Shift+G`           | `Ctrl+Shift+G`         |
-| `terminal.history.show`                       | Focused terminal                  | `Ctrl+Shift+H`           | `Ctrl+Shift+H`         |
 | `terminal.selection.copy`                     | Focused terminal with a selection | `Cmd+C`                  | `Ctrl+Shift+C`         |
 | `terminal.clipboard.paste`                    | Focused terminal                  | `Cmd+V`                  | `Ctrl+Shift+V`         |
 | `terminal.history.prompt-previous`            | Focused terminal                  | `Ctrl+Shift+Z`           | `Ctrl+Shift+Z`         |
@@ -80,9 +78,7 @@ Prompt navigation uses physical `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Line, page, t
 
 Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; Mod is Command on Apple and Control on Standard. Visible keyboard hints use `Mod+Shift+O`, leaving Standard `Ctrl+Shift+E` for Split Below. [Keyboard hints](../../../packages/terminal/docs/keyboard-hints.md) owns targets, effects and cancellation.
 
-Start Agent uses Apple `Cmd+Shift+G` and Standard `Ctrl+Alt+Shift+G`, Rename Tab's chord shape with G for Agent; Standard adds Alt because `Ctrl+Shift+G` shows the last command's output. It opens the dialog only while the Session can start an Agent.
-
-Show Last Command Output and Show Scrollback use physical `Ctrl+Shift+G` and `Ctrl+Shift+H` on both platforms and open immutable text viewers. [Command-output viewer](../../../packages/terminal/docs/command-output-viewer.md) and [Scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md) own extraction, search, copying, cancellation and focus restoration.
+Start Agent uses Apple `Cmd+Shift+G` and Standard `Ctrl+Alt+Shift+G`, Rename Tab's chord shape with G for Agent. It opens the dialog only while the Session can start an Agent.
 
 Last Panel uses `Ctrl+Shift+;` on both platforms, the TUI's `Ctrl+B ;` with the Panel-focus family's `Ctrl+Shift`. It returns to the most recent other Panel this window focused that still exists, in any Tab or Workspace, and falls through when there is none. Active-Tab movement uses `Ctrl+Shift+,` and `Ctrl+Shift+.`. Cyclic Panel focus uses `Ctrl+Shift+]` and `Ctrl+Shift+[` in canonical depth-first leaf order within the current Tab, wrapping with at least two Panels. Positional focus uses `Ctrl+Shift+1` through `Ctrl+Shift+0`, where `0` means ten; missing positions never clamp. Apple `Command+digit` remains Tab selection.
 
@@ -490,33 +486,32 @@ change does not remount Workbench, replace an attachment, or reopen a Host conne
 
 ## Claims and evidence
 
-| Claim                                                                                                         | Deterministic evidence                                                                         |
-| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| One valid target produces exactly one panel close or Tab close resume operation                               | Active-target resolver decision-table tests                                                    |
-| Confirmation, cancellation, and commit remain owned by the prepared lower Action                              | Workbench Action integration tests with panel and Tab registrations                            |
-| Active Workbench bindings do not depend on a surviving focused descendant                                     | Document-capture lifecycle and Web application integration tests                               |
-| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it                                | Web application focus and Settings-scope integration trace                                     |
-| Current-directory Tab creation uses one exact displayed trusted CWD and preserves its source                  | Resolver, runtime, Action, menu, shortcut, and Settings tests                                  |
-| Apple and Standard defaults match the catalog and custom edits affect dispatch                                | Shortcut definition, resolver, and controller tests                                            |
-| Idle platform-default terminal Paste preserves MIME-aware native delivery                                     | Shortcut routing and installer tests and terminal image-paste tests                            |
-| Active ordinary terminal selection preserves native paste and input ownership                                 | Projected-terminal selection/paste tests                                                       |
-| Pending Copy and Paste work cannot admit stale or duplicate shortcut input                                    | Clipboard coordinator and Action tests                                                         |
-| Directional focus selects a spatial neighbor and falls through at outer edges                                 | Four-Panel resolver, Action, and shortcut dispatch tests                                       |
-| Cyclic focus follows canonical Panel order, wraps, and falls through when unavailable                         | Generated resolver, prepared Action, shortcut dispatch, Settings, tests                        |
-| Positional focus selects one exact canonical Panel and never clamps a missing position                        | Generated resolver, prepared Action, and shortcut/Settings tests                               |
-| Visible focus and swap select one exact other Panel without leaking owned input                               | Model, Action, React, shortcut, and Settings tests                                             |
-| Directional movement swaps exact neighboring leaves and retains source focus                                  | Model, bounded exploration, Action, shortcut, and Settings tests                               |
-| Equalization assigns proportional same-axis Panel extents without identity changes                            | Model, generated layouts, Action, menu, shortcut, and Settings tests                           |
-| Keyboard resize targets the nearest matching split and revalidates captured identity                          | Resolver, state, Action, React, Settings, and menu tests                                       |
-| Positional selection follows canonical Tab order and falls through out of range                               | Grouped and pinned Action integration plus shortcut dispatch tests                             |
-| Adjacent selection follows canonical Tab order and wraps only with multiple Tabs                              | Pure resolver, prepared Action integration, and shortcut fallthrough tests                     |
-| Active-Tab movement wraps within its pin partition through one lower Action                                   | Pure resolver, prepared Action integration, and shortcut/settings tests                        |
-| Tab-title editing preserves dynamic metadata and revalidates the exact invoked Tab                            | Workbench model/Action/React tests and storage validation                                      |
-| Visible Hints consume one focused binding and never leak label keys to terminal input                         | Terminal, Action, shortcut, Settings, and Web system `terminal-parity/FS-07-keyboard-hints`    |
-| Show Scrollback consumes one focused binding and opens the exact immutable viewer                             | Terminal, Action, shortcut, Settings, and Web system `terminal-parity/FS-09-scrollback-viewer` |
-| Menus, Action search, and settings display the same current binding                                           | Projection and rendered-surface tests                                                          |
-| Shortcut Settings finds localized text, typed key aliases, and exact recorded chords without editing bindings | Pure discovery resolver and transition tests plus rendered search/capture integration tests    |
-| Invalid current data never consults another key                                                               | Storage corruption and strict-shape tests                                                      |
+| Claim                                                                                                         | Deterministic evidence                                                                      |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| One valid target produces exactly one panel close or Tab close resume operation                               | Active-target resolver decision-table tests                                                 |
+| Confirmation, cancellation, and commit remain owned by the prepared lower Action                              | Workbench Action integration tests with panel and Tab registrations                         |
+| Active Workbench bindings do not depend on a surviving focused descendant                                     | Document-capture lifecycle and Web application integration tests                            |
+| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it                                | Web application focus and Settings-scope integration trace                                  |
+| Current-directory Tab creation uses one exact displayed trusted CWD and preserves its source                  | Resolver, runtime, Action, menu, shortcut, and Settings tests                               |
+| Apple and Standard defaults match the catalog and custom edits affect dispatch                                | Shortcut definition, resolver, and controller tests                                         |
+| Idle platform-default terminal Paste preserves MIME-aware native delivery                                     | Shortcut routing and installer tests and terminal image-paste tests                         |
+| Active ordinary terminal selection preserves native paste and input ownership                                 | Projected-terminal selection/paste tests                                                    |
+| Pending Copy and Paste work cannot admit stale or duplicate shortcut input                                    | Clipboard coordinator and Action tests                                                      |
+| Directional focus selects a spatial neighbor and falls through at outer edges                                 | Four-Panel resolver, Action, and shortcut dispatch tests                                    |
+| Cyclic focus follows canonical Panel order, wraps, and falls through when unavailable                         | Generated resolver, prepared Action, shortcut dispatch, Settings, tests                     |
+| Positional focus selects one exact canonical Panel and never clamps a missing position                        | Generated resolver, prepared Action, and shortcut/Settings tests                            |
+| Visible focus and swap select one exact other Panel without leaking owned input                               | Model, Action, React, shortcut, and Settings tests                                          |
+| Directional movement swaps exact neighboring leaves and retains source focus                                  | Model, bounded exploration, Action, shortcut, and Settings tests                            |
+| Equalization assigns proportional same-axis Panel extents without identity changes                            | Model, generated layouts, Action, menu, shortcut, and Settings tests                        |
+| Keyboard resize targets the nearest matching split and revalidates captured identity                          | Resolver, state, Action, React, Settings, and menu tests                                    |
+| Positional selection follows canonical Tab order and falls through out of range                               | Grouped and pinned Action integration plus shortcut dispatch tests                          |
+| Adjacent selection follows canonical Tab order and wraps only with multiple Tabs                              | Pure resolver, prepared Action integration, and shortcut fallthrough tests                  |
+| Active-Tab movement wraps within its pin partition through one lower Action                                   | Pure resolver, prepared Action integration, and shortcut/settings tests                     |
+| Tab-title editing preserves dynamic metadata and revalidates the exact invoked Tab                            | Workbench model/Action/React tests and storage validation                                   |
+| Visible Hints consume one focused binding and never leak label keys to terminal input                         | Terminal, Action, shortcut, Settings, and Web system `terminal-parity/FS-07-keyboard-hints` |
+| Menus, Action search, and settings display the same current binding                                           | Projection and rendered-surface tests                                                       |
+| Shortcut Settings finds localized text, typed key aliases, and exact recorded chords without editing bindings | Pure discovery resolver and transition tests plus rendered search/capture integration tests |
+| Invalid current data never consults another key                                                               | Storage corruption and strict-shape tests                                                   |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
 focus, and keyboard events. They do not claim operating-system global-shortcut behavior. The Desktop

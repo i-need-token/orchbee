@@ -86,8 +86,6 @@ type KeyboardShortcutName =
 	| 'new-workspace'
 	| 'next-prompt'
 	| 'next-tab'
-	| 'show-last-command-output'
-	| 'show-scrollback'
 	| 'paste'
 	| 'previous-prompt'
 	| 'previous-tab'
@@ -607,26 +605,6 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'hints',
 		scope: 'focused-terminal',
 		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId,
-	}),
-	Object.freeze({
-		actionId: PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.actionId,
-		actionInput: undefined,
-		availability: 'focused-terminal',
-		defaults: PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.defaults,
-		feature: 'terminal',
-		name: 'show-last-command-output',
-		scope: 'focused-terminal',
-		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.shortcutId,
-	}),
-	Object.freeze({
-		actionId: PROJECTED_TERMINAL_SHORTCUTS.historyShow.actionId,
-		actionInput: undefined,
-		availability: 'focused-terminal',
-		defaults: PROJECTED_TERMINAL_SHORTCUTS.historyShow.defaults,
-		feature: 'terminal',
-		name: 'show-scrollback',
-		scope: 'focused-terminal',
-		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.historyShow.shortcutId,
 	}),
 	Object.freeze({
 		actionId: PROJECTED_TERMINAL_SHORTCUTS.copySelection.actionId,
