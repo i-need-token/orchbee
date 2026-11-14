@@ -22,7 +22,7 @@ edits last only until the process ends, and the process shows the record message
 		{
 			"id": "0f3c5a7e9b1d2f4a6c8e0b2d4f6a8c0e",
 			"label": "devbox",
-			"connection": { "kind": "ssh", "target": "luna@10.0.0.8" },
+			"connection": { "kind": "ssh", "target": "user@10.0.0.8" },
 			"session": "default",
 			"enabled": true,
 			"remoteInstall": "manual",
@@ -53,7 +53,7 @@ have distinct IDs. At most 128 KiB is admitted.
 
 `machine add` saves `remoteInstall: "manual"`: this release only adds a machine whose Orchbee is
 already installed, and saves it only once it is `online` ([adding a machine](#adding-a-machine)).
-Without `--label`, the label is the target's host name, so `luna@10.0.0.8` saves as `10.0.0.8` and
+Without `--label`, the label is the target's host name, so `user@10.0.0.8` saves as `10.0.0.8` and
 `ssh://u@[2001:db8::1]:22` as `2001:db8::1`.
 
 Every command that names a saved machine takes `<id|label>` and resolves it with the one rule

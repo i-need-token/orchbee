@@ -146,7 +146,7 @@ pub fn valid_label(value: &str) -> bool {
     !value.trim().is_empty() && value.len() <= 128 && !value.chars().any(char::is_control)
 }
 /// The label `machine add` saves when none is given: the host part of an admitted target, so
-/// `luna@10.0.0.8` becomes `10.0.0.8` and `ssh://u@[2001:db8::1]:22` becomes `2001:db8::1`.
+/// `user@10.0.0.8` becomes `10.0.0.8` and `ssh://u@[2001:db8::1]:22` becomes `2001:db8::1`.
 pub fn default_label(target: &str) -> String {
     let authority = target.strip_prefix("ssh://").unwrap_or(target);
     let host = authority
