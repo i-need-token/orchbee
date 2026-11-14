@@ -1768,7 +1768,7 @@ fn accepted_panel_close_that_stops_shows_the_panel_again_with_its_report() {
             assert_eq!(drawn, 2);
             let report = report.unwrap();
             assert_eq!(report.status(), CloseStatusKind::CleanupBlocked);
-            assert!(report.panel() && !report.resumable());
+            assert!(report.panel() && report.stopped());
         } else {
             // The leaf stays hidden until the publication removes it.
             assert_eq!(drawn, 1);
@@ -1970,7 +1970,7 @@ fn overlapping_panel_closes_each_keep_their_panel_out_until_their_own_settlement
             .announced_close_status()
             .expect("the stopped close reports");
         assert_eq!(report.status(), CloseStatusKind::CleanupBlocked);
-        assert!(report.panel() && !report.resumable());
+        assert!(report.panel() && report.stopped());
         assert_eq!(state.focus_panel_id(), Some(&survivor));
         assert!(state.invariant_holds());
     }
@@ -2024,7 +2024,7 @@ fn closing_every_panel_of_a_tab_takes_the_tab_out_until_one_close_stops() {
         .view()
         .announced_close_status()
         .expect("the stopped close reports");
-    assert!(report.panel() && !report.resumable());
+    assert!(report.panel() && report.stopped());
     assert!(state.invariant_holds());
 }
 

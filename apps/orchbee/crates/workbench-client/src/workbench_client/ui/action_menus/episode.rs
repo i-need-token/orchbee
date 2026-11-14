@@ -1,6 +1,6 @@
 //! The action-menu episode: the menu a person opened with its confirmation stage, the parents of an
-//! open submenu, the observed geometry, the Tab-close resume handoff, and the sidebar worktree
-//! discovery that the open menu waits on.
+//! open submenu, the observed geometry, and the sidebar worktree discovery that the open menu waits
+//! on.
 //!
 //! This module is the episode's only writer. The UI composition evaluates availability and target
 //! validity against the other owners, advances navigation, and drives the worktree lane.
@@ -13,7 +13,7 @@ use crate::workbench_projection::{ClientContextLocation, ClientTab, MenuContextS
 use crate::workbench_state::worktree_launch::addressed::{
     AddressedWorktreeSource, SidebarDiscovery,
 };
-use crate::workbench_state::{PaneKey, PaneRef, TabCloseResumePermit, WorkbenchClientState};
+use crate::workbench_state::{PaneKey, PaneRef, WorkbenchClientState};
 use orchbee_client_server_protocol::Geometry;
 use std::time::{Duration, Instant};
 mod tab_source;
@@ -149,7 +149,6 @@ pub(super) struct Intent {
     stage: Stage,
     zoomed: bool,
     pointer_released: bool,
-    resume_permit: Option<TabCloseResumePermit>,
     project_choices: Option<Vec<orchbee_workbench_protocol::Project>>,
 }
 
@@ -161,7 +160,6 @@ impl Intent {
         target: Target,
         state: Option<&WorkbenchClientState>,
         pointer_released: bool,
-        resume_permit: Option<TabCloseResumePermit>,
         project_choices: Option<Vec<orchbee_workbench_protocol::Project>>,
     ) -> Self {
         Self {
@@ -172,7 +170,6 @@ impl Intent {
             stage: Stage::Open,
             zoomed: state.is_some_and(WorkbenchClientState::zoom_active),
             pointer_released,
-            resume_permit,
             project_choices,
         }
     }
@@ -203,10 +200,6 @@ impl Intent {
 
     pub(super) const fn pointer_released(&self) -> bool {
         self.pointer_released
-    }
-
-    pub(super) const fn resume_permit(&self) -> Option<&TabCloseResumePermit> {
-        self.resume_permit.as_ref()
     }
 
     pub(super) fn project_choices(&self) -> Option<&[orchbee_workbench_protocol::Project]> {
@@ -250,18 +243,8 @@ pub(super) struct ParentMenu {
     pub(super) anchor: Option<MenuAnchor>,
     pub(super) selected: MenuAction,
     pub(super) query: Option<String>,
-    pub(super) resume_permit: Option<TabCloseResumePermit>,
     /// The painted parent of a cascaded context submenu; a replaced page retains none.
     pub(super) retained: Option<RetainedMenu>,
-}
-
-/// A confirmed Resume Tab Close, handed to the action that executes it.
-pub(super) struct ResumeHandoff {
-    pub(super) deadline: Instant,
-    pub(super) location: ClientContextLocation,
-    pub(super) source: MenuContextSource,
-    pub(super) tab: Box<ClientTab>,
-    pub(super) permit: TabCloseResumePermit,
 }
 
 /// The worktree discovery that a sidebar menu waits on, correlated by its own identity.
@@ -409,7 +392,6 @@ pub(in crate::workbench_client::ui) struct MenuEpisode {
     intent: Option<Intent>,
     geometry: Option<Geometry>,
     parents: Vec<ParentMenu>,
-    resume_handoff: Option<ResumeHandoff>,
     discovery: Option<Discovery>,
     next_discovery: u64,
     /// The newest success or refusal for each of the most recent sources, newest first.
@@ -506,11 +488,10 @@ impl MenuEpisode {
         self.menu.cancel();
         self.intent = None;
         self.parents.clear();
-        self.resume_handoff = None;
         self.discovery = None;
     }
 
-    /// Ends the episode after its menu closed; a resume handoff stays for its action.
+    /// Ends the episode after its menu closed.
     pub(super) fn end(&mut self) {
         self.intent = None;
         self.parents.clear();
@@ -584,20 +565,6 @@ impl MenuEpisode {
 
     pub(super) fn clear_parents(&mut self) {
         self.parents.clear();
-    }
-
-    pub(super) fn clear_resume_handoff(&mut self) {
-        self.resume_handoff = None;
-    }
-
-    pub(super) fn take_resume_handoff(&mut self) -> Option<ResumeHandoff> {
-        self.resume_handoff.take()
-    }
-
-    /// Closes the menu after taking its confirmed action; the handoff travels with that action.
-    pub(super) fn finish(&mut self, handoff: Option<ResumeHandoff>) {
-        self.end();
-        self.resume_handoff = handoff;
     }
 
     pub(super) const fn discovery(&self) -> Option<&Discovery> {

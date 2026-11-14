@@ -1,5 +1,5 @@
-//! Adapts close confirmations, explicit resumes, retained status reads, and draw receipts to
-//! Client state and mailbox admission. It observes Server close truth without painting the
+//! Adapts close confirmations, retained status reads, and draw receipts to Client state and
+//! mailbox admission. It observes Server close truth without painting the
 //! prompt, executing physical closure, or acknowledging a merely prepared frame.
 
 use super::held_intent::{CloseSubmission, ConfirmedClose};
@@ -9,7 +9,7 @@ use crate::localization::CloseImpact;
 use crate::workbench_client::mailbox::{
     CloseAdmissionError, CommandMailbox, MutationResult, UiReply, UiWaitKey,
 };
-use crate::workbench_state::{self, TabCloseResumePermit};
+use crate::workbench_state;
 use crate::workbench_state::{
     CarrierFailure, CloseOperation, CloseResult, OPERATION_TOTAL, OperationDeadlines,
     WorkbenchClientState,
@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 pub(crate) use crate::tui_presentation::ModalPresentation;
 pub use crate::workbench_state::CloseConfirmationToken;
-pub(crate) use crate::workbench_state::{CloseConfirmationKind, CloseStatusKind, CloseStatusToken};
+pub(crate) use crate::workbench_state::{CloseStatusKind, CloseStatusToken};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DrawReceipt {
@@ -166,7 +166,6 @@ pub struct CloseConfirmationView<'a> {
     impact: CloseImpact,
     tab: Option<super::ClientTabView<'a>>,
     set: Vec<SetEntry<'a>>,
-    resume: Option<CloseStatusView<'a>>,
 }
 
 impl<'a> CloseConfirmationView<'a> {
@@ -205,20 +204,11 @@ impl<'a> CloseConfirmationView<'a> {
     ) -> std::borrow::Cow<'a, str> {
         super::live_tab_label(self.tab, self.inner.target_label(), locale)
     }
-    pub(crate) const fn kind(&self) -> CloseConfirmationKind {
-        self.inner.kind()
-    }
     pub(crate) const fn interactive(&self) -> bool {
         self.inner.interactive()
     }
     pub(crate) const fn presentation(&self) -> crate::tui_presentation::PresentationPhase {
         self.inner.presentation()
-    }
-    pub(crate) fn resume_status(&self) -> Option<CloseStatusView<'a>> {
-        self.resume
-    }
-    pub(crate) fn resume_set_status(&self) -> Option<crate::workbench_state::CloseSetStatus> {
-        self.inner.resume_set_status()
     }
 }
 
@@ -241,17 +231,14 @@ impl<'a> CloseStatusView<'a> {
     pub(crate) fn status(&self) -> CloseStatusKind {
         self.inner.status()
     }
-    pub(crate) fn resumable(&self) -> bool {
-        self.inner.resumable()
+    pub(crate) fn stopped(&self) -> bool {
+        self.inner.stopped()
     }
     pub(crate) fn observation_paused(&self) -> bool {
         self.inner.observation_paused()
     }
     pub(crate) const fn unavailable(&self) -> bool {
         self.inner.unavailable()
-    }
-    pub(crate) const fn panel(&self) -> bool {
-        self.inner.panel()
     }
 }
 
@@ -261,10 +248,7 @@ impl<'a> CloseStatusView<'a> {
         crate::localization::CloseStatusText {
             label,
             kind: self.status(),
-            resumable: self.resumable(),
-            observation_paused: self.observation_paused(),
-            unavailable: self.unavailable(),
-            panel: self.panel(),
+            stopped: self.stopped(),
         }
     }
 }
@@ -275,10 +259,7 @@ impl<'a> From<&CloseStatusView<'a>> for crate::localization::CloseStatusText<'a>
         Self {
             label: status.inner.target_label(),
             kind: status.status(),
-            resumable: status.resumable(),
-            observation_paused: status.observation_paused(),
-            unavailable: status.unavailable(),
-            panel: status.panel(),
+            stopped: status.stopped(),
         }
     }
 }
@@ -300,15 +281,11 @@ impl<'a> WorkbenchClientView<'a> {
                 .map(|(position, label, id)| (position, label, self.tab_by_id(id)))
                 .collect()
         });
-        let resume = inner
-            .resume_status()
-            .map(|inner| self.close_status_view(inner));
         Some(CloseConfirmationView {
             inner,
             impact,
             tab,
             set,
-            resume,
         })
     }
     pub(crate) fn close_status(&self) -> Option<CloseStatusView<'a>> {
@@ -571,43 +548,6 @@ impl WorkbenchClientUi {
             self.begin_idle_close(super::idle_close::Target::Tab(token));
         }
         ClientActionDisposition::DismissNavigator
-    }
-
-    pub(super) fn request_tab_close_resume(
-        &mut self,
-        tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) -> ClientActionDisposition {
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
-            return ClientActionDisposition::KeepNavigator;
-        };
-        if mailbox
-            .apply_local_for(state, |state| state.open_tab_close_resume(tab_id))
-            .is_ok()
-        {
-            ClientActionDisposition::DismissNavigator
-        } else {
-            ClientActionDisposition::KeepNavigator
-        }
-    }
-
-    pub(super) fn request_tab_close_resume_with_permit(
-        &mut self,
-        tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
-        permit: &TabCloseResumePermit,
-    ) -> ClientActionDisposition {
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
-            return ClientActionDisposition::KeepNavigator;
-        };
-        if mailbox
-            .apply_local_for(state, |state| {
-                state.open_tab_close_resume_with_permit(tab_id, permit)
-            })
-            .is_ok()
-        {
-            ClientActionDisposition::DismissNavigator
-        } else {
-            ClientActionDisposition::KeepNavigator
-        }
     }
 
     pub(super) fn cancel_close(&mut self) -> ClientActionDisposition {

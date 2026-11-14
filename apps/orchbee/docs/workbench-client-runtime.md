@@ -37,7 +37,7 @@ the sequence cutoff, pre-install local identity fences, partial counts and the i
 source-group-only cleanup boundary. It adds no batch wire mutation or replacement Close authority.
 
 The native state owner retains Close knowledge independently of terminal selection and projection.
-Linux native input, confirmation drawing, Close/Read/Resume execution and explicit status-only
+Linux native input, confirmation drawing, Close/Read execution and explicit status-only
 recovery are integrated. Closed membership installation now uses the common exact-cleanup consumer,
 and record pruning occurs only after both the exchange and reconciliation references are released.
 The protocol adapter validates wire correlation; the native owner validates exact operation identity,
@@ -61,7 +61,7 @@ separate multi-Client Close-to-Empty process tail.
 | Boundary                      | Required native transition                                                                                                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Initial Close                 | Capture the exact selected Session/context/Tab and canonical base. Render the localized all-attached-Clients warning before arming confirmation; coalesced unseen confirmation cannot submit.                     |
-| Resume                        | Require the exact currently displayed resumable operation/attempt, a fresh rendered confirmation and revalidation at admission. Unknown is never resumable.                                                       |
+| Close again                   | A stopped close takes the ordinary close path and asks again. Its record restarts its follow, unreported for the pending delay, with its Tab shown until a read finds `closing`.                                  |
 | Cancel or local refusal       | Preserve selection, attachment, knowledge, request cursor and mailbox position.                                                                                                                                   |
 | Accepted command              | Retain the canonical primary operation and accepted revision; an alias may acknowledge an older accepted base. Acceptance does not imply removal.                                                                 |
 | Lost command or control reply | Retain the submitted identity and known facts; retire the ambiguous carrier without mutation replay. An early NotClosing read after ambiguous submission is inconclusive because acceptance may still be pending. |
@@ -69,11 +69,8 @@ separate multi-Client Close-to-Empty process tail.
 | Closed observation            | Retain exact target, canonical operation, attempt and immutable removal revision before any fallible Snapshot or UI handoff. Export the membership owner's exact target/minimum-revision expectation.             |
 
 Successful terminal draws report exact opaque prompt and status tokens. Semantic status consumption
-does not establish that the status was displayed. Every Resume, including on the original carrier,
-requires both the exact current prompt and its eligible status to be shown. A complete Resume modal
-renders that status itself when it covers the ordinary status line. Missing status revokes the
-retained Resume prompt's shown qualification while preserving intent; renderer assumptions do not
-replace this state-owner check.
+does not establish that the status was displayed. A confirmation requires its own exact current
+prompt to be shown; renderer assumptions do not replace this state-owner check.
 
 Prompt presentation and exact draw proof remain separate owner facts. `Presented` admits the
 incarnation only with its exact prompt token. A missing or covered receipt revokes current shown
@@ -82,7 +79,7 @@ authority without classifying geometry or discarding the presentation phase. An 
 localized resize fallback in that frame and no invisible input owner. After a successful paint, the
 same result suspends the existing prompt while preserving its token, frozen intent and local focus;
 `Enter` and stale pointer releases remain inert, local `Esc` may cancel, and a later complete paint of
-the same token resumes it. Accepted Close or Resume work already owns its operation independently;
+the same token resumes it. Accepted Close work already owns its operation independently;
 hiding or closing its former prompt cannot undo or cancel that work.
 
 Observing an actual viewport or geometry change revokes both prompt and status display
@@ -104,19 +101,17 @@ localized resize/cancel hint and yields `NotPresented`, never a successful promp
 then applies the refused-or-suspended rule above. Both the complete modal and its hint suppress the
 old terminal cursor before terminal cells are drawn. A status token describes exact text still
 completely visible in the final frame; notice replacement, clipping or later coverage cannot
-qualify it. A complete Resume modal supplies its own exact status token.
+qualify it.
 
-A definite Close or Resume refusal displays “Close request was not applied” / “关闭请求未执行”.
+A definite Close refusal displays “Close request was not applied” / “关闭请求未执行”.
 When a retained Close status exists, this local notice uses the secondary notice area and preserves
-that status. Refusal alone grants no display qualification; the normal exact visibility checks
-still govern a later Resume prompt.
+that status.
 
 The real-client Close interaction corpus drives raw packets through WorkbenchClientUi, successful
 TestBackend draws, the causal mailbox and a scripted wire peer. It covers both localized Close
 confirmations, unseen coalesced confirmation, cancellation and packet-tail capture, blocked
 first-paint refusal, admitted suspension and same-token restoration, a sanitized 512-scalar Unicode
-target, and a same-loop 100-to-70-column resize whose terminal width remains 68 columns. Resume
-coverage exercises clipped and notice-replaced status plus the complete modal's two tokens. These
+target, and a same-loop 100-to-70-column resize whose terminal width remains 68 columns. These
 checks establish the input/draw/admission boundary; the scripted peer does not establish Host
 disposal or the composed multi-Client process witness.
 
@@ -130,7 +125,7 @@ A's acknowledgment must preserve both identities; a late A handoff cannot replac
 Known own acceptance suppresses new target Input, Resize and ordinary Poll while preserving exact
 attachment cleanup identity. Already admitted causal work settles truthfully; unsent queued work
 is not acknowledged as delivered. Other targets become usable only after exact fence settlement.
-Each independently admitted command, Read or Resume captures one fixed 50-second transport/deposit
+Each independently admitted command or Read captures one fixed 50-second transport/deposit
 deadline. Earlier causal deadlines remain earlier. Timely typed placement ends that exchange
 budget; UI semantic consumption has no timeout. A later Read obtains a new budget only after
 the preceding exact key settles. Busy, progress and UI delay never renew an admitted exchange
@@ -145,7 +140,7 @@ allocate no request, queue position or clock until individual admission. Repeate
 On a live carrier the pass begins after the existing Snapshot Refresh semantically settles;
 individual reads release their lease before further admission. Parked records remain selectable
 through existing navigator rows; removed-target observations use the global status/notice area
-with their retained target label. Stale status for an absent target cannot authorize Resume.
+with their retained target label.
 
 DisposedAwaitingPublication with reason target-cleanup-pending or preparing and resumable=false
 remains automatically observable. Active publication and generation-exhausted parking can share
@@ -157,7 +152,7 @@ Same-generation status changes, manual reads, selection, retirement, join and re
 renew the quota. Only a strictly higher validated attempt may obtain a fresh quota. Other disposed
 reasons or resumable=true require manual observation; Closing keeps its ordinary automatic policy.
 Exhaustion produces only a localized automatic-observation-paused notice. Keep the Server status,
-generation, known facts and Resume eligibility unchanged; manual Refresh remains available and
+generation and known facts unchanged; manual Refresh remains available and
 does not replenish the quota.
 
 A normal trace is Closing, disposed(preparing,false), an automatic Read, then Closed. After
@@ -174,24 +169,15 @@ reconnection; never revive the old Viewer. Reconciliation/Attach can begin only 
 membership owner's validated Closed/Snapshot handoff outside this phase. Restart persistence
 and changed-authority recovery remain excluded.
 
-After a successful exact Read on the fresh carrier has semantically settled and displayed the
-latest eligible parked status for the same retained authority/Session/target/operation, a new user
-Resume intent may leave status-only recovery for one explicit control. Its new confirmation must
-actually render, and admission revalidates the status, generation and display token. Failed Read,
-Unknown, NotClosing, an old token or unseen confirmation cannot open this control stage. Admit one
-fresh Resume request and fixed exchange budget; retain the Server lifecycle-grant check. No old
-mutation is replayed and no activation, Open, Create, Start, Attach or Viewer restoration occurs.
-A lost reply retires this carrier again and retains the new identity. Exact result settlement
-returns to status observation; another Resume needs a latest eligible status and fresh drawn
-confirmation. This transition does not grant general session or changed-authority recovery.
+Status-only recovery admits only Reads: it opens no confirmation and sends no close, and it grants
+no general session or changed-authority recovery.
 
 While the close carrier differs from the Client carrier — status-only recovery, or
 MembershipRecoveryPending before its atomic membership install — the ordinary
 pane-reconcile enqueue stays suppressed. The carrier mailbox's desired anchor is
 not the Client's retained anchor, so an ordinary admission would mint work the
 carrier must reject as stale. The predicate is the close carrier itself, not a
-Client phase: CloseRead and ReconcileClose scheduling stay active, the
-separately confirmed Resume control is unchanged, and the carrier resets only
+Client phase: CloseRead and ReconcileClose scheduling stay active, and the carrier resets only
 through truthful retirement/finalization or the successful membership
 consumption commit inside the reply transaction. Because the carrier swap keeps
 the retained desired anchor untouched, ordinary scheduling resumes against a
@@ -209,7 +195,7 @@ The Linux native recovery implementation retains the original local endpoint/coh
 Workbench request, attachment/Refresh generation and command/UI-wait cursors after joining the
 exact retired task. The fresh mailbox copies these allocator positions, with no old queue, flight,
 event or Viewer. A new explicit status Refresh
-creates one fresh carrier, admits only Read and separately confirmed Resume exchanges, and never
+creates one fresh carrier, admits only Read exchanges, and never
 runs bootstrap. The old retired attachment remains unavailable. Its already-finalized retirement
 cause cannot retire a successful new status observation; failures from the new mailbox still do.
 An early NotClosing after uncertain submission settles that Read but preserves the original
@@ -217,9 +203,8 @@ submitted exchange and unavailable observation. Only a validated canonical Avail
 resolve that uncertainty. Foreign target/status responses preserve the original identity and
 retire the fresh carrier without adopting the response.
 
-Real Unix-socket tests cover two consecutive lost mutation replies with two separate recovery
-joins, fresh status and confirmation draws before Resume, recovery to Closed without attachment
-setup, early NotClosing followed by explicit resolving Read, and foreign-target rejection. These
+Real Unix-socket tests cover early NotClosing followed by explicit resolving Read, and
+foreign-target rejection. These
 tests refine status-only recovery; they do not establish the separate Closed membership handoff,
 record pruning, process termination or recovery on other operating systems.
 
@@ -1869,7 +1854,7 @@ capacity, cursor/serial exhaustion, fixed-cutoff refusals, exact ACK and retaine
 
 `Ctrl+b ,` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
 Capture the canonical baseline, Session/context/Tab and attachment generation without allocating a
-request or deadline. Empty, structural/recovery flights and Close/Resume confirmation refuse entry.
+request or deadline. Empty, structural/recovery flights and Close confirmation refuse entry.
 The draft and Close confirmation are mutually exclusive. Applied authority or selection changes
 invalidate the draft; Enter revalidates the captured tuple atomically and never retargets its text.
 

@@ -10,9 +10,9 @@ pub use super::ui::test_support::{
     actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under_a_board,
     covering_client_owner_uses_confirmed_appearance_until_settings_returns,
 };
-pub use close::{dispatch_close_input, interactive_close_server};
 #[cfg(test)]
-pub(crate) use close::{dispatch_close_input_at, status_close_server};
+pub(crate) use close::dispatch_close_input_at;
+pub use close::{dispatch_close_input, interactive_close_server};
 #[cfg(test)]
 pub use rename::RenameResponse;
 pub use rename::RenameServer;

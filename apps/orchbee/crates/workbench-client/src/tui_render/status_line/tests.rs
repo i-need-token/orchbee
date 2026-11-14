@@ -26,7 +26,6 @@ fn facts(primary: &str) -> StatusFacts<'_> {
         zoomed: false,
         panels: None,
         read_only: false,
-        recovery_status: false,
     }
 }
 
@@ -538,30 +537,6 @@ fn persistent_states_show_short_copy_with_their_severity_marker() {
             );
         }
     }
-}
-
-#[test]
-fn recoverable_status_receipt_requires_the_complete_raw_fact() {
-    let theme = Theme::rgb_test_dark();
-    let status = "Close committed; cleanup pending";
-    let status_width = u16::try_from(crate::terminal_text::display_width(status)).unwrap();
-    // The chip bounds sit one cell in from each end, and the chip pads one cell at each end.
-    let width = status_width + 4;
-    let recovery = StatusFacts {
-        recovery_status: true,
-        ..facts(status)
-    };
-    let view = ClientView::new(width);
-
-    let (terminal, painted) = paint(&view, width, recovery, &theme);
-    assert_eq!(painted.primary, Some(Rect::new(2, 0, status_width, 1)));
-    assert_eq!(row(&terminal, width).trim(), status);
-
-    let narrow = width - 1;
-    let view = ClientView::new(narrow);
-    let (terminal, painted) = paint(&view, narrow, recovery, &theme);
-    assert_eq!(painted, StatusPaint::default());
-    assert!(row(&terminal, narrow).trim().is_empty());
 }
 
 /// R-001: a stale rename refusal stays visible in the narrowest content status beside a docked

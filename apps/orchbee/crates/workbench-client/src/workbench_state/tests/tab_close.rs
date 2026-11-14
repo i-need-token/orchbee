@@ -3,9 +3,9 @@ use crate::client_view::PanelDirection;
 use crate::local_client::workbench::WorkbenchTabCloseAccepted;
 use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_state::{
-    AttachmentKey, CarrierFailure, ClientNotice, CloseConfirmationKind, CloseIntent,
-    CloseOperation, CloseResult, CloseSelection, CloseState, CloseStateError, CloseStatusKind,
-    CloseTarget, PendingCloseResult, WorkbenchClientState,
+    AttachmentKey, CarrierFailure, ClientNotice, CloseIntent, CloseOperation, CloseResult,
+    CloseSelection, CloseState, CloseStateError, CloseStatusKind, CloseTarget, PendingCloseResult,
+    WorkbenchClientState,
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, TerminalId,
@@ -115,168 +115,6 @@ fn changed_display_revokes_prompt_before_input_and_complete_draw_rearms_same_int
 }
 
 #[test]
-fn original_carrier_resume_requires_displayed_status_and_both_current_modal_tokens() {
-    let selected = selection(0);
-    let mut state = CloseState::default();
-    state
-        .retain_submission(selected.clone(), Instant::now())
-        .unwrap();
-    observe(&mut state, &selected, 1, parked());
-    assert_eq!(
-        state.open_confirmation(selected.clone()),
-        Err(CloseStateError::NotDisplayed)
-    );
-    let status = state.status(selected.target()).unwrap().token();
-    state.acknowledge_draw(None, Some(status));
-    state.open_confirmation(selected.clone()).unwrap();
-    let prompt = state.confirmation().unwrap();
-    assert_eq!(prompt.kind(), CloseConfirmationKind::Resume);
-    assert_eq!(prompt.resume_status().unwrap().token(), status);
-    let token = prompt.token();
-    state.acknowledge_draw(Some(token), None);
-    assert_eq!(
-        state.confirmed_intent(token),
-        Err(CloseStateError::NotDisplayed)
-    );
-    state.acknowledge_draw(Some(token), Some(status));
-    assert!(matches!(
-        state.confirmed_intent(token),
-        Ok(CloseIntent::Resume { .. })
-    ));
-    observe(&mut state, &selected, 2, parked());
-    state.acknowledge_draw(Some(token), Some(status));
-    assert_eq!(
-        state.confirmed_intent(token),
-        Err(CloseStateError::NotDisplayed)
-    );
-}
-
-#[test]
-fn covered_menu_can_continue_only_the_exact_previously_displayed_resume() {
-    let mut state = ready(3);
-    let selected = selection(1);
-    let tab_id = selected.target().tab_id().clone();
-    state
-        .close
-        .retain_submission(selected.clone(), Instant::now())
-        .unwrap();
-    observe(&mut state.close, &selected, 7, parked());
-
-    assert!(state.capture_tab_close_resume_permit(&tab_id).is_none());
-    let status = state.close.status(selected.target()).unwrap().token();
-    state.acknowledge_close_draw(None, Some(status));
-    let permit = state.capture_tab_close_resume_permit(&tab_id).unwrap();
-    assert!(state.tab_close_resume_available(&tab_id));
-
-    // A covering child revokes the status draw receipt. The raw shortcut stays
-    // disabled, while the exact continuation captured before coverage remains
-    // valid for this one operation and attempt.
-    state.acknowledge_close_draw(None, None);
-    assert!(!state.tab_close_resume_available(&tab_id));
-    assert_eq!(
-        state.open_tab_close_resume(&tab_id),
-        Err(CloseStateError::NotResumable)
-    );
-
-    state.close.open_confirmation(selection(0)).unwrap();
-    assert!(!state.validate_tab_close_resume_permit(&tab_id, &permit));
-    state.close.cancel_confirmation();
-    assert!(state.validate_tab_close_resume_permit(&tab_id, &permit));
-    state
-        .open_tab_close_resume_with_permit(&tab_id, &permit)
-        .unwrap();
-
-    let prompt = state.view().close_confirmation().unwrap();
-    assert_eq!(prompt.kind(), CloseConfirmationKind::Resume);
-    assert_eq!(prompt.resume_status().unwrap().token(), status);
-    let token = prompt.token();
-    assert_eq!(
-        state.close.confirmed_intent(token),
-        Err(CloseStateError::NotDisplayed)
-    );
-    state.acknowledge_close_draw(Some(token), Some(status));
-    assert!(matches!(
-        state.close.confirmed_intent(token),
-        Ok(CloseIntent::Resume { .. })
-    ));
-}
-
-#[test]
-fn covered_resume_permit_never_retargets_or_falls_back_to_ordinary_close() {
-    let mut state = ready(3);
-    let selected = selection(1);
-    let tab_id = selected.target().tab_id().clone();
-    state
-        .close
-        .retain_submission(selected.clone(), Instant::now())
-        .unwrap();
-    observe(&mut state.close, &selected, 7, parked());
-    let status = state.close.status(selected.target()).unwrap().token();
-    state.acknowledge_close_draw(None, Some(status));
-    let permit = state.capture_tab_close_resume_permit(&tab_id).unwrap();
-    state.acknowledge_close_draw(None, None);
-
-    let other = state.cache().tabs()[0].tab_id().clone();
-    assert!(!state.validate_tab_close_resume_permit(&other, &permit));
-    assert_eq!(
-        state.open_tab_close_resume_with_permit(&other, &permit),
-        Err(CloseStateError::NotResumable)
-    );
-    assert!(state.view().close_confirmation().is_none());
-
-    // A later observation mints a new status identity for the same record and
-    // attempt generation, so the covered permit is stale even though the new
-    // status remains resumable.
-    observe(&mut state.close, &selected, 7, parked());
-    assert!(!state.validate_tab_close_resume_permit(&tab_id, &permit));
-    assert_eq!(
-        state.open_tab_close_resume_with_permit(&tab_id, &permit),
-        Err(CloseStateError::NotResumable)
-    );
-    assert!(state.view().close_confirmation().is_none());
-
-    let next_status = state.close.status(selected.target()).unwrap().token();
-    state.acknowledge_close_draw(None, Some(next_status));
-    let next_attempt = state.capture_tab_close_resume_permit(&tab_id).unwrap();
-    observe(&mut state.close, &selected, 8, parked());
-    assert!(!state.validate_tab_close_resume_permit(&tab_id, &next_attempt));
-
-    let attempt_status = state.close.status(selected.target()).unwrap().token();
-    state.acknowledge_close_draw(None, Some(attempt_status));
-    let resumable = state.capture_tab_close_resume_permit(&tab_id).unwrap();
-    observe(&mut state.close, &selected, 8, disposed(false));
-    assert!(!state.validate_tab_close_resume_permit(&tab_id, &resumable));
-    assert_eq!(
-        state.open_tab_close_resume_with_permit(&tab_id, &resumable),
-        Err(CloseStateError::NotResumable)
-    );
-    assert!(state.view().close_confirmation().is_none());
-}
-
-#[test]
-fn another_targets_status_receipt_does_not_arm_resume() {
-    let first = selection(0);
-    let second = selection(1);
-    let mut state = CloseState::default();
-    for selected in [&first, &second] {
-        state
-            .retain_submission(selected.clone(), Instant::now())
-            .unwrap();
-        observe(&mut state, selected, 1, parked());
-    }
-    let first_status = state.status(first.target()).unwrap().token();
-    let second_status = state.status(second.target()).unwrap().token();
-    state.acknowledge_draw(None, Some(first_status));
-    state.open_confirmation(first).unwrap();
-    let token = state.confirmation().unwrap().token();
-    state.acknowledge_draw(Some(token), Some(second_status));
-    assert_eq!(
-        state.confirmed_intent(token),
-        Err(CloseStateError::NotDisplayed)
-    );
-}
-
-#[test]
 fn disposed_auto_admissions_enforce_31_32_33_without_same_attempt_renewal() {
     let selected = selection(0);
     let mut state = CloseState::default();
@@ -375,7 +213,7 @@ fn disposed_and_closed_facts_survive_failed_or_contradictory_observation() {
 }
 
 #[test]
-fn host_unknown_never_becomes_resumable_or_a_query_failure_class() {
+fn host_unknown_never_becomes_a_query_failure_class() {
     let selected = selection(0);
     let mut state = CloseState::default();
     state
@@ -390,12 +228,6 @@ fn host_unknown_never_becomes_resumable_or_a_query_failure_class() {
             reason: WorkbenchTabCloseUnknownReason::TransportLost,
         },
     );
-    let status = state.status(selected.target()).unwrap().token();
-    state.acknowledge_draw(None, Some(status));
-    assert_eq!(
-        state.open_confirmation(selected.clone()),
-        Err(CloseStateError::NotResumable)
-    );
     state.observation_failed(selected.target());
     assert_eq!(
         state.status(selected.target()).unwrap().status(),
@@ -409,10 +241,7 @@ fn real_native_state_opens_confirmation_without_changing_selection() {
     let mut state = ready(2);
     let original = state.desired().unwrap().clone();
     state.open_close_confirmation().unwrap();
-    assert_eq!(
-        state.view().close_confirmation().unwrap().kind(),
-        CloseConfirmationKind::Close
-    );
+    assert!(state.view().close_confirmation().is_some());
     assert_eq!(state.desired(), Some(&original));
     state.cancel_close_confirmation();
     assert!(state.view().close_confirmation().is_none());
@@ -435,10 +264,7 @@ fn readonly_attachment_can_request_close_without_controller_authority() {
         None
     ));
     state.open_close_confirmation().unwrap();
-    assert_eq!(
-        state.view().close_confirmation().unwrap().kind(),
-        CloseConfirmationKind::Close
-    );
+    assert!(state.view().close_confirmation().is_some());
     assert_eq!(
         state.controller_mode(),
         Some(&super::ControllerMode::ReadOnly)
@@ -578,6 +404,77 @@ fn a_progressing_close_leaves_the_strip_and_a_blocked_one_returns() {
     assert!(!state.tab_leaving(selection(1).target().tab_id()));
     observe(&mut state, &selected, 1, parked());
     assert!(!state.tab_leaving(&tab));
+}
+
+/// The Server retries and renews a close by itself, raising its attempt generation while the close
+/// reads `closing`: the follow keeps reading and the Tab stays out. Only a falling generation is a
+/// regression.
+#[test]
+fn the_follow_continues_across_a_generation_that_rises_by_itself() {
+    let now = Instant::now();
+    let mut state = ready(2);
+    let selected = selection(0);
+    let tab = selected.target().tab_id().clone();
+    let closing = || WorkbenchTabCloseStatus::Closing {
+        phase: orchbee_workbench_protocol::WorkbenchTabClosePhase::WaitingGrace,
+    };
+    state
+        .close
+        .retain_submission(selected.clone(), now)
+        .unwrap();
+    for generation in 1..=3 {
+        observe(&mut state.close, &selected, generation, closing());
+        assert!(!state.close.status(selected.target()).unwrap().stopped());
+        assert!(state.close.tab_leaving(&tab));
+        assert!(state.has_close_read_candidate(now));
+    }
+    assert_eq!(
+        state.close.observe_available(
+            selected.target(),
+            workbench_request_id(701),
+            WorkbenchTabCloseAttemptGeneration::new(2).unwrap(),
+            closing(),
+        ),
+        Err(CloseStateError::GenerationRegression)
+    );
+    assert!(state.close.tab_leaving(&tab));
+}
+
+/// A close that finally fails, whatever its status, shows its Tab again and reports one sentence
+/// with no reason.
+#[test]
+fn a_finally_failed_close_shows_the_tab_again_with_the_one_sentence() {
+    use crate::localization::{CloseStatusText, Locale};
+    let unknown = WorkbenchTabCloseStatus::OutcomeUnknown {
+        phase: WorkbenchTabCloseUnknownPhase::Dispose,
+        reason: WorkbenchTabCloseUnknownReason::TransportLost,
+    };
+    for failure in [parked(), disposed(true), unknown] {
+        let mut state = ready(2);
+        let selected = selection(0);
+        let tab = selected.target().tab_id().clone();
+        state
+            .close
+            .retain_submission(selected.clone(), Instant::now())
+            .unwrap();
+        assert!(state.close.tab_leaving(&tab));
+        observe(&mut state.close, &selected, 1, failure);
+        assert!(!state.close.tab_leaving(&tab));
+        let report = state.view().announced_close_status().unwrap();
+        assert!(report.stopped());
+        let label = report.target_label();
+        for (locale, sentence) in [
+            (Locale::EnUs, format!("Couldn't close {label}.")),
+            (Locale::ZhCn, format!("未能关闭 {label}。")),
+        ] {
+            let told = locale.native_close_status(CloseStatusText {
+                label,
+                kind: report.status(),
+                stopped: report.stopped(),
+            });
+            assert_eq!(told, sentence);
+        }
+    }
 }
 
 #[test]

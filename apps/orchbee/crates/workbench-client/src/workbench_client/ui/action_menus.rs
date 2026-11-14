@@ -15,10 +15,9 @@ use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_projection::{
     ClientContextLocation, MenuContextSource, project_native_context_tabs,
 };
-use crate::workbench_state::{PanelMoveUnavailable, TabCloseResumePermit, ZoomUnavailable};
+use crate::workbench_state::{PanelMoveUnavailable, ZoomUnavailable};
 use episode::{
-    Discovery, Intent, Origin, ParentMenu, ProjectContext, ResumeHandoff, Stage, TabResolverSource,
-    Target,
+    Discovery, Intent, Origin, ParentMenu, ProjectContext, Stage, TabResolverSource, Target,
 };
 pub(super) use episode::{MenuEpisode, NavigationKey};
 use std::time::Duration;
@@ -124,7 +123,6 @@ fn action_availability(
     target: &Target,
     action: MenuAction,
     pointer_released: bool,
-    resume_permit: Option<&TabCloseResumePermit>,
     facts: RowFacts,
 ) -> ActionAvailability<MenuUnavailable> {
     // Open Worktree ▸ needs the same host effect as the global Open Worktree…, and the new-Tab
@@ -266,16 +264,6 @@ fn action_availability(
     {
         return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
     }
-    if action == MenuAction::ResumeTabClose {
-        return match (state, target, resume_permit) {
-            (Some(state), Target::Tab { tab, .. }, Some(permit))
-                if state.validate_tab_close_resume_permit(tab.tab_id(), permit) =>
-            {
-                ActionAvailability::Enabled
-            }
-            _ => ActionAvailability::Disabled(MenuUnavailable::OperationBusy),
-        };
-    }
     let addressed = match (state, target) {
         (Some(state), Target::Tab { tab, .. }) => Some((state, &**tab)),
         // The global menu's Tab rows address the current Tab.
@@ -384,7 +372,6 @@ fn intent_availability(
         intent.target(),
         action.clone(),
         intent.pointer_released(),
-        intent.resume_permit(),
         facts,
     );
     if availability.is_enabled() {
@@ -404,17 +391,6 @@ fn workspace_title(context: &crate::workbench_projection::ClientContext) -> Stri
         .workspace_label
         .as_ref()
         .map_or(String::new(), |label| label.as_str().to_owned())
-}
-
-enum ResumePermitSeed {
-    CaptureDisplayed,
-    Inherit(Option<TabCloseResumePermit>),
-}
-
-pub(super) enum TabCloseResumeHandoff {
-    Direct,
-    Menu(TabCloseResumePermit),
-    Refused,
 }
 
 impl WorkbenchClientView<'_> {
@@ -544,24 +520,16 @@ impl WorkbenchClientUi {
     ) -> bool {
         // A pointer-opened menu waits for the pointer or a key to choose its candidate.
         let hidden = anchor.is_some_and(MenuAnchor::pointer);
-        self.open_action_menu_with_resume_permit(
-            target,
-            anchor,
-            pointer_released,
-            ResumePermitSeed::CaptureDisplayed,
-            hidden,
-        )
+        self.open_action_menu_hidden(target, anchor, pointer_released, hidden)
     }
 
-    fn open_action_menu_with_resume_permit(
+    fn open_action_menu_hidden(
         &mut self,
         target: MenuTarget,
         anchor: Option<MenuAnchor>,
         pointer_released: bool,
-        resume_seed: ResumePermitSeed,
         hidden: bool,
     ) -> bool {
-        self.menus.clear_resume_handoff();
         if self.action_menu_active()
             || self.modal_owns_input()
             || self.copy_mode_active()
@@ -815,29 +783,6 @@ impl WorkbenchClientUi {
         } else {
             None
         };
-        let resume_permit = match (state, &target, resume_seed) {
-            (Some(state), Target::Tab { tab, .. }, ResumePermitSeed::CaptureDisplayed)
-                if matches!(&entry, MenuTarget::Tab(_)) =>
-            {
-                state.capture_tab_close_resume_permit(tab.tab_id())
-            }
-            (Some(state), Target::Tab { tab, .. }, ResumePermitSeed::Inherit(Some(permit)))
-                if matches!(&entry, MenuTarget::Tab(_))
-                    && state.validate_tab_close_resume_permit(tab.tab_id(), &permit) =>
-            {
-                Some(permit)
-            }
-            _ => None,
-        };
-        actions.retain(|action| *action != MenuAction::ResumeTabClose || resume_permit.is_some());
-        if resume_permit.is_some()
-            && !actions.contains(&MenuAction::ResumeTabClose)
-            && let Some(index) = actions
-                .iter()
-                .position(|action| *action == MenuAction::CloseSelectedTabs)
-        {
-            actions.insert(index, MenuAction::ResumeTabClose);
-        }
         if creation_only {
             actions.retain(|action| {
                 matches!(
@@ -898,7 +843,6 @@ impl WorkbenchClientUi {
                 &target,
                 action.clone(),
                 pointer_released,
-                resume_permit.as_ref(),
                 facts,
             )
             .is_hidden()
@@ -926,7 +870,6 @@ impl WorkbenchClientUi {
                         &target,
                         action.clone(),
                         pointer_released,
-                        resume_permit.as_ref(),
                         facts,
                     )
                     .is_hidden()
@@ -948,7 +891,6 @@ impl WorkbenchClientUi {
             target,
             state,
             pointer_released,
-            resume_permit,
             project_choices,
         );
         if !self
@@ -1113,7 +1055,6 @@ impl WorkbenchClientUi {
             anchor,
             selected,
             query,
-            resume_permit,
             retained,
         }) = self.menus.pop_parent()
         else {
@@ -1125,13 +1066,7 @@ impl WorkbenchClientUi {
         let released = self.menus.intent().is_some_and(Intent::pointer_released);
         self.menus.menu.cancel();
         self.menus.release_intent();
-        if self.open_action_menu_with_resume_permit(
-            target,
-            anchor,
-            released,
-            ResumePermitSeed::Inherit(resume_permit),
-            false,
-        ) {
+        if self.open_action_menu_hidden(target, anchor, released, false) {
             self.menus.menu.set_query(query.as_deref());
             self.menus.menu.select_action(selected);
         } else {
@@ -1713,7 +1648,6 @@ impl WorkbenchClientUi {
                 intent.target(),
                 action.clone(),
                 pointer_released,
-                intent.resume_permit(),
                 self.row_facts(intent.target()),
             )
             .is_enabled()
@@ -1812,31 +1746,6 @@ impl WorkbenchClientUi {
             }
             return None;
         }
-        let resume_handoff = match (
-            intent.target(),
-            action.clone(),
-            intent.resume_permit(),
-            intent.stage().deadline(),
-        ) {
-            (
-                Target::Tab {
-                    location,
-                    tab,
-                    source,
-                    ..
-                },
-                MenuAction::ResumeTabClose,
-                Some(permit),
-                Some(deadline),
-            ) => Some(ResumeHandoff {
-                deadline,
-                location: location.clone(),
-                source: source.clone(),
-                tab: tab.clone(),
-                permit: permit.clone(),
-            }),
-            _ => None,
-        };
         let action = match (intent.target(), action) {
             (
                 Target::Workspace {
@@ -1955,7 +1864,7 @@ impl WorkbenchClientUi {
             (_, action) => action.client_action()?.into(),
         };
         self.menus.menu.take()?;
-        self.menus.finish(resume_handoff);
+        self.menus.end();
         Some(action)
     }
 
@@ -1979,7 +1888,6 @@ impl WorkbenchClientUi {
             anchor: menu.anchor,
             selected,
             query: self.menus.menu.query().map(str::to_owned),
-            resume_permit: intent.resume_permit().cloned(),
             retained: if cascade {
                 self.menus.menu.retain()
             } else {
@@ -1992,13 +1900,7 @@ impl WorkbenchClientUi {
             return;
         }
         self.menus.release_intent();
-        if self.open_action_menu_with_resume_permit(
-            child,
-            parent.anchor,
-            pointer_released,
-            ResumePermitSeed::CaptureDisplayed,
-            hidden,
-        ) {
+        if self.open_action_menu_hidden(child, parent.anchor, pointer_released, hidden) {
             if !cascade {
                 self.menus.menu.set_query(parent.query.as_deref());
             }
@@ -2006,46 +1908,6 @@ impl WorkbenchClientUi {
         } else {
             self.menus.clear_parents();
         }
-    }
-
-    pub(super) fn take_action_menu_resume_handoff(
-        &mut self,
-        action: &ClientAction,
-    ) -> TabCloseResumeHandoff {
-        let Some(handoff) = self.menus.take_resume_handoff() else {
-            return TabCloseResumeHandoff::Direct;
-        };
-        let ClientAction::TabMenu {
-            action: MenuAction::ResumeTabClose,
-            tab_id,
-        } = action
-        else {
-            return TabCloseResumeHandoff::Direct;
-        };
-        let Some(tab_id) = tab_id else {
-            return TabCloseResumeHandoff::Refused;
-        };
-        let Some(state) = self.state.as_ref() else {
-            return TabCloseResumeHandoff::Refused;
-        };
-        if self.clock.now() >= handoff.deadline
-            || !self.menu_carrier_live()
-            || state.cache().location() != &handoff.location
-            || state
-                .cache()
-                .menu_context_source(&handoff.location)
-                .as_ref()
-                != Some(&handoff.source)
-            || state
-                .cache()
-                .tab_index(tab_id)
-                .and_then(|index| state.cache().tabs().get(index))
-                != Some(handoff.tab.as_ref())
-            || !state.validate_tab_close_resume_permit(tab_id, &handoff.permit)
-        {
-            return TabCloseResumeHandoff::Refused;
-        }
-        TabCloseResumeHandoff::Menu(handoff.permit)
     }
 
     pub(super) fn menu_navigation_prepared(&mut self, navigation: NavigationKey, accepted: bool) {

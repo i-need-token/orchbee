@@ -49,9 +49,6 @@ pub(super) fn menu_actions(
                 {
                     continue;
                 }
-                if *action == CloseSelectedTabs && state.tab_close_resume_available(tab.tab_id()) {
-                    actions.push(ResumeTabClose);
-                }
                 actions.push(
                     if *action == PinTab && targets.iter().all(|tab| tab.pinned()) {
                         UnpinTab
@@ -486,15 +483,6 @@ impl WorkbenchClientUi {
         };
         let tab = state.cache().tabs().get(index)?;
         let tab_id = tab.tab_id().clone();
-        if action == ResumeTabClose {
-            if !state.tab_close_resume_available(&tab_id) {
-                return None;
-            }
-            return match self.request_tab_close_resume(&tab_id) {
-                ClientActionDisposition::DismissNavigator => Some(()),
-                _ => None,
-            };
-        }
         if let Some(ids) = close_tab_ids(state, &tab_id, action.clone()) {
             return self.request_close_set(&ids);
         }

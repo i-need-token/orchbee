@@ -6,7 +6,7 @@
 //! the close goes on as a confirmed one; when the Server answers that the user must confirm, the
 //! armed confirmation presents. A set of several Tabs asks the same way with one conditional Start
 //! of the whole set. The rules are the Server's; see `docs/native-tab-close-sets.md`. A ReadOnly
-//! Client and a Resume always present the confirmation and send nothing.
+//! Client always presents the confirmation and sends nothing.
 
 use super::{ActionBuildError, WorkbenchClientUi};
 use crate::workbench_client::mailbox::{CloseAdmissionError, MoveAdmissionError};

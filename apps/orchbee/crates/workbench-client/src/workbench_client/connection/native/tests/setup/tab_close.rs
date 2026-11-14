@@ -10,18 +10,16 @@ use orchbee_workbench_protocol::{
     TabSetCloseCondition, TabSetCloseMember, TabSetCloseOutcome, TabSetCloseStatus,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchLabel, WorkbenchRequestId,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult,
-    WorkbenchTabCloseStatus, WorkbenchTabSetCloseResult,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus, WorkbenchTabSetCloseResult,
 };
 
 #[derive(Clone, Copy, Debug)]
 enum Family {
     Close,
     Read,
-    Resume,
 }
 
-const FAMILIES: [Family; 3] = [Family::Close, Family::Read, Family::Resume];
+const FAMILIES: [Family; 2] = [Family::Close, Family::Read];
 
 fn canonical_id() -> TestResult<WorkbenchRequestId> {
     Ok(WorkbenchRequestId::parse(
@@ -71,10 +69,6 @@ fn admit(harness: &mut Harness, family: Family) -> TestResult<CloseOperation> {
         Family::Read => CloseOperationKind::Read {
             expected_operation: Some(canonical_id()?),
             mode: CloseReadMode::Manual,
-        },
-        Family::Resume => CloseOperationKind::Resume {
-            operation: canonical_id()?,
-            generation: WorkbenchTabCloseAttemptGeneration::new(4)?,
         },
     };
     let clock = harness.ui.clock.clone();
@@ -196,14 +190,6 @@ fn receive(harness: &Harness, family: Family, operation: &CloseOperation) -> Tes
             assert_eq!(&read.session_id, target.session_id());
             assert_eq!(read.operation_id, canonical_id()?);
         }
-        (Family::Resume, WorkbenchRequest::TabCloseResume(resume)) => {
-            assert_eq!(&resume.request_id, operation.key().request_id());
-            assert_eq!(&resume.session_id, target.session_id());
-            assert_eq!(&resume.terminal_context_id, target.terminal_context_id());
-            assert_eq!(&resume.tab_id, target.tab_id());
-            assert_eq!(resume.close_request_id, canonical_id()?);
-            assert_eq!(resume.expected_attempt_generation.value(), 4);
-        }
         _ => return Err(test_error("wrong captured Close family request")),
     }
     Ok(())
@@ -237,17 +223,6 @@ fn response(family: Family, operation: &CloseOperation) -> TestResult<WorkbenchR
                 status: WorkbenchTabCloseStatus::Closed {
                     revision: WorkbenchRevision::new(2),
                 },
-            },
-        }),
-        Family::Resume => WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
-            protocol_version: ProtocolVersion,
-            request_id,
-            session_id: target.session_id().clone(),
-            terminal_context_id: target.terminal_context_id().clone(),
-            tab_id: target.tab_id().clone(),
-            close_request_id: canonical_id()?,
-            outcome: WorkbenchTabCloseResumeOutcome::Resumed {
-                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(5)?,
             },
         }),
     })
@@ -301,10 +276,6 @@ fn close_family_captured_exchange_and_typed_receipt_survive_late_ui_consumption(
                         status: WorkbenchTabCloseStatus::Closed { .. },
                         ..
                     })
-                )
-                | (
-                    Family::Resume,
-                    CloseResult::Resume(WorkbenchTabCloseResumeOutcome::Resumed { .. })
                 )
         ));
         harness.elapsed_millis.store(70_000, Ordering::SeqCst);
@@ -403,7 +374,6 @@ fn close_family_wrong_wire_correlation_never_becomes_a_typed_success() -> TestRe
         match &mut wrong {
             WorkbenchResponse::Command(result) => result.request_id = wrong_id,
             WorkbenchResponse::CloseOperation(result) => result.request_id = wrong_id,
-            WorkbenchResponse::TabCloseResume(result) => result.request_id = wrong_id,
             _ => return Err(test_error("wrong response fixture")),
         }
         harness.carrier.respond_workbench(wrong)?;

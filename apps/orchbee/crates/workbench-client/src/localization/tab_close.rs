@@ -1,13 +1,6 @@
 use super::Locale;
 use crate::terminal_text::sanitize_terminal_text;
 
-/// Whether the close surface asks for initial confirmation or explicit resumption.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CloseConfirmationKind {
-    Close,
-    Resume,
-}
-
 /// The current close lifecycle description, separate from a close authority token.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CloseStatusKind {
@@ -43,11 +36,8 @@ pub(crate) struct CloseSetStatus {
 pub(crate) struct CloseStatusText<'a> {
     pub(crate) label: &'a str,
     pub(crate) kind: CloseStatusKind,
-    pub(crate) resumable: bool,
-    pub(crate) observation_paused: bool,
-    pub(crate) unavailable: bool,
-    /// The close ends one Panel of a split, which leaves with its publication instead of a Tab.
-    pub(crate) panel: bool,
+    /// The close ended without removing its Tab or Panel, which shows again.
+    pub(crate) stopped: bool,
 }
 
 impl Locale {
@@ -122,12 +112,10 @@ impl Locale {
             }
         }
     }
-    pub(crate) const fn close_title(self, kind: CloseConfirmationKind) -> &'static str {
-        match (self, kind) {
-            (Self::EnUs, CloseConfirmationKind::Close) => "Close Tab?",
-            (Self::ZhCn, CloseConfirmationKind::Close) => "关闭标签页？",
-            (Self::EnUs, CloseConfirmationKind::Resume) => "Resume closing this Tab?",
-            (Self::ZhCn, CloseConfirmationKind::Resume) => "继续关闭此标签页？",
+    pub(crate) const fn close_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Close Tab?",
+            Self::ZhCn => "关闭标签页？",
         }
     }
 
@@ -156,51 +144,19 @@ impl Locale {
         }
     }
 
+    /// One close of one Tab or one Panel: on its way, done, or, once it ended without removing what
+    /// it closes, one sentence with no reason. The Server retries and renews a close by itself, so
+    /// an ended close needs nothing more from the person than closing it again.
     pub(crate) fn native_close_status<'a>(self, status: impl Into<CloseStatusText<'a>>) -> String {
         let status = status.into();
-        let phase = match (self, status.kind) {
-            (Self::EnUs, CloseStatusKind::DisposedAwaitingPublication) if status.panel => {
-                "Execution ended; awaiting Panel removal"
-            }
-            (Self::ZhCn, CloseStatusKind::DisposedAwaitingPublication) if status.panel => {
-                "执行已终止；等待移除面板"
-            }
-            (Self::EnUs, CloseStatusKind::AwaitingStatus) => "Awaiting Close status",
-            (Self::ZhCn, CloseStatusKind::AwaitingStatus) => "等待关闭状态",
-            (Self::EnUs, CloseStatusKind::Closing) => "Closing",
-            (Self::ZhCn, CloseStatusKind::Closing) => "正在关闭",
-            (Self::EnUs, CloseStatusKind::CleanupBlocked) => "Close cleanup blocked",
-            (Self::ZhCn, CloseStatusKind::CleanupBlocked) => "关闭清理受阻",
-            (Self::EnUs, CloseStatusKind::OutcomeUnknown) => "Close outcome unknown",
-            (Self::ZhCn, CloseStatusKind::OutcomeUnknown) => "关闭结果未知",
-            (Self::EnUs, CloseStatusKind::DisposedAwaitingPublication) => {
-                "Execution ended; awaiting Tab removal"
-            }
-            (Self::ZhCn, CloseStatusKind::DisposedAwaitingPublication) => {
-                "执行已终止；等待移除标签页"
-            }
-            (Self::EnUs, CloseStatusKind::Closed) => "Closed",
-            (Self::ZhCn, CloseStatusKind::Closed) => "已关闭",
-        };
-        let mut text = format!("{} · {phase}", sanitize_terminal_text(status.label));
-        if status.unavailable {
-            text.push_str(match self {
-                Self::EnUs => " · Status check unavailable",
-                Self::ZhCn => " · 状态查询不可用",
-            });
+        let label = sanitize_terminal_text(status.label);
+        match (self, status.stopped, status.kind) {
+            (Self::EnUs, true, _) => format!("Couldn't close {label}."),
+            (Self::ZhCn, true, _) => format!("未能关闭 {label}。"),
+            (Self::EnUs, false, CloseStatusKind::Closed) => format!("{label} · Closed"),
+            (Self::ZhCn, false, CloseStatusKind::Closed) => format!("{label} · 已关闭"),
+            (Self::EnUs, false, _) => format!("{label} · Closing"),
+            (Self::ZhCn, false, _) => format!("{label} · 正在关闭"),
         }
-        if status.observation_paused {
-            text.push_str(match self {
-                Self::EnUs => " · Automatic status checks paused",
-                Self::ZhCn => " · 自动状态查询已暂停",
-            });
-        }
-        if status.resumable {
-            text.push_str(match self {
-                Self::EnUs => " · Close can be retried",
-                Self::ZhCn => " · 可以重试关闭",
-            });
-        }
-        text
     }
 }

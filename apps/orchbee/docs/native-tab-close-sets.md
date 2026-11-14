@@ -24,8 +24,8 @@ The draw token covers the entire bounded preview, remainder count, warning and c
 Its localized warning names what the close ends for everyone connected to the Workspace, as
 [close impact](#close-impact) counts it.
 
-The shared Close and Cancel buttons carry their own Enter/Esc labels. Close and Resume use the
-existing destructive action tone; Cancel remains ordinary. Neither changes the Close owner or
+The shared Close and Cancel buttons carry their own Enter/Esc labels. Close uses the existing
+destructive action tone; Cancel remains ordinary. Neither changes the Close owner or
 represents an error status. Only a complete successful draw authorizes unmodified `Enter`;
 local `Esc` cancels an armed
 confirmation even while it is not shown. An evaluated geometry block before the first successful
@@ -49,14 +49,13 @@ the same rule.
 
 ## Close impact
 
-Single, set and Resume confirmations name what the close ends from terminal facts this Client
+Single and set confirmations name what the close ends from terminal facts this Client
 already holds. The count changes copy only: confirmation, frozen premises, admission and execution
 keep the rules above, and no close re-validates its impact.
 
 A terminal counts as ended only when its canonical Presentation carries a launch failure, when the
 attachment bound to that exact Presentation binding has received the Host's exit or failure
-settlement, or, for Resume, when the Server has reported disposal. Every other terminal counts as
-running: background Tabs, child Presentations, panes without a viewer, a settlement not yet
+settlement. Every other terminal counts as running: background Tabs, child Presentations, panes without a viewer, a settlement not yet
 delivered and a target missing from the current projection. The Server publishes no terminal run
 state, so the Client never infers that an unobserved terminal ended.
 
@@ -77,8 +76,8 @@ last complete draw; that draw can only overstate running work.
 
 A close that ends no running program does not ask. This covers every route to one Tab, the key, its
 `[x]`, and a Tab menu or group action that resolves to one Tab, the Panel route and a
-[set](#set-close) of several Tabs. A Resume and a ReadOnly Client always present the confirmation
-and send nothing conditional.
+[set](#set-close) of several Tabs. A ReadOnly Client always presents the confirmation and sends
+nothing conditional.
 
 The Server decides, by the rules of its
 [conditional Tab and Panel Close](../../orchbee-server/docs/terminal-tab-close.md#tab-and-panel)
@@ -117,7 +116,7 @@ closes ask the Server and which present at once.
 A close of one Tab behaves the same from every route. That includes the close of a Tab's last
 Panel, confirmed or closed unasked because it was idle: the Server admits it as the close of the
 Tab, so from its acceptance the Client retains it as it retains an accepted Tab close, with the
-leaving, selection, status, report and Resume described here. The Tab leaving reports a normal
+leaving, selection, status and report described here. The Tab leaving reports a normal
 close, so it adds no notice and no count. From the draw after its close is submitted, or accepted when the Server
 decided it unasked, while that close is progressing normally, the Client treats the Tab as gone
 instead of waiting for the Server's publication to remove it from the canonical list: the strip
@@ -150,17 +149,31 @@ acceptance never arrived is read by its Tab, `workbench.tab-close.read`, which a
 close of the whole Tab, never with an earlier close of one of its Panels.
 
 The accepted close of one Panel of several is retained and read the same way, by its operation,
-but it is no Tab close: it hides only its leaf, names the Panel in its report, offers no Resume,
-holds no navigation or structure between its reads, and never refuses the other Panels of its Tab.
+but it is no Tab close: it hides only its leaf, names the Panel in its report, holds no navigation or structure between its reads, and never refuses the other Panels of its Tab.
 It ends when a read sees it `Closed` or a publication removes the Panel; a stop shows the Panel
 again with its report ([native panel lifecycle](native-panel-lifecycle.md)). Several such closes
 are retained side by side, each hiding its own leaf until its own settlement, and their reads take
 turns under the same pacing. A Tab none of whose Panels is left to draw leaves the strip with them,
 and the selection follows it as it follows an accepted Tab close.
 
-Blocked, unknown, unavailable and uncertain closes report at once, and a later validated `Closed`
-clears the report. A refusal keeps the Tab and reports only its notice. `close_status` stays
-unfiltered because Client control uses it as a busy gate; rendering reads `announced_close_status`.
+The Server retries and renews a close by itself, and it reads `closing` throughout, whatever its
+attempt generation: the Client follows a generation that rises by itself and keeps reading, and only
+a falling one is a regression. Any other status is final. A close that finally fails, as blocked,
+unknown, disposed without publication, unavailable or uncertain, shows its Tab or Panel again and
+reports at once, on the status line, one sentence with no reason: `Couldn't close {label}.`,
+`未能关闭 {label}。`. A later validated `Closed` clears the report. A refusal keeps the Tab and reports
+only its notice. `close_status` stays unfiltered because Client control uses it as a busy gate;
+rendering reads `announced_close_status`.
+
+Closing a Tab whose close stopped takes the ordinary close path and asks again: the key, its `[x]`
+and the Tab menu present the confirmation, or ask the Server first under [Idle close](#idle-close).
+The Server answers with the stopped close's own operation and renews it where its
+[close lifecycle](../../orchbee-server/docs/terminal-tab-close.md) allows. The record restarts its
+follow: it
+reports nothing until the pending delay from this submission, and its Tab stays shown until a read
+finds the close `closing` again, when the Tab leaves as at first; a read that still finds it stopped
+shows the sentence again. A conditional close the Server answers `confirmation-required` presents
+the ordinary confirmation.
 
 ## Set close
 
@@ -170,7 +183,7 @@ A confirmed set of several Tabs closes as one Server operation,
 Client sends one Start naming the frozen members in their canonical order, at the revision the
 confirmation froze, and reads nothing first. The Server closes the members one at a time, each
 through its own Close, and stops at the first that fails; each removal is an ordinary Tab Close
-publication. While the set runs, no other Tab Close, Resume or set begins on this Client.
+publication. While the set runs, no other Tab Close or set begins on this Client.
 
 When the Server accepts the set, every member leaves the strip at once, and next, previous and
 numbered Tab selection skip the members. A selected member moves the selection in the same tick to
@@ -193,7 +206,8 @@ whose last value becomes `N Tabs closed`. A member the Server found already gone
 A set the Server stops reports `Closing stopped`, separating the Tabs left open from the one member
 whose own Close may still finish, as in `Closing stopped: 1 closed, 1 unconfirmed, 1 still open`.
 The Server leaves that member's Close retained; the Client keeps it as an ordinary close record, so
-its status reads, its report and its Resume continue it, and its confirmed closure joins the count.
+its status reads and its report continue it, closing its Tab again takes the ordinary path, and its
+confirmed closure joins the count.
 A stopped set whose members were all later confirmed closed stops reporting. A Client that loses its
 connection while following a set stops following it and reports the set as stopped, while the
 Server may still close the remaining members; their publications remove them.
@@ -201,29 +215,12 @@ Server may still close the remaining members; their publications remove them.
 The final report expires after five seconds or the next action or notice, using the existing
 bounded-notice convention. A report is final once nothing is left in flight: the set finished, or it
 stopped and the member it left, if any, reached a known outcome. A close in doubt keeps the report
-on the status line through any idle time, because its outcome and Resume are still to come. This
+on the status line through any idle time, because its outcome is still to come. This
 retires only display state; retained counts and Close recovery facts survive, and current notices
 take display priority. A Tab the set left behind is an ordinary open Tab: its `[x]`, Close Tab key
 and Tab menu work again as soon as the set stops.
 
-For an already presented resumable status, the exact Tab's menu offers **Resume closing this Tab**
-separately from set closure, including background members. It uses the existing single-Close
-confirmation and Resume operation, preserving the known request and attempt generation the set
-reported. It never restarts the remaining set, submits another Start, or navigates to a different
-Tab; a set has no Resume. Unknown or unseen statuses do not offer this action. The keyboard recovery
-entry addresses the presented operation too. Targeted Resume freezes the current target selection,
-Session/context/revision and concrete local focus; it does not reuse the retained record's older
-selection revision. One predicate validates these premises at confirmation retirement, planning and
-final admission. Only Resume may carry this focus fence, and the exact displayed record is required
-before opening so a missing record cannot fall back to Start. An unrelated active record cannot
-replace the modal's status token. The resumable single-Close status takes priority over the set
-summary. Ordinary footer hints may yield so the complete recovery status can be drawn; input-mode
-indicators and newer notices keep their priority. The Resume confirmation includes the set's counts
-for that exact stopped member, so the summary remains available without hiding the status needed to
-enter recovery. The stopped member and then its Resume confirmation take status priority over
-unrelated records on the active Tab.
-
-## Group cleanup boundary
+## Group cleanup boundary## Group cleanup boundary
 
 Each member's Close publication removes only that Tab's source group when the removal leaves it
 empty. Nonempty source groups and every unrelated group, including empty groups created by a peer
@@ -237,8 +234,9 @@ selection/collapse state, persistence path or local synthetic removal.
 ## Evidence and limits
 
 The owning implementation tests cover frozen ordered close sets, first-draw refusal, admitted
-suspension and restoration, cancellation, the set's acceptance, selection, revision races, stopped
-and lost sets and the Resume of a stopped member. `workbench_client/ui/tests/close_impact.rs` covers
+suspension and restoration, cancellation, the set's acceptance, selection, revision races, and
+stopped and lost sets. `workbench_state/tests/tab_close.rs` covers the follow across a generation
+that rises by itself and the sentence of a close that finally fails. `workbench_client/ui/tests/close_impact.rs` covers
 the ended, mixed and unobserved close-impact counts and a settlement under an open prompt.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/workbench_state/tests/tab_close/set.rs`, `crates/workbench-client/src/workbench_client/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.

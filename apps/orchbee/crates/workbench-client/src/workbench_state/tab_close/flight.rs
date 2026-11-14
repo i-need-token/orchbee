@@ -1,6 +1,6 @@
-//! Owns captured close submission, read, and resume flights and retains their exact generation
-//! and result evidence across connection-task retirement. It schedules observations without
-//! issuing Server effects or inferring disposal from a lost response.
+//! Owns captured close submission and read flights and retains their exact generation and result
+//! evidence across connection-task retirement. It schedules observations without issuing Server
+//! effects or inferring disposal from a lost response.
 
 use super::{
     CloseConfirmationToken, CloseFlightKey, CloseIntent, CloseSelection, CloseState,
@@ -10,8 +10,7 @@ use crate::exchange_values::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabC
 use crate::workbench_state::{AttachmentKey, ClientNotice, ClientPhase, WorkbenchClientState};
 use orchbee_workbench_protocol::{
     TabSetCloseAction, TabSetCloseCondition, TabSetCloseOutcome, WorkbenchRejectionReason,
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseReadOutcome,
-    WorkbenchTabCloseResumeOutcome, WorkbenchTabId,
+    WorkbenchRequestId, WorkbenchTabCloseReadOutcome, WorkbenchTabId,
 };
 use std::time::{Duration, Instant};
 
@@ -36,10 +35,6 @@ pub(crate) enum CloseOperationKind {
     Read {
         expected_operation: Option<WorkbenchRequestId>,
         mode: CloseReadMode,
-    },
-    Resume {
-        operation: WorkbenchRequestId,
-        generation: WorkbenchTabCloseAttemptGeneration,
     },
     /// One exchange of a confirmed set of several Tabs: its Start, or a Read that follows the set
     /// the Server accepted. The flight names the set's first member.
@@ -92,7 +87,6 @@ impl CloseOperation {
             CloseOperationKind::Close
             | CloseOperationKind::CloseIfIdle { .. }
             | CloseOperationKind::Read { .. }
-            | CloseOperationKind::Resume { .. }
             | CloseOperationKind::TabSet(TabSetCloseAction::Read { .. }) => {
                 self.selection.target().panel_id().is_none()
                     && self.selection.target().tab_id() == tab_id
@@ -107,7 +101,6 @@ pub(crate) enum CloseResult {
     Precommit(WorkbenchTabClosePrecommit),
     Accepted(WorkbenchTabCloseAccepted),
     Read(WorkbenchTabCloseReadOutcome),
-    Resume(WorkbenchTabCloseResumeOutcome),
     TabSet(TabSetCloseOutcome),
     ObservationUnavailable,
     Ambiguous,
@@ -203,9 +196,7 @@ impl CloseState {
                 return self.apply_close_if_idle(operation, *asked_at, result);
             }
             CloseOperationKind::TabSet(_) => return self.apply_set_result(operation, result),
-            CloseOperationKind::Close
-            | CloseOperationKind::Read { .. }
-            | CloseOperationKind::Resume { .. } => {}
+            CloseOperationKind::Close | CloseOperationKind::Read { .. } => {}
         }
         let target = operation.key().target();
         let index = self
@@ -214,13 +205,17 @@ impl CloseState {
         match (operation.kind(), result) {
             (CloseOperationKind::Close, CloseResult::Accepted(receipt)) => {
                 self.record_acceptance(target, receipt)?;
-                self.records[index].initial_read_pending = self.records[index].status.is_none();
+                let record = &mut self.records[index];
+                record.initial_read_pending |= record.status.is_none();
             }
             (CloseOperationKind::Close, CloseResult::NotSubmitted | CloseResult::Precommit(_)) => {
                 let record = &self.records[index];
                 if record.operation.is_none() && !record.disposed && !record.uncertain {
                     self.records.remove(index);
                     self.manual_pass.retain(|queued| queued != target);
+                } else {
+                    // A stopped close closed again and refused stays as it stopped, reported.
+                    self.records[index].initial_read_pending = false;
                 }
             }
             (
@@ -289,59 +284,15 @@ impl CloseState {
                 }
             },
             (
-                CloseOperationKind::Resume {
-                    operation: expected_operation,
-                    generation,
-                },
-                CloseResult::Resume(outcome),
-            ) => {
-                if self.records[index].operation.as_ref() != Some(expected_operation) {
-                    return Err(CloseStateError::OperationMismatch);
-                }
-                match outcome {
-                    WorkbenchTabCloseResumeOutcome::Resumed { attempt_generation }
-                    | WorkbenchTabCloseResumeOutcome::Stale { attempt_generation } => {
-                        if *attempt_generation <= *generation
-                            || self.records[index]
-                                .generation
-                                .is_some_and(|known| *attempt_generation < known)
-                        {
-                            return Err(CloseStateError::GenerationRegression);
-                        }
-                        let token = self.token().map(super::CloseStatusToken);
-                        let record = &mut self.records[index];
-                        if record
-                            .generation
-                            .is_none_or(|known| *attempt_generation > known)
-                        {
-                            record.disposed_auto_admissions = 0;
-                        }
-                        record.generation = Some(*attempt_generation);
-                        record.status = None;
-                        record.status_token = token;
-                        record.displayed = false;
-                        record.initial_read_pending = true;
-                        record.unavailable = false;
-                    }
-                    WorkbenchTabCloseResumeOutcome::Denied {}
-                    | WorkbenchTabCloseResumeOutcome::Unavailable { .. }
-                    | WorkbenchTabCloseResumeOutcome::Rejected { .. } => {
-                        self.observation_failed(target)
-                    }
-                }
-            }
-            (
                 CloseOperationKind::Read { .. },
                 CloseResult::NotSubmitted | CloseResult::ObservationUnavailable,
-            )
-            | (CloseOperationKind::Resume { .. }, CloseResult::NotSubmitted) => {
+            ) => {
                 self.records[index].initial_read_pending = false;
                 self.observation_failed(target);
             }
-            (
-                CloseOperationKind::Close | CloseOperationKind::Resume { .. },
-                CloseResult::Ambiguous,
-            ) => self.retain_uncertain(index, operation),
+            (CloseOperationKind::Close, CloseResult::Ambiguous) => {
+                self.retain_uncertain(index, operation);
+            }
             _ => return Err(CloseStateError::OperationMismatch),
         }
         Ok(())
@@ -355,6 +306,7 @@ impl CloseState {
         record.uncertain = true;
         record.uncertain_exchange = Some(operation.clone());
         record.unavailable = true;
+        record.initial_read_pending = false;
         record.displayed = false;
         record.status_token = token;
     }
@@ -385,7 +337,8 @@ impl CloseState {
                 let index = self
                     .record_index(target)
                     .ok_or(CloseStateError::UnknownTarget)?;
-                self.records[index].initial_read_pending = self.records[index].status.is_none();
+                let record = &mut self.records[index];
+                record.initial_read_pending |= record.status.is_none();
             }
             CloseResult::Ambiguous => {
                 self.retain_submission(operation.selection().clone(), asked_at)?;
@@ -394,10 +347,7 @@ impl CloseState {
                     .ok_or(CloseStateError::UnknownTarget)?;
                 self.retain_uncertain(index, operation);
             }
-            CloseResult::Read(_)
-            | CloseResult::Resume(_)
-            | CloseResult::TabSet(_)
-            | CloseResult::ObservationUnavailable => {
+            CloseResult::Read(_) | CloseResult::TabSet(_) | CloseResult::ObservationUnavailable => {
                 return Err(CloseStateError::OperationMismatch);
             }
         }
@@ -485,7 +435,6 @@ impl WorkbenchClientState {
                 match queued.kind() {
                     CloseOperationKind::Close
                     | CloseOperationKind::CloseIfIdle { .. }
-                    | CloseOperationKind::Resume { .. }
                     | CloseOperationKind::TabSet(TabSetCloseAction::Start { .. }) => {
                         CloseResult::Ambiguous
                     }
@@ -550,28 +499,14 @@ impl WorkbenchClientState {
             {
                 (capture.first().clone(), CloseOperationKind::Close)
             }
-            CloseIntent::Resume {
-                selection,
-                operation,
-                generation,
-                ..
-            } => (
-                selection,
-                CloseOperationKind::Resume {
-                    operation,
-                    generation,
-                },
-            ),
-            CloseIntent::Close(_) | CloseIntent::Set(_) => {
-                return Err(CloseStateError::NotResumable);
-            }
+            CloseIntent::Close(_) | CloseIntent::Set(_) => return Err(CloseStateError::Busy),
         };
         Ok(CloseOperation::new(request_id, selection, kind, deadline))
     }
 
     /// Plans the conditional Close of the armed confirmation `token`, which stays hidden while the
     /// Server decides: one Tab's own Close, whichever route opened it, or the conditional Start of
-    /// a set of several Tabs. A Resume always presents.
+    /// a set of several Tabs.
     pub(crate) fn plan_close_if_idle(
         &self,
         token: CloseConfirmationToken,
@@ -610,7 +545,6 @@ impl WorkbenchClientState {
             CloseIntent::Set(capture) => {
                 self.plan_tab_set_start(capture, request_id, deadline, TabSetCloseCondition::IfIdle)
             }
-            CloseIntent::Resume { .. } => Err(CloseStateError::NotDisplayed),
         }
     }
 
@@ -658,7 +592,7 @@ impl WorkbenchClientState {
             return Err(CloseStateError::Busy);
         }
         match operation.kind() {
-            CloseOperationKind::Close | CloseOperationKind::Resume { .. } => {
+            CloseOperationKind::Close => {
                 if self.plan_close_confirmation(
                     operation.key().request_id().clone(),
                     operation.deadline(),
@@ -743,15 +677,7 @@ impl WorkbenchClientState {
                 CloseResult::NotSubmitted | CloseResult::Precommit(_)
             ) && !confirmation_required(operation, result)
         };
-        let refused_resume = matches!(
-            result,
-            CloseResult::Resume(
-                WorkbenchTabCloseResumeOutcome::Denied {}
-                    | WorkbenchTabCloseResumeOutcome::Unavailable { .. }
-                    | WorkbenchTabCloseResumeOutcome::Rejected { .. }
-            )
-        );
-        if refused_resume || refused_start {
+        if refused_start {
             self.notice = Some(ClientNotice::CloseRequestNotApplied);
         }
         Ok(())

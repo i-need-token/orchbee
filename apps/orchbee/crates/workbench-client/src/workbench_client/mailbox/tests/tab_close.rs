@@ -1,5 +1,5 @@
 use super::*;
-use crate::workbench_state::{CloseStateError, CloseStatusKind};
+use crate::workbench_state::CloseStatusKind;
 
 #[test]
 fn recovery_copies_burned_allocator_cursors_without_copying_live_mailbox_work() {
@@ -139,10 +139,6 @@ fn timely_typed_close_deposit_survives_mailbox_retirement_without_a_worker_retur
         CloseStatusKind::AwaitingStatus
     );
     assert!(state.close_suppresses_attachment(state.desired().unwrap().anchor()));
-    assert_eq!(
-        state.open_close_confirmation(),
-        Err(CloseStateError::NotResumable)
-    );
 }
 
 #[test]

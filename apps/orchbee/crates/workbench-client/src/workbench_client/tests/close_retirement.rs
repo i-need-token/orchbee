@@ -114,7 +114,6 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         .expect("missing worker return cannot erase the possibly submitted Close");
     assert_eq!(status.status(), CloseStatusKind::AwaitingStatus);
     assert!(status.unavailable());
-    assert!(!status.resumable());
     let submitted = wire_id_receiver.recv_timeout(Duration::from_secs(1))?;
     let ClientBackend::Native(native) = &workbench_client.backend;
     let (retained, canonical) = native

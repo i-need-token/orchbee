@@ -105,8 +105,8 @@ From its acceptance the close is retained and followed by its operation,
 the close `Closed` ends the follow silently, and the leaf stays hidden until the publication
 removes it. A close that stops (blocked, outcome unknown, its observation lost, or the Server
 holding no such close) shows only its own Panel again, with its report on the status line, and the
-focus stays on the survivor. The report names the Panel, a disposed close reads `Execution ended;
-awaiting Panel removal`, and it offers no Resume, as in the GUI. A later read that finds the close
+focus stays on the survivor. The report is the one sentence of a Tab close that finally fails,
+naming the Panel: `Couldn't close {label}.`, `未能关闭 {label}。`. A later read that finds the close
 progressing again leaves the Panel drawn. The publication that removes the Panel ends its follow,
 whatever the last read said. Retained Panel closes share the one-at-a-time read pacing, so more of
 them never read more often. Between their reads the follows hold no navigation or structure, and
@@ -118,8 +118,7 @@ removes it.
 A Tab's last Panel has no sibling to collapse onto. The Server admits its close as the close of the
 whole Tab, so its `Accepted` is retained as an accepted Tab close of that Tab instead of this
 overlay: the Tab leaves the strip and sidebar at once, the selection moves to the next Tab still
-shown, else the previous one, and the close is read, reported and offered for Resume as any
-accepted Tab close is ([close status](native-tab-close-sets.md#close-status)). A close that stops
+shown, else the previous one, and the close is read and reported as any accepted Tab close is ([close status](native-tab-close-sets.md#close-status)). A close that stops
 or loses its observation shows the Tab again with its report and leaves the selection where it
 moved. A Tab that already holds a retained close keeps that record, and its last Panel keeps
 drawing until publication removes it. Which Panel is last follows the cached canonical tree: while

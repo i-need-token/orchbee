@@ -1,6 +1,6 @@
-//! Owns Client close confirmation presentation, retained status records, and exact-generation
-//! resume permits across Tab, Panel and Workspace closure. It observes Server close authority
-//! without deciding physical disposal or implicitly replaying an unknown close.
+//! Owns Client close confirmation presentation and retained status records across Tab, Panel and
+//! Workspace closure. It follows each close the Server continues by itself to its end, without
+//! deciding physical disposal or implicitly replaying an unknown close.
 
 use super::{AttachmentKey, ClientNotice, PaneKey};
 use crate::exchange_values::workbench::{
@@ -54,8 +54,6 @@ impl CloseConfirmationToken {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CloseStatusToken(u64);
 
-pub(crate) use crate::localization::CloseConfirmationKind;
-
 pub(crate) use crate::localization::CloseStatusKind;
 
 /// What one retained close ends: a whole Tab, or one Panel of several in a Tab's split.
@@ -108,19 +106,6 @@ impl CloseTarget {
     pub(crate) const fn panel_id(&self) -> Option<&WorkbenchPanelId> {
         self.panel_id.as_ref()
     }
-}
-
-/// Exact authority to continue one previously presented, resumable Close.
-///
-/// Only the close owner can mint this value, and only while the matching
-/// status is genuinely displayed. A covering child may retain it, but every
-/// use revalidates the live target, operation, attempt and status identity.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct TabCloseResumePermit {
-    target: CloseTarget,
-    operation: WorkbenchRequestId,
-    generation: WorkbenchTabCloseAttemptGeneration,
-    status_token: CloseStatusToken,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -186,25 +171,13 @@ impl CloseSelection {
 pub(crate) enum CloseIntent {
     Close(CloseSelection),
     Set(Box<CloseSetCapture>),
-    Resume {
-        selection: CloseSelection,
-        operation: WorkbenchRequestId,
-        generation: WorkbenchTabCloseAttemptGeneration,
-        status_token: CloseStatusToken,
-    },
 }
 
 impl CloseIntent {
     pub(crate) fn selection(&self) -> &CloseSelection {
         match self {
-            Self::Close(selection) | Self::Resume { selection, .. } => selection,
+            Self::Close(selection) => selection,
             Self::Set(capture) => capture.first(),
-        }
-    }
-    const fn kind(&self) -> CloseConfirmationKind {
-        match self {
-            Self::Close(_) | Self::Set(_) => CloseConfirmationKind::Close,
-            Self::Resume { .. } => CloseConfirmationKind::Resume,
         }
     }
 }
@@ -212,7 +185,6 @@ impl CloseIntent {
 struct CloseConfirmation {
     token: CloseConfirmationToken,
     intent: CloseIntent,
-    local_focus: Option<set::LocalFocus>,
     presentation: PresentationPhase,
     shown: bool,
 }
@@ -263,9 +235,11 @@ impl CloseRecord {
     }
 
     /// Whether the status line reports this close: every failure, unknown and recovery at once,
-    /// and a close still progressing normally only after the pending delay.
+    /// and a close still progressing normally only after the pending delay. A stopped close closed
+    /// again waits for its first read as a new one does: its Tab stays, and its report returns only
+    /// should that read find it still stopped.
     fn announced(&self) -> bool {
-        self.announced || self.unavailable || self.uncertain || !self.progressing()
+        self.announced || (!self.initial_read_pending && self.stopped())
     }
 
     /// Whether the close is on its ordinary way out: submitted, accepted, closing or closed, with
@@ -286,8 +260,9 @@ impl CloseRecord {
         }
     }
 
-    /// Whether the close stopped on its way: it failed, its outcome is unknown, or its observation
-    /// was lost. What it removes shows again with its report.
+    /// Whether the close stopped on its way: the Server gave up on it, its outcome is unknown, or
+    /// its observation was lost. While the Server still retries or renews a close by itself it
+    /// reads `closing`, so any other status is final. What it removes shows again with its report.
     fn stopped(&self) -> bool {
         self.unavailable || self.uncertain || !self.progressing()
     }
@@ -296,25 +271,6 @@ impl CloseRecord {
         self.selection.target.panel_id.is_none()
             && self.selection.target.tab_id() == tab_id
             && !self.stopped()
-    }
-
-    /// A Panel close offers no Resume: as in the GUI, a stop is reported and leaves the Panel in
-    /// place.
-    fn resumable(&self) -> bool {
-        self.selection.target.panel_id.is_none()
-            && !self.unavailable
-            && matches!(
-                self.status,
-                Some(
-                    WorkbenchTabCloseStatus::CleanupBlocked {
-                        resumable: true,
-                        ..
-                    } | WorkbenchTabCloseStatus::DisposedAwaitingPublication {
-                        resumable: true,
-                        ..
-                    }
-                )
-            )
     }
 
     fn bounded_disposed_observation(&self) -> bool {
@@ -361,8 +317,9 @@ impl<'a> CloseStatusView<'a> {
     pub(crate) fn status(self) -> CloseStatusKind {
         self.record.kind()
     }
-    pub(crate) fn resumable(self) -> bool {
-        self.record.resumable()
+    /// Whether the close ended without removing what it closes, which then shows again.
+    pub(crate) fn stopped(self) -> bool {
+        self.record.stopped()
     }
     pub(crate) fn observation_paused(self) -> bool {
         self.record.bounded_disposed_observation()
@@ -379,8 +336,6 @@ impl<'a> CloseStatusView<'a> {
 
 pub(crate) struct CloseConfirmationView<'a> {
     confirmation: &'a CloseConfirmation,
-    status: Option<CloseStatusView<'a>>,
-    set_progress: Option<CloseSetStatus>,
 }
 
 impl<'a> CloseConfirmationView<'a> {
@@ -397,9 +352,7 @@ impl<'a> CloseConfirmationView<'a> {
     fn tab_ids(&self) -> &'a [WorkbenchTabId] {
         match &self.confirmation.intent {
             CloseIntent::Set(capture) => capture.tabs(),
-            CloseIntent::Close(selection) | CloseIntent::Resume { selection, .. } => {
-                std::slice::from_ref(&selection.target.tab_id)
-            }
+            CloseIntent::Close(selection) => std::slice::from_ref(&selection.target.tab_id),
         }
     }
     pub(crate) fn target_label(&self) -> &'a str {
@@ -408,27 +361,17 @@ impl<'a> CloseConfirmationView<'a> {
     pub(crate) fn target_tab_id(&self) -> &'a WorkbenchTabId {
         &self.confirmation.intent.selection().target.tab_id
     }
-    pub(crate) const fn kind(&self) -> CloseConfirmationKind {
-        self.confirmation.intent.kind()
-    }
     pub(crate) const fn interactive(&self) -> bool {
         self.confirmation.shown && self.confirmation.presentation.interactive()
     }
     pub(crate) const fn presentation(&self) -> PresentationPhase {
         self.confirmation.presentation
     }
-    pub(crate) const fn resume_status(&self) -> Option<CloseStatusView<'a>> {
-        self.status
-    }
-    pub(crate) const fn resume_set_status(&self) -> Option<CloseSetStatus> {
-        self.set_progress
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CloseStateError {
     Busy,
-    NotResumable,
     NotDisplayed,
     StaleConfirmation,
     UnknownTarget,
@@ -506,35 +449,11 @@ impl CloseState {
             .position(|record| record.selection.target == *target)
     }
 
-    fn capture_resume_permit(&self, target: &CloseTarget) -> Option<TabCloseResumePermit> {
-        let record = &self.records[self.record_index(target)?];
-        if !record.displayed || !record.resumable() {
-            return None;
-        }
-        Some(TabCloseResumePermit {
-            target: target.clone(),
-            operation: record.operation.clone()?,
-            generation: record.generation?,
-            status_token: record.status_token?,
-        })
-    }
-
-    fn accepts_resume_permit(&self, permit: &TabCloseResumePermit) -> bool {
-        self.record_index(&permit.target).is_some_and(|index| {
-            let record = &self.records[index];
-            record.resumable()
-                && record.operation.as_ref() == Some(&permit.operation)
-                && record.generation == Some(permit.generation)
-                && record.status_token == Some(permit.status_token)
-        })
-    }
-
     fn install_confirmation(&mut self, intent: CloseIntent) -> Result<(), CloseStateError> {
         let token = CloseConfirmationToken(self.token().ok_or(CloseStateError::Busy)?);
         self.confirmation = Some(CloseConfirmation {
             token,
             intent,
-            local_focus: None,
             presentation: PresentationPhase::Pending,
             shown: false,
         });
@@ -548,49 +467,16 @@ impl CloseState {
         if self.confirmation.is_some() || self.pending.is_some() || self.set_active() {
             return Err(CloseStateError::Busy);
         }
-        let intent = if let Some(index) = self.record_index(&selection.target) {
-            let record = &self.records[index];
-            if !record.resumable() {
-                return Err(CloseStateError::NotResumable);
-            }
-            if !record.displayed {
-                return Err(CloseStateError::NotDisplayed);
-            }
-            CloseIntent::Resume {
-                selection,
-                operation: record
-                    .operation
-                    .clone()
-                    .ok_or(CloseStateError::NotResumable)?,
-                generation: record.generation.ok_or(CloseStateError::NotResumable)?,
-                status_token: record.status_token.ok_or(CloseStateError::NotDisplayed)?,
-            }
-        } else {
-            if self.records.len() == MAXIMUM_CLOSE_RECORDS {
+        // A Tab with a retained close shows only once that close stopped. Closing it again is the
+        // ordinary close, which the Server joins to the close it keeps.
+        if let Some(index) = self.record_index(&selection.target) {
+            if !self.records[index].stopped() {
                 return Err(CloseStateError::Busy);
             }
-            CloseIntent::Close(selection)
-        };
-        self.install_confirmation(intent)
-    }
-
-    fn open_resume_confirmation(
-        &mut self,
-        selection: CloseSelection,
-        permit: &TabCloseResumePermit,
-    ) -> Result<(), CloseStateError> {
-        if self.confirmation.is_some() || self.pending.is_some() || self.set_active() {
+        } else if self.records.len() == MAXIMUM_CLOSE_RECORDS {
             return Err(CloseStateError::Busy);
         }
-        if selection.target != permit.target || !self.accepts_resume_permit(permit) {
-            return Err(CloseStateError::NotResumable);
-        }
-        self.install_confirmation(CloseIntent::Resume {
-            selection,
-            operation: permit.operation.clone(),
-            generation: permit.generation,
-            status_token: permit.status_token,
-        })
+        self.install_confirmation(CloseIntent::Close(selection))
     }
 
     pub(crate) fn cancel_confirmation(&mut self) {
@@ -598,22 +484,8 @@ impl CloseState {
     }
 
     pub(crate) fn confirmation(&self) -> Option<CloseConfirmationView<'_>> {
-        let confirmation = self.confirmation.as_ref()?;
-        let status = match &confirmation.intent {
-            CloseIntent::Close(_) | CloseIntent::Set(_) => None,
-            CloseIntent::Resume {
-                selection,
-                status_token,
-                ..
-            } => self
-                .status(&selection.target)
-                .filter(|status| status.token == *status_token),
-        };
         Some(CloseConfirmationView {
-            confirmation,
-            status,
-            set_progress: status
-                .and_then(|_| self.set_resume_status(confirmation.intent.selection().target())),
+            confirmation: self.confirmation.as_ref()?,
         })
     }
 
@@ -656,30 +528,8 @@ impl CloseState {
             record.displayed = status.is_some() && record.status_token == status;
             record.announced |= record.displayed;
         }
-        let resume_displayed =
-            self.confirmation
-                .as_ref()
-                .is_none_or(|confirmation| match &confirmation.intent {
-                    CloseIntent::Close(_) | CloseIntent::Set(_) => true,
-                    CloseIntent::Resume {
-                        selection,
-                        operation,
-                        generation,
-                        status_token,
-                    } => {
-                        status == Some(*status_token)
-                            && self.record_index(&selection.target).is_some_and(|index| {
-                                let record = &self.records[index];
-                                record.displayed
-                                    && record.resumable()
-                                    && record.operation.as_ref() == Some(operation)
-                                    && record.generation == Some(*generation)
-                                    && record.status_token == Some(*status_token)
-                            })
-                    }
-                });
         if let Some(confirmation) = &mut self.confirmation {
-            confirmation.shown = prompt == Some(confirmation.token) && resume_displayed;
+            confirmation.shown = prompt == Some(confirmation.token);
             if confirmation.shown {
                 confirmation.presentation.presented();
             }
@@ -695,34 +545,25 @@ impl CloseState {
             .as_ref()
             .filter(|prompt| prompt.token == token && prompt.shown)
             .ok_or(CloseStateError::NotDisplayed)?;
-        if let CloseIntent::Resume {
-            selection,
-            operation,
-            generation,
-            status_token,
-        } = &prompt.intent
-        {
-            let record = &self.records[self
-                .record_index(&selection.target)
-                .ok_or(CloseStateError::UnknownTarget)?];
-            if !record.resumable()
-                || !record.displayed
-                || record.operation.as_ref() != Some(operation)
-                || record.generation != Some(*generation)
-                || record.status_token != Some(*status_token)
-            {
-                return Err(CloseStateError::StaleConfirmation);
-            }
-        }
         Ok(prompt.intent.clone())
     }
 
+    /// Retains the close of `selection` from its submission. Submitted again over a close that
+    /// stopped, the record restarts its follow: unreported for the pending delay from now, its Tab
+    /// still shown, until its first read finds the close on its way again or still stopped.
     pub(crate) fn retain_submission(
         &mut self,
         selection: CloseSelection,
         submitted_at: Instant,
     ) -> Result<(), CloseStateError> {
-        if self.record_index(&selection.target).is_some() {
+        if let Some(index) = self.record_index(&selection.target) {
+            let record = &mut self.records[index];
+            if record.stopped() {
+                record.submitted_at = submitted_at;
+                record.announced = false;
+                record.initial_read_pending = true;
+                record.displayed = false;
+            }
             return Ok(());
         }
         if self.records.len() == MAXIMUM_CLOSE_RECORDS {
@@ -926,85 +767,9 @@ impl CloseState {
 }
 
 impl super::WorkbenchClientState {
-    fn tab_close_resume_target(&self, tab_id: &WorkbenchTabId) -> Option<CloseTarget> {
-        if !self.close_confirmation_scope_available()
-            || self.close.set_active()
-            || self.close.pending.is_some()
-            || self.close.confirmation.is_some()
-            || self.cache.tab_index(tab_id).is_none()
-        {
-            return None;
-        }
-        Some(CloseTarget::new(
-            self.cache.session_id().clone(),
-            self.cache.terminal_context_id()?.clone(),
-            tab_id.clone(),
-        ))
-    }
-
-    /// Mint a continuation only from an exact status that was actually visible.
-    pub(crate) fn capture_tab_close_resume_permit(
-        &self,
-        tab_id: &WorkbenchTabId,
-    ) -> Option<TabCloseResumePermit> {
-        let target = self.tab_close_resume_target(tab_id)?;
-        self.close.capture_resume_permit(&target)
-    }
-
-    /// Revalidate a continuation retained by a covering child surface.
-    ///
-    /// Current display proof is intentionally not required here: opening the
-    /// child revokes that proof. The exact record, resumable status and attempt
-    /// still have to be current, and the resulting confirmation must earn a
-    /// fresh complete draw before it can execute.
-    pub(crate) fn validate_tab_close_resume_permit(
-        &self,
-        tab_id: &WorkbenchTabId,
-        permit: &TabCloseResumePermit,
-    ) -> bool {
-        self.tab_close_resume_target(tab_id)
-            .is_some_and(|target| target == permit.target)
-            && self.close.accepts_resume_permit(permit)
-    }
-
-    /// Recovery belongs to the exact Tab and an already presented status.
-    /// The confirmation owner still validates the operation and attempt at admission.
-    pub(crate) fn tab_close_resume_available(&self, tab_id: &WorkbenchTabId) -> bool {
-        self.capture_tab_close_resume_permit(tab_id).is_some()
-    }
-
-    pub(crate) fn open_tab_close_resume(
-        &mut self,
-        tab_id: &WorkbenchTabId,
-    ) -> Result<(), CloseStateError> {
-        let permit = self
-            .capture_tab_close_resume_permit(tab_id)
-            .ok_or(CloseStateError::NotResumable)?;
-        self.open_tab_close_resume_with_permit(tab_id, &permit)
-    }
-
-    pub(crate) fn open_tab_close_resume_with_permit(
-        &mut self,
-        tab_id: &WorkbenchTabId,
-        permit: &TabCloseResumePermit,
-    ) -> Result<(), CloseStateError> {
-        // This path has no ordinary-Close fallback: the covered continuation
-        // must still identify the exact live resumable record.
-        if !self.validate_tab_close_resume_permit(tab_id, permit) {
-            return Err(CloseStateError::NotResumable);
-        }
-        let selection = self.close_set_selection(tab_id)?;
-        let focus = self.close_set_focus();
-        self.close.open_resume_confirmation(selection, permit)?;
-        if let Some(confirmation) = &mut self.close.confirmation {
-            confirmation.local_focus = Some(focus);
-        }
-        Ok(())
-    }
-
     /// Follows the accepted close of a Tab's last Panel as the close of that Tab, which it is on the
     /// Server: from this acceptance the Tab leaves the Client's view, the selection follows it, and
-    /// its status reads, report and Resume are those of any accepted Tab close. Refused while the
+    /// its status reads and report are those of any accepted Tab close. Refused while the
     /// Tab already holds a retained close, which keeps its own record and report.
     pub(super) fn retain_last_panel_close(
         &mut self,
@@ -1131,34 +896,8 @@ impl super::WorkbenchClientState {
     }
 
     pub(crate) fn open_close_confirmation(&mut self) -> Result<(), CloseStateError> {
-        if matches!(
-            self.close.carrier,
-            CloseCarrier::MembershipRecoveryPending(_)
-        ) {
-            return Err(CloseStateError::Busy);
-        }
-        if matches!(self.close.carrier, CloseCarrier::StatusOnly) {
-            let selection = self
-                .close
-                .records
-                .iter()
-                .find(|record| record.displayed && record.resumable())
-                .map(|record| record.selection.clone())
-                .ok_or(CloseStateError::NotDisplayed)?;
-            return self.close.open_confirmation(selection);
-        }
         if !self.close_confirmation_scope_available() {
             return Err(CloseStateError::Busy);
-        }
-        // The footer's recovery shortcut addresses its presented operation, including a
-        // halted background member, without selecting it or starting a different Close.
-        let recovery = self
-            .view()
-            .close_status()
-            .filter(|status| status.record.resumable())
-            .map(|status| status.record.selection.target().tab_id().clone());
-        if let Some(target) = recovery {
-            return self.open_tab_close_resume(&target);
         }
         let selected = self.active().ok_or(CloseStateError::Busy)?;
         let tab = self
@@ -1218,18 +957,7 @@ impl super::WorkbenchClientState {
     }
 
     /// The same frozen premise governs UI retirement, planning and mailbox admission.
-    /// Targeted recovery captures today's selection, not the older CloseRecord revision.
     fn close_confirmation_current(&self, confirmation: &CloseConfirmation) -> bool {
-        if let Some(focus) = &confirmation.local_focus {
-            let selection = confirmation.intent.selection();
-            return matches!(confirmation.intent, CloseIntent::Resume { .. })
-                && self.close_confirmation_scope_available()
-                && self.close_set_focus() == *focus
-                && self
-                    .close_set_selection(selection.target().tab_id())
-                    .as_ref()
-                    == Ok(selection);
-        }
         if let CloseIntent::Set(capture) = &confirmation.intent {
             return self.close_set_capture_current(capture);
         }
@@ -1265,27 +993,6 @@ impl super::WorkbenchClientState {
         };
         if self.close.set_deciding() {
             return false;
-        }
-        if let CloseIntent::Resume {
-            selection,
-            operation,
-            generation,
-            status_token,
-        } = &confirmation.intent
-        {
-            let premise = self
-                .close
-                .record_index(&selection.target)
-                .is_some_and(|index| {
-                    let record = &self.close.records[index];
-                    record.resumable()
-                        && record.operation.as_ref() == Some(operation)
-                        && record.generation == Some(*generation)
-                        && record.status_token == Some(*status_token)
-                });
-            if !premise {
-                return true;
-            }
         }
         !self.close_confirmation_current(confirmation)
     }
@@ -1347,28 +1054,16 @@ impl<'a> super::WorkbenchClientView<'a> {
                 matches!(operation.kind(), CloseOperationKind::CloseIfIdle { .. })
             })
     }
-    /// What `confirmation` ends, from the attachments `settled` reports as Host-settled. A Resume
-    /// whose Server status proved disposal has no running terminal left.
+    /// What `confirmation` ends, from the attachments `settled` reports as Host-settled.
     pub(crate) fn close_impact(
         &self,
         confirmation: &CloseConfirmationView<'a>,
         settled: &dyn Fn(&super::PaneRef) -> bool,
     ) -> CloseImpact {
-        let impact = self
-            .state
-            .tabs_close_impact(confirmation.tab_ids(), settled);
-        if confirmation
-            .resume_status()
-            .is_some_and(|status| status.record.disposed)
-        {
-            return CloseImpact {
-                running: 0,
-                ended: impact.running + impact.ended,
-            };
-        }
-        impact
+        self.state
+            .tabs_close_impact(confirmation.tab_ids(), settled)
     }
-    /// The close a recovery or a Client control request addresses, reported or not.
+    /// The close a Client control request addresses, reported or not.
     pub(crate) fn close_status(&self) -> Option<CloseStatusView<'a>> {
         self.select_close_status(|_| true)
     }
@@ -1397,14 +1092,6 @@ impl<'a> super::WorkbenchClientView<'a> {
         &self,
         admit: impl Fn(&CloseRecord) -> bool,
     ) -> Option<CloseStatusView<'a>> {
-        if let Some(status) = self
-            .state
-            .close
-            .confirmation()
-            .and_then(|view| view.resume_status())
-        {
-            return Some(status);
-        }
         if let Some(status) = self
             .state
             .close

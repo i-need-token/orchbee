@@ -361,7 +361,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             | A::CloseTrailingTabs
             | A::CloseGroup
             | A::CloseTab
-            | A::ResumeTabClose
     ) {
         ActionTone::Destructive
     } else {
@@ -413,7 +412,6 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::FindInTerminal => built_in("terminal.search.open", C::Pane, FIND),
         A::ClearTerminal => built_in("terminal.clear", C::Pane, PANE),
         A::LastPanel => last_panel(),
-        A::ResumeTabClose => built_in("orchbee.native.tab-close.resume", C::Tab, CLOSE_TAB),
         A::CloseSelectedTabs
         | A::CloseOtherTabs
         | A::CloseTrailingTabs

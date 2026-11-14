@@ -74,7 +74,6 @@ enum StatusAction {
     CreateWorkspace,
     Refresh,
     CheckAgain,
-    RetryClose,
     TakeControl,
     RetryRename(LocationLabelTarget),
 }
@@ -136,7 +135,6 @@ pub(super) struct StatusFacts<'a> {
     pub(super) zoomed: bool,
     pub(super) panels: Option<HiddenPanels>,
     pub(super) read_only: bool,
-    pub(super) recovery_status: bool,
 }
 
 /// What one status paint covered.
@@ -853,21 +851,6 @@ fn render_row(
         indicator = None;
     }
 
-    if facts.recovery_status
-        && indicator.is_none()
-        && notice.is_none()
-        && primary_width <= usize::from(area.width)
-    {
-        let required = primary_width
-            .saturating_add(if right_width > 0 { separator.width } else { 0 })
-            .saturating_add(right_width);
-        if required > usize::from(area.width) {
-            right_width = 0;
-            visible_hints = 0;
-            right_is_notice = false;
-        }
-    }
-
     let right_width_u16 = u16::try_from(right_width)
         .unwrap_or(u16::MAX)
         .min(area.width);
@@ -1560,10 +1543,6 @@ fn action_hint(
         ),
         StatusAction::Refresh => (PrefixAction::NavigatorToggle, copy.refresh),
         StatusAction::CheckAgain => (PrefixAction::NavigatorToggle, copy.check_again),
-        StatusAction::RetryClose => (
-            PrefixAction::Client(ClientAction::RequestCloseTab),
-            copy.retry_close,
-        ),
         StatusAction::TakeControl => (
             PrefixAction::Client(ClientAction::RequestControlTakeover),
             copy.take_control,
@@ -1600,14 +1579,11 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
         return Vec::new();
     }
     if let Some(close) = native.announced_close_status() {
-        let mut actions = Vec::with_capacity(2);
-        if close.unavailable() || close.observation_paused() {
-            actions.push(StatusAction::CheckAgain);
-        }
-        if close.resumable() {
-            actions.push(StatusAction::RetryClose);
-        }
-        return actions;
+        return if close.unavailable() || close.observation_paused() {
+            vec![StatusAction::CheckAgain]
+        } else {
+            Vec::new()
+        };
     }
     if native.worktree_notice().is_some() {
         return Vec::new();

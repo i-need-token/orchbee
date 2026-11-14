@@ -244,9 +244,10 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
             "{action:?}",
         );
     }
-    for action in [MenuAction::CloseGroup, MenuAction::ResumeTabClose] {
-        assert_eq!(menu_metadata(action).tone, super::ActionTone::Destructive);
-    }
+    assert_eq!(
+        menu_metadata(MenuAction::CloseGroup).tone,
+        super::ActionTone::Destructive
+    );
     for legacy in [
         MenuAction::CloseWorkspace,
         MenuAction::RenameProject,
@@ -271,14 +272,6 @@ fn native_only_tab_operations_do_not_claim_narrower_gui_contracts() {
     assert_ne!(
         menu_metadata(MenuAction::SelectAllTabs).action.identity,
         menu_metadata(MenuAction::SelectTab).action.identity
-    );
-    assert_eq!(
-        menu_metadata(MenuAction::ResumeTabClose).action.identity,
-        ActionIdentity::BuiltIn("orchbee.native.tab-close.resume")
-    );
-    assert_ne!(
-        menu_metadata(MenuAction::ResumeTabClose).action.identity,
-        menu_metadata(MenuAction::CloseSelectedTabs).action.identity
     );
 }
 

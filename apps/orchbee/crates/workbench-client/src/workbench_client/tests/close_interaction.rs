@@ -167,7 +167,7 @@ fn assert_complete_close_frame(
     let right = outer.right();
     let top = outer.y;
     let bottom = outer.bottom();
-    let title = locale.close_title(CloseConfirmationKind::Close);
+    let title = locale.close_title();
     let theme = crate::tui_theme::Theme::terminal_native();
     let mut border = Buffer::empty(outer);
     crate::tui_render::titled_overlay(&theme, ratatui::widgets::Padding::ZERO, title, outer.width)
@@ -528,110 +528,6 @@ fn nondecision_packets_swallowed_and_unpresentable_redraw_suspends_prompt() -> T
     spin(&mut workbench_client, |_| {
         commands.load(Ordering::SeqCst) == 1
     });
-    assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
-    server.finish(workbench_client)?;
-    Ok(())
-}
-
-#[test]
-fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_tokens() -> TestResult
-{
-    let geometry = fixture_geometry()?;
-    let commands = Arc::new(AtomicUsize::new(0));
-    let resumes = Arc::new(AtomicUsize::new(0));
-    let input_bytes = Arc::new(AtomicUsize::new(0));
-    let server = status_close_server(
-        geometry,
-        Arc::clone(&commands),
-        Arc::clone(&input_bytes),
-        Some(Arc::clone(&resumes)),
-    )?;
-    let (mut workbench_client, _) =
-        workbench_client_with_identity(native_client(&server.server)?, geometry)?;
-    assert!(spin_with_draw(
-        &mut workbench_client,
-        |workbench_client| workbench_client.status() == TerminalStatus::Controlling
-    ));
-    let mut view = ClientView::new(120);
-    dispatch_close_input(&mut workbench_client, &mut view, b"\x02x");
-    let _ = draw_close(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
-    dispatch_close_input(&mut workbench_client, &mut view, b"\r");
-    spin(&mut workbench_client, |workbench_client| {
-        let view = workbench_client.view();
-        view.close_status()
-            .is_some_and(|status| status.status() == CloseStatusKind::CleanupBlocked)
-    });
-    let _ = draw_close(&mut workbench_client, &view, Locale::EnUs, 30, 12)?;
-    dispatch_close_input(&mut workbench_client, &mut view, b"\x02x");
-    assert!({
-        let view = workbench_client.view();
-        view.close_confirmation().is_none()
-    });
-    view.report_backend_unavailable(crate::client_view::BackendAction::CreateTab);
-    let _ = draw_close(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
-    dispatch_close_input(&mut workbench_client, &mut view, b"\x02x");
-    assert!({
-        let view = workbench_client.view();
-        view.close_confirmation().is_none()
-    });
-    view = ClientView::new(120);
-    let _ = draw_close(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
-    dispatch_close_input(&mut workbench_client, &mut view, b"\x02x");
-    assert!({
-        let view = workbench_client.view();
-        view.close_confirmation()
-            .is_some_and(|prompt| prompt.kind() == CloseConfirmationKind::Resume)
-    });
-    // The notice replaces the footer. Only the exact status inside the modal can qualify this draw.
-    view.report_backend_unavailable(crate::client_view::BackendAction::CreateTab);
-    let rendered = draw_close(&mut workbench_client, &view, Locale::EnUs, 120, 32)?;
-    // The status wraps inside the dialog's class width.
-    assert!(
-        rendered.contains("Close cleanup") && rendered.contains("blocked · Close can be retried")
-    );
-    dispatch_close_input(&mut workbench_client, &mut view, b"\ryy");
-    spin(&mut workbench_client, |workbench_client| {
-        let view = workbench_client.view();
-        view.notice() == Some(WorkbenchClientNotice::CloseRequestNotApplied)
-    });
-    view = ClientView::new(200);
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let rendered = draw_close(&mut workbench_client, &view, locale, 200, 32)?;
-        assert!(
-            rendered.replace(' ', "").contains(
-                &locale
-                    .native_notice(WorkbenchClientNotice::CloseRequestNotApplied)
-                    .replace(' ', "")
-            )
-        );
-        let native = workbench_client.view();
-        let status = native
-            .close_status()
-            .expect("Resume refusal retains the known status");
-        assert_eq!(status.status(), CloseStatusKind::CleanupBlocked);
-        assert!(status.unavailable());
-        assert!(!status.resumable());
-        assert!(
-            rendered.replace(' ', "").contains(
-                &locale
-                    .shell()
-                    .bound_hint(
-                        &view
-                            .bindings()
-                            .shell_bindings(locale.shell().binding_unbound),
-                        &locale.native_close_status(&status)
-                    )
-                    .replace(' ', "")
-            )
-        );
-    }
-    dispatch_close_input(&mut workbench_client, &mut view, b"\x02x");
-    assert!({
-        let view = workbench_client.view();
-        view.close_confirmation().is_none()
-    });
-    assert_eq!(commands.load(Ordering::SeqCst), 1);
-    assert_eq!(resumes.load(Ordering::SeqCst), 1);
     assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
     server.finish(workbench_client)?;
     Ok(())

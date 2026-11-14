@@ -208,7 +208,6 @@ pub enum MenuAction {
     FindInTerminal,
     ClearTerminal,
     LastPanel,
-    ResumeTabClose,
     CloseSelectedTabs,
     CloseOtherTabs,
     CloseTrailingTabs,
@@ -291,7 +290,6 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::FindInTerminal => Self::FindInTerminal,
             MenuAction::ClearTerminal => Self::ClearTerminal,
             MenuAction::LastPanel => Self::LastPanel,
-            MenuAction::ResumeTabClose => Self::ResumeTabClose,
             MenuAction::CloseSelectedTabs => Self::CloseSelectedTabs,
             MenuAction::CloseOtherTabs => Self::CloseOtherTabs,
             MenuAction::CloseTrailingTabs => Self::CloseTrailingTabs,
@@ -356,7 +354,6 @@ impl MenuAction {
             Self::ClosePane => ClientAction::ClosePanel,
             Self::MovePanel(direction) => ClientAction::MovePanel(*direction),
             Self::MoveTabPrevious
-            | Self::ResumeTabClose
             | Self::CloseSelectedTabs
             | Self::CloseOtherTabs
             | Self::CloseTrailingTabs

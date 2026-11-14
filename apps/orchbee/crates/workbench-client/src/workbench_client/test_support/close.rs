@@ -6,15 +6,9 @@ use super::{
     TerminalControlAction, TerminalControlOutcome, TerminalControlResult, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerResult, UnixStream, WorkbenchAction, WorkbenchClient,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPublicationOutcome,
-    WorkbenchPublicationResult, WorkbenchRequest, WorkbenchResponse, WorkbenchTabId,
-    WorkbenchTerminalContextId, accept_native_frame_feedback, binding_viewer_id, dispatch_input,
-    io, read_client_message, read_workbench_request, serve_native_controlling_frame,
-    write_server_message, write_workbench_response,
-};
-use orchbee_workbench_protocol::{
-    CloseOperationOutcome, CloseOperationResult, CloseOperationTarget, WorkbenchRequestId,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
-    WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
+    WorkbenchPublicationResult, WorkbenchRequest, WorkbenchResponse, accept_native_frame_feedback,
+    binding_viewer_id, dispatch_input, io, read_client_message, read_workbench_request,
+    serve_native_controlling_frame, write_server_message, write_workbench_response,
 };
 use std::{convert::Infallible, sync::atomic::AtomicUsize};
 
@@ -74,15 +68,6 @@ pub fn interactive_close_server(
     commands: Arc<AtomicUsize>,
     input_bytes: Arc<AtomicUsize>,
 ) -> io::Result<CloseTestServer> {
-    status_close_server(geometry, commands, input_bytes, None)
-}
-
-pub(crate) fn status_close_server(
-    geometry: Geometry,
-    commands: Arc<AtomicUsize>,
-    input_bytes: Arc<AtomicUsize>,
-    resumes: Option<Arc<AtomicUsize>>,
-) -> io::Result<CloseTestServer> {
     let teardown = Arc::new(AtomicBool::new(false));
     let server_teardown = Arc::clone(&teardown);
     let server = FakeServer::start(move |stream| {
@@ -90,7 +75,6 @@ pub(crate) fn status_close_server(
         let result = (|| {
             serve_native_controlling_frame(&mut stream, geometry)?;
             accept_native_frame_feedback(&mut stream)?;
-            let mut operation: Option<WorkbenchRequestId> = None;
             loop {
                 let mut magic = [0; 4];
                 if stream.read_exact(&mut magic).is_err() {
@@ -116,55 +100,6 @@ pub(crate) fn status_close_server(
                             continue;
                         }
                         WorkbenchRequest::Command(command) => command,
-                        // Every close this peer follows was accepted, so it is read by identity.
-                        WorkbenchRequest::CloseOperationRead(request) if resumes.is_some() => {
-                            assert_eq!(Some(&request.operation_id), operation.as_ref());
-                            write_workbench_response(
-                                &mut stream,
-                                &WorkbenchResponse::CloseOperation(CloseOperationResult {
-                                    protocol_version: ProtocolVersion,
-                                    request_id: request.request_id,
-                                    session_id: request.session_id,
-                                    operation_id: request.operation_id,
-                                    outcome: CloseOperationOutcome::Available {
-                                        target: CloseOperationTarget::Tab {
-                                            terminal_context_id: WorkbenchTerminalContextId::parse(
-                                                ID,
-                                            )
-                                            .unwrap(),
-                                            tab_id: WorkbenchTabId::parse(ID).unwrap(),
-                                        },
-                                        generation: WorkbenchTabCloseAttemptGeneration::new(1)
-                                            .unwrap(),
-                                        status: WorkbenchTabCloseStatus::CleanupBlocked {
-                                            reason: WorkbenchTabCloseBlockedReason::HostRefused,
-                                            resumable: true,
-                                        },
-                                    },
-                                }),
-                            )
-                            .map_err(io::Error::other)?;
-                            continue;
-                        }
-                        WorkbenchRequest::TabCloseResume(request) if resumes.is_some() => {
-                            assert_eq!(Some(&request.close_request_id), operation.as_ref());
-                            assert_eq!(request.expected_attempt_generation.value(), 1);
-                            write_workbench_response(
-                                &mut stream,
-                                &WorkbenchResponse::TabCloseResume(WorkbenchTabCloseResumeResult {
-                                    protocol_version: ProtocolVersion,
-                                    request_id: request.request_id,
-                                    session_id: request.session_id,
-                                    terminal_context_id: request.terminal_context_id,
-                                    tab_id: request.tab_id,
-                                    close_request_id: request.close_request_id,
-                                    outcome: WorkbenchTabCloseResumeOutcome::Denied {},
-                                }),
-                            )
-                            .map_err(io::Error::other)?;
-                            resumes.as_ref().unwrap().fetch_add(1, Ordering::SeqCst);
-                            continue;
-                        }
                         other => {
                             return Err(io::Error::other(format!(
                                 "unexpected Workbench operation: {other:?}"
@@ -174,17 +109,7 @@ pub(crate) fn status_close_server(
                     assert!(
                         matches!(command.action, WorkbenchAction::TabClose { ref terminal_context_id, ref tab_id } if terminal_context_id.as_str() == ID && tab_id.as_str() == ID)
                     );
-                    let outcome = if resumes.is_some() {
-                        operation = Some(command.request_id.clone());
-                        WorkbenchCommandOutcome::TabCloseAccepted {
-                            close_request_id: command.request_id.clone(),
-                            terminal_context_id: WorkbenchTerminalContextId::parse(ID).unwrap(),
-                            tab_id: WorkbenchTabId::parse(ID).unwrap(),
-                            accepted_revision: command.expected_revision,
-                        }
-                    } else {
-                        WorkbenchCommandOutcome::Denied {}
-                    };
+                    let outcome = WorkbenchCommandOutcome::Denied {};
                     write_workbench_response(
                         &mut stream,
                         &WorkbenchResponse::Command(WorkbenchCommandResult {

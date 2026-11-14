@@ -742,10 +742,9 @@ fn a_focus_or_mark_change_stops_no_set() {
     );
 }
 
-/// A stopped set brings back every member it did not close. The member whose own Close it left
-/// stopped keeps that Close: its Tab's Resume continues it, and the set never goes again.
+/// A stopped set brings back every member it did not close, and the set never goes again.
 #[test]
-fn a_failed_set_returns_its_open_members_and_its_stopped_close_resumes_from_its_tab() {
+fn a_failed_set_returns_its_open_members() {
     let now = Instant::now();
     let mut state = ready(4);
     let members = tab_ids(&state, &[1, 2, 3]);
@@ -779,25 +778,6 @@ fn a_failed_set_returns_its_open_members_and_its_stopped_close_resumes_from_its_
         (1, 3, true, true)
     );
     assert!(!state.close_set_read_due(later + Duration::from_secs(1)));
-
-    let target = CloseTarget::new(
-        start.key().target().session_id().clone(),
-        start.key().target().terminal_context_id().clone(),
-        members[1].clone(),
-    );
-    let token = state.close.status(&target).unwrap().token();
-    state.acknowledge_close_draw(None, Some(token));
-    state.open_tab_close_resume(&members[1]).unwrap();
-    let prompt = state.view().close_confirmation().unwrap().token();
-    state.acknowledge_close_draw(Some(prompt), Some(token));
-    let resume = state
-        .plan_close_confirmation(workbench_request_id(8100), later + Duration::from_secs(50))
-        .unwrap();
-    assert_eq!(resume.key().target(), &target);
-    assert!(
-        matches!(resume.kind(), CloseOperationKind::Resume { operation, generation }
-            if operation == &workbench_request_id(61001) && generation.value() == 7)
-    );
 }
 
 /// A Start the Server refused for a revision race goes again under a new identity once this
@@ -913,10 +893,7 @@ fn a_set_of_one_tab_closes_and_reports_as_its_own_close() {
             let told = locale.native_close_status(CloseStatusText {
                 label: status.target_label(),
                 kind: status.status(),
-                resumable: status.resumable(),
-                observation_paused: status.observation_paused(),
-                unavailable: status.unavailable(),
-                panel: status.panel(),
+                stopped: status.stopped(),
             });
             let shown = screen(&state, locale);
             assert!(shown.contains(&told), "{shown}");
@@ -1035,131 +1012,6 @@ fn rebind_same_focused_pane(state: &mut WorkbenchClientState, now: Instant) {
     assert!(state.mark_feedback_accepted(&after, FrameIdentity::new(2)));
     assert!(state.invariant_holds());
     assert_eq!(state.desired(), desired.as_ref());
-}
-
-#[test]
-fn close_set_targeted_resume_rejects_same_key_rebind_at_plan_and_final_admission() {
-    for rebind_before_plan in [true, false] {
-        let now = Instant::now();
-        let mut state = ready(3);
-        let selected = selection(1);
-        state
-            .close
-            .retain_submission(selected.clone(), Instant::now())
-            .unwrap();
-        observe(&mut state.close, &selected, 7, parked());
-        let status = state.close.status(selected.target()).unwrap().token();
-        state.acknowledge_close_draw(None, Some(status));
-        state
-            .open_tab_close_resume(selected.target().tab_id())
-            .unwrap();
-        let prompt = state.view().close_confirmation().unwrap().token();
-        state.acknowledge_close_draw(Some(prompt), Some(status));
-        let operation = state
-            .plan_close_confirmation(workbench_request_id(8100), now + Duration::from_secs(50))
-            .unwrap();
-        assert_eq!(operation.selection().binding(), None);
-        assert_eq!(operation.selection().attachment(), None);
-        assert!(
-            matches!(operation.kind(), CloseOperationKind::Resume { operation, generation }
-            if operation == &workbench_request_id(701) && generation.value() == 7)
-        );
-        rebind_same_focused_pane(&mut state, now);
-        if rebind_before_plan {
-            assert_eq!(
-                state.plan_close_confirmation(workbench_request_id(8100), operation.deadline()),
-                Err(CloseStateError::StaleConfirmation)
-            );
-        } else {
-            assert_eq!(
-                state.begin_close_exchange(&operation, now),
-                Err(CloseStateError::StaleConfirmation)
-            );
-        }
-        assert!(state.settle_stale_close_confirmations());
-        assert!(state.view().close_confirmation().is_none());
-    }
-}
-
-#[test]
-fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_competes() {
-    use crate::localization::ClientProjectionStatus;
-    use crate::tui_presentation::ModalPresentation;
-    use crate::workbench_client::{DrawReceipt, WorkbenchClientView};
-    use crate::{client_view::ClientView, localization::Locale, tui_theme::Theme};
-    use ratatui::{Terminal, backend::TestBackend};
-
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height) in [(120, 40), (80, 24)] {
-            let mut state = ready(3);
-            let selected = selection(1);
-            state
-                .close
-                .retain_submission(selected.clone(), Instant::now())
-                .unwrap();
-            observe(&mut state.close, &selected, 7, parked());
-            let status = state.close.status(selected.target()).unwrap().token();
-            state.acknowledge_close_draw(None, Some(status));
-            state
-                .open_tab_close_resume(selected.target().tab_id())
-                .unwrap();
-            let competing = selection(0);
-            state
-                .close
-                .retain_submission(competing.clone(), Instant::now())
-                .unwrap();
-            observe(&mut state.close, &competing, 1, parked());
-            let other = state.close.status(competing.target()).unwrap().token();
-            assert_ne!(status, other);
-            let prompt = state.view().close_confirmation().unwrap().token();
-            // A different record's complete draw can never authorize this Resume.
-            state.acknowledge_close_draw(Some(prompt), Some(other));
-            assert_eq!(
-                state.plan_close_confirmation(
-                    workbench_request_id(8101),
-                    Instant::now() + Duration::from_secs(50)
-                ),
-                Err(CloseStateError::NotDisplayed)
-            );
-            assert_eq!(state.view().close_status().unwrap().token(), status);
-
-            let view = WorkbenchClientView::test_view(&state, &[], ClientProjectionStatus::Empty);
-            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-            let mut receipt = DrawReceipt::default();
-            terminal
-                .draw(|frame| {
-                    receipt = crate::tui_render::render_terminal_shell(
-                        frame,
-                        &ClientView::new(width),
-                        locale,
-                        Some(view),
-                        &Theme::terminal_native(),
-                        &mut crate::tui_hit_map::HitMapBuilder::new(),
-                    );
-                })
-                .unwrap();
-            assert_eq!(
-                receipt,
-                DrawReceipt::new(Some(ModalPresentation::Presented(prompt)), Some(status))
-                    .with_position(receipt.position().cloned())
-            );
-            state.acknowledge_close_draw(Some(prompt), Some(status));
-            let operation = state
-                .plan_close_confirmation(
-                    workbench_request_id(8101),
-                    Instant::now() + Duration::from_secs(50),
-                )
-                .unwrap();
-            state
-                .begin_close_exchange(&operation, Instant::now())
-                .unwrap();
-            assert_eq!(operation.key().target(), selected.target());
-            assert!(
-                matches!(operation.kind(), CloseOperationKind::Resume { operation, generation }
-                if operation == &workbench_request_id(701) && generation.value() == 7)
-            );
-        }
-    }
 }
 
 #[test]

@@ -110,7 +110,7 @@ pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
     MenuAction::Takeover,
     MenuAction::ClosePane,
 ];
-/// Remove Tab from group, Resume closing and Close other Tabs join only when they apply.
+/// Remove Tab from group and Close other Tabs join only when they apply.
 pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::RenameTab,
     MenuAction::PinTab,
@@ -533,14 +533,13 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
         // The pane's copy row is its own group above the split and close commands.
         MenuAction::SplitPanel(_) => matches!(previous, MenuAction::CopySelection),
         // A Tab menu's close section starts before its first close row.
-        MenuAction::CloseSelectedTabs => !matches!(previous, MenuAction::ResumeTabClose),
+        MenuAction::CloseSelectedTabs => true,
         MenuAction::CreateWorkspaceProject
         | MenuAction::RenameWorkspace
         | MenuAction::DeleteWorkspace
         | MenuAction::DeleteProject
         | MenuAction::RemoveWorktree
         | MenuAction::ManageGroups
-        | MenuAction::ResumeTabClose
         | MenuAction::CreateGroup
         | MenuAction::Ungroup
         | MenuAction::ClosePane => true,

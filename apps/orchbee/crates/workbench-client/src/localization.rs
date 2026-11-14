@@ -70,9 +70,7 @@ mod shell;
 mod startup;
 #[cfg(any(unix, windows))]
 mod tab_close;
-pub(crate) use tab_close::{
-    CloseConfirmationKind, CloseImpact, CloseSetStatus, CloseStatusKind, CloseStatusText,
-};
+pub(crate) use tab_close::{CloseImpact, CloseSetStatus, CloseStatusKind, CloseStatusText};
 #[cfg(any(unix, windows))]
 mod tab_rename;
 mod terminal_history;

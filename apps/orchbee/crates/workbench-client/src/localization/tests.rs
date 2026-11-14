@@ -30,10 +30,7 @@ mod location_labels;
 fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     use std::num::NonZeroUsize;
 
-    use crate::{
-        action_menu::{MenuAction, MenuUnavailable, TabMenuScope},
-        workbench_client::CloseConfirmationKind,
-    };
+    use crate::action_menu::{MenuAction, MenuUnavailable, TabMenuScope};
 
     let locale = Locale::ZhCn;
     let count = NonZeroUsize::new(2).unwrap();
@@ -74,10 +71,6 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
         "移动 2 个标签页 · 此处松手取消 · Esc 取消"
     );
     assert_eq!(locale.close_set_title(2), "关闭 2 个标签页？");
-    assert_eq!(
-        locale.close_title(CloseConfirmationKind::Resume),
-        "继续关闭此标签页？"
-    );
     assert_eq!(locale.rename_title(), "重命名标签页");
 }
 

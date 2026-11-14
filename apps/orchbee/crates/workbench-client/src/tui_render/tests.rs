@@ -27,7 +27,6 @@ fn status_facts(primary: &str) -> super::status_line::StatusFacts<'_> {
         zoomed: false,
         panels: None,
         read_only: false,
-        recovery_status: false,
     }
 }
 

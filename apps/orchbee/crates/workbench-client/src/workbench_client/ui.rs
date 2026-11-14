@@ -132,9 +132,9 @@ pub use navigation_draw::NavigationHold;
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
 #[cfg(any(test, feature = "test-support"))]
 pub use tab_close::CloseConfirmationToken;
-pub use tab_close::DrawReceipt;
 #[cfg(test)]
-pub(crate) use tab_close::{CloseConfirmationKind, CloseStatusKind};
+pub(crate) use tab_close::CloseStatusKind;
+pub use tab_close::DrawReceipt;
 pub(crate) use tab_close::{CloseConfirmationView, ModalPresentation};
 pub(crate) use tab_rename::RenameDraftView;
 mod create_membership;
@@ -3216,7 +3216,6 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         }
         self.remember_history_positions();
-        let resume_handoff = self.take_action_menu_resume_handoff(&action);
         if let Some(state) = self.state.as_mut() {
             // New intent wins even when its admission is refused.
             state.cancel_project_quick_entry();
@@ -3304,21 +3303,9 @@ impl WorkbenchClientUi {
                 self.request_setup_draft(intent);
                 ClientActionDisposition::KeepNavigator
             }
-            ClientAction::TabMenu { action, tab_id } => match (action, resume_handoff) {
-                (
-                    crate::action_menu::MenuAction::ResumeTabClose,
-                    action_menus::TabCloseResumeHandoff::Menu(permit),
-                ) => tab_id
-                    .as_ref()
-                    .map_or(ClientActionDisposition::KeepNavigator, |tab_id| {
-                        self.request_tab_close_resume_with_permit(tab_id, &permit)
-                    }),
-                (
-                    crate::action_menu::MenuAction::ResumeTabClose,
-                    action_menus::TabCloseResumeHandoff::Refused,
-                ) => ClientActionDisposition::KeepNavigator,
-                (action, _) => self.apply_tab_menu(action, tab_id.as_ref()),
-            },
+            ClientAction::TabMenu { action, tab_id } => {
+                self.apply_tab_menu(action, tab_id.as_ref())
+            }
             ClientAction::ToggleTabGroup(group) => self.toggle_tab_group(&group),
             ClientAction::RequestRenameTab => {
                 if self.request_rename_draft().is_some() {

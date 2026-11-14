@@ -74,8 +74,8 @@ pub use ui::WorkbenchClientViewTestAccess;
 pub(crate) use ui::WorktreeCaptureContext;
 #[cfg(test)]
 pub(crate) use ui::{
-    AgentBoardInputContext, CloseConfirmationKind, CloseStatusKind, ConfirmationCaptureContext,
-    DisplayRetirement, LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
+    AgentBoardInputContext, CloseStatusKind, ConfirmationCaptureContext, DisplayRetirement,
+    LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
 };
 pub use ui::{
     CaptureContext, DisplayPhase, DrawReceipt, NavigationHold, RetainedFrameBank,

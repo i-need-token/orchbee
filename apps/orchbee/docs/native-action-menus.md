@@ -45,7 +45,7 @@ A pointer-opened menu follows the press: its frame starts at the pressed column 
 
 Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. A context submenu cascades beside its parent as an untitled frame: Right or Enter on a submenu row, or a click on it, opens the child level with that row. The parent stays painted without input; its opening row keeps the selection fill without the marker. Left or Esc in the child, or a click anywhere on the painted parent, returns to the parent with the opening row as its candidate; a click on another enabled parent row returns with that row as the candidate instead. Esc in the root and an outside click close the whole menu. A pointer that rests 200 ms on a submenu row opens it as a click would; on a row still waiting for discovery the rest holds and opens it when discovery enables the row, without another movement. While a child is open, a pointer that stays still for 300 ms over another enabled parent row returns there as that row's click does; every movement restarts the wait, so a diagonal path toward the child may cross parent rows, and reaching the child, the opening row or the frame cancels it. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. The global menu's new-Tab submenu still replaces its parent and carries the query, and the global menu keeps its title and discovery controls.
 
-GUI Clients take these compositions: the sidebar's Project and Workspace row menus and the panel menus in `apps/web`, and the Tab, group header and New Tab menus in `packages/tab-strip`. The GUI Tab menu has no Resume row. A Web or Desktop window opens no popup terminal yet and withholds popup configured commands; its terminal menu keeps Show Scrollback, the immutable in-window [scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md). GUI menus carry no frame title, because each menu's accessible name already names its target, and they open at the press and cascade with the platform's context-menu behavior rather than the TUI's cell geometry and timings. The New Tab button names an unnamed profile as its Settings page does. Without a Workspace it opens no menu rather than disabled rows, and a profile the window cannot start, such as a system shell other than the default, refuses with the Settings recovery notice when chosen. A GUI pane menu opens from the terminal viewport, below the terminal's own commands such as Copy and Paste, and from the panel header's options button and right-click; the header's menu has no Take control row. It says Maximize and Restore for Zoom and Split below for Split down, as the GUI's other panel commands do, and has no GUI-only row. Its rows show their shortcuts, because opening a pane menu focuses its panel.
+GUI Clients take these compositions: the sidebar's Project and Workspace row menus and the panel menus in `apps/web`, and the Tab, group header and New Tab menus in `packages/tab-strip`. A Web or Desktop window opens no popup terminal yet and withholds popup configured commands; its terminal menu keeps Show Scrollback, the immutable in-window [scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md). GUI menus carry no frame title, because each menu's accessible name already names its target, and they open at the press and cascade with the platform's context-menu behavior rather than the TUI's cell geometry and timings. The New Tab button names an unnamed profile as its Settings page does. Without a Workspace it opens no menu rather than disabled rows, and a profile the window cannot start, such as a system shell other than the default, refuses with the Settings recovery notice when chosen. A GUI pane menu opens from the terminal viewport, below the terminal's own commands such as Copy and Paste, and from the panel header's options button and right-click; the header's menu has no Take control row. It says Maximize and Restore for Zoom and Split below for Split down, as the GUI's other panel commands do, and has no GUI-only row. Its rows show their shortcuts, because opening a pane menu focuses its panel.
 
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
@@ -55,8 +55,8 @@ witnesses in `crates/workbench-client/src/tui_render/action_menu/tests.rs` compa
 shipped theme families, and the width/height boundaries with and without a reserved reason.
 
 A Tab menu holds Rename and Pin or Unpin, then Add to group ▸ and, while a target Tab is grouped,
-Remove from group, then the red close rows: Resume closing… while its interrupted Close can resume,
-Close and, when it would close something, Close N other Tabs…. While the target belongs to a
+Remove from group, then the red close rows: Close and, when it would close something, Close N other
+Tabs…. While the target belongs to a
 selected set, these rows name its count instead, as in Pin selected 2 Tabs.
 Add to group ▸ lists the other groups in strip order, then a separated New group…. A group
 header's menu, titled with the group's name and Tab count, holds New Tab in group, Rename and
@@ -119,7 +119,7 @@ parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged
 matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
 separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
 live in `crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
-Close Workspace…, Remove Worktree…, Close panel… and Tab Close/Resume intents declare `ActionTone::Destructive`;
+Close Workspace…, Remove Worktree…, Close panel… and Tab Close intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
 The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Dissolve Project,
 Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent.
@@ -163,12 +163,8 @@ Selected/other/trailing Close and group Close show their frozen affected count, 
 [complete-set confirmation](native-tab-close-sets.md). Relative Close protects pinned Tabs;
 direct selected/group Close includes them where applicable. Hidden collapsed members remain targets.
 
-A resumable Tab-close row appears only after the close owner has presented the exact recovery status.
-Opening the menu freezes an opaque permit for that target, operation, attempt and status incarnation.
-While the menu replaces the ordinary status chip, availability and the one-shot handoff revalidate that permit
-and the exact menu source. They neither keep the covered status marked as displayed nor fall back to
-ordinary Close. The resulting Resume confirmation must present its own exact prompt and status before
-it accepts confirmation.
+A Tab whose close stopped offers no separate row: its Close row takes the ordinary close path, as
+[close status](native-tab-close-sets.md#close-status) describes.
 
 In the searchable global menu and new-Tab submenu, Up/Down select rows while printable characters,
 including Space, edit the query. In other menus, Up/Down or j/k select a row. Home/End select the

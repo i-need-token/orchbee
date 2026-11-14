@@ -71,17 +71,14 @@ use switch_membership::SwitchMembership;
 pub(crate) use switch_membership::SwitchRestoreKey;
 pub use tab_close::CloseConfirmationToken;
 pub(crate) use tab_close::{
-    CloseConfirmationKind, CloseSetStatus, CloseStatusKind, CloseStatusToken,
-};
-pub(crate) use tab_close::{
     CloseConfirmationView, CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation,
     CloseOperationKind, CloseReconciliationMarker, CloseResult, CloseState, CloseStateError,
     CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment, PendingCloseResult,
-    TabCloseResumePermit,
 };
 #[cfg(test)]
 pub(crate) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};
 pub(crate) use tab_close::{CloseSetKind, close_set_targets};
+pub(crate) use tab_close::{CloseSetStatus, CloseStatusKind, CloseStatusToken};
 
 pub(crate) const OPERATION_TOTAL: Duration = Duration::from_secs(50);
 pub(crate) const CLEANUP_RESERVE: Duration = Duration::from_secs(5);

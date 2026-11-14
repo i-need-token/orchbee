@@ -2,8 +2,8 @@
 //! Client sends its Start once and follows it by Reads, one exchange per lease. Each member's
 //! removal is an ordinary Tab Close publication. Every member leaves the strip as the Server accepts
 //! the set; those it did not close come back with its report, and the member whose own Close it
-//! left stopped or in flight is retained as an ordinary close record, so that Tab's Resume
-//! continues it. A focus change stops nothing. One Tab is no set: it closes as the key does.
+//! left stopped or in flight is retained as an ordinary close record, so that Tab's own reads and
+//! report follow it. A focus change stops nothing. One Tab is no set: it closes as the key does.
 use super::{
     ClientTerminalBinding, CloseConfirmation, CloseConfirmationToken, CloseIntent, CloseOperation,
     CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError, CloseTarget,
@@ -310,8 +310,8 @@ impl CloseState {
         }
     }
 
-    /// Keeps the Close the set left stopped or in flight as an ordinary record, so its own reads,
-    /// report and Resume continue it. Only the first unfinished member can have one.
+    /// Keeps the Close the set left stopped or in flight as an ordinary record, so its own reads and
+    /// report follow it. Only the first unfinished member can have one.
     fn adopt_set_child(&mut self) {
         let Some(set) = &self.set else {
             return;
@@ -440,7 +440,6 @@ impl CloseState {
                 CloseResult::Precommit(_)
                 | CloseResult::Accepted(_)
                 | CloseResult::Read(_)
-                | CloseResult::Resume(_)
                 | CloseResult::Ambiguous => return Err(CloseStateError::OperationMismatch),
             }
             if set.halted() {
@@ -490,7 +489,6 @@ impl CloseState {
             CloseResult::Precommit(_)
             | CloseResult::Accepted(_)
             | CloseResult::Read(_)
-            | CloseResult::Resume(_)
             | CloseResult::ObservationUnavailable => {
                 return Err(CloseStateError::OperationMismatch);
             }
@@ -520,14 +518,6 @@ impl CloseState {
             halted: set.halted(),
             unconfirmed: self.set_unconfirmed(set),
         })
-    }
-
-    /// The count a Resume of the set's stopped member shows beside its status.
-    pub(super) fn set_resume_status(&self, target: &CloseTarget) -> Option<CloseSetStatus> {
-        let set = self.set.as_ref()?;
-        (set.halted_target() == Some(target))
-            .then(|| self.set_status(set))
-            .flatten()
     }
 }
 
@@ -643,7 +633,6 @@ impl WorkbenchClientState {
         self.close.confirmation = Some(CloseConfirmation {
             token,
             intent: CloseIntent::Set(Box::new(capture)),
-            local_focus: None,
             presentation: crate::tui_presentation::PresentationPhase::Pending,
             shown: false,
         });

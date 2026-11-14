@@ -1,5 +1,5 @@
-//! Submits or explicitly resumes one captured retained close, or exchanges once for a Tab set the
-//! Server closes, and carries its exact read or receipt outcome back to the UI. It does not decide
+//! Submits or reads one captured retained close, or exchanges once for a Tab set the Server
+//! closes, and carries its exact read or receipt outcome back to the UI. It does not decide
 //! that a close succeeded from connection loss or repeat a possibly delivered close.
 
 use super::{ClientExecutor, Result, closed, event, io_failure};
@@ -8,8 +8,7 @@ use crate::local_client::workbench::metadata_exchange::{
 };
 use crate::local_client::workbench::{
     TabSetCloseExchangeError, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
-    WorkbenchTabCloseReadError, WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission,
-    WorkbenchTabCloseSubmission,
+    WorkbenchTabCloseReadError, WorkbenchTabCloseRequest, WorkbenchTabCloseSubmission,
 };
 use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
 use crate::workbench_state::{
@@ -18,9 +17,8 @@ use crate::workbench_state::{
 use orchbee_workbench_protocol::{
     CloseOperationOutcome, CloseOperationRead, CloseOperationTarget, ProtocolVersion,
     TabSetCloseAction, WorkbenchAction, WorkbenchCommand, WorkbenchRequestId,
-    WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseResume,
-    WorkbenchTabCloseUnavailableReason, WorkbenchTabId, WorkbenchTabSetCloseRequest,
-    WorkbenchTerminalContextId, WorkbenchWireError,
+    WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseUnavailableReason,
+    WorkbenchTabId, WorkbenchTabSetCloseRequest, WorkbenchTerminalContextId, WorkbenchWireError,
 };
 use std::time::Instant;
 
@@ -189,34 +187,6 @@ impl ClientExecutor {
                             CloseResult::ObservationUnavailable,
                             Some(close_read_failure(reason)),
                         ));
-                    }
-                }
-            }
-            CloseOperationKind::Resume {
-                operation: close_request_id,
-                generation,
-            } => {
-                let request = WorkbenchTabCloseResume {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                    session_id: target.session_id().clone(),
-                    terminal_context_id: target.terminal_context_id().clone(),
-                    tab_id: target.tab_id().clone(),
-                    close_request_id: close_request_id.clone(),
-                    expected_attempt_generation: *generation,
-                };
-                match self
-                    .client
-                    .submit_workbench_tab_close_resume(request, cutoff)
-                {
-                    WorkbenchTabCloseResumeSubmission::DefinitelyNotSubmitted(reason) => {
-                        return Ok(self.close_not_submitted(reason));
-                    }
-                    WorkbenchTabCloseResumeSubmission::Returned(outcome) => {
-                        CloseResult::Resume(outcome)
-                    }
-                    WorkbenchTabCloseResumeSubmission::OutcomeUnknown => {
-                        return Ok((CloseResult::Ambiguous, Some(CarrierFailure::OutcomeUnknown)));
                     }
                 }
             }

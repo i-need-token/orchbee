@@ -13,13 +13,12 @@ use crate::tui_hit_map::{HitMapBuilder, HitTarget};
 use crate::tui_presentation::ModalPresentation;
 use crate::tui_theme::{Role, Theme};
 use crate::workbench_client::CloseConfirmationView;
-use crate::workbench_state::{CloseConfirmationToken, CloseStatusToken};
+use crate::workbench_state::CloseConfirmationToken;
 use ratatui::{Frame, layout::Rect};
 
 pub(super) struct ModalDraw {
     pub(super) area: Rect,
     pub(super) prompt: ModalPresentation<CloseConfirmationToken>,
-    pub(super) status: Option<CloseStatusToken>,
 }
 
 pub(super) fn render(
@@ -29,9 +28,8 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalDraw {
-    let status = confirmation.resume_status();
     let title = confirmation.set_count().map_or_else(
-        || locale.close_title(confirmation.kind()).to_owned(),
+        || locale.close_title().to_owned(),
         |count| locale.close_set_title(count),
     );
     let mut rows = Vec::new();
@@ -61,19 +59,6 @@ pub(super) fn render(
     rows.push(DialogRow::Prose(
         locale.close_warning(confirmation.impact()).into(),
     ));
-    if let Some(status) = status.as_ref() {
-        let label = status.target_label(locale);
-        rows.push(DialogRow::Status(
-            locale.native_close_status(status.text(&label)).into(),
-            Role::StatusWarning,
-        ));
-        if let Some(progress) = confirmation.resume_set_status() {
-            rows.push(DialogRow::Status(
-                locale.close_set_status(progress).into(),
-                Role::StatusPending,
-            ));
-        }
-    }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let confirm = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let actions = [
@@ -103,7 +88,6 @@ pub(super) fn render(
         return ModalDraw {
             area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
-            status: None,
         };
     };
     let target = |confirm| HitTarget::TabClose {
@@ -126,6 +110,5 @@ pub(super) fn render(
     ModalDraw {
         area: layout.area,
         prompt: ModalPresentation::Presented(confirmation.token()),
-        status: status.map(|status| status.token()),
     }
 }

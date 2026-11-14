@@ -871,8 +871,7 @@ impl ClientExecutor {
             if self.status_only
                 && !matches!(lease.record(), QueuedCommand::ReconcileClose(marker) if marker.membership_recovery())
                 && !matches!(lease.record(), QueuedCommand::Close(marker)
-                if matches!(marker.operation().kind(), crate::workbench_state::CloseOperationKind::Read { .. }
-                    | crate::workbench_state::CloseOperationKind::Resume { .. }))
+                if matches!(marker.operation().kind(), crate::workbench_state::CloseOperationKind::Read { .. }))
             {
                 return Err(CarrierFailure::Protocol);
             }

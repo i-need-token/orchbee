@@ -358,10 +358,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                 shell_bindings.fill_notice(form);
             }
             status_text = status;
-            if secondary_notice.is_empty()
-                && view.notice().is_none()
-                && !close.as_ref().is_some_and(|status| status.resumable())
-            {
+            if secondary_notice.is_empty() && view.notice().is_none() {
                 secondary_notice.extend(
                     native
                         .close_set_status()
@@ -616,9 +613,6 @@ pub fn render_terminal_shell_with_resize<'a>(
             let modal = tab_close::render(frame, locale, &confirmation, theme, hits);
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = Some(modal.prompt);
-            if let Some(token) = modal.status {
-                status_draw = Some((token, modal.area));
-            }
         }
         if native_top(WorkbenchCaptureOwner::PanelClose)
             && let Some(native) = workbench_client.as_ref()
@@ -862,9 +856,6 @@ pub fn render_terminal_shell_with_resize<'a>(
                 zoomed,
                 panels: hidden_panels,
                 read_only,
-                recovery_status: matches!(workbench_client.as_ref(), Some(native)
-                    if native.workspace_close_status().is_none()
-                        && native.announced_close_status().is_some_and(|status| status.resumable())),
             },
             tier,
             theme,
