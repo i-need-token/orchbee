@@ -291,7 +291,7 @@ impl Picker {
                 frame,
                 row,
                 &form.address,
-                Some("luna@10.0.0.8"),
+                Some("user@10.0.0.8"),
                 editable && form.field == Field::Address && form.suggestion.is_none(),
                 theme,
             );

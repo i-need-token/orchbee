@@ -37,7 +37,7 @@ struct Case {
 /// detail and its action: the rows of the design's table of add checks.
 #[test]
 fn each_failed_check_reads_as_its_state_detail_and_action() {
-    let target = "luna@devbox.invalid";
+    let target = "user@devbox.invalid";
     let unreachable = |why| Line::Unreachable {
         host: "devbox.invalid".to_owned(),
         why,

@@ -176,10 +176,10 @@ impl Locale {
     pub(crate) const fn machine_manage_problem(self, problem: ManageProblem) -> &'static str {
         match (self, problem) {
             (Self::EnUs, ManageProblem::Address) => {
-                "Enter an address such as luna@10.0.0.8 or a host from your SSH config."
+                "Enter an address such as user@10.0.0.8 or a host from your SSH config."
             }
             (Self::ZhCn, ManageProblem::Address) => {
-                "请输入地址，例如 luna@10.0.0.8，或 SSH 配置里的主机。"
+                "请输入地址，例如 user@10.0.0.8，或 SSH 配置里的主机。"
             }
             (Self::EnUs, ManageProblem::Name) => {
                 "A name has 1 to 128 characters and no control characters."
