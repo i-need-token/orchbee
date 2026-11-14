@@ -17,7 +17,8 @@
 //   is not empty.
 // - github: creates the draft release of the tag with every top-level file of <artifacts>, or
 //   completes the draft a stopped run left; a published release is only confirmed, never changed.
-//   Runs `gh` with the token in GH_TOKEN.
+//   Every update feed document must carry its `.sig`, verified with a key of RELEASE_KEYS. Runs
+//   `gh` with the token in GH_TOKEN.
 // - npm: publishes every tarball of <artifacts>, platform packages first and the main package last,
 //   with provenance and the dist-tag `next` for a pre-release or `latest` otherwise. A version the
 //   registry already holds with the same tarball is skipped; one with another tarball fails.
@@ -32,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 import { SEMVER } from './release-version.mjs';
+import { FEED_DOMAIN, keyTable, verifySignature } from './sign-release-manifest.mjs';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const signatureSource = 'apps/orchbee/src/cli/update/signature.rs';
@@ -97,12 +99,11 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 
 /** The 64-hex public keys of RELEASE_KEYS in the Rust source, or undefined when the table is not found. */
 export function releaseTable(source) {
-	const table = /const RELEASE_KEYS: &\[TrustedKey\] = &\[([\s\S]*?)\];/u.exec(source);
-	if (table === null) return undefined;
-	const body = table[1].replace(/\/\/[^\n]*/gu, '');
-	return [...body.matchAll(/TrustedKey::from_hex\(\s*"([0-9a-f]{64})"\s*,?\s*\)/gu)].map(
-		(match) => match[1],
-	);
+	return keyTable(source, 'RELEASE_KEYS');
+}
+
+function shippedReleaseTable() {
+	return releaseTable(readFileSync(path.join(repository, ...signatureSource.split('/')), 'utf8'));
 }
 
 /** The first 16 hexadecimal digits of SHA-256 over the raw public key, as signatures name a key. */
@@ -169,13 +170,39 @@ function byName(left, right) {
 	return left < right ? -1 : 1;
 }
 
-/** The top-level regular files of an artifacts directory with their SHA-256, in name order. */
-export function releaseAssets(artifacts) {
+/**
+ * The top-level regular files of an artifacts directory with their SHA-256, in name order. Every
+ * feed document must carry its signature, and the signature must verify with a key of `table`, so a
+ * draft never holds a feed `orchbee update` would refuse.
+ */
+export function releaseAssets(artifacts, table = shippedReleaseTable()) {
 	const names = readdirSync(artifacts, { withFileTypes: true })
 		.filter((entry) => entry.isFile())
 		.map((entry) => entry.name)
 		.toSorted(byName);
 	if (!names.includes('SHA256SUMS')) throw new StepFailure(`${artifacts} holds no SHA256SUMS`);
+	const problems = [];
+	for (const name of names.filter((entry) => entry.endsWith('.feed.json'))) {
+		if (!names.includes(`${name}.sig`)) {
+			problems.push(
+				`${name} has no ${name}.sig: the step "Sign the update feed with the release key" signs it before publication.`,
+			);
+			continue;
+		}
+		const { outcome } = verifySignature(
+			readFileSync(path.join(artifacts, name)),
+			readFileSync(path.join(artifacts, `${name}.sig`)),
+			table ?? [],
+			FEED_DOMAIN,
+		);
+		if (outcome !== 'trusted')
+			problems.push(`${name}.sig does not verify with a key of RELEASE_KEYS (${outcome}).`);
+	}
+	for (const name of names.filter((entry) => entry.endsWith('.feed.json.sig'))) {
+		if (!names.includes(name.slice(0, -'.sig'.length)))
+			problems.push(`${name} signs no feed document of this run.`);
+	}
+	if (problems.length > 0) throw new StepFailure(problems.join('\n'));
 	return names.map((name) => ({
 		name,
 		path: path.join(artifacts, name),

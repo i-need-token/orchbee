@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createPublicKey } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
@@ -11,8 +13,15 @@ import {
 	planGithubRelease,
 	planRelease,
 	registryIntegrity,
+	releaseAssets,
 	releaseTable,
 } from './release-publish.mjs';
+import {
+	FEED_DOMAIN,
+	loadKey,
+	MANIFEST_DOMAIN,
+	signatureDocument,
+} from './sign-release-manifest.mjs';
 
 const rows = [
 	{ platform: 'windows-x86_64', runner: 'windows-latest', build: true, publish: true },
@@ -136,6 +145,28 @@ test('each missing precondition is named, and no message carries a secret value'
 		assert.ok(!text.includes('PRIVATE KEY'));
 		assert.ok(!text.includes(testPublic));
 	}
+});
+
+test('a draft only receives a feed document with a signature from a release key', (t) => {
+	const root = mkdtempSync(path.join(realpathSync(tmpdir()), 'orchbee-release-assets-test-'));
+	t.after(() => rmSync(root, { recursive: true }));
+	const feed = Buffer.from('{"schemaVersion":1}\n');
+	writeFileSync(path.join(root, 'SHA256SUMS'), '');
+	writeFileSync(path.join(root, 'orchbee-0.1.0-windows-x86_64.feed.json'), feed);
+	assert.throws(() => releaseAssets(root, [testPublic]), /has no .*\.feed\.json\.sig/u);
+	const signature = path.join(root, 'orchbee-0.1.0-windows-x86_64.feed.json.sig');
+	writeFileSync(signature, signatureDocument(feed, [loadKey(testKey)], FEED_DOMAIN));
+	assert.deepEqual(
+		releaseAssets(root, [testPublic]).map((asset) => asset.name),
+		[
+			'orchbee-0.1.0-windows-x86_64.feed.json',
+			'orchbee-0.1.0-windows-x86_64.feed.json.sig',
+			'SHA256SUMS',
+		].toSorted(),
+	);
+	assert.throws(() => releaseAssets(root, ['c'.repeat(64)]), /\(untrusted\)/u);
+	writeFileSync(signature, signatureDocument(feed, [loadKey(testKey)], MANIFEST_DOMAIN));
+	assert.throws(() => releaseAssets(root, [testPublic]), /\(invalid\)/u);
 });
 
 const assets = [

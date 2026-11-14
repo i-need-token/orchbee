@@ -23,7 +23,8 @@ repository>`. Print each public half with the command in
    - Required reviewers: the owner. Leave "Prevent self-review" off, because the owner also pushes
      the tag.
    - Deployment branches and tags: Selected branches and tags, branch `main` and tag `v*`.
-   - Environment secrets: `ORCHBEE_RELEASE_SIGNING_KEY`, the working key's whole PEM text, set with
+   - Environment secrets: `ORCHBEE_RELEASE_SIGNING_KEY`, the working key's whole PEM text, which
+     signs the manifest and, in the publication job, the update feed document, set with
      `gh secret set ORCHBEE_RELEASE_SIGNING_KEY --env release < <working key file>`; and `NPM_TOKEN`,
      the npm token, set with `gh secret set NPM_TOKEN --env release`, which asks for the value.
 4. **Tag rule.** Settings › Rules › Rulesets › New tag ruleset, target `v*`, active, restricting
@@ -45,8 +46,10 @@ repository>`. Print each public half with the command in
    Approve and deploy): the preconditions at the start, signing after the build, and publication
    after both smoke jobs pass. A rehearsal asks for the first two. Approve publication within 14
    days, while the run's artifacts are kept.
-5. Publication creates a draft release `v0.1.0-beta.1`, marked pre-release, holding the setup file,
-   the `.zip`, the npm tarballs and `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
+5. Publication signs the update feed document with the release key, then creates a draft release
+   `v0.1.0-beta.1`, marked pre-release, holding the setup file, the `.zip`, the feed document
+   `orchbee-0.1.0-beta.1-windows-x86_64.feed.json` and its `.sig`, the npm tarballs and
+   `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
    `orchbee` under the dist-tag `next`. Open the draft, write the notes, and press Publish release.
    The npm packages are public as soon as the job ends, before the draft is published.
 6. Move `main` to the next version in a new commit, for example
@@ -58,7 +61,8 @@ repository>`. Print each public half with the command in
   (`git push origin :refs/tags/v0.1.0-beta.1` and `git tag -d v0.1.0-beta.1`) and tag the fixed
   commit. A failed precondition names the missing secret, key or table entry.
 - During publication, use "Re-run failed jobs" on the same run, never "Re-run all jobs": the re-run
-  publishes from the same artifacts, completes the draft with the assets it lacks, skips each npm
+  publishes from the same artifacts, signs the feed document again to the same bytes, completes the
+  draft with the assets it lacks, skips each npm
   package already published with the same tarball, and publishes the rest. This is how a run that
   published `@orchbee/cli-win32-x64` but not `orchbee` is finished. A rebuild would produce other
   bytes, and the job refuses them.

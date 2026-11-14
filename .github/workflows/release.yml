@@ -225,8 +225,8 @@ jobs:
         run: node scripts/release-smoke-windows.mjs leftovers "$env:RUNNER_TEMP\release-artifacts"
 
   # The release path. Each job fails early and definitely; only `release-preconditions`,
-  # `release-sign` and `release-publish` use the environment `release`, and each maps a secret into
-  # the one step that needs it.
+  # `release-sign` and `release-publish` use the environment `release`, and each maps every secret
+  # into the one step that needs it.
   release-plan:
     name: Release version
     if: github.event_name == 'push' || inputs.version != ''
@@ -603,6 +603,15 @@ jobs:
           pattern: release-assets-*
           path: ${{ runner.temp }}/release
 
+      # The update feed names the archive by size and SHA-256; its signature is the only file
+      # SHA256SUMS does not list. Node built-ins only; the key reaches this step alone, by
+      # environment, and Ed25519 is deterministic, so a re-run writes the same signature.
+      - name: Sign the update feed with the release key
+        env:
+          ORCHBEE_RELEASE_SIGNING_KEY: ${{ secrets.ORCHBEE_RELEASE_SIGNING_KEY }}
+        run: node scripts/sign-release-manifest.mjs "$ARTIFACTS/orchbee-$RELEASE_VERSION-$RELEASE_PLATFORM.feed.json" --key-env ORCHBEE_RELEASE_SIGNING_KEY
+
+      # Also verifies the feed signature with RELEASE_KEYS and the feed against the archive.
       - name: Check the release artifacts
         run: node scripts/release-artifacts.mjs check "$ARTIFACTS"
 

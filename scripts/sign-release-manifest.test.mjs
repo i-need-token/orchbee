@@ -12,11 +12,17 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { feedDocument, readFeed, sha256 } from './release-feed.mjs';
 import {
+	FEED_DOMAIN,
+	keyTable,
 	loadKey,
+	MANIFEST_DOMAIN,
 	parseArguments,
+	signFeed,
 	signManifest,
 	signatureDocument,
+	verifySignature,
 } from './sign-release-manifest.mjs';
 
 // The updater's own test reads these fixtures, so a signature produced here verifies there.
@@ -103,6 +109,94 @@ test('signing refuses unusable keys, oversized inputs and existing signatures', 
 	writeFileSync(manifest + '.sig', 'existing signature');
 	assert.throws(() => signManifest(manifest, [key]), /EEXIST/u);
 	assert.equal(readFileSync(manifest + '.sig', 'utf8'), 'existing signature');
+});
+
+// The updater's feed tests read the same pair: feed.json.signed holds the exact bytes served as
+// feed.json, under a name the formatter leaves alone.
+const feedFixture = readFileSync(new URL('feed.json.signed', fixtures));
+const feedFixtureSignature = readFileSync(new URL('feed.json.sig', fixtures));
+const testTable = keyTable(
+	readFileSync(new URL('../apps/orchbee/src/cli/update/signature.rs', import.meta.url), 'utf8'),
+	'TEST_KEYS',
+);
+
+test('the release tooling writes and signs exactly the feed fixture the updater reads', (t) => {
+	const document = feedDocument({
+		channel: 'stable',
+		platform: 'windows-x86_64',
+		version: '0.1.0',
+		buildId: 'fixture.1',
+		manifestSha256: sha256(readFileSync(new URL('release.json', fixtures))),
+		archive: {
+			url: 'https://releases.example.test/orchbee/v0.1.0/orchbee-0.1.0-windows-x86_64.zip',
+			size: 27000000,
+			sha256: '9'.repeat(64),
+		},
+	});
+	assert.deepEqual(document, feedFixture);
+	assert.deepEqual(
+		readFeed(feedFixture, { channel: 'stable', platform: 'windows-x86_64' }).problems,
+		[],
+	);
+	const root = scratch(t);
+	const feed = path.join(root, 'orchbee-0.1.0-windows-x86_64.feed.json');
+	writeFileSync(feed, document);
+	assert.deepEqual(readFileSync(signFeed(feed, [loadKey(testKeyPem)])), feedFixtureSignature);
+	assert.deepEqual(verifySignature(feedFixture, feedFixtureSignature, testTable, FEED_DOMAIN), {
+		outcome: 'trusted',
+		keyId: 'b41b7cd3822bd0c2',
+	});
+});
+
+test('a feed signature never verifies as a manifest signature, nor the reverse', () => {
+	const manifest = readFileSync(new URL('release.json', fixtures));
+	const manifestSignature = readFileSync(new URL('release.json.sig', fixtures));
+	assert.equal(
+		verifySignature(manifest, manifestSignature, testTable, MANIFEST_DOMAIN).outcome,
+		'trusted',
+	);
+	assert.equal(
+		verifySignature(manifest, manifestSignature, testTable, FEED_DOMAIN).outcome,
+		'invalid',
+	);
+	assert.equal(
+		verifySignature(feedFixture, feedFixtureSignature, testTable, MANIFEST_DOMAIN).outcome,
+		'invalid',
+	);
+	// The same bytes signed under each domain give different signatures.
+	const key = loadKey(testKeyPem);
+	assert.notEqual(
+		signatureDocument(feedFixture, [key], FEED_DOMAIN),
+		signatureDocument(feedFixture, [key], MANIFEST_DOMAIN),
+	);
+});
+
+test('no feed the updater would refuse is written or signed', (t) => {
+	const values = {
+		channel: 'stable',
+		platform: 'windows-x86_64',
+		version: '0.1.0',
+		buildId: 'fixture.1',
+		manifestSha256: '1'.repeat(64),
+		archive: { url: 'orchbee-0.1.0-windows-x86_64.zip', size: 1, sha256: '2'.repeat(64) },
+	};
+	assert.ok(feedDocument(values).length > 0);
+	for (const change of [
+		{ channel: 'beta' },
+		{ version: '0.1.0+build.1' },
+		{ manifestSha256: 'A'.repeat(64) },
+		{ archive: { ...values.archive, url: 'https://example.test/a.zip?token=1' } },
+		{ archive: { ...values.archive, url: 'http://example.test/a.zip' } },
+		{ archive: { ...values.archive, url: '../a.zip' } },
+		{ archive: { ...values.archive, size: 0 } },
+		{ archive: { ...values.archive, size: 1024 * 1024 * 1024 + 1 } },
+	])
+		assert.throws(() => feedDocument({ ...values, ...change }), JSON.stringify(change));
+	const root = scratch(t);
+	const feed = path.join(root, 'orchbee-0.1.0-windows-x86_64.feed.json');
+	writeFileSync(feed, '{"schemaVersion":1,"product":"orchbee"}\n');
+	assert.throws(() => signFeed(feed, [loadKey(testKeyPem)]), /exactly the members/u);
+	assert.equal(existsSync(feed + '.sig'), false);
 });
 
 test('keys come only from absolute files or named environment variables', (t) => {

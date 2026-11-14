@@ -53,8 +53,8 @@ reset, is what keeps the first candidate safe:
 
 ## Download names
 
-`<version>` and `<platform>` are the values above. Every name is the same on GitHub Releases and on
-the [feed](#release-feed).
+`<version>` and `<platform>` are the values above. Every name is a GitHub Release asset of the
+version; the [feed](#release-feed) names the archive by its address.
 
 | File                                          | Platforms            | Holds                                                                                                           | Basis                                                                                           |
 | --------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -63,13 +63,15 @@ the [feed](#release-feed).
 | `orchbee-desktop-<version>-<platform>.tar.gz` | `linux-*`            | The window application's per-user tree; `.deb` and AppImage are not built                                       | Chosen; the product owner still decides between this and the earlier AppImage and `.deb` choice |
 | `orchbee-<version>-<platform>.zip`            | `windows-*`          | The signed release directory, for the command line alone                                                        | Chosen                                                                                          |
 | `orchbee-<version>-<platform>.tar.gz`         | `macos-*`, `linux-*` | The same, with executable modes kept                                                                            | Chosen                                                                                          |
+| `orchbee-<version>-<platform>.feed.json`      | `windows-*`          | The [feed document](#feed-document-version-1) naming that `.zip`                                                | Chosen                                                                                          |
+| `orchbee-<version>-<platform>.feed.json.sig`  | `windows-*`          | Its signature document, the one file `SHA256SUMS` does not list                                                 | Chosen                                                                                          |
 | `SHA256SUMS`                                  | One per version      | One `sha256sum` line, `<64 hex>`, two spaces, file name, LF, for every other file of the version, in name order | Chosen                                                                                          |
 
 - An archive holds one top-level directory named like the archive without its extension.
 - A signed release directory is `release.json`, `release.json.sig`, and every file the manifest
   lists at its `path`. Each manifest `url` is the relative path equal to `path`, so the one signed
   manifest of a version and platform serves the archive, the installer's bundled runtime, the npm
-  sub-package, and the feed.
+  sub-package, and `update`.
 - The Windows installer and its programs carry no Authenticode signature in the first version
   (Decided); the README gives the SmartScreen steps.
 
@@ -108,7 +110,7 @@ the [feed](#release-feed).
 | `orchbee install [--no-path] [--allow-downgrade] [--format text\|json]`           | Installs the signed release directory the running `orchbee` sits in and makes it the active version. Run from a version directory of the store, it verifies and activates that version again. `--no-path` skips the [PATH step](#runtime-store). It asks nothing, so it takes no `--yes`                                                                   | Chosen. Built on Windows, PATH step included                                                                                                               |
 | `orchbee uninstall [--delete-data] [--format text\|json]`                         | The one [uninstall](data-root-layout.md#uninstall): program files, PATH entry or link, installer entries, Agent integrations; data stays unless `--delete-data`. A release build lists what goes, with open terminals and Agents, and runs only when the person types `orchbee` at an interactive console; development and test builds require `--confirm` | `uninstall` Decided; options Chosen under the [destructive rule](../../docs/cli/command-surface.md#destructive-and-interactive-commands); Built on Windows |
 | `orchbee update [--format text\|json]`                                            | Installs the newest version of the selected channel from the feed                                                                                                                                                                                                                                                                                          | Built; withheld in release builds until it is released                                                                                                     |
-| `curl -fsSL https://orchbee.com/install.sh \| sh`                                 | macOS and Linux: reads `SHA256SUMS` of the `stable` alias, downloads and checks the platform's `orchbee-*` archive, runs its `orchbee install`, and removes the unpacked copy. After `sh -s --`: `--version <version>`, `--no-path`, and on Linux `--desktop`, which also installs the window application                                                  | Chosen                                                                                                                                                     |
+| `curl -fsSL https://orchbee.com/install.sh \| sh`                                 | macOS and Linux: reads the `stable` feed document of its platform, downloads the archive it names and checks its size and SHA-256, runs its `orchbee install`, and removes the unpacked copy. After `sh -s --`: `--version <version>`, `--no-path`, and on Linux `--desktop`, which also installs the window application                                   | Chosen                                                                                                                                                     |
 | `Orchbee-<version>-<platform>-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART` | Unattended install; the installer's own switches                                                                                                                                                                                                                                                                                                           | Inno Setup's documented switches; not rechecked                                                                                                            |
 
 Two helper modes are a contract between builds, not commands: help, completion, and the Agent guide
@@ -120,12 +122,12 @@ new name, as with [`--machine-link-v1`](../../apps/orchbee/docs/machines.md#link
 | `orchbee --complete-install-v1 [--no-path] [--allow-downgrade]` | The Client that just published this copy, by `install` or `update` | [Completes the install](#update-minimum) of the version it belongs to                                                                                                                          |
 | `orchbee --installer-uninstall-v1 [--delete-data]`              | A platform uninstaller, after its own confirmation dialog          | The same uninstall without a prompt. It ends no terminal: with one open in any Session of the environment it changes nothing, and the uninstaller says to quit Orchbee first. Built on Windows |
 
-| Variable                               | Meaning                                                                                                           | Basis                                                |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `ORCHBEE_INSTALL_DIR`                  | Another store root, on every platform. `XDG_DATA_HOME` and `XDG_BIN_HOME` are not read                            | Decided; Built on Windows                            |
-| `ORCHBEE_HOME`                         | Another data root                                                                                                 | Built                                                |
-| `ORCHBEE_UPDATE_MANIFEST`              | Another manifest address, with `{channel}`; the signature is still required                                       | Built                                                |
-| `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` | Passed to the download of `update`, with the system proxy as the default; today's download clears its environment | Decided as a default; the `update` slice declares it |
+| Variable                               | Meaning                                                                                                                                      | Basis                                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `ORCHBEE_INSTALL_DIR`                  | Another store root, on every platform. `XDG_DATA_HOME` and `XDG_BIN_HOME` are not read                                                       | Decided; Built on Windows                                                            |
+| `ORCHBEE_HOME`                         | Another data root                                                                                                                            | Built                                                                                |
+| `ORCHBEE_UPDATE_FEED`                  | Another feed document address, an absolute local path or an HTTPS address without a query, with `{channel}`; the signature is still required | Decided 2026-11-13; replaces `ORCHBEE_UPDATE_MANIFEST`, which no released build read |
+| `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` | Passed to the download of `update`, with the system proxy as the default; today's download clears its environment                            | Decided as a default; the `update` slice declares it                                 |
 
 ## Locations and identity
 
@@ -223,28 +225,94 @@ new name, as with [`--machine-link-v1`](../../apps/orchbee/docs/machines.md#link
 
 ## Release feed
 
-| Address                                              | Answers                                                                                              |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `https://dl.orchbee.com/<version>/<platform>/<path>` | The signed release directory of that version and platform: `release.json`, `release.json.sig`, files |
-| `https://dl.orchbee.com/<version>/<file>`            | Each [download](#download-names) of that version, `SHA256SUMS` included                              |
-| `https://dl.orchbee.com/<channel>/<rest>`            | A temporary redirect to `https://dl.orchbee.com/<version>/<rest>` for the channel's current version  |
-| `https://orchbee.com/install.sh`                     | The install script                                                                                   |
+Decided 2026-11-13: a small, separately signed feed document names one archive by address, exact
+size, and SHA-256. `orchbee update` verifies the feed's signature, downloads the archive, checks
+its size and SHA-256, and only then unpacks it; the unpacked signed release directory then installs
+as `orchbee install` would, its `release.json` verified again. The storage bucket and
+`dl.orchbee.com` of the earlier design are withdrawn: nothing is paid for or signed up for.
 
-- The compiled default manifest address is
-  `https://dl.orchbee.com/{channel}/<own platform>/release.json`. Verified: the updater resolves a
-  relative file `url` beside the configured address and follows up to five HTTPS redirects, so
-  every file request of an update goes through the channel address. An update that straddles a
-  channel move fails a digest check and succeeds when run again.
-- A channel is `stable` or `preview` and a version starts with a digit, so the first path segment
-  is never ambiguous.
-- A version's objects are written once and never replaced. The channel redirect stays on the same
-  host, is never permanent, and is cached for at most five minutes.
-- The workflow uploads a version, publishes the GitHub Release, passes the install check on a fresh
-  machine, and only then moves the channel.
-- The feed keeps the three newest versions of each channel and every version published in the last
-  90 days; GitHub Releases keeps every version.
-- Served from Cloudflare R2 (Decided). Verified 2026-11-11: `orchbee.com` is delegated to
-  Cloudflare name servers. Unverified: that the `dl` record exists, and how the redirect is served.
+| Address                                                                       | Answers                                                                                   |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `https://orchbee.com/update/{channel}/{platform}/feed.json`                   | The feed document of the channel's current version for that platform                      |
+| `https://orchbee.com/update/{channel}/{platform}/feed.json.sig`               | Its signature document                                                                    |
+| `https://github.com/i-need-token/orchbee/releases/download/v<version>/<file>` | Each [download](#download-names) of that version, the feed pair and `SHA256SUMS` included |
+| `https://orchbee.com/install.sh`                                              | The install script                                                                        |
+
+### Feed document, version 1
+
+One document per version and platform, written by `scripts/release-feed.mjs`: UTF-8, the output
+of `JSON.stringify` of these members in this order, followed by one LF, at most 64 KiB. A reader
+accepts any JSON spelling of the same members; the signature covers the exact bytes, so a written
+document is never reformatted.
+
+```text
+{"schemaVersion":1,"product":"orchbee","channel":"stable","platform":"windows-x86_64","version":"0.1.0-beta.2","buildId":"<label>","manifest":{"sha256":"<64 hex>"},"archive":{"format":"zip","url":"https://github.com/i-need-token/orchbee/releases/download/v0.1.0-beta.2/orchbee-0.1.0-beta.2-windows-x86_64.zip","size":27000000,"sha256":"<64 hex>"}}
+```
+
+| Member           | Rule                                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| top level        | Closed: exactly the eight members above, plus an optional `extensions` object that readers check is an object and otherwise ignore |
+| `schemaVersion`  | The number `1`                                                                                                                     |
+| `product`        | `orchbee`                                                                                                                          |
+| `channel`        | `stable` or `preview`; must equal the selected channel                                                                             |
+| `platform`       | A platform token; must equal the updater's own                                                                                     |
+| `version`        | SemVer, at most 64 bytes, no build metadata                                                                                        |
+| `buildId`        | The manifest's `buildId` grammar                                                                                                   |
+| `manifest`       | Closed object; `sha256` is the lowercase SHA-256 of the `release.json` inside the archive, the identity the store pointer records  |
+| `archive`        | Closed object of exactly `format`, `url`, `size`, `sha256`                                                                         |
+| `archive.format` | `zip` on Windows; any other value is refused                                                                                       |
+| `archive.url`    | An HTTPS address without a query, or a relative release path resolved beside the feed                                              |
+| `archive.size`   | An integer from 1 to 1 GiB                                                                                                         |
+| `archive.sha256` | 64 lowercase hexadecimal digits                                                                                                    |
+
+- Signed bytes: UTF-8 `orchbee-update-feed-v1`, LF, then the exact feed document. The manifest's
+  domain is `orchbee-release-manifest-v2`, so a feed signature never verifies as a manifest
+  signature or the reverse. The signature document format is the manifest's, unchanged: 1 to 4
+  entries, at most 4 KiB, served beside the feed as `feed.json.sig`.
+- Keys: the compiled table of the build, `RELEASE_KEYS` for release builds and `TEST_KEYS` for every
+  other, with the [rotation rule](versioning-and-upgrade.md#release-manifest) of the manifest.
+- `apps/orchbee/src/cli/update/tests/fixtures/feed.json.signed` and `feed.json.sig` are one feed
+  pair signed with the test key. The release tooling's tests reproduce both byte for byte and the
+  updater's tests read them, so both sides test against the same bytes. `.signed` keeps the
+  formatter away from the exact bytes.
+- The archive is the `.zip` releases already upload: the signed release directory as its one
+  top-level folder. Release assets: `<stem>-<version>-<platform>.zip`,
+  `<stem>-<version>-<platform>.feed.json`, and `<stem>-<version>-<platform>.feed.json.sig`.
+- A replayed older feed keeps a client on its version, reported as up to date; there is no expiry
+  field, because it would make the owner re-sign on a schedule. A signed feed of another channel or
+  platform is refused by its members.
+
+### Release tooling
+
+- `node scripts/release-artifacts.mjs collect` writes the feed document after the `.zip`, from the
+  zip's size and SHA-256, the SHA-256 of `release.json`, and the manifest's channel, platform,
+  version, and `buildId`. The release profile names the archive by its GitHub release asset address,
+  from the workflow run's repository or `--repository-url`; the test profile by the bare archive
+  name, so a test feed works from a folder, and signs it with the test key. `SHA256SUMS` lists the
+  feed document like any other file.
+- The release workflow's `release-publish` job signs the feed with `ORCHBEE_RELEASE_SIGNING_KEY` in
+  one step, which alone receives the key, before the draft is created; a separate job would add a
+  fourth approval. Ed25519 is deterministic, so "Re-run failed jobs" writes the same signature.
+- The feed signature is the one top-level file `SHA256SUMS` does not list. `release-artifacts.mjs
+check` and `release-publish.mjs github` admit it only when it verifies under the feed domain with a
+  key of the build's table; `check` also confirms the feed against the archive and the release
+  directory, and the draft step refuses a feed without its signature. Both files are ordinary
+  assets of the draft.
+
+### What is frozen
+
+| Frozen from the first update-capable version                                                                          | How it can still change                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The address `https://orchbee.com/update/{channel}/{platform}/feed.json` and the `.sig` suffix                         | It is on the owner's domain: what it serves changes by a deploy, and it may answer with up to five HTTPS redirects to another host. A later version may compile another address; the old one keeps serving a version that knows the new one |
+| Feed document version 1 (members, bounds, `extensions`) and its signed bytes (`orchbee-update-feed-v1`, LF, document) | Additions go into `extensions`, which version 1 readers ignore. An incompatible format gets a new file name beside `feed.json`, which then stays at the last version that reads both                                                        |
+| The signature document format and the release keys                                                                    | Unchanged rule: add the next key in a release before signing with it                                                                                                                                                                        |
+| The archive: a zip whose one top-level folder is a signed release directory; `format` is `zip` on Windows             | Address, size, and hash are data in each signed feed, so the archive can move to any HTTPS host per release with no client change. Another format needs a bridge version                                                                    |
+| Transfer rule: HTTPS only, at most five redirects to HTTPS targets, system curl 8.4 or newer, system `tar.exe`        | Cannot be relaxed for shipped clients; any future host must fit it                                                                                                                                                                          |
+| The variable name `ORCHBEE_UPDATE_FEED`                                                                               | —                                                                                                                                                                                                                                           |
+
+Not frozen: the download folder and its lock, retry and resume, timeouts, error wording, the
+website's file layout behind the address, the release asset names, which are data in the feed, and
+where the owner keeps the tracked pair.
 
 ## Update minimum
 
@@ -257,11 +325,12 @@ to upgrade" and keeps `update` withheld.
    environment `release`, and a spare whose private half stays offline. Every manifest carries the
    working key's signature; the spare signs only after the working key is lost or compromised.
    [Rotation](versioning-and-upgrade.md#release-manifest) is unchanged.
-2. **Feed.** The compiled default address and layout of [Release feed](#release-feed).
+2. **Feed.** The compiled feed address, feed document version 1, and its signature domain of
+   [Release feed](#release-feed).
 3. **Channel.** Until `channel set preview` is released, every version, pre-releases included, is
    published with `channel: "stable"`, because an updater refuses a manifest whose channel is not
    the selected one (Verified: `engine.rs`) and no release build can select `preview`. The `stable`
-   redirect moves to each candidate until `0.1.0` and from then on never names a version with a
+   feed moves to each candidate until `0.1.0` and from then on never names a version with a
    pre-release part.
 4. **Store.** The layout, pointer, and PATH steps of [Runtime store](#runtime-store).
 5. **Completion.** `install` and `update` verify the signature and every file, publish

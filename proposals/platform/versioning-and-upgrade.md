@@ -306,10 +306,12 @@ repository has no release tag, GitHub Release, or public feed. P0 therefore repl
 2 outright and deletes the version 1 reader, without a bridge release; every released
 `orchbee update` reads version 2 and its later additions.
 
-- Each channel and platform has one manifest, `release.json`, with a detached signature document,
-  `release.json.sig`, beside it. The default feed is the latest manifest under orchbee.com, served
-  from Cloudflare R2; GitHub Releases keeps every release. `ORCHBEE_UPDATE_MANIFEST` still
-  overrides the location, and the signature is required either way.
+- Each version and platform has one manifest, `release.json`, with a detached signature document,
+  `release.json.sig`, beside it in the signed release directory that the release `.zip` carries.
+  The default feed is the channel's signed
+  [feed document](release-distribution.md#release-feed) under orchbee.com, which names that `.zip`
+  on GitHub Releases by size and SHA-256; GitHub Releases keeps every release.
+  `ORCHBEE_UPDATE_FEED` overrides the feed location, and both signatures are required either way.
 - The updater reads at most 1 MiB of manifest and 4 KiB of signature document, verifies the
   signature over the exact bytes before parsing, and checks product, platform, and channel. It then
   downloads every file and verifies its size and SHA-256 before it publishes the version directory.
