@@ -128,7 +128,8 @@ pub(crate) enum MenuRowNote {
     DefaultProfile,
 }
 
-/// Why the action owner has withheld a menu action; never inferred from translated text.
+/// Why the action owner has withheld a menu action; never inferred from translated text. Only a
+/// few reasons have words: see [`Locale::menu_unavailable`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MenuUnavailable {
     WorkspaceRequired,
@@ -295,147 +296,18 @@ impl Locale {
             (Self::ZhCn, false) => format!("移动 {count} 个标签页 · 此处松手取消 · Esc 取消"),
         }
     }
-    pub(crate) const fn menu_unavailable(
-        self,
-        reason: MenuUnavailable,
-        compact: bool,
-    ) -> &'static str {
-        match (self, reason, compact) {
-            (Self::EnUs, MenuUnavailable::WorktreeChecking, false) => "Checking Git source…",
-            (Self::ZhCn, MenuUnavailable::WorktreeChecking, false) => "正在识别 Git 来源…",
-            (Self::EnUs, MenuUnavailable::WorktreeChecking, true) => "Checking Git…",
-            (Self::ZhCn, MenuUnavailable::WorktreeChecking, true) => "识别 Git 中",
-            (Self::EnUs, MenuUnavailable::WorktreeUnavailable, false) => "No available Git source",
-            (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, false) => "暂无可用的 Git 来源",
-            (Self::EnUs, MenuUnavailable::WorktreeUnavailable, true) => "Git unavailable",
-            (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, true) => "Git 不可用",
-            (Self::EnUs, MenuUnavailable::NotGitRepository, false) => "Not in a Git repository",
-            (Self::ZhCn, MenuUnavailable::NotGitRepository, false) => "不在 Git 仓库中",
-            (Self::EnUs, MenuUnavailable::NotGitRepository, true) => "Not in Git",
-            (Self::ZhCn, MenuUnavailable::NotGitRepository, true) => "非 Git",
-            (Self::EnUs, MenuUnavailable::NoOtherWorktrees, false) => "No other worktrees",
-            (Self::ZhCn, MenuUnavailable::NoOtherWorktrees, false) => "没有其他工作树",
-            (Self::EnUs, MenuUnavailable::NoOtherWorktrees, true) => "No others",
-            (Self::ZhCn, MenuUnavailable::NoOtherWorktrees, true) => "无其他",
-            (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
-                "No Tabs match this close action."
-            }
-            (Self::ZhCn, MenuUnavailable::NoMatchingTabs, false) => "没有符合此关闭操作的标签页。",
-            (Self::EnUs, MenuUnavailable::NoMatchingTabs, true) => "No Tabs",
-            (Self::ZhCn, MenuUnavailable::NoMatchingTabs, true) => "无匹配标签页",
-            (Self::EnUs, MenuUnavailable::WorkspaceRequired, false) => {
-                "Select or create a workspace before using this action."
-            }
-            (Self::ZhCn, MenuUnavailable::WorkspaceRequired, false) => {
-                "请先选择或新建工作区，再执行此操作。"
-            }
-            (Self::EnUs, MenuUnavailable::WorkspaceRequired, true) => "Workspace",
-            (Self::ZhCn, MenuUnavailable::WorkspaceRequired, true) => "需工作区",
-            (Self::EnUs, MenuUnavailable::FocusedPanelRequired, false) => {
-                "A focused panel is required for this action."
-            }
-            (Self::ZhCn, MenuUnavailable::FocusedPanelRequired, false) => "此操作需要焦点面板。",
-            (Self::EnUs, MenuUnavailable::FocusedPanelRequired, true) => "Focus panel",
-            (Self::ZhCn, MenuUnavailable::FocusedPanelRequired, true) => "需焦点面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Up), false) => "No Panel above",
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Up), false) => "上方没有面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Up), true) => "None above",
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Up), true) => "上方无面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Down), false) => "No Panel below",
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Down), false) => "下方没有面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Down), true) => "None below",
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Down), true) => "下方无面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Left), false) => {
-                "No Panel to the left"
-            }
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Left), false) => "左侧没有面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Left), true) => "None to left",
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Left), true) => "左侧无面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Right), false) => {
-                "No Panel to the right"
-            }
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Right), false) => "右侧没有面板",
-            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Right), true) => "None to right",
-            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Right), true) => "右侧无面板",
-            (Self::EnUs, MenuUnavailable::PanelMaximized, false) => {
-                "Unavailable while a Panel is maximized"
-            }
-            (Self::ZhCn, MenuUnavailable::PanelMaximized, false) => "面板最大化时不可用",
-            (Self::EnUs, MenuUnavailable::PanelMaximized, true) => "Maximized",
-            (Self::ZhCn, MenuUnavailable::PanelMaximized, true) => "已最大化",
-            (Self::EnUs, MenuUnavailable::MultiplePanelsRequired, false) => {
-                "Needs at least two Panels"
-            }
-            (Self::ZhCn, MenuUnavailable::MultiplePanelsRequired, false) => "至少需要两个面板",
-            (Self::EnUs, MenuUnavailable::MultiplePanelsRequired, true) => "Needs two Panels",
-            (Self::ZhCn, MenuUnavailable::MultiplePanelsRequired, true) => "需两个面板",
-            (Self::EnUs, MenuUnavailable::NoEarlierPanel, false) => "No earlier Panel to return to",
-            (Self::ZhCn, MenuUnavailable::NoEarlierPanel, false) => "没有可返回的面板",
-            (Self::EnUs, MenuUnavailable::NoEarlierPanel, true) => "None earlier",
-            (Self::ZhCn, MenuUnavailable::NoEarlierPanel, true) => "无可返回",
-            (Self::EnUs, MenuUnavailable::OnlyOneTab, false) => "Only one Tab",
-            (Self::ZhCn, MenuUnavailable::OnlyOneTab, false) => "只有一个标签页",
-            (Self::EnUs, MenuUnavailable::OnlyOneTab, true) => "One Tab",
-            (Self::ZhCn, MenuUnavailable::OnlyOneTab, true) => "仅一个标签页",
-            (Self::EnUs, MenuUnavailable::NoOtherPinnedTab, false) => "No other pinned Tab",
-            (Self::ZhCn, MenuUnavailable::NoOtherPinnedTab, false) => "没有其他固定标签页",
-            (Self::EnUs, MenuUnavailable::NoOtherPinnedTab, true) => "None pinned",
-            (Self::ZhCn, MenuUnavailable::NoOtherPinnedTab, true) => "无其他固定",
-            (Self::EnUs, MenuUnavailable::NoOtherUnpinnedTab, false) => "No other unpinned Tab",
-            (Self::ZhCn, MenuUnavailable::NoOtherUnpinnedTab, false) => "没有其他未固定的标签页",
-            (Self::EnUs, MenuUnavailable::NoOtherUnpinnedTab, true) => "None unpinned",
-            (Self::ZhCn, MenuUnavailable::NoOtherUnpinnedTab, true) => "无其他未固定",
-            (Self::EnUs, MenuUnavailable::TabAlreadyFirst, false) => "Already first",
-            (Self::ZhCn, MenuUnavailable::TabAlreadyFirst, false) => "已在最前",
-            (Self::EnUs, MenuUnavailable::TabAlreadyFirst, true) => "First",
-            (Self::ZhCn, MenuUnavailable::TabAlreadyFirst, true) => "已最前",
-            (Self::EnUs, MenuUnavailable::TabAlreadyLast, false) => "Already last",
-            (Self::ZhCn, MenuUnavailable::TabAlreadyLast, false) => "已在最后",
-            (Self::EnUs, MenuUnavailable::TabAlreadyLast, true) => "Last",
-            (Self::ZhCn, MenuUnavailable::TabAlreadyLast, true) => "已最后",
-            (Self::EnUs, MenuUnavailable::TerminalDisconnected, false) => "Terminal disconnected",
-            (Self::ZhCn, MenuUnavailable::TerminalDisconnected, false) => "终端已断连",
-            (Self::EnUs, MenuUnavailable::TerminalDisconnected, true) => "Disconnected",
-            (Self::ZhCn, MenuUnavailable::TerminalDisconnected, true) => "已断连",
-            (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, false) => {
-                "Select a Workspace in this Project first."
-            }
-            (Self::ZhCn, MenuUnavailable::ProjectWorkspaceRequired, false) => {
-                "请先选择此项目中的工作区。"
-            }
-            (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, true) => "Workspace",
-            (Self::ZhCn, MenuUnavailable::ProjectWorkspaceRequired, true) => "需工作区",
-            (Self::EnUs, MenuUnavailable::OperationBusy, false) => {
-                "Another operation is in progress."
-            }
-            (Self::ZhCn, MenuUnavailable::OperationBusy, false) => "另一项操作正在进行。",
-            (Self::EnUs, MenuUnavailable::OperationBusy, true) => "Busy",
-            (Self::ZhCn, MenuUnavailable::OperationBusy, true) => "操作进行中",
-            (Self::EnUs, MenuUnavailable::PointerReleased, false) => {
-                "Mouse capture is already released."
-            }
-            (Self::ZhCn, MenuUnavailable::PointerReleased, false) => "鼠标捕获已释放。",
-            (Self::EnUs, MenuUnavailable::PointerReleased, true) => "Released",
-            (Self::ZhCn, MenuUnavailable::PointerReleased, true) => "已释放",
-            (Self::EnUs, MenuUnavailable::NoSelection, false) => "Select text in this panel first.",
-            (Self::ZhCn, MenuUnavailable::NoSelection, false) => "请先在此面板中选中文本。",
-            (Self::EnUs, MenuUnavailable::NoSelection, true) => "No selection",
-            (Self::ZhCn, MenuUnavailable::NoSelection, true) => "无选区",
-            (Self::EnUs, MenuUnavailable::KeyInCopyMode, false) => "Works in keyboard copy mode",
-            (Self::ZhCn, MenuUnavailable::KeyInCopyMode, false) => "在键盘复制模式中使用",
-            (Self::EnUs, MenuUnavailable::KeyInCopyMode, true) => "Copy mode key",
-            (Self::ZhCn, MenuUnavailable::KeyInCopyMode, true) => "复制模式按键",
-            (Self::EnUs, MenuUnavailable::KeyInSidebar, false) => {
-                "Works while the sidebar has the keyboard"
-            }
-            (Self::ZhCn, MenuUnavailable::KeyInSidebar, false) => "在边栏获得键盘焦点时使用",
-            (Self::EnUs, MenuUnavailable::KeyInSidebar, true) => "Sidebar key",
-            (Self::ZhCn, MenuUnavailable::KeyInSidebar, true) => "边栏按键",
-            (Self::EnUs, MenuUnavailable::KeyOnly, false) => "Press the key to use it",
-            (Self::ZhCn, MenuUnavailable::KeyOnly, false) => "请直接按键使用",
-            (Self::EnUs, MenuUnavailable::KeyOnly, true) => "Key only",
-            (Self::ZhCn, MenuUnavailable::KeyOnly, true) => "仅限按键",
-        }
+    /// The words a grey row shows when it is the candidate. Only a reason whose fix is not obvious
+    /// has words; every other unavailable row is simply grey.
+    pub(crate) const fn menu_unavailable(self, reason: MenuUnavailable) -> Option<&'static str> {
+        Some(match (self, reason) {
+            (Self::EnUs, MenuUnavailable::TerminalDisconnected) => "Terminal disconnected",
+            (Self::ZhCn, MenuUnavailable::TerminalDisconnected) => "终端已断开",
+            (Self::EnUs, MenuUnavailable::NotGitRepository) => "Not in a Git repository",
+            (Self::ZhCn, MenuUnavailable::NotGitRepository) => "不在 Git 仓库里",
+            (Self::EnUs, MenuUnavailable::NoSelection) => "Select text first",
+            (Self::ZhCn, MenuUnavailable::NoSelection) => "请先选中文本",
+            _ => return None,
+        })
     }
     /// The mode a key row's key works in, which leads the row: `Copy mode · Search …`.
     pub(crate) const fn menu_key_mode(self, sidebar: bool) -> &'static str {

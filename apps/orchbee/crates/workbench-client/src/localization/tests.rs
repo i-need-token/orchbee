@@ -30,7 +30,7 @@ mod location_labels;
 fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     use std::num::NonZeroUsize;
 
-    use crate::action_menu::{MenuAction, MenuUnavailable, TabMenuScope};
+    use crate::action_menu::{MenuAction, TabMenuScope};
 
     let locale = Locale::ZhCn;
     let count = NonZeroUsize::new(2).unwrap();
@@ -53,10 +53,6 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     assert_eq!(
         locale.menu_group_path(TabMenuScope::Group(count)),
         "分组（2 个标签页）"
-    );
-    assert_eq!(
-        locale.menu_unavailable(MenuUnavailable::NoMatchingTabs, true),
-        "无匹配标签页"
     );
     assert_eq!(
         locale.tab_drag_hint(2, true),

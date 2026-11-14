@@ -339,13 +339,13 @@ fn measure<'v>(
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
-    // The global menu's reason row exists only while one of the rows is unavailable. A context menu
-    // keeps its height whatever its rows' availability: the reason takes the frame's bottom edge.
+    // The global menu's reason row exists only while one of the rows has a reason to show. A context
+    // menu keeps its height whatever its rows' availability: the reason takes the frame's bottom edge.
     let reason_rows = usize::from(
         !menu.context_menu
-            && result_actions
-                .iter()
-                .any(|index| menu.unavailable[*index].is_some()),
+            && result_actions.iter().any(|index| {
+                menu.unavailable[*index].is_some_and(|reason| locale.menu_unavailable(reason).is_some())
+            }),
     );
     let search_rows = usize::from(menu.query.is_some());
     let result_row_count = if result_actions.is_empty() {
@@ -914,14 +914,9 @@ fn paint_frame(
     let unavailable = (level == Level::Active && !menu.candidate_hidden)
         .then(|| measured.result_actions.get(measured.selected))
         .flatten()
-        .and_then(|index| menu.unavailable[*index]);
+        .and_then(|index| menu.unavailable[*index])
+        .and_then(|reason| locale.menu_unavailable(reason));
     if let Some(reason) = unavailable {
-        let full = locale.menu_unavailable(reason, false);
-        let reason = if display_width(full) <= usize::from(inner.width) {
-            full
-        } else {
-            locale.menu_unavailable(reason, true)
-        };
         if menu.context_menu {
             paint_edge_reason(frame, area, reason, theme);
             return;

@@ -373,14 +373,6 @@ fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
             Some(MenuUnavailable::FocusedPanelRequired)
         );
     }
-    assert_eq!(
-        Locale::EnUs.menu_unavailable(MenuUnavailable::FocusedPanelRequired, false),
-        "A focused panel is required for this action."
-    );
-    assert_eq!(
-        Locale::ZhCn.menu_unavailable(MenuUnavailable::FocusedPanelRequired, false),
-        "此操作需要焦点面板。"
-    );
     let row = action_row(&ui, MenuAction::SplitPanel(Direction::Up));
     let token = arm(&mut ui);
     activate_row(&mut ui, token, row);
@@ -1292,17 +1284,6 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                     .iter()
                     .map(|c| c.symbol())
                     .collect();
-                let reason = locale.menu_unavailable(MenuUnavailable::PointerReleased, true);
-                let compact_text = text.replace(' ', "");
-                assert!(
-                    compact_text.contains(&reason.replace(' ', ""))
-                        || compact_text.contains(
-                            &locale
-                                .menu_unavailable(MenuUnavailable::PointerReleased, false)
-                                .replace(' ', "")
-                        ),
-                    "{locale:?} {width}x{height}: {text:?}"
-                );
                 assert!(text.contains("Esc"));
                 let view = ui.view();
                 let menu = view.action_menu().unwrap();

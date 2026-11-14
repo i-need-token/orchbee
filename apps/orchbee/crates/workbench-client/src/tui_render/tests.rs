@@ -269,7 +269,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                     ],
                     Some(anchor.into()),
                 ));
-                menu.refresh_availability(|_| Some(MenuUnavailable::ProjectWorkspaceRequired));
+                menu.refresh_availability(|_| Some(MenuUnavailable::NotGitRepository));
                 let token = menu.view().unwrap().token;
                 let mut terminal = infallible(Terminal::with_options(
                     TestBackend::new(viewport.right(), viewport.bottom()),

@@ -88,7 +88,7 @@ GUI terminal menu. It starts one ordinary selection export on the copy-on-select
 no copy-mode ownership, keeps the Host selection, adds no clipboard write of its own, reports success
 silently, and reports failure with the ordinary copy notice. The row is enabled while the focused panel's
 selection is settled and idle. While a gesture or export is pending it is disabled as busy, and with no
-selection it stays visible and disabled with the reason `Select text in this panel first.`. A panel that is
+selection it stays visible and disabled with the reason `Select text first`. A panel that is
 not focused or has no frame omits the row, because the copy acts only on the focused panel's selection.
 Keyboard copy mode keeps its own entry and keys.
 
@@ -114,8 +114,8 @@ These key rows answer a search only: the unsearched menu lists what it can run, 
 appears once a query matches it. Each row names its mode before the key's own words, as in
 Copy mode · Search, and shows the key; the plain prefix keys (Tab 1..9, sending the prefix to the
 terminal and cancelling the prefix) name only themselves. Search also matches each key row on
-help, and on its mode's word. A key row is always disabled, with the localized reason that it
-works in keyboard copy mode, while the sidebar has the keyboard, or only as a key, so choosing one
+help, and on its mode's word. A key row is always disabled, because it works in keyboard copy
+mode, while the sidebar has the keyboard, or only as a key; it shows no reason, and choosing one
 changes nothing. A copy key that needs the clipboard, and the sidebar's search key without sidebar
 search, are hidden as their keys are.
 The new-Tab submenu retains quick default creation and also lists the confirmed device launch
@@ -219,8 +219,8 @@ navigation marker) and one blank cell after the widest row's content, so no labe
 the right border; labels that exceed the available width truncate on grapheme boundaries with the
 theme's ellipsis.
 Selection fills the complete inner row and uses the shared navigation-marker track; hover uses the
-independent shared pointer state. The global menu reserves a reason row only when it has unavailable
-actions, and a context menu reserves none, so hover never changes row geometry. Each frame derives
+independent shared pointer state. The global menu reserves a reason row only when it has an unavailable
+action whose reason has words, and a context menu reserves none, so hover never changes row geometry. Each frame derives
 its visible window from the current row budget. Keyboard navigation keeps the selected action visible, while a manually scrolled
 viewport remains where the user placed it. The successful draw commits the exact first action,
 visible action count and selected action for pointer and activation admission; a larger frame fills
@@ -237,7 +237,9 @@ Ordinary terminal output continues while the menu captures input.
 The underlying pane cursor is hidden during capture;
 cancelling restores the ordinary pane projection without changing focus.
 Known unavailable actions use the full disabled text style, retaining its modifiers
-at every color level. They can be selected to read a localized reason; Enter or clicking keeps the menu open and
+at every color level. Only three reasons have words, each in one form: `Terminal disconnected`,
+`Not in a Git repository` and `Select text first`; any other disabled row stays grey without a
+reason. Selecting a row reveals its reason when it has one; Enter or clicking keeps the menu open and
 cannot confirm or navigate. A fixed reason row leaves the global exit instruction and
 selection count visible even at the smallest presentable geometry, while a context menu paints
 the reason on its bottom edge, where its heading sits on the top one, truncated to that edge,
@@ -413,8 +415,7 @@ writing a color or changing terminal focus.
 Single-target rows say **Pin** or **Close** in a Tab menu and **Pin Tab** or **Close Tab** in the
 global menu; multi-target rows include the selected count.
 The global menu's Tab rows address the current Tab. Close N other Tabs… disappears when its exact
-set is empty, while the global Close Tabs to the right… stays with its reason. Relevant owner-derived disabled
-reasons remain visible. Counts are `NonZeroUsize` projection facts, never parsed labels or command
+set is empty, while the global Close Tabs to the right… stays grey. Disabled rows remain visible. Counts are `NonZeroUsize` projection facts, never parsed labels or command
 targets. The existing coordinator captures and revalidates source, member/group metadata, marks,
 focus and action availability before any handoff.
 The private Tab target also captures the ordered canonical Tab IDs, pin states and group IDs used

@@ -388,7 +388,7 @@ fn cascade_opens_level_with_its_row_right_else_left_else_over_the_parent_end() {
 fn a_context_menu_keeps_its_height_and_shows_a_reason_on_its_bottom_edge() {
     let theme = Theme::terminal_native();
     let anchor = MenuAnchor::Pointer { column: 6, row: 2 };
-    let reason = MenuUnavailable::WorktreeChecking;
+    let reason = MenuUnavailable::NoSelection;
     let mut menu = project_menu(anchor);
     menu.select_action(MenuAction::RenameProject);
     let bottom = |painted: &Painted| {
@@ -414,7 +414,7 @@ fn a_context_menu_keeps_its_height_and_shows_a_reason_on_its_bottom_edge() {
     assert_eq!(greyed_edge, edge);
     let painted = line(&greyed, edge);
     assert!(
-        painted.contains(Locale::EnUs.menu_unavailable(reason, false)),
+        painted.contains(Locale::EnUs.menu_unavailable(reason).unwrap()),
         "{painted}"
     );
     assert!(painted.starts_with(theme.corners.to_border_set().bottom_left));
@@ -434,13 +434,12 @@ fn clicked_submenu_paints_no_candidate_or_reason_until_a_key_reveals_its_first_r
     let retained = project_menu(anchor).retain().unwrap();
     let (mut child, _) = creation_menu(1, anchor);
     child.refresh_availability(|action| {
-        matches!(action, MenuAction::NewWorktree).then_some(MenuUnavailable::WorktreeChecking)
+        matches!(action, MenuAction::NewWorktree).then_some(MenuUnavailable::NoSelection)
     });
     child.hide_candidate();
-    let reasons = [
-        Locale::EnUs.menu_unavailable(MenuUnavailable::WorktreeChecking, false),
-        Locale::EnUs.menu_unavailable(MenuUnavailable::WorktreeChecking, true),
-    ];
+    let reasons = [Locale::EnUs
+        .menu_unavailable(MenuUnavailable::NoSelection)
+        .unwrap()];
     for revealed in [false, true] {
         if revealed {
             child.select(MenuSelection::Next);
