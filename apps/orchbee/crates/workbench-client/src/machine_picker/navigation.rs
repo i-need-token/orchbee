@@ -4,7 +4,6 @@ use super::{
     Selection,
 };
 use crate::client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs};
-use crate::sidebar_width::SidebarWidthChange;
 use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{SessionId, WorkbenchProjectId};
 use std::sync::Arc;
@@ -412,9 +411,6 @@ pub(crate) enum SidebarCommand {
     Collapse,
     Activate,
     OpenMenu,
-    Narrower,
-    Wider,
-    ResetWidth,
     Help,
     Exit,
 }
@@ -433,9 +429,6 @@ impl From<SidebarCommand> for crate::localization::SidebarActionLabel {
             SidebarCommand::Collapse => Self::Collapse,
             SidebarCommand::Activate => Self::Activate,
             SidebarCommand::OpenMenu => Self::OpenMenu,
-            SidebarCommand::Narrower => Self::Narrower,
-            SidebarCommand::Wider => Self::Wider,
-            SidebarCommand::ResetWidth => Self::ResetWidth,
             SidebarCommand::Help => Self::Help,
             SidebarCommand::Exit => Self::Exit,
         }
@@ -492,18 +485,6 @@ pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
         SidebarCommand::OpenMenu,
     ),
     (
-        Binding::new(KeyCode::Left, Modifiers::NONE.with_shift()),
-        SidebarCommand::Narrower,
-    ),
-    (
-        Binding::new(KeyCode::Right, Modifiers::NONE.with_shift()),
-        SidebarCommand::Wider,
-    ),
-    (
-        Binding::new(KeyCode::Char('0'), Modifiers::NONE),
-        SidebarCommand::ResetWidth,
-    ),
-    (
         Binding::new(KeyCode::F(1), Modifiers::NONE),
         SidebarCommand::Help,
     ),
@@ -531,7 +512,6 @@ pub(crate) enum SidebarIntent {
     Activate(Selection),
     OpenMenu(SidebarTarget),
     Reorder { target: SidebarTarget, up: bool },
-    Resize(SidebarWidthChange),
     Help,
 }
 
@@ -1287,9 +1267,6 @@ impl Picker {
                 return SidebarIntent::None;
             }
             SidebarCommand::Help => return SidebarIntent::Help,
-            SidebarCommand::Narrower => return SidebarIntent::Resize(SidebarWidthChange::Narrower),
-            SidebarCommand::Wider => return SidebarIntent::Resize(SidebarWidthChange::Wider),
-            SidebarCommand::ResetWidth => return SidebarIntent::Resize(SidebarWidthChange::Reset),
             _ => {}
         }
         let targets: Vec<_> = self

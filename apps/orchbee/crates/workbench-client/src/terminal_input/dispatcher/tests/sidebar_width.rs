@@ -49,54 +49,6 @@ fn map(view: &ClientView) -> FrameHitMap {
 }
 
 #[test]
-fn sidebar_width_keyboard_requires_paint_but_not_mouse_capture_and_fences_geometry_tail() {
-    let (mut dispatcher, mut view, mut port) = fixture();
-    dispatcher.set_pointer_capture(&mut view, &mut port, false);
-    assert!(view.machines.enter_sidebar_navigation());
-    dispatcher
-        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
-            Ok::<(), io::Error>(())
-        })
-        .unwrap();
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[1;2C");
-    assert_eq!(
-        view.machines.sidebar_width(),
-        SidebarWidth::DEFAULT,
-        "no successful frame"
-    );
-    dispatcher.publish_hit_map(map(&view));
-    let mut layouts = Vec::new();
-    dispatcher
-        .dispatch(
-            &mut view,
-            b"\x1b[1;2C\rtail\x1b[",
-            &mut port,
-            Instant::now(),
-            |view, _| {
-                layouts.push(view.machines.sidebar_width().columns());
-                Ok::<bool, io::Error>(false)
-            },
-            &mut |_| Ok(()),
-        )
-        .unwrap();
-    assert_eq!(layouts, [32]);
-    assert!(view.machines.sidebar_navigation_active());
-    assert!(view.machines.request.is_none());
-    assert!(port.bytes.is_empty());
-    dispatcher.publish_hit_map(map(&view));
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"1;2C");
-    assert_eq!(
-        view.machines.sidebar_width().columns(),
-        32,
-        "old split key cannot resize after paint"
-    );
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"0");
-    assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
-    assert!(!dispatcher.pointer_capture_enabled());
-    assert!(port.bytes.is_empty());
-}
-
-#[test]
 fn sidebar_width_release_commits_layout_once_and_releases_fresh_input_after_paint() {
     for tail in [false, true] {
         let (mut dispatcher, mut view, mut port) = fixture();

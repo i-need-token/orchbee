@@ -1158,53 +1158,6 @@ fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosur
 }
 
 #[test]
-fn width_keys_only_emit_intents_including_empty_owned_navigation() {
-    use crate::sidebar_width::SidebarWidthChange;
-    let mut picker = picker();
-    picker.observe_local(Vec::new());
-    picker.enter_sidebar_navigation();
-    for (code, modifiers, expected) in [
-        (
-            KeyCode::Left,
-            Modifiers::NONE.with_shift(),
-            SidebarWidthChange::Narrower,
-        ),
-        (
-            KeyCode::Right,
-            Modifiers::NONE.with_shift(),
-            SidebarWidthChange::Wider,
-        ),
-        (
-            KeyCode::Char('0'),
-            Modifiers::NONE,
-            SidebarWidthChange::Reset,
-        ),
-    ] {
-        let before = picker.clone();
-        assert_eq!(
-            picker.sidebar_key(KeyEvent::press(code, modifiers)),
-            SidebarIntent::Resize(expected)
-        );
-        assert_eq!(
-            picker, before,
-            "the dispatcher alone admits a painted width intent"
-        );
-        assert_eq!(
-            picker.sidebar_key(KeyEvent::press(code, Modifiers::CTRL)),
-            SidebarIntent::None
-        );
-    }
-    picker.leave_sidebar_navigation();
-    assert_eq!(
-        picker.sidebar_key(KeyEvent::press(
-            KeyCode::Right,
-            Modifiers::NONE.with_shift()
-        )),
-        SidebarIntent::None
-    );
-}
-
-#[test]
 fn width_compare_and_set_rejects_equal_rect_staleness_and_preserves_navigation() {
     use crate::{
         client_view::SidebarSurface,

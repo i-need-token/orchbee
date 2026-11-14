@@ -1,9 +1,6 @@
 //! Bounded sidebar width and reversible painted-edge geometry; no input or terminal effects.
 use super::{SidebarArea, SidebarLayer, project_shell_areas};
-use crate::{
-    client_view::SidebarSurface,
-    sidebar_width::{SidebarWidth, SidebarWidthChange},
-};
+use crate::{client_view::SidebarSurface, sidebar_width::SidebarWidth};
 use ratatui::layout::Rect;
 
 /// Both preferred surface and effective rectangle belong to this exact painted source.
@@ -66,13 +63,6 @@ impl DrawnSidebarWidth {
         } else {
             SidebarWidth::new(u16::try_from(next).expect("bounded positive columns"))
                 .expect("displacement is clamped to the admitted width interval")
-        }
-    }
-    pub(crate) fn adjusted(self, change: SidebarWidthChange) -> SidebarWidth {
-        match change {
-            SidebarWidthChange::Narrower => self.displaced(-2),
-            SidebarWidthChange::Wider => self.displaced(2),
-            SidebarWidthChange::Reset => SidebarWidth::DEFAULT,
         }
     }
 }

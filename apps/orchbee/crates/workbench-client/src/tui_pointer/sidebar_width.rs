@@ -1,7 +1,6 @@
-//! Local width gestures share successful-frame admission with keyboard adjustment.
+//! Local width gestures admit only a successfully painted sidebar edge.
 use super::{
-    ClientView, Gesture, HitTarget, MouseAction, MouseButton, MouseEvent, PointerOutcome,
-    PointerState,
+    ClientView, Gesture, MouseAction, MouseButton, MouseEvent, PointerOutcome, PointerState,
 };
 use crate::{
     client_view::{Modifiers, Overlay},
@@ -48,21 +47,6 @@ impl PointerState {
                 .map
                 .as_ref()
                 .is_some_and(|map| map.exposes_sidebar_width(painted))
-    }
-
-    /// Does not require mouse capture: keyboard uses the same successful paint.
-    pub(crate) fn sidebar_width_target(&self, view: &ClientView) -> Option<DrawnSidebarWidth> {
-        if !self.can_open_action_menu() || view.prefix_active() {
-            return None;
-        }
-        self.map.as_ref()?.regions.iter().find_map(|region| {
-            if let HitTarget::SidebarResize(target) = &region.target {
-                self.sidebar_width_source_alive(view, target)
-                    .then_some(*target)
-            } else {
-                None
-            }
-        })
     }
 
     pub(super) fn begin_sidebar_width(

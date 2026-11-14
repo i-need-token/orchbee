@@ -37,10 +37,3 @@ impl Default for SidebarWidth {
         Self::DEFAULT
     }
 }
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SidebarWidthChange {
-    Narrower,
-    Wider,
-    Reset,
-}

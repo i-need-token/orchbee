@@ -1885,16 +1885,6 @@ impl InputDispatcher {
                         self.keys.capture_pending();
                         self.pointer.invalidate_map_with_port(port);
                     }
-                    crate::machine_picker::SidebarIntent::Resize(change) => {
-                        if let Some(target) = self.pointer.sidebar_width_target(view)
-                            && view
-                                .machines
-                                .set_sidebar_width(target.preferred(), target.adjusted(change))
-                        {
-                            self.capture_sidebar_redraw(port);
-                            after_layout(view, port)?;
-                        }
-                    }
                     // A withheld Search key behaves as an unbound key.
                     crate::machine_picker::SidebarIntent::None
                     | crate::machine_picker::SidebarIntent::Search => {

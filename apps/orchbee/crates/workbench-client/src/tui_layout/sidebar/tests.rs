@@ -99,11 +99,6 @@ fn constrained_width_restores_preference_and_never_confuses_equal_rectangles() {
     let newer = DrawnSidebarWidth::new(viewport, SidebarSurface::Docked(width(40))).unwrap();
     assert_eq!(old.sidebar, newer.sidebar);
     assert_ne!(old, newer, "painted identity includes the preferred width");
-    assert_eq!(old.adjusted(SidebarWidthChange::Wider), width(60));
-    assert_eq!(old.adjusted(SidebarWidthChange::Narrower), width(28));
-    assert_eq!(old.adjusted(SidebarWidthChange::Reset), width(30));
-    let minimum = DrawnSidebarWidth::new(viewport, SidebarSurface::Overlay(width(24))).unwrap();
-    assert_eq!(minimum.adjusted(SidebarWidthChange::Narrower), width(24));
 }
 
 #[test]

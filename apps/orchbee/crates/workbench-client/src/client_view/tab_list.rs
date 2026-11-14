@@ -213,11 +213,7 @@ impl State {
                 },
                 _ => Intent::None,
             },
-            SidebarCommand::Search
-            | SidebarCommand::Narrower
-            | SidebarCommand::Wider
-            | SidebarCommand::ResetWidth
-            | SidebarCommand::Help => Intent::None,
+            SidebarCommand::Search | SidebarCommand::Help => Intent::None,
         }
     }
 }
