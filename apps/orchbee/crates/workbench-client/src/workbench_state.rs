@@ -32,7 +32,7 @@ pub(crate) mod workspace_close;
 pub(crate) mod workspace_setup;
 pub(crate) mod worktree_launch;
 pub(crate) use context_selection::ClientContextView;
-pub(crate) use field_window::FieldWindow;
+pub(crate) use field_window::{FieldWindow, field_window};
 mod create_membership;
 mod membership;
 mod move_tab;

@@ -871,11 +871,12 @@ impl InputDispatcher {
                 }
                 DecodedKind::Paste { text, .. } => {
                     // A login field takes the run into its buffer and wipes the run.
-                    // A login notice takes no paste.
+                    // A login notice takes no paste; a management page's field takes it.
                     if let Some(text) = view
                         .machines
                         .login_paste(text)
                         .and_then(|text| view.machines.waiting_paste(text))
+                        .and_then(|text| view.machines.manage_paste(text))
                     {
                         view.machines.paste_workspace_query(&text);
                     }

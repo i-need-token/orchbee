@@ -384,6 +384,7 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
         projects: 2,
         workspaces: 3,
         tabs: 7,
+        terminals: 9,
         labels: vec!["Project A".into(), "Workspace B".into()],
         contexts: std::sync::Arc::from([]),
     };
@@ -411,7 +412,7 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
     // The row's one word follows the hub's state.
     let text = paint(&picker, Locale::EnUs, 80, 24);
     assert!(text.contains(Locale::EnUs.machine_picker_text(reconnecting.key())));
-    assert!(text.contains("0 machines"));
+    assert!(!text.contains("3 workspaces"));
     assert!(!text.contains("Workspace B"));
 }
 fn context(n: u8) -> Context {
@@ -455,6 +456,7 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
         projects: 1,
         workspaces: 2,
         tabs: 0,
+        terminals: 0,
         labels: Vec::new(),
         contexts: vec![context(11), context(12)].into(),
     };

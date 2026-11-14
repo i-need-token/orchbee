@@ -744,7 +744,7 @@ impl Chrome {
 }
 
 /// A context menu's reason sits on its bottom edge, as its heading does on the top one.
-fn paint_edge_reason(frame: &mut Frame<'_>, area: Rect, reason: &str, theme: &Theme) {
+pub(super) fn paint_edge_reason(frame: &mut Frame<'_>, area: Rect, reason: &str, theme: &Theme) {
     let line = Line::from(vec![
         Span::styled(
             theme.corners.to_border_set().horizontal_bottom,

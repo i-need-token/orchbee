@@ -131,6 +131,8 @@ fn play(logins: &mut Logins, notice: Notice) -> Vec<Effect> {
 #[derive(Clone, Copy, Debug)]
 enum Under {
     Picker,
+    /// The add form, whose checks the login belongs to.
+    AddForm,
     WorkspaceQuery,
     Nothing,
 }
@@ -157,6 +159,10 @@ impl Bench {
         view.machines.available = true;
         match under {
             Under::Picker => view.machines.show(),
+            Under::AddForm => {
+                view.machines.show();
+                view.machines.open_add();
+            }
             Under::WorkspaceQuery => view.machines.show_workspaces(),
             Under::Nothing => {}
         }
@@ -575,6 +581,21 @@ fn esc_cancels_the_login_and_its_selection() {
     bench.exchange();
     assert!(bench.view.machines.login().is_none());
     assert!(!bench.view.machines.captures());
+}
+
+#[test]
+fn esc_on_an_adds_login_keeps_the_form() {
+    let mut bench = Bench::asked(Under::AddForm, PASSWORD);
+    bench.send(b"[27u");
+    assert!(matches!(bench.login().act, Some((_, Act::Cancel))));
+    bench.exchange();
+    // The overlay goes; the form stays for the check's failure and its action.
+    assert!(bench.view.machines.login().is_none());
+    assert!(bench.view.machines.open);
+    assert!(matches!(
+        bench.view.machines.manage().page(),
+        crate::machine_picker::Page::Add(_)
+    ));
 }
 
 #[test]

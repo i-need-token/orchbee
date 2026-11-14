@@ -261,6 +261,11 @@ impl Picker {
             .as_ref()
             .is_some_and(|login| matches!(login.act, Some((_, Act::Cancel))))
         {
+            // An add keeps its form: the check that asked ends as the hub reports it, and the
+            // form shows that failure and its action.
+            if matches!(self.manage.page(), super::Page::Add(_)) {
+                return;
+            }
             // The person stays where they were: the picker under the overlay closes with the
             // selection, since a picker without its selection draws nothing yet holds the keys.
             self.close_picker();

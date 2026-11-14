@@ -216,8 +216,13 @@ pub(super) fn render(
     });
 
     let (lead, hints) = if let Some(kind) = indicator_kind {
+        // A command's login notice waiting for the keyboard stays named beside the input mode.
+        let waiting = view
+            .machines
+            .waiting_deferred()
+            .map(|label| locale.machine_waiting_deferred(&sanitize_terminal_text(label)));
         (
-            Lead::Indicator(indicator_projection(kind, view, locale, glyphs)),
+            Lead::Indicator(indicator_projection(kind, view, locale, glyphs), waiting),
             status_hints(
                 view,
                 capture_owner,
@@ -352,7 +357,8 @@ fn contexts(view: &ClientView, facts: &StatusFacts<'_>) -> Vec<ContextIndicator>
 /// The chip's single lead: an input mode, a notice or lasting state, or context.
 #[derive(Debug)]
 enum Lead<'a> {
-    Indicator(Indicator),
+    /// The input mode, and the login waiting sign that follows it when it fits.
+    Indicator(Indicator, Option<String>),
     Notice(StatusNotice<'a>),
     Context {
         notice: Option<NoticeForms>,
@@ -427,7 +433,7 @@ fn layout_chip(
         room_after(width).map_or_else(|| (Vec::new(), 0), |room| fit_hints(hints, room, theme))
     };
     match lead {
-        Lead::Indicator(mut indicator) => {
+        Lead::Indicator(mut indicator, waiting) => {
             if indicator.width() > available {
                 indicator.key = None;
             }
@@ -472,6 +478,23 @@ fn layout_chip(
             if let Some(key) = compact_key {
                 chip.push(separator.text.clone(), theme.style(Role::HintLabel));
                 chip.push(key, theme.style(Role::HintKey));
+            }
+            // The notice follows the mode and comes before the hints, which yield to it.
+            if let Some(text) = waiting.and_then(|sign| {
+                available
+                    .checked_sub(chip.width)
+                    .and_then(|room| room.checked_sub(separator.width))
+                    .and_then(|room| room.checked_sub(notice_marker_width(theme)))
+                    .and_then(|room| notice_form(&[sign], room, theme))
+            }) {
+                chip.push(separator.text.clone(), theme.style(Role::HintLabel));
+                chip.push(
+                    format!("{} ", theme.glyphs.status_bullet),
+                    theme.style(Role::StatusWarning),
+                );
+                chip.push(text, theme.style(Role::TextPrimary));
+                chip.keep_hints(fit_after(chip.width));
+                return chip;
             }
             chip.keep_hints(kept);
         }
@@ -747,6 +770,8 @@ fn render_row(
     let indicator_kind = input_indicator(view, capture_owner, facts.secondary_notice.is_some());
     let contexts = contexts(view, &facts);
 
+    // The one row below the shell's size keeps the input mode alone; the login waiting sign
+    // returns beside it on the chip once the window is large enough again.
     let notice = (indicator_kind.is_none())
         .then_some(secondary_notice)
         .flatten();

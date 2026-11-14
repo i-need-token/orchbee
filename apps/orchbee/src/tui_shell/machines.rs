@@ -302,6 +302,7 @@ impl Manager {
             self.refresh = now + Duration::from_secs(1);
             change = self.refresh_catalog(
                 Store::configured().and_then(|store| store.read()),
+                false,
                 surface,
                 view,
                 dimensions,
@@ -341,6 +342,23 @@ impl Manager {
         change.redraw |= view.machines.exchange_login(&mut self.discovery);
         // "Forget password" on a selected remote Machine, and how the last one ended.
         change.redraw |= view.machines.exchange_forget(&mut self.discovery);
+        // The person's add, rename, enable, disable, disconnect and remove of saved Machines; a
+        // commit's catalog refreshes the picker at once instead of at the next second.
+        let store = view
+            .machines
+            .manage_wants_store()
+            .then(|| Store::configured().ok())
+            .flatten();
+        let managed = view
+            .machines
+            .exchange_manage(&mut self.discovery, store.as_ref(), now);
+        change.redraw |= managed.redraw;
+        if let Some(catalog) = managed.catalog {
+            let refreshed =
+                self.refresh_catalog(Ok(catalog), true, surface, view, dimensions, before_switch);
+            change.redraw |= refreshed.redraw;
+            change.switched |= refreshed.switched;
+        }
         // A ticked answer of a login that succeeded, which the store did not keep.
         if self.discovery.unsaved() {
             view.password_not_saved();
@@ -795,9 +813,12 @@ impl Manager {
         };
         same_machine_endpoint(self.current.as_ref(), profile).then_some(target)
     }
+    /// Takes the catalog `catalog`; `own` when it is the commit of the person's own change in this
+    /// TUI's picker.
     fn refresh_catalog(
         &mut self,
         catalog: Result<crate::machines::Catalog, crate::machines::Error>,
+        own: bool,
         surface: &mut SurfaceSlot<'_>,
         view: &mut ClientView,
         dimensions: WindowDimensions,
@@ -878,8 +899,14 @@ impl Manager {
                         false,
                         before_switch,
                     );
-                    view.machines.error = Some("removed");
-                    view.workspace_navigation_unavailable();
+                    if own {
+                        // The person removed or disabled the machine on screen from the picker:
+                        // Local takes its place under the picker, which stays on the change.
+                        view.machines.reopen_after_manage();
+                    } else {
+                        view.machines.error = Some("removed");
+                        view.workspace_navigation_unavailable();
+                    }
                     change.switched = true;
                 } else if let Some(current) = &mut self.current
                     && let Some(profile) = self.profiles.iter().find(|p| p.id == current.id)

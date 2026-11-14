@@ -1042,15 +1042,31 @@ pub fn render_terminal_shell_with_resize<'a>(
                 hits,
             )
         };
-        if matches!(draw, ModalPresentation::NotPresented)
-            && let Some(surface) = recovery::render(
+        let surface = if matches!(draw, ModalPresentation::NotPresented) {
+            recovery::render(
                 frame,
                 chip_area,
                 locale.presentation_notice(recovery),
                 recovery.then_some(local_return),
                 theme,
             )
-        {
+        } else {
+            // The menu replaces the ordinary status; a command's login notice waiting for the
+            // keyboard stays named, as Settings names it.
+            login_deferred(view, locale).and_then(|sign| {
+                status_line::render_notice_chip(
+                    frame,
+                    chip_area,
+                    &sign,
+                    &[],
+                    Role::StatusWarning,
+                    None,
+                    false,
+                    theme,
+                )
+            })
+        };
+        if let Some(surface) = surface {
             hits.record(HitLayer::Status, surface, HitTarget::OverlaySurface);
         }
         receipt.with_menu(Some(draw))

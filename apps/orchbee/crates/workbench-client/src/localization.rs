@@ -15,6 +15,8 @@ mod directory_startup;
 mod environment;
 mod machine_login;
 pub(crate) use machine_login::LoginLabel;
+mod machine_manage;
+pub(crate) use machine_manage::ManageText;
 mod machine_remember;
 mod machine_status;
 pub use machine_login::MachineQuestion;

@@ -10,6 +10,7 @@ use std::{num::NonZeroU64, sync::Arc};
 mod agents;
 mod forget;
 mod login;
+mod manage;
 mod navigation;
 mod pointer;
 mod sidebar;
@@ -18,8 +19,11 @@ mod waiting;
 mod workspace_query;
 pub use agents::Control;
 use agents::Navigation;
-pub(crate) use forget::FORGET_KEY;
 pub(crate) use login::{LoginControl, LoginOverlay};
+pub(crate) use manage::{
+    AddForm, Check, MENU_KEY, Notice as ManageNotice, Page, Problem as ManageProblem,
+};
+pub use manage::{Field, FormControl, MenuItem};
 pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
     DrawnSidebarFixedTarget, DrawnSidebarTarget, SIDEBAR_BINDINGS, SidebarActivation,
@@ -107,6 +111,7 @@ struct PickerCatalog {
     agent: Option<PickerAgentBasis>,
     workspace_query: Option<(String, usize)>,
     rows: Box<[PickerCatalogRow]>,
+    manage: manage::Basis,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,8 +124,16 @@ pub enum PickerAction {
     Mode(Mode),
     Control(Control),
     Row(usize),
-    /// Forget the saved password of the remote Machine at this row.
-    ForgetPassword(usize),
+    /// Open the form that adds a Machine.
+    AddMachine,
+    /// Perform the detail action of the Machine at this row.
+    RowAction(usize),
+    /// Open the action menu of the Machine at this row.
+    Menu(usize),
+    /// Take one item of the open action menu.
+    MenuItem(MenuItem),
+    /// A control of the add form, the rename or the confirmation.
+    Form(FormControl),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -162,9 +175,13 @@ impl DrawnPickerList {
 
 impl PickerSource {
     fn admits(&self, action: PickerAction) -> bool {
+        let list = self.0.manage.page == manage::PageKind::List;
+        let machines = list && self.0.mode == Mode::Machines;
         match action {
-            PickerAction::Close | PickerAction::Mode(_) => true,
+            PickerAction::Close => true,
+            PickerAction::Mode(_) => list,
             PickerAction::Control(control) => {
+                // Management pages open only in the Machines mode, so these never meet one.
                 (self.0.mode == Mode::Workspaces
                     && matches!(control, Control::Search | Control::Clear))
                     || self.0.mode == Mode::Agents
@@ -177,15 +194,38 @@ impl PickerSource {
                             Control::State | Control::Search | Control::Clear => true,
                         }
             }
-            PickerAction::Row(index) | PickerAction::ForgetPassword(index) => {
-                index < self.0.rows.len()
+            PickerAction::Row(index) => list && index < self.0.rows.len(),
+            PickerAction::AddMachine => machines,
+            PickerAction::RowAction(index) | PickerAction::Menu(index) => {
+                machines && index < self.0.rows.len()
             }
+            PickerAction::MenuItem(item) => self.0.manage.menu.iter().any(|(i, _)| *i == item),
+            PickerAction::Form(control) => match (self.0.manage.page, control) {
+                (manage::PageKind::Add, FormControl::Suggestion(index)) => {
+                    index < self.0.manage.suggestions
+                }
+                (manage::PageKind::Add, _) => true,
+                (
+                    manage::PageKind::Rename | manage::PageKind::Confirm,
+                    FormControl::Cancel | FormControl::Submit,
+                ) => true,
+                _ => false,
+            },
         }
     }
 
     fn available(&self, action: PickerAction) -> bool {
         match action {
-            PickerAction::Row(index) => self.0.rows.get(index).is_some_and(|row| row.enabled),
+            PickerAction::Row(index) => {
+                self.admits(action) && self.0.rows.get(index).is_some_and(|row| row.enabled)
+            }
+            PickerAction::MenuItem(item) => self
+                .0
+                .manage
+                .menu
+                .iter()
+                .any(|(i, available)| *i == item && *available),
+            PickerAction::Form(FormControl::Submit) => self.admits(action) && self.0.manage.submit,
             _ => self.admits(action),
         }
     }
@@ -325,6 +365,8 @@ pub struct Picker {
     waiting_deferred: Option<String>,
     /// The current remote Machine's link was lost: its pane offers Enter to log in again.
     pub lost_link: bool,
+    /// The management pages, the Add row and the outcomes of managing saved Machines.
+    manage: manage::Manage,
 }
 impl Default for Picker {
     fn default() -> Self {
@@ -390,6 +432,7 @@ impl Default for Picker {
             waiting: None,
             waiting_deferred: None,
             lost_link: false,
+            manage: manage::Manage::default(),
         }
     }
 }
@@ -482,6 +525,7 @@ impl Picker {
                 )
             }),
             rows,
+            manage: self.manage_basis(),
         })))
     }
 
@@ -507,6 +551,7 @@ impl Picker {
     }
 
     fn close_picker(&mut self) {
+        self.reset_manage();
         self.open = false;
         self.editing_query = false;
         self.cancel_selection();
@@ -606,6 +651,7 @@ impl Picker {
         true
     }
     fn set_mode(&mut self, mode: Mode) {
+        self.reset_manage();
         self.mode = mode;
         self.editing_query = false;
         self.pending_navigation = None;
@@ -672,6 +718,7 @@ impl Picker {
             });
             self.rebuild_workspaces(selected);
         }
+        self.manage_records(profiles);
     }
     pub fn observe(&mut self, observations: &[(ProfileId, Observation)]) -> bool {
         let selected = self.selection();
@@ -696,6 +743,24 @@ impl Picker {
         changed
     }
     pub(crate) fn show(&mut self) {
+        if !self.begin_selection(SelectionOrigin::Picker) {
+            return;
+        }
+        self.leave_sidebar_navigation();
+        self.reset_manage();
+        self.open = true;
+        self.error = None;
+        self.wheel_capacity = None;
+        self.selected = self
+            .visible_rows()
+            .iter()
+            .position(|r| r.choice == self.current)
+            .unwrap_or(0);
+    }
+    /// Opens the picker again after the person's own remove or disable of the machine on screen
+    /// moved the shell to Local: the list keeps its page and the change's notice, so Local reads as
+    /// the outcome of what the person did there rather than as a failed switch.
+    pub fn reopen_after_manage(&mut self) {
         if !self.begin_selection(SelectionOrigin::Picker) {
             return;
         }
@@ -767,6 +832,9 @@ impl Picker {
         }
         self.pending_navigation = None;
         let hidden = self.reveal_selection();
+        if self.manage_key(key, hidden) {
+            return;
+        }
         let (code, mods) = key.normalized();
         if self.forget_key(key) {
             return;

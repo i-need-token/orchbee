@@ -15,8 +15,17 @@ impl Picker {
         }
         self.pending_navigation = None;
         match target.action() {
-            PickerAction::ForgetPassword(index) => {
-                self.forget_request = self.forget_target(index).cloned();
+            PickerAction::AddMachine => self.open_add(),
+            PickerAction::RowAction(index) => {
+                self.selected = index;
+                return self.row_action(index);
+            }
+            PickerAction::Menu(index) => return self.open_menu(index),
+            PickerAction::MenuItem(item) => return self.choose_menu_item(item),
+            PickerAction::Form(control) => return self.form_control(control),
+            // The frame's close control goes back from a page, as Esc does.
+            PickerAction::Close if !matches!(self.manage().page(), super::Page::List) => {
+                self.reset_manage();
             }
             PickerAction::Close => self.close_picker(),
             PickerAction::Mode(mode) => self.set_mode(mode),
@@ -39,6 +48,7 @@ impl Picker {
                     return false;
                 }
                 self.selected = index;
+                self.leave_add_row();
                 self.choose(index);
                 return self.request.is_some();
             }

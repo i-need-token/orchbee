@@ -367,6 +367,7 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
                 },
                 ..Default::default()
             }),
+            false,
             &mut surface,
             &mut view,
             dimensions(),
@@ -586,6 +587,7 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
             profiles: vec![disabled],
             ..Default::default()
         }),
+        false,
         &mut surface,
         &mut view,
         dimensions(),
@@ -634,6 +636,7 @@ fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local()
     );
     let change = manager.refresh_catalog(
         Err(crate::machines::Error::InvalidCatalog),
+        false,
         &mut surface,
         &mut view,
         dimensions(),
@@ -650,6 +653,7 @@ fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local()
             profiles: vec![disabled],
             ..Default::default()
         }),
+        false,
         &mut surface,
         &mut view,
         dimensions(),
@@ -676,4 +680,44 @@ fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local()
         !view.machines.open,
         "even a disconnected Local surface must remain reachable"
     );
+}
+
+/// Removing or disabling the machine on screen from the picker is the person's own change: Local
+/// takes its place under the picker, which stays open, and nothing reads as a failed switch.
+#[test]
+fn the_persons_own_change_to_the_machine_on_screen_keeps_the_picker_on_local() {
+    let (mut manager, mut view, mut surface) = setup();
+    drop(surface.replace(Box::new(DisconnectedLocal)));
+    manager.install(
+        Cached {
+            profile: Some(profile()),
+            surface: Box::new(UnavailableTerminalInputPort),
+            view: ClientView::new(100),
+        },
+        &mut surface,
+        &mut view,
+        dimensions(),
+        true,
+        &mut |_| {},
+    );
+    view.machines.show();
+    let mut disabled = profile();
+    disabled.enabled = false;
+    let change = manager.refresh_catalog(
+        Ok(crate::machines::Catalog {
+            revision: 2,
+            profiles: vec![disabled],
+            ..Default::default()
+        }),
+        true,
+        &mut surface,
+        &mut view,
+        dimensions(),
+        &mut |_| {},
+    );
+    assert!(change.switched);
+    assert_eq!(view.machines.current, Choice::Local);
+    assert!(view.machines.open);
+    assert!(view.machines.error.is_none());
+    assert_eq!(view.notice(), None);
 }

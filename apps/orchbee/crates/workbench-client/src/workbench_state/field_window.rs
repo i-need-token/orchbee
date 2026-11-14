@@ -42,7 +42,7 @@ impl FieldWindow<'_> {
 /// byte map, so no raw middle fragment is ever re-parsed as if from ground
 /// state. The window then packs whole display graphemes. A zero-width field
 /// is not drawable and yields no window rather than a fake cursor position.
-pub(super) fn field_window(editor: &LineEditor, field_width: usize) -> Option<FieldWindow<'_>> {
+pub(crate) fn field_window(editor: &LineEditor, field_width: usize) -> Option<FieldWindow<'_>> {
     if field_width == 0 {
         return None;
     }

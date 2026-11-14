@@ -3,14 +3,16 @@
 //! picker state depending on presentation.
 
 mod forget;
+mod manage;
 use crate::machine_picker::{
-    Choice, Control, DrawnPickerTarget, Mode, Picker, PickerAction, PickerSource,
+    Choice, Control, DrawnPickerTarget, ManageNotice, Mode, Page, Picker, PickerAction,
+    PickerSource,
 };
 use crate::{
     client_view::{
         Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs, join_key_labels,
     },
-    localization::Locale,
+    localization::{Locale, ManageText},
     machine_discovery::{Observation, display_label, overview::Tone},
     terminal_text::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
@@ -159,21 +161,80 @@ impl Picker {
             glyphs,
         );
         let choose = join_key_labels(&[up, down], style, "/");
+        let menu_key = format_binding_with_glyphs(&crate::machine_picker::MENU_KEY, style, glyphs);
+        let text = |text| locale.machine_manage_text(text);
         // Editing keys such as Ctrl+U are conventions, not advertised hints.
-        let hints = if editing {
-            vec![
-                KeyHint::new(&close, locale.machine_picker_text("picker-finish-hint")),
-                KeyHint::new(&enter, locale.machine_picker_text("picker-finish-hint")),
-            ]
-        } else {
-            vec![
-                KeyHint::new(&close, locale.machine_picker_text("picker-close-hint")),
+        let hints = match self.manage().page() {
+            Page::Add(_) => vec![
+                KeyHint::new(&close, text(ManageText::Cancel)),
+                KeyHint::new(&enter, text(ManageText::Add)),
+                KeyHint::new(&tab, text(ManageText::NextField)),
+            ],
+            Page::Menu { .. } => vec![
+                KeyHint::new(&close, text(ManageText::Back)),
                 KeyHint::new(&choose, locale.machine_picker_text("picker-choose-hint")),
-                KeyHint::new(&enter, locale.machine_picker_text("picker-open-hint")),
-                KeyHint::new(&tab, locale.machine_picker_text("picker-mode-hint")),
-            ]
+                KeyHint::new(&enter, text(ManageText::Choose)),
+            ],
+            Page::Rename { .. } => vec![
+                KeyHint::new(&close, text(ManageText::Cancel)),
+                KeyHint::new(&enter, text(ManageText::Rename)),
+            ],
+            Page::Confirm { .. } => vec![
+                KeyHint::new(&close, text(ManageText::Cancel)),
+                KeyHint::new(&enter, text(ManageText::RemoveAndStop)),
+            ],
+            Page::List
+                if self.mode() == Mode::Machines
+                    && !self.manage().add_focused()
+                    && self.row_machine(self.selected()).is_some() =>
+            {
+                vec![
+                    KeyHint::new(&close, locale.machine_picker_text("picker-close-hint")),
+                    KeyHint::new(&choose, locale.machine_picker_text("picker-choose-hint")),
+                    KeyHint::new(&enter, locale.machine_picker_text("picker-open-hint")),
+                    KeyHint::new(&menu_key, text(ManageText::Actions)),
+                    KeyHint::new(&tab, locale.machine_picker_text("picker-mode-hint")),
+                ]
+            }
+            Page::List => list_hints(editing, [&close, &enter, &tab, &choose], locale),
         };
         let full_width = measure_key_hints(&hints, theme);
+        self.paint_capture_status(frame, status, label, &hints, full_width, locale, theme);
+    }
+}
+
+fn list_hints<'a>(
+    editing: bool,
+    [close, enter, tab, choose]: [&'a str; 4],
+    locale: Locale,
+) -> Vec<KeyHint<'a>> {
+    if editing {
+        vec![
+            KeyHint::new(close, locale.machine_picker_text("picker-finish-hint")),
+            KeyHint::new(enter, locale.machine_picker_text("picker-finish-hint")),
+        ]
+    } else {
+        vec![
+            KeyHint::new(close, locale.machine_picker_text("picker-close-hint")),
+            KeyHint::new(choose, locale.machine_picker_text("picker-choose-hint")),
+            KeyHint::new(enter, locale.machine_picker_text("picker-open-hint")),
+            KeyHint::new(tab, locale.machine_picker_text("picker-mode-hint")),
+        ]
+    }
+}
+
+impl Picker {
+    #[expect(clippy::too_many_arguments, reason = "the status row's measured parts")]
+    fn paint_capture_status(
+        &self,
+        frame: &mut Frame<'_>,
+        status: Rect,
+        label: &str,
+        hints: &[KeyHint<'_>],
+        full_width: Option<usize>,
+        locale: Locale,
+        theme: &Theme,
+    ) {
         let bold = theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD);
         // The picker owns this row, so a login notice waiting behind it is named here, as the
         // status line names it under other surfaces: beside the mode, or in its place if narrow.
@@ -213,7 +274,7 @@ impl Picker {
         } else {
             status
         };
-        let _ = render_key_hints(frame, hint_area, &hints, theme);
+        let _ = render_key_hints(frame, hint_area, hints, theme);
     }
 
     pub fn render(
@@ -251,6 +312,9 @@ impl Picker {
             return;
         }
         hits.start_modal();
+        if self.render_manage_page(frame, &source, locale, theme, hits) {
+            return;
+        }
         let width = area.width.saturating_sub(4).min(72);
         let height = area.height.saturating_sub(3).min(
             ((if self.mode() == Mode::Workspaces {
@@ -260,7 +324,8 @@ impl Picker {
             }) + match self.mode() {
                 Mode::Agents => 13,
                 Mode::Workspaces => 11,
-                Mode::Machines => 10,
+                // The Add row and the selected Machine's detail lines and actions.
+                Mode::Machines => 13,
             })
             .min(24) as u16,
         );
@@ -375,8 +440,12 @@ impl Picker {
             .rows
             .iter()
             .any(|row| matches!(row.choice, Choice::Remote(_)));
+        let machines = self.mode() == Mode::Machines;
         let details = if inner.height >= 9 {
-            if self.mode() == Mode::Agents {
+            if machines && has_remote && inner.height >= 12 {
+                // Up to five status lines, then the row of the selected Machine's actions.
+                7
+            } else if self.mode() == Mode::Agents {
                 // Workspace, provider, task and metadata have separate rows.
                 5 + u16::from(has_remote)
             } else if has_remote {
@@ -390,8 +459,10 @@ impl Picker {
         } else {
             0
         };
-        let count = usize::from(inner.height.saturating_sub(2 + details));
+        let add_row = u16::from(machines && inner.height > 2 + details);
+        let count = usize::from(inner.height.saturating_sub(2 + details + add_row));
         let window = self.picker_window(count);
+        let mut selected_rect = None;
         let list = Rect::new(inner.x, inner.y, inner.width, count as u16);
         for (index, row) in self
             .visible_rows()
@@ -445,6 +516,15 @@ impl Picker {
             } else {
                 name.to_owned()
             };
+            // A saved Machine's row also names where it connects, in secondary text.
+            let address = match &row.choice {
+                Choice::Remote(id) if machines => self
+                    .manage()
+                    .record(id)
+                    .and_then(|record| record.target.as_deref())
+                    .map(display_label),
+                _ => None,
+            };
             let suffix = if let Some(status) = row.fixed_status() {
                 locale.machine_picker_text(status).to_owned()
             } else if let Some(agent) = row.agent() {
@@ -481,6 +561,9 @@ impl Picker {
                 .saturating_sub(1);
             let primary_rect = Rect::new(rect.x + 2, rect.y, primary_width, 1);
             let status_rect = Rect::new(primary_rect.right(), rect.y, status_width, 1);
+            if index == self.selected() {
+                selected_rect = Some(rect);
+            }
             let current = row
                 .agent()
                 .is_some_and(|a| self.current_agent(&row.choice, a))
@@ -526,6 +609,29 @@ impl Picker {
                 .style(theme.style(primary_role)),
                 primary_rect,
             );
+            let name_width = u16::try_from(display_width(&name)).unwrap_or(u16::MAX);
+            let address_rect = address
+                .as_ref()
+                .filter(|_| primary_width > name_width.saturating_add(6))
+                .map(|_| {
+                    Rect::new(
+                        primary_rect.x + name_width + 2,
+                        rect.y,
+                        primary_width - name_width - 2,
+                        1,
+                    )
+                });
+            if let (Some(address), Some(address_rect)) = (&address, address_rect) {
+                frame.render_widget(
+                    Paragraph::new(truncate_display(
+                        address,
+                        usize::from(address_rect.width),
+                        theme.glyphs.ellipsis,
+                    ))
+                    .style(theme.style(Role::TextSecondary)),
+                    address_rect,
+                );
+            }
             let status_role = if !enabled {
                 Role::TextDisabled
             } else if row.agent().is_some_and(|agent| {
@@ -560,7 +666,7 @@ impl Picker {
             };
             let state = component_state(
                 pointer,
-                if index == self.selected() {
+                if index == self.selected() && !self.manage().add_focused() {
                     NavigationState::Provisional
                 } else {
                     NavigationState::None
@@ -578,7 +684,11 @@ impl Picker {
                     OperationState::Idle
                 },
             );
-            let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary_rect)
+            // The address band sits beside the name, so the primary track ends with the name.
+            let primary_track = address_rect.map_or(primary_rect, |_| {
+                Rect::new(primary_rect.x, rect.y, name_width.min(primary_width), 1)
+            });
+            let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary_track)
                 .with_primary_role(primary_role)
                 .with_provisional(navigation_rect)
                 .with_status(operation_rect);
@@ -590,6 +700,9 @@ impl Picker {
                     Role::TextSecondary
                 },
             )];
+            if let Some(address_rect) = address_rect {
+                bands.push(RowContentBand::semantic(address_rect, Role::TextSecondary));
+            }
             if !status_rect.is_empty() {
                 bands.push(RowContentBand::semantic(status_rect, status_role));
             }
@@ -606,6 +719,11 @@ impl Picker {
             {
                 hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
             }
+        }
+        if add_row > 0 && count > 0 {
+            let rows = (self.visible_rows().len().saturating_sub(window.top)).min(count) as u16;
+            let rect = Rect::new(inner.x, inner.y + rows, inner.width, 1);
+            self.render_add_row(frame, rect, &source, locale, theme, hits);
         }
         if let Some(list_source) = source.drawn_list(window) {
             hits.record(
@@ -638,7 +756,8 @@ impl Picker {
                 })
                 .collect();
             let mut lines = Vec::new();
-            if has_remote {
+            // The Machines list states each Machine's own lines; the sum of all reads elsewhere.
+            if has_remote && !machines {
                 lines.push(locale.machine_overview(
                     online.len(),
                     online.iter().map(|o| o.workspaces).sum(),
@@ -700,6 +819,20 @@ impl Picker {
                         theme.glyphs.ellipsis,
                     ));
                 }
+            } else if machines {
+                if !has_remote {
+                    lines.push(
+                        locale
+                            .machine_manage_text(ManageText::EmptyState)
+                            .to_owned(),
+                    );
+                } else if !self.manage().add_focused()
+                    && let Some(explanation) = self.row_explanation(self.selected())
+                    && let Some(row) = self.visible_rows().get(self.selected())
+                {
+                    // The row shows one word; why, and what to do, read here.
+                    lines.extend(locale.machine_status_lines(&explanation, &row.label));
+                }
             } else {
                 match self
                     .visible_rows()
@@ -720,25 +853,65 @@ impl Picker {
                     _ => {}
                 }
             }
-            self.render_forget_action(frame, inner, &source, locale, theme, hits);
+            let mut text_rows = details.saturating_sub(1);
+            if machines && details >= 7 {
+                // The actions keep their own row below the Machine's lines.
+                text_rows -= 1;
+                let row = Rect::new(inner.x, inner.bottom() - 3, inner.width, 1);
+                self.render_row_actions(frame, row, &source, locale, theme, hits);
+            }
+            let width = usize::from(inner.width);
+            let mut paragraph = if machines && has_remote {
+                // A Machine's lines end visibly where they are cut.
+                let lines: Vec<String> = lines
+                    .iter()
+                    .map(|line| truncate_display(line, width, theme.glyphs.ellipsis))
+                    .collect();
+                Paragraph::new(lines.join("\n"))
+            } else {
+                Paragraph::new(lines.join("\n"))
+            };
+            if machines && !has_remote {
+                // The empty list's one sentence wraps rather than losing its end.
+                paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: true });
+            }
             frame.render_widget(
-                Paragraph::new(lines.join("\n")).style(theme.style(Role::TextSecondary)),
+                paragraph.style(theme.style(Role::TextSecondary)),
                 Rect::new(
                     inner.x,
                     inner.bottom() - 2 - details,
                     inner.width,
-                    details.saturating_sub(1),
+                    text_rows,
                 ),
             );
         }
         let status = self
             .error
-            .map(|error| (locale.machine_picker_text(error), Role::StatusWarning))
-            .or_else(|| self.forget_status(locale));
+            .map(|error| {
+                (
+                    locale.machine_picker_text(error).to_owned(),
+                    Role::StatusWarning,
+                )
+            })
+            .or_else(|| {
+                self.manage().notice().map(|notice| {
+                    let role = match notice {
+                        ManageNotice::Removed(_) | ManageNotice::RemovedStopped(_) => {
+                            Role::StatusSuccess
+                        }
+                        _ => Role::StatusWarning,
+                    };
+                    (locale.machine_manage_notice(notice), role)
+                })
+            })
+            .or_else(|| {
+                self.forget_status(locale)
+                    .map(|(text, role)| (text.to_owned(), role))
+            });
         let status = status.or_else(|| {
             self.busy.then(|| {
                 (
-                    locale.machine_picker_text("connecting"),
+                    locale.machine_picker_text("connecting").to_owned(),
                     Role::StatusPending,
                 )
             })
@@ -749,6 +922,7 @@ impl Picker {
                 Rect::new(inner.x, inner.bottom() - 2, inner.width, 2),
             );
         }
+        self.render_manage_overlay(frame, selected_rect, &source, locale, theme, hits);
     }
 
     fn render_agent_action(
