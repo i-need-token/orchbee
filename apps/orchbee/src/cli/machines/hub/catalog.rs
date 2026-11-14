@@ -139,6 +139,14 @@ impl Machines {
             .find(|machine| machine.owner().is_some() && machine.id() == id)
     }
 
+    /// The draft the connection `peer` owns; a connection keeps one at a time.
+    pub(super) fn owned_draft(&self, peer: u64) -> Option<&MachineId> {
+        self.entries
+            .iter()
+            .find(|machine| machine.owner() == Some(peer))
+            .map(Machine::id)
+    }
+
     /// Adds a draft Machine; the caller checked that no Machine has its id.
     pub(super) fn add_draft(&mut self, machine: Machine) {
         debug_assert!(
@@ -217,11 +225,12 @@ impl Machines {
             .map(Machine::id)
     }
 
-    /// The Machine whose running login episode is `login`.
-    pub(super) fn login_owner(&self, login: Id) -> Option<&Machine> {
-        self.entries
-            .iter()
-            .find(|machine| machine.login() == Some(login))
+    /// The Machine whose running login episode is `login`, as the connection `peer` may reach it:
+    /// a draft's episode is its owner's alone.
+    pub(super) fn login_owner(&self, login: Id, peer: u64) -> Option<&Machine> {
+        self.entries.iter().find(|machine| {
+            machine.login() == Some(login) && machine.owner().is_none_or(|owner| owner == peer)
+        })
     }
 
     /// When the earliest timed transition of any Machine is due.
@@ -307,9 +316,12 @@ impl Machines {
                     self.entries.push(machine);
                 }
                 (None, drafted) => {
-                    // A draft saved otherwise goes; the record arrives as itself.
+                    // A draft saved otherwise goes with its remembered answers; the record
+                    // arrives as itself.
                     if let Some(drafted) = drafted {
-                        outcome.effects.extend(drafts.swap_remove(drafted).remove());
+                        let mut draft = drafts.swap_remove(drafted);
+                        outcome.effects.extend(draft.remove());
+                        outcome.effects.extend(forget_all(draft.id()));
                     }
                     let mut machine = incoming;
                     let mut cx = context(&machine, conditions, &mut self.serials);

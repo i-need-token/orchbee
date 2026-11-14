@@ -1250,16 +1250,18 @@ as a catalog Machine is, by the same state machine and carrier, with these diffe
 - **Admission.** `connect` with a `draft` whose ID the catalog does not hold makes, or reuses, this
   connection's draft of that target and Session. `invalid-draft` answers a target the record's rule
   rejects, an ID the catalog holds with another connection or Session, and another connection's
-  draft. A draft the catalog already holds as it is goes on as that record.
+  draft. A draft the catalog already holds as it is goes on as that record. A connection keeps one
+  draft: a `connect` that makes a new one first drops the one it already has.
 - **The owner alone.** Only the owning connection sees the draft: its `machine` events carry
   `draft: true` and go to the owner alone, while it watches; `catalog` never lists it; another
   connection's `connect` and `disconnect` find no such Machine, and `stop-session` and a channel
-  `open` find none for anyone until it is saved. Its login episode asks only the owner, and
-  `presence` never starts an attempt for it.
+  `open` find none for anyone until it is saved. Its login episode asks only the owner, another
+  connection's `claim` or `dismiss` of it reads `ended`, and `presence` never starts an attempt for
+  it.
 - **Saved.** A reread catalog that holds the ID with the same connection and Session makes it an
   ordinary Machine that keeps its carrier, and every watcher gets its `machine` event.
-- **Dropped.** The owner's `disconnect`, the owner's leaving, and a reread catalog that holds the ID
-  otherwise drop it: its carrier ends, its waiters are replied `cancelled`, and the hub forgets it.
+- **Dropped.** The owner's `disconnect`, the owner's leaving, the owner's next draft, and a reread
+  catalog that holds the ID otherwise drop it: its carrier ends, its waiters are replied `cancelled`, and the hub forgets it.
   An answer remembered for it is forgotten with it.
 
 ### Ownership and bounds
@@ -1410,6 +1412,9 @@ connection, so nothing changed for the link.
   must ask once per hub life of the link unless the person chose to
   [remember](#remembered-answers) the answer. No real `ssh` has run these questions yet: the first
   real run checks every kind against OpenSSH.
+- **A killed hub leaves a draft's remembered answer.** A draft's answer is forgotten when the hub
+  drops the draft; a hub that is killed rather than closed while a draft holds one leaves it in the
+  store under an ID no record names, and nothing sweeps such items.
 - **A remembered answer's deletion runs on.** The hub deletes a refused remembered answer on a
   thread of its own; an attempt the person starts at once may still read it, and is refused once
   more.

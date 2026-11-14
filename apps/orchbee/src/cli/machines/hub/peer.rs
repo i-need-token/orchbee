@@ -279,11 +279,15 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
                     Origin::Command { answers: true } => Answers::Command,
                     Origin::Command { answers: false } => Answers::Never,
                 };
-                // A new draft is this connection's until the catalog holds it.
+                // A new draft is this connection's until the catalog holds it. A connection keeps
+                // one draft: one it left behind goes first, as its leaving would drop it.
                 if let Some(route) = connect.draft.as_ref().and_then(route)
                     && hub.machines.state(&connect.machine).is_none()
                     && hub.machines.draft(&connect.machine).is_none()
                 {
+                    if let Some(older) = hub.machines.owned_draft(id).cloned() {
+                        hub.drop_draft(&older, |machine, _| machine.remove());
+                    }
                     hub.machines
                         .add_draft(Machine::draft(connect.machine.clone(), route, id));
                 }
@@ -315,7 +319,7 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             let mut outcome = ClaimOutcome::Ended;
             if let Some(machine) = hub
                 .machines
-                .login_owner(login)
+                .login_owner(login, id)
                 .map(|machine| machine.id().clone())
             {
                 hub.machine(&machine, |machine, cx| {
@@ -331,7 +335,7 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             let mut outcome = DismissOutcome::Ended;
             if let Some(machine) = hub
                 .machines
-                .login_owner(login)
+                .login_owner(login, id)
                 .map(|machine| machine.id().clone())
             {
                 hub.machine(&machine, |machine, cx| {
