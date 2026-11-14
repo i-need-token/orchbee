@@ -69,7 +69,7 @@ receives the owner's value through composition:
   `settle_copy_mode` writes from the owner's current answer.
 - `client_view::notifications` owns the current Agent notification card and its target.
   `WorkbenchClientUi` keeps a mirror of whether one is current, which only the automatic
-  notification tick writes, so the action menu offers Open notification target only then.
+  notification tick writes, so the action menu offers Go to the Agent that notified only then.
 
 Client-local notices in `ClientView` and Workbench command notices in
 `workbench_client::command_notice` are separate facts with separate writers.

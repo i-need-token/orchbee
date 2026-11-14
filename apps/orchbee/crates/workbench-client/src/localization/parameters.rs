@@ -44,7 +44,7 @@ pub enum Notice {
     /// A login succeeded with the remember box ticked, but the credential store did not keep the
     /// answer.
     PasswordNotSaved,
-    /// Open notification target found no current Agent card; nothing moved.
+    /// Go to the Agent that notified found no current Agent card; nothing moved.
     NoNotificationTarget,
     NavigatorChanged,
     NavigatorTooSmall,

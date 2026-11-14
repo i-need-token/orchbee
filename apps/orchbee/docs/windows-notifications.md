@@ -108,8 +108,8 @@ The wire `Notification` that `notification show` submits stays target-less, so a
 its shield and opens nothing.
 
 A primary click on an Agent card, released on the card, opens its target. So does the configurable
-`open_notification_target` action, default `prefix+o`, whose global action menu row "Open
-notification target" ("打开通知目标") is offered only while an Agent card is current. With no
+`open_notification_target` action, default `prefix+o`, whose global action menu row "Go to the
+Agent that notified" ("跳到发通知的智能体") is offered only while an Agent card is current. With no
 current Agent card, the key or a menu row whose card expired says "No Agent notification"
 ("没有智能体通知") and nothing moves. All three run through the revalidating navigation of sidebar
 Agent rows ([Main Agent sidebar](machines.md#main-agent-sidebar)): the Session, Tab, Panel,
