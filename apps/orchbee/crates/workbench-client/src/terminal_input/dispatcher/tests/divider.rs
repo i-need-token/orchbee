@@ -195,6 +195,7 @@ fn divider_menu_chord_and_direct_binding_refuse_without_canceling_the_drag() {
             1 => b"\x01",
             _ => b"",
         };
+        let menu: &[u8] = if prefix.is_empty() { b"\x1bOQ" } else { b" " };
         let mut settings = KeySettings::default();
         if binding == 1 {
             settings.prefix.key = "a".into();
@@ -231,7 +232,7 @@ fn divider_menu_chord_and_direct_binding_refuse_without_canceling_the_drag() {
             assert!(view.prefix_active());
             assert_eq!(preview(&dispatcher).as_ref(), Some(&original));
         }
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, menu);
         assert!(!view.prefix_active());
         assert_eq!(port.menus, 0);
         assert_eq!(preview(&dispatcher).as_ref(), Some(&original));
@@ -246,7 +247,7 @@ fn divider_menu_chord_and_direct_binding_refuse_without_canceling_the_drag() {
         assert!(port.bytes.is_empty());
         // The identical binding is admitted once the genuine gesture ends.
         dispatch_all(&mut dispatcher, &mut view, &mut port, prefix);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, menu);
         assert_eq!(port.menus, 1);
     }
 }

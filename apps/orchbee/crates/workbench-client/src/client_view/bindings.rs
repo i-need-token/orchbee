@@ -78,7 +78,7 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         desc: PrefixDesc::Settings,
     },
     PrefixGroup {
-        members: &[member(key(KeyCode::F(2)), ClientAction::OpenActionMenu)],
+        members: &[member(key(KeyCode::Space), ClientAction::OpenActionMenu)],
         desc: PrefixDesc::ActionMenu,
     },
     PrefixGroup {

@@ -161,7 +161,7 @@ by default. `last_panel` steps back to the last focused Panel in any Tab or Work
 matching arrow key, then `prefix+h`, `prefix+j`, `prefix+k` and `prefix+l`; help and menus show the
 arrow first.
 
-`menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
+`menu` opens the [native action menu](native-action-menus.md), default `prefix+space`.
 The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.
 
 `open_notification_target` opens the Agent of the current Agent notification card, default

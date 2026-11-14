@@ -10,7 +10,7 @@ fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row()
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
         let (x, y) = painted.row(&MenuAction::Help);
         dispatch_all(
@@ -83,7 +83,7 @@ fn a_click_survives_an_availability_refresh_that_keeps_its_row() {
             let mut dispatcher = InputDispatcher::default();
             let mut view = ClientView::new(50);
             dispatcher.set_pointer_capture(&mut view, &mut port, true);
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
             let area = Rect::new(0, 0, 48, 10);
             let painted = paint_in(
                 &mut dispatcher,
@@ -163,7 +163,7 @@ fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, false);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
     let help_point = painted.row(&MenuAction::Help);
     let motion = |code, (x, row)| format!("\x1b[<{code};{x};{row}M");
@@ -260,7 +260,7 @@ fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_ret
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
         let (x, y) = painted.row_at(0);
         dispatch_all(
@@ -330,7 +330,7 @@ fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute()
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
     let (help_x, help_y) = painted.row(&MenuAction::Help);
 
@@ -488,7 +488,7 @@ fn menu_wheel_is_regional_bounded_reversible_and_cancelled_by_keyboard() {
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         let painted = paint(&mut dispatcher, &mut port, view.bindings(), locale);
         let (x, y) = painted.first_visible();
         let capacity = painted.visible_rows;
@@ -945,7 +945,7 @@ fn cancelled_menu_painted_press_settles_its_parallel_release_debt_once() {
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
         let (x, y) = painted.row_at(0);
         dispatch_all(

@@ -208,7 +208,7 @@ fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width()
         "Esc cancel",
         "? help",
         "Tab sidebar",
-        "F2 actions",
+        "Space actions",
         "c create Tab",
         r"\ / - split",
         "g Agent board",

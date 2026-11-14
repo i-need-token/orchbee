@@ -17,13 +17,13 @@ except, per Client until it exits, the last query and Match case.
 
 ## Entry points
 
-| Entry                                      | Result                                                                   |
-| ------------------------------------------ | ------------------------------------------------------------------------ |
-| `Ctrl+b f`                                 | Opens the bar on the focused Panel                                       |
-| `[keys] find`                              | Replaces or disables that entry; a safe direct chord uses the same route |
-| `/` in an Entering or Viewing history view | Opens the same bar; nothing reaches the shell                            |
-| Panel menu row "Find in terminal"          | Focuses that Panel, then opens the bar on it                             |
-| Global menu (`Ctrl+b F2`) row, Panel group | Opens the bar on the focused Panel                                       |
+| Entry                                         | Result                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `Ctrl+b f`                                    | Opens the bar on the focused Panel                                       |
+| `[keys] find`                                 | Replaces or disables that entry; a safe direct chord uses the same route |
+| `/` in an Entering or Viewing history view    | Opens the same bar; nothing reaches the shell                            |
+| Panel menu row "Find in terminal"             | Focuses that Panel, then opens the bar on it                             |
+| Global menu (`Ctrl+b Space`) row, Panel group | Opens the bar on the focused Panel                                       |
 
 Shortcut help and both menu rows name the action "Find in terminal" / "在终端中查找"; the rows sit
 between Copy selection and Clear terminal in the Panel menu and before copy mode in the global

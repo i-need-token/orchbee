@@ -9,7 +9,7 @@ adapter are absent from menus; direct invocation rechecks the same capability an
 localized unsupported outcome. Shared Workbench actions retain their own admission rules. See
 [TUI platform boundaries](tui-platforms.md).
 
-`Ctrl+b F2` and `[keys].menu` open the global action menu. These keyboard routes remain
+`Ctrl+b Space` and `[keys].menu` open the global action menu. These keyboard routes remain
 available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
 pane, Tab, Project, Workspace or Agent row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain

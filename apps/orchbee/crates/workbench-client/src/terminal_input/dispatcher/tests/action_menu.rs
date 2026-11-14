@@ -980,7 +980,7 @@ fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding()
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatcher.settle_pointer_capture(&mut view, &mut port, PointerCaptureRequest::AnyMotion);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     port.menu.refresh_availability(|action| {
         (action == MenuAction::Detach).then_some(crate::action_menu::MenuUnavailable::OperationBusy)
     });
@@ -1048,7 +1048,7 @@ fn menu_motion_is_scoped_and_never_rearms_released_or_replaces_admitted_global_c
             dispatcher
                 .dispatch(
                     &mut view,
-                    b"\x02\x1bOQ",
+                    b"\x02 ",
                     &mut port,
                     Instant::now(),
                     |_, _| Ok::<bool, io::Error>(false),
@@ -1177,7 +1177,7 @@ fn failed_menu_motion_write_never_publishes_or_retries_the_lease() {
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let result = dispatcher.dispatch(
         &mut view,
-        b"\x02\x1bOQ",
+        b"\x02 ",
         &mut port,
         Instant::now(),
         |_, _| Ok::<_, ()>(false),
@@ -1220,7 +1220,7 @@ fn a_late_successful_global_probe_supersedes_the_menu_lease_and_survives_menu_ex
     dispatcher
         .dispatch(
             &mut view,
-            b"\x02\x1bOQ",
+            b"\x02 ",
             &mut port,
             now,
             |_, _| Ok::<_, ()>(false),
@@ -1407,7 +1407,7 @@ fn capturing_navigator_prefix_switches_to_menu_without_forwarding() {
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
     assert!(view.navigator_active());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQtail");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 tail");
     assert!(
         !view.navigator_active(),
         "the global menu prefix replaces Navigator"
@@ -1421,7 +1421,7 @@ fn capturing_navigator_prefix_switches_to_menu_without_forwarding() {
 
 #[test]
 fn menu_prefix_split_reads_replace_help_and_capture_opening_and_decision_tails() {
-    let opening = b"\x02\x1bOQtail";
+    let opening = b"\x02 tail";
     for split in 0..=opening.len() - 4 {
         let mut port = Port::new(MenuAction::Help);
         let mut dispatcher = InputDispatcher::default();
@@ -1480,7 +1480,7 @@ fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         port.arm();
         let mut layouts = 0;
         let mut modes = Vec::new();
@@ -1521,7 +1521,7 @@ fn ux_menu_disabled_decision_packets_stay_captured_until_cancel_and_fresh_draw()
     let mut port = Port::new(MenuAction::RenameWorkspace);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     port.menu
         .refresh_availability(|_| Some(crate::action_menu::MenuUnavailable::OperationBusy));
     port.arm();
@@ -1551,7 +1551,7 @@ fn searchable_menu_escape_after_query_edit_cancels_and_restores_terminal_forward
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(80);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     assert!(port.menu.active());
     port.arm();
 
@@ -1696,7 +1696,7 @@ fn cancel_and_fragmented_captured_paste_never_reach_the_pane() {
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     port.arm();
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[200~literal");
     port.cancel_action_menu();
@@ -1718,7 +1718,7 @@ fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_pr
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     port.arm();
     port.cancel_action_menu();
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"stale-enter\r");
@@ -1770,7 +1770,7 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     port.arm();
     let now = Instant::now();
     dispatcher
@@ -1807,7 +1807,7 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
     port.arm();
     assert!(port.menu.confirm());
     assert_eq!(
@@ -1905,7 +1905,7 @@ fn global_menu_respects_existing_pane_selection_pending_link_and_wheel_owners() 
         dispatch_all(&mut dispatcher, &mut view, &mut port, &press);
         assert!(!dispatcher.pointer.can_open_action_menu(), "{owner}");
         let selections = port.selections.len();
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
         assert!(!port.menu.active(), "{owner}");
         assert_eq!(port.target, None, "{owner}");
         assert_eq!(
@@ -2040,4 +2040,16 @@ fn lost_menu_release_cannot_swallow_a_later_program_owned_right_release() {
         assert_eq!(forwarded_bytes(&port.calls), b"\x1b[<2;2;2M\x1b[<2;2;2m");
         assert!(dispatcher.pointer.can_open_action_menu());
     }
+}
+
+#[test]
+fn prefix_space_opens_the_global_action_menu_without_forwarding() {
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02 ");
+    assert!(port.menu.active());
+    assert_eq!(port.target, Some(MenuTarget::Global));
+    assert!(!view.prefix_active());
+    assert!(forwarded_bytes(&port.calls).is_empty());
 }

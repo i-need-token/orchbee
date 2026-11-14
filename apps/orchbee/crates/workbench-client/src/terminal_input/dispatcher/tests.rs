@@ -2279,7 +2279,7 @@ fn board_prefix_opens_action_menu_after_native_capture_release() {
 
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02");
     assert!(view.prefix_active());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b" ");
 
     assert!(!owned.get(), "the native Board owner releases capture");
     assert!(

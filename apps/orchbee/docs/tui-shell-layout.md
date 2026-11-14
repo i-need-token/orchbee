@@ -133,7 +133,7 @@ Search and Settings keep their complete existing targets and footer geometry. A 
 retains its pending row.
 The no-Workspace main content stays blank, without a Terminal title, onboarding statement or repeated
 creation hint. Fixed actions and effective keyboard routes remain available. Global actions retain
-`Ctrl+b F2` at every presentable tier, with no permanent Actions button. An empty canonical Workspace
+`Ctrl+b Space` at every presentable tier, with no permanent Actions button. An empty canonical Workspace
 keeps its localized directory and Tab creation guidance. The first workbench row remains available
 to authored guidance or terminal content; no PTY geometry is reserved.
 
@@ -363,7 +363,7 @@ below it stays distinct. Each Tab leads with the state glyph
 of the Agent the current machine observation places in it and follows with an unread dot; a
 collapsed group carries its members' most urgent state. While the sidebar is hidden, the attached
 machine alone stays observed for this purpose. Summaries stay in the sidebar and Agent Board.
-Global actions are available through `Ctrl+b F2` and configured menu bindings. Every platform
+Global actions are available through `Ctrl+b Space` and configured menu bindings. Every platform
 projects the same canonical navigation rows; the retired context breadcrumb is not a separate
 platform layout.
 Active Tabs use padding, `surface-current` and bold identity without a marker; checked Tabs use
@@ -521,7 +521,7 @@ Machine picker modes; this layout does not assign new browse/filter controls to 
 matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
 label. Its complete configured key path appears when it fits, using the binding registry rather
 than a hard-coded default. Keyboard users open Settings with the configured action (default `Ctrl+b F4`); the existing comma binding
-continues to rename a Tab. Global actions remain on `Ctrl+b F2` and machine selection on
+continues to rename a Tab. Global actions remain on `Ctrl+b Space` and machine selection on
 `Ctrl+b Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
 admission and capture ownership.
 

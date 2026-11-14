@@ -46,7 +46,7 @@ fn popups_open_on_a_live_client_and_busy_refusals_name_their_cause() {
     fixture.settle_ready(&tui.client);
 
     // The action menu captures the Client's input while its view stays ready.
-    fixture.keys(&tui.terminal, &["ctrl+b", "f2"]);
+    fixture.keys(&tui.terminal, &["ctrl+b", "space"]);
     fixture.settle_ready(&tui.client);
     assert_refused(&popup(&fixture, &tui.client), "modal-open");
     fixture.keys(&tui.terminal, &["escape"]);

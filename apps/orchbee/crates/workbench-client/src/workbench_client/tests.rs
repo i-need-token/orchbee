@@ -262,7 +262,7 @@ fn assert_ready_prefix_client(
         );
     }
     assert!(
-        rendered.contains("F2 actions"),
+        rendered.contains("Space actions"),
         "missing action hint\n{rendered}"
     );
 }

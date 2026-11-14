@@ -400,7 +400,7 @@ adds a peer Workspace, reuses the source's current Project or atomically groups 
 with its new peer. Other Clients keep their selection. Escape hides observation after submission
 and retains the operation ID.
 
-Windows `Ctrl+b F2` opens [action menus](docs/native-action-menus.md).
+Windows `Ctrl+b Space` opens [action menus](docs/native-action-menus.md).
 Right-click a Panel, Tab, Workspace, Project or Agent row for its existing actions; an Agent row
 offers Rename and Close. Opening and cancelling preserve focus; addressed organization and Close actions also preserve
 the current terminal. A pointer-opened menu starts at the pressed column below its trigger row,
