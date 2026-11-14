@@ -1892,7 +1892,10 @@ a changed episode, query, filter, order or catalog fails closed, while copy, sta
 theme and pointer-only refreshes do not change semantic authority. List wheel moves
 only the viewport and never changes the selection; the next key returns the viewport
 to the selection, and `Enter` accepts only a selection inside the painted viewport,
-so an `Enter` after scrolling it away only reveals it. Explicit
+so an `Enter` after scrolling it away only reveals it. A remote surface, the one on screen or a
+cached one, is reused only while the hub, through a live attachment, reads its Machine `online`: a
+Client learns of a lost link only when a request it sent runs out its deadline, seconds after a
+Disconnect or a lost link, so its own status never decides reuse. Explicit
 selection of a Machine the hub does not read `online` asks the hub to `connect` it, with origin
 `user`, so the login's questions come to this TUI; the request joins the hub's attempt or starts
 one at once. While the holder reaches no hub, the selection asks it for one, a

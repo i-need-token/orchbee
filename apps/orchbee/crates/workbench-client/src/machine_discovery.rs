@@ -722,6 +722,13 @@ impl Discovery {
         let effects = self.logins.wait_for(machine.map(ProfileId::as_str));
         self.carry(effects);
     }
+    /// Whether the hub, through a live attachment, reads `profile` online. Only then is there a
+    /// link behind a remote surface of it: its Client learns of a lost link only when a request
+    /// runs out its deadline, so a selection reuses that surface only while this holds and
+    /// otherwise asks the hub to connect.
+    pub fn linked(&self, profile: &Profile) -> bool {
+        self.hub_status().is_none() && self.online(&profile.id)
+    }
     /// Whether the hub says `profile` waits for a login the person can give: a remote pane of it
     /// has no live link, and choosing it logs in.
     pub fn login_needed(&self, profile: &Profile) -> bool {
@@ -815,6 +822,21 @@ impl Drop for Discovery {
     fn drop(&mut self) {
         // Only stop_before waits; unfinished observers are detached here.
         self.request_stop();
+    }
+}
+
+/// Crate-internal `Discovery` operations the application's tests drive.
+#[cfg(any(test, feature = "test-support"))]
+pub trait DiscoveryTestAccess {
+    /// The holder is attached and the hub reports `machine` in `state`, without a hub.
+    fn report(&mut self, machine: &ProfileId, state: MachineState);
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl DiscoveryTestAccess for Discovery {
+    fn report(&mut self, machine: &ProfileId, state: MachineState) {
+        self.hub.reach = Reach::Attached;
+        self.hub.states.insert(machine.as_str().to_owned(), state);
     }
 }
 

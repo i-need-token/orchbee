@@ -8,6 +8,7 @@ use crate::{
     terminal_input::UnavailableTerminalInputPort,
 };
 use orchbee_workbench_client::test_support::client_view::ClientViewTestAccess;
+use orchbee_workbench_client::test_support::machine_discovery::DiscoveryTestAccess;
 use orchbee_workbench_client::test_support::machine_picker::PickerTestAccess;
 use orchbee_workbench_client::test_support::terminal_input::PaneAdmission;
 use orchbee_workbench_client::test_support::terminal_input::PaneInput;
@@ -208,6 +209,10 @@ fn machine_switch_restores_local_view_and_host_mouse_state_without_reconnecting(
         surface: Box::new(witness("remote", None, log.clone())),
         view: ClientView::new(100),
     });
+    manager.discovery.report(
+        &profile().id,
+        orchbee_machine_protocol::hub::MachineState::Online,
+    );
     view.machines.show();
     view.machines.request = Some(Choice::Remote(profile().id).into());
     let change = manager.tick(
@@ -246,6 +251,83 @@ fn machine_switch_restores_local_view_and_host_mouse_state_without_reconnecting(
     );
     assert!(manager.attempt.is_none());
     assert!(view.pointer_released());
+}
+/// Evidence gap: after a Disconnect the surface on screen still reads usable until its Client's
+/// next request runs out its deadline, and the first real ssh login showed one Enter on "Retry"
+/// close the picker without asking the hub to connect. Rule: choosing the Machine on screen reuses
+/// its surface only while the hub reads it online; otherwise the selection waits on a connection.
+#[test]
+fn choosing_the_machine_on_screen_reuses_its_surface_only_while_the_hub_reads_it_online() {
+    use orchbee_machine_protocol::hub::MachineState;
+    for (state, reused) in [
+        (
+            MachineState::Offline {
+                cause: None,
+                next_attempt: None,
+            },
+            false,
+        ),
+        (MachineState::Online, true),
+    ] {
+        let (mut manager, mut view, mut surface) = setup();
+        let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        // The remote's surface is on screen, and its Client has not noticed any lost link.
+        manager.install(
+            Cached {
+                profile: Some(profile()),
+                surface: Box::new(witness("remote", None, log.clone())),
+                view: ClientView::new(100),
+            },
+            &mut surface,
+            &mut view,
+            dimensions(),
+            true,
+            &mut |_| {},
+        );
+        manager.discovery.report(&profile().id, state);
+        assert!(surface.active().reusable_machine());
+        view.machines.show();
+        // A terminal's Enter is CR.
+        let mut dispatcher = crate::terminal_input::InputDispatcher::default();
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"\r",
+                surface.active(),
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(
+            view.machines.request,
+            Some(Choice::Remote(profile().id).into())
+        );
+        let change = manager.tick(
+            &mut surface,
+            &mut view,
+            dimensions(),
+            Instant::now(),
+            &mut |_| {},
+        );
+        assert!(!change.switched);
+        assert_eq!(view.machines.current, Choice::Remote(profile().id));
+        if reused {
+            assert!(!view.machines.open);
+            assert!(manager.queued.is_none());
+        } else {
+            assert!(view.machines.open, "the picker shows the selection running");
+            assert!(view.machines.busy);
+            assert_eq!(
+                manager
+                    .queued
+                    .as_ref()
+                    .and_then(|queued| queued.profile.as_ref()),
+                Some(&profile()),
+                "the selection waits on the hub's connection of the Machine"
+            );
+        }
+    }
 }
 #[test]
 fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_completion() {

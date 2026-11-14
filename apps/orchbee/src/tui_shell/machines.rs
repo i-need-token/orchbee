@@ -500,10 +500,14 @@ impl Manager {
             self.cancel();
             self.selection_scope = Some(scope);
             view.clear_workspace_navigation_notice();
+            // The Machine on screen is chosen again: its surface stays only while the hub reads it
+            // online. After a Disconnect or a lost link the surface still looks usable until its
+            // Client's next request runs out its deadline, so the selection connects instead.
             if request.context.is_none()
                 && request.machine == choice(self.current.as_ref())
-                && (request.machine == Choice::Local
-                    || (surface.active().reusable_machine() && !view.machines.lost_link))
+                && self.current.as_ref().is_none_or(|profile| {
+                    surface.active().reusable_machine() && self.discovery.linked(profile)
+                })
             {
                 view.machines.open = false;
                 self.finish_selection(view);
@@ -1004,13 +1008,11 @@ impl Manager {
             return false;
         }
         let next = self.cached.remove(index);
-        // A Machine the hub says needs a login has no live link behind its cached surface.
-        if next.profile.is_some()
-            && (!next.surface.reusable_machine()
-                || next
-                    .profile
-                    .as_ref()
-                    .is_some_and(|p| self.discovery.login_needed(p)))
+        // A Machine the hub does not read online has no live link behind its cached surface.
+        if next
+            .profile
+            .as_ref()
+            .is_some_and(|p| !next.surface.reusable_machine() || !self.discovery.linked(p))
         {
             self.retire(next.surface);
             return false;

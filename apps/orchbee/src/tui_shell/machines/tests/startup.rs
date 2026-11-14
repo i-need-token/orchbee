@@ -275,6 +275,12 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
         assert_eq!(manager.cached[0].choice(), Choice::Local);
         assert!(!view.machines.open);
         assert!(surface.active().reusable_machine());
+        // The hub reads the remote online, as it does for the connection the attempt made.
+        orchbee_workbench_client::test_support::machine_discovery::DiscoveryTestAccess::report(
+            &mut manager.discovery,
+            &profile().id,
+            orchbee_machine_protocol::hub::MachineState::Online,
+        );
         assert!(manager.restore(
             &Choice::Local,
             &mut surface,

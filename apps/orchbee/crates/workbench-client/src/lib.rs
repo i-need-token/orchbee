@@ -536,7 +536,9 @@ pub mod test_support {
     }
 
     pub mod machine_discovery {
-        pub use crate::machine_discovery::{Observation, Overview, OverviewFixture};
+        pub use crate::machine_discovery::{
+            DiscoveryTestAccess, Observation, Overview, OverviewFixture,
+        };
     }
 
     pub mod machine_picker {
