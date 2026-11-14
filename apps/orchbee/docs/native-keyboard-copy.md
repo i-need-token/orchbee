@@ -196,10 +196,13 @@ plans abstract this retained obligation, including a standalone CancelExport.
 
 Motion reuses the CLI's complete-row collector: a single row for line endpoints, bounded paragraph
 context, and directional 64-row expansion for word movement. The assembled context has at most
-65,536 rows. Search reads the complete retained buffer up to that bound. Each read call has the
-same row bound; cumulative budgets are 1,048,576 glyphs and 8 MiB of row payload. The shared reader
-does not claim an additional cumulative row counter. The query job also enforces the existing
-4096-byte search-query limit; the inline draft is smaller.
+65,536 rows. Each read call has the same row bound; cumulative budgets are 1,048,576 glyphs and
+8 MiB of row payload. Search reads the complete retained buffer in pages at one revision: a page
+closes before it would pass any of those bounds and is searched and dropped as the scan moves on,
+so the bounds limit a page, never how much of the buffer a search covers. A logical line crossing
+a page edge matches as it would in one read; one logical line holds at most 8 MiB of text. The
+shared reader does not claim an additional cumulative row counter. The query job also enforces the
+existing 4096-byte search-query limit; the inline draft is smaller.
 
 Buffer points use the existing `u32` row representation. A total beyond `u32::MAX + 1`, an
 unrepresentable route/point, exhausted identity or exceeded budget is an explicit refusal, never

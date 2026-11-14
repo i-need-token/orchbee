@@ -8,7 +8,7 @@ mod read;
 mod search;
 pub(crate) use motion::motion;
 pub use read::read_motion_with;
-pub use search::search;
+pub use search::{SearchScan, search};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CopyMotion {

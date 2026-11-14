@@ -56,8 +56,10 @@ prefix is pending.
 
 Search is literal over the whole retained scrollback, wrapped rows joined into logical lines. It
 is case-insensitive unless Match case is on; Find never uses smart case. The total is exact and up
-to 1024 matches around the active one stay settled for stepping and painting. Each search is
-bounded by the copy query lane's five-second job budget.
+to 1024 matches around the active one stay settled for stepping and painting. A search covers
+every row the Panel retains: it reads, searches and drops the rows page by page at one content
+revision, so the length of the scrollback never makes it fail. The copy query lane's five-second
+job budget is what ends a search that has not finished.
 
 A search runs 150 ms after the last edit; a newer edit or Match case change cancels the search in
 flight. The first match is the newest one. When the active match is not visible it is revealed

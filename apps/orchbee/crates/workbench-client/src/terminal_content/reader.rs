@@ -268,6 +268,10 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
     ) -> Result<R, Error<G::Error>> {
         let record = self.window_record(row, 1, ViewerRowDetail::Render)?;
         let envelope = decode_transport_envelope(&record).map_err(|_| Error::ProtocolInvalid)?;
+        if envelope.payload.len() > self.remaining_bytes {
+            return Err(Error::LimitExceeded);
+        }
+        self.remaining_bytes -= envelope.payload.len();
         if envelope.protocol != orchbee_terminal_protocol::CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Response
             || envelope.optional_message
@@ -302,21 +306,19 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
         if !valid_row_range(self.total, &range) {
             return Err(Error::LimitExceeded);
         }
-        let chunk = (orchbee_terminal_protocol::MAXIMUM_FRAME_CELLS
-            / usize::from(self.frame.geometry.columns))
-        .min(4096) as u64;
+        let chunk = self.window_rows();
         let mut rows: Vec<TerminalTextWindowRow> = Vec::new();
         let mut at = range.start;
         while at < range.end {
             let count = (range.end - at).min(chunk) as u16;
-            let window = self.text_window(at, count)?;
+            let (window, payload) = self.text_window(at, count)?;
+            if payload > self.remaining_bytes {
+                return Err(Error::LimitExceeded);
+            }
+            self.remaining_bytes -= payload;
             validate_join(&rows, &window.rows)?;
             for row in &window.rows {
-                let glyphs = if row.identity_ascii {
-                    row.text.len()
-                } else {
-                    row.mappings.len()
-                };
+                let glyphs = glyphs(row);
                 if glyphs > self.remaining_glyphs {
                     return Err(Error::LimitExceeded);
                 }
@@ -328,14 +330,46 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
         Ok(rows)
     }
 
+    /// Read `range` at this reader's one revision and hand it to `visit` in order, one page at a
+    /// time. The row, glyph and payload bounds apply to each page, so they never limit how many
+    /// rows a scan covers. A page is dropped once `visit` returns, so at most one page and the
+    /// window that closed it are held.
+    pub(crate) fn pages<E: From<Error<G::Error>>>(
+        &mut self,
+        range: Range<u64>,
+        visit: impl FnMut(&[TerminalTextWindowRow]) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if range.end > self.total || range.end > u64::from(u32::MAX) + 1 {
+            return Err(E::from(Error::LimitExceeded));
+        }
+        let chunk = self.window_rows();
+        paginate(
+            range,
+            chunk,
+            |start, count| {
+                self.text_window(start, count)
+                    .map(|(w, payload)| (w.rows, payload))
+            },
+            visit,
+        )
+    }
+
+    /// Rows per Host window: one frame's cells, at most 4096 rows.
+    fn window_rows(&self) -> u64 {
+        (orchbee_terminal_protocol::MAXIMUM_FRAME_CELLS / usize::from(self.frame.geometry.columns))
+            .min(4096) as u64
+    }
+
+    /// One validated text window and its row payload length.
     fn text_window(
         &mut self,
         start: u64,
         count: u16,
-    ) -> Result<TerminalTextRowWindow, Error<G::Error>> {
+    ) -> Result<(TerminalTextRowWindow, usize), Error<G::Error>> {
         let record = self.window_record(start, count, ViewerRowDetail::Text)?;
         let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
             .map_err(|_| Error::ProtocolInvalid)?;
+        let payload = envelope.payload.len();
         if envelope.protocol != orchbee_terminal_protocol::CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Response
             || envelope.optional_message
@@ -358,7 +392,7 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
         {
             return Err(Error::SourceChanged);
         }
-        Ok(window)
+        Ok((window, payload))
     }
 
     fn window_record(
@@ -400,16 +434,8 @@ impl<'a, G: Guard> ReadAttachment<'a, G> {
             .map_err(|_| Error::TransportUnavailable)?;
         self.guard.check(self.deadline).map_err(Error::Gate)?;
         match response.outcome() {
-            TerminalViewerOutcome::Record(record) => {
-                let payload = orchbee_terminal_protocol::decode_transport_envelope(record)
-                    .map_err(|_| Error::ProtocolInvalid)?
-                    .payload;
-                if payload.len() > self.remaining_bytes {
-                    return Err(Error::LimitExceeded);
-                }
-                self.remaining_bytes -= payload.len();
-                Ok(record.clone())
-            }
+            // The caller charges the payload to the budget its read answers to.
+            TerminalViewerOutcome::Record(record) => Ok(record.clone()),
             TerminalViewerOutcome::RowsRejected { .. }
             | TerminalViewerOutcome::Rejected { .. }
             | TerminalViewerOutcome::Unavailable { .. } => Err(Error::SourceChanged),
@@ -568,6 +594,60 @@ fn validate_join<E>(
         return Err(Error::ProtocolInvalid);
     }
     Ok(())
+}
+
+fn glyphs(row: &TerminalTextWindowRow) -> usize {
+    if row.identity_ascii {
+        row.text.len()
+    } else {
+        row.mappings.len()
+    }
+}
+
+/// Reads `range` window by window and hands the rows to `visit` in pages. A page closes before the
+/// window that would carry it past the row, glyph or payload bound, and every window must join the
+/// row before it, across page edges too.
+fn paginate<X, E: From<Error<X>>>(
+    range: Range<u64>,
+    chunk: u64,
+    mut window: impl FnMut(u64, u16) -> Result<(Vec<TerminalTextWindowRow>, usize), Error<X>>,
+    mut visit: impl FnMut(&[TerminalTextWindowRow]) -> Result<(), E>,
+) -> Result<(), E> {
+    let mut page: Vec<TerminalTextWindowRow> = Vec::new();
+    let (mut page_glyphs, mut page_bytes) = (0, 0);
+    let mut last_wrap = None;
+    let mut at = range.start;
+    while at < range.end {
+        let count = (range.end - at).min(chunk).min(MAXIMUM_ROWS as u64) as u16;
+        let (rows, payload) = window(at, count)?;
+        if let (Some(wrap), Some(first)) = (last_wrap, rows.first())
+            && wrap != first.wrap_continuation
+        {
+            return Err(E::from(Error::<X>::ProtocolInvalid));
+        }
+        let window_glyphs = rows.iter().map(glyphs).sum::<usize>();
+        if window_glyphs > MAXIMUM_GLYPHS || payload > MAXIMUM_BYTES {
+            return Err(E::from(Error::<X>::LimitExceeded));
+        }
+        if page.len() + rows.len() > MAXIMUM_ROWS
+            || page_glyphs + window_glyphs > MAXIMUM_GLYPHS
+            || page_bytes + payload > MAXIMUM_BYTES
+        {
+            visit(&page)?;
+            page.clear();
+            (page_glyphs, page_bytes) = (0, 0);
+        }
+        last_wrap = rows.last().map(|row| row.wrap);
+        page_glyphs += window_glyphs;
+        page_bytes += payload;
+        page.extend(rows);
+        at += u64::from(count);
+    }
+    if page.is_empty() {
+        Ok(())
+    } else {
+        visit(&page)
+    }
 }
 
 /// Decode a process sample from an already-open exact viewer.

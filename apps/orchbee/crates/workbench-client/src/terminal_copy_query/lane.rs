@@ -363,14 +363,8 @@ fn evaluate(
                     .map_err(Failure::from)?;
                 reader.validate_point(previous.end).map_err(Failure::from)?;
             }
-            let rows = if query.is_empty() {
-                Vec::new()
-            } else {
-                let total = reader.total_rows();
-                reader.rows(0..total).map_err(Failure::from)?
-            };
-            terminal_copy::search(
-                &rows,
+            // Every retained row is searched page by page at the reader's one revision.
+            let mut scan = terminal_copy::SearchScan::new(
                 reader.columns(),
                 query,
                 *case,
@@ -378,12 +372,20 @@ fn evaluate(
                 *cursor,
                 *previous,
             )
-            .map(Value::Search)
-            .map_err(|error| match error {
-                CopyError::LimitExceeded => Failure::LimitExceeded,
-                CopyError::PatternTooComplex => Failure::PatternTooComplex,
-            })
+            .map_err(copy_failure)?;
+            if scan.reads_rows() {
+                let total = reader.total_rows();
+                reader.pages(0..total, |rows| scan.page(rows).map_err(copy_failure))?;
+            }
+            scan.finish().map(Value::Search).map_err(copy_failure)
         }
+    }
+}
+
+const fn copy_failure(error: CopyError) -> Failure {
+    match error {
+        CopyError::LimitExceeded => Failure::LimitExceeded,
+        CopyError::PatternTooComplex => Failure::PatternTooComplex,
     }
 }
 

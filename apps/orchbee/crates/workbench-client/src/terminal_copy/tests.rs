@@ -403,3 +403,132 @@ fn copy_motion_reader_rejects_an_unverified_expansion_join() {
         Err("join")
     );
 }
+
+/// Feeds `rows` to `scan` in pages of `page` rows.
+fn paged(
+    rows: &[TerminalTextWindowRow],
+    page: usize,
+    scan: Result<SearchScan, CopyError>,
+) -> Result<CopySearchResult, CopyError> {
+    let mut scan = scan?;
+    for rows in rows.chunks(page) {
+        scan.page(rows)?;
+    }
+    scan.finish()
+}
+
+#[test]
+fn a_logical_line_across_page_edges_matches_as_in_one_page() {
+    let forward = |rows: &[TerminalTextWindowRow], page, query| {
+        let scan = SearchScan::new(
+            5,
+            query,
+            CopySearchCase::Smart,
+            CopySearchDirection::Forward,
+            p(0, 0),
+            None,
+        );
+        paged(rows, page, scan).unwrap()
+    };
+    // The wide glyph opening row 1 turns row 0's last cell into a spacer only the next page shows.
+    let mut rows = vec![
+        r(0, "abcd"),
+        mapped(1, &[("界", 2), ("x", 1), ("y", 1), ("z", 1)]),
+    ];
+    rows[0].wrap = true;
+    rows[1].wrap_continuation = true;
+    assert_eq!(
+        forward(&rows, 1, "d界").matches,
+        vec![range(p(0, 3), p(1, 1))]
+    );
+    let mut rows = vec![r(0, "ab"), r(1, "cd"), r(2, "ef"), r(3, "ab")];
+    for (row, wrap, continuation) in [(0, true, false), (1, true, true), (2, false, true)] {
+        rows[row].wrap = wrap;
+        rows[row].wrap_continuation = continuation;
+    }
+    for page in 1..=3 {
+        let found = forward(&rows, page, "b   cd   e");
+        assert_eq!(found.matches, vec![range(p(0, 1), p(2, 0))], "page {page}");
+        assert_eq!(forward(&rows, page, "efab").total, 0, "page {page}");
+    }
+}
+
+#[test]
+fn paged_results_equal_the_one_page_result_for_every_page_size() {
+    let mut rows = vec![
+        r(0, "Error err"),
+        r(1, "abcd"),
+        mapped(2, &[("界", 2), ("e", 1), ("r", 1), ("r", 1)]),
+        mapped(3, &[("o", 1), ("r", 1), (" ", 1), ("中", 2)]),
+        r(4, "  err  or"),
+        mapped(5, &[("e\u{301}", 1), ("\u{10eeee}", 1), ("r", 1)]),
+        r(6, ""),
+        r(7, "rror ERROR"),
+    ];
+    for (row, wrap, continuation) in [(1, true, false), (2, true, true), (3, false, true)] {
+        rows[row].wrap = wrap;
+        rows[row].wrap_continuation = continuation;
+    }
+    rows[7].wrap_continuation = true;
+    rows[6].wrap = true;
+    let ranges = [
+        None,
+        Some(range(p(2, 2), p(3, 1))),
+        Some(range(p(7, 5), p(7, 9))),
+    ];
+    for query in ["err", "error", "Error", "r", "rr", "界err", " ", "é"] {
+        for case in [
+            CopySearchCase::Smart,
+            CopySearchCase::Insensitive,
+            CopySearchCase::Sensitive,
+        ] {
+            for direction in [CopySearchDirection::Forward, CopySearchDirection::Backward] {
+                for cursor in [p(0, 0), p(2, 3), p(4, 9), p(7, 9)] {
+                    for previous in ranges {
+                        let whole = search(&rows, 10, query, case, direction, cursor, previous);
+                        for page in 1..rows.len() {
+                            assert_eq!(
+                                paged(
+                                    &rows,
+                                    page,
+                                    SearchScan::new(10, query, case, direction, cursor, previous)
+                                ),
+                                whole,
+                                "{query:?} {case:?} {direction:?} {cursor:?} {previous:?} {page}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn the_retained_window_stays_centred_on_the_active_match_across_pages() {
+    // Row k holds match k, so every window is known from the requirement alone.
+    let rows = (0..3000).map(|i| r(i, "x")).collect::<Vec<_>>();
+    for (direction, cursor, current_global, first_row, current) in [
+        (CopySearchDirection::Forward, p(10, 0), 11, 0, 11),
+        (CopySearchDirection::Forward, p(1499, 0), 1500, 988, 512),
+        (CopySearchDirection::Forward, p(2900, 0), 2901, 1976, 925),
+        (CopySearchDirection::Forward, p(2999, 0), 0, 0, 0),
+        (CopySearchDirection::Backward, p(10, 0), 9, 0, 9),
+        (CopySearchDirection::Backward, p(1500, 0), 1499, 987, 512),
+        (CopySearchDirection::Backward, p(2990, 0), 2989, 1976, 1013),
+        (CopySearchDirection::Backward, p(0, 0), 2999, 1976, 1023),
+    ] {
+        for page in [1, 333, 3000] {
+            let scan = SearchScan::new(1, "x", CopySearchCase::Smart, direction, cursor, None);
+            let result = paged(&rows, page, scan).unwrap();
+            let case = format!("{direction:?} {cursor:?} page {page}");
+            assert_eq!(result.total, 3000, "{case}");
+            assert_eq!(result.current_global, Some(current_global), "{case}");
+            assert_eq!(result.current, Some(current), "{case}");
+            assert_eq!(result.matches.len(), 1024, "{case}");
+            for (offset, found) in result.matches.iter().enumerate() {
+                assert_eq!(found.start, p(first_row + offset as u32, 0), "{case}");
+            }
+        }
+    }
+}
