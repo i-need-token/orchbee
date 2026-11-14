@@ -51,7 +51,7 @@ fn default_config_uses_the_setting_and_client_action_registries() {
             action.action
         );
     }
-    assert!(text.contains("# resize_panel_left = []"));
+    assert!(text.contains("# rename_panel = []"));
     assert!(text.contains("# focus_agent = []"));
 }
 

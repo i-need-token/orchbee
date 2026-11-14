@@ -738,6 +738,31 @@ fn resize_mode_consumes_keys_prefix_paste_and_complete_sequences_then_escape_res
 }
 
 #[test]
+fn default_prefix_then_alt_arrow_resizes_and_forwards_nothing_of_the_chord() {
+    let mut view = ClientView::new(120);
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    run(
+        &mut view,
+        &mut dispatcher,
+        &mut port,
+        b"before\x02\x1b[1;3Cafter\x1b[1;3C",
+    );
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"before".to_vec()),
+            Call::Action(ClientAction::ResizePane {
+                direction: crate::client_view::PanelDirection::Right,
+                fine: false
+            }),
+            Call::Forward(b"after\x1b[1;3C".to_vec())
+        ]
+    );
+}
+
+#[test]
 fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_chord() {
     let keys =
         KeySettings::from_profile("[keys]\nresize_mode='prefix+R'\nresize_panel_left='ctrl+left'")

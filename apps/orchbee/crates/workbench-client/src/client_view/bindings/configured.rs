@@ -55,15 +55,7 @@ impl Default for Bindings {
         let entries = {
             let mut entries = entries;
             // Configured-only actions keep a disabled default, so overrides find their position.
-            for name in [
-                "resize_panel_left",
-                "resize_panel_right",
-                "resize_panel_up",
-                "resize_panel_down",
-                "rename_panel",
-                "clear_terminal",
-                "earlier_layouts",
-            ] {
+            for name in ["rename_panel", "clear_terminal", "earlier_layouts"] {
                 let (action, desc, shell) = action(name);
                 entries.push(Entry {
                     enabled: false,

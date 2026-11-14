@@ -58,7 +58,7 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
             "default action {action} is missing"
         );
     }
-    assert!(text.contains("# resize_panel_left = []"));
+    assert!(text.contains("# rename_panel = []"));
     assert!(text.contains("# focus_agent = []"));
 
     for arguments in [

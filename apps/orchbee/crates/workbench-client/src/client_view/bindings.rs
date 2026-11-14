@@ -64,6 +64,10 @@ const fn key(code: KeyCode) -> KeySet {
     KeySet::One(Binding::new(code, Modifiers::NONE))
 }
 
+const fn alt_key(code: KeyCode) -> KeySet {
+    KeySet::One(Binding::new(code, Modifiers::NONE.with_alt()))
+}
+
 const fn shift_key(c: char) -> KeySet {
     KeySet::One(Binding::new(KeyCode::Char(c), Modifiers::NONE.with_shift()))
 }
@@ -234,6 +238,46 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             ),
         ],
         desc: PrefixDesc::PanelFocus,
+    },
+    PrefixGroup {
+        members: &[member(
+            alt_key(KeyCode::Left),
+            ClientAction::ResizePane {
+                direction: PanelDirection::Left,
+                fine: false,
+            },
+        )],
+        desc: PrefixDesc::ResizeLeft,
+    },
+    PrefixGroup {
+        members: &[member(
+            alt_key(KeyCode::Right),
+            ClientAction::ResizePane {
+                direction: PanelDirection::Right,
+                fine: false,
+            },
+        )],
+        desc: PrefixDesc::ResizeRight,
+    },
+    PrefixGroup {
+        members: &[member(
+            alt_key(KeyCode::Up),
+            ClientAction::ResizePane {
+                direction: PanelDirection::Up,
+                fine: false,
+            },
+        )],
+        desc: PrefixDesc::ResizeUp,
+    },
+    PrefixGroup {
+        members: &[member(
+            alt_key(KeyCode::Down),
+            ClientAction::ResizePane {
+                direction: PanelDirection::Down,
+                fine: false,
+            },
+        )],
+        desc: PrefixDesc::ResizeDown,
     },
     PrefixGroup {
         members: &[member(

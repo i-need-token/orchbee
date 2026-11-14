@@ -169,8 +169,9 @@ The same safe direct chords and explicit disabling apply. Machines keeps `prefix
 describes. Safe direct chords and disabling use the same registry.
 
 `resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
-`resize_panel_left`, `resize_panel_right`, `resize_panel_up` and `resize_panel_down` are unbound
-by default and accept the same safe chords. They move the nearest eligible divider five percentage
+`resize_panel_left`, `resize_panel_right`, `resize_panel_up` and `resize_panel_down` default to
+`prefix+alt+left`, `prefix+alt+right`, `prefix+alt+up` and `prefix+alt+down` and accept the same
+safe chords. Each press moves the nearest eligible divider of the focused Panel five percentage
 points without entering the mode; for example, `resize_panel_left = "ctrl+left"`. Mode arrows are
 fixed at five points, Shift+arrows at one, and Esc exits. Extra resize keys while pending are consumed,
 not queued. Profiles opting into these action names require a matching current cohort; remove those
