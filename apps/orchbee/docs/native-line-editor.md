@@ -24,8 +24,6 @@ modifier set; the modal decoder emits the same keys from legacy bytes (`0x15`, `
 `0x19`, and `ESC b`/`f`/`d`). They are fixed editing conventions, not `[keys]` actions, and stay
 out of the Action registry. A field that already gives one of these keys another meaning keeps it:
 
-- The Machine picker's `Ctrl+y` copies the selected row's ID in both queries, so yank is not
-  available there.
 - Action-menu and Command Palette queries keep Up/Down, Home/End, Left and Right for menu
   navigation, and the shortcut-help filter keeps Up/Down, Home/End and the page keys for paging;
   there only the shared readline keys and Backspace edit the query, and the help filter also takes

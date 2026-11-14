@@ -1,4 +1,4 @@
-//! The picker's "Forget password" action beside "Copy ID" for a selected remote Machine, and the
+//! The picker's "Forget password" action for a selected remote Machine, and the
 //! status line that reports how a forget ended.
 
 use super::picker_interaction;
@@ -12,14 +12,12 @@ use crate::tui_theme::{Role, Theme};
 use ratatui::{Frame, layout::Rect, style::Modifier, widgets::Paragraph};
 
 impl Picker {
-    /// Paints the action on the details pane's action row, left of the `reserved` columns the copy
-    /// action takes, when the selected row can forget and the action fits.
-    #[allow(clippy::too_many_arguments)]
+    /// Paints the action at the right of the details pane's action row when the selected row can
+    /// forget and the action fits.
     pub(super) fn render_forget_action(
         &self,
         frame: &mut Frame<'_>,
         inner: Rect,
-        reserved: u16,
         source: &PickerSource,
         locale: Locale,
         theme: &Theme,
@@ -39,15 +37,10 @@ impl Picker {
             locale.machine_remember_text(RememberText::Forget),
         );
         let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
-        if width.saturating_add(reserved) > inner.width {
+        if width > inner.width {
             return;
         }
-        let rect = Rect::new(
-            inner.right() - reserved - width,
-            inner.bottom() - 3,
-            width,
-            1,
-        );
+        let rect = Rect::new(inner.right() - width, inner.bottom() - 3, width, 1);
         let Some((target, spec)) =
             picker_interaction(source, PickerAction::ForgetPassword(selected))
         else {

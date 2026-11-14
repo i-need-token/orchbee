@@ -1912,20 +1912,17 @@ All reads share the existing deadline, row and serialized-state byte bounds.
 Agent and authority facts guard effective metadata; display titles/providers/state
 labels and tokens never replace the physical navigation target.
 
-The Client owns ephemeral status/scope/order/search controls. `f` cycles status (including Done),
-`c` cycles all/current machine/current context, `s` cycles placement/priority/provider/
-title/state sequence, and slash edits a query of at most 128 safe scalars. Enter
+The Client owns ephemeral status/search controls. `f` cycles status (including Done),
+and slash edits a query of at most 128 safe scalars. Enter
 or Escape first leaves query editing. The query takes the cursor keys and shared readline keys of
-the [native line editor](native-line-editor.md), except `Ctrl+y`, which keeps copying the selected
-row's ID. Painted controls accept
+the [native line editor](native-line-editor.md). Painted controls accept
 mouse activation. Filtering includes safe machine/location/title/provider/token
-text. Stable ordering preserves canonical placement for ties; priority orders
-Blocked, Error, Done, Working, Idle, Unknown. State sequence is a reported version, not a
-cross-machine wall clock. Missing observations stay distinct from no matches.
+text. Rows keep canonical placement order. Missing observations stay distinct from no matches.
 Changing data, context or controls invalidates painted activation identities.
 
 `Ctrl+b {` or `Ctrl+b }` requests previous/next Agent across machines; the configured
-`previous_agent`/`next_agent` actions use the same projector. An eight-second intent
+`previous_agent`/`next_agent` actions use the same projector over every Agent the active source
+view admits, whatever status filter or query the picker shows. An eight-second intent
 waits for bounded observations, wraps relative to the exact current member, chooses
 last/first if it is absent, and excludes unavailable rows. Empty lists and a single
 already-focused target cause no attachment. Further keys or pointer input cancel a
@@ -1984,7 +1981,7 @@ Tab identities, and pane IDs are exact Presentation identities, including child
 Presentations. Placement order comes from the snapshot's ordered workspace, Tab
 and pane placement. A missing context operand compares as missing, and two missing
 operands compare as equal. UI presets/search further narrow the
-source filter; explicit source sorting wins and the sort control explains its owner, otherwise the UI ordering applies.
+source filter; explicit source sorting applies, otherwise canonical placement order applies.
 The source specification is read before and fenced after physical checkpoints;
 a changed or unavailable source never silently means an empty override.
 
@@ -2012,7 +2009,8 @@ visual acceptance remain separate obligations.
 Windows `[keys] focus_agent` accepts configured `1..9` digits or ranges, with
 prefix/direct modifiers and explicit disabling. It is unbound by default. A
 matched binding digit selects the corresponding zero-based entry in the same
-active-source-filtered, stable merged list used by previous/next actions. The
+active-source-filtered, stable merged list used by previous/next actions; the picker's
+status filter and query never narrow that list. The
 first nine eligible Agent rows display those numbers; loading/unavailable/empty
 placeholders never take an ordinal. Configured shortcut help lists the actual
 triggers in both locales, including disabled bindings. Shifted digit symbols from
@@ -2035,7 +2033,7 @@ absent/current targets, cancellation and exact cross-machine identity.
 On Windows, the main sidebar joins the Agents picker's eligible projection to
 each exact Machine/Session/Context and renders Agents beneath their owning Workspace,
 including the nonempty legacy Workspace. Labels never establish ownership. The active machine's source
-view and Client-local status, scope, ordering and search still define eligibility.
+view and Client-local status and search still define eligibility.
 The first nine eligible entries retain their global filtered-list ordinals for
 ordinal focus even when other parents are collapsed; the sidebar does not paint them.
 The focused physical member is marked.
@@ -2280,9 +2278,9 @@ Whole-cohort and real emulator/SSH acceptance remain separate evidence.
 
 ## Search presentation and explicit identifiers
 
-With no configured remote profile, search omits remote totals and Local prefixes. The selected mode uses the shared selection surface plus bold and underline; it does not add an asterisk. Internal IDs do not appear in rows or details. The selected row exposes Copy ID (Ctrl+y); pointer activation retains its exact catalog/index proof, and keyboard copying uses the current selection. The validated identifier enters the existing bounded post-draw clipboard queue once, with no navigation or remote write. A connected native pane supplies the delivery lifecycle; without one, copying reports unavailable. Switching or retiring that pane cancels an undelivered request. Remote totals count remote observations only.
+With no configured remote profile, search omits remote totals and Local prefixes. The selected mode uses the shared selection surface plus bold and underline; it does not add an asterisk. Internal IDs do not appear in rows or details. Remote totals count remote observations only.
 
-The Agent picker shows the assigned name and a distinct task title when present. Its details reserve separate rows for workspace, provider, title and custom tokens, plus machine context when remote profiles exist, while keeping Copy ID available. The mode bar uses the shared current-state track so every mode keeps a distinct painted label and hit region.
+The Agent picker shows the assigned name and a distinct task title when present. Its details reserve separate rows for workspace, provider, title and custom tokens, plus machine context when remote profiles exist. The mode bar uses the shared current-state track so every mode keeps a distinct painted label and hit region.
 
 The Agent picker's query includes the assigned runtime name even when no other field contains
 that alias. It uses the same sanitized, case-insensitive substring matching as its existing

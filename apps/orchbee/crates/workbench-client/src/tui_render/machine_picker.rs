@@ -377,7 +377,7 @@ impl Picker {
             .any(|row| matches!(row.choice, Choice::Remote(_)));
         let details = if inner.height >= 9 {
             if self.mode() == Mode::Agents {
-                // Workspace, provider, task, metadata and Copy ID have separate rows.
+                // Workspace, provider, task and metadata have separate rows.
                 5 + u16::from(has_remote)
             } else if has_remote {
                 5
@@ -720,47 +720,7 @@ impl Picker {
                     _ => {}
                 }
             }
-            let mut copy_reserved = 0;
-            if self.row_id(self.selected()).is_some() {
-                let label = format!(
-                    "[{} {}]",
-                    format_binding_with_glyphs(
-                        &crate::machine_picker::COPY_ID_KEY,
-                        LabelStyle::for_host(),
-                        theme.glyphs.key_labels(),
-                    ),
-                    locale.machine_picker_text("copy-id"),
-                );
-                let copy_width = display_width(&label) as u16;
-                if copy_width <= inner.width {
-                    copy_reserved = copy_width + 1;
-                    let rect = Rect::new(
-                        inner.right() - copy_width,
-                        inner.bottom() - 3,
-                        copy_width,
-                        1,
-                    );
-                    if let Some((target, spec)) =
-                        picker_interaction(&source, PickerAction::CopyId(self.selected()))
-                    {
-                        let hovered =
-                            hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec)
-                                != ProjectedPointer::Rest;
-                        frame.render_widget(
-                            Paragraph::new(label).style(theme.style(Role::HintKey).add_modifier(
-                                if hovered {
-                                    Modifier::REVERSED
-                                } else {
-                                    Modifier::UNDERLINED
-                                },
-                            )),
-                            rect,
-                        );
-                        hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
-                    }
-                }
-            }
-            self.render_forget_action(frame, inner, copy_reserved, &source, locale, theme, hits);
+            self.render_forget_action(frame, inner, &source, locale, theme, hits);
             frame.render_widget(
                 Paragraph::new(lines.join("\n")).style(theme.style(Role::TextSecondary)),
                 Rect::new(
@@ -872,37 +832,26 @@ impl Picker {
             }
             return;
         }
-        for (index, control) in [Control::State, Control::Order, Control::Scope]
-            .into_iter()
-            .enumerate()
-        {
-            let width = inner.width / 3;
-            let rect = Rect::new(inner.x + index as u16 * width, inner.y, width, 1);
-            let label = if control == Control::Order
-                && self.source_spec().is_some_and(|s| !s.sort.is_empty())
-            {
-                locale.machine_picker_text("agent-source-sort").to_owned()
-            } else {
-                locale.machine_agent_control(control_label(control, self.agent_view()))
-            };
-            let label = crate::terminal_text::truncate_display(
-                &label,
-                usize::from(width.saturating_sub(5)),
-                theme.glyphs.ellipsis,
-            );
-            let _ = self.render_agent_action(
-                frame,
-                AgentAction {
-                    area: rect,
-                    control,
-                    label: &label,
-                    kind: ActionKind::Secondary,
-                },
-                theme,
-                source,
-                hits,
-            );
-        }
+        // The status filter keeps the first third of the row it shared with the removed controls.
+        let rect = Rect::new(inner.x, inner.y, inner.width / 3, 1);
+        let label = locale.machine_agent_control(control_label(Control::State, self.agent_view()));
+        let label = crate::terminal_text::truncate_display(
+            &label,
+            usize::from(rect.width.saturating_sub(5)),
+            theme.glyphs.ellipsis,
+        );
+        let _ = self.render_agent_action(
+            frame,
+            AgentAction {
+                area: rect,
+                control: Control::State,
+                label: &label,
+                kind: ActionKind::Secondary,
+            },
+            theme,
+            source,
+            hits,
+        );
         let rect = Rect::new(inner.x, inner.y + 1, inner.width, 1);
         self.render_agent_query(frame, rect, locale, theme, source, hits);
         inner.y += 2;
@@ -1099,7 +1048,6 @@ fn control_label(
     control: Control,
     view: &crate::machine_agents::view::View,
 ) -> crate::localization::MachineControlLabel {
-    use crate::machine_agents::view::{Order, Scope};
     use orchbee_workbench_protocol::MetadataState as State;
     match control {
         Control::Done => crate::localization::MachineControlLabel::Done,
@@ -1112,18 +1060,6 @@ fn control_label(
             Some(State::Working) => crate::localization::MachineControlLabel::Working,
             Some(State::Idle) => crate::localization::MachineControlLabel::Idle,
             Some(State::Unknown) => crate::localization::MachineControlLabel::Unknown,
-        },
-        Control::Scope => match view.scope {
-            Scope::All => crate::localization::MachineControlLabel::AllScope,
-            Scope::Machine => crate::localization::MachineControlLabel::MachineScope,
-            Scope::Context => crate::localization::MachineControlLabel::ContextScope,
-        },
-        Control::Order => match view.order {
-            Order::Placement => crate::localization::MachineControlLabel::PlacementOrder,
-            Order::Priority => crate::localization::MachineControlLabel::PriorityOrder,
-            Order::Provider => crate::localization::MachineControlLabel::ProviderOrder,
-            Order::Title => crate::localization::MachineControlLabel::TitleOrder,
-            Order::Sequence => crate::localization::MachineControlLabel::SequenceOrder,
         },
         Control::Search => crate::localization::MachineControlLabel::Search,
     }

@@ -197,9 +197,9 @@ Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_wo
 `copy_mode`, `find`, `resize_mode`, `resize_panel_left/down/up/right`, and `focus_panel_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_panel`, `rename_panel`, `last_panel`, `clear_terminal`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
-Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
-[machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical
-target revalidation. The same owning contract defines configured ordinal Agent focus and source-owned view JSON.
+Agent previous/next defaults to prefix `{`/`}` and walks every Agent of the stable
+[machine Agent list](machines.md#agent-metadata-view-controls-and-navigation) that the active source
+view admits, with exact physical target revalidation. The same owning contract defines configured ordinal Agent focus and source-owned view JSON.
 
 ```toml
 [keys]

@@ -58,10 +58,7 @@ fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
         (remote.clone(), second.clone()),
     ];
     let spec=parse_agent_view_spec(br#"{"source":"x","filter":{"op":"eq","field":"agent","value":"codex"},"sort":[{"field":"seen"}]}"#).unwrap();
-    let view = View {
-        order: Order::Priority,
-        ..View::default()
-    };
+    let view = View::default();
     let entries = || {
         candidates.iter().map(|(machine, row)| Entry {
             machine,
@@ -121,29 +118,7 @@ fn project<'a>(
     )
 }
 #[test]
-fn view_scope_qualifies_equal_session_context_and_member_ids_by_machine() {
-    let remote = Choice::Remote(ProfileId::parse(&format!("{:032x}", 7)).unwrap());
-    let rows = vec![(Choice::Local, row()), (remote.clone(), row())];
-    let mut view = View {
-        scope: Scope::Context,
-        ..View::default()
-    };
-    let result = project(
-        &view,
-        &rows,
-        &Choice::Local,
-        Some(&rows[0].1.target.context),
-    );
-    assert_eq!(result.len(), 1);
-    assert_eq!(result[0].machine, &Choice::Local);
-    assert!(project(&view, &rows, &remote, None).is_empty());
-    view.scope = Scope::Machine;
-    assert_eq!(project(&view, &rows, &remote, None)[0].machine, &remote);
-    view.scope = Scope::All;
-    assert_eq!(project(&view, &rows, &remote, None).len(), 2);
-}
-#[test]
-fn view_priority_and_state_sequence_are_stable_and_display_metadata_cannot_retarget() {
+fn view_state_filter_and_display_metadata_cannot_retarget() {
     let mut rows = Vec::new();
     for (index, state) in [
         PanelAgentState::Idle,
@@ -162,31 +137,9 @@ fn view_priority_and_state_sequence_are_stable_and_display_metadata_cannot_retar
         row.metadata.title = Some(MetadataTokenValue::parse(&format!("Title {index}")).unwrap());
         rows.push((Choice::Local, row));
     }
-    let view = View {
-        order: Order::Priority,
-        ..View::default()
-    };
-    let result = project(&view, &rows, &Choice::Local, None);
-    assert_eq!(
-        result
-            .iter()
-            .map(|e| e.row.label.as_str())
-            .collect::<Vec<_>>(),
-        ["2", "4", "1", "0", "3"]
-    );
+    let result = project(&View::default(), &rows, &Choice::Local, None);
     let target = result[0].row.target.clone();
     assert_eq!(target, crate::machine_agents::test_support::target());
-    let view = View {
-        order: Order::Sequence,
-        ..View::default()
-    };
-    assert_eq!(
-        project(&view, &rows, &Choice::Local, None)
-            .iter()
-            .map(|e| e.row.label.as_str())
-            .collect::<Vec<_>>(),
-        ["4", "3", "2", "1", "0"]
-    );
     let view = View {
         state: Some(MetadataState::Blocked),
         ..View::default()
@@ -245,53 +198,10 @@ fn view_searches_guarded_display_and_tokens_and_rejects_host_control_characters(
     assert!(project(&view, &rows, &Choice::Local, None).is_empty());
 }
 #[test]
-fn view_order_uses_effective_titles_and_providers_with_canonical_ties() {
-    let mut a = row();
-    a.label = "z".into();
-    a.metadata.title = Some(MetadataTokenValue::parse("a").unwrap());
-    let mut b = row();
-    b.label = "a".into();
-    b.metadata.title = Some(MetadataTokenValue::parse("z").unwrap());
-    b.metadata.display_agent = Some(MetadataTokenValue::parse("A").unwrap());
-    let rows = vec![(Choice::Local, a), (Choice::Local, b)];
-    assert_eq!(
-        project(
-            &View {
-                order: Order::Title,
-                ..View::default()
-            },
-            &rows,
-            &Choice::Local,
-            None
-        )[0]
-        .row
-        .label,
-        "z"
-    );
-    assert_eq!(
-        project(
-            &View {
-                order: Order::Provider,
-                ..View::default()
-            },
-            &rows,
-            &Choice::Local,
-            None
-        )[0]
-        .row
-        .label,
-        "a"
-    );
+fn state_filter_cycles_back_to_every_state() {
     let mut view = View::default();
-    for _ in 0..5 {
-        view.cycle_order();
-    }
     for _ in 0..7 {
         view.cycle_state();
     }
     assert_eq!(view, View::default());
-    for _ in 0..3 {
-        view.cycle_scope();
-    }
-    assert_eq!(view.scope, Scope::All);
 }

@@ -5,14 +5,12 @@ use super::{
 };
 use crate::client_view::KeyEvent;
 use crate::machine_agents::Observation as Agents;
-use crate::machine_agents::view::{Entry, Scope};
+use crate::machine_agents::view::{Entry, View};
 use crate::terminal_text::line_editor::LineKey;
 use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Control {
     State,
-    Scope,
-    Order,
     Search,
     Done,
     Clear,
@@ -53,6 +51,14 @@ impl Picker {
     pub(super) fn rebuild_agents(&mut self) {
         // A queued wheel packet owns the painted heights, not later metadata/state geometry.
         self.cancel_sidebar_scroll();
+        self.agent_rows = self.project_agents(&self.agent_view).into();
+        // Agent disclosure is Client-local presentation state. New rows never open it;
+        // removed or filtered last children close their obsolete owner deterministically.
+        self.reconcile_sidebar_navigation();
+    }
+    /// The Agent rows `view` admits from every enabled machine, in the source view's order, with
+    /// one placeholder for each machine that shows none.
+    fn project_agents(&self, view: &View) -> Vec<Row> {
         let source = self
             .agent_observations
             .iter()
@@ -71,7 +77,7 @@ impl Picker {
             } else {
                 "agents-loading"
             };
-            self.agent_rows = vec![Row {
+            return vec![Row {
                 choice: self.current.clone(),
                 label: self.current_label.clone(),
                 enabled: false,
@@ -79,10 +85,7 @@ impl Picker {
                 context: None,
                 agent: None,
                 fixed_status: Some(status),
-            }]
-            .into();
-            self.reconcile_sidebar_navigation();
-            return;
+            }];
         }
         let candidates = self.rows.iter().filter(|m| m.enabled).flat_map(|machine| {
             let rows = self
@@ -100,7 +103,7 @@ impl Picker {
                 row,
             })
         });
-        let eligible = self.agent_view.project_source(
+        let eligible = view.project_source(
             candidates.filter(|_| source.is_some()),
             &self.current,
             self.current_context.as_ref(),
@@ -119,9 +122,7 @@ impl Picker {
                 fixed_status: None,
             })
             .collect();
-        for machine in self.rows.iter().filter(|m| {
-            m.enabled && (self.agent_view.scope == Scope::All || m.choice == self.current)
-        }) {
+        for machine in self.rows.iter().filter(|m| m.enabled) {
             if rows.iter().any(|r| r.choice == machine.choice) {
                 continue;
             }
@@ -146,10 +147,7 @@ impl Picker {
                 fixed_status: Some(status),
             });
         }
-        self.agent_rows = rows.into();
-        // Agent disclosure is Client-local presentation state. New rows never open it;
-        // removed or filtered last children close their obsolete owner deterministically.
-        self.reconcile_sidebar_navigation();
+        rows
     }
     pub fn observe_focus(
         &mut self,
@@ -267,23 +265,19 @@ impl Picker {
             self.error = Some("agents-unavailable");
             return true;
         }
-        if self
-            .agent_rows
-            .iter()
-            .any(|r| r.fixed_status == Some("agents-loading"))
-        {
+        // Every Agent the source view admits, whatever status filter or query the picker shows.
+        let all = self.project_agents(&View::default());
+        if all.iter().any(|r| r.fixed_status == Some("agents-loading")) {
             return false;
         }
         self.pending_navigation = None;
-        let rows: Vec<_> = self
-            .agent_rows
+        let rows: Vec<_> = all
             .iter()
             .filter(|r| r.enabled && r.agent.is_some())
             .collect();
         if rows.is_empty() {
             if matches!(intent.target, NavigationTarget::Index(_))
-                && self
-                    .agent_rows
+                && all
                     .iter()
                     .all(|r| matches!(r.fixed_status, Some("no-agents" | "agents-no-matches")))
             {
@@ -292,8 +286,7 @@ impl Picker {
                 return true;
             }
             self.error = Some(
-                if self
-                    .agent_rows
+                if all
                     .iter()
                     .all(|r| r.fixed_status == Some("agents-unavailable"))
                 {
@@ -341,12 +334,6 @@ impl Picker {
         let selected = self.selection();
         match control {
             Control::State => self.agent_view.cycle_state(),
-            Control::Scope => self.agent_view.cycle_scope(),
-            Control::Order if self.source_spec().is_some_and(|s| !s.sort.is_empty()) => {
-                self.error = Some("agent-source-sort");
-                return;
-            }
-            Control::Order => self.agent_view.cycle_order(),
             Control::Search => self.editing_query = true,
             Control::Done => self.editing_query = false,
             Control::Clear => self.agent_view.query.clear(),
@@ -407,8 +394,6 @@ impl Picker {
         }
         let control = match code {
             KeyCode::Char('f') => Control::State,
-            KeyCode::Char('s') => Control::Order,
-            KeyCode::Char('c') => Control::Scope,
             KeyCode::Char('/') => Control::Search,
             _ => return false,
         };

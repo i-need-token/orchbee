@@ -15,9 +15,6 @@ impl Picker {
         }
         self.pending_navigation = None;
         match target.action() {
-            PickerAction::CopyId(index) => {
-                self.copy_id_request = self.row_id(index).map(str::to_owned);
-            }
             PickerAction::ForgetPassword(index) => {
                 self.forget_request = self.forget_target(index).cloned();
             }

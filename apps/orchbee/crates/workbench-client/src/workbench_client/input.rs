@@ -389,10 +389,6 @@ pub trait TerminalInputPort {
         crate::client_view::navigator::Admission::Refused
     }
 
-    fn copy_picker_identifier(&mut self, _text: String) -> bool {
-        false
-    }
-
     /// Opens the Agent target a visible notification card announced, revalidated against the
     /// current Workbench. The default opens nothing.
     fn open_notification_target(

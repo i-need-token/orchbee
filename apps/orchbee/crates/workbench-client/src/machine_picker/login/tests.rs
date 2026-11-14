@@ -90,11 +90,6 @@ impl TerminalInputPort for Port {
         self.reached.push("open_action_menu");
         false
     }
-
-    fn copy_picker_identifier(&mut self, _text: String) -> bool {
-        self.reached.push("copy_picker_identifier");
-        false
-    }
 }
 
 fn id(value: u32) -> Id {

@@ -88,16 +88,15 @@ impl View {
         };
         let mut rows: Vec<_> = candidates
             .into_iter()
-            .filter(|e| self.includes(e.machine, e.label, e.row, current, context))
+            .filter(|e| self.includes(e.machine, e.label, e.row))
             .filter(|e| {
                 spec.and_then(|s| s.filter.as_ref())
                     .is_none_or(|f| evaluation::matches_filter(&evaluation_context, e, f))
             })
             .collect();
+        // Without a source sort the rows keep their canonical placement order.
         if let Some(spec) = spec.filter(|s| !s.sort.is_empty()) {
             rows.sort_by(|a, b| evaluation::compare_entries(a, b, &spec.sort));
-        } else {
-            rows.sort_by(|a, b| self.compare(a.row, b.row));
         }
         rows
     }

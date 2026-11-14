@@ -935,11 +935,6 @@ impl InputDispatcher {
                 }
                 _ => {}
             }
-            if let Some(id) = view.machines.copy_id_request.take()
-                && !port.copy_picker_identifier(id)
-            {
-                view.machines.error = Some("copy-id-unavailable");
-            }
             // The bytes a login answer arrived in leave no copy behind this item.
             if login {
                 orchbee_machine_protocol::wipe(&mut item.raw);

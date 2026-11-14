@@ -1,8 +1,5 @@
 use super::*;
-use crate::machine_agents::{
-    Observation as Agents,
-    view::{Order, Scope},
-};
+use crate::machine_agents::Observation as Agents;
 use std::time::{Duration, Instant};
 
 #[test]
@@ -80,14 +77,6 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
             machine: choice,
             context: Some(ClientStartupTarget::Agent(Box::new(second.target)))
         })
-    );
-    picker.agent_view.scope = Scope::Machine;
-    picker.rebuild_workspaces(None);
-    picker.focus_agent(0, now);
-    assert!(picker.drive_agent_navigation(now));
-    assert!(
-        !picker.open && picker.request.is_none(),
-        "filtered empty list has no fallback"
     );
     picker.observe_agents(vec![
         (Choice::Local, Agents::Unavailable),
@@ -177,9 +166,6 @@ fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clear
     );
     let text = paint(&picker, Locale::EnUs, 90, 24);
     assert!(text.contains("Blocked"));
-    assert!(text.contains("Sort from view"));
-    picker.agent_control(Control::Order);
-    assert_eq!(picker.error, Some("agent-source-sort"));
     picker.navigate_agent(false, Instant::now());
     assert!(picker.drive_agent_navigation(Instant::now()));
     assert_eq!(
@@ -418,43 +404,7 @@ fn drawn_controls_filter_without_reusing_old_mouse_authority() {
     assert_eq!(picker.agent_view, view);
 }
 #[test]
-fn view_scope_reprojects_on_current_focus_and_keeps_machine_identity() {
-    let mut picker = picker();
-    focus(&mut picker);
-    picker.agent_control(Control::Scope);
-    assert_eq!(picker.agent_view.scope, Scope::Machine);
-    assert_eq!(
-        picker.visible_rows().iter().filter(|r| r.enabled).count(),
-        1
-    );
-    let context = picker.current_context.clone();
-    let member = picker.current_member.clone();
-    let remote = Choice::Remote(profile(1, "remote", true).id);
-    assert!(picker.observe_focus(remote.clone(), context.clone(), member.clone()));
-    assert_eq!(
-        picker
-            .visible_rows()
-            .iter()
-            .find(|r| r.enabled)
-            .unwrap()
-            .choice,
-        remote
-    );
-    assert!(picker.observe_focus(Choice::Local, context, member));
-    picker.agent_control(Control::Scope);
-    assert_eq!(picker.agent_view.scope, Scope::Context);
-    assert!(picker.current_agent(&Choice::Local, &agent_row()));
-    assert!(!picker.current_agent(&Choice::Remote(profile(1, "remote", true).id), &agent_row()));
-    picker.observe_focus(picker.current.clone(), None, None);
-    assert!(picker.visible_rows().iter().all(|r| !r.enabled));
-    picker.agent_control(Control::Scope);
-    assert_eq!(
-        picker.visible_rows().iter().filter(|r| r.enabled).count(),
-        2
-    );
-}
-#[test]
-fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
+fn global_agent_navigation_waits_wraps_and_uses_stable_order() {
     let mut picker = picker();
     focus(&mut picker);
     let remote = Choice::Remote(profile(1, "remote", true).id);
@@ -474,7 +424,6 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
     let mut blocked = agent_row();
     blocked.state = orchbee_workbench_protocol::PanelAgentState::Blocked;
     blocked.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
-    picker.agent_view.order = Order::Priority;
     picker.observe_agents(vec![
         (
             Choice::Local,
@@ -500,15 +449,21 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
     picker.navigate_agent(true, now);
     assert!(picker.drive_agent_navigation(now));
     assert_eq!(picker.request.take().unwrap().machine, remote);
-    picker.agent_view.state = Some(orchbee_workbench_protocol::MetadataState::Working);
+}
+#[test]
+fn agent_navigation_walks_every_agent_whatever_the_picker_filters_show() {
+    let mut picker = picker();
+    focus(&mut picker);
+    let remote = Choice::Remote(profile(1, "remote", true).id);
+    let now = Instant::now();
+    // The status filter and the query hide the other machine's Agent from the picker's list.
+    picker.agent_view.state = Some(orchbee_workbench_protocol::MetadataState::Blocked);
+    picker.agent_view.query = crate::machine_agents::view::View::query_editor("absent".into());
     picker.rebuild_workspaces(None);
+    assert!(picker.agent_rows.iter().all(|r| r.agent.is_none()));
     picker.navigate_agent(false, now);
     assert!(picker.drive_agent_navigation(now));
-    assert!(!picker.open);
-    assert!(
-        picker.request.is_none(),
-        "only current eligible member must not reattach"
-    );
+    assert_eq!(picker.request.take().unwrap().machine, remote);
 }
 #[test]
 fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows() {
@@ -545,34 +500,6 @@ fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows(
         assert_eq!(picker.request.take().unwrap().machine, Choice::Local);
     }
 }
-#[test]
-fn sorting_preserves_selected_physical_identity_and_invalidates_pointer_hits() {
-    let mut picker = picker();
-    picker.selected = 1;
-    let selected = picker.selection();
-    let painted = paint(&picker, Locale::EnUs, 100, 30);
-    let old = painted.target(PickerAction::Row(1));
-    let mut other = agent_row();
-    other.state = orchbee_workbench_protocol::PanelAgentState::Blocked;
-    other.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
-    picker.observe_agents(vec![
-        (
-            Choice::Local,
-            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![other])),
-        ),
-        (
-            Choice::Remote(profile(1, "remote", true).id),
-            Agents::Ready(crate::machine_agents::test_support::checkpoint(vec![
-                agent_row(),
-            ])),
-        ),
-    ]);
-    picker.agent_control(Control::Order);
-    assert_eq!(picker.selection(), selected);
-    assert!(!picker.activate_drawn_picker(&old));
-    assert!(picker.request.is_none());
-}
-
 #[test]
 fn agent_metadata_is_visible_without_changing_activation_identity() {
     use orchbee_workbench_protocol::{

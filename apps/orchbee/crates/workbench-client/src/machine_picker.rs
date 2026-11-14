@@ -7,10 +7,6 @@ use crate::startup_directory::ClientStartupTarget;
 use crate::workbench_projection::{ClientContextTarget, ClientMemberTarget};
 use std::{num::NonZeroU64, sync::Arc};
 
-/// The key that copies the selected remote computer's ID; the handler and the painted hint both
-/// read it.
-pub(crate) const COPY_ID_KEY: crate::terminal_events::keys::Binding =
-    crate::terminal_events::keys::Binding::new(KeyCode::Char('y'), Modifiers::CTRL);
 mod agents;
 mod forget;
 mod login;
@@ -123,7 +119,6 @@ pub enum PickerAction {
     Mode(Mode),
     Control(Control),
     Row(usize),
-    CopyId(usize),
     /// Forget the saved password of the remote Machine at this row.
     ForgetPassword(usize),
 }
@@ -179,16 +174,12 @@ impl PickerSource {
                                 .agent
                                 .as_ref()
                                 .is_some_and(|basis| basis.editing_query),
-                            Control::State
-                            | Control::Scope
-                            | Control::Order
-                            | Control::Search
-                            | Control::Clear => true,
+                            Control::State | Control::Search | Control::Clear => true,
                         }
             }
-            PickerAction::Row(index)
-            | PickerAction::CopyId(index)
-            | PickerAction::ForgetPassword(index) => index < self.0.rows.len(),
+            PickerAction::Row(index) | PickerAction::ForgetPassword(index) => {
+                index < self.0.rows.len()
+            }
         }
     }
 
@@ -270,7 +261,6 @@ pub struct Picker {
     pub busy: bool,
     pub error: Option<&'static str>,
     pub request: Option<Selection>,
-    pub(crate) copy_id_request: Option<String>,
     /// The remote Machine whose saved password the person asked to forget.
     forget_request: Option<ProfileId>,
     /// How the last forget ended, until the next key.
@@ -356,7 +346,6 @@ impl Default for Picker {
             busy: false,
             error: None,
             request: None,
-            copy_id_request: None,
             forget_request: None,
             forget_notice: None,
             forgettable: false,
@@ -521,7 +510,6 @@ impl Picker {
 
     fn close_picker(&mut self) {
         self.open = false;
-        self.copy_id_request = None;
         self.editing_query = false;
         self.cancel_selection();
     }
@@ -775,25 +763,6 @@ impl Picker {
     }
 
     /// All keys, paste and malformed events are consumed by the caller while open.
-    pub(crate) fn row_id(&self, index: usize) -> Option<&str> {
-        let row = self.visible_rows().get(index)?;
-        if let Some(agent) = &row.agent {
-            return Some(agent.target.member.as_str());
-        }
-        if let Some(context) = &row.context {
-            return Some(match &context.target.location {
-                crate::workbench_projection::ClientContextLocation::NoWorkspace => return None,
-                crate::workbench_projection::ClientContextLocation::Workspace {
-                    workspace_id,
-                    ..
-                } => workspace_id.as_str(),
-            });
-        }
-        match &row.choice {
-            Choice::Remote(id) => Some(id.as_str()),
-            Choice::Local => None,
-        }
-    }
     pub(crate) fn key(&mut self, key: KeyEvent) {
         if self.login_key(key) || self.waiting_key(key) || key.kind == KeyKind::Release {
             return;
@@ -801,10 +770,6 @@ impl Picker {
         self.pending_navigation = None;
         let hidden = self.reveal_selection();
         let (code, mods) = key.normalized();
-        if COPY_ID_KEY.matches(key) {
-            self.copy_id_request = self.row_id(self.selected).map(str::to_owned);
-            return;
-        }
         if self.forget_key(key) {
             return;
         }

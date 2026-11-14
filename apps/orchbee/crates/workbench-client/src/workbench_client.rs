@@ -858,12 +858,6 @@ impl WorkbenchClient {
 }
 
 impl TerminalInputPort for WorkbenchClient {
-    fn copy_picker_identifier(&mut self, text: String) -> bool {
-        match &mut self.backend {
-            ClientBackend::Native(native) => native.copy_picker_identifier(text),
-        }
-    }
-
     fn open_notification_target(
         &mut self,
         target: &crate::machine_agents::Target,

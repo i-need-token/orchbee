@@ -10,37 +10,17 @@ use orchbee_workbench_protocol::{
 };
 mod source;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum Scope {
-    #[default]
-    All,
-    Machine,
-    Context,
-}
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum Order {
-    #[default]
-    Placement,
-    Priority,
-    Provider,
-    Title,
-    Sequence,
-}
 /// The Agent search query's scalar budget.
 const MAXIMUM_QUERY_SCALARS: usize = 128;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct View {
     pub(crate) state: Option<MetadataState>,
-    pub(crate) scope: Scope,
-    pub(crate) order: Order,
     pub(crate) query: LineEditor,
 }
 impl Default for View {
     fn default() -> Self {
         Self {
             state: None,
-            scope: Scope::default(),
-            order: Order::default(),
             query: Self::query_editor(String::new()),
         }
     }
@@ -84,34 +64,8 @@ impl View {
             Some(MetadataState::Unknown) => None,
         };
     }
-    pub(crate) fn cycle_scope(&mut self) {
-        self.scope = match self.scope {
-            Scope::All => Scope::Machine,
-            Scope::Machine => Scope::Context,
-            Scope::Context => Scope::All,
-        };
-    }
-    pub(crate) fn cycle_order(&mut self) {
-        self.order = match self.order {
-            Order::Placement => Order::Priority,
-            Order::Priority => Order::Provider,
-            Order::Provider => Order::Title,
-            Order::Title => Order::Sequence,
-            Order::Sequence => Order::Placement,
-        };
-    }
-    pub(crate) fn includes(
-        &self,
-        machine: &Choice,
-        label: &str,
-        row: &Row,
-        current: &Choice,
-        context: Option<&ClientContextTarget>,
-    ) -> bool {
-        if self.state.is_some_and(|state| state != row.display_state())
-            || (self.scope != Scope::All && machine != current)
-            || (self.scope == Scope::Context && context != Some(&row.target.context))
-        {
+    pub(crate) fn includes(&self, machine: &Choice, label: &str, row: &Row) -> bool {
+        if self.state.is_some_and(|state| state != row.display_state()) {
             return false;
         }
         let query = self.query.text().trim().to_lowercase();
@@ -141,29 +95,6 @@ impl View {
                 .to_lowercase()
                 .contains(&query)
             })
-    }
-    pub(crate) fn compare(&self, a: &Row, b: &Row) -> std::cmp::Ordering {
-        match self.order {
-            Order::Placement => std::cmp::Ordering::Equal,
-            Order::Priority => priority(b).cmp(&priority(a)),
-            Order::Provider => display_label(a.provider()).cmp(&display_label(b.provider())),
-            Order::Title => display_label(a.title()).cmp(&display_label(b.title())),
-            Order::Sequence => b.sequence.cmp(&a.sequence),
-        }
-    }
-}
-fn priority(row: &Row) -> u8 {
-    urgency(row)
-}
-
-pub(crate) fn urgency(row: &Row) -> u8 {
-    match row.status() {
-        "blocked" => 5,
-        "error" => 4,
-        "done" => 3,
-        "working" | "opening" => 2,
-        "idle" => 1,
-        _ => 0,
     }
 }
 
