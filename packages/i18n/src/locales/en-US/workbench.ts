@@ -1,6 +1,6 @@
 export const enUSWorkbenchMessages = {
 	'workbench.launch.requestTooLarge':
-		"Launch request too large. Shorten the custom program's arguments or environment variables before trying again.",
+		"Couldn't start the terminal; shorten the program's arguments or environment variables in Settings.",
 	'workbench.workspaces.moveToProject': 'Move to Project',
 	'workbench.workspaces.createProject': 'New Project and Move',
 	'workbench.workspaces.ungroup': 'Remove from Project',
@@ -18,14 +18,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.rename.menu': 'Rename',
 	'workbench.panels.rename.help': 'Leave empty for the original name.',
 	'workbench.projects.closeAll': 'Close All Workspaces',
-	'workbench.projects.close.closed': 'Project Workspaces closed · {label}',
 	'workbench.projects.close.closing': 'Closing Project Workspaces · {label}',
-	'workbench.projects.close.outcomeUnknown':
-		'Project close-all outcome unknown; no replay · {label} · orchbee operation status {operationId}',
-	'workbench.projects.close.refused':
-		'Project close-all was not submitted or was refused; refresh and try again · {label}',
-	'workbench.projects.close.stopped':
-		'Project close-all stopped; known results preserved · {label}',
 	'workbench.projects.closeAll.description':
 		'Ends every terminal in the Workspaces of “{name}”. The Project, branches and checkouts are kept.',
 	'workbench.projects.closeAll.title':
@@ -43,8 +36,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.newFolder.opening': 'Opening Project…',
 	'workbench.projects.newFolder.retained':
 		'The folder was created and has been kept. Project opening was not confirmed. If the Project is not in the sidebar, use Select Folder to open the existing folder.',
-	'workbench.projects.newFolder.unknown':
-		'The creation result could not be confirmed. The folder may exist. Use Select Folder to check and open it; do not repeat creation.',
+	'workbench.projects.newFolder.unknown': 'Not sure it finished. Check, then try again.',
 	'workbench.projects.folderAcquisition.failure.alreadyExists':
 		'An item with this name already exists. Enter a different name.',
 	'workbench.projects.folderAcquisition.failure.invalidName':
@@ -110,15 +102,15 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.folderAcquisition.failure.controlUnavailable':
 		'Desktop folder selection is no longer available. Try again after the window reconnects.',
 	'workbench.projects.folderAcquisition.failure.dialogFailed':
-		'The system folder picker could not be opened.',
+		"Couldn't open the system folder picker.",
 	'workbench.projects.folderAcquisition.failure.dismiss': 'OK',
 	'workbench.projects.folderAcquisition.failure.notFound':
 		'The selected folder is no longer available.',
 	'workbench.projects.folderAcquisition.failure.permissionDenied':
 		'Orchbee cannot read or enter the selected folder.',
-	'workbench.projects.folderAcquisition.failure.title': 'Folder Could Not Be Added',
+	'workbench.projects.folderAcquisition.failure.title': "Couldn't Add the Folder",
 	'workbench.projects.folderAcquisition.failure.validationFailed':
-		'The selected folder could not be validated.',
+		"Couldn't check the selected folder.",
 	'workbench.projects.groups.folders': 'Folders',
 	'workbench.projects.groups.worktrees': 'Git Worktrees',
 	'workbench.resource.actions.cancel': 'Cancel',
@@ -140,15 +132,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.agents.location.primaryTerminal': 'Main terminal',
 	'workbench.workspaces.agents.navigationLabel': '{provider}, {status}, {location}',
 	'workbench.workspaces.agents.navigationUnavailable': 'This Agent is no longer available',
-	'workbench.workspaces.close.changed': 'Workspace changed; try again',
-	'workbench.workspaces.close.closed': 'Workspace closed · {label}',
+	'workbench.workspaces.close.changed': "Couldn't close the Workspace; it changed.",
 	'workbench.workspaces.close.closing': 'Closing Workspace · {label}',
-	'workbench.workspaces.close.outcomeUnknown':
-		'Workspace Close outcome unknown; no replay · {label} · orchbee workspace get {workspaceId}',
-	'workbench.workspaces.close.refused':
-		'Workspace Close was not submitted or was refused; refresh and try again · {label}',
-	'workbench.workspaces.close.stopped':
-		'Workspace Close stopped; known results preserved · {label}',
 	'workbench.workspaces.confirmDelete.description':
 		'Ends every terminal in “{name}”. Branches and checkouts are kept.',
 	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
@@ -165,20 +150,16 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.setup.directoryRefused.notADirectory': 'This path is not a folder.',
 	'workbench.workspaces.setup.directoryRefused.unavailable': 'This folder cannot be used.',
 	'workbench.workspaces.setup.directoryRefusedNotice.inaccessible':
-		'This folder cannot be accessed · {path}',
+		"Couldn't use {path}: the folder can't be accessed.",
 	'workbench.workspaces.setup.directoryRefusedNotice.missing':
-		'This folder does not exist · {path}',
+		"Couldn't use {path}: the folder doesn't exist.",
 	'workbench.workspaces.setup.directoryRefusedNotice.notADirectory':
-		'This path is not a folder · {path}',
-	'workbench.workspaces.setup.directoryRefusedNotice.unavailable':
-		'This folder cannot be used · {path}',
-	'workbench.workspaces.setup.notApplied':
-		'Workspace setup not applied · check the target and input before trying again',
-	'workbench.workspaces.setup.outcomeUnknown':
-		'Setup outcome unknown · connection retired; do not repeat the mutation',
-	'workbench.workspaces.setup.projectDissolved': 'Project dissolved · Workspaces retained',
-	'workbench.workspaces.setup.projectDissolvedEmpty': 'Project dissolved',
-	'workbench.workspaces.setup.stale': 'Setup not applied · Workbench changed',
+		"Couldn't use {path}: it isn't a folder.",
+	'workbench.workspaces.setup.directoryRefusedNotice.unavailable': "Couldn't use {path}.",
+	'workbench.workspaces.setup.notApplied': "Couldn't apply the change.",
+	'workbench.workspaces.setup.outcomeUnknown': 'Not sure it finished. Check, then try again.',
+	'workbench.workspaces.setup.stale':
+		"Couldn't apply the change because something else changed first.",
 	'workbench.search.dialog.title': 'Search Orchbee',
 	'workbench.search.dialog.description':
 		'Find agents, actions, and settings, then open or run the selected result.',
@@ -201,7 +182,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.search.empty.actions': 'No matching actions',
 	'workbench.search.empty.settings': 'No matching settings',
 	'workbench.search.providers.loading': 'Searching {provider}…',
-	'workbench.search.providers.failed': '{provider} could not be searched.',
+	'workbench.search.providers.failed': "Couldn't search {provider}.",
 	'workbench.search.providers.retry': 'Retry',
 	'workbench.search.actions.needsContext': 'Open the relevant item before running this action.',
 	'workbench.search.arguments.prompt': 'Choose an option for {action}',
@@ -254,38 +235,28 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.visualSelection.swapLabel':
 		'Choose a panel to swap. Type its label or press Escape to cancel.',
 	'workbench.panels.visualSelection.swapTarget': 'Swap with panel {label}',
-	'workbench.panels.close.notApplied': 'Panel operation was not applied',
 	'workbench.panels.close.lastPanel': "This is the Tab's last Panel, so the Tab closes too.",
 	'workbench.panels.close.tab': 'Tab: {tab}',
 	'workbench.panels.close.title': 'Close Panel?',
-	'workbench.panels.update.notApplied': 'Panel operation was not applied',
-	'workbench.panels.resize.contended': 'Resize not applied; the Workbench kept changing',
-	'workbench.panels.resize.failed': 'Resize failed; inspect the current layout',
-	'workbench.panels.resize.outcomeUnknown':
-		'Resize outcome unknown; inspect layout before trying again',
+	'workbench.panels.update.notApplied': "Couldn't change the Panel.",
+	'workbench.panels.resize.failed': "Couldn't resize the Panel.",
+	'workbench.panels.resize.outcomeUnknown': 'Not sure it finished. Check, then try again.',
 	'workbench.panels.childTerminals.label': 'Terminals in this Panel',
-	'workbench.tabs.close.cancelled': 'Close confirmation cancelled',
+	'workbench.tabs.close.cancelled': "Couldn't close the Tab; it changed.",
 	'workbench.tabs.close.closing': '{label} · Closing',
 	'workbench.tabs.close.failed': "Couldn't close {label}.",
 	'workbench.close.warning':
 		'{impact, select, running {Ends {running, plural, one {# terminal} other {# terminals}}.} ended {Discards the output of {ended, plural, one {# ended terminal} other {# ended terminals}}.} mixed {Ends {running, plural, one {# terminal} other {# terminals}} and discards the output of {ended, plural, one {# ended one} other {# ended ones}}.} other {Ends its terminals.}}',
 	'workbench.tabs.close.description':
 		'{names}{more, plural, =0 {} =1 { … and 1 more Tab} other { … and # more Tabs}}. {warning}',
-	'workbench.tabs.close.notApplied': 'Close request was not applied',
-	'workbench.tabs.create.notCreated': 'Tab not created · previous Tab unchanged',
-	'workbench.tabs.create.profileUnavailable': 'Terminal not created · check profile in Settings',
-	'workbench.tabs.duplicate.changed':
-		'Duplication stopped: selection or workspace changed · {created}/{total} tabs created',
-	'workbench.tabs.duplicate.deadline':
-		'Duplication stopped: time limit · {created}/{total} tabs created',
-	'workbench.tabs.duplicate.notCreated':
-		'Duplication stopped: tab not created · {created}/{total} tabs created',
-	'workbench.tabs.duplicate.uncertain':
-		'Duplication stopped: check pending, failed or unknown result; no replay · {created}/{total} tabs created',
-	'workbench.tabs.update.notApplied': 'Tabs not updated · check the target before trying again',
-	'workbench.tabs.close.setProgress': 'Closing Tabs: {completed} closed, {remaining} remaining',
-	'workbench.tabs.close.setStopped':
-		'Closing stopped: {completed} closed, {remaining} not confirmed closed. Submitted closes may continue.',
+	'workbench.tabs.close.notApplied': "Couldn't close the Tabs.",
+	'workbench.tabs.create.notCreated': "Couldn't create the Tab.",
+	'workbench.tabs.create.profileUnavailable':
+		"Couldn't create the terminal; check its profile in Settings.",
+	'workbench.tabs.duplicate.notCreated': "Couldn't finish duplicating.",
+	'workbench.tabs.update.notApplied': "Couldn't change the Tabs.",
+	'workbench.tabs.close.setProgress': 'Closing Tabs…',
+	'workbench.tabs.close.setStopped': "Couldn't close every Tab.",
 	'workbench.tabs.close.title': '{count, plural, =1 {Close Tab?} other {Close # Tabs?}}',
 	'workbench.tabs.label': 'Terminal tabs',
 	'workbench.tabs.mobile.all': 'Tabs',
@@ -408,75 +379,71 @@ export const enUSWorkbenchMessages = {
 	'workbench.worktrees.creating': 'Creating worktree…',
 	'workbench.worktrees.opening': 'Opening worktree…',
 	'workbench.worktrees.removing': 'Removing worktree…',
-	'workbench.worktrees.removed': 'Worktree removed and Workspace closed. Branch kept.',
-	'workbench.worktrees.outcomeUnknown':
-		'Worktree result unknown. Do not repeat it; check it with orchbee operation status {operationId}.',
-	'workbench.worktrees.createFailed':
-		'The worktree could not be created. Check the repository, then try again.',
-	'workbench.worktrees.openFailed':
-		'The worktree could not be opened. Check the checkout, then try again.',
+	'workbench.worktrees.outcomeUnknown': 'Not sure it finished. Check, then try again.',
+	'workbench.worktrees.createFailed': "Couldn't create the worktree.",
+	'workbench.worktrees.openFailed': "Couldn't open the worktree.",
 	'workbench.worktrees.failure.checkoutInUse':
 		'Another Workspace uses this checkout. Close that Workspace first.',
 	'workbench.worktrees.failure.checkoutNotFound':
-		'Git no longer lists this checkout as a worktree. Inspect the directory and git worktree list.',
+		'Git no longer lists this checkout as a worktree.',
 	'workbench.worktrees.failure.closeIncomplete':
-		'Terminals could not all close. Check child terminals, pinned Tabs and Tab groups.',
+		"Couldn't close every terminal. Check pinned Tabs and Tab groups.",
 	'workbench.worktrees.failure.configurationUnavailable':
-		'Could not read worktree configuration. Run orchbee config check.',
-	'workbench.worktrees.failure.denied': 'This Client may not change worktrees.',
+		"Couldn't read the worktree configuration. Run orchbee config check.",
+	'workbench.worktrees.failure.denied': 'This window may not change worktrees.',
 	'workbench.worktrees.failure.directoryInUse':
-		'The checkout directory is in use or cannot be deleted. Close programs using it, then resume.',
+		'The checkout directory is in use or cannot be deleted. Close programs using it.',
 	'workbench.worktrees.failure.dirty':
-		'The checkout has changes or untracked files. Commit, stash or clean them, then resume.',
-	'workbench.worktrees.failure.git':
-		'Git could not complete the removal. Known checkout and Workspace facts are retained.',
+		'The checkout has changes or untracked files. Commit, stash or clean them.',
+	'workbench.worktrees.failure.git': "Couldn't remove the worktree; Git stopped partway.",
 	'workbench.worktrees.failure.gitFailed':
-		'Git could not remove the checkout. If a program is using its directory, close it, then resume.',
-	'workbench.worktrees.failure.internal':
-		'The worktree operation could not finish. Check it with orchbee operation status.',
+		"Git couldn't remove the checkout. If a program is using its directory, close it.",
+	'workbench.worktrees.failure.internal': "Couldn't finish the worktree change.",
 	'workbench.worktrees.failure.mainCheckout':
 		'The main checkout is protected and cannot be removed.',
-	'workbench.worktrees.failure.notSubmitted':
-		'Orchbee could not reach the Server. Nothing changed.',
+	'workbench.worktrees.failure.notSubmitted': "Couldn't reach Orchbee. Nothing changed.",
 	'workbench.worktrees.failure.sessionStopping':
 		'The Session is stopping. Try again after it restarts.',
 	'workbench.worktrees.failure.sourceChanged':
 		'The checkout or Workspace changed. Check it before you continue.',
-	'workbench.worktrees.failure.unsupported': 'This Worker does not support worktrees.',
+	'workbench.worktrees.failure.unsupported': "Orchbee on this machine doesn't support worktrees.",
 	'workbench.worktrees.failure.workerUnavailable':
-		'The Worker is unavailable or busy. Try again shortly.',
+		'Orchbee is busy or unavailable. Try again shortly.',
 	'workbench.configuredCommands.category': 'Configured commands',
 	'workbench.configuredCommands.title': '{command}',
 	'workbench.configuredCommands.unnamed': 'Configured command {number}',
 	'workbench.configuredCommands.key.took': 'Takes {shortcut} from {action}',
 	'workbench.configuredCommands.key.yielded': '{shortcut} is your {action} shortcut',
 	'workbench.configuredCommands.key.tuiOnly': '{shortcut} works only in the TUI',
-	'workbench.configuredCommands.accepted': '{command} · Command accepted',
-	'workbench.configuredCommands.failed': '{command} · Command or focus failed; inspect result',
-	'workbench.configuredCommands.unknown': '{command} · Outcome unknown; inspect before retry',
-	'workbench.configuredCommands.refused.busy': '{command} · Busy; wait and retry',
+	'workbench.configuredCommands.failed': "Couldn't run {command}.",
+	'workbench.configuredCommands.unknown': 'Not sure it finished. Check, then try again.',
+	'workbench.configuredCommands.refused.busy': "Couldn't run {command}: Orchbee is busy.",
 	'workbench.configuredCommands.refused.conflict':
-		'{command} · Configuration changed; choose the command again',
-	'workbench.configuredCommands.refused.denied': '{command} · Denied by Session permissions',
+		"Couldn't run {command}: the configuration changed.",
+	'workbench.configuredCommands.refused.denied':
+		"Couldn't run {command}: this window isn't allowed to.",
 	'workbench.configuredCommands.refused.invalidIntent':
-		'{command} · Invalid request; check configuration',
-	'workbench.configuredCommands.refused.notFound': '{command} · Command changed; choose it again',
-	'workbench.configuredCommands.refused.sessionMismatch': '{command} · Session changed; reconnect',
-	'workbench.configuredCommands.refused.staleSource': '{command} · Source changed; retry',
+		"Couldn't run {command}: its configuration is invalid.",
+	'workbench.configuredCommands.refused.notFound': "Couldn't run {command}: it changed.",
+	'workbench.configuredCommands.refused.sessionMismatch':
+		"Couldn't run {command}: the Session changed.",
+	'workbench.configuredCommands.refused.staleSource':
+		"Couldn't run {command}: something changed first.",
 	'workbench.configuredCommands.refused.unavailable':
-		'{command} · Unavailable; check Session and retry',
-	'workbench.heldRestore.directoryUnavailable': 'Directory still unavailable',
-	'workbench.heldRestore.agentNotResumed': 'Agent conversation not resumed',
-	'workbench.heldRestore.notStarted': 'Terminal not started',
+		"Couldn't run {command}: Orchbee is unavailable.",
+	'workbench.heldRestore.directoryUnavailable':
+		"Couldn't start the terminal: its folder is still unavailable.",
+	'workbench.heldRestore.agentNotResumed': "Couldn't resume the Agent conversation.",
+	'workbench.heldRestore.notStarted': "Couldn't start the terminal.",
 	'workbench.agentResume.promptUnconfirmed':
-		'{agent} conversation not resumed: the shell was not at its prompt, so nothing was typed.',
+		"Couldn't resume the {agent} conversation: the shell wasn't at its prompt, so nothing was typed.",
 	'workbench.agentResume.terminalTooOld':
-		'{agent} conversation not resumed: this terminal was started by an older Orchbee, so nothing was typed.',
-	'workbench.agentStart.notFound': '{product} not found · {key} choose another',
-	'workbench.agentStart.notFoundUnbound': '{product} not found',
+		"Couldn't resume the {agent} conversation: an older Orchbee started this terminal, so nothing was typed.",
+	'workbench.agentStart.notFound': "Couldn't find {product}. {key} chooses another.",
+	'workbench.agentStart.notFoundUnbound': "Couldn't find {product}.",
 	'workbench.agentStart.exited': '{product} exited · see its Tab',
 	'workbench.agentStart.unsupportedShell':
-		'{product} not started · this shell takes no start command',
+		"Couldn't start {product}: this shell takes no start command.",
 	'workbench.agentStart.notAtPrompt':
 		'Nothing was typed: the shell is not at an empty prompt. Finish the running command, or clear the line and press Enter for a new prompt, then try again.',
 	'workbench.agentStart.terminalTooOld':

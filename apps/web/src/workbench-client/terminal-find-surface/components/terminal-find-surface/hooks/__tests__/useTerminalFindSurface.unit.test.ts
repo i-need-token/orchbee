@@ -16,9 +16,7 @@ describe('useTerminalFindSurface', () => {
 		const unavailableController = controllerWithError('unavailable');
 
 		expect(renderStatus(invalidController)).toBe('Enter a valid regular expression.');
-		expect(renderStatus(unavailableController)).toBe(
-			'Retained terminal output could not be searched.',
-		);
+		expect(renderStatus(unavailableController)).toBe('Couldn&#x27;t search the terminal output.');
 	});
 });
 

@@ -247,8 +247,6 @@ async function runWitness(): Promise<void> {
 			activeProvider,
 			catalogById.get(PROJECTED_TERMINAL_ACTION_IDS.paste),
 		);
-		await until(() => terminalStatusText() === '已将剪贴板文本粘贴到终端。');
-		const pasteFeedback = terminalStatusText();
 		const scrollResult = await executeReady(
 			activeProvider,
 			catalogById.get(PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom),
@@ -257,8 +255,6 @@ async function runWitness(): Promise<void> {
 			activeProvider,
 			catalogById.get(PROJECTED_TERMINAL_ACTION_IDS.clear),
 		);
-		await until(() => terminalStatusText() === '已清除终端输出。');
-		const clearFeedback = terminalStatusText();
 
 		canvas.dispatchEvent(
 			new PointerEvent('pointermove', {
@@ -297,7 +293,7 @@ async function runWitness(): Promise<void> {
 		transportListener({ frame: terminalSnapshot(2n, 2n), kind: 'frame' });
 		await nextPaint();
 		const staleLinkResult = await activeProvider.executePrepared(linkAction.invocation).completion;
-		await until(() => terminalStatusText() === '终端目标已发生变化，无法打开。');
+		await until(() => terminalStatusText() === '没能打开目标：它已变化。');
 		const staleFeedback = terminalStatusText();
 
 		projectedScrollbackRows = 10n;
@@ -391,7 +387,7 @@ async function runWitness(): Promise<void> {
 			root.querySelectorAll('[role="dialog"]').length,
 		);
 		root.dataset['witnessExternalOpenCount'] = String(externalOpenCount);
-		root.dataset['witnessFeedback'] = [pasteFeedback, clearFeedback, staleFeedback].join('|');
+		root.dataset['witnessFeedback'] = staleFeedback ?? '';
 		root.dataset['witnessPinnedContext'] = String(
 			productContext.actionInputs?.[PROJECTED_TERMINAL_ACTION_IDS.openLink] !== undefined,
 		);

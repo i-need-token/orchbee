@@ -5,8 +5,7 @@ export const enUSTerminalSettingsMessages = {
 		"Settings can't be reached · the values shown may be out of date",
 	'terminal.settings.shared.conflict':
 		'Settings changed elsewhere · your draft is kept · check the current profiles, then save again',
-	'terminal.settings.shared.unknown':
-		'The change may not have been saved · check the value before changing it again',
+	'terminal.settings.shared.unknown': 'Not sure it finished. Check, then try again.',
 	'terminal.settings.shared.system': 'Follow system',
 	'terminal.settings.actions.back': 'Back',
 	'terminal.settings.actions.close': 'Close settings',
@@ -74,7 +73,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.profiles.failures.unsupported':
 		'This launch option is not supported on this operating system.',
 	'terminal.settings.profiles.failures.write':
-		'The last profile change could not be saved. Your previous profiles remain active.',
+		"Couldn't save the last profile change. Your previous profiles stay in use.",
 	'terminal.settings.profiles.futureTerminalsNotice':
 		'The default profile is captured when a new terminal starts. Running and restored terminals keep their original command.',
 	'terminal.settings.profiles.login.description':
@@ -207,30 +206,33 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.profiles.edit': 'Edit',
 	'terminal.settings.page.profiles.done': 'Done',
 	'terminal.settings.page.profiles.useAsDefault': 'Use as default',
-	'terminal.settings.refused.denied': "This window can't change settings",
+	'terminal.settings.refused.denied':
+		"Couldn't save the change: this window can't change settings.",
 	'terminal.settings.refused.unavailable':
-		"Settings can't be reached right now · try again shortly",
-	'terminal.settings.refused.sessionMismatch': "This window's session has ended · reopen Orchbee",
-	'terminal.settings.refused.busy': 'Settings are busy · try again shortly',
-	'terminal.settings.refused.readOnly':
-		'The settings file is read-only · make it writable and try again',
+		"Couldn't save the change: settings can't be reached right now.",
+	'terminal.settings.refused.sessionMismatch':
+		"Couldn't save the change: this window's session has ended.",
+	'terminal.settings.refused.busy': "Couldn't save the change: settings are busy.",
+	'terminal.settings.refused.readOnly': "Couldn't save the change: the settings file is read-only.",
 	'terminal.settings.refused.fileInUse':
-		'Another program has the settings file open · close it and try again',
+		"Couldn't save the change: another program has the settings file open.",
 	'terminal.settings.refused.locked':
-		'Another edit is writing the settings file · try again shortly',
+		"Couldn't save the change: another edit is writing the settings file.",
 	'terminal.settings.refused.changed':
-		'The settings file changed meanwhile · check the value and try again',
+		"Couldn't save the change: the settings file changed meanwhile.",
 	'terminal.settings.refused.tooLarge':
-		'The settings file would get too large · remove entries you no longer need',
+		"Couldn't save the change: the settings file would get too large.",
 	'terminal.settings.refused.writeFailed':
-		"The settings file couldn't be written · check disk space and permissions",
-	'terminal.settings.refused.unknownKey': "This Orchbee doesn't know this setting · update Orchbee",
-	'terminal.settings.refused.invalidValue': "This value isn't allowed · choose another",
-	'terminal.settings.refused.syntaxError': 'The settings file has a syntax error · fix it first',
+		"Couldn't save the change: the settings file couldn't be written.",
+	'terminal.settings.refused.unknownKey':
+		"Couldn't save the change: this version of Orchbee doesn't know this setting.",
+	'terminal.settings.refused.invalidValue': "Couldn't save the change: this value isn't allowed.",
+	'terminal.settings.refused.syntaxError':
+		"Couldn't save the change: the settings file has a syntax error.",
 	'terminal.settings.refused.unusableFile':
-		"The settings file's location can't be used · check where it points",
+		"Couldn't save the change: the settings file's location can't be used.",
 	'terminal.settings.refused.unreadable':
-		"The settings file can't be read · check that it is a file you can open",
+		"Couldn't save the change: the settings file can't be read.",
 	'terminal.settings.file.syntaxError':
 		"{path} has a syntax error at line {line}, column {column} · showing the last valid settings, read-only, until it's fixed",
 	'terminal.settings.file.unreadable':

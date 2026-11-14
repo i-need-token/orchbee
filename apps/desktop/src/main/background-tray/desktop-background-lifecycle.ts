@@ -64,12 +64,8 @@ export type DesktopBackgroundEvent =
 	| { readonly kind: 'quit-all-confirmed' }
 	/** The Session's stop completed. */
 	| { readonly kind: 'quit-all-stopped' }
-	/** The Session's stop failed; `stopId` lets the report name it, to be read or retried. */
-	| {
-			readonly kind: 'quit-all-failed';
-			readonly reason: DesktopQuitAllFailure;
-			readonly stopId: string;
-	  }
+	/** The Session's stop failed. */
+	| { readonly kind: 'quit-all-failed'; readonly reason: DesktopQuitAllFailure }
 	/** The person dismissed the failure report. */
 	| { readonly kind: 'quit-all-failure-dismissed' }
 	| { readonly kind: 'quit-requested' }
@@ -89,11 +85,7 @@ type DesktopBackgroundCommand =
 	/** Persist that the notice has been shown, so later runs do not show it again. */
 	| { readonly kind: 'record-notice' }
 	/** Show the window and report why Quit All left Desktop running. */
-	| {
-			readonly kind: 'report-quit-all-failure';
-			readonly reason: DesktopQuitAllFailure;
-			readonly stopId: string;
-	  }
+	| { readonly kind: 'report-quit-all-failure'; readonly reason: DesktopQuitAllFailure }
 	| { readonly kind: 'show-notice' }
 	/** Stop the Session; its completion or failure returns as an event. */
 	| { readonly kind: 'stop-session' };
@@ -184,7 +176,7 @@ export function transitionDesktopBackground(
 		case 'quit-all-failed':
 			if (state.quitAll.kind !== 'stopping' || state.ending !== 'none') return unchanged(state);
 			return {
-				commands: [{ kind: 'report-quit-all-failure', reason: event.reason, stopId: event.stopId }],
+				commands: [{ kind: 'report-quit-all-failure', reason: event.reason }],
 				state: { ...state, quitAll: { kind: 'failed', reason: event.reason } },
 			};
 		case 'quit-all-failure-dismissed': {

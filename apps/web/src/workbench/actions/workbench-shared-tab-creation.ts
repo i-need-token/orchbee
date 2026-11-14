@@ -20,10 +20,7 @@ interface SharedTabCreationOptions {
 
 interface SharedTabDuplicationOptions {
 	readonly authority: WorkbenchAuthority;
-	readonly onStopped: (
-		stop: WorkbenchTabDuplicationStop,
-		counts: { readonly created: number; readonly total: number },
-	) => void;
+	readonly onStopped: (stop: WorkbenchTabDuplicationStop) => void;
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }
 
@@ -161,12 +158,8 @@ export async function duplicateSharedTabs(
 		.getSnapshot()
 		.tabs.filter((tab) => requested.has(tab.id))
 		.map((tab) => tab.id);
-	const stopped = (
-		stop: WorkbenchTabDuplicationStop,
-		created: number,
-		total: number,
-	): ActionResult<void> => {
-		onStopped(stop, { created, total });
+	const stopped = (stop: WorkbenchTabDuplicationStop): ActionResult<void> => {
+		onStopped(stop);
 		return { failure: { code: `duplication-${stop}` }, kind: 'failed' };
 	};
 	const [source] = sources;
@@ -179,17 +172,17 @@ export async function duplicateSharedTabs(
 		if (copy.kind === 'cancelled') return copy;
 		if (copy.kind !== 'completed') {
 			return copy.kind === 'failed' && copy.failure.code === 'outcome-unknown'
-				? stopped('terminal-not-started', 0, 1)
-				: stopped('not-created', 0, 1);
+				? stopped('terminal-not-started')
+				: stopped('not-created');
 		}
 		return copy.value?.terminalStarted === true
 			? { kind: 'completed' }
-			: stopped('terminal-not-started', 1, 1);
+			: stopped('terminal-not-started');
 	}
 	const duplicated = await authority.duplicateTabs(context, { tabIds: sources, terminalContextId });
 	if (duplicated.kind !== 'completed') return withoutReceipt(duplicated);
 	const report = duplicated.value;
 	return report === undefined || report.kind === 'duplicated'
 		? { kind: 'completed' }
-		: stopped(report.stop, report.created, report.total);
+		: stopped(report.stop);
 }

@@ -36,7 +36,6 @@ function shown(terminals: number): DesktopBackgroundState {
 }
 
 const close: DesktopBackgroundEvent = { kind: 'close-requested' };
-const STOP_ID = '0123456789abcdef0123456789abcdef';
 
 describe('Desktop background lifecycle', () => {
 	it('hides the window on close while terminals run, and lets the close proceed without them', () => {
@@ -114,11 +113,8 @@ describe('Desktop background lifecycle', () => {
 		const failed = transitionDesktopBackground(stopping, {
 			kind: 'quit-all-failed',
 			reason: 'stop-failed',
-			stopId: STOP_ID,
 		});
-		expect(failed.commands).toEqual([
-			{ kind: 'report-quit-all-failure', reason: 'stop-failed', stopId: STOP_ID },
-		]);
+		expect(failed.commands).toEqual([{ kind: 'report-quit-all-failure', reason: 'stop-failed' }]);
 		const reported = run(failed.state, [
 			{ kind: 'window-shown' },
 			{ kind: 'summary-changed', summary: summary(0) },
@@ -143,7 +139,7 @@ describe('Desktop background lifecycle', () => {
 			{ kind: 'quit-all-cancelled' },
 			{ kind: 'quit-all-confirmed' },
 			{ kind: 'quit-all-stopped' },
-			{ kind: 'quit-all-failed', reason: 'unconfirmed', stopId: STOP_ID },
+			{ kind: 'quit-all-failed', reason: 'unconfirmed' },
 			{ kind: 'quit-all-failure-dismissed' },
 			{ kind: 'quit-requested' },
 			{ kind: 'session-ending' },

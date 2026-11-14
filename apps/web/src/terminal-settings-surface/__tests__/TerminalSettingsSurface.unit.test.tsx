@@ -452,7 +452,7 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector('[data-setting-id="appearance.font-size"]'),
 		);
 		expect(row.querySelector('[role="alert"]')?.textContent).toBe(
-			'The settings file is read-only · make it writable and try again',
+			"Couldn't save the change: the settings file is read-only.",
 		);
 		expect(settings.getSnapshot().snapshot?.values['terminal.font_size']).toBe(13);
 	});
@@ -471,7 +471,7 @@ describe('TerminalSettingsSurface', () => {
 		);
 		await vi.waitFor(() =>
 			expect(row.querySelector('[role="alert"]')?.textContent).toBe(
-				"The settings file can't be read · check that it is a file you can open",
+				"Couldn't save the change: the settings file can't be read.",
 			),
 		);
 	});

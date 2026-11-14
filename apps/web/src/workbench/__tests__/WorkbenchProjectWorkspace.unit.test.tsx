@@ -1344,7 +1344,7 @@ describe('Workbench Project and Workspace management', () => {
 
 		await startNewProject('新建项目…', '选择文件夹…');
 		const failure = await screen.findByRole('alertdialog');
-		expect(within(failure).getByText('无法添加文件夹')).toBeDefined();
+		expect(within(failure).getByText('没能添加文件夹')).toBeDefined();
 		expect(within(failure).getByText('Orchbee 无法读取或进入所选文件夹。')).toBeDefined();
 		expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]);
 	});

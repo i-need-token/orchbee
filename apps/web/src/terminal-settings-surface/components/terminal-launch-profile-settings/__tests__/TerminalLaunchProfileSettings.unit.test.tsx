@@ -114,7 +114,7 @@ describe('TerminalLaunchProfileSettings', () => {
 		await act(async () => buttonWithText(harness.container, 'Done').click());
 		await vi.waitFor(() =>
 			expect(harness.container.querySelector('[role="alert"]')?.textContent).toContain(
-				'could not be saved',
+				"Couldn't save",
 			),
 		);
 

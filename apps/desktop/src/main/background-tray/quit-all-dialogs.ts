@@ -51,11 +51,10 @@ export async function reportDesktopQuitAllFailure(
 	applicationName: string,
 	window: BrowserWindow | undefined,
 	reason: DesktopQuitAllFailure,
-	stopId: string,
 ): Promise<void> {
 	const options: MessageBoxOptions = {
 		buttons: [intl.formatMessage(desktopTrayMessages.quitAllFailureClose)],
-		detail: intl.formatMessage(FAILURE_MESSAGES[reason], { stopId }),
+		detail: intl.formatMessage(FAILURE_MESSAGES[reason]),
 		message: intl.formatMessage(desktopTrayMessages.quitAllFailureTitle),
 		noLink: true,
 		title: applicationName,

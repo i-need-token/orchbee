@@ -106,32 +106,10 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.closeAll.title',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.closeAll.title'],
 	},
-	projectCloseClosed: {
-		description: 'Status notice after every Workspace of a Project closed.',
-		id: 'workbench.projects.close.closed',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.closed'],
-	},
 	projectCloseClosing: {
 		description: 'Status notice while the Workspaces of a Project close.',
 		id: 'workbench.projects.close.closing',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.closing'],
-	},
-	projectCloseOutcomeUnknown: {
-		description:
-			'Status notice when closing the Workspaces of a Project may have taken effect, naming the command that reads its status.',
-		id: 'workbench.projects.close.outcomeUnknown',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.outcomeUnknown'],
-	},
-	projectCloseRefused: {
-		description:
-			'Status notice when closing the Workspaces of a Project was not submitted or was refused.',
-		id: 'workbench.projects.close.refused',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.refused'],
-	},
-	projectCloseStopped: {
-		description: 'Status notice when an accepted close of a Project stopped before finishing.',
-		id: 'workbench.projects.close.stopped',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.stopped'],
 	},
 	sidebarNewWorkspace: {
 		description: 'Fixed full-row sidebar action that creates an independent Workspace.',
@@ -325,22 +303,11 @@ export const workbenchMessages = defineMessages({
 		description:
 			'What a close does: ends the terminals still running, and discards the output of the ended ones.',
 	},
-	panelCloseNotApplied: {
-		id: 'workbench.panels.close.notApplied',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.close.notApplied'],
-		description: 'Status notice when closing a Panel was not applied.',
-	},
 	panelsNotApplied: {
 		id: 'workbench.panels.update.notApplied',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.update.notApplied'],
 		description:
 			'Status notice when the Workbench authority refused creating, moving, or swapping a Panel.',
-	},
-	panelResizeContended: {
-		id: 'workbench.panels.resize.contended',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.contended'],
-		description:
-			'Status notice when a Panel resize stopped trying because other Clients kept changing the Workbench.',
 	},
 	panelResizeFailed: {
 		id: 'workbench.panels.resize.failed',
@@ -368,7 +335,7 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.tabs.close.failed',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.failed'],
 		description:
-			'Status notice when the close of one Tab or one Panel ended without removing it, so it shows again; it names the Tab or Panel and gives no reason.',
+			'Status notice when a close of a Tab, Panel, Workspace or Project ended without removing it; it names what was closing and gives no reason.',
 	},
 	tabCloseDescription: {
 		id: 'workbench.tabs.close.description',
@@ -386,27 +353,10 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Status notice, worded as the terminal interface words it, when no Tab or terminal was created because the chosen launch profile changed, was removed, or cannot be started from this window.',
 	},
-	tabDuplicationChanged: {
-		id: 'workbench.tabs.duplicate.changed',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.changed'],
-		description:
-			'Status notice when duplicating Tabs stopped because the selection or Workspace changed.',
-	},
-	tabDuplicationDeadline: {
-		id: 'workbench.tabs.duplicate.deadline',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.deadline'],
-		description: 'Status notice when duplicating Tabs stopped at its time limit.',
-	},
 	tabDuplicationNotCreated: {
 		id: 'workbench.tabs.duplicate.notCreated',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.notCreated'],
-		description: 'Status notice when duplicating Tabs stopped because a copy was not created.',
-	},
-	tabDuplicationUncertain: {
-		id: 'workbench.tabs.duplicate.uncertain',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.duplicate.uncertain'],
-		description:
-			'Status notice when duplicating Tabs stopped because a copy or its terminal has no definite result.',
+		description: 'Status notice when duplicating Tabs stopped before every copy was created.',
 	},
 	tabsNotApplied: {
 		id: 'workbench.tabs.update.notApplied',
@@ -416,12 +366,12 @@ export const workbenchMessages = defineMessages({
 	tabCloseNotApplied: {
 		id: 'workbench.tabs.close.notApplied',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.notApplied'],
-		description: 'Status notice when closing a Tab was not applied.',
+		description: 'Status notice when closing a set of Tabs was not applied.',
 	},
 	tabCloseSetProgress: {
 		id: 'workbench.tabs.close.setProgress',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.setProgress'],
-		description: 'Status notice counting the Tabs of a close set.',
+		description: 'Status notice while a set of Tabs closes.',
 	},
 	tabCloseSetStopped: {
 		id: 'workbench.tabs.close.setStopped',
@@ -980,16 +930,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.outcomeUnknown'],
 		description: 'Status notice when a change may or may not have taken effect.',
 	},
-	workspaceSetupProjectDissolved: {
-		id: 'workbench.workspaces.setup.projectDissolved',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.projectDissolved'],
-		description: 'Status notice after dissolving a Project that held Workspaces.',
-	},
-	workspaceSetupProjectDissolvedEmpty: {
-		id: 'workbench.workspaces.setup.projectDissolvedEmpty',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.projectDissolvedEmpty'],
-		description: 'Status notice after dissolving a Project that held no Workspace.',
-	},
 	workspaceSetupStale: {
 		id: 'workbench.workspaces.setup.stale',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.stale'],
@@ -1000,31 +940,10 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.changed'],
 		description: 'Status notice when a Workspace close stopped because its target changed.',
 	},
-	workspaceCloseClosed: {
-		id: 'workbench.workspaces.close.closed',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.closed'],
-		description: 'Status notice after a Workspace closed.',
-	},
 	workspaceCloseClosing: {
 		id: 'workbench.workspaces.close.closing',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.closing'],
 		description: 'Status notice while a Workspace closes.',
-	},
-	workspaceCloseOutcomeUnknown: {
-		id: 'workbench.workspaces.close.outcomeUnknown',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.outcomeUnknown'],
-		description:
-			'Status notice when a Workspace close may have taken effect, naming the command that shows whether the Workspace remains.',
-	},
-	workspaceCloseRefused: {
-		id: 'workbench.workspaces.close.refused',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.refused'],
-		description: 'Status notice when a Workspace close was not submitted or was refused.',
-	},
-	workspaceCloseStopped: {
-		id: 'workbench.workspaces.close.stopped',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.close.stopped'],
-		description: 'Status notice when an accepted Workspace close stopped before finishing.',
 	},
 	workspaceDelete: {
 		id: 'workbench.workspaces.actions.delete',
@@ -1385,16 +1304,10 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removing'],
 		description: 'Status line while a Worktree is removed.',
 	},
-	worktreeRemoved: {
-		id: 'workbench.worktrees.removed',
-		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.removed'],
-		description: 'Status line after a Worktree was removed and its Workspace closed.',
-	},
 	worktreeOutcomeUnknown: {
 		id: 'workbench.worktrees.outcomeUnknown',
 		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.outcomeUnknown'],
-		description:
-			'Status line when a Worktree operation may have taken effect; names its operation ID.',
+		description: 'Status line when a Worktree operation may have taken effect.',
 	},
 	worktreeCreateFailed: {
 		id: 'workbench.worktrees.createFailed',
@@ -1430,7 +1343,7 @@ export const workbenchMessages = defineMessages({
 	worktreeFailureDenied: {
 		id: 'workbench.worktrees.failure.denied',
 		defaultMessage: enUSWorkbenchMessages['workbench.worktrees.failure.denied'],
-		description: 'Worktree operation refused for this Client.',
+		description: 'Worktree operation refused for this window.',
 	},
 	worktreeFailureDirectoryInUse: {
 		id: 'workbench.worktrees.failure.directoryInUse',
@@ -1519,11 +1432,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.key.tuiOnly'],
 		description:
 			'Search row note: the configured key, as the TUI labels it, such as a prefix key, cannot be bound in the window.',
-	},
-	configuredCommandAccepted: {
-		id: 'workbench.configuredCommands.accepted',
-		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.accepted'],
-		description: 'Status notice when a configured command started.',
 	},
 	configuredCommandFailed: {
 		id: 'workbench.configuredCommands.failed',

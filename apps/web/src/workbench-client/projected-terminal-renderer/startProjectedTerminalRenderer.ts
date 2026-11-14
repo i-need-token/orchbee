@@ -674,10 +674,7 @@ export async function startProjectedTerminalRenderer(
 		const renderFeatureFailure = (): string => {
 			// A connection that stays lost is named in a word, as the TUI's status line names it.
 			if (lasting) return intl.formatMessage(projectedTerminalMessages.disconnected);
-			const consequence = intl.formatMessage(projectedTerminalFailureMessage(failure));
-			return failure.retryable
-				? intl.formatMessage(projectedTerminalMessages.retryableFailure, { consequence })
-				: consequence;
+			return intl.formatMessage(projectedTerminalFailureMessage(failure));
 		};
 		if (lasting) {
 			rootElement.dataset['projectedTerminalState'] = 'failed';
@@ -1205,20 +1202,19 @@ export async function startProjectedTerminalRenderer(
 			);
 			pendingSubscriptions.push(
 				terminal.onSelectionCopyResult((event) => {
-					statusKind = 'copy';
 					rootElement.dataset['projectedTerminalCopySource'] = event.source;
 					rootElement.dataset['projectedTerminalCopyState'] = event.result.kind;
+					// A copy that worked says nothing, as success never does, and takes back an earlier
+					// copy's failure.
 					if (event.result.kind === 'completed') {
 						delete rootElement.dataset['projectedTerminalCopyFailure'];
-						status.setAttribute('role', 'status');
-						const byteLength = event.result.byteLength ?? 0;
-						renderStatus = () =>
-							intl.formatMessage(projectedTerminalMessages.copyCompleted, { byteLength });
-					} else {
-						rootElement.dataset['projectedTerminalCopyFailure'] = event.result.code;
-						status.setAttribute('role', 'alert');
-						renderStatus = () => intl.formatMessage(projectedTerminalMessages.copyFailed);
+						if (statusKind === 'copy') clearStatus();
+						return;
 					}
+					statusKind = 'copy';
+					rootElement.dataset['projectedTerminalCopyFailure'] = event.result.code;
+					status.setAttribute('role', 'alert');
+					renderStatus = () => intl.formatMessage(projectedTerminalMessages.copyFailed);
 					status.textContent = renderStatus();
 					status.hidden = false;
 				}),
@@ -1759,19 +1755,15 @@ function projectedTerminalActionResultPresentation(
 	) {
 		return null;
 	}
+	// Success says nothing: what it changed shows on screen, or nothing was there to show.
+	if (event.result.kind === 'completed') return null;
 	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.takeControl) {
-		if (event.result.kind === 'completed') {
-			return { message: projectedTerminalMessages.controlTaken, role: 'status' };
-		}
 		return event.result.kind === 'failed' &&
 			event.result.failure.code === 'terminal-control-outcome-unknown'
 			? { message: projectedTerminalMessages.controlOutcomeUnknown, role: 'alert' }
 			: { message: projectedTerminalMessages.controlRefused, role: 'alert' };
 	}
 	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.hintsOpen) {
-		if (event.result.kind === 'completed') {
-			return { message: projectedTerminalMessages.hintsCompleted, role: 'status' };
-		}
 		if (event.result.kind === 'unchanged') {
 			return { message: projectedTerminalMessages.hintsNoMatches, role: 'status' };
 		}
@@ -1785,28 +1777,6 @@ function projectedTerminalActionResultPresentation(
 			};
 		}
 		return { message: projectedTerminalMessages.hintsFailed, role: 'alert' };
-	}
-	if (event.result.kind === 'completed') {
-		switch (event.actionId) {
-			case PROJECTED_TERMINAL_ACTION_IDS.clear:
-				return { message: projectedTerminalMessages.clearCompleted, role: 'status' };
-			case PROJECTED_TERMINAL_ACTION_IDS.openLink:
-				return { message: projectedTerminalMessages.openLinkCompleted, role: 'status' };
-			case PROJECTED_TERMINAL_ACTION_IDS.paste:
-				return { message: projectedTerminalMessages.pasteCompleted, role: 'status' };
-			case PROJECTED_TERMINAL_ACTION_IDS.reset:
-				return { message: projectedTerminalMessages.resetCompleted, role: 'status' };
-			case PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom:
-				return { message: projectedTerminalMessages.scrollToBottomCompleted, role: 'status' };
-			case PROJECTED_TERMINAL_ACTION_IDS.selectAll:
-				return { message: projectedTerminalMessages.selectAllCompleted, role: 'status' };
-		}
-	}
-	if (
-		event.result.kind === 'unchanged' &&
-		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom
-	) {
-		return { message: projectedTerminalMessages.scrollToBottomUnchanged, role: 'status' };
 	}
 	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.openLink) {
 		let message = projectedTerminalMessages.linkFailed;

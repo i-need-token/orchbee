@@ -87,6 +87,16 @@ A person who uses Windows Terminal, iTerm2, Ghostty or the VS Code terminal ever
 
 A grey row says why only when the fix is not obvious, in one form each: **Terminal disconnected** (终端已断开), **Not in a Git repository** (不在 Git 仓库里), and **Select text first** (请先选中文本). Every other disabled row is simply grey, with no reason and no short form.
 
+## Status sentences
+
+A notice says one of three things, the same way in both clients:
+
+- A failure is one plain sentence: **Couldn't {action} {object}.** (没能{动作}{对象}。), such as **Couldn't rename the Tab.** (没能重命名标签页。). A short reason or the place in the interface that fixes it may follow, never a reason code, an id, a revision or another internal noun.
+- An unknown outcome is exactly **Not sure it finished. Check, then try again.** (不确定是否完成，请先看一下再重试。). A close that is already settled as not done keeps **Couldn't close {label}.** (没能关闭 {label}。).
+- A success says nothing: its result shows on screen, or it has none to show.
+
+No notice tells a person to run an `orchbee` command, except a configuration file syntax error, which keeps `orchbee config check`. Troubleshooting detail goes to the existing diagnostic log, never to a new surface.
+
 ## Review
 
 For every affected product message:

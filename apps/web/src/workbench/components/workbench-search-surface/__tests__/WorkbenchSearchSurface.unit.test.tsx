@@ -409,7 +409,7 @@ describe('WorkbenchSearchSurface', () => {
 		);
 
 		expect((await screen.findByRole('status')).textContent).toContain(
-			'Remote commands could not be searched.',
+			"Couldn't search Remote commands.",
 		);
 		expect(attempt).toBe(1);
 		fireEvent.click(screen.getByRole('button', { name: 'Retry' }));

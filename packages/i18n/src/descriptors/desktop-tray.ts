@@ -48,7 +48,7 @@ export const desktopTrayMessages = defineMessages({
 	),
 	quitAllFailureStopFailed: message(
 		'desktop.tray.quitAll.failure.stopFailed',
-		'Why Quit All did not quit: the Session began stopping but its stop failed. {stopId} is the stop request ID that `operation status` and `server stop --retry` take.',
+		'Why Quit All did not quit: the Session began stopping but its stop failed.',
 	),
 	quitAllFailureTitle: message(
 		'desktop.tray.quitAll.failure.title',
@@ -56,7 +56,7 @@ export const desktopTrayMessages = defineMessages({
 	),
 	quitAllFailureUnconfirmed: message(
 		'desktop.tray.quitAll.failure.unconfirmed',
-		'Why Quit All did not quit: the stop was asked for, but its completion could not be confirmed in time. {stopId} is the stop request ID that `operation status` takes.',
+		'Why Quit All did not quit: the stop was asked for, but its completion could not be confirmed in time.',
 	),
 	quitAllFailureUnmanaged: message(
 		'desktop.tray.quitAll.failure.unmanaged',

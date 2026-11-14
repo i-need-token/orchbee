@@ -4,6 +4,7 @@ import type {
 } from '@orchbee/desktop-client-protocol';
 import type { BrowserWindow } from 'electron';
 
+import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import type { ServerStopStatus } from '../server-connection';
 import {
 	createDesktopBackgroundState,
@@ -43,6 +44,7 @@ export interface DesktopBackgroundRuntimeOptions extends Omit<
 	readonly quit: () => void;
 	/** Reads a Session stop's progress with `operation status`. */
 	readonly readStopStatus: (stopId: string) => Promise<ServerStopStatus>;
+	readonly recordEvent: DesktopDiagnosticRecorder;
 	readonly record: Pick<FileDesktopTrayRecord, 'recordNoticeShown'>;
 	/** Opens the window, or shows and focuses the hidden one. */
 	readonly reopen: () => void;
@@ -139,12 +141,12 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 					void this.#options.record.recordNoticeShown();
 					break;
 				case 'report-quit-all-failure': {
-					const { reason, stopId } = command;
+					const { reason } = command;
+					// The words say only what happened; the reason goes to the diagnostic log.
+					this.#options.recordEvent('warning', 'quit-all-failed', { reason });
 					void this.#options
 						.showWindow()
-						.then((window) =>
-							reportDesktopQuitAllFailure(intl, applicationName, window, reason, stopId),
-						)
+						.then((window) => reportDesktopQuitAllFailure(intl, applicationName, window, reason))
 						.then(() => this.#dispatch({ kind: 'quit-all-failure-dismissed' }));
 					break;
 				}
@@ -158,7 +160,7 @@ export class DesktopBackgroundRuntime implements DesktopWindowBackground {
 							this.#dispatch(
 								result.kind === 'stopped'
 									? { kind: 'quit-all-stopped' }
-									: { kind: 'quit-all-failed', reason: result.reason, stopId: result.stopId },
+									: { kind: 'quit-all-failed', reason: result.reason },
 							),
 						);
 					break;

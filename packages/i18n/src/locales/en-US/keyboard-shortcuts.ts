@@ -82,9 +82,9 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.persistence.invalidWarning':
 		'Saved keyboard shortcuts are invalid. Platform defaults are in use.',
 	'keyboard.shortcuts.persistence.readWarning':
-		'Saved keyboard shortcuts could not be read. Platform defaults are in use.',
+		"Couldn't read your saved keyboard shortcuts. Platform defaults are in use.",
 	'keyboard.shortcuts.persistence.writeWarning':
-		'Your keyboard shortcut changes apply for this session but could not be saved.',
+		"Couldn't save your keyboard shortcut changes; they apply only for now.",
 	'keyboard.shortcuts.recording': 'Press a shortcut. Escape or moving focus away cancels.',
 	'keyboard.shortcuts.search.clear': 'Clear shortcut search',
 	'keyboard.shortcuts.search.placeholder': 'Search actions or shortcuts',

@@ -214,6 +214,7 @@ async function createBackground(
 		readStopStatus: (stopId) =>
 			readServerStopStatus(clientExecutable, sessionArguments, clientEnvironment, stopId),
 		record,
+		recordEvent,
 		reopen: () => void application?.openWindow().catch(() => undefined),
 		requestSessionStop: (stopId) => application?.requestSessionStop(stopId) ?? false,
 		showWindow: async () => {

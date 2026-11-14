@@ -227,7 +227,6 @@ async function runActivatedWitness(): Promise<void> {
 		const completed = await executeCopy();
 		await until(() => root.dataset['projectedTerminalCopyState'] === 'completed');
 		root.dataset['witnessActivatedResult'] = resultLabel(completed);
-		root.dataset['witnessActivatedFeedback'] = statusText();
 		root.dataset['witnessActivatedSelectionCommands'] = String(selectionCopyCommands);
 		root.dataset['witnessActivatedWrites'] = String(clipboardWrites.length);
 

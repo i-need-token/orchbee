@@ -21,13 +21,11 @@ import {
 	type WorkbenchAuthorityNotice,
 } from '../model/workbench-authority-notice';
 import { formatWorkbenchConfiguredCommandName } from '../model/workbench-configured-command-name';
-import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchAgentNotResumed,
 	WorkbenchAgentStartFailure,
 	WorkbenchAuthority,
-	WorkbenchAuthorityClosure,
 	WorkbenchHeldRestores,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
@@ -41,10 +39,7 @@ export interface WorkbenchAuthorityNoticeView {
 	readonly notice: { readonly message: string; readonly persistent: boolean } | null;
 	/** An Agent destination failed revalidation, so nothing moved; the TUI says the same. */
 	readonly reportAgentNavigationUnavailable: () => void;
-	readonly reportDuplicationStopped: (
-		stop: WorkbenchTabDuplicationStop,
-		counts: { readonly created: number; readonly total: number },
-	) => void;
+	readonly reportDuplicationStopped: (stop: WorkbenchTabDuplicationStop) => void;
 	/** A folder field now shows why its folder was refused, so the status line no longer says it. */
 	readonly withdrawDirectoryRefusal: () => void;
 }
@@ -58,23 +53,6 @@ const CLOSING_NOTICE_DELAY_MILLISECONDS = 200;
  * Tab leaving the strip already shows it, so only a slow close says Closing.
  */
 const SLOW_TAB_CLOSE_MILLISECONDS = 1_000;
-
-function closesActiveLocation(
-	closure: WorkbenchAuthorityClosure,
-	runtime: WorkbenchProjectWorkspaceRuntime,
-): boolean {
-	const state = runtime.getSnapshot();
-	const location = state.activeLocation;
-	if (location.kind !== 'workspace') return false;
-	if (closure.type === 'workspace-close' || closure.type === 'workspace-close-if-idle') {
-		return closure.workspaceId === location.workspaceId;
-	}
-	return (
-		closure.type === 'project-workspaces-close' &&
-		state.workspaces.find((workspace) => workspace.id === location.workspaceId)?.projectId ===
-			closure.projectId
-	);
-}
 
 /**
  * A configured command says how it ended, naming it, as the TUI's status line does. The name is read
@@ -232,21 +210,9 @@ export function useWorkbenchAuthorityNotice(
 			minimumSplitPercent: authority.minimumSplitPercent,
 			agentCatalog: authority.agentCatalog,
 			change: async (context, change) => {
-				const dissolvedWorkspaces =
-					change.type === 'project-dissolved' &&
-					projectWorkspaceRuntime
-						.getSnapshot()
-						.workspaces.some((workspace) => workspace.projectId === change.projectId);
 				setNotice(null);
 				const result = await authority.change(context, change);
-				if (result.kind === 'completed' && change.type === 'project-dissolved') {
-					setNotice({
-						descriptor: dissolvedWorkspaces
-							? workbenchMessages.workspaceSetupProjectDissolved
-							: workbenchMessages.workspaceSetupProjectDissolvedEmpty,
-						lifetime: 'timed',
-					});
-				} else if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
+				if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
 					setNotice(workbenchTabsFailureNotice(result));
 				} else if (
 					change.type === 'panel-moved' ||
@@ -267,24 +233,16 @@ export function useWorkbenchAuthorityNotice(
 			},
 			close: async (context, closure) => {
 				const subject = readWorkbenchCloseSubject(closure, projectWorkspaceRuntime);
-				const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
-				const landsAutomatically = closesActiveLocation(closure, projectWorkspaceRuntime);
-				const sawClosed = (): boolean =>
-					landsAutomatically ||
-					workbenchActiveLocationsEqual(
-						origin,
-						projectWorkspaceRuntime.getSnapshot().activeLocation,
-					);
 				// One Tab's close says Closing only once its Tab has left the strip and it still runs a
 				// second after it began, as the TUI's does, and its end says nothing.
 				const tab = subject.kind === 'tab';
 				let progress: WorkbenchAuthorityNotice | null = null;
 				let closingShown = false;
 				let left = false;
-				let closedSaid = false;
+				let settled = false;
 				const showProgress = (): void => {
-					if (!closingShown || closedSaid || (tab && !left)) return;
-					progress = workbenchCloseProgressNotice(subject, projectWorkspaceRuntime);
+					if (!closingShown || settled || (tab && !left)) return;
+					progress = workbenchCloseProgressNotice(subject);
 					setNotice(progress);
 				};
 				setNotice(null);
@@ -296,28 +254,19 @@ export function useWorkbenchAuthorityNotice(
 					tab ? SLOW_TAB_CLOSE_MILLISECONDS : CLOSING_NOTICE_DELAY_MILLISECONDS,
 				);
 				const stopWatching = projectWorkspaceRuntime.subscribe(showProgress);
-				// As in the TUI, a close whose Workspaces have left reads as closed while it settles, so
-				// Closed shows with the landing and only a later failure or lost outcome replaces it.
-				const sayClosed = (): void => {
-					closedSaid = true;
+				// As in the TUI, a close whose Workspaces have left reads as done while it settles: what it
+				// said leaves with the landing, and only a later failure or lost outcome says more.
+				const settle = (): void => {
+					settled = true;
 					clearTimeout(closingDelay);
-					const closed = workbenchCloseResultNotice(
-						subject,
-						{ kind: 'completed' },
-						projectWorkspaceRuntime,
-						sawClosed(),
-					);
 					const shown = progress;
-					setNotice((current) => {
-						if (closed === null) return current === shown ? null : current;
-						return current?.lifetime === 'until-press' ? current : closed;
-					});
+					setNotice((current) => (current === shown ? null : current));
 				};
 				const markLeft = (): void => {
 					if (!left) {
 						left = true;
 						if (tab) showProgress();
-						else sayClosed();
+						else settle();
 					}
 					context.markLeft?.();
 				};
@@ -326,14 +275,8 @@ export function useWorkbenchAuthorityNotice(
 						{ markCommitted: () => context.markCommitted(), markLeft, signal: context.signal },
 						closure,
 					);
-					// Closed has already been said, and its time runs from then.
-					if (closedSaid && result.kind === 'completed') return result;
-					const next = workbenchCloseResultNotice(
-						subject,
-						result,
-						projectWorkspaceRuntime,
-						sawClosed(),
-					);
+					if (settled && result.kind === 'completed') return result;
+					const next = workbenchCloseResultNotice(subject, result);
 					const shown = progress;
 					setNotice((current) => {
 						// Saying nothing removes only what this close said, not what later work says.
@@ -393,14 +336,9 @@ export function useWorkbenchAuthorityNotice(
 		}),
 		[authority, intl, projectWorkspaceRuntime],
 	);
-	const reportDuplicationStopped = useMemoizedFn(
-		(
-			stop: WorkbenchTabDuplicationStop,
-			counts: { readonly created: number; readonly total: number },
-		) => {
-			setNotice(workbenchTabDuplicationStoppedNotice(stop, counts));
-		},
-	);
+	const reportDuplicationStopped = useMemoizedFn((stop: WorkbenchTabDuplicationStop) => {
+		setNotice(workbenchTabDuplicationStoppedNotice(stop));
+	});
 	const reportAgentNavigationUnavailable = useMemoizedFn(() => {
 		setNotice({
 			descriptor: workbenchMessages.workspaceAgentNavigationUnavailable,

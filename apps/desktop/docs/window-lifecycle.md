@@ -108,7 +108,8 @@ derives the icon.
   connection and answers, and Main then reads `operation status` every half second. Desktop quits
   only once a stopped receipt proves the stop, which also ends every Client, an attached TUI
   included. A stop that was refused, never sent, failed, or not proven within 75 seconds shows the
-  window with the reason, naming the stop identity when a stop was recorded, and nothing quits.
+  window with the reason in plain words, records the reason in the diagnostic log, and nothing
+  quits.
   While the stop runs, the menu holds only its status line and Reopen Orchbee.
 - Only a release icon has a fixed GUID, so Windows remembers whether it is shown in the taskbar.
   Test and Dev run from changing paths, to which Windows ties an unsigned executable's GUID.

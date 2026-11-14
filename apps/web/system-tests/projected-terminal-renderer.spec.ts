@@ -762,10 +762,7 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.reset:enabled',
 			].join(','),
 		);
-		await expect(root).toHaveAttribute(
-			'data-witness-feedback',
-			'已将剪贴板文本粘贴到终端。|已清除终端输出。|终端目标已发生变化，无法打开。',
-		);
+		await expect(root).toHaveAttribute('data-witness-feedback', '没能打开目标：它已变化。');
 		await expect(root).toHaveAttribute('data-witness-confirmation-count', '0');
 	} finally {
 		await page.context().browser()?.close();
@@ -916,7 +913,6 @@ test('terminal-parity/LC-05-lan-capability', async () => {
 		await expect(root).toHaveAttribute('data-witness-click-user-activation', 'true');
 		await expect(root).toHaveAttribute('data-witness-activated-availability', 'enabled');
 		await expect(root).toHaveAttribute('data-witness-activated-result', 'completed');
-		await expect(root).toHaveAttribute('data-witness-activated-feedback', 'Copied 21 bytes.');
 		await expect(root).toHaveAttribute('data-witness-activated-selection-commands', '1');
 		await expect(root).toHaveAttribute('data-witness-activated-writes', '1');
 		await expect(root).toHaveAttribute(
@@ -925,7 +921,7 @@ test('terminal-parity/LC-05-lan-capability', async () => {
 		);
 		await expect(root).toHaveAttribute(
 			'data-witness-rejected-feedback',
-			'The terminal selection could not be copied.',
+			"Couldn't copy the selection.",
 		);
 		await expect(root).toHaveAttribute('data-witness-rejected-command-delta', '1');
 		await expect(root).toHaveAttribute('data-witness-rejected-write-delta', '1');

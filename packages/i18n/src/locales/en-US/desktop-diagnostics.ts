@@ -1,8 +1,7 @@
 export const enUSDesktopDiagnosticsMessages = {
 	'desktop.diagnostics.action.saveBundle': 'Save Diagnostic Bundle…',
-	'desktop.diagnostics.bundleFailed': 'The diagnostic bundle could not be saved.',
-	'desktop.diagnostics.bundleFailedDetail':
-		'Nothing was uploaded. To see why, run the "orchbee diagnostics create" command in a terminal.',
+	'desktop.diagnostics.bundleFailed': "Couldn't save the diagnostic bundle.",
+	'desktop.diagnostics.bundleFailedDetail': 'Nothing was uploaded.',
 	'desktop.diagnostics.category': 'Help',
 	'desktop.diagnostics.close': 'Close',
 	'desktop.diagnostics.saveDialogTitle': 'Save Diagnostic Bundle',

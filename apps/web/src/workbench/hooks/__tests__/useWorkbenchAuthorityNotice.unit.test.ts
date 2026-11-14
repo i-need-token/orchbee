@@ -29,13 +29,7 @@ import type {
 } from '../../types/workbench-authority';
 import { useWorkbenchAuthorityNotice } from '../useWorkbenchAuthorityNotice';
 
-const CLOSED = FIXTURE_INTL.formatMessage(workbenchMessages.workspaceCloseClosed, {
-	label: 'Workspace 1',
-});
-const CLOSING = FIXTURE_INTL.formatMessage(workbenchMessages.workspaceCloseClosing, {
-	label: 'Workspace 1',
-});
-const STOPPED = FIXTURE_INTL.formatMessage(workbenchMessages.workspaceCloseStopped, {
+const STOPPED = FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseFailed, {
 	label: 'Workspace 1',
 });
 
@@ -123,30 +117,9 @@ afterEach(() => {
 });
 
 describe('useWorkbenchAuthorityNotice', () => {
-	it('says Closed once the closing Workspace leaves, never Closing after it, and only once', async () => {
-		const close = closeShown();
-		act(() => vi.advanceTimersByTime(250));
-		expect(close.notice()).toEqual({ message: CLOSING, persistent: false });
-
-		close.leave();
-		expect(close.notice()).toEqual({ message: CLOSED, persistent: false });
-		expect(close.context.markLeft).toHaveBeenCalledOnce();
-
-		close.publishAgain();
-		act(() => vi.advanceTimersByTime(250));
-		expect(close.notice()).toEqual({ message: CLOSED, persistent: false });
-
-		// Closed is one result: it expires from when it was said, and settling says nothing more.
-		act(() => vi.advanceTimersByTime(10_000));
-		expect(close.notice()).toBeNull();
-		await close.settle({ kind: 'completed' });
-		expect(close.notice()).toBeNull();
-	});
-
-	it('replaces Closed with the report once a close whose Workspace left stops', async () => {
+	it('reports a close whose Workspace left and then stopped', async () => {
 		const close = closeShown();
 		close.leave();
-		expect(close.notice()).toEqual({ message: CLOSED, persistent: false });
 
 		await close.settle({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
 		expect(close.notice()).toEqual({ message: STOPPED, persistent: true });

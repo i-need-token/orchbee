@@ -531,11 +531,6 @@ describe('startProjectedTerminalRenderer', () => {
 			if (clearAction?.kind !== 'ready') throw new Error('Expected the terminal Clear action.');
 			await contextProvider?.executePrepared(clearAction.invocation).completion;
 			expect(clearTerminal).toHaveBeenCalledOnce();
-			await vi.waitFor(() => expect(status.textContent).toBe('已清除终端输出。'));
-			applicationLocaleSource.select('en-US');
-			await vi.waitFor(() => expect(status.textContent).toBe('Terminal output cleared.'));
-			applicationLocaleSource.select('zh-CN');
-			await vi.waitFor(() => expect(status.textContent).toBe('已清除终端输出。'));
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
 			emitTransportMessage({
 				event: { attachmentId: bootstrap.attachmentId, sequence: '5' },
@@ -659,7 +654,7 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			expect(status).toMatchObject({
 				hidden: false,
-				textContent: '无法将终端文本写入剪贴板。',
+				textContent: '没能把文本复制到剪贴板。',
 			});
 			await Promise.resolve();
 			const writeCountBeforeNextRequest = writeClipboardText.mock.calls.length;
@@ -698,7 +693,7 @@ describe('startProjectedTerminalRenderer', () => {
 				result: { code: 'clipboard-denied', kind: 'failed', retryable: false },
 				source: 'automatic',
 			});
-			expect(status).toMatchObject({ hidden: false, textContent: '无法复制终端所选内容。' });
+			expect(status).toMatchObject({ hidden: false, textContent: '没能复制所选内容。' });
 			expect(dataset['projectedTerminalCopySource']).toBe('automatic');
 			expect(dataset['projectedTerminalCopyState']).toBe('failed');
 			emitSelectionCopyResult({
@@ -706,8 +701,6 @@ describe('startProjectedTerminalRenderer', () => {
 				result: { byteLength: 16, kind: 'completed' },
 				source: 'manual',
 			});
-			expect(status).toMatchObject({ hidden: false, textContent: '已复制 16 字节。' });
-			expect(status.setAttribute).toHaveBeenLastCalledWith('role', 'status');
 			expect(dataset['projectedTerminalCopySource']).toBe('manual');
 			expect(dataset['projectedTerminalCopyState']).toBe('completed');
 			const telemetry: ProjectedTerminalFrameTelemetry = {
@@ -1363,7 +1356,7 @@ describe('startProjectedTerminalRenderer', () => {
 			liveTransport.emitMessage({ failure: directActionFailure, kind: 'failure' });
 			expect(liveElements.additionalStatus).toMatchObject({
 				hidden: false,
-				textContent: 'The terminal control action could not be confirmed.',
+				textContent: 'Not sure it finished. Check, then try again.',
 			});
 			expect(liveTransport.close).not.toHaveBeenCalled();
 			liveTransport.emitMessage({
