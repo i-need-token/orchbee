@@ -300,11 +300,10 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.setTabTitle,
 	},
-	// Start Agent takes G with Rename Tab's chord shape: Apple Cmd+Shift+G, Standard Ctrl+Alt+Shift+G.
 	startAgent: {
 		defaults: {
 			apple: chord('KeyG', ['mod', 'shift']),
-			standard: chord('KeyG', ['mod', 'alt', 'shift']),
+			standard: chord('KeyG', ['mod', 'shift']),
 		},
 		id: WORKBENCH_ACTION_IDS.openAgentStart,
 		input: undefined,
