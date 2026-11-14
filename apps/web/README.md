@@ -213,7 +213,8 @@ Stream rows never change the current CWD, unread state, notifications, or Agent 
 
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
 surface. It presents a bounded, control-visible preview of the retained original text and identifies
-multiline input, controls that will be replaced, and an embedded bracketed-paste terminator. Cancel
+multiline input and controls that will be replaced; text holding an embedded bracketed-paste
+terminator opens the same review without a line of its own, since its controls are replaced. Cancel
 publishes nothing; approval sends the sanitized text together with the mode that was reviewed, while
 Terminal Host rejects a mode change before encoding or queue admission.
 

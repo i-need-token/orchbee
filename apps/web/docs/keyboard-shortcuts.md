@@ -302,7 +302,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
 
 ## Active-target command model
 
-The nineteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+The thirty-two `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
 explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
 target is resolved again when execution starts, so a stale or absent target is unavailable and
 does not consume the keyboard event.

@@ -101,7 +101,6 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.pasteReview.description': '请先检查这段文本，再将其发送到终端。',
 	'terminal.projected.pasteReview.multiline': '此粘贴内容包含多行，可能会运行多个命令。',
 	'terminal.projected.pasteReview.original': '原始粘贴文本',
-	'terminal.projected.pasteReview.terminator': '此粘贴内容包含括号粘贴终止符。',
 	'terminal.projected.pasteReview.title': '检查终端粘贴内容',
 	'terminal.projected.pasteReview.truncated': '预览已截断。',
 	'terminal.projected.screen': '终端屏幕',
@@ -112,7 +111,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.newTab': '新建标签页',
 	'terminal.projected.launch.shellFailed': '没能启动 Shell。请检查启动配置和工作目录。',
 	'terminal.projected.launch.unavailable': '终端不可用',
-	'terminal.projected.heldRestore.title': '目录不可用',
+	'terminal.projected.heldRestore.title': '文件夹不可用',
 	'terminal.projected.heldRestore.retry': '重试',
-	'terminal.projected.heldRestore.startInHome': '改在主目录启动',
+	'terminal.projected.heldRestore.startInHome': '改在主文件夹启动',
 } as const satisfies Readonly<Record<ProjectedTerminalMessageId, string>>;

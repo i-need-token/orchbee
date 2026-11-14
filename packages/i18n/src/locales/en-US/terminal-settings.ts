@@ -151,7 +151,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.terminalColors.description':
 		'Default text and background colors in terminals; colors a program sets stay as they are.',
 	'terminal.settings.page.terminalColors.theme': 'Match theme',
-	'terminal.settings.page.terminalColors.host': 'Terminal default',
+	'terminal.settings.page.terminalColors.host': 'Built-in colors',
 	'terminal.settings.page.terminalColors.custom': 'Custom',
 	'terminal.settings.page.textColor.label': 'Text color',
 	'terminal.settings.page.textColor.description': 'Terminal text color for Custom.',

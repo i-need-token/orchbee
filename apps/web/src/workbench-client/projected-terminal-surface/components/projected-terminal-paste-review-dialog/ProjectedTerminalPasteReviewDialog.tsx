@@ -56,9 +56,6 @@ export function ProjectedTerminalPasteReviewDialog({
 								})}
 							</li>
 						) : null}
-						{review.embeddedBracketTerminator ? (
-							<li>{intl.formatMessage(projectedTerminalMessages.pasteReviewTerminator)}</li>
-						) : null}
 					</ul>
 					<pre
 						aria-label={intl.formatMessage(projectedTerminalMessages.pasteReviewOriginal)}

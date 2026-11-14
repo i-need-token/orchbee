@@ -73,7 +73,6 @@ export const projectedTerminalMessages = defineMessages({
 	pasteReviewDescription: message('terminal.projected.pasteReview.description'),
 	pasteReviewMultiline: message('terminal.projected.pasteReview.multiline'),
 	pasteReviewOriginal: message('terminal.projected.pasteReview.original'),
-	pasteReviewTerminator: message('terminal.projected.pasteReview.terminator'),
 	pasteReviewTitle: message('terminal.projected.pasteReview.title'),
 	pasteReviewTruncated: message('terminal.projected.pasteReview.truncated'),
 	previousMatch: message('terminal.projected.find.previous'),

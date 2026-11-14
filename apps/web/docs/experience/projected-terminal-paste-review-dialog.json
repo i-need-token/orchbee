@@ -18,7 +18,7 @@
 			"file": "apps/web/stories/projected-terminal-paste-review-dialog.stories.tsx",
 			"id": "applications-web-projected-terminal-paste-review-dialog--suspicious-paste",
 			"states": [
-				"Inspect the localized warnings and control-visible original preview for replaced controls and an embedded bracketed-paste terminator.",
+				"Inspect the localized warnings and control-visible original preview for replaced controls, with no warning line naming a bracketed-paste terminator.",
 				"Cancel with Escape or the visible action, then approve with Paste; each path settles the pending attachment decision once."
 			]
 		}

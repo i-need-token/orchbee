@@ -105,7 +105,6 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.pasteReview.multiline':
 		'This paste contains multiple lines and may run multiple commands.',
 	'terminal.projected.pasteReview.original': 'Original paste text',
-	'terminal.projected.pasteReview.terminator': 'This paste contains a bracketed-paste terminator.',
 	'terminal.projected.pasteReview.title': 'Review terminal paste',
 	'terminal.projected.pasteReview.truncated': 'Preview truncated.',
 	'terminal.projected.screen': 'Terminal screen',
@@ -119,7 +118,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.launch.shellFailed':
 		"Couldn't start the shell. Check its launch profile and working directory.",
 	'terminal.projected.launch.unavailable': 'Terminal unavailable',
-	'terminal.projected.heldRestore.title': 'Directory unavailable',
+	'terminal.projected.heldRestore.title': 'Folder unavailable',
 	'terminal.projected.heldRestore.retry': 'Retry',
 	'terminal.projected.heldRestore.startInHome': 'Start in home folder',
 } as const;

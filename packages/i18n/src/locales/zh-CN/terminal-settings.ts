@@ -145,7 +145,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.terminalColors.description':
 		'终端默认的文字和背景颜色；程序自己指定的颜色不变。',
 	'terminal.settings.page.terminalColors.theme': '跟随主题',
-	'terminal.settings.page.terminalColors.host': '终端默认',
+	'terminal.settings.page.terminalColors.host': '内置颜色',
 	'terminal.settings.page.terminalColors.custom': '自定义',
 	'terminal.settings.page.textColor.label': '文字颜色',
 	'terminal.settings.page.textColor.description': '“自定义”时终端的文字颜色。',
@@ -216,9 +216,9 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.file.unreadable': '无法读取 {path} · 恢复前以只读方式显示上次有效的设置',
 	'terminal.settings.page.newTerminalFolder.label': '新终端文件夹',
 	'terminal.settings.page.newTerminalFolder.description': '适用于 orchbee 命令新建的终端。',
-	'terminal.settings.page.newTerminalFolder.workspace': '工作区目录',
-	'terminal.settings.page.newTerminalFolder.home': '主目录',
+	'terminal.settings.page.newTerminalFolder.workspace': '工作区文件夹',
+	'terminal.settings.page.newTerminalFolder.home': '主文件夹',
 	'terminal.settings.page.newTerminalFolder.follow': '与当前终端相同',
-	'terminal.settings.page.newTerminalFolder.custom': '自定义目录…',
-	'terminal.settings.page.newTerminalFolder.path': '自定义目录路径',
+	'terminal.settings.page.newTerminalFolder.custom': '自定义文件夹…',
+	'terminal.settings.page.newTerminalFolder.path': '自定义文件夹路径',
 } as const satisfies Readonly<Record<TerminalSettingsMessageId, string>>;
