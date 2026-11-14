@@ -11,16 +11,16 @@ impl super::CliText {
             usage,
             match (self.locale, resume) {
                 (Locale::EnUs, false) => {
-                    "Use the exact request ID from the mutation receipt. Reads retained state without repeating the operation or resolving current resource labels. Server status checks persistent stop receipts first, then manifest operations after a definite miss. A missing record does not prove that an earlier effect never happened."
+                    "Use the request ID from the command's receipt. Shows what the Server kept about that operation; it does not run the operation again or look up current names. server status looks for a saved stop record first, and only when there is none for an Agent detection rule operation. Finding no record does not prove that the operation had no effect."
                 }
                 (Locale::ZhCn, false) => {
-                    "使用修改回执中的精确请求 ID。读取保留状态，不重复操作，也不按当前资源标签解析。Server 状态先检查持久化停止回执，确认不存在后再查询 manifest 操作。缺少记录不证明以前没有发生效果。"
+                    "使用命令回执中的请求 ID。显示 Server 为该操作保存的情况，不会重新执行，也不按当前名称查找。server status 先查找已保存的停止记录，确认没有时再查找智能体识别规则操作。找不到记录不代表该操作没有产生效果。"
                 }
                 (Locale::EnUs, true) => {
-                    "Use the original request ID and the generation returned by status. --confirm is required. Submit one fenced resume; stale generations refuse. Close resume has one five-second budget and preserves unknown submission. Read status again before another attempt."
+                    "Use the original request ID and the generation number status printed, and add --confirm. Resume is sent once and refuses if the operation changed since that status. A close resume waits up to five seconds and reports an unknown result as unknown. Read status again before trying again."
                 }
                 (Locale::ZhCn, true) => {
-                    "使用原始请求 ID 和 status 返回的 generation，必须指定 --confirm。只提交一次带围栏恢复，拒绝过期代次。关闭恢复共用五秒预算，并保留提交结果未知状态。再次尝试前先读取 status。"
+                    "使用原始请求 ID 和 status 显示的代次编号，并加上 --confirm。恢复只提交一次；若操作在该次 status 之后已变化则拒绝。关闭操作的恢复最多等待五秒，结果未知时如实报告为未知。再次尝试前先重新读取 status。"
                 }
             },
         )

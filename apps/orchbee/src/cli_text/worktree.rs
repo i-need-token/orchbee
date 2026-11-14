@@ -247,19 +247,19 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::WorktreeStatus) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree status <operation-id> [--format text|json]",
-                "Read a retained operation without mutation or session activation. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.",
+                "Show an earlier operation without changing anything or starting a session. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.",
             ),
             (Locale::ZhCn, CommandPath::WorktreeStatus) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree status <operation-id> [--format text|json]",
-                "只读查询保留的操作，不执行变更或激活会话。记录可跨 CLI 断线保留，但不跨 Server 重启。结果包含尝试序号、Git 影响、工作区状态、shell 恢复计数／失败及能否恢复。",
+                "只读查询先前的操作，不执行变更或激活会话。记录可跨 CLI 断线保留，但不跨 Server 重启。结果包含尝试序号、Git 影响、工作区状态、shell 恢复计数／失败及能否恢复。",
             ),
             (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree resume <operation-id> --generation <attempt> --confirm [--detach] [--timeout <ms>] [--format text|json]",
-                "Explicitly resume a known, resumable failed operation using the attempt from status.\nA changed attempt, Worker incarnation or unproven process settlement is refused.\nGit creation is observed before recovery; Remove may close restored shells before retrying deletion. An already closed Workspace stays closed.\nConfirmation is required because the retained operation can remove user work.",
+                "Explicitly resume a known, resumable failed operation using the attempt from status.\nIt refuses when the attempt changed, the Worker restarted, or it cannot confirm that earlier processes ended.\nGit creation is observed before recovery; Remove may close restored shells before retrying deletion. An already closed Workspace stays closed.\nConfirmation is required because the operation can remove user work.",
             ),
             (Locale::ZhCn, _) => crate::cli_text::HelpDetails::new(
                 "orchbee worktree resume <operation-id> --generation <尝试序号> --confirm [--detach] [--timeout <毫秒>] [--format text|json]",
-                "使用 status 返回的尝试序号，显式恢复已知且可恢复的失败操作。尝试序号、Worker 实例已变化或进程收尾无法证明时拒绝恢复。恢复前先观察 Git 创建结果；Remove 重试删除前可能先关闭已恢复的 shell。已关闭的工作区保持关闭。保留的操作可能删除用户工作，因此必须确认。",
+                "使用 status 返回的尝试序号，显式恢复已知且可恢复的失败操作。尝试序号已变化、Worker 已重启，或无法确认先前进程已结束时拒绝恢复。恢复前先观察 Git 创建结果；Remove 重试删除前可能先关闭已恢复的 shell。已关闭的工作区保持关闭。该操作可能删除用户工作，因此必须确认。",
             ),
         }
     }

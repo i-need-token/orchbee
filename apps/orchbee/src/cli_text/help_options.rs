@@ -413,8 +413,8 @@ impl super::CliText {
                 ),
                 "--generation" => (
                     "<n>",
-                    "Require the observed operation or terminal generation.",
-                    "要求操作或终端代次与已观测值一致。",
+                    "The number status printed for the operation; resume refuses if the operation changed since.",
+                    "status 为该操作显示的编号；若操作此后已变化，恢复会被拒绝。",
                 ),
                 "--height" => (
                     "<cells|percent%>",

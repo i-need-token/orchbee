@@ -51,44 +51,44 @@ impl super::CliText {
     pub(crate) fn cli_help_summary(self, topic: HelpTopic) -> &'static str {
         let (english, chinese) = match topic {
             HelpTopic::Command(CommandPath::WorkspaceStatus) => (
-                "Read one retained operation by request ID.",
-                "按请求 ID 读取一项保留操作。",
+                "Show the state of an earlier operation by its request ID.",
+                "按请求 ID 查看一项先前操作的状态。",
             ),
             HelpTopic::Command(CommandPath::WorkspaceResume) => (
-                "Resume one retained operation with an exact generation fence.",
-                "按精确代次围栏恢复一项保留操作。",
+                "Continue an earlier operation if it is unchanged since its status was read.",
+                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
             ),
             HelpTopic::Command(CommandPath::TabStatus) => (
-                "Read one retained operation by request ID.",
-                "按请求 ID 读取一项保留操作。",
+                "Show the state of an earlier operation by its request ID.",
+                "按请求 ID 查看一项先前操作的状态。",
             ),
             HelpTopic::Command(CommandPath::TabResume) => (
-                "Resume one retained operation with an exact generation fence.",
-                "按精确代次围栏恢复一项保留操作。",
+                "Continue an earlier operation if it is unchanged since its status was read.",
+                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
             ),
             HelpTopic::Command(CommandPath::PanelStatus) => (
-                "Read one retained operation by request ID.",
-                "按请求 ID 读取一项保留操作。",
+                "Show the state of an earlier operation by its request ID.",
+                "按请求 ID 查看一项先前操作的状态。",
             ),
             HelpTopic::Command(CommandPath::PanelResume) => (
-                "Resume one retained operation with an exact generation fence.",
-                "按精确代次围栏恢复一项保留操作。",
+                "Continue an earlier operation if it is unchanged since its status was read.",
+                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
             ),
             HelpTopic::Command(CommandPath::ProjectStatus) => (
-                "Read one retained operation by request ID.",
-                "按请求 ID 读取一项保留操作。",
+                "Show the state of an earlier operation by its request ID.",
+                "按请求 ID 查看一项先前操作的状态。",
             ),
             HelpTopic::Command(CommandPath::ProjectResume) => (
-                "Resume one retained operation with an exact generation fence.",
-                "按精确代次围栏恢复一项保留操作。",
+                "Continue an earlier operation if it is unchanged since its status was read.",
+                "继续一项先前操作；仅当它自读取状态后未变化时执行。",
             ),
             HelpTopic::Command(CommandPath::ClientStatus) => (
-                "Read one retained operation by request ID.",
-                "按请求 ID 读取一项保留操作。",
+                "Show the state of an earlier operation by its request ID.",
+                "按请求 ID 查看一项先前操作的状态。",
             ),
             HelpTopic::Command(CommandPath::ServerStatus) => (
-                "Read one retained operation by request ID.",
-                "按请求 ID 读取一项保留操作。",
+                "Show the state of an earlier operation by its request ID.",
+                "按请求 ID 查看一项先前操作的状态。",
             ),
 
             HelpTopic::Family(Family::PanelGraphics) => (
