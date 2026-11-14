@@ -20,6 +20,8 @@ pub enum ClientAction {
     ConfiguredCommand(String),
     EnterResizeMode,
     EnterCopyMode,
+    /// Opens the Find bar over the focused Panel.
+    FindInTerminal,
     /// Copies the focused pane's settled Host selection without entering copy mode.
     CopySelection,
     ExitResizeMode,
@@ -115,6 +117,7 @@ impl ClientAction {
             Self::OpenSettings => None,
             Self::EnterResizeMode
             | Self::EnterCopyMode
+            | Self::FindInTerminal
             | Self::CopySelection
             | Self::ExitResizeMode
             | Self::ResizePane { .. } => None,

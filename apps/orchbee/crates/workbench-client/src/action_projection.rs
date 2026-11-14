@@ -158,6 +158,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::EnterCopyMode) => {
             built_in("orchbee.native.copy-mode.enter", C::Input, COPY)
         }
+        PrefixAction::Client(A::FindInTerminal) => built_in("terminal.search.open", C::Pane, COPY),
         PrefixAction::Client(A::ReloadConfiguration) => built_in(
             "orchbee.native.configuration.reload",
             C::Application,

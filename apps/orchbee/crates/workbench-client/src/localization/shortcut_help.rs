@@ -22,6 +22,7 @@ pub(crate) enum ShortcutLabel {
     ActionMenu,
     ResizePanel,
     CopyText,
+    FindInTerminal,
     ConfiguredCommand,
     CloseWorkspace,
     WorkspaceAtDirectory,
@@ -233,6 +234,11 @@ impl Locale {
             ShortcutLabel::CopyText => match self {
                 Self::EnUs => "Copy text",
                 Self::ZhCn => "复制文本",
+            }
+            .to_owned(),
+            ShortcutLabel::FindInTerminal => match self {
+                Self::EnUs => "Find in terminal",
+                Self::ZhCn => "在终端中查找",
             }
             .to_owned(),
             ShortcutLabel::ConfiguredCommand => match self {

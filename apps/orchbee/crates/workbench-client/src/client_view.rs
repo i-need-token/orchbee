@@ -208,6 +208,8 @@ pub struct ClientView {
     /// Mirror of the `WorkbenchClientUi` copy-mode owner, written only by `settle_copy_mode`
     /// from the owner's current answer; it detects the exit edge for discovery.
     copy_mode_active: bool,
+    /// Mirror of whether the copy capture slot holds the Find bar rather than keyboard copy.
+    find_bar_active: bool,
     pub(crate) resize_pending: bool,
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
@@ -257,6 +259,7 @@ impl ClientView {
             resize_mode: false,
             resize_pointer_fine: false,
             copy_mode_active: false,
+            find_bar_active: false,
             resize_pending: false,
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
@@ -645,6 +648,15 @@ impl ClientView {
         self.copy_mode_active = active;
     }
 
+    pub(crate) const fn find_bar_active(&self) -> bool {
+        self.find_bar_active
+    }
+
+    /// Settles the Find bar mirror from the owner's current answer.
+    pub(crate) fn settle_find_bar(&mut self, active: bool) {
+        self.find_bar_active = active;
+    }
+
     pub(crate) fn copy_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         copy::help_rows()
             .into_iter()
@@ -658,7 +670,7 @@ impl ClientView {
     }
 
     pub(crate) fn copy_help_key(&mut self, key: KeyEvent) -> bool {
-        if !self.copy_mode_active {
+        if !self.copy_mode_active || self.find_bar_active {
             return false;
         }
         match copy::decide(key) {
@@ -1333,7 +1345,7 @@ impl ClientView {
             }
         }
         match action {
-            ClientAction::EnterCopyMode => {
+            ClientAction::EnterCopyMode | ClientAction::FindInTerminal => {
                 self.dismiss_focus_modes();
                 self.request_help_page(0);
                 (action, ShellCommand::None)

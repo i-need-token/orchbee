@@ -99,6 +99,13 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     },
     PrefixGroup {
         members: &[member(
+            key(KeyCode::Char('f')),
+            ClientAction::FindInTerminal,
+        )],
+        desc: PrefixDesc::FindInTerminal,
+    },
+    PrefixGroup {
+        members: &[member(
             KeySet::One(Binding::new(
                 KeyCode::Char('p'),
                 Modifiers::NONE.with_shift(),

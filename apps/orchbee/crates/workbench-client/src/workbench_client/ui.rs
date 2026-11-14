@@ -116,6 +116,7 @@ pub use workspace_close::WorkspaceCloseToken;
 pub(crate) use workspace_setup::{LocationLabelTarget, SetupStatus, SetupToken};
 pub(crate) use worktree_launch::{WorktreeMode, WorktreeNotice, WorktreeToken};
 mod copy_mode;
+mod find_bar;
 mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
@@ -836,6 +837,10 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::CopyModeNoMatch => WorkbenchClientNotice::CopyModeNoMatch,
             ClientNotice::CopyModeSearchLimit => WorkbenchClientNotice::CopyModeSearchLimit,
             ClientNotice::CopyModeNoSelection => WorkbenchClientNotice::CopyModeNoSelection,
+            ClientNotice::FindUnavailable => WorkbenchClientNotice::FindUnavailable,
+            ClientNotice::FindClosed => WorkbenchClientNotice::FindClosed,
+            ClientNotice::FindStopped => WorkbenchClientNotice::FindStopped,
+            ClientNotice::FindFailed => WorkbenchClientNotice::FindFailed,
             ClientNotice::SelectionEvicted => WorkbenchClientNotice::SelectionEvicted,
             ClientNotice::Unsupported(capability) => WorkbenchClientNotice::Unsupported(capability),
             ClientNotice::CopyFailed => WorkbenchClientNotice::CopyFailed,
@@ -1643,6 +1648,7 @@ impl WorkbenchClientUi {
             .chain(self.held_restore.wake())
             .chain(self.earlier_layouts.wake())
             .chain(self.held_intent_wake())
+            .chain(self.find_wake())
             .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
     }
@@ -3394,6 +3400,7 @@ impl WorkbenchClientUi {
             }
             ClientAction::EnterHistory => self.enter_history(),
             ClientAction::EnterCopyMode => self.enter_copy_mode(),
+            ClientAction::FindInTerminal => self.find_in_terminal(),
             ClientAction::CopySelection => {
                 self.copy_focused_selection();
                 ClientActionDisposition::KeepNavigator

@@ -270,6 +270,9 @@ impl Locale {
                 "Search rejected: invalid or too long",
                 "拒绝搜索：文本无效或过长",
             ),
+            N::FindClosed => shorter("Find closed", "查找已关闭"),
+            N::FindStopped => shorter("Search stopped", "搜索已停止"),
+            N::FindFailed => shorter("Search failed", "搜索失败"),
             N::PositionChanged => shorter(
                 "Saved Tab or Panel unavailable",
                 "上次的标签页或面板已不可用",
@@ -318,6 +321,7 @@ impl Locale {
             | N::CopyModeInvalidated
             | N::CopyModeNoMatch
             | N::CopyModeNoSelection
+            | N::FindUnavailable
             | N::SelectionEvicted
             | N::CopyFailed
             | N::CopyUnknown
@@ -610,6 +614,22 @@ impl Locale {
             WorkbenchClientNotice::CopyModeSearchLimit => match self {
                 Self::EnUs => "Rejected search: invalid text or more than 512 characters".into(),
                 Self::ZhCn => "拒绝搜索：文本无效或超过 512 个字符".into(),
+            },
+            WorkbenchClientNotice::FindUnavailable => match self {
+                Self::EnUs => "Find is not available on this panel".into(),
+                Self::ZhCn => "此面板暂时无法查找".into(),
+            },
+            WorkbenchClientNotice::FindClosed => match self {
+                Self::EnUs => "Find closed: the terminal changed".into(),
+                Self::ZhCn => "终端已变化，查找已关闭".into(),
+            },
+            WorkbenchClientNotice::FindStopped => match self {
+                Self::EnUs => "Search stopped after reaching the time limit".into(),
+                Self::ZhCn => "搜索达到时间限制后已停止".into(),
+            },
+            WorkbenchClientNotice::FindFailed => match self {
+                Self::EnUs => "Retained terminal output could not be searched".into(),
+                Self::ZhCn => "无法搜索保留的终端输出".into(),
             },
             WorkbenchClientNotice::CopyModeNoSelection => match self {
                 Self::EnUs => "Start a selection with v or Space before copying".into(),

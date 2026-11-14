@@ -21,7 +21,8 @@ use crate::{
     terminal_copy::{self, CopyError},
 };
 
-const JOB_BUDGET: Duration = Duration::from_secs(5);
+/// Each job, including its source checks and detach, ends by this budget.
+pub(crate) const JOB_BUDGET: Duration = Duration::from_secs(5);
 const MAXIMUM_QUERY_BYTES: usize = 4096;
 
 struct Job {

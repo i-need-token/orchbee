@@ -520,6 +520,7 @@ impl WorkbenchClient {
                     configuration_changed |= view.complete_project_quick_entry();
                 }
                 view.settle_copy_mode(native.copy_mode_active());
+                view.settle_find_bar(native.find_bar_active());
                 if self.configuration.is_none()
                     && let Some(origin) = &self.origin
                     && let Some((session, _)) = native.control_observation(false)
@@ -539,6 +540,7 @@ impl WorkbenchClient {
                         native.cancel_action_menu();
                         native.cancel_copy_mode();
                         view.settle_copy_mode(native.copy_mode_active());
+                        view.settle_find_bar(native.find_bar_active());
                         native.configure_agent_notifications(revision, view.notifications.policy());
                     }
                     if let Some(defaults) = watcher.take_creation_update() {
@@ -1127,6 +1129,12 @@ impl TerminalInputPort for WorkbenchClient {
     fn copy_mode_active(&self) -> bool {
         match &self.backend {
             ClientBackend::Native(native) => native.copy_mode_active(),
+        }
+    }
+
+    fn find_bar_active(&self) -> bool {
+        match &self.backend {
+            ClientBackend::Native(native) => native.find_bar_active(),
         }
     }
 

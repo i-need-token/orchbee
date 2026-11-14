@@ -8,6 +8,7 @@ pub use commands::{CommandSize, CustomCommand, CustomCommandAction, CustomComman
 pub(super) const ACTIONS: &[&str] = &[
     "menu",
     "copy_mode",
+    "find",
     "resize_mode",
     "resize_panel_left",
     "resize_panel_right",

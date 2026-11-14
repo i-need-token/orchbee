@@ -953,6 +953,20 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
 
+        // The prefix stays live over the Find bar, so prefix actions run without closing it.
+        if owner == CaptureOwner::Copy
+            && !self.copy_packet
+            && port.find_bar_active()
+            && matches!(
+                &item.kind,
+                DecodedKind::Key(event)
+                    if event.kind != KeyKind::Release
+                        && (view.prefix_active() || view.bindings().prefix.matches(*event))
+            )
+        {
+            self.flush_pending(view, port);
+            return self.decide(view, port, now, item, after_layout, mode);
+        }
         if owner == CaptureOwner::Copy {
             if !self.copy_packet {
                 match &item.kind {
@@ -994,6 +1008,7 @@ impl InputDispatcher {
                 }
             }
             view.settle_copy_mode(port.copy_mode_active());
+            view.settle_find_bar(port.find_bar_active());
             return Ok(DispatchOutcome::Continue);
         }
 
@@ -2376,7 +2391,10 @@ impl InputDispatcher {
             self.pointer.cancel_divider();
             self.pointer.cancel_sidebar_width();
         }
-        let requests_copy = action == Some(ClientAction::EnterCopyMode);
+        let requests_copy = matches!(
+            action,
+            Some(ClientAction::EnterCopyMode | ClientAction::FindInTerminal)
+        );
 
         let requests_navigator = action == Some(ClientAction::OpenWorkbenchNavigator);
 
@@ -2385,7 +2403,7 @@ impl InputDispatcher {
             Some(ClientAction::OpenActionMenu | ClientAction::FocusBusinessSidebar)
         ) && Self::projected_capture(view, port)
             == Some(CaptureOwner::Native(WorkbenchCaptureOwner::AgentBoard));
-        if action == Some(ClientAction::EnterCopyMode) {
+        if requests_copy {
             self.cancel_pointer(port);
             self.copy_packet = true;
             self.keys.capture_pending();
@@ -2762,6 +2780,7 @@ impl InputDispatcher {
                 }
             }
             view.settle_copy_mode(owned);
+            view.settle_find_bar(port.find_bar_active());
         }
         if current == self.epoch {
             return capture_changed || sidebar_changed || navigator_changed;

@@ -769,6 +769,14 @@ pub(crate) enum ClientNotice {
     CopyModeNoMatch,
     CopyModeSearchLimit,
     CopyModeNoSelection,
+    /// The Find bar could not open on the focused Panel.
+    FindUnavailable,
+    /// The Find bar closed because its Panel lost focus or its terminal changed.
+    FindClosed,
+    /// A Find search reached its time limit.
+    FindStopped,
+    /// A Find search could not read the retained output.
+    FindFailed,
     SelectionEvicted,
     CopyFailed,
     CopyUnknown,

@@ -347,6 +347,10 @@ impl WorkbenchClientUi {
         if !self.copy_mode.active() {
             return false;
         }
+        if self.find_bar_active() {
+            self.capture_find_key(event);
+            return true;
+        }
         if event.code == KeyCode::Esc && event.kind != KeyKind::Release {
             self.leave_copy_mode();
             return true;
@@ -469,6 +473,10 @@ impl WorkbenchClientUi {
         if !self.copy_mode.active() {
             return false;
         }
+        if self.find_bar_active() {
+            self.capture_find_paste(text);
+            return true;
+        }
         if self.copy_mode.surface_pending()
             && self
                 .copy_mode
@@ -513,6 +521,9 @@ impl WorkbenchClientUi {
     }
 
     fn end_copy_mode(&mut self, recover: bool) -> bool {
+        if self.find_bar_active() {
+            return self.close_find();
+        }
         let Some(key) = self.copy_mode.key().cloned() else {
             return false;
         };
@@ -573,6 +584,9 @@ impl WorkbenchClientUi {
     pub(super) fn tick_copy_mode(&mut self) -> bool {
         if !self.copy_mode.active() {
             return false;
+        }
+        if self.find_bar_active() {
+            return self.tick_find();
         }
         let Some(key) = self.copy_mode.key().cloned() else {
             return false;
@@ -1217,7 +1231,7 @@ impl WorkbenchClientUi {
             .is_some_and(|driver| driver.copy_selection_owned() && driver.host_selection_active())
     }
 
-    fn admitted_copy_source(&self, key: &PaneRef) -> Option<ContentSource> {
+    pub(super) fn admitted_copy_source(&self, key: &PaneRef) -> Option<ContentSource> {
         let projection = self
             .projections
             .iter()
@@ -1384,7 +1398,7 @@ impl WorkbenchClientUi {
     }
 }
 
-fn entry_source_matches(fence: &ContentSource, current: &ContentSource) -> bool {
+pub(super) fn entry_source_matches(fence: &ContentSource, current: &ContentSource) -> bool {
     fence.pane == current.pane
         && fence.member == current.member
         && fence.host_terminal == current.host_terminal

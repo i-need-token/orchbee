@@ -33,6 +33,7 @@ mod action_menu;
 mod configured;
 mod copy;
 mod divider;
+mod find;
 mod navigator;
 mod settings;
 mod sidebar_width;

@@ -227,7 +227,7 @@ fn append_contextual_entries(
                 locale.shortcut_context(ShortcutContext::Sidebar),
             );
         }
-    } else if view.copy_mode_active() {
+    } else if view.copy_mode_active() && !view.find_bar_active() {
         for (key, description) in view.copy_help_rows() {
             if description == PrefixDesc::CopyExit {
                 continue;
@@ -346,6 +346,7 @@ fn local_action_title(locale: Locale, action: &PrefixAction) -> String {
             ShortcutLabel::ResizePanel
         }
         PrefixAction::Client(A::EnterCopyMode) => ShortcutLabel::CopyText,
+        PrefixAction::Client(A::FindInTerminal) => ShortcutLabel::FindInTerminal,
         PrefixAction::Client(A::ConfiguredCommand(_)) => ShortcutLabel::ConfiguredCommand,
         PrefixAction::Client(A::RequestWorkspaceClose) => ShortcutLabel::CloseWorkspace,
         PrefixAction::Client(A::RequestWorkspaceAtDirectory) => ShortcutLabel::WorkspaceAtDirectory,
@@ -441,6 +442,7 @@ fn common_action(action: &PrefixAction) -> bool {
                 | A::SelectNextTab
                 | A::SelectNextContext
                 | A::ToggleZoom
+                | A::FindInTerminal
                 | A::ToggleBusinessSidebar
                 | A::RequestCloseTab
         ) | PrefixAction::SidebarToggle
@@ -526,6 +528,7 @@ fn requires_session(action: &PrefixAction) -> bool {
                 | A::NextPresentation
                 | A::MovePanelFocus(_)
                 | A::ToggleZoom
+                | A::FindInTerminal
                 | A::SplitPanel(_)
                 | A::ClosePanel
                 | A::MovePanel(_)

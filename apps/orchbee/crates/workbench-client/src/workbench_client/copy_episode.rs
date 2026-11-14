@@ -1,6 +1,7 @@
-//! The Workbench copy-mode episode: the pane and admitted content source that keyboard copy is
-//! bound to, its entry fence, the one query whose outcome it still expects, and the crop origin
-//! its last presented frame painted.
+//! The Workbench copy-mode episode: the pane and admitted content source that keyboard copy or
+//! the Find bar is bound to, its entry fence, the one query whose outcome it still expects, and
+//! the crop origin its last presented frame painted. It also keeps the Find query this Client
+//! remembers between bars.
 //!
 //! The composition root holds the copy query driver and cancels it whenever an episode begins or
 //! ends; this owner never reaches the driver.
@@ -11,8 +12,9 @@ use crate::terminal_copy_mode::{
     CopyCrop, CopyModeCursor, CopyModeStatus, CopyModeView, EpisodeId, Mode, Surface,
 };
 use crate::terminal_copy_query::QueryIdentity;
+use crate::terminal_find::{FindBar, FindMemory};
 use crate::workbench_state::PaneRef;
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, time::Instant};
 
 /// A query the driver admitted, matched exactly once against its outcome.
 #[derive(Clone)]
@@ -31,6 +33,9 @@ pub(super) enum EntryOrigin {
     /// `/` while reading retained history: the episode starts a forward search from the top of
     /// the window being read, and exit returns to that history.
     HistorySearch,
+    /// Find in terminal: the episode holds the Find bar over the Panel and closing leaves the
+    /// view where Find left it.
+    Find,
 }
 
 /// The content fence an entering episode waits on.
@@ -53,6 +58,7 @@ impl Entry {
 enum EpisodeState {
     Entering(Entry),
     Active(Mode),
+    Find(Box<FindBar>),
 }
 
 struct Episode {
@@ -72,13 +78,56 @@ pub(super) struct CopyModeEpisodes {
     next_episode: u64,
     episode: Option<Episode>,
     surface_pending: bool,
+    find_memory: FindMemory,
 }
 
 impl CopyModeEpisodes {
     /// Ends any episode without cleanup, as connection close does.
     pub(super) fn close(&mut self) {
+        self.remember_find();
         self.episode = None;
         self.surface_pending = false;
+    }
+
+    fn remember_find(&mut self) {
+        if let Some(Episode {
+            state: EpisodeState::Find(bar),
+            ..
+        }) = self.episode.as_ref()
+        {
+            self.find_memory = bar.memory();
+        }
+    }
+
+    /// Opens the Find bar over one pane with the remembered query; `None` means the identity
+    /// sequence is exhausted and nothing changed.
+    pub(super) fn begin_find(&mut self, key: PaneRef, now: Instant) -> Option<EpisodeId> {
+        let id = self.next_episode()?;
+        self.surface_pending = false;
+        self.episode = Some(Episode {
+            key,
+            id,
+            origin: EntryOrigin::Find,
+            source: None,
+            state: EpisodeState::Find(Box::new(FindBar::new(&self.find_memory, now))),
+            pending_query: None,
+            crop: None,
+        });
+        Some(id)
+    }
+
+    pub(super) fn find(&self) -> Option<&FindBar> {
+        match &self.episode.as_ref()?.state {
+            EpisodeState::Find(bar) => Some(bar),
+            EpisodeState::Entering(_) | EpisodeState::Active(_) => None,
+        }
+    }
+
+    pub(super) fn find_mut(&mut self) -> Option<&mut FindBar> {
+        match &mut self.episode.as_mut()?.state {
+            EpisodeState::Find(bar) => Some(bar),
+            EpisodeState::Entering(_) | EpisodeState::Active(_) => None,
+        }
     }
 
     fn next_episode(&mut self) -> Option<EpisodeId> {
@@ -155,21 +204,21 @@ impl CopyModeEpisodes {
 
     pub(super) fn id(&self) -> Option<EpisodeId> {
         self.episode.as_ref().map(|episode| match &episode.state {
-            EpisodeState::Entering(_) => episode.id,
+            EpisodeState::Entering(_) | EpisodeState::Find(_) => episode.id,
             EpisodeState::Active(mode) => mode.episode(),
         })
     }
 
     pub(super) fn mode(&self) -> Option<&Mode> {
         match &self.episode.as_ref()?.state {
-            EpisodeState::Entering(_) => None,
+            EpisodeState::Entering(_) | EpisodeState::Find(_) => None,
             EpisodeState::Active(mode) => Some(mode),
         }
     }
 
     pub(super) fn mode_mut(&mut self) -> Option<&mut Mode> {
         match &mut self.episode.as_mut()?.state {
-            EpisodeState::Entering(_) => None,
+            EpisodeState::Entering(_) | EpisodeState::Find(_) => None,
             EpisodeState::Active(mode) => Some(mode),
         }
     }
@@ -177,7 +226,7 @@ impl CopyModeEpisodes {
     pub(super) fn entry(&self) -> Option<&Entry> {
         match &self.episode.as_ref()?.state {
             EpisodeState::Entering(entry) => Some(entry),
-            EpisodeState::Active(_) => None,
+            EpisodeState::Active(_) | EpisodeState::Find(_) => None,
         }
     }
 
@@ -207,6 +256,7 @@ impl CopyModeEpisodes {
         let mut view = match &episode.state {
             EpisodeState::Entering(_) => CopyModeView::entering(episode.id),
             EpisodeState::Active(mode) => mode.view(),
+            EpisodeState::Find(_) => return None,
         };
         if self.surface_pending && matches!(&episode.state, EpisodeState::Active(_)) {
             view.status = CopyModeStatus::Moving;
@@ -247,6 +297,7 @@ impl CopyModeEpisodes {
 
     /// Ends the episode; the caller cancels the query driver with it.
     pub(super) fn cancel_episode(&mut self) -> Option<PaneRef> {
+        self.remember_find();
         self.surface_pending = false;
         self.episode.take().map(|episode| episode.key)
     }
@@ -282,6 +333,7 @@ impl CopyModeEpisodes {
                 crop: None,
             }),
             surface_pending: false,
+            find_memory: FindMemory::default(),
         }
     }
 

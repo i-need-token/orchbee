@@ -250,6 +250,11 @@ pub trait TerminalInputPort {
         false
     }
 
+    /// Whether the copy capture slot holds the Find bar.
+    fn find_bar_active(&self) -> bool {
+        false
+    }
+
     /// The current pointer-resolution facts. Ports without a session
     /// report the default: nothing captured, nothing attached, no regions
     /// resolvable — every gesture adjudicates as dead space.

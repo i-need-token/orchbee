@@ -464,6 +464,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     let (action, desc) = match name {
         "menu" => (A::OpenActionMenu, D::ActionMenu),
         "copy_mode" => (A::EnterCopyMode, D::CopyMode),
+        "find" => (A::FindInTerminal, D::FindInTerminal),
         "resize_mode" => (A::EnterResizeMode, D::ResizeMode),
         "resize_panel_left" => (
             A::ResizePane {
