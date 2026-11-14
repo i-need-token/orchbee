@@ -2,7 +2,7 @@
 
 ## Scope
 
-On the primary screen, previous/next navigation jumps from the current visible top to the nearest strict `PROMPT_START` row in the requested direction. Defaults are `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Durable prompt memory, configurable prompt counts, scroll offsets, pixel scrolling, output pagers, automatic shell-integration injection and alternate-screen navigation are excluded.
+On the primary screen, previous/next navigation jumps from the current visible top to the nearest strict `PROMPT_START` row in the requested direction. Defaults are `Cmd+Up` and `Cmd+Down` on Apple and `Ctrl+Up` and `Ctrl+Down` elsewhere. Durable prompt memory, configurable prompt counts, scroll offsets, pixel scrolling, output pagers, automatic shell-integration injection and alternate-screen navigation are excluded.
 
 ## Domain contract
 
@@ -66,8 +66,8 @@ preserving nearest-first order. A single row that cannot fit the remaining sourc
 
 Workbench owns the semantic Actions `terminal.history.prompt-previous` and
 `terminal.history.prompt-next`. Web registers them with replace-latest history-navigation
-execution and exposes terminal-focused shortcuts. Both Apple and Standard defaults are
-`Ctrl+Shift+Z` and `Ctrl+Shift+X`, without mapping Apple `Mod` to Command. The binding is consumed only while the Action is available on a focused primary-screen
+execution and exposes terminal-focused shortcuts. The defaults are `Mod+Up` and `Mod+Down`, Command
+on Apple and Control on Standard, as in VS Code's terminal. The binding is consumed only while the Action is available on a focused primary-screen
 terminal. During a transient viewport flight or Host history refresh, an invocation uses the
 current physical anchor when its snapshot is exact. If only the physical revision is lagging, it may
 instead rescan the latest revision from the same-intent transient anchor while generation, total

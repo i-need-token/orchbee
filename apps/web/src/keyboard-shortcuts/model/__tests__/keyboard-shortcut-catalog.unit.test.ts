@@ -283,10 +283,10 @@ describe('keyboard shortcut catalog', () => {
 			'Ctrl+Shift+L',
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-previous'], 'apple')).toBe(
-			'⌃⇧Z',
+			'⌘↑',
 		);
 		expect(formatKeyboardShortcutChord(standard['terminal.history.prompt-next'], 'standard')).toBe(
-			'Ctrl+Shift+X',
+			'Ctrl+↓',
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.history.scroll-line-up'], 'apple')).toBe(
 			'⌃⇧↑',

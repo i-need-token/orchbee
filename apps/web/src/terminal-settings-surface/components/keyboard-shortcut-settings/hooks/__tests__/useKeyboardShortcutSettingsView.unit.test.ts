@@ -99,7 +99,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 			),
 		).toMatchObject({
 			availability: 'When a terminal is focused',
-			chord: 'Ctrl+Shift+Z',
+			chord: 'Ctrl+↑',
 			scope: 'Focused terminal',
 		});
 		expect(

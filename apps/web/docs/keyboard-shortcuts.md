@@ -52,8 +52,8 @@ those surfaces owns another binding copy.
 | `terminal.hints.open`                         | Focused terminal                  | `Cmd+Shift+O`            | `Ctrl+Shift+O`         |
 | `terminal.selection.copy`                     | Focused terminal with a selection | `Cmd+C`                  | `Ctrl+Shift+C`         |
 | `terminal.clipboard.paste`                    | Focused terminal                  | `Cmd+V`                  | `Ctrl+Shift+V`         |
-| `terminal.history.prompt-previous`            | Focused terminal                  | `Ctrl+Shift+Z`           | `Ctrl+Shift+Z`         |
-| `terminal.history.prompt-next`                | Focused terminal                  | `Ctrl+Shift+X`           | `Ctrl+Shift+X`         |
+| `terminal.history.prompt-previous`            | Focused terminal                  | `Cmd+Up`                 | `Ctrl+Up`              |
+| `terminal.history.prompt-next`                | Focused terminal                  | `Cmd+Down`               | `Ctrl+Down`            |
 | `terminal.history.scroll-line-up`             | Focused terminal                  | `Ctrl+Shift+Up`          | `Ctrl+Shift+Up`        |
 | `terminal.history.scroll-line-down`           | Focused terminal                  | `Ctrl+Shift+Down`        | `Ctrl+Shift+Down`      |
 | `terminal.history.scroll-page-up`             | Focused terminal                  | `Ctrl+Shift+PageUp`      | `Ctrl+Shift+PageUp`    |
@@ -74,7 +74,7 @@ unavailable.
 
 New Workspace and the shortcut reference carry the TUI's `Ctrl+B Shift+N` and `Ctrl+B ?` with the platform modifier: `Cmd+Shift+N` and `Ctrl+Shift+N` create a Workspace as the sidebar's New workspace row does, where the focused Panel stands, and `Ctrl+Shift+/` opens Settings on the shortcut reference, as the sidebar's Shortcuts button does. Apple takes `Cmd+/` because `Cmd+?` opens the system's Help search. The sidebar toggle stays `Cmd+B` on Apple but `Ctrl+Shift+B` on Standard, where `Ctrl+B` is the TUI's prefix and readline's backward-char. A browser that keeps `Ctrl+Shift+N` for its own private window never delivers it to the page; Desktop receives it, and the row and Search still create a Workspace.
 
-Prompt navigation uses physical `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).
+Prompt navigation uses `Mod+Up` and `Mod+Down`, as VS Code's terminal does. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).
 
 Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; Mod is Command on Apple and Control on Standard. Visible keyboard hints use `Mod+Shift+O`, leaving Standard `Ctrl+Shift+E` for Split Below. [Keyboard hints](../../../packages/terminal/docs/keyboard-hints.md) owns targets, effects and cancellation.
 

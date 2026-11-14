@@ -82,8 +82,8 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 	promptNext: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptNext,
 		defaults: {
-			apple: chord('KeyX', ['control', 'shift']),
-			standard: chord('KeyX', ['control', 'shift']),
+			apple: chord('ArrowDown', ['mod']),
+			standard: chord('ArrowDown', ['mod']),
 		},
 		focus: 'terminal',
 		shortcutId: 'terminal.history.prompt-next',
@@ -91,8 +91,8 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 	promptPrevious: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptPrevious,
 		defaults: {
-			apple: chord('KeyZ', ['control', 'shift']),
-			standard: chord('KeyZ', ['control', 'shift']),
+			apple: chord('ArrowUp', ['mod']),
+			standard: chord('ArrowUp', ['mod']),
 		},
 		focus: 'terminal',
 		shortcutId: 'terminal.history.prompt-previous',

@@ -51,9 +51,9 @@ describe('projected terminal shortcut declarations', () => {
 		);
 		expect(
 			formatKeyboardShortcutChord(standard['terminal.history.prompt-previous'], 'standard'),
-		).toBe('Ctrl+Shift+Z');
+		).toBe('Ctrl+↑');
 		expect(formatKeyboardShortcutChord(standard['terminal.history.prompt-next'], 'standard')).toBe(
-			'Ctrl+Shift+X',
+			'Ctrl+↓',
 		);
 		expect(
 			formatKeyboardShortcutChord(standard['terminal.history.scroll-line-down'], 'standard'),
@@ -127,12 +127,12 @@ describe('projected terminal shortcut declarations', () => {
 			resolveProjectedTerminalShortcut(
 				{
 					altKey: false,
-					code: 'KeyZ',
-					ctrlKey: true,
+					code: 'ArrowUp',
+					ctrlKey: false,
 					isComposing: false,
-					metaKey: false,
+					metaKey: true,
 					repeat: false,
-					shiftKey: true,
+					shiftKey: false,
 				},
 				'apple',
 				'terminal',
@@ -142,12 +142,12 @@ describe('projected terminal shortcut declarations', () => {
 			resolveProjectedTerminalShortcut(
 				{
 					altKey: false,
-					code: 'KeyX',
+					code: 'ArrowDown',
 					ctrlKey: true,
 					isComposing: false,
 					metaKey: false,
 					repeat: false,
-					shiftKey: true,
+					shiftKey: false,
 				},
 				'standard',
 				'find',
