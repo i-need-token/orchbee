@@ -1095,9 +1095,20 @@ pub(crate) fn columns(headers: &[&str], rows: &[Vec<String>]) -> String {
     text
 }
 
-/// `config check` text: the conclusion, one aligned row per check, any
-/// settings warnings, a note when the environment has not been started, the
-/// file in use, then where the full detail lives.
+/// Checks named after an internal mechanism. Their text row appears only when
+/// they fail; the JSON report always carries every check.
+const INTERNAL_CHECKS: [&str; 5] = [
+    "runtime-base",
+    "runtime-directory",
+    "cohort",
+    "sockets",
+    "records",
+];
+
+/// `config check` text: the conclusion, one aligned row per check a person
+/// acts on (an internal check only when it failed), any settings warnings,
+/// stale record notices, a note when the environment has not been started,
+/// the file in use, then where the full detail lives.
 pub(crate) fn config_checks(
     out: &mut Bounded,
     checks: &[CheckReport],
@@ -1111,6 +1122,7 @@ pub(crate) fn config_checks(
     ))?;
     let rows = checks
         .iter()
+        .filter(|check| check.status == "fail" || !INTERNAL_CHECKS.contains(&check.name))
         .map(|check| {
             vec![
                 check.name.to_owned(),
@@ -1244,6 +1256,16 @@ fn check_summary(check: &CheckReport) -> String {
             .filter_map(|record| record["record"].as_str())
             .collect::<Vec<_>>()
             .join(", ");
+    }
+    // A check made of named entries (`sockets`) fails through one of them.
+    let failed = check
+        .details
+        .iter()
+        .filter(|(_, entry)| entry["status"] == "fail")
+        .map(|(name, entry)| format!("{name}: {}", entry["reason"].as_str().unwrap_or("?")))
+        .collect::<Vec<_>>();
+    if !failed.is_empty() {
+        return failed.join(", ");
     }
     match (text("locale"), text("source")) {
         (Some(locale), Some(source)) => format!("{locale} ({source})"),

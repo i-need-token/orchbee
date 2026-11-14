@@ -413,9 +413,12 @@ no unrecognized records, and `config check` reports it `not-applicable` with rea
 missing explicit `ORCHBEE_RUNTIME_BASE` still fails.
 
 Check and list text views lead with their conclusion and keep raw reason structures in JSON.
-`config check` prints a verdict line, one aligned row per check with its path, locale or failure
-reason, any settings warnings, a note when the environment has not been started, the file in use and
-a `--format json` pointer. `agent doctor` prints
+`config check` prints a verdict line counting every check, then one aligned row per check with its
+path, locale or failure reason. The internal checks `runtime-base`, `runtime-directory`, `cohort`,
+`sockets` and `records` get a row only when they fail, and a failed `sockets` row names each failing
+entry with its reason; JSON keeps every check. Then come any settings warnings, any record notices,
+a note when the environment has not been started, the file in use and a `--format json` pointer.
+`agent doctor` prints
 its readiness summary and next command first, then a provider table. `session list` has a heading
 row and native paths, and explains a `not created` session. An empty `session list`, `command list` or `launch-profile list` prints one
 line saying how to create the first entry; the launch-profile catalog revision is JSON-only.

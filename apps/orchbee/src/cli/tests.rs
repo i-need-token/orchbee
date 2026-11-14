@@ -1731,6 +1731,37 @@ fn config_check_text_locates_a_syntax_error_from_its_details() {
     );
 }
 
+/// An internal check stays out of the text report while it passes; a failed one is always printed
+/// with its reason, including a reason that sits on one of its entries.
+#[test]
+fn config_check_text_lists_an_internal_check_only_when_it_fails() {
+    let check = |name: &'static str, status: &'static str, details: serde_json::Value| {
+        super::results::local_report::CheckReport {
+            name,
+            status,
+            details: details.as_object().unwrap().clone(),
+        }
+    };
+    let checks = [
+        check("cohort", "pass", json!({"verified": true})),
+        check(
+            "sockets",
+            "fail",
+            json!({"client": {"status": "fail", "reason": "address-too-long"}, "worker": {"status": "pass"}}),
+        ),
+    ];
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = String::from_utf8(
+            super::output::render_text(|out| super::present::config_checks(out, &checks, locale))
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(!text.contains("cohort"), "{text}");
+        assert!(text.contains("sockets"), "{text}");
+        assert!(text.contains("client: address-too-long"), "{text}");
+    }
+}
+
 #[test]
 fn empty_lists_say_how_to_create_their_first_entry() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
