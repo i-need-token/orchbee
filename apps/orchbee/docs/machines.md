@@ -309,8 +309,11 @@ and its Session stay, and the Session keeps running.
 it, and removes the record only once it stopped or was not running. It is destructive, so it takes
 the confirmation a [remote Session stop](#remote-session-stop) takes: development and test builds
 require `--confirm`, which is a usage failure without `--stop-session`, and a release build prompts
-for the remote Session's name and refuses `--confirm`. It then stops the Session exactly as the
-remote Session stop does: the hub takes the catalog and is asked for `stop-session`, a Machine not
+for the remote Session's name and refuses `--confirm`. The catalog is read and the selector resolved
+once, before the confirmation, which names that Machine; a catalog that cannot be read or a
+selector that names no Machine fails the command before anything is asked, and the stop and the
+removal then act on the resolved ID alone. It then stops the Session exactly as the remote Session
+stop does: the hub takes the catalog and is asked for `stop-session`, a Machine not
 `online` is brought `online` under the `machine connect` rules and errors and asked once more, and
 each answer may take 120 seconds.
 

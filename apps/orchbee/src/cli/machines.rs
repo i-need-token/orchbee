@@ -198,6 +198,19 @@ struct Report {
     /// A removed Machine's remembered answers could not all be deleted.
     unforgotten: bool,
 }
+impl Report {
+    const fn new() -> Self {
+        Self {
+            catalog: None,
+            id: None,
+            changed: false,
+            committed: false,
+            remote: Remote::NotContacted,
+            remote_version: None,
+            unforgotten: false,
+        }
+    }
+}
 pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale) -> Output {
     if crate::tui_capabilities::Capability::SavedMachines
         .require()
@@ -205,16 +218,19 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
     {
         return super::unsupported_platform(Some(format), locale);
     }
-    // Stopping the remote Session ends its terminals: confirmed before the hub is asked anything.
-    if let MachineCommand::Remove {
-        machine,
-        stop_session: true,
-        confirm,
-    } = command
-        && let Some(refusal) = admit_stop(machine, *confirm, format, locale)
-    {
-        return refusal;
-    }
+    // Stopping the remote Session ends its terminals: the Machine is resolved once and confirmed
+    // before the hub is asked anything, and the stop and the removal act on that Machine alone.
+    let confirmed = match command {
+        MachineCommand::Remove {
+            machine,
+            stop_session: true,
+            confirm,
+        } => match admit_stop(command, machine, *confirm, format, locale) {
+            Ok(confirmed) => Some(confirmed),
+            Err(refusal) => return *refusal,
+        },
+        _ => None,
+    };
     let signals = match ArmedSignals::arm_interrupts() {
         Ok(s) => s,
         Err(_) => {
@@ -235,16 +251,8 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
                 _ => 5,
             }),
     };
-    let mut report = Report {
-        catalog: None,
-        id: None,
-        changed: false,
-        committed: false,
-        remote: Remote::NotContacted,
-        remote_version: None,
-        unforgotten: false,
-    };
-    let mut error = execute(command, &mut context, &mut report, locale).err();
+    let mut report = Report::new();
+    let mut error = execute(command, confirmed, &mut context, &mut report, locale).err();
     let mut finalization = None;
     let interrupted = match context.signals.finish() {
         Ok(Finish::Clear) => matches!(error, Some(Error::Cancelled)),
@@ -268,29 +276,45 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
     result.finalization = finalization;
     result
 }
-/// The release confirmation of `machine remove --stop-session` for the saved Machine `selector`
-/// names, as a remote `server stop` asks it; a catalog or selection failure is left to the command,
-/// which then fails before it stops anything.
+/// The saved Machine of `machine remove --stop-session` and the catalog it was read from, resolved
+/// once and confirmed as a remote `server stop` confirms it. A catalog that cannot be read or a
+/// `selector` that names no Machine refuses the command before anything is stopped.
 fn admit_stop(
+    command: &MachineCommand,
     selector: &str,
     confirm: bool,
     format: OutputFormat,
     locale: Locale,
-) -> Option<Output> {
-    let catalog = Store::configured().and_then(|store| store.read()).ok()?;
-    let profile = catalog.resolve(selector).ok()?;
+) -> Result<(Catalog, ProfileId), Box<Output>> {
+    let resolved = Store::configured()
+        .and_then(|store| store.read())
+        .and_then(|catalog| {
+            let profile = catalog.resolve(selector)?.clone();
+            Ok((catalog, profile))
+        });
+    let (catalog, profile) = resolved.map_err(|error| {
+        let refusal = Some(Error::Catalog(error));
+        Box::new(emit(
+            command,
+            &Report::new(),
+            refusal,
+            false,
+            format,
+            locale,
+        ))
+    })?;
     let target = RemoteTarget {
         selector,
         id: profile.id.as_str(),
         label: &profile.draft.label,
         session: profile.draft.session.as_str(),
     };
-    admit_remove_stop(confirm, &target, format, locale)
-        .err()
-        .map(|refusal| *refusal)
+    admit_remove_stop(confirm, &target, format, locale)?;
+    Ok((catalog, profile.id))
 }
 fn execute(
     command: &MachineCommand,
+    confirmed: Option<(Catalog, ProfileId)>,
     context: &mut Context,
     report: &mut Report,
     locale: Locale,
@@ -313,16 +337,20 @@ fn execute(
                 label: label.clone(),
             })
         }
-        MachineCommand::Remove {
-            machine,
-            stop_session,
-            ..
-        } => {
-            // The remote Session stops first; a stop that fails keeps the record.
-            if *stop_session {
-                connect::stop_session(&store, machine, context, report, locale)?;
+        MachineCommand::Remove { machine, .. } => {
+            match confirmed {
+                // The confirmed Machine's remote Session stops first, and only its record goes; a
+                // stop that fails keeps the record.
+                Some((catalog, id)) => {
+                    connect::stop_session(&id, catalog, context, report, locale)?;
+                    context.check()?;
+                    let removed = store
+                        .commit(&Edit::Remove(id.clone()))
+                        .map(|(catalog, changed)| (catalog, changed, id));
+                    settle(removed, context, report)?;
+                }
+                None => commit_selected(&store, machine, context, report, Edit::Remove)?,
             }
-            commit_selected(&store, machine, context, report, Edit::Remove)?;
             report.unforgotten = !forget_removed(report);
             Ok(())
         }
@@ -349,9 +377,16 @@ fn commit_selected(
     edit: impl FnOnce(ProfileId) -> Edit,
 ) -> Result<(), Error> {
     context.check()?;
-    let (catalog, changed, id) = store
-        .commit_selected(machine, edit)
-        .map_err(Error::Catalog)?;
+    let selected = store.commit_selected(machine, edit);
+    settle(selected, context, report)
+}
+/// Records a commit's outcome for the Machine it changed and tells a running hub.
+fn settle(
+    commit: Result<(Catalog, bool, ProfileId), CatalogError>,
+    context: &mut Context,
+    report: &mut Report,
+) -> Result<(), Error> {
+    let (catalog, changed, id) = commit.map_err(Error::Catalog)?;
     report.id = Some(id);
     report.catalog = Some(catalog);
     report.changed = changed;

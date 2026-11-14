@@ -895,6 +895,35 @@ fn remove_and_stop_keeps_the_record_when_the_session_cannot_be_stopped() {
 }
 
 #[test]
+fn remove_and_stop_refuses_an_unreadable_catalog_and_stops_nothing() {
+    let scratch = Scratch::new("mf9-unread-", None);
+    {
+        let mut cache = PrivateCache::acquire(&scratch.data_root().state(), "machines").unwrap();
+        cache.replace("machines.json", b"not json").unwrap();
+    }
+    let output = scratch
+        .client("machine")
+        .args([
+            "remove",
+            FIRST,
+            "--stop-session",
+            "--confirm",
+            "--format=json",
+        ])
+        .output()
+        .unwrap();
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_ne!(output.status.code(), Some(0), "{document}");
+    assert_eq!(document["result"]["error"], "invalid-catalog", "{document}");
+    assert_eq!(document["result"]["remote"], "not-contacted", "{document}");
+    assert_eq!(document["result"]["committed"], false, "{document}");
+    assert!(
+        !orchbee_local_ipc::endpoint_exists(&scratch.endpoint()).unwrap(),
+        "the refused removal started a hub"
+    );
+}
+
+#[test]
 fn removing_a_connected_machine_ends_its_carrier_in_the_running_hub() {
     let carried = Carried::new("mh4-remove-", false);
     let connected = carried.run(&["machine", "connect", FIRST]);

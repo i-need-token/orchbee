@@ -17,7 +17,7 @@ use super::{Context, Error, Report};
 #[cfg(not(windows))]
 use crate::{
     localization::Locale,
-    machines::{Draft, Store},
+    machines::{Catalog, Draft, ProfileId, Store},
 };
 
 #[cfg(windows)]
@@ -62,8 +62,8 @@ pub(super) fn add(
 
 #[cfg(not(windows))]
 pub(super) fn stop_session(
-    _store: &Store,
-    _selector: &str,
+    _machine: &ProfileId,
+    _catalog: Catalog,
     _context: &mut Context,
     _report: &mut Report,
     _locale: Locale,
@@ -91,7 +91,7 @@ mod windows {
     use crate::{
         cli_text::CliText,
         localization::Locale,
-        machines::{Connection, Draft, Error as CatalogError, Store},
+        machines::{Catalog, Connection, Draft, Error as CatalogError, ProfileId, Store},
     };
     use orchbee_machine_protocol::{
         MachineId,
@@ -221,17 +221,20 @@ mod windows {
         Err(Error::HubUnavailable)
     }
 
-    /// Stops the remote Session of the Machine `selector` names, before its record is removed. A
-    /// Machine the hub does not carry `online` is brought `online` under the `machine connect`
-    /// rules and asked once more. Only `stopped` and `not-running` let the removal go on.
+    /// Stops the remote Session of the confirmed Machine `id`, which `catalog` lists, before its
+    /// record is removed; it never resolves a selector again. A Machine the hub does not carry
+    /// `online` is brought `online` under the `machine connect` rules and asked once more. Only
+    /// `stopped` and `not-running` let the removal go on.
     pub(in super::super) fn stop_session(
-        store: &Store,
-        selector: &str,
+        id: &ProfileId,
+        catalog: Catalog,
         context: &mut Context,
         report: &mut Report,
         locale: Locale,
     ) -> Result<(), Error> {
-        let machine = resolve(store, selector, report)?;
+        let machine = MachineId::new(id.as_str()).map_err(|_| Error::Internal)?;
+        report.id = Some(id.clone());
+        report.catalog = Some(catalog);
         let waiting = CliText::new(locale).cli_machine_waiting(&label(report));
         context.deadline = Instant::now() + CONNECT;
         context.check()?;
