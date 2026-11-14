@@ -165,7 +165,7 @@ fn x10_reports(log: &[u8]) -> Vec<(u8, u8, u8)> {
 
 /// Sends `bytes`, retrying until `needle` appears in a completed frame.
 /// Input sent while a focus switch is still in flight drops as
-/// "Terminal input unavailable" — the retry is the witness-level
+/// "Couldn't send the input." — the retry is the witness-level
 /// equivalent of a user retyping once the pane's attachment settles.
 /// `describe` runs only when the deadline actually expires, letting a
 /// witness preserve the failing scene inside the panic detail.
@@ -594,7 +594,7 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
         viewer_checkpoint,
         deadline,
         "read-only pointer rejection notice",
-        &["Pointer input dropped", "Terminal input unavailable"],
+        &["Couldn't handle the click.", "Couldn't send the input."],
     );
     thread::sleep(Duration::from_millis(75));
     assert_eq!(

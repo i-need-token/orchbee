@@ -1,8 +1,7 @@
 use super::native_workspace_fixture::*;
-use super::pty_client::FrameExpectation;
+use super::pty_client::{FrameExpectation, REFRESH_UNSETTLED};
 use super::tui_observer::{ModalRow, WorkbenchHeader};
 use super::*;
-use orchbee_workbench_protocol::Snapshot;
 use std::path::Path;
 
 const RENAME_ACTIONS: &str = "[ Cancel  Esc ] [ Rename  Enter ]";
@@ -26,20 +25,6 @@ impl Target {
             Self::Workspace => "Rename Workspace",
             Self::Project => "Rename Project",
         }
-    }
-
-    fn renamed_notice(self) -> &'static str {
-        match self {
-            Self::Workspace => "Workspace renamed",
-            Self::Project => "Project renamed",
-        }
-    }
-}
-
-fn unchanged_notice(target: Target) -> &'static str {
-    match target {
-        Target::Workspace => "Workspace label unchanged",
-        Target::Project => "Project label unchanged",
     }
 }
 
@@ -90,15 +75,14 @@ fn header(project: &str, workspace: &str) -> String {
     format!("{project} / {workspace}")
 }
 
-fn wait_workspace(client: &mut Client, checkpoint: usize, header: &str, notice: Option<&str>) {
-    let mut required = Vec::new();
-    required.extend(notice);
+/// A settled rename adds no notice: the editor is gone and the header names the Workspace.
+fn wait_workspace(client: &mut Client, checkpoint: usize, header: &str) {
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
         FrameExpectation::native(
             WorkbenchHeader::active(header, 1, "1"),
-            &required,
+            &[],
             &[
                 "Rename Workspace",
                 "Rename Project",
@@ -111,20 +95,14 @@ fn wait_workspace(client: &mut Client, checkpoint: usize, header: &str, notice: 
     );
 }
 
-fn observe_peer_refresh(
-    peer: &mut Client,
-    active: &mut Client,
-    snapshot: &Snapshot,
-    expected_header: &str,
-) {
+fn observe_peer_refresh(peer: &mut Client, active: &mut Client, expected_header: &str) {
     let checkpoint = peer.checkpoint();
     peer.send(b"\x02w");
-    let refreshed = format!("Tabs refreshed · revision {}", snapshot.revision.value());
     peer.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &["Workbench navigator", &refreshed],
-        &[],
+        &["Workbench navigator"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [active],
     );
@@ -174,10 +152,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     let initial_workspace = observer.snapshot()?;
     assert!(initial_workspace.navigation.projects.is_empty());
     {
-        let (target, notice) = (
-            Target::Project,
-            "No current Project to rename · no command was sent",
-        );
+        let (target, notice) = (Target::Project, "Couldn't rename the Project.");
         let checkpoint = client.checkpoint();
         client.send(target.shortcut());
         client.wait_native_frame_text_after(
@@ -206,7 +181,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         &mut client,
         checkpoint,
         Some(directory.to_str().ok_or("path UTF-8")?),
-        Some(DIRECTORY_ACCEPTED),
+        None,
     );
     finish_modal_handoff(
         &mut client,
@@ -289,12 +264,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
             Target::Project => project = label,
         }
         let renamed_header = header(project, workspace);
-        wait_workspace(
-            &mut client,
-            checkpoint,
-            &renamed_header,
-            Some(target.renamed_notice()),
-        );
+        wait_workspace(&mut client, checkpoint, &renamed_header);
         let renamed = observer.snapshot()?;
         assert_eq!(renamed.revision.value(), expected.revision.value() + 1);
         expected.revision = renamed.revision;
@@ -325,7 +295,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
             &[],
         );
         assert_shell_survives(&fixture, &mut client, &identity, checkpoint_name);
-        observe_peer_refresh(&mut peer, &mut client, &expected, &renamed_header);
+        observe_peer_refresh(&mut peer, &mut client, &renamed_header);
     }
 
     for (target, label, checkpoint_name) in [
@@ -336,12 +306,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         let checkpoint = client.checkpoint();
         client.send(b"\r");
         let current_header = header(project, workspace);
-        wait_workspace(
-            &mut client,
-            checkpoint,
-            &current_header,
-            Some(unchanged_notice(target)),
-        );
+        wait_workspace(&mut client, checkpoint, &current_header);
         assert_eq!(
             observer.snapshot()?,
             expected,
@@ -364,7 +329,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         );
         let checkpoint = client.checkpoint();
         client.send(b"\x1b");
-        wait_workspace(&mut client, checkpoint, &current_header, None);
+        wait_workspace(&mut client, checkpoint, &current_header);
         assert_eq!(
             observer.snapshot()?,
             expected,

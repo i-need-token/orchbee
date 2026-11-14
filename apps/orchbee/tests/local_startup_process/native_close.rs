@@ -1,4 +1,4 @@
-use super::pty_client::FrameExpectation;
+use super::pty_client::{FrameExpectation, REFRESH_UNSETTLED};
 use super::tui_observer::WorkbenchHeader;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
@@ -192,23 +192,27 @@ fn localized_cancel_and_ordinary_exit_keep_the_exact_native_shell() -> TestResul
     Ok(())
 }
 
-fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revision: Option<u64>) {
+/// With `settled`, the navigator's refresh must also finish: a success adds no notice, so a
+/// settled refresh shows neither its pending nor its failure sentence.
+fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, settled: bool) {
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
-    let success = revision.map(|revision| format!("Tabs refreshed · revision {revision}"));
-    let mut required = vec![
+    let required = [
         "No terminal tabs",
         "Ctrl+b c create Tab",
         "Workbench navigator",
         "› * 1 Workspace",
     ];
-    if let Some(success) = &success {
-        required.push(success);
-    }
+    let forbidden: &[&str] = if settled { &REFRESH_UNSETTLED } else { &[] };
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        FrameExpectation::native(WorkbenchHeader::empty("Workspace"), &required, &[], &[]),
+        FrameExpectation::native(
+            WorkbenchHeader::empty("Workspace"),
+            &required,
+            forbidden,
+            &[],
+        ),
         &mut [peer],
     );
     // `w` toggles the navigator: leave it visibly closed so the next `w` requests a refresh.
@@ -329,24 +333,14 @@ fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> Te
         &[],
         &mut [&mut peer],
     );
-    refresh_empty(&mut controller, &mut peer, deadline, None);
-    refresh_empty(&mut peer, &mut controller, deadline, None);
+    refresh_empty(&mut controller, &mut peer, deadline, false);
+    refresh_empty(&mut peer, &mut controller, deadline, false);
     let observation_end = Instant::now() + EMPTY_OBSERVATION;
     loop {
         // Each cycle requires a new complete UI frame and fresh public Snapshot.
-        // A cached Empty frame can precede Refresh settlement; observe its exact successful revision.
-        refresh_empty(
-            &mut controller,
-            &mut peer,
-            deadline,
-            Some(expected.revision.value()),
-        );
-        refresh_empty(
-            &mut peer,
-            &mut controller,
-            deadline,
-            Some(expected.revision.value()),
-        );
+        // A cached Empty frame can precede Refresh settlement; observe the settled refresh.
+        refresh_empty(&mut controller, &mut peer, deadline, true);
+        refresh_empty(&mut peer, &mut controller, deadline, true);
         assert_eq!(observer.snapshot(deadline)?, expected);
         if Instant::now() >= observation_end {
             break;

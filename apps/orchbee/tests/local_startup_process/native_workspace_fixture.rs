@@ -19,9 +19,8 @@ pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c New Tab";
 pub(super) const DIRECTORY_PATH: &str = "Set Workspace Directory";
 pub(super) const DIRECTORY_INPUT_HINT: &str = "Use the full path of an existing folder.";
 pub(super) const DIRECTORY_ACTIONS: &str = "[ Cancel  Esc ] [ Set  Enter ]";
-pub(super) const DIRECTORY_REFUSED: &str =
-    "Workspace setup not applied · check the target and input before trying again";
-pub(super) const DIRECTORY_ACCEPTED: &str = "Directory configured · ready to launch a terminal";
+/// A refused directory. An accepted one adds no notice: the panel names the directory.
+pub(super) const DIRECTORY_REFUSED: &str = "Couldn't apply the change.";
 
 pub(super) fn modal(
     client: &mut Client,

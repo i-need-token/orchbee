@@ -273,8 +273,7 @@ fn second_live_client_refreshes_shared_tabs_and_preserves_independent_selection(
     let refresh_deadline = Instant::now() + OBSERVATION_TIMEOUT;
     let checkpoint = peer.checkpoint();
     peer.send(b"\x02w");
-    let revision = peer.wait_navigator_refreshed_after(checkpoint, refresh_deadline);
-    assert!(revision > 0, "a refreshed snapshot has a positive revision");
+    peer.wait_navigator_refreshed_after(checkpoint, refresh_deadline);
 
     let close_navigator_deadline = Instant::now() + OBSERVATION_TIMEOUT;
     let checkpoint = peer.checkpoint();
@@ -421,9 +420,7 @@ fn moved_order_refresh_preserves_peer_selection_and_reopen_selects_new_canonical
     let checkpoint = peer.checkpoint();
     let refresh_deadline = Instant::now() + OBSERVATION_TIMEOUT;
     peer.send(b"\x02w");
-    let revision =
-        peer.wait_ordered_navigator_after(checkpoint, refresh_deadline, &["3", "1", "2"], 2);
-    assert!(revision > 0);
+    peer.wait_ordered_navigator_after(checkpoint, refresh_deadline, &["3", "1", "2"], 2);
     let checkpoint = peer.checkpoint();
     let close_deadline = Instant::now() + OBSERVATION_TIMEOUT;
     peer.send(b"\x02w");

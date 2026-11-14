@@ -11,8 +11,8 @@ use super::pty_client::FrameExpectation;
 use super::{
     native_cli_query::{run_json, spawn_real_server, validate, validators},
     native_workspace_fixture::{
-        DIRECTORY_ACCEPTED, DIRECTORY_ACTIONS, DIRECTORY_INPUT_HINT, DIRECTORY_NEEDED,
-        DIRECTORY_NEEDED_ACTION, DIRECTORY_PATH, DIRECTORY_READY_ACTION, EMPTY, modal,
+        DIRECTORY_ACTIONS, DIRECTORY_INPUT_HINT, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION,
+        DIRECTORY_PATH, DIRECTORY_READY_ACTION, EMPTY, modal,
     },
     tui_observer::{ModalRow, WorkbenchHeader},
     *,
@@ -245,12 +245,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
         Instant::now() + SWITCH_TIMEOUT,
         FrameExpectation::native(
             WorkbenchHeader::empty(&workspace_header),
-            &[
-                EMPTY,
-                &directory_fact,
-                DIRECTORY_READY_ACTION,
-                DIRECTORY_ACCEPTED,
-            ],
+            &[EMPTY, &directory_fact, DIRECTORY_READY_ACTION],
             &[],
             &[],
         ),

@@ -83,7 +83,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
         &mut client,
         checkpoint,
         Some(directory.to_str().ok_or("path UTF-8")?),
-        Some(DIRECTORY_ACCEPTED),
+        None,
     );
     let configured = observer.snapshot()?;
     assert!(configured.revision > created.revision);

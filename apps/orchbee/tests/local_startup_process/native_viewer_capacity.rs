@@ -1,5 +1,6 @@
 use super::{
     native_cli_query::{run_json, validate, validators},
+    pty_client::REFRESH_UNSETTLED,
     workbench_peer::WorkbenchPeer,
     *,
 };
@@ -138,8 +139,8 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
     primary.wait_frame_text_after(
         refresh_checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &["Workbench navigator", "Tabs refreshed · revision "],
-        &[],
+        &["Workbench navigator"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [],
     );

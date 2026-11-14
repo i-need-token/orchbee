@@ -1,4 +1,4 @@
-use super::pty_client::FrameExpectation;
+use super::pty_client::{FrameExpectation, REFRESH_UNSETTLED};
 use super::tui_observer::WorkbenchHeader;
 use super::workbench_peer::WorkbenchPeer;
 use super::*;
@@ -73,18 +73,17 @@ fn select_context(
     );
 }
 
-fn observe_independent_initial_workspace(client: &mut Client, revision: u64, active: &mut Client) {
+fn observe_independent_initial_workspace(client: &mut Client, active: &mut Client) {
     let deadline = Instant::now() + SWITCH_TIMEOUT;
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
-    let refreshed = format!("Tabs refreshed · revision {revision}");
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
         FrameExpectation::native(
             WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-            &["Workbench navigator", &refreshed, "  * 1 Workspace"],
-            &[],
+            &["Workbench navigator", "  * 1 Workspace"],
+            &REFRESH_UNSETTLED,
             &[],
         ),
         &mut [active],
@@ -181,17 +180,13 @@ fn native_initial_workspace_panel_split_refreshes_and_moves_focus_between_live_l
         matches!(&slot.node, PanelNode::Panel { panel_id, .. } if panel_id == &new_panel_id)
     }));
 
-    let refresh_revision = after_split.revision.value();
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            "Workbench navigator",
-            &format!("Tabs refreshed · revision {refresh_revision}"),
-        ],
-        &[],
+        &["Workbench navigator"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [],
     );
@@ -353,7 +348,7 @@ fn native_initial_workspace_panel_close_collapses_the_split_and_releases_only_th
         PanelNode::Split { .. } => return Err("fresh native close Tab was already split".into()),
     };
     let tab_id = tab.tab_id.clone();
-    let (split_revision, new_panel_id) = match peer.prepare(
+    let (_, new_panel_id) = match peer.prepare(
         WorkbenchAction::PanelSplit {
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
@@ -382,11 +377,8 @@ fn native_initial_workspace_panel_close_collapses_the_split_and_releases_only_th
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            "Workbench navigator",
-            &format!("Tabs refreshed · revision {}", split_revision.value()),
-        ],
-        &[],
+        &["Workbench navigator"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [],
     );
@@ -582,7 +574,7 @@ fn native_initial_workspace_panel_move_relocates_a_leaf_without_touching_either_
         PanelNode::Split { .. } => return Err("fresh native move Tab was already split".into()),
     };
     let tab_id = tab.tab_id.clone();
-    let (split_revision, new_panel_id) = match peer.prepare(
+    let (_, new_panel_id) = match peer.prepare(
         WorkbenchAction::PanelSplit {
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
@@ -611,11 +603,8 @@ fn native_initial_workspace_panel_move_relocates_a_leaf_without_touching_either_
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            "Workbench navigator",
-            &format!("Tabs refreshed · revision {}", split_revision.value()),
-        ],
-        &[],
+        &["Workbench navigator"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [],
     );
@@ -832,17 +821,13 @@ fn native_initial_workspace_refresh_catches_up_across_two_committed_peer_splits(
         "folded splits must project three leaves"
     );
 
-    let refresh_revision = after_splits.revision.value();
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            "Workbench navigator",
-            &format!("Tabs refreshed · revision {refresh_revision}"),
-        ],
-        &[],
+        &["Workbench navigator"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [],
     );
@@ -958,17 +943,11 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     let baseline = peer.snapshot(deadline)?;
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
-    let refreshed = format!("Tabs refreshed · revision {}", baseline.revision.value());
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            "Workbench navigator",
-            &refreshed,
-            "Configured",
-            "Unconfigured",
-        ],
-        &[],
+        &["Workbench navigator", "Configured", "Unconfigured"],
+        &REFRESH_UNSETTLED,
         &[],
         &mut [],
     );
@@ -1006,7 +985,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         CONFIGURED_LOCATION,
         ExpectedContext::ConfiguredEmpty(directory_text),
     );
-    observe_independent_initial_workspace(&mut independent, baseline.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, &mut client);
     assert_eq!(
         peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?,
         baseline
@@ -1083,7 +1062,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         created, expected,
         "Create changes only active Workspace membership"
     );
-    observe_independent_initial_workspace(&mut independent, created.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, &mut client);
 
     select_context(
         &mut client,
@@ -1181,7 +1160,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         independent.collect();
         thread::yield_now();
     }
-    observe_independent_initial_workspace(&mut independent, closed.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, &mut client);
 
     select_context(
         &mut client,
@@ -1189,7 +1168,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         UNCONFIGURED_LOCATION,
         ExpectedContext::UnconfiguredEmpty,
     );
-    observe_independent_initial_workspace(&mut independent, closed.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, &mut client);
     assert_eq!(peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?, closed);
     let checkpoint = client.checkpoint();
     client.send(b"\x02c");
@@ -1202,7 +1181,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
                 EMPTY,
                 UNCONFIGURED_EMPTY_FACT,
                 UNCONFIGURED_EMPTY_ACTION,
-                "Tab not created",
+                "Couldn't create the Tab.",
             ],
             &[],
             &[],

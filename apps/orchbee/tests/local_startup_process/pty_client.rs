@@ -39,16 +39,21 @@ impl ReadyMode {
     /// At rest the status omits ordinary control and keeps read-only input explicit, naming the
     /// current Tab by its label.
     fn shown_in(self, text: &str, position: usize, label: &str) -> bool {
-        let view_only = format!("{} · Ready · view only", shown_label(position, label));
+        let view_only = format!("{} · View only", shown_label(position, label));
         match self {
-            Self::Controlling => !text.contains(" · Ready · view only"),
+            Self::Controlling => !text.contains(" · View only"),
             Self::ViewOnly => text.contains(&view_only),
         }
     }
 }
 
+/// A Tabs refresh still running or stopped. A settled refresh shows neither, because a success
+/// adds no notice.
+pub(super) const REFRESH_UNSETTLED: [&str; 2] = ["Refreshing Tabs…", "Couldn't refresh the Tabs."];
+
 /// Matches a journey's required status part `Tab {N} · Ready · {mode}`, or its mode-free prefix,
-/// against the resting status; any other part is plain text.
+/// against the resting status; any other part is plain text. The part names the mode, not the
+/// words the status shows for it.
 fn status_part_shown(part: &str, text: &str) -> Option<bool> {
     let rest = part.strip_prefix("Tab ")?;
     let (position, mode) = rest.split_once(" · Ready ·")?;
@@ -616,14 +621,11 @@ impl Client {
     }
 
     #[track_caller]
-    pub(super) fn wait_navigator_refreshed_after(
-        &mut self,
-        checkpoint: usize,
-        deadline: Instant,
-    ) -> u64 {
-        self.wait_ordered_navigator_after(checkpoint, deadline, &["1", "2"], 1)
+    pub(super) fn wait_navigator_refreshed_after(&mut self, checkpoint: usize, deadline: Instant) {
+        self.wait_ordered_navigator_after(checkpoint, deadline, &["1", "2"], 1);
     }
 
+    /// The navigator shows the refreshed Tabs in order once its refresh settled.
     #[track_caller]
     pub(super) fn wait_ordered_navigator_after(
         &mut self,
@@ -631,31 +633,22 @@ impl Client {
         deadline: Instant,
         labels: &[&str],
         active_position: usize,
-    ) -> u64 {
+    ) {
         self.observe_after(
             checkpoint,
             deadline,
             "refreshed Workbench navigator",
             |screen| {
                 let rows = screen.rows();
-                if !screen.has_ordered_tabs(labels, active_position)
-                    || !screen.has_ordered_navigator_rows(labels, active_position)
-                    || !rows.iter().any(|row| row.contains("Workbench navigator"))
-                {
-                    return None;
-                }
-                rows.iter().find_map(|row| {
-                    let suffix = row.split_once("Tabs refreshed · revision ")?.1;
-                    let digits = suffix
-                        .chars()
-                        .take_while(char::is_ascii_digit)
-                        .collect::<String>();
-                    (!digits.is_empty())
-                        .then(|| digits.parse::<u64>().ok())
-                        .flatten()
-                })
+                (screen.has_ordered_tabs(labels, active_position)
+                    && screen.has_ordered_navigator_rows(labels, active_position)
+                    && rows.iter().any(|row| row.contains("Workbench navigator"))
+                    && !REFRESH_UNSETTLED
+                        .iter()
+                        .any(|unsettled| rows.iter().any(|row| row.contains(unsettled))))
+                .then_some(())
             },
-        )
+        );
     }
 
     #[track_caller]
@@ -776,8 +769,7 @@ impl Client {
             "closed Workbench navigator",
             |frame| {
                 (frame.has_active_tab(tab_number, safe_label)
-                    && !frame.text().contains("Workbench navigator")
-                    && !frame.text().contains("Tabs refreshed · revision "))
+                    && !frame.text().contains("Workbench navigator"))
                 .then_some(())
             },
         );
