@@ -17,7 +17,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.scrollPageUp': 'Scroll up one page',
 	'terminal.projected.action.scrollToBottom': 'Scroll to bottom',
 	'terminal.projected.action.scrollToTop': 'Scroll to top',
-	'terminal.projected.action.selectAll': 'Select all retained terminal output',
+	'terminal.projected.action.selectAll': 'Select all',
 	'terminal.projected.action.takeControl': 'Take control',
 	'terminal.projected.unavailable.alternateScreen': 'A full-screen program is running',
 	'terminal.projected.unavailable.clipboardRead':
@@ -74,7 +74,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.find.label': 'Find in terminal',
 	'terminal.projected.find.matchCase': 'Match case',
 	'terminal.projected.find.next': 'Next match',
-	'terminal.projected.find.noResults': 'No matches in retained terminal output.',
+	'terminal.projected.find.noResults': 'No matches',
 	'terminal.projected.find.placeholder': 'Find',
 	'terminal.projected.find.previous': 'Previous match',
 	'terminal.projected.find.result': '{current, number} of {total, number} matches',

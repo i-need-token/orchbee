@@ -40,14 +40,14 @@ describe('useKeyboardShortcutSettingsView', () => {
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
-			scope: 'Workbench',
+			scope: 'Window',
 			source: 'Default',
 		});
 		expect(
-			allRows.result.current.rows.find((row) => row.actionName === 'Focus next Workbench region'),
+			allRows.result.current.rows.find((row) => row.actionName === 'Focus next region'),
 		).toMatchObject({
 			chord: 'Ctrl+F6',
-			scope: 'Workbench',
+			scope: 'Window',
 		});
 		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Resize active panel'),
@@ -156,21 +156,21 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When that tab position exists',
 			chord: 'Ctrl+2',
-			scope: 'Workbench',
+			scope: 'Window',
 		});
 		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Select next tab'),
 		).toMatchObject({
-			availability: 'When the active terminal context has multiple tabs',
+			availability: 'When the workspace has multiple tabs',
 			chord: 'Ctrl+Page Down',
-			scope: 'Workbench',
+			scope: 'Window',
 		});
 		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Move active tab forward'),
 		).toMatchObject({
 			availability: 'When the active tab can move inside its pinned or unpinned section',
 			chord: 'Ctrl+Shift+.',
-			scope: 'Workbench',
+			scope: 'Window',
 		});
 		controller.dispose();
 	});

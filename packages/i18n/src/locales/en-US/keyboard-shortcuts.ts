@@ -7,7 +7,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.decreaseTerminalFontSize': 'Decrease terminal font size',
 	'keyboard.shortcuts.actions.equalizePanels': 'Equalize panels',
 	'keyboard.shortcuts.actions.find': 'Find in terminal',
-	'keyboard.shortcuts.actions.focusNextRegion': 'Focus next Workbench region',
+	'keyboard.shortcuts.actions.focusNextRegion': 'Focus next region',
 	'keyboard.shortcuts.actions.focusPanelDown': 'Focus panel below',
 	'keyboard.shortcuts.actions.focusPanelLeft': 'Focus panel left',
 	'keyboard.shortcuts.actions.focusPanelPosition': 'Focus panel {position}',
@@ -17,7 +17,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.focusPanelRight': 'Focus panel right',
 	'keyboard.shortcuts.actions.focusPanelUp': 'Focus panel above',
 	'keyboard.shortcuts.actions.focusPanelVisible': 'Visually focus panel',
-	'keyboard.shortcuts.actions.focusPreviousRegion': 'Focus previous Workbench region',
+	'keyboard.shortcuts.actions.focusPreviousRegion': 'Focus previous region',
 	'keyboard.shortcuts.actions.globalSearch': 'Search everything',
 	'keyboard.shortcuts.actions.hints': 'Quick Select',
 	'keyboard.shortcuts.actions.increaseTerminalFontSize': 'Increase terminal font size',
@@ -64,18 +64,16 @@ export const enUSKeyboardShortcutMessages = {
 		'When a focused terminal has a selection',
 	'keyboard.shortcuts.availability.multiplePanels': 'When the active tab has multiple panels',
 	'keyboard.shortcuts.availability.lastPanel': 'When a previously focused panel still exists',
-	'keyboard.shortcuts.availability.multipleTabs':
-		'When the active terminal context has multiple tabs',
+	'keyboard.shortcuts.availability.multipleTabs': 'When the workspace has multiple tabs',
 	'keyboard.shortcuts.availability.movableTab':
 		'When the active tab can move inside its pinned or unpinned section',
 	'keyboard.shortcuts.availability.panelPosition': 'When that panel position exists',
 	'keyboard.shortcuts.availability.tabPosition': 'When that tab position exists',
-	'keyboard.shortcuts.availability.workbench': 'While the Workbench is active',
+	'keyboard.shortcuts.availability.workbench': 'Anywhere in the window',
 	'keyboard.shortcuts.category': 'Keyboard shortcuts',
 	'keyboard.shortcuts.conflict':
 		'{shortcut} conflicts with {action} ({scope}, {source}; {availability}).',
-	'keyboard.shortcuts.description':
-		'Customize frequently used Workbench and terminal shortcuts on this device.',
+	'keyboard.shortcuts.description': 'Customize frequently used shortcuts on this device.',
 	'keyboard.shortcuts.invalid': 'Press a supported key with Control, Command, Alt, or Super.',
 	'keyboard.shortcuts.noResults': 'No keyboard shortcuts found.',
 	'keyboard.shortcuts.persistence.invalidWarning':
@@ -98,7 +96,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.scope.activeTerminal': 'Active terminal',
 	'keyboard.shortcuts.scope.focusedTerminal': 'Focused terminal',
 	'keyboard.shortcuts.scope.focusedTerminalOrFind': 'Focused terminal or Find',
-	'keyboard.shortcuts.scope.workbench': 'Workbench',
+	'keyboard.shortcuts.scope.workbench': 'Window',
 	'keyboard.shortcuts.source.custom': 'Custom',
 	'keyboard.shortcuts.source.default': 'Default',
 	'keyboard.shortcuts.takenByConfiguredCommand':
