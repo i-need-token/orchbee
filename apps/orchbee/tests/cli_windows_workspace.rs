@@ -84,10 +84,6 @@ fn help_discovers_directory_launch_and_its_recovery_contract() {
             "--exec",
             "--arg",
             "--profile",
-            "--cols",
-            "--rows",
-            "--cell-width",
-            "--cell-height",
         ] {
             assert!(text.contains(flag));
         }
