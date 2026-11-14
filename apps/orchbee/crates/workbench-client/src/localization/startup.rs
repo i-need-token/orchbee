@@ -169,10 +169,10 @@ impl Locale {
         use crate::startup_status::StartupFailure;
         match (self, failure) {
             (Self::EnUs, StartupFailure::AlreadyInSession) => {
-                "You are already inside this Session. Return to the existing Client to navigate, or use --session <name> to open another Session. CLI subcommands remain available.\n"
+                "You are already inside this Session. Return to the existing window to navigate, or use --session <name> to open another Session. CLI subcommands remain available.\n"
             }
             (Self::ZhCn, StartupFailure::AlreadyInSession) => {
-                "当前终端已在此会话内。请返回现有客户端切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
+                "当前终端已在此会话内。请返回现有窗口切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
             }
             (Self::EnUs, StartupFailure::Configuration) => {
                 "Invalid Windows configuration. Run orchbee config check for details, correct the setting and retry.\n"
@@ -225,9 +225,9 @@ impl Locale {
                 | StartupFailure::Refused(_),
             ) => "",
             (Self::EnUs, StartupFailure::Admission) => {
-                "The local session could not admit this Client connection.\n"
+                "The local session could not admit this window.\n"
             }
-            (Self::ZhCn, StartupFailure::Admission) => "本地会话无法准入此客户端连接。\n",
+            (Self::ZhCn, StartupFailure::Admission) => "本地会话无法接入此窗口。\n",
             (Self::EnUs, StartupFailure::TimedOut) => {
                 "Local terminal startup timed out. Existing session processes were retained.\n"
             }

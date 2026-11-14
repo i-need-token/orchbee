@@ -763,14 +763,21 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let row_of = |text: &str| rows.iter().position(|row| row.contains(text)).unwrap();
     let search = row_of("[ Search ]");
     assert!(row_of("[ New workspace ]") < search, "{rows:?}");
-    // The Recents heading names the group without a member count; its disclosure always shows.
-    let recents = row_of("Recents");
+    // The heading over ungrouped Workspaces names the group without a member count; its
+    // disclosure always shows.
+    let heading = Locale::EnUs.machine_picker_text("sidebar-recents");
+    let recents = row_of(heading);
     assert_eq!(
         rows[recents].split_whitespace().collect::<Vec<_>>(),
-        ["Recents", theme.glyphs.disclosure_open, "│"],
+        [heading, theme.glyphs.disclosure_open, "│"],
         "{rows:?}"
     );
-    let workspace = row_of("Workspace");
+    let workspace = recents
+        + 1
+        + rows[recents + 1..]
+            .iter()
+            .position(|row| row.contains("Workspace"))
+            .unwrap();
     assert!(!rows[workspace].contains(theme.glyphs.ellipsis), "{rows:?}");
     let agent = row_of("build");
     assert!(rows[agent].contains(theme.glyphs.tree_guide), "{rows:?}");

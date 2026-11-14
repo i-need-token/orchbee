@@ -333,11 +333,11 @@ impl WorkbenchClientState {
                 {
                     return None;
                 }
-                if awaiting_frame {
-                    TakeoverStatus::WaitingForFrame
-                } else {
-                    TakeoverStatus::Ready
+                // Typing here once the display arrives says nothing more.
+                if !awaiting_frame {
+                    return None;
                 }
+                TakeoverStatus::WaitingForFrame
             }
             TakeoverResult::Lost(_) => TakeoverStatus::Lost,
         };

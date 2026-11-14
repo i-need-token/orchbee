@@ -303,11 +303,7 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
                 );
                 if crop.clipped {
                     let text = row_text(terminal.backend().buffer(), 0);
-                    assert!(
-                        text.contains(locale.terminal_live_crop())
-                            || text.contains(locale.terminal_live_crop_compact()),
-                        "{text}"
-                    );
+                    assert!(text.contains(locale.terminal_live_crop()), "{text}");
                     assert!(prompt_y > 0);
                 }
             }

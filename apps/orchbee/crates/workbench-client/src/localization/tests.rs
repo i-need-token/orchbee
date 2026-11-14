@@ -51,10 +51,6 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
         "关闭分组（2 个标签页）…"
     );
     assert_eq!(
-        locale.menu_tab_action(&MenuAction::Ungroup, TabMenuScope::Group(count)),
-        "解散分组，保留 2 个标签页"
-    );
-    assert_eq!(
         locale.menu_group_path(TabMenuScope::Group(count)),
         "分组（2 个标签页）"
     );

@@ -1358,7 +1358,7 @@ fn status_hints(
                 copy.restore,
             ),
             ContextIndicator::Zoomed => {
-                (PrefixAction::Client(ClientAction::ToggleZoom), copy.restore)
+                (PrefixAction::Client(ClientAction::ToggleZoom), copy.zoom_restore)
             }
             ContextIndicator::Panels(HiddenPanels {
                 toward: Some(direction),

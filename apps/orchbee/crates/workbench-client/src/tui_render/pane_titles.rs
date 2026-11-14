@@ -19,8 +19,8 @@ pub(super) struct PaneTitle<'a> {
     pub(super) tab: ClientTabView<'a>,
     /// The pane owns input, so its title carries focus emphasis.
     pub(super) focused: bool,
-    /// A zoomed pane names how many panes the zoom hides behind it.
-    pub(super) zoomed_panes: Option<usize>,
+    /// A maximized pane says so in its title.
+    pub(super) zoomed: bool,
     pub(super) working_frame: usize,
     pub(super) text: ShellText<'a>,
     pub(super) locale: Locale,
@@ -90,10 +90,8 @@ pub(super) fn paint(
     let fixed = 2
         + glyph.map_or(0, |(glyph, _)| display_width(glyph) + 1)
         + unread.as_deref().map_or(0, display_width);
-    let mut badge = title
-        .zoomed_panes
-        .filter(|_| selector.is_none())
-        .map(|count| format!(" {} ", locale.zoomed_panes(count)));
+    let mut badge = (title.zoomed && selector.is_none())
+        .then(|| format!(" {} ", locale.zoomed_panes()));
     let width = usize::from(line.width);
     let right = |badge: &Option<String>| {
         selector.as_ref().map_or_else(

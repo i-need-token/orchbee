@@ -996,7 +996,7 @@ fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
         let hint = format!(
             "{} {}",
             crate::terminal_events::keys::tests::host_label("Ctrl+b z"),
-            copy.restore
+            copy.zoom_restore
         );
         let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
         let view = ClientView::new(120);

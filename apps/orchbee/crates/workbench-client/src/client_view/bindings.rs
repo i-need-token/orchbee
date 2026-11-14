@@ -412,7 +412,6 @@ impl Bindings {
             ),
             exit: label(PrefixDesc::Exit),
             sidebar: label(PrefixDesc::SidebarToggle),
-            zoom: label(PrefixDesc::PanelZoom),
             pointer: label(PrefixDesc::PointerCapture),
             start_agent: label(PrefixDesc::StartAgent),
         }

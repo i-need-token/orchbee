@@ -121,7 +121,7 @@ both the visible affordance and the exact pointer target; the unused row remaind
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
 remain outside the scrolling navigation tree. Projects in their canonical
 display order and their children follow, then the Workspaces outside any Project under a localized
-Recents heading (`Recents`; `最近` in Chinese), always last. Headings show no member count; only the
+Recents heading (`Workspaces`; `工作区` in Chinese), always last. Headings show no member count; only the
 label truncates. Optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. Configuration still owns item row height, gap and token styles.

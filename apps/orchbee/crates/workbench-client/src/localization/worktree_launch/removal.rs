@@ -196,8 +196,8 @@ impl Locale {
     }
     pub(crate) fn worktree_remove_abandon_notice(self) -> &'static str {
         match self {
-            Self::EnUs => "The removal continues; only this Client stops tracking it.",
-            Self::ZhCn => "移除会继续进行，只是此客户端不再跟踪。",
+            Self::EnUs => "The removal continues; only this window stops tracking it.",
+            Self::ZhCn => "移除会继续进行，只是此窗口不再跟踪。",
         }
     }
     /// A failed removal that cannot resume can still hold its Workspace closing.

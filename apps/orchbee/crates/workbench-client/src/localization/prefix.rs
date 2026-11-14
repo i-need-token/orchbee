@@ -61,11 +61,13 @@ pub enum PrefixDesc {
     DismissPrefix,
 }
 
-pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
-    match desc {
-        PrefixDesc::ConfiguredCommand(_) => "Run configured command",
-        PrefixDesc::CopyMode => "Enter keyboard copy mode",
-        PrefixDesc::FindInTerminal => "Find in terminal",
+/// The words of a key row in the action menu; only those keys have rows, so the other prefix
+/// actions have no words here.
+pub(super) const fn en_us_prefix_desc(desc: PrefixDesc) -> Option<&'static str> {
+    Some(match desc {
+        PrefixDesc::SelectTabDigit => "Go to a Tab by its number",
+        PrefixDesc::LiteralPrefix => "Send the prefix key to the terminal",
+        PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
         PrefixDesc::CopyMove => "Move the copy cursor",
         PrefixDesc::CopyWord => "Move by word / whitespace-delimited word",
         PrefixDesc::CopyParagraph => "Move to previous / next paragraph",
@@ -77,60 +79,15 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopySelection => "Start / cancel selection",
         PrefixDesc::CopySubmit => "Copy selection; return live after success",
         PrefixDesc::CopyExit => "Leave copy mode (Esc also cancels search)",
-        PrefixDesc::ResizeLeft => "Move panel divider left by 5%",
-        PrefixDesc::ResizeRight => "Move panel divider right by 5%",
-        PrefixDesc::ResizeUp => "Move panel divider up by 5%",
-        PrefixDesc::ResizeDown => "Move panel divider down by 5%",
-        PrefixDesc::Machines => "Choose local or saved SSH machine",
-        PrefixDesc::ActionMenu => "Open action menu",
-        PrefixDesc::Settings => "Open settings",
-        PrefixDesc::AgentCycle => "Select previous / next Agent",
-        PrefixDesc::AgentIndex => "Focus numbered Agent",
-        PrefixDesc::OpenNotificationTarget => "Open the Agent in the visible notification",
-        PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
-        PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
-        PrefixDesc::WorktreeOpen => "Open an existing Git checkout",
-        PrefixDesc::WorkspaceClose => {
-            "Close current Workspace and its terminals (asks for confirmation)"
-        }
-        PrefixDesc::WorkspaceCreate => "Create a Workspace and enter its first terminal",
-        PrefixDesc::WorkspaceRename => "Rename current Workspace",
-        PrefixDesc::RenameTab => "Rename current Tab",
-        PrefixDesc::CloseTab => "Close current Tab (confirms for all Clients)",
-        PrefixDesc::CreateTab => "Create a Tab (requires connection)",
-        PrefixDesc::MoveTab => "Move current Tab left / right (wraps)",
-        PrefixDesc::SelectTabWrap => "Select next / previous Tab (requires connection)",
-        PrefixDesc::SelectContext => {
-            "Select previous / next Workbench location (wraps; requires connection)"
-        }
-        PrefixDesc::SelectTabDigit => "Select ordered Tab (requires connection)",
-        PrefixDesc::PanelFocus => "Move between Panels (requires connection)",
-        PrefixDesc::PanelZoom => "Maximize or restore the focused Panel (requires connection)",
-        PrefixDesc::SplitPanel => {
-            "Split focused Panel below/above/left/right (requires connection)"
-        }
-        PrefixDesc::ClosePanel => "Close focused Panel (requires connection)",
-        PrefixDesc::RenamePanel => "Rename focused Panel",
-        PrefixDesc::LastPanel => "Return to the last focused Panel, in any Tab or Workspace",
-        PrefixDesc::ClearTerminal => "Clear the focused terminal",
-        PrefixDesc::MovePanel => "Move focused Panel to that side (requires connection)",
-        PrefixDesc::SidebarToggle => "Toggle business sidebar",
-        PrefixDesc::SidebarFocus => "Switch sidebar / terminal focus",
-        PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
-        PrefixDesc::StartAgent => "Start an Agent",
-        PrefixDesc::History => "Scroll back through the focused panel's history",
-        PrefixDesc::PointerCapture => "Release or restore mouse capture",
-        PrefixDesc::Exit => Locale::EnUs.client_detach_label(),
-        PrefixDesc::LiteralPrefix => "Send the literal prefix to the terminal input port",
-        PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
-    }
+        _ => return None,
+    })
 }
 
-pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
-    match desc {
-        PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
-        PrefixDesc::CopyMode => "进入键盘复制模式",
-        PrefixDesc::FindInTerminal => "在终端中查找",
+pub(super) const fn zh_cn_prefix_desc(desc: PrefixDesc) -> Option<&'static str> {
+    Some(match desc {
+        PrefixDesc::SelectTabDigit => "按编号切换标签页",
+        PrefixDesc::LiteralPrefix => "把前缀键发送给终端",
+        PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
         PrefixDesc::CopyMove => "移动复制光标",
         PrefixDesc::CopyWord => "按词 / 空白分隔的大词移动",
         PrefixDesc::CopyParagraph => "移动到上一个 / 下一个段落",
@@ -142,51 +99,12 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopySelection => "开始 / 取消选择",
         PrefixDesc::CopySubmit => "复制选区；成功后回实时显示",
         PrefixDesc::CopyExit => "退出复制模式（Esc 也取消搜索）",
-        PrefixDesc::ResizeLeft => "分隔线向左移动 5%",
-        PrefixDesc::ResizeRight => "分隔线向右移动 5%",
-        PrefixDesc::ResizeUp => "分隔线向上移动 5%",
-        PrefixDesc::ResizeDown => "分隔线向下移动 5%",
-        PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
-        PrefixDesc::ActionMenu => "打开操作菜单",
-        PrefixDesc::Settings => "打开设置",
-        PrefixDesc::AgentCycle => "切换上一个 / 下一个智能体",
-        PrefixDesc::AgentIndex => "聚焦编号智能体",
-        PrefixDesc::OpenNotificationTarget => "打开当前通知中的智能体",
-        PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
-        PrefixDesc::WorktreeCreate => "创建 Git 工作树并进入终端",
-        PrefixDesc::WorktreeOpen => "打开已有 Git 检出目录",
-        PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
-        PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
-        PrefixDesc::WorkspaceRename => "重命名当前工作区",
-        PrefixDesc::RenameTab => "重命名当前标签页",
-        PrefixDesc::CloseTab => "关闭当前标签页（确认后影响所有客户端）",
-        PrefixDesc::CreateTab => "创建标签页（需要连接）",
-        PrefixDesc::MoveTab => "向左 / 右移动当前标签页（首尾循环）",
-        PrefixDesc::SelectTabWrap => "选择下一个 / 上一个标签页（需要连接）",
-        PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要连接）",
-        PrefixDesc::SelectTabDigit => "选择对应顺序的标签页（需要连接）",
-        PrefixDesc::PanelFocus => "在面板之间移动（需要连接）",
-        PrefixDesc::PanelZoom => "最大化或还原焦点面板（需要连接）",
-        PrefixDesc::SplitPanel => "将焦点面板向下/上/左/右分屏（需要连接）",
-        PrefixDesc::ClosePanel => "关闭焦点面板（需要连接）",
-        PrefixDesc::RenamePanel => "重命名焦点面板",
-        PrefixDesc::LastPanel => "回到上次聚焦的面板（可跨标签页或工作区）",
-        PrefixDesc::ClearTerminal => "清除焦点终端",
-        PrefixDesc::MovePanel => "将焦点面板移向该侧（需要连接）",
-        PrefixDesc::SidebarToggle => "切换业务边栏",
-        PrefixDesc::SidebarFocus => "切换边栏／终端焦点",
-        PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
-        PrefixDesc::StartAgent => "启动智能体",
-        PrefixDesc::History => "回看当前面板的历史输出",
-        PrefixDesc::PointerCapture => "释放或恢复鼠标捕获",
-        PrefixDesc::Exit => Locale::ZhCn.client_detach_label(),
-        PrefixDesc::LiteralPrefix => "向终端输入端口发送字面前缀",
-        PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
-    }
+        _ => return None,
+    })
 }
 
 impl Locale {
-    /// Help and the action menu share the current Client's detach lifecycle wording.
+    /// The action menu's Leave row.
     pub(super) const fn client_detach_label(self) -> &'static str {
         match self {
             Self::EnUs => "Leave view; terminals keep running",

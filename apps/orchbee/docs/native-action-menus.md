@@ -42,13 +42,13 @@ requests a machine or context switch on opening or cancellation.
 
 An Agent row's menu holds Rename, which only a Panel's primary terminal offers, then a separated Close. Both name the row's Panel rather than its terminal: Rename edits the primary Presentation's shared override as the Panel menu does, and Close ends the whole Panel, asking first when one of its terminals runs something. The Panel actions act only on the focused Panel, so the menu first focuses the Agent's Panel, as a click on the row does, and offers the action once that Panel holds focus. An Agent in a child terminal has no Rename row.
 
-A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Maximize; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles and tooltips keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
+A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Ungroup, Pin or Maximize / Restore; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles and tooltips keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Ungroup. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
 Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. A context submenu cascades beside its parent as an untitled frame: Right or Enter on a submenu row, or a click on it, opens the child level with that row. The parent stays painted without input; its opening row keeps the selection fill without the marker. Left or Esc in the child, or a click anywhere on the painted parent, returns to the parent with the opening row as its candidate; a click on another enabled parent row returns with that row as the candidate instead. Esc in the root and an outside click close the whole menu. A pointer that rests 200 ms on a submenu row opens it as a click would; on a row still waiting for discovery the rest holds and opens it when discovery enables the row, without another movement. While a child is open, a pointer that stays still for 300 ms over another enabled parent row returns there as that row's click does; every movement restarts the wait, so a diagonal path toward the child may cross parent rows, and reaching the child, the opening row or the frame cancels it. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. The global menu's new-Tab submenu still replaces its parent and carries the query, and the global menu keeps its title and discovery controls.
 
-GUI Clients take these compositions: the sidebar's Project and Workspace row menus and the panel menus in `apps/web`, and the Tab, group header and New Tab menus in `packages/tab-strip`. A Web or Desktop window opens no popup terminal yet and withholds popup configured commands. GUI menus carry no frame title, because each menu's accessible name already names its target, and they open at the press and cascade with the platform's context-menu behavior rather than the TUI's cell geometry and timings. The New Tab button names an unnamed profile as its Settings page does. Without a Workspace it opens no menu rather than disabled rows, and a profile the window cannot start, such as a system shell other than the default, refuses with the Settings recovery notice when chosen. A GUI pane menu opens from the terminal viewport, below the terminal's own commands such as Copy and Paste, and from the panel header's options button and right-click; the header's menu has no Take control row. It says Maximize and Restore for Zoom and Split below for Split down, as the GUI's other panel commands do, and has no GUI-only row. Its rows show their shortcuts, because opening a pane menu focuses its panel.
+GUI Clients take these compositions: the sidebar's Project and Workspace row menus and the panel menus in `apps/web`, and the Tab, group header and New Tab menus in `packages/tab-strip`. A Web or Desktop window opens no popup terminal yet and withholds popup configured commands. GUI menus carry no frame title, because each menu's accessible name already names its target, and they open at the press and cascade with the platform's context-menu behavior rather than the TUI's cell geometry and timings. The New Tab button names an unnamed profile as its Settings page does. Without a Workspace it opens no menu rather than disabled rows, and a profile the window cannot start, such as a system shell other than the default, refuses with the Settings recovery notice when chosen. A GUI pane menu opens from the terminal viewport, below the terminal's own commands such as Copy and Paste, and from the panel header's options button and right-click; the header's menu has no Type here row. It says Maximize or Restore, by the panel's state, where the TUI row reads Maximize / Restore, and has no GUI-only row. Its rows show their shortcuts, because opening a pane menu focuses its panel.
 
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
@@ -78,7 +78,7 @@ catalog, or no current Workspace — the section is absent and the profiles stan
 menu, because a click already creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
-Find in terminal, Clear terminal, Rename, Split right and Split down, Toggle panel maximization only beside another panel and Take control only while another Client
+Find in terminal, Clear terminal, Rename, Split right and Split down, Maximize / Restore only beside another panel and Type here only while another window
 holds that panel's size, then the red Close; dragging a divider resizes, keyboard resizing keeps its
 keys, and copy mode keeps its key and global menu row. The global menu also exposes the new-Tab submenu for keyboard
 users.
@@ -134,8 +134,8 @@ separate existing catalog authority. Profile resolution, immutable-default and m
 live in `crates/workbench-client/src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
 Close Workspace…, Remove Worktree…, Close panel… and Tab Close intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
-The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Dissolve Project,
-Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent.
+The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Project Ungroup,
+Tab group Ungroup and color choices remain ordinary; a red palette choice is a value, not destructive intent.
 These labels are not error statuses. Disabled rows use `text-disabled` and
 acquire no pointer state; enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
 owner supplies all shipped and reduced-color values and any required native contrast pair.
@@ -266,13 +266,13 @@ Ready guard. Released pointer capture disables Release pointer capture. Unknown 
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose New Workspace and Rename Project, then a separated Dissolve Project, shown as Rename and Dissolve.
+Project menus expose New Workspace and Rename Project, then a separated Ungroup, shown as Rename and Ungroup.
 The New Workspace submenu uses the same choices as the exact Project's sidebar `+` button: New Workspace,
 New Workspace in directory, and the discovered openable Worktree paths. Both creation entries
 use the same composition and availability rules, including empty and noncurrent Projects. Directory
 entry runs the existing setup workflow; default creation runs the Project quick path. The submenu
 stays a submenu even when only one choice is enabled. Rename
-and Dissolve also target the drawn Project without entering a child. Dissolve Project removes only
+and Ungroup also target the drawn Project without entering a child. Ungroup removes only
 that organization: every member Workspace, terminal, program and identity survives ungrouped, so the
 row is not destructive. It never composes Close All with removal.
 Explicit Close All compatibility keeps its separate owner. Worktree discovery uses the addressed
@@ -333,11 +333,11 @@ Close Workspace…. Git-only rows follow the current discovery result; unrelated
 under a fresh menu token and requires repaint; it never changes the candidate or the selected
 action's identity, and a click held on a row it leaves enabled in place completes on release.
 
-Close Workspace… and Dissolve Project ask for authoritative conditional admission through the existing Close or setup owner.
+Close Workspace… and Project Ungroup ask for authoritative conditional admission through the existing Close or setup owner.
 Only definite `confirmation-required` for that conditional kind and captured revision opens a new
 complete-draw confirmation; explicit Enter then uses a distinct unconditional request ID. Missing,
 stale, unavailable or unknown evidence never means idle and never escalates automatically.
-[Scoped Close](native-workspace-close.md) owns Workspace terminal disposal; Dissolve Project's warning
+[Scoped Close](native-workspace-close.md) owns Workspace terminal disposal; Project Ungroup's warning
 instead explains preservation. Acting on a background target preserves the unrelated current session.
 
 The sidebar `+` entries use `MenuTarget::Create` for the global or exact-Project creation context.
@@ -460,7 +460,7 @@ The user wants to discover and execute existing actions without memorizing chord
 Admission freezes the complete canonical Project and, only when its ID matches the
 current Workspace's Project, that Workspace/Directory source. Empty Projects and
 Projects outside the current Workspace remain valid menu targets: default and directory creation
-use the exact Project when the setup owner admits them. Rename and organization-only Dissolve
+use the exact Project when the setup owner admits them. Rename and organization-only Ungroup
 likewise target that Project without entering a child.
 Worktree actions separately freeze the derived addressed member and its complete source proof.
 The same Project and optional context proof must survive confirmation and handoff;
@@ -478,12 +478,12 @@ The [native navigator](native-context-selection.md#capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 
-| Project context at opening                                   | Availability and effect                                                                                                                                    |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                                         |
-| An ungrouped Workspace, a different Project, or no Workspace | New Workspace ▸, rename and organization-only Dissolve target the exact Project; discovered checkout choices need its admitted derived first-member source |
-| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                                      |
-| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                                  |
+| Project context at opening                                   | Availability and effect                                                                                                                                   |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                                        |
+| An ungrouped Workspace, a different Project, or no Workspace | New Workspace ▸, rename and organization-only Ungroup target the exact Project; discovered checkout choices need its admitted derived first-member source |
+| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                                     |
+| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                                 |
 
 ## Transitions and cancellation
 

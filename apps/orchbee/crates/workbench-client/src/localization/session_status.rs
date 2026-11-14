@@ -24,18 +24,10 @@ impl Locale {
     ) -> &'static str {
         use crate::localization::TerminalStatus;
         match (self, status) {
-            (Self::EnUs, TerminalStatus::Connecting) => "Connecting terminal…",
-            (Self::ZhCn, TerminalStatus::Connecting) => "正在连接终端…",
+            (_, TerminalStatus::Connecting | TerminalStatus::Blocked) => self.connecting_status(),
             (Self::EnUs, TerminalStatus::Controlling) => "Terminal connected",
             (Self::ZhCn, TerminalStatus::Controlling) => "终端已连接",
-            (Self::EnUs, TerminalStatus::ReadOnly) => {
-                "Viewing only · another Client controls this terminal"
-            }
-            (Self::ZhCn, TerminalStatus::ReadOnly) => "仅查看 · 其他客户端正在控制此终端",
-            (Self::EnUs, TerminalStatus::Blocked) => {
-                "Terminal display paused · waiting for a fresh frame"
-            }
-            (Self::ZhCn, TerminalStatus::Blocked) => "终端显示已暂停 · 正在等待新帧",
+            (_, TerminalStatus::ReadOnly) => self.another_window_typing(),
             (Self::EnUs, TerminalStatus::Unavailable) => "Terminal disconnected",
             (Self::ZhCn, TerminalStatus::Unavailable) => "终端已断连",
             (Self::EnUs, TerminalStatus::OutcomeUnknown) => {
@@ -95,7 +87,6 @@ impl Locale {
         label: Option<&str>,
         controller: Option<crate::localization::DisplayController>,
         provenance: Option<crate::localization::DisplayProvenance>,
-        projection: crate::localization::ClientProjectionStatus,
         retirement: Option<crate::localization::DisplayRetirement>,
     ) -> String {
         use crate::localization::{
@@ -120,8 +111,8 @@ impl Locale {
                 Self::EnUs => "No terminal tabs".to_owned(),
                 Self::ZhCn => "没有终端标签页".to_owned(),
             },
-            Phase::Starting => self.native_starting_status(label, projection),
-            Phase::Switching => self.native_switching_status(label, projection),
+            Phase::Starting => self.native_starting_status(label),
+            Phase::Switching => self.native_switching_status(label),
             Phase::Ready => {
                 let Some(label) = label else {
                     return self
@@ -665,48 +656,25 @@ impl Locale {
         }
     }
 
-    fn native_starting_status(
-        self,
-        label: Option<&str>,
-        projection: crate::localization::ClientProjectionStatus,
-    ) -> String {
-        self.native_connection_status(
-            label,
-            projection,
-            crate::localization::TerminalStatus::Connecting,
-        )
+    fn native_starting_status(self, label: Option<&str>) -> String {
+        self.native_connection_status(label, crate::localization::TerminalStatus::Connecting)
     }
 
-    fn native_switching_status(
-        self,
-        label: Option<&str>,
-        projection: crate::localization::ClientProjectionStatus,
-    ) -> String {
-        self.native_connection_status(
-            label,
-            projection,
-            crate::localization::TerminalStatus::Unavailable,
-        )
+    fn native_switching_status(self, label: Option<&str>) -> String {
+        self.native_connection_status(label, crate::localization::TerminalStatus::Unavailable)
     }
 
+    /// Whatever a connection still waits for, it reads as connecting.
     fn native_connection_status(
         self,
         label: Option<&str>,
-        projection: crate::localization::ClientProjectionStatus,
         missing_position: crate::localization::TerminalStatus,
     ) -> String {
-        use crate::localization::ClientProjectionStatus;
-
-        let Some(label) = label else {
-            return self.terminal_status(missing_position).to_owned();
-        };
-        match projection {
-            ClientProjectionStatus::WaitingForFullFrame => self.native_waiting_for_frame(label),
-            ClientProjectionStatus::Blocked => self.native_display_blocked(label),
-            ClientProjectionStatus::Empty | ClientProjectionStatus::FrameAvailable => {
-                self.native_connecting(label)
-            }
+        match label {
+            Some(_) => self.connecting_status(),
+            None => self.terminal_status(missing_position),
         }
+        .to_owned()
     }
 
     const fn native_creating(self) -> &'static str {
@@ -766,33 +734,9 @@ impl Locale {
         }
     }
 
-    /// Names how many Panels a maximized Panel hides behind it.
-    pub(crate) fn zoomed_panes(self, count: usize) -> String {
-        match self {
-            Self::EnUs => format!("maximized · {count} panels"),
-            Self::ZhCn => format!("已最大化 · 共 {count} 个面板"),
-        }
-    }
-
-    fn native_connecting(self, label: &str) -> String {
-        match self {
-            Self::EnUs => format!("{label} · Connecting…"),
-            Self::ZhCn => format!("{label} · 正在连接…"),
-        }
-    }
-
-    fn native_waiting_for_frame(self, label: &str) -> String {
-        match self {
-            Self::EnUs => format!("{label} · Connecting · waiting for full frame"),
-            Self::ZhCn => format!("{label} · 正在连接 · 等待完整帧"),
-        }
-    }
-
-    fn native_display_blocked(self, label: &str) -> String {
-        match self {
-            Self::EnUs => format!("{label} · Connecting · display blocked"),
-            Self::ZhCn => format!("{label} · 正在连接 · 显示已阻塞"),
-        }
+    /// Marks a maximized Panel, which hides the others in its Tab.
+    pub(crate) const fn zoomed_panes(self) -> &'static str {
+        self.status().zoomed
     }
 
     fn native_ready_controlling(self, label: &str) -> String {
@@ -803,10 +747,7 @@ impl Locale {
     }
 
     fn native_ready_read_only(self, label: &str) -> String {
-        match self {
-            Self::EnUs => format!("{label} · Ready · view only"),
-            Self::ZhCn => format!("{label} · 已就绪 · 仅查看"),
-        }
+        format!("{label} · {}", self.view_only())
     }
 
     const fn native_committed_refresh_required(self) -> &'static str {

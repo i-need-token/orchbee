@@ -32,7 +32,7 @@ pub struct ShellText<'a> {
     pub(crate) panel_title: &'static str,
     pub(crate) pointer_released: &'a str,
     pub(crate) prefix_active: &'a str,
-    pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
+    pub(crate) prefix_desc: fn(PrefixDesc) -> Option<&'static str>,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
     pub(crate) sidebar_hint: &'a str,
@@ -45,7 +45,6 @@ pub struct ShellText<'a> {
     pub(crate) pinned_tab: &'static str,
     pub(crate) unnamed_tab_group: &'static str,
     pub(crate) workspaces: &'static str,
-    pub(crate) zoom_badge: &'a str,
 }
 
 const EN_US_SHELL: ShellText<'static> = ShellText {
@@ -76,7 +75,6 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     pinned_tab: "Pinned",
     unnamed_tab_group: "Unnamed group",
     workspaces: "Workspaces",
-    zoom_badge: "maximized · {zoom} restores",
 };
 
 const ZH_CN_SHELL: ShellText<'static> = ShellText {
@@ -107,7 +105,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     pinned_tab: "固定",
     unnamed_tab_group: "未命名分组",
     workspaces: "工作区",
-    zoom_badge: "已最大化 · {zoom} 还原",
 };
 
 /// Effective key labels selected by the binding owner. Localized text names a key only through
@@ -117,7 +114,6 @@ pub(crate) struct ShellBindings {
     pub(crate) prefix: String,
     pub(crate) exit: String,
     pub(crate) sidebar: String,
-    pub(crate) zoom: String,
     pub(crate) pointer: String,
     pub(crate) start_agent: String,
 }
@@ -139,7 +135,7 @@ pub(crate) const START_AGENT_KEY_SLOT: &str = "\u{e000}start-agent\u{e001}";
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {
     base: ShellText<'a>,
-    hints: [String; 5],
+    hints: [String; 4],
 }
 
 impl BoundShellText<'_> {
@@ -149,7 +145,6 @@ impl BoundShellText<'_> {
             pointer_released: &self.hints[1],
             prefix_active: &self.hints[2],
             sidebar_hint: &self.hints[3],
-            zoom_badge: &self.hints[4],
             ..self.base
         }
     }
@@ -162,7 +157,6 @@ impl<'a> ShellText<'a> {
             self.pointer_released,
             self.prefix_active,
             self.sidebar_hint,
-            self.zoom_badge,
         ]
         .map(|hint| self.bound_hint(bindings, hint));
         BoundShellText { base: self, hints }
@@ -175,7 +169,6 @@ impl<'a> ShellText<'a> {
             ("{prefix}", &bindings.prefix),
             ("{exit}", &bindings.exit),
             ("{sidebar}", &bindings.sidebar),
-            ("{zoom}", &bindings.zoom),
             ("{pointer}", &bindings.pointer),
         ]
         .into_iter()

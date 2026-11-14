@@ -147,7 +147,7 @@ impl Locale {
             (Self::EnUs, N::InputLimit) => "Each field allows at most 1024 UTF-8 bytes.",
             (Self::ZhCn, N::InputLimit) => "每个字段最多允许 1024 个 UTF-8 字节。",
             (Self::EnUs, N::SourceUnavailable) => {
-                "Source unavailable. Use a Workspace directory or an attached primary terminal."
+                "Source unavailable. Use a Workspace directory or an attached main terminal."
             }
             (Self::ZhCn, N::SourceUnavailable) => "来源不可用。请使用工作区目录或已连接的主终端。",
             (Self::EnUs, N::ListingUnavailable) => {

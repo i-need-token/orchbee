@@ -21,6 +21,8 @@ pub(crate) struct StatusText {
     pub(crate) detach: &'static str,
     pub(crate) cancel: &'static str,
     pub(crate) restore: &'static str,
+    /// Restores a maximized Panel: the Restore of Maximize / Restore.
+    pub(crate) zoom_restore: &'static str,
     pub(crate) create_tab: &'static str,
     pub(crate) start_agent: &'static str,
     pub(crate) split: &'static str,
@@ -50,13 +52,14 @@ const EN_US: StatusText = StatusText {
     detach: "detach",
     cancel: "cancel",
     restore: "restore",
+    zoom_restore: "restore",
     create_tab: "create Tab",
     start_agent: "start Agent",
     split: "split",
     create_workspace: "new Workspace",
     refresh: "refresh",
     check_again: "check again",
-    take_control: "take control",
+    take_control: "type here",
     retry_rename: "rename again",
     switch_panel: "switch",
 };
@@ -79,13 +82,14 @@ const ZH_CN: StatusText = StatusText {
     detach: "分离",
     cancel: "取消",
     restore: "恢复",
+    zoom_restore: "还原",
     create_tab: "创建标签页",
     start_agent: "启动智能体",
     split: "拆分",
     create_workspace: "新建工作区",
     refresh: "刷新",
     check_again: "再次查询",
-    take_control: "接管",
+    take_control: "在这里输入",
     retry_rename: "再次重命名",
     switch_panel: "切换",
 };
@@ -95,6 +99,22 @@ impl Locale {
         match self {
             Self::EnUs => EN_US,
             Self::ZhCn => ZH_CN,
+        }
+    }
+
+    /// Every connecting status, whatever it waits for.
+    pub(crate) const fn connecting_status(self) -> &'static str {
+        match self {
+            Self::EnUs => "Connecting",
+            Self::ZhCn => "连接中",
+        }
+    }
+
+    /// The one sentence for an action whose result is not known.
+    pub(crate) const fn outcome_unknown(self) -> &'static str {
+        match self {
+            Self::EnUs => "Not sure it finished. Check, then try again.",
+            Self::ZhCn => "不确定是否完成，请先看一下再重试。",
         }
     }
 

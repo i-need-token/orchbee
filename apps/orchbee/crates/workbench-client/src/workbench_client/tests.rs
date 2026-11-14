@@ -341,7 +341,11 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     // A visible first frame suppresses the connection-only footer while its draw
     // acknowledgement is pending; it does not authorize Ready or input yet.
     assert!(
-        !before_feedback.contains(&workbench_client.view().phase_status_text(Locale::EnUs)),
+        !before_feedback
+            .lines()
+            .last()
+            .unwrap_or_default()
+            .contains(&workbench_client.view().phase_status_text(Locale::EnUs)),
         "{before_feedback}"
     );
     assert!(workbench_client.startup_draw_ready());
@@ -1700,7 +1704,7 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
         if !controlling {
             assert!(workbench_client.forward(b"never submitted").is_err());
             assert!(
-                rendered.contains("initial_workspace · Ready · view only"),
+                rendered.contains(&format!("initial_workspace · {}", Locale::EnUs.view_only())),
                 "{rendered}"
             );
         }

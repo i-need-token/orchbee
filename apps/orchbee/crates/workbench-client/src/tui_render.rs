@@ -1491,7 +1491,6 @@ fn render_native_workbench(
             None,
             None,
             None,
-            native.projection_status(),
             None,
         );
         frame.render_widget(
@@ -1645,8 +1644,7 @@ fn render_native_workbench(
                 &pane_titles::PaneTitle {
                     tab,
                     focused: pane_focused && tab.active_panel() == Some(leaf.panel_index),
-                    zoomed_panes: (pane_frame == PaneFrame::Zoomed)
-                        .then_some(tab.drawn_panel_count()),
+                    zoomed: pane_frame == PaneFrame::Zoomed,
                     working_frame: client_view.machines.working_frame(),
                     text,
                     locale,

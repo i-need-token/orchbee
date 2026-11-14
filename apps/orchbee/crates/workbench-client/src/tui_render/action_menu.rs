@@ -1509,7 +1509,7 @@ fn action_label(
 
 /// A key row names the mode its key works in, then the key's own words: `Copy mode · Search …`.
 fn key_row_label(locale: Locale, row: KeyRow, separator: &str) -> String {
-    let describe = locale.shell().prefix_desc;
+    let describe = |desc| (locale.shell().prefix_desc)(desc).unwrap_or_default();
     match row {
         KeyRow::Prefix(desc) => describe(desc).to_owned(),
         KeyRow::Copy(desc) => format!(

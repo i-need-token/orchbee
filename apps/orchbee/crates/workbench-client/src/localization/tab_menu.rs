@@ -78,7 +78,7 @@ impl Locale {
                 (Self::EnUs, Ungroup, S::Group(n)) if n.get() == 1 => "Ungroup, keep 1 Tab".into(),
                 (Self::EnUs, Ungroup, S::Group(n)) => format!("Ungroup, keep {} Tabs", n.get()),
                 (Self::ZhCn, Ungroup, S::Group(n)) => {
-                    format!("解散分组，保留 {} 个标签页", n.get())
+                    format!("取消分组，保留 {} 个标签页", n.get())
                 }
                 _ => self.menu_action(action).to_owned(),
             },

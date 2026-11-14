@@ -1,5 +1,4 @@
 use super::Locale;
-use orchbee_client_server_protocol::RequestId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TakeoverStatus {
@@ -8,40 +7,36 @@ pub(crate) enum TakeoverStatus {
     Unknown,
     Granted,
     WaitingForFrame,
-    Ready,
     Lost,
 }
 
 impl Locale {
-    pub(crate) fn takeover_status(self, status: TakeoverStatus, id: &RequestId) -> String {
-        let text = match (self, status) {
-            (Self::EnUs, TakeoverStatus::Pending) => "Taking control",
-            (Self::ZhCn, TakeoverStatus::Pending) => "正在接管",
-            (Self::EnUs, TakeoverStatus::WaitingForFrame) => {
-                "Control granted · waiting for terminal display"
+    /// A takeover that succeeds says nothing; the window simply types and sizes the terminal.
+    pub(crate) const fn takeover_status(self, status: TakeoverStatus) -> &'static str {
+        match (self, status) {
+            (_, TakeoverStatus::Pending | TakeoverStatus::WaitingForFrame) => {
+                self.connecting_status()
             }
-            (Self::ZhCn, TakeoverStatus::WaitingForFrame) => "已获控制权 · 正在等待终端画面",
-            (Self::EnUs, TakeoverStatus::Ready) => "Control acquired · using this panel's size",
-            (Self::ZhCn, TakeoverStatus::Ready) => "已接管 · 使用本面板尺寸",
-            (Self::EnUs, TakeoverStatus::Refused) => "Control request refused or not submitted",
-            (Self::ZhCn, TakeoverStatus::Refused) => "接管被拒绝或未提交",
-            (Self::EnUs, TakeoverStatus::Unknown) => {
-                "Control outcome unknown · no replay · exit and reconnect"
-            }
-            (Self::ZhCn, TakeoverStatus::Unknown) => "接管结果未知 · 不会重放 · 退出后重新连接",
-            (Self::EnUs, TakeoverStatus::Granted) => {
-                "Control grant received; display synchronization incomplete · exit and reconnect"
-            }
-            (Self::ZhCn, TakeoverStatus::Granted) => {
-                "已收到控制权回执；画面同步未完成 · 退出后重新连接"
-            }
-            (Self::EnUs, TakeoverStatus::Lost) => "Control changed again · view only",
-            (Self::ZhCn, TakeoverStatus::Lost) => "控制权再次变化 · 仅查看",
-        };
-        if matches!(status, TakeoverStatus::Unknown | TakeoverStatus::Granted) {
-            format!("{text} · {id}")
-        } else {
-            text.to_owned()
+            (Self::EnUs, TakeoverStatus::Refused) => "Couldn't type here.",
+            (Self::ZhCn, TakeoverStatus::Refused) => "没能在这里输入。",
+            (_, TakeoverStatus::Unknown | TakeoverStatus::Granted) => self.outcome_unknown(),
+            (_, TakeoverStatus::Lost) => self.another_window_typing(),
+        }
+    }
+
+    /// Another window holds the terminal's input and size.
+    pub(crate) const fn another_window_typing(self) -> &'static str {
+        match self {
+            Self::EnUs => "Another window is typing here.",
+            Self::ZhCn => "另一个窗口正在这里输入。",
+        }
+    }
+
+    /// This window shows the terminal but does not type into it.
+    pub(crate) const fn view_only(self) -> &'static str {
+        match self {
+            Self::EnUs => "View only",
+            Self::ZhCn => "仅查看",
         }
     }
 }

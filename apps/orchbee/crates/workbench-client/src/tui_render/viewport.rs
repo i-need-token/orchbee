@@ -32,14 +32,13 @@ pub(super) fn render_live(
     theme: &Theme,
 ) -> Option<Position> {
     let cursor = terminal_cells::render_live(frame, area, terminal, view, show_cursor, theme);
-    render_live_header(frame, area, terminal, view, occupied_header, locale, theme);
+    render_live_header(frame, area, view, occupied_header, locale, theme);
     cursor
 }
 
 fn render_live_header(
     frame: &mut Frame<'_>,
     area: Rect,
-    terminal: &TerminalTextFrame,
     view: LiveView,
     occupied_header: Option<Rect>,
     locale: Locale,
@@ -63,15 +62,7 @@ fn render_live_header(
     frame
         .buffer_mut()
         .set_style(header, theme.style(Role::SurfaceChrome));
-    let compact = locale.terminal_live_crop_compact();
-    let text = if !terminal.alternate_screen
-        && terminal.interaction.mouse_tracking() == orchbee_terminal_protocol::MouseTracking::None
-        && display_width(compact) <= usize::from(header.width)
-    {
-        compact
-    } else {
-        locale.terminal_live_crop()
-    };
+    let text = locale.terminal_live_crop();
     if display_width(text) <= usize::from(header.width) {
         frame
             .buffer_mut()

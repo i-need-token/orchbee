@@ -62,8 +62,8 @@ impl WorkbenchClientView<'_> {
                 locale.worktree_status_line(notice, view.worktree().map(|v| v.stage())),
             );
         }
-        if let Some((status, id)) = view.takeover_status() {
-            return NativeStatus::fact(locale.takeover_status(status, id));
+        if let Some((status, _)) = view.takeover_status() {
+            return NativeStatus::fact(locale.takeover_status(status).to_owned());
         }
         if let Some(status) = view.workspace_close_status() {
             return NativeStatus::fact(locale.workspace_close_status(status));
@@ -217,7 +217,6 @@ impl WorkbenchClientView<'_> {
             safe_label.as_deref(),
             view.controller(),
             view.selected_provenance(),
-            view.projection_status(),
             view.retirement(),
         )
     }

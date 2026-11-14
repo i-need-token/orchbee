@@ -97,8 +97,8 @@ pub use crate::client_actions::{KeyRow, MenuAction};
 
 pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 
-/// Copy selection leads; Zoom joins only beside another panel; Take control only while another
-/// Client holds the size.
+/// Copy selection leads; Zoom joins only beside another panel; Type here only while another
+/// window holds the size.
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
     MenuAction::CopySelection,
     MenuAction::FindInTerminal,
