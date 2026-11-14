@@ -1328,7 +1328,9 @@ command's own timeout. They skip the Workbench snapshot read entirely. On the si
 admitted Client Connection they resolve the target when necessary as described above,
 then perform one Agent Observation Protocol (OBAP) read exchange; a machine-document `agent get`
 whose get read found the session follows it with the session's Explain exchange under the same
-ceiling, and a failed Explain exchange fails the command with no partial document:
+ceiling; an Explain exchange that gives no explanation leaves `explanation` null as described
+under `orchbee.agent.get`, and any other failed Explain exchange fails the command with no partial
+document:
 
 Apple Silicon macOS development builds currently expose this path for `agent list` without
 `--client`; `get`, `wait`, `changes`, and the Client projection retain their documented
@@ -1772,7 +1774,12 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   `fidelity`, `freshness`, `generation`, `sequence`, `source`, `actionPath`,
   `contentAvailable`) — the Server's derived reading, never a CLI inference — and `detection` is a
   physical terminal Agent's screen-rule evaluation with its [Agent identity](#agent-identity-diagnostics).
-  Text output skips the Explain read and leaves both null.
+  The Explain read only adds to a get that already answered: when it gives no explanation for the
+  target — unavailable (for example a terminal Agent reported under a name outside the provider
+  registry with no detected process has no screen rules), not found, out of time or cut off — its
+  member is null and the get still succeeds. A denial, a refusal, a protocol violation or a
+  cancellation of the Explain read still fails the command. Text output skips the Explain read and
+  leaves both null.
 - `orchbee.agent.wait` → the matched answer:
   `{matchedConditions,revision,session,wait}` where `matchedConditions` is the
   satisfying subset of the effective `until` list in requested order (1–14 unique

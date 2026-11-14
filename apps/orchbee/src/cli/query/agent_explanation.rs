@@ -1,6 +1,7 @@
 //! The Explain reads `agent get --format json` adds after its own read, on the same admitted
 //! Client and under the same deadline: a canonical session's derived explanation, or a terminal
-//! Agent's detection-rule evaluation. Text output skips them.
+//! Agent's detection-rule evaluation. Text output skips them. The read only adds to a get that
+//! already answered, so a read that gives no explanation leaves its member null.
 use super::{
     AgentExchangeError, AgentExplainOutcome, AgentReadExchange, AgentReadOperation,
     AgentReadRequest, AgentReadResult, AgentSessionId, BorrowedFd, Failure, FailureKind, Instant,
@@ -60,13 +61,34 @@ impl AgentReadExchange for GetRead {
     }
 }
 
+/// Keeps a get that already answered when its Explain read gives no explanation for the target:
+/// unavailable, not found, out of time or cut off leaves the member null. A denial, a refusal, a
+/// protocol violation or a cancellation still fails the command.
+fn auxiliary<T>(read: Result<T, Failure>) -> Result<Option<T>, Failure> {
+    match read {
+        Ok(explanation) => Ok(Some(explanation)),
+        Err(failure)
+            if matches!(
+                failure.kind,
+                FailureKind::ServiceUnavailable
+                    | FailureKind::NotFound
+                    | FailureKind::Timeout
+                    | FailureKind::TransportLoss
+            ) =>
+        {
+            Ok(None)
+        }
+        Err(failure) => Err(failure),
+    }
+}
+
 /// The Explain read of one canonical session on an admitted Client.
 pub(in crate::cli) fn session(
     client: &mut LocalClient,
     session_id: &AgentSessionId,
     total: Instant,
     wake: Option<BorrowedFd<'_>>,
-) -> Result<AgentSessionExplanation, Failure> {
+) -> Result<Option<AgentSessionExplanation>, Failure> {
     let request_id = obap_request_id()?;
     let reply = client.submit_agent_read_before_cancellable(
         AgentReadRequest::Explain {
@@ -80,9 +102,16 @@ pub(in crate::cli) fn session(
         .map_err(|failure| failure.failure_schema(crate::cli::schema::AGENT_FAILURE_ID))
 }
 
-/// Only a `found` explanation of the requested session answers; a refusal or another read's
-/// answer fails the command with the Explain operation's failure.
+/// Only a `found` explanation of the requested session answers; an unavailable or missing
+/// session leaves the member null, while a refusal or another read's answer fails the command
+/// with the Explain operation's failure.
 pub(super) fn session_answer(
+    reply: ExplainReply,
+) -> Result<Option<AgentSessionExplanation>, Failure> {
+    auxiliary(session_explanation(reply))
+}
+
+fn session_explanation(
     (request_id, session_id, reply): ExplainReply,
 ) -> Result<AgentSessionExplanation, Failure> {
     let operation = AgentReadOperation::Explain;
@@ -110,8 +139,20 @@ pub(super) fn session_answer(
     }
 }
 
-/// The detection-rule evaluation of one terminal Agent, read under the snapshot's revision.
+/// The detection-rule evaluation of one terminal Agent, read under the snapshot's revision. An
+/// Agent the Server has no detection rules for, such as one reported under a name outside the
+/// provider registry with no detected process, has no evaluation and leaves the member null.
 pub(in crate::cli) fn terminal(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    binding: AgentLaunchBinding,
+    total: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<Option<TerminalAgentExplanation>, Failure> {
+    auxiliary(terminal_explanation(client, snapshot, binding, total, wake))
+}
+
+fn terminal_explanation(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     binding: AgentLaunchBinding,

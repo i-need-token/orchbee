@@ -60,7 +60,8 @@ pub(crate) struct Inspection {
     pub(super) detail: Box<Projection>,
     pub(super) explained: Explained,
 }
-/// What the Explain read added for a machine document; text skips the read.
+/// What the Explain read added for a machine document; text skips the read, and a read that gave
+/// no explanation adds nothing.
 #[derive(Debug, Default)]
 pub(crate) enum Explained {
     #[default]

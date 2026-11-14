@@ -82,15 +82,21 @@ pub(super) fn run(
                 let explained = match detection {
                     Some(binding) => {
                         check(deadline, &mut signals)?;
-                        crate::cli::agent_projection::Explained::Terminal(Box::new(
-                            query::agent_explanation::terminal(
-                                &mut client,
-                                &snapshot,
-                                binding,
-                                deadline,
-                                signals.poll_fd(),
-                            )?,
-                        ))
+                        query::agent_explanation::terminal(
+                            &mut client,
+                            &snapshot,
+                            binding,
+                            deadline,
+                            signals.poll_fd(),
+                        )?
+                        .map_or(
+                            crate::cli::agent_projection::Explained::None,
+                            |detection| {
+                                crate::cli::agent_projection::Explained::Terminal(Box::new(
+                                    detection,
+                                ))
+                            },
+                        )
                     }
                     None => crate::cli::agent_projection::Explained::None,
                 };
@@ -152,9 +158,13 @@ pub(super) fn run(
             .transpose()?;
         let explained = if explain {
             check(deadline, &mut signals)?;
-            crate::cli::agent_projection::Explained::Session(Box::new(
-                query::agent_explanation::session(&mut client, &id, deadline, signals.poll_fd())?,
-            ))
+            query::agent_explanation::session(&mut client, &id, deadline, signals.poll_fd())?
+                .map_or(
+                    crate::cli::agent_projection::Explained::None,
+                    |explanation| {
+                        crate::cli::agent_projection::Explained::Session(Box::new(explanation))
+                    },
+                )
         } else {
             crate::cli::agent_projection::Explained::None
         };

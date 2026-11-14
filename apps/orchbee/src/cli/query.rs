@@ -2473,7 +2473,7 @@ pub(in crate::cli) fn read_agent_list(
 
 /// `agent get`: admission, optional target resolution and the get read share one deadline. A
 /// machine document (`explain`) adds the Explain read of the same session on the same Client
-/// after the get read; a failed Explain read fails the command, with no partial document.
+/// after the get read; an Explain read that gives no explanation leaves `explanation` null.
 pub(crate) fn agent_get(
     target: &crate::invocation::AgentTarget,
     explain: bool,
@@ -2540,6 +2540,7 @@ pub(crate) fn agent_get(
         .map(agent_explanation::session_answer)
         .transpose()
         .map_err(AgentQueryError::Read)?
+        .flatten()
         .map(Box::new);
     Ok((
         source,
