@@ -212,7 +212,7 @@ function curlProgram() {
  * Runs curl anonymously for one address: `{ status }` and the bytes in `output`, or only the status for a probe. The
  * environment is passed on so proxy variables apply; `--disable` skips any curl configuration file.
  */
-function curl(source, url, { probe = false, output, limit }) {
+export function curl(source, url, { probe = false, output, limit }) {
 	const protocol = source.kind === 'loopback' ? '=http' : '=https';
 	const argv = [
 		'--disable',
@@ -281,7 +281,7 @@ function fetchBytes(source, version, name, limit, scratch) {
 }
 
 /** Size and SHA-256 of a file, read in pieces. */
-function fileFacts(filename) {
+export function fileFacts(filename) {
 	const hash = createHash('sha256');
 	const piece = Buffer.alloc(1024 * 1024);
 	const fd = openSync(filename, 'r');

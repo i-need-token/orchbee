@@ -1,0 +1,51 @@
+name: Update check
+
+# Runs once the owner presses Publish release, or by hand with a published tag, and proves on a
+# fresh Windows runner that the version people have now updates to the new release through its own
+# `orchbee update` over HTTPS, reading the release's feed asset. The owner moves the update channel
+# with `pnpm website:release` only after it passes. Every request is an anonymous GET to the public
+# release: no secret, no environment, read-only permissions.
+# Contract: docs/VERIFICATION.md#update-check-workflow; the owner's steps: docs/RELEASING.md.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: A published release tag, such as v0.1.0-beta.2
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-check-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  update-check:
+    name: Update check ${{ github.event.release.tag_name || inputs.tag }}
+    # The one platform the release workflow publishes.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      # A release run checks out the tagged commit, a manual run the chosen branch; either way the
+      # tracked update pair there names the version people have now.
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Update the version people have now to the release
+        run: node scripts/release-smoke-windows.mjs update "$env:RELEASE_TAG" --release "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/" --work "$env:RUNNER_TEMP\update-check"

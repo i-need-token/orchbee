@@ -308,6 +308,37 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
   rebuilt by the tag run, so an installed rehearsal build blocks the published one of the same
   version with `version-conflict`; never install them.
 
+## Update check workflow
+
+`.github/workflows/update-check.yml` proves that a published release can be updated to before the
+owner moves the update channel ([Releasing](RELEASING.md#each-release)). It is never a required
+check.
+
+- Starts: `release: published`, which the owner's Publish release raises, and `workflow_dispatch`
+  with the input `tag`, a published tag such as `v0.1.0-beta.2`. A draft's assets answer 404 to an
+  anonymous request, so no check can run before publication.
+- Needs: `permissions: contents: read`, no secret and no environment; every request is an anonymous
+  HTTPS GET to the public release with the system curl.
+- Does, in one job on a fresh `windows-latest` runner:
+  `node scripts/release-smoke-windows.mjs update <tag> --release <release download folder> --work <runner temp>`.
+  The version people have now is the one the tracked update pair names
+  (`apps/website/public/update/stable/windows-x86_64/` at the checked-out commit: the tag for a
+  release run, the chosen branch for a manual one), whose signature must verify with
+  `RELEASE_KEYS`. Its archive is fetched from the address the pair signs, checked against the
+  signed size and SHA-256, unpacked and installed by its own `install`; then
+  `<store root>\bin\orchbee.exe update` runs with `ORCHBEE_UPDATE_FEED` naming the release's
+  `orchbee-<version>-windows-x86_64.feed.json` asset and must report `activated` with the release's
+  version, after which `active.json` and the launcher's `--version` name it. Without a tracked pair
+  (the first update-capable release), or when the pair already names the release, the release
+  itself is installed from its archive and its `update` fills an empty scratch store through
+  `ORCHBEE_INSTALL_DIR`, which still exercises feed, download, unpacking, publication and activation
+  from GitHub.
+- A failure names the stage that failed and tells the owner not to run `pnpm website:release`.
+  The step installs for real, so run it only on a disposable Windows machine. Its stand-in for a
+  rehearsal on one computer is a test build's stem with `--stem`, a loopback address for
+  `--release` serving the release's assets, and `--current` naming a folder with a test-signed
+  pair; only a test stem admits a loopback address.
+
 ## External-source audits
 
 - A content-addressed native source dependency used by a production build is a declared build input,

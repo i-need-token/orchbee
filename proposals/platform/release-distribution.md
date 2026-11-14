@@ -315,9 +315,11 @@ check` and `release-publish.mjs github` admit it only when it verifies under the
   which `update` reports as `download`. `/update/*` is served with `Cache-Control: no-cache`, so a
   channel move or a withdrawal is seen at once.
 - Order: the tag run drafts the release with all assets; the owner presses Publish release, and
-  only then are the assets public, because a draft's assets answer 404 to an anonymous request; the
-  owner runs `pnpm website:release <version>`, commits, builds, and deploys the website. The
-  channel has moved when the deploy finishes.
+  only then are the assets public, because a draft's assets answer 404 to an anonymous request;
+  publication starts the update check, which on a fresh runner updates the version people have now
+  to the release over HTTPS ([update check workflow](../../docs/VERIFICATION.md#update-check-workflow));
+  once it passes, the owner runs `pnpm website:release <version>`, commits, builds, and deploys the
+  website. The channel has moved when the deploy finishes.
 - `scripts/website-release.mjs` fetches the feed pair and the archive anonymously with the system
   curl, never with `gh`, verifies the signature with `RELEASE_KEYS` before reading the feed, checks
   the feed's version and the archive's size and SHA-256, confirms the installer is public, and

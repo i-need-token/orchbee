@@ -1,7 +1,9 @@
 # Releasing
 
-The owner's steps for the release path of `.github/workflows/release.yml`; what each job does and
-checks is in [Release workflow](VERIFICATION.md#release-workflow), and the names it produces are in
+The owner's steps for the release path of `.github/workflows/release.yml` and the update check of
+`.github/workflows/update-check.yml` after it; what each job does and checks is in
+[Release workflow](VERIFICATION.md#release-workflow) and
+[Update check workflow](VERIFICATION.md#update-check-workflow), and the names it produces are in
 the [release distribution proposal](../proposals/platform/release-distribution.md). Commands run
 from the repository root.
 
@@ -52,21 +54,27 @@ repository>`. Print each public half with the command in
    `SHA256SUMS`, and then publishes `@orchbee/cli-win32-x64` and
    `orchbee` under the dist-tag `next`. Open the draft, write the notes, and press Publish release.
    The npm packages are public as soon as the job ends, before the draft is published.
-6. Move the website to the release once it is published: on `main`, run
+6. Wait for the update check: pressing Publish release starts Actions › Update check for the tag,
+   which on a fresh runner installs the version people have now and updates it to the release
+   through `orchbee update` from the published assets
+   ([Update check workflow](VERIFICATION.md#update-check-workflow)). Go on only when it passes; to
+   run it again, Run workflow with the tag, or
+   `gh workflow run update-check.yml --ref main -f tag=v0.1.0-beta.1`.
+7. Move the website to the release once the update check passed: on `main`, run
    `pnpm website:release 0.1.0-beta.1`, commit the update feed pair under
    `apps/website/public/update/` and `apps/website/src/website/release.ts` it wrote, then build and
    deploy the website as [its README](../apps/website/README.md#static-delivery) says. The command
    needs no credentials; it refuses, writing nothing, while the release is a draft or lacks a file,
    and when the feed signature or the archive does not check out. The update channel has moved
    when the deploy finishes, and the download button names the same version.
-7. Check what clients read, after the deploy and from a computer signed in nowhere: run
+8. Check what clients read, after the deploy and from a computer signed in nowhere: run
    `%SystemRoot%\System32\curl.exe --disable --fail --silent --show-error --output feed.json https://orchbee.com/update/stable/windows-x86_64/feed.json`,
    the same for `feed.json.sig`, and compare both byte for byte with the tracked
    `feed.json.signed` and `feed.json.sig` (`fc.exe /b`). Clients send exactly such a request:
    curl's own user agent, no cookie, no script. A challenge page, a 403 or other bytes make every
    client report `download` or `signature-invalid`, so keep Cloudflare's challenge features (Bot
    Fight Mode, Browser Integrity Check, challenge rules) off for `/update/*`, then check again.
-8. Move `main` to the next version in a new commit, for example
+9. Move `main` to the next version in a new commit, for example
    `node scripts/release-version.mjs set 0.1.0-beta.2`.
 
 ## When a step fails
@@ -99,6 +107,11 @@ repository>`. Print each public half with the command in
 - `pnpm website:release` refusing a published release whose signature or archive does not check
   out means the channel must not move to it: leave the website as it is and release the next
   version.
+- A failed update check means the channel must not move yet: leave the website as it is. Its last
+  lines name the stage that failed. A download that failed for a passing reason, such as a
+  timeout or an answer in the 500s, is cleared by running the check again. Any other failure means
+  the release cannot be updated to: fix the cause on `main` and release the next version; the
+  failed release stays public for people who install it by hand.
 
 ## What clients rely on
 
